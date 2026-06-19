@@ -1,0 +1,7 @@
+builders:
+  widget_catalog:
+    import: "package:pmkit_builder/pmkit_builder.dart"
+    builder_factories: ["pmkitWidgetCatalogBuilder"]
+    auto_apply: root_package
+    build_to: source
+    build_extensions: { "$lib$": ["pmkit_widgets.g.dart"] }

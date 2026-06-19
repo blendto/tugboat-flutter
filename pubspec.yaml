@@ -1,0 +1,22 @@
+name: pmkit_flutter_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.9.2
+
+workspace:
+  - packages/pmkit
+  - packages/pmkit/example
+  - packages/pmkit_builder
+
+dev_dependencies:
+  melos: ^7.8.2
+
+melos:
+  scripts:
+    analyze:
+      run: dart analyze .
+      description: Analyze every package in the workspace.
+    test:
+      run: dart test packages/pmkit_builder/test && flutter test packages/pmkit
+      description: Run all package tests.

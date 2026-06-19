@@ -1,0 +1,1229 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+
+import 'markers.dart';
+
+/// Algorithm version for canonical-tree fingerprinting (denylist, tokenization).
+///
+/// v4: visibility and modal-overlay filtering, fresh per-capture trees,
+/// generated widget names, and expanded actionable-role detection.
+///
+/// v3: fixed `[item]` list-collapse (single token per row), generic-aware
+/// denylist matching + expanded denylist, and the verbose structural path
+/// skeleton moved out of the serialized `*Parts` (hash-only now).
+const int pmkitFingerprintSchemaVersion = 4;
+
+const _canonicalDenylist = <String>{
+  'Padding',
+  'Center',
+  'Align',
+  'SizedBox',
+  'DecoratedBox',
+  'MouseRegion',
+  'Semantics',
+  'DefaultSelectionStyle',
+  'RepaintBoundary',
+  'Builder',
+  'ColoredBox',
+  'ConstrainedBox',
+  'FractionallySizedBox',
+  'LimitedBox',
+  'OverflowBox',
+  'FittedBox',
+  'RotatedBox',
+  'Transform',
+  'ClipRect',
+  'ClipRRect',
+  'ClipOval',
+  'ClipPath',
+  'PhysicalModel',
+  'PhysicalShape',
+  'Opacity',
+  'AnimatedOpacity',
+  'FadeTransition',
+  'IgnorePointer',
+  'AbsorbPointer',
+  'NotificationListener',
+  'Listener',
+  'MergeSemantics',
+  'ExcludeSemantics',
+  'BlockSemantics',
+  'UnconstrainedBox',
+  'Baseline',
+  'IntrinsicHeight',
+  'IntrinsicWidth',
+  'Positioned',
+  'Flexible',
+  'Expanded',
+  'Spacer',
+  'SafeArea',
+  'MediaQuery',
+  'AnimatedBuilder',
+  'LayoutBuilder',
+  'Offstage',
+  'FocusScope',
+  'Focus',
+  'FocusTraversalGroup',
+  'HeroControllerScope',
+  'UnmanagedRestorationScope',
+  'Overlay',
+  'TickerMode',
+  'RestorationScope',
+  'Actions',
+  'PrimaryScrollController',
+  'ListenableBuilder',
+  'PageStorage',
+  'Material',
+  'AnimatedPhysicalModel',
+  'AnimatedDefaultTextStyle',
+  'DefaultTextStyle',
+  'AnimatedTheme',
+  'Theme',
+  'CupertinoTheme',
+  'InheritedCupertinoTheme',
+  'IconTheme',
+  'InkWell',
+  'CustomMultiChildLayout',
+  'LayoutId',
+  'KeyedSubtree',
+  'ScrollNotificationObserver',
+  'CustomPaint',
+  'Navigator',
+  'DualTransitionBuilder',
+  'SnapshotWidget',
+  // Scroll/list plumbing: single-child wrappers that sit between a Scrollable
+  // and the repeating row. Skipping them lets `[item]` land on the real row.
+  'Viewport',
+  'ShrinkWrappingViewport',
+  'AutomaticKeepAlive',
+  'KeepAlive',
+  'IndexedSemantics',
+  // Pure layout containers: ubiquitous and unstable, add no identity signal.
+  'Container',
+  'Stack',
+  'Row',
+  'Column',
+  'Flex',
+  'Wrap',
+  'Flow',
+  'IndexedStack',
+  'ListBody',
+  'Table',
+  // Implicit/explicit animations and transitions.
+  'SlideTransition',
+  'FractionalTranslation',
+  'ScaleTransition',
+  'SizeTransition',
+  'RotationTransition',
+  'PositionedTransition',
+  'RelativePositionedTransition',
+  'AlignTransition',
+  'DecoratedBoxTransition',
+  'AnimatedSlide',
+  'AnimatedContainer',
+  'AnimatedPadding',
+  'AnimatedAlign',
+  'AnimatedPositioned',
+  'AnimatedPositionedDirectional',
+  'AnimatedSize',
+  'AnimatedScale',
+  'AnimatedRotation',
+  'AnimatedFractionallySizedBox',
+  'AnimatedSwitcher',
+  'AnimatedCrossFade',
+  'AnimatedSlideTransition',
+  // State-management providers/builders (generic args stripped before lookup).
+  'BlocProvider',
+  'BlocBuilder',
+  'BlocListener',
+  'BlocConsumer',
+  'BlocSelector',
+  'MultiBlocProvider',
+  'MultiBlocListener',
+  'RepositoryProvider',
+  'MultiRepositoryProvider',
+  'Provider',
+  'MultiProvider',
+  'InheritedProvider',
+  'ChangeNotifierProvider',
+  'ListenableProvider',
+  'ValueListenableProvider',
+  'StreamProvider',
+  'FutureProvider',
+  'ProxyProvider',
+  'Consumer',
+  'Selector',
+  // Async/listenable rebuild wrappers.
+  'ValueListenableBuilder',
+  'FutureBuilder',
+  'StreamBuilder',
+  'TweenAnimationBuilder',
+  'OrientationBuilder',
+  // Navigation/overlay plumbing.
+  'PopScope',
+  'WillPopScope',
+  'Hero',
+  'HeroMode',
+  'CompositedTransformFollower',
+  'CompositedTransformTarget',
+  'TapRegion',
+  'TextFieldTapRegion',
+  'PreferredSize',
+  // Visual effect wrappers.
+  'BackdropFilter',
+  'ShaderMask',
+  'ColorFiltered',
+  'ImageFiltered',
+};
+
+/// Privacy-preserving hash of a label string.
+String pmkitLabelHash(String value) {
+  if (value.isEmpty) return '';
+  return sha256.convert(utf8.encode(value)).toString().substring(0, 16);
+}
+
+String pmkitIconHash(IconData icon) =>
+    pmkitLabelHash('${icon.codePoint}:${icon.fontFamily ?? ''}');
+
+String pmkitIconLabel(IconData icon) => [
+  icon.codePoint,
+  if (icon.fontFamily != null && icon.fontFamily!.isNotEmpty) icon.fontFamily,
+  if (icon.fontPackage != null && icon.fontPackage!.isNotEmpty)
+    icon.fontPackage,
+].join(':');
+
+/// Normalized bounds within the viewport (0–1).
+class PmkitNormalizedBounds {
+  const PmkitNormalizedBounds({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+  });
+
+  final double left;
+  final double top;
+  final double width;
+  final double height;
+
+  factory PmkitNormalizedBounds.fromRect(Rect rect, Size viewport) {
+    if (viewport.width <= 0 || viewport.height <= 0) {
+      return const PmkitNormalizedBounds(left: 0, top: 0, width: 0, height: 0);
+    }
+    return PmkitNormalizedBounds(
+      left: rect.left / viewport.width,
+      top: rect.top / viewport.height,
+      width: rect.width / viewport.width,
+      height: rect.height / viewport.height,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'left': left,
+    'top': top,
+    'width': width,
+    'height': height,
+  };
+
+  factory PmkitNormalizedBounds.fromJson(Map<String, dynamic> json) =>
+      PmkitNormalizedBounds(
+        left: (json['left'] as num).toDouble(),
+        top: (json['top'] as num).toDouble(),
+        width: (json['width'] as num).toDouble(),
+        height: (json['height'] as num).toDouble(),
+      );
+}
+
+/// Compact description of the actionable target under a touch.
+class PmkitTargetAnchor {
+  const PmkitTargetAnchor({
+    this.schemaVersion = 1,
+    this.widgetType,
+    this.role,
+    this.fingerprint,
+    this.fingerprintConfidence,
+    this.tagFingerprint,
+    this.fingerprintParts = const {},
+    this.canonicalPath,
+    this.relativePosition,
+    this.enabled,
+    this.actions = const [],
+  });
+
+  final int schemaVersion;
+  final String? widgetType;
+  final String? role;
+  final String? fingerprint;
+  final String? fingerprintConfidence;
+  final String? tagFingerprint;
+
+  /// Stable fields used to derive [fingerprint]. Dynamic labels are excluded.
+  final Map<String, String> fingerprintParts;
+
+  /// Canonical structural path used to identify this target within its route.
+  final String? canonicalPath;
+  final String? relativePosition;
+  final bool? enabled;
+  final List<String> actions;
+
+  Map<String, Object?> toJson() => {
+    if (schemaVersion != 1) 'schemaVersion': schemaVersion,
+    if (widgetType != null) 'widgetType': widgetType,
+    if (role != null) 'role': role,
+    if (fingerprint != null && fingerprint!.isNotEmpty)
+      'fingerprint': fingerprint,
+    if (fingerprintConfidence != null && fingerprintConfidence!.isNotEmpty)
+      'fingerprintConfidence': fingerprintConfidence,
+    if (tagFingerprint != null && tagFingerprint!.isNotEmpty)
+      'tagFingerprint': tagFingerprint,
+    if (fingerprintParts.isNotEmpty) 'fingerprintParts': fingerprintParts,
+    if (canonicalPath != null && canonicalPath!.isNotEmpty)
+      'canonicalPath': canonicalPath,
+    if (relativePosition != null) 'relativePosition': relativePosition,
+    if (enabled != null) 'enabled': enabled,
+    if (actions.isNotEmpty) 'actions': actions,
+  };
+
+  factory PmkitTargetAnchor.fromJson(Map<String, dynamic> json) =>
+      PmkitTargetAnchor(
+        schemaVersion: json['schemaVersion'] as int? ?? 1,
+        widgetType: json['widgetType'] as String?,
+        role: json['role'] as String?,
+        fingerprint: json['fingerprint'] as String?,
+        fingerprintConfidence: json['fingerprintConfidence'] as String?,
+        tagFingerprint: json['tagFingerprint'] as String?,
+        fingerprintParts: json['fingerprintParts'] == null
+            ? const {}
+            : Map<String, String>.from(json['fingerprintParts'] as Map),
+        canonicalPath: json['canonicalPath'] as String?,
+        relativePosition: json['relativePosition'] as String?,
+        enabled: json['enabled'] as bool?,
+        actions: (json['actions'] as List<dynamic>? ?? [])
+            .cast<String>()
+            .toList(),
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is PmkitTargetAnchor &&
+      schemaVersion == other.schemaVersion &&
+      widgetType == other.widgetType &&
+      role == other.role &&
+      fingerprint == other.fingerprint &&
+      fingerprintConfidence == other.fingerprintConfidence &&
+      tagFingerprint == other.tagFingerprint &&
+      _mapEquals(fingerprintParts, other.fingerprintParts) &&
+      canonicalPath == other.canonicalPath &&
+      relativePosition == other.relativePosition &&
+      enabled == other.enabled &&
+      _listEquals(actions, other.actions);
+
+  @override
+  int get hashCode => Object.hash(
+    schemaVersion,
+    widgetType,
+    role,
+    fingerprint,
+    fingerprintConfidence,
+    tagFingerprint,
+    _stringMapHash(fingerprintParts),
+    canonicalPath,
+    relativePosition,
+    enabled,
+    Object.hashAll(actions),
+  );
+}
+
+/// Compact canonical signature of the current screen state.
+class PmkitStateAnchor {
+  const PmkitStateAnchor({
+    this.schemaVersion = 1,
+    this.actionableSummary = const {},
+    this.keyboardOpen = false,
+    this.modalOpen = false,
+    this.subLabel,
+    this.signature = '',
+    this.signatureConfidence,
+    this.signatureParts = const {},
+  });
+
+  final int schemaVersion;
+  final Map<String, int> actionableSummary;
+  final bool keyboardOpen;
+  final bool modalOpen;
+  final String? subLabel;
+  final String signature;
+  final String? signatureConfidence;
+
+  /// Stable fields used to derive [signature]. Dynamic labels are excluded.
+  final Map<String, String> signatureParts;
+
+  Map<String, Object?> toJson() => {
+    if (schemaVersion != 1) 'schemaVersion': schemaVersion,
+    if (actionableSummary.isNotEmpty) 'actionableSummary': actionableSummary,
+    if (keyboardOpen) 'keyboardOpen': keyboardOpen,
+    if (modalOpen) 'modalOpen': modalOpen,
+    if (subLabel != null && subLabel!.isNotEmpty) 'subLabel': subLabel,
+    if (signature.isNotEmpty) 'signature': signature,
+    if (signatureConfidence != null && signatureConfidence!.isNotEmpty)
+      'signatureConfidence': signatureConfidence,
+    if (signatureParts.isNotEmpty) 'signatureParts': signatureParts,
+  };
+
+  factory PmkitStateAnchor.fromJson(Map<String, dynamic> json) =>
+      PmkitStateAnchor(
+        schemaVersion: json['schemaVersion'] as int? ?? 1,
+        actionableSummary: json['actionableSummary'] == null
+            ? _summaryFromRoles(json['actionableRoles'] as List<dynamic>?)
+            : Map<String, int>.from(json['actionableSummary'] as Map),
+        keyboardOpen: json['keyboardOpen'] as bool? ?? false,
+        modalOpen: json['modalOpen'] as bool? ?? false,
+        subLabel: json['subLabel'] as String?,
+        signature: json['signature'] as String? ?? '',
+        signatureConfidence: json['signatureConfidence'] as String?,
+        signatureParts: json['signatureParts'] == null
+            ? const {}
+            : Map<String, String>.from(json['signatureParts'] as Map),
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is PmkitStateAnchor &&
+      schemaVersion == other.schemaVersion &&
+      keyboardOpen == other.keyboardOpen &&
+      modalOpen == other.modalOpen &&
+      subLabel == other.subLabel &&
+      signature == other.signature &&
+      signatureConfidence == other.signatureConfidence &&
+      _mapEquals(signatureParts, other.signatureParts) &&
+      _mapEquals(actionableSummary, other.actionableSummary);
+
+  @override
+  int get hashCode => Object.hash(
+    schemaVersion,
+    keyboardOpen,
+    modalOpen,
+    subLabel,
+    signature,
+    signatureConfidence,
+    _stringMapHash(signatureParts),
+    Object.hashAll(
+      actionableSummary.entries.map((entry) => '${entry.key}:${entry.value}'),
+    ),
+  );
+}
+
+Map<String, int> _summaryFromRoles(List<dynamic>? roles) {
+  final summary = <String, int>{};
+  if (roles == null) return summary;
+  for (final role in roles.cast<String>()) {
+    summary[role] = (summary[role] ?? 0) + 1;
+  }
+  return summary;
+}
+
+bool _listEquals<T>(List<T> a, List<T> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+String _fingerprintForParts(Map<String, String> parts) {
+  if (parts.isEmpty) return '';
+  final entries = parts.entries.toList()
+    ..sort((a, b) => a.key.compareTo(b.key));
+  return pmkitLabelHash(
+    entries.map((entry) => '${entry.key}=${entry.value}').join('|'),
+  );
+}
+
+String _confidenceFloor(Iterable<String> tiers) {
+  if (tiers.contains('low')) return 'low';
+  if (tiers.contains('medium')) return 'medium';
+  return 'high';
+}
+
+String _routeKeyConfidence(String routeKey) {
+  if (routeKey.startsWith('struct:')) return 'medium';
+  return 'high';
+}
+
+int _stringMapHash(Map<String, String> map) {
+  final entries = map.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+  return Object.hashAll(entries.map((entry) => '${entry.key}:${entry.value}'));
+}
+
+bool _mapEquals<K, V>(Map<K, V> a, Map<K, V> b) {
+  if (a.length != b.length) return false;
+  for (final entry in a.entries) {
+    if (b[entry.key] != entry.value) return false;
+  }
+  return true;
+}
+
+class _TokenMap {
+  _TokenMap({
+    required this.tokens,
+    required this.retainedParents,
+    required this.tagIds,
+    required this.labelAnnotations,
+    required this.hasBareItem,
+    required this.isActionable,
+    required this.structuralRouteSignature,
+    required this.renderElements,
+    required this.hasBlockingOverlay,
+    required this.includedElements,
+    required this.actionableSummary,
+    required this.subLabel,
+  });
+
+  final Map<Element, String> tokens;
+  final Map<Element, Element?> retainedParents;
+  final Map<Element, String> tagIds;
+  final Map<Element, String> labelAnnotations;
+  final Map<Element, bool> hasBareItem;
+  final Map<Element, bool> isActionable;
+  final String structuralRouteSignature;
+  final Map<RenderObject, Element> renderElements;
+  final bool hasBlockingOverlay;
+  final Set<Element> includedElements;
+  final Map<String, int> actionableSummary;
+  final String? subLabel;
+}
+
+class _IncludedElements {
+  const _IncludedElements({
+    this.elements = const {},
+    this.pendingBlocker = false,
+    this.hasBlockingOverlay = false,
+  });
+
+  final Set<Element> elements;
+  final bool pendingBlocker;
+  final bool hasBlockingOverlay;
+}
+
+/// Builds target anchors from hit-test results.
+class AnchorResolver {
+  AnchorResolver({required this.rootKey, this.widgetNames = const {}});
+
+  final GlobalKey rootKey;
+  final Map<Type, String> widgetNames;
+
+  PmkitTargetAnchor? targetAt(Offset globalPosition, {String? route}) {
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+    if (rootRender is! RenderBox || rootContext is! Element) return null;
+
+    final tokenMap = _buildTokenMap(rootContext, rootRender);
+
+    final viewport = rootRender.size;
+    final result = BoxHitTestResult();
+    rootRender.hitTest(result, position: globalPosition);
+
+    PmkitTargetAnchor? fallback;
+    for (final entry in result.path) {
+      if (entry.target is! RenderObject) continue;
+      final element = tokenMap.renderElements[entry.target as RenderObject];
+      if (element == null || _isCaptureChrome(element.widget)) continue;
+
+      final anchor = _anchorForElement(
+        hitElement: element,
+        rootRender: rootRender,
+        viewport: viewport,
+        route: route,
+        tokenMap: tokenMap,
+      );
+      if (anchor.role != null) return anchor;
+      fallback ??= anchor;
+    }
+    return fallback;
+  }
+
+  PmkitTargetAnchor _anchorForElement({
+    required Element hitElement,
+    required RenderBox rootRender,
+    required Size viewport,
+    required String? route,
+    required _TokenMap tokenMap,
+  }) {
+    String? role;
+    bool? enabled;
+    final actions = <String>{};
+    String? widgetType;
+    Element? boundsElement;
+    Element? fingerprintElement;
+
+    void inspectElement(Element element) {
+      final widget = element.widget;
+      final widgetRole = _roleForWidget(widget, actions);
+      if (widgetRole != null) {
+        role ??= widgetRole.$1;
+        enabled ??= widgetRole.$2;
+        boundsElement ??= element;
+        widgetType ??= _widgetName(widget);
+        fingerprintElement ??= element;
+      } else if (widgetType == null && !_isCaptureChrome(widget)) {
+        widgetType = _widgetName(widget);
+      }
+    }
+
+    inspectElement(hitElement);
+    hitElement.visitAncestorElements((ancestor) {
+      inspectElement(ancestor);
+      return true;
+    });
+
+    final anchorElement = boundsElement ?? hitElement;
+
+    Rect? bounds;
+    final render = anchorElement.renderObject;
+    if (render is RenderBox && render.hasSize) {
+      bounds = MatrixUtils.transformRect(
+        render.getTransformTo(rootRender),
+        render.paintBounds,
+      );
+    }
+
+    final relativePosition = _relativePosition(bounds, viewport);
+    final sortedActions = actions.toList()..sort();
+
+    final routeKey = _resolveRouteKey(route, tokenMap);
+    final fpElement = fingerprintElement ?? hitElement;
+    final tagId = _tagIdForElement(fpElement, tokenMap);
+    // The path already carries hashed discriminators (e.g. `[item:a1b2]`), so
+    // it is the sole structural determinant of identity.
+    final path = _pathFor(fpElement, tokenMap);
+
+    // Hash input includes the full structural path. It is the determinant of
+    // identity but far too verbose to ship on every event, so it stays here.
+    final hashParts = <String, String>{'routeKey': routeKey, 'path': path};
+    final fingerprint = _fingerprintForParts(hashParts);
+    final tagFingerprint = tagId == null
+        ? null
+        : _fingerprintForParts({'routeKey': routeKey, 'tag': tagId});
+
+    // Serialized evidence: only the small, human-meaningful fields. The full
+    // path lives in [fingerprint], not on the wire.
+    final fingerprintParts = <String, String>{
+      'schemaVersion': pmkitFingerprintSchemaVersion.toString(),
+      'routeKey': routeKey,
+      if (tagId != null) 'tag': tagId,
+    };
+
+    // A target is well-identified if it (or any retained ancestor, e.g. its
+    // list row) carries a meaningful static discriminator.
+    final hasDiscriminator = _hasInheritedDiscriminator(fpElement, tokenMap);
+    final pathConfidence = hasDiscriminator ? 'medium' : 'low';
+
+    return PmkitTargetAnchor(
+      schemaVersion: pmkitFingerprintSchemaVersion,
+      widgetType: widgetType,
+      role: role,
+      fingerprint: fingerprint.isEmpty ? null : fingerprint,
+      fingerprintConfidence: fingerprint.isEmpty
+          ? null
+          : _confidenceFloor([_routeKeyConfidence(routeKey), pathConfidence]),
+      tagFingerprint: tagFingerprint,
+      fingerprintParts: fingerprintParts,
+      canonicalPath: path,
+      relativePosition: relativePosition,
+      enabled: enabled,
+      actions: sortedActions,
+    );
+  }
+
+  _TokenMap _buildTokenMap(Element rootElement, RenderBox rootRender) {
+    final tokens = <Element, String>{};
+    final retainedParents = <Element, Element?>{};
+    final tagIds = <Element, String>{};
+    final labelAnnotations = <Element, String>{};
+    final hasBareItem = <Element, bool>{};
+    final isActionable = <Element, bool>{};
+    final actionablePaths = <String>{};
+    final ordinalCounters = <Object, int>{};
+    final renderElements = <RenderObject, Element>{};
+    final included = _collectIncludedElements(rootElement);
+    final actionableSummary = <String, int>{};
+    String? subLabel;
+
+    void visit(
+      Element element,
+      Element? retainedParent,
+      bool inList,
+      bool sensitive,
+    ) {
+      final widget = element.widget;
+      if (!included.elements.contains(element)) return;
+      if (_hidesSubtree(widget) || widget is PmkitInternal) return;
+      final isSensitive = sensitive || widget is PmkitSensitive;
+      final renderObject = element.renderObject;
+      if (renderObject != null) renderElements[renderObject] = element;
+      if (widget is PmkitSubView && subLabel == null) {
+        subLabel = widget.label;
+      }
+
+      final retainable = _isRetainable(element, rootRender);
+      final canonical = retainable ? _canonicalType(widget) : null;
+      Element? newRetainedParent = retainedParent;
+      String? token;
+      var bareItem = false;
+
+      if (canonical != null) {
+        if (inList) {
+          // Collapse the row's positional index to `[item]`, but bake any safe
+          // static discriminator into the token so descendants inherit it via
+          // their path (e.g. `[item:a1b2]/ListTile#0`).
+          bareItem = true;
+          final discriminator = _safeStaticDiscriminatorForItem(
+            element,
+            isSensitive,
+          );
+          if (discriminator != null) {
+            token = '[item:$discriminator]';
+            labelAnnotations[element] = discriminator;
+            bareItem = false;
+          } else {
+            token = '[item]';
+          }
+          hasBareItem[element] = bareItem;
+        } else {
+          final counterKey = Object.hash(retainedParent, canonical);
+          final ordinal = ordinalCounters[counterKey] ?? 0;
+          ordinalCounters[counterKey] = ordinal + 1;
+          token = '$canonical#$ordinal';
+
+          // Discriminators are only embedded for list rows (`[item]`) and via
+          // explicit tags. Container nodes are left as bare `Type#ordinal` to
+          // avoid leaking dynamic descendant text into the path.
+          final tagId = _tagIdFromWidget(widget);
+          if (tagId != null) {
+            tagIds[element] = tagId;
+          }
+        }
+
+        tokens[element] = token;
+        retainedParents[element] = retainedParent;
+        newRetainedParent = element;
+      }
+
+      final role = retainable ? _roleForWidget(widget, <String>{}) : null;
+      if (role != null && role.$2 != false) {
+        isActionable[element] = true;
+        actionableSummary[role.$1] = (actionableSummary[role.$1] ?? 0) + 1;
+        if (tokens.containsKey(element)) {
+          actionablePaths.add(_pathForMaps(element, tokens, retainedParents));
+        }
+      }
+
+      // Once we emit an `[item]` token we are inside a single list entry, so
+      // descendants resume normal tokenization (and only a *nested* list
+      // container re-enters list mode). This prevents `[item]/[item]/...` chains.
+      final childInList = token == '[item]'
+          ? false
+          : (inList || _isListContainer(widget));
+      element.debugVisitOnstageChildren((child) {
+        visit(
+          child,
+          newRetainedParent ?? retainedParent,
+          childInList,
+          isSensitive,
+        );
+      });
+    }
+
+    rootElement.debugVisitOnstageChildren(
+      (child) => visit(child, null, false, false),
+    );
+
+    final sortedPaths = actionablePaths.toList()..sort();
+    final structuralRouteSignature = pmkitLabelHash(sortedPaths.join('|'));
+
+    return _TokenMap(
+      tokens: tokens,
+      retainedParents: retainedParents,
+      tagIds: tagIds,
+      labelAnnotations: labelAnnotations,
+      hasBareItem: hasBareItem,
+      isActionable: isActionable,
+      structuralRouteSignature: structuralRouteSignature,
+      renderElements: renderElements,
+      hasBlockingOverlay: included.hasBlockingOverlay,
+      includedElements: included.elements,
+      actionableSummary: actionableSummary,
+      subLabel: subLabel,
+    );
+  }
+
+  _IncludedElements _collectIncludedElements(Element root) {
+    _IncludedElements collect(Element element) {
+      final widget = element.widget;
+      final renderObject = element.renderObject;
+      if (_hidesSubtree(widget) || widget is PmkitInternal) {
+        return const _IncludedElements();
+      }
+      if (renderObject is RenderOffstage && renderObject.offstage) {
+        return const _IncludedElements();
+      }
+      if (renderObject is RenderOpacity && renderObject.opacity == 0) {
+        return const _IncludedElements();
+      }
+      if (renderObject is RenderAnimatedOpacity &&
+          renderObject.opacity.value == 0) {
+        return const _IncludedElements();
+      }
+      if (renderObject is RenderExcludeSemantics && renderObject.excluding) {
+        return const _IncludedElements();
+      }
+
+      final elements = <Element>{element};
+      var pendingBlocker =
+          renderObject is RenderBlockSemantics && renderObject.blocking;
+      var hasBlockingOverlay = false;
+      element.visitChildElements((child) {
+        final childResult = collect(child);
+        if (childResult.pendingBlocker && _isOverlayLevel(element)) {
+          elements
+            ..clear()
+            ..add(element);
+          pendingBlocker = false;
+          hasBlockingOverlay = true;
+        }
+        elements.addAll(childResult.elements);
+        pendingBlocker = pendingBlocker || childResult.pendingBlocker;
+        hasBlockingOverlay =
+            hasBlockingOverlay || childResult.hasBlockingOverlay;
+      });
+      return _IncludedElements(
+        elements: elements,
+        pendingBlocker: pendingBlocker,
+        hasBlockingOverlay: hasBlockingOverlay,
+      );
+    }
+
+    return collect(root);
+  }
+
+  bool _isOverlayLevel(Element element) {
+    var found = false;
+    element.visitAncestorElements((ancestor) {
+      if (ancestor is StatefulElement && ancestor.state is OverlayState) {
+        found = true;
+      }
+      return false;
+    });
+    return found;
+  }
+
+  bool _isRetainable(Element element, RenderBox rootRender) {
+    final renderObject = element.renderObject;
+    if (renderObject is! RenderBox ||
+        !renderObject.attached ||
+        !renderObject.hasSize ||
+        renderObject.size.isEmpty) {
+      return false;
+    }
+    try {
+      final bounds = MatrixUtils.transformRect(
+        renderObject.getTransformTo(rootRender),
+        renderObject.paintBounds,
+      );
+      return bounds.width > 0 &&
+          bounds.height > 0 &&
+          bounds.overlaps(rootRender.paintBounds);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String _pathFor(Element element, _TokenMap tokenMap) =>
+      _pathForMaps(element, tokenMap.tokens, tokenMap.retainedParents);
+
+  /// Whether [element] or any of its retained ancestors carries a meaningful
+  /// static discriminator (a row label such as `Pro`, or a labelled control).
+  bool _hasInheritedDiscriminator(Element element, _TokenMap tokenMap) {
+    Element? current = element;
+    while (current != null) {
+      if (tokenMap.labelAnnotations[current] != null) return true;
+      current = tokenMap.retainedParents[current];
+    }
+    return false;
+  }
+
+  String _pathForMaps(
+    Element element,
+    Map<Element, String> tokens,
+    Map<Element, Element?> retainedParents,
+  ) {
+    final parts = <String>[];
+    Element? current = element;
+    while (current != null) {
+      final token = tokens[current];
+      if (token != null) parts.add(token);
+      current = retainedParents[current];
+    }
+    return parts.reversed.join('/');
+  }
+
+  String? _tagIdFromWidget(Widget widget) {
+    if (widget is PmkitTag) return widget.id;
+    final key = widget.key;
+    if (key is ValueKey<String>) return key.value;
+    return null;
+  }
+
+  String? _tagIdForElement(Element element, _TokenMap tokenMap) {
+    var current = element;
+    while (true) {
+      final tag = tokenMap.tagIds[current];
+      if (tag != null) return tag;
+      final widgetTag = _tagIdFromWidget(current.widget);
+      if (widgetTag != null) return widgetTag;
+      Element? parent;
+      current.visitAncestorElements((ancestor) {
+        parent = ancestor;
+        return false;
+      });
+      if (parent == null) break;
+      current = parent!;
+    }
+    return null;
+  }
+
+  String _resolveRouteKey(String? route, _TokenMap tokenMap) {
+    if (route != null && route.isNotEmpty && !_isAnonymousRouteName(route)) {
+      return route;
+    }
+    return 'struct:${tokenMap.structuralRouteSignature}';
+  }
+
+  bool _isAnonymousRouteName(String route) {
+    if (route.startsWith('_')) return true;
+    const anonymousFragments = [
+      'PageRoute',
+      'ModalRoute',
+      'CupertinoPageRoute',
+      'MaterialPageRoute',
+      'DialogRoute',
+      'PopupRoute',
+    ];
+    return anonymousFragments.any(route.contains);
+  }
+
+  String? _safeStaticDiscriminatorForItem(Element element, bool sensitive) {
+    if (sensitive) return null;
+
+    String? label;
+    void visit(Element node, bool nodeSensitive) {
+      if (label != null) return;
+      final nodeWidget = node.widget;
+      if (_hidesSubtree(nodeWidget) || nodeWidget is PmkitInternal) return;
+      final isNodeSensitive = nodeSensitive || nodeWidget is PmkitSensitive;
+      if (isNodeSensitive) return;
+
+      if (nodeWidget is Text) {
+        final data = nodeWidget.data ?? nodeWidget.textSpan?.toPlainText();
+        if (data != null && _isSafeStaticLabel(data)) {
+          label = data;
+          return;
+        }
+      }
+      if (nodeWidget is Icon && nodeWidget.icon != null) {
+        label = pmkitIconLabel(nodeWidget.icon!);
+        return;
+      }
+      node.debugVisitOnstageChildren((child) => visit(child, isNodeSensitive));
+    }
+
+    visit(element, sensitive);
+    return label == null ? null : pmkitLabelHash(label!);
+  }
+
+  bool _isSafeStaticLabel(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed.length > 24) return false;
+    if (trimmed.contains('\n')) return false;
+    if (RegExp(r'\d').hasMatch(trimmed)) return false;
+    if (_hasDynamicMarkers(trimmed)) return false;
+    if (_isNumericHeavy(trimmed)) return false;
+    return true;
+  }
+
+  bool _hasDynamicMarkers(String value) {
+    final lower = value.toLowerCase();
+    if (value.contains('@')) return true;
+    if (lower.contains('http://') || lower.contains('https://')) return true;
+    if (RegExp(
+      r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+      caseSensitive: false,
+    ).hasMatch(value)) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _isNumericHeavy(String value) {
+    final digits = RegExp(r'\d').allMatches(value).length;
+    if (digits == 0) return false;
+    if (digits / value.length > 0.5) return true;
+    if (RegExp(r'\d{1,3}([.,]\d{3})+').hasMatch(value)) return true;
+    if (RegExp(r'\d+[/\-]\d+').hasMatch(value)) return true;
+    return false;
+  }
+
+  String? _canonicalType(Widget widget) {
+    if (_isCaptureChrome(widget)) return null;
+    if (widget is PmkitInternal || widget is PmkitTag) return null;
+    var type = _widgetName(widget);
+    // Collapse generic arguments so `BlocProvider<AuthBloc>` and
+    // `BlocBuilder<BillingBloc, BillingState>` match their base denylist name.
+    final generic = type.indexOf('<');
+    if (generic != -1) type = type.substring(0, generic);
+    if (type.startsWith('_')) return null;
+    // All Sliver* widgets are scroll plumbing; the meaningful unit is the row.
+    if (type.startsWith('Sliver')) return null;
+    if (_canonicalDenylist.contains(type)) return null;
+    return type;
+  }
+
+  String _widgetName(Widget widget) =>
+      widgetNames[widget.runtimeType] ?? widget.runtimeType.toString();
+
+  bool _isListContainer(Widget widget) {
+    // Only the Scrollable primitive (which ListView/GridView/PageView all build)
+    // arms list mode, so we don't double-trigger and treat the inner Scrollable
+    // itself as an `[item]`. Bare slivers are covered for Scrollable-less cases.
+    if (widget is Scrollable) return true;
+    final type = widget.runtimeType.toString();
+    return type.startsWith('Sliver');
+  }
+
+  (String, bool?)? _roleForWidget(Widget widget, Set<String> actions) {
+    if (widget is ButtonStyleButton) {
+      if (widget.onPressed != null) actions.add('tap');
+      return ('button', widget.onPressed != null);
+    }
+    if (widget is IconButton) {
+      if (widget.onPressed != null) actions.add('tap');
+      return ('button', widget.onPressed != null);
+    }
+    if (widget is CupertinoButton) {
+      if (widget.onPressed != null) actions.add('tap');
+      return ('button', widget.onPressed != null);
+    }
+    if (widget is MaterialButton) {
+      if (widget.onPressed != null) actions.add('tap');
+      return ('button', widget.onPressed != null);
+    }
+    if (widget is FloatingActionButton) {
+      if (widget.onPressed != null) actions.add('tap');
+      return ('button', widget.onPressed != null);
+    }
+    if (widget is PopupMenuButton) {
+      if (widget.enabled) actions.add('tap');
+      return ('button', widget.enabled);
+    }
+    if (widget is PopupMenuItem) {
+      if (widget.enabled) actions.add('tap');
+      return ('button', widget.enabled);
+    }
+    if (widget is ExpansionTile) {
+      if (widget.enabled) actions.add('tap');
+      return ('button', widget.enabled);
+    }
+    if (widget is InkWell) {
+      if (widget.onTap != null) actions.add('tap');
+      return ('button', widget.onTap != null);
+    }
+    if (widget is InkResponse) {
+      if (widget.onTap != null) actions.add('tap');
+      return ('button', widget.onTap != null);
+    }
+    if (widget is ListTile &&
+        (widget.onTap != null || widget.onLongPress != null)) {
+      if (widget.enabled && widget.onTap != null) {
+        actions.add('tap');
+      }
+      if (widget.enabled && widget.onLongPress != null) {
+        actions.add('longPress');
+      }
+      return ('button', widget.enabled);
+    }
+    if (widget is GestureDetector) {
+      if (widget.onTap != null) actions.add('tap');
+      if (widget.onDoubleTap != null) actions.add('doubleTap');
+      if (widget.onLongPress != null) actions.add('longPress');
+      if (actions.isNotEmpty) return ('button', true);
+    }
+    if (widget is InputChip ||
+        widget is ActionChip ||
+        widget is FilterChip ||
+        widget is ChoiceChip) {
+      final enabled = switch (widget) {
+        InputChip w => w.onPressed != null || w.onSelected != null,
+        ActionChip w => w.onPressed != null,
+        FilterChip w => w.onSelected != null,
+        ChoiceChip w => w.onSelected != null,
+        _ => false,
+      };
+      if (enabled) actions.add('tap');
+      return ('button', enabled);
+    }
+    if (widget is Scrollable) {
+      actions.add('scroll');
+      return ('scrollable', null);
+    }
+    if (widget is Checkbox) {
+      if (widget.onChanged != null) actions.add('tap');
+      return ('checkbox', widget.onChanged != null);
+    }
+    if (widget is CheckboxListTile) {
+      if (widget.onChanged != null) actions.add('tap');
+      return ('checkbox', widget.onChanged != null);
+    }
+    if (widget is Switch) {
+      if (widget.onChanged != null) actions.add('tap');
+      return ('switch', widget.onChanged != null);
+    }
+    if (widget is CupertinoSwitch) {
+      if (widget.onChanged != null) actions.add('tap');
+      return ('switch', widget.onChanged != null);
+    }
+    if (widget is SwitchListTile) {
+      if (widget.onChanged != null) actions.add('tap');
+      return ('switch', widget.onChanged != null);
+    }
+    if (widget is Radio || widget is RadioListTile) {
+      final enabled = switch (widget) {
+        // ignore: deprecated_member_use
+        Radio w => w.onChanged != null,
+        // ignore: deprecated_member_use
+        RadioListTile w => w.onChanged != null,
+        _ => false,
+      };
+      if (enabled) actions.add('tap');
+      return ('radio', enabled);
+    }
+    if (widget is Slider ||
+        widget is RangeSlider ||
+        widget is CupertinoSlider) {
+      final enabled = switch (widget) {
+        Slider w => w.onChanged != null,
+        RangeSlider w => w.onChanged != null,
+        CupertinoSlider w => w.onChanged != null,
+        _ => false,
+      };
+      if (enabled) actions.add('slide');
+      return ('slider', enabled);
+    }
+    if (widget is DropdownButton) {
+      final enabled = widget.onChanged != null;
+      if (enabled) actions.add('tap');
+      return ('dropdown', enabled);
+    }
+    if (widget is EditableText ||
+        widget is TextField ||
+        widget is TextFormField) {
+      final enabled = switch (widget) {
+        TextField w => w.enabled ?? true,
+        TextFormField w => w.enabled,
+        EditableText w => !w.readOnly,
+        _ => true,
+      };
+      if (enabled) actions.add('input');
+      return ('textField', enabled);
+    }
+    return null;
+  }
+
+  bool _isCaptureChrome(Widget widget) {
+    return widget is RepaintBoundary ||
+        widget is NotificationListener ||
+        widget is Listener ||
+        widget is IgnorePointer ||
+        widget is AbsorbPointer ||
+        widget is Semantics;
+  }
+
+  PmkitStateAnchor buildStateAnchor({
+    required String? route,
+    required bool keyboardOpen,
+    required bool modalOpen,
+  }) {
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+    if (rootContext is! Element || rootRender is! RenderBox) {
+      return PmkitStateAnchor(keyboardOpen: keyboardOpen, modalOpen: modalOpen);
+    }
+
+    final tokenMap = _buildTokenMap(rootContext, rootRender);
+
+    final routeKey = _resolveRouteKey(route, tokenMap);
+    final sortedPaths =
+        tokenMap.isActionable.keys
+            .where(tokenMap.tokens.containsKey)
+            .map((element) => _pathFor(element, tokenMap))
+            .toSet()
+            .toList()
+          ..sort();
+    final actionableSummary = tokenMap.actionableSummary;
+    final subLabel = tokenMap.subLabel;
+    // Hash input carries the full actionable-path skeleton (the determinant of
+    // state identity); it is intentionally kept off the wire.
+    final effectiveModalOpen = modalOpen || tokenMap.hasBlockingOverlay;
+    final hashParts = <String, String>{
+      'routeKey': routeKey,
+      'actionablePaths': sortedPaths.join('|'),
+      if (keyboardOpen) 'keyboardOpen': 'true',
+      if (effectiveModalOpen) 'modalOpen': 'true',
+      if (subLabel != null && subLabel.isNotEmpty) 'subLabel': subLabel,
+    };
+    final signature = _fingerprintForParts(hashParts);
+
+    // Serialized evidence: compact descriptors only, never the skeleton.
+    final signatureParts = <String, String>{
+      'schemaVersion': pmkitFingerprintSchemaVersion.toString(),
+      'routeKey': routeKey,
+      if (keyboardOpen) 'keyboardOpen': 'true',
+      if (effectiveModalOpen) 'modalOpen': 'true',
+      if (subLabel != null && subLabel.isNotEmpty) 'subLabel': subLabel,
+    };
+
+    final pathConfidence = sortedPaths.isNotEmpty ? 'medium' : 'low';
+
+    return PmkitStateAnchor(
+      schemaVersion: pmkitFingerprintSchemaVersion,
+      actionableSummary: actionableSummary,
+      keyboardOpen: keyboardOpen,
+      modalOpen: effectiveModalOpen,
+      subLabel: subLabel,
+      signature: signature,
+      signatureConfidence: _confidenceFloor([
+        _routeKeyConfidence(routeKey),
+        pathConfidence,
+      ]),
+      signatureParts: signatureParts,
+    );
+  }
+
+  String? _relativePosition(Rect? bounds, Size viewport) {
+    if (bounds == null || viewport.height <= 0) return null;
+    final centerY = bounds.center.dy / viewport.height;
+    if (centerY < 0.33) return 'top';
+    if (centerY > 0.66) return 'bottom';
+    return 'center';
+  }
+
+  bool _hidesSubtree(Widget widget) {
+    if (widget is Offstage) return widget.offstage;
+    if (widget is Visibility) return !widget.visible;
+    if (widget is Opacity) return widget.opacity == 0;
+    return false;
+  }
+}
