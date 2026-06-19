@@ -1,0 +1,74 @@
+# Tugboat Flutter SDK
+
+Screenshot-based session replay for Tugboat. The SDK captures masked screenshot
+checkpoints around meaningful interactions, plus compact interaction anchors
+(hit-test target, state signature, and route transitions), then streams the raw evidence to the
+Tugboat collector.
+
+This follows the Tugboat ideation architecture: visual evidence frames +
+lightweight interaction telemetry, not widget-tree scene reconstruction.
+
+## Usage
+
+```dart
+MaterialApp(
+  navigatorObservers: [TugboatReplay.navigatorObserver],
+  builder: (context, child) => TugboatReplay.wrapApp(
+    child: child!,
+    config: const TugboatReplayConfig(),
+  ),
+);
+```
+
+Use `TugboatSensitive` when a subtree must always be masked in screenshots:
+
+```dart
+TugboatSensitive(
+  child: Text('Do not show in replay'),
+)
+```
+
+Masking defaults follow the capture profile: `exploration` masks only explicit
+`TugboatSensitive` subtrees, while `productionLean` masks all text, editable
+fields, and images. Override this with `TugboatReplayConfig.screenshotMaskLevel`.
+
+## Optional widget catalog
+
+`tugboat_builder` can preserve public source-level widget names in canonical paths,
+including in obfuscated builds. Add `tugboat_builder` and `build_runner` as dev
+dependencies, run `dart run build_runner build`, then pass the generated map:
+
+```dart
+import 'tugboat_widgets.g.dart';
+
+TugboatReplay.wrapApp(
+  config: const TugboatReplayConfig(widgetNames: tugboatWidgetNames),
+  child: child,
+)
+```
+
+The generator is optional. Without it, Tugboat continues to use runtime type
+names. Exploration and production must use the same catalog configuration for
+their fingerprints to match.
+
+## Capture model
+
+- **Evidence plane:** PNG screenshots at checkpoints (initial, before/after tap,
+  optional scroll samples, route changes), deduplicated by content hash and
+  perceptual hash
+- **Interaction plane:** tap events with target and state anchors, route changes
+  in event `data`, and `beforeFrame` / `afterFrame` references. Text,
+  accessibility, tooltip, and icon labels are not retained in telemetry.
+- **Settle delay:** default 1s after taps and route transitions before capture
+- **Profiles:** `dormant` (default, zero overhead until `TugboatReplay.activate`),
+  `exploration`, `productionLean`
+- **Fingerprint schema:** v4 uses fresh visibility-aware trees, filters blocked
+  modal routes, and supports generated widget names. Schema-v3 evidence remains
+  readable but must not be joined directly with v4 fingerprints.
+
+## Current limits
+
+- Platform views, maps, and native overlays are not captured faithfully
+- Screenshot capture can cause brief UI-thread work at checkpoints
+- Sessions remain in memory and are streamed to the configured collector
+- The host app must install the wrapper and navigator observer

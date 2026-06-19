@@ -1,0 +1,792 @@
+import 'dart:async';
+
+import 'package:flutter/widgets.dart';
+
+import 'anchors.dart';
+import 'capture_profile.dart';
+import 'exploration_transport.dart';
+import 'models.dart';
+import 'screenshot_capturer.dart';
+import 'screenshot_mask_level.dart';
+
+class TugboatReplayConfig {
+  const TugboatReplayConfig({
+    this.profile = TugboatCaptureProfile.dormant,
+    this.settleDelay = const Duration(seconds: 1),
+    this.maxFrames = 500,
+    this.maxEvents = 5000,
+    this.scrollCaptureInterval = const Duration(seconds: 2),
+    this.captureScrollSamples = false,
+    this.capturePixelRatio = 0.75,
+    this.enableGlobalPointerCapture = true,
+    this.explorationCollectorUrl,
+    this.explorationRunId,
+    this.screenshotMaskLevel,
+    this.widgetNames = const {},
+  });
+
+  final TugboatCaptureProfile profile;
+  final Duration settleDelay;
+  final int maxFrames;
+  final int maxEvents;
+  final Duration scrollCaptureInterval;
+  final bool captureScrollSamples;
+  final double capturePixelRatio;
+  final bool enableGlobalPointerCapture;
+  final String? explorationCollectorUrl;
+  final String? explorationRunId;
+  final TugboatScreenshotMaskLevel? screenshotMaskLevel;
+  final Map<Type, String> widgetNames;
+
+  TugboatScreenshotMaskLevel get effectiveScreenshotMaskLevel =>
+      screenshotMaskLevel ??
+      switch (profile) {
+        TugboatCaptureProfile.productionLean =>
+          TugboatScreenshotMaskLevel.allTextAndMedia,
+        TugboatCaptureProfile.dormant || TugboatCaptureProfile.exploration =>
+          TugboatScreenshotMaskLevel.explicitOnly,
+      };
+
+  TugboatReplayConfig copyWith({
+    TugboatCaptureProfile? profile,
+    Duration? settleDelay,
+    int? maxFrames,
+    int? maxEvents,
+    Duration? scrollCaptureInterval,
+    bool? captureScrollSamples,
+    double? capturePixelRatio,
+    bool? enableGlobalPointerCapture,
+    String? explorationCollectorUrl,
+    String? explorationRunId,
+    TugboatScreenshotMaskLevel? screenshotMaskLevel,
+    Map<Type, String>? widgetNames,
+  }) {
+    return TugboatReplayConfig(
+      profile: profile ?? this.profile,
+      settleDelay: settleDelay ?? this.settleDelay,
+      maxFrames: maxFrames ?? this.maxFrames,
+      maxEvents: maxEvents ?? this.maxEvents,
+      scrollCaptureInterval:
+          scrollCaptureInterval ?? this.scrollCaptureInterval,
+      captureScrollSamples: captureScrollSamples ?? this.captureScrollSamples,
+      capturePixelRatio: capturePixelRatio ?? this.capturePixelRatio,
+      enableGlobalPointerCapture:
+          enableGlobalPointerCapture ?? this.enableGlobalPointerCapture,
+      explorationCollectorUrl:
+          explorationCollectorUrl ?? this.explorationCollectorUrl,
+      explorationRunId: explorationRunId ?? this.explorationRunId,
+      screenshotMaskLevel: screenshotMaskLevel ?? this.screenshotMaskLevel,
+      widgetNames: widgetNames ?? this.widgetNames,
+    );
+  }
+}
+
+class _ScheduledCapture {
+  _ScheduledCapture({
+    required this.trigger,
+    required this.force,
+    required this.notBefore,
+  });
+
+  TugboatFrameTrigger trigger;
+  bool force;
+  DateTime notBefore;
+  final List<Completer<String?>> waiters = [];
+
+  void absorb(_ScheduledCapture other) {
+    if (_triggerPriority(other.trigger) >= _triggerPriority(trigger)) {
+      trigger = other.trigger;
+    }
+    force = force || other.force;
+    if (other.notBefore.isAfter(notBefore)) {
+      notBefore = other.notBefore;
+    }
+    waiters.addAll(other.waiters);
+  }
+
+  static int _triggerPriority(TugboatFrameTrigger trigger) {
+    switch (trigger) {
+      case TugboatFrameTrigger.manual:
+        return 6;
+      case TugboatFrameTrigger.route:
+        return 5;
+      case TugboatFrameTrigger.lifecycle:
+        return 4;
+      case TugboatFrameTrigger.tap:
+        return 3;
+      case TugboatFrameTrigger.scroll:
+        return 2;
+      case TugboatFrameTrigger.initial:
+        return 1;
+    }
+  }
+}
+
+class TugboatReplayController extends ChangeNotifier {
+  TugboatReplayController({required this.config, required GlobalKey boundaryKey})
+    : _boundaryKey = boundaryKey;
+
+  final TugboatReplayConfig config;
+  final GlobalKey _boundaryKey;
+
+  final Stopwatch _clock = Stopwatch();
+  Future<void> _queue = Future.value();
+
+  TugboatSession? _session;
+  ScreenshotCapturer? _capturer;
+  AnchorResolver? _anchorResolver;
+  TugboatExplorationTransport? _explorationTransport;
+  String? _activeExplorationRunId;
+  String? _activeActionId;
+
+  int _id = 0;
+  String? _currentRoute;
+  TugboatStateAnchor? _currentStateAnchor;
+  String? _latestFrameId;
+  String? _pendingTapEventId;
+  TugboatTargetAnchor? _pendingTapTargetAnchor;
+  final Map<String, String> _hashToFrameId = {};
+
+  bool _disposed = false;
+  bool _capturePaused = false;
+  bool _captureInFlight = false;
+  bool _capturePumpScheduled = false;
+  bool _scrolling = false;
+  bool _skipCapture = false;
+  bool _routeCapturePending = false;
+  int? _scrollStartedAt;
+  double? _scrollStartOffset;
+  DateTime? _lastScrollCaptureAt;
+  String? _activeScrollBeforeFrame;
+  String? _lastCapturedStateSignature;
+  String? _lastDHash;
+
+  _ScheduledCapture? _scheduledCapture;
+
+  BuildContext? navigatorContext;
+
+  TugboatSession? get session => _session;
+  bool get recording => _session != null;
+  bool get scrolling => _scrolling;
+  bool get capturePaused => _capturePaused;
+  int get atMs => _clock.elapsedMilliseconds;
+  String? get currentRoute => _currentRoute;
+  TugboatStateAnchor? get currentStateAnchor => _currentStateAnchor;
+  String? get latestFrameId => _latestFrameId;
+
+  GlobalKey get boundaryKey => _boundaryKey;
+
+  Future<void> initialize() async {
+    _capturer = ScreenshotCapturer(
+      boundaryKey: _boundaryKey,
+      pixelRatio: config.capturePixelRatio,
+      maskLevel: config.effectiveScreenshotMaskLevel,
+    );
+    _anchorResolver = AnchorResolver(
+      rootKey: _boundaryKey,
+      widgetNames: config.widgetNames,
+    );
+    final collectorUrl = config.explorationCollectorUrl;
+    if (collectorUrl != null) {
+      _explorationTransport = TugboatExplorationTransport(
+        url: collectorUrl,
+        runId: config.explorationRunId,
+        onControl: handleExplorationControl,
+      );
+      unawaited(_explorationTransport!.connect());
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _session = null;
+    _scheduledCapture = null;
+    _explorationTransport?.dispose();
+    super.dispose();
+  }
+
+  void setCapturePaused(bool paused) {
+    _capturePaused = paused;
+  }
+
+  void start(Size viewport, String platform) {
+    _clock
+      ..reset()
+      ..start();
+    _session = TugboatSession(
+      id: 'session-${DateTime.now().microsecondsSinceEpoch}',
+      startedAt: DateTime.now(),
+      platform: platform,
+      viewport: TugboatRect(0, 0, viewport.width, viewport.height),
+    );
+    _currentRoute = null;
+    _currentStateAnchor = null;
+    _latestFrameId = null;
+    _pendingTapEventId = null;
+    _pendingTapTargetAnchor = null;
+    _hashToFrameId.clear();
+    _lastCapturedStateSignature = null;
+    _lastDHash = null;
+    notifyListeners();
+    _explorationTransport?.sendSession(_session!);
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'session_start',
+        stateAnchor: _refreshStateAnchor(),
+      ),
+    );
+    unawaited(
+      _requestCapture(
+        trigger: TugboatFrameTrigger.initial,
+        settleDelay: Duration.zero,
+      ),
+    );
+  }
+
+  void clear() {
+    final current = _session;
+    if (current == null) return;
+    start(
+      Size(current.viewport.width, current.viewport.height),
+      current.platform,
+    );
+  }
+
+  TugboatStateAnchor? _refreshStateAnchor() {
+    final resolver = _anchorResolver;
+    if (resolver == null) return _currentStateAnchor;
+    final keyboardOpen = _isKeyboardOpen();
+    final modalOpen = _isModalOpen();
+    _currentStateAnchor = resolver.buildStateAnchor(
+      route: _currentRoute,
+      keyboardOpen: keyboardOpen,
+      modalOpen: modalOpen,
+    );
+    return _currentStateAnchor;
+  }
+
+  bool _isKeyboardOpen() {
+    final context = _boundaryKey.currentContext;
+    if (context == null) return false;
+    return MediaQuery.viewInsetsOf(context).bottom > 0;
+  }
+
+  bool _isModalOpen() {
+    final context = navigatorContext ?? _boundaryKey.currentContext;
+    if (context == null) return false;
+    return ModalRoute.of(context)?.isCurrent == false;
+  }
+
+  Future<String?> _requestCapture({
+    required TugboatFrameTrigger trigger,
+    bool force = false,
+    Duration? settleDelay,
+  }) {
+    if (_disposed || _capturePaused || _skipCapture) {
+      return Future<String?>.value(_latestFrameId);
+    }
+
+    final delay = settleDelay ?? config.settleDelay;
+    final notBefore = DateTime.now().add(delay);
+    final completer = Completer<String?>();
+    final incoming = _ScheduledCapture(
+      trigger: trigger,
+      force: force,
+      notBefore: notBefore,
+    )..waiters.add(completer);
+
+    final scheduled = _scheduledCapture;
+    if (scheduled == null) {
+      _scheduledCapture = incoming;
+    } else {
+      scheduled.absorb(incoming);
+    }
+
+    _ensureCapturePumpScheduled();
+    return completer.future;
+  }
+
+  void _ensureCapturePumpScheduled() {
+    if (_capturePumpScheduled) return;
+    _capturePumpScheduled = true;
+    scheduleMicrotask(_pumpCaptureScheduler);
+  }
+
+  Future<void> _pumpCaptureScheduler() async {
+    _capturePumpScheduled = false;
+    while (!_disposed && _scheduledCapture != null) {
+      final scheduled = _scheduledCapture!;
+      final wait = scheduled.notBefore.difference(DateTime.now());
+      if (wait > Duration.zero) {
+        await Future<void>.delayed(wait);
+      }
+      if (_disposed) break;
+
+      if (!identical(scheduled, _scheduledCapture)) {
+        continue;
+      }
+
+      if (_captureInFlight) {
+        await _waitForCaptureIdle();
+        continue;
+      }
+
+      _scheduledCapture = null;
+      final frameId = await _executeCapture(
+        trigger: scheduled.trigger,
+        force: scheduled.force,
+      );
+      for (final waiter in scheduled.waiters) {
+        if (!waiter.isCompleted) {
+          waiter.complete(frameId);
+        }
+      }
+    }
+  }
+
+  Future<void> _waitForCaptureIdle() async {
+    while (_captureInFlight && !_disposed) {
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+    }
+  }
+
+  Future<String?> _executeCapture({
+    required TugboatFrameTrigger trigger,
+    bool force = false,
+  }) async {
+    if (_disposed || _capturePaused || _skipCapture || _captureInFlight) {
+      return _latestFrameId;
+    }
+    final session = _session;
+    final capturer = _capturer;
+    if (session == null || capturer == null) return _latestFrameId;
+
+    await capturer.waitForFrameBudget();
+    if (_disposed || _capturePaused || _skipCapture) return _latestFrameId;
+    _refreshStateAnchor();
+    final signature = _currentStateAnchor?.signature ?? '';
+    if (!force &&
+        trigger != TugboatFrameTrigger.initial &&
+        signature.isNotEmpty &&
+        signature == _lastCapturedStateSignature) {
+      return _latestFrameId;
+    }
+
+    _captureInFlight = true;
+    try {
+      final result = await capturer.capture(
+        lastDHash: _lastDHash,
+        force: force,
+        waitForFrame: false,
+      );
+      if (result == null || _disposed) return _latestFrameId;
+      final activeSession = _session;
+      if (activeSession == null) return _latestFrameId;
+
+      if (result.skippedByDHash) {
+        _lastDHash = result.dHash;
+        return _latestFrameId;
+      }
+
+      final existingId = _hashToFrameId[result.contentHash];
+      if (!force && existingId != null) {
+        _latestFrameId = existingId;
+        _lastDHash = result.dHash;
+        if (signature.isNotEmpty) {
+          _lastCapturedStateSignature = signature;
+        }
+        return existingId;
+      }
+
+      final frameId = _nextId('frame');
+      final frame = TugboatFrame(
+        id: frameId,
+        atMs: atMs,
+        width: result.width,
+        height: result.height,
+        contentHash: result.contentHash,
+        masked: result.masked,
+        trigger: trigger,
+        byteLength: result.bytes.length,
+        captureMicros: result.captureMicros + result.encodeMicros,
+      );
+      activeSession.frames.add(frame);
+      activeSession.frameBytes[frameId] = result.bytes;
+      _hashToFrameId[result.contentHash] = frameId;
+      _latestFrameId = frameId;
+      _lastDHash = result.dHash;
+      if (signature.isNotEmpty) {
+        _lastCapturedStateSignature = signature;
+      }
+      _explorationTransport?.sendFrame(
+        frame,
+        result.bytes,
+        sessionId: activeSession.id,
+        actionId: _activeActionId,
+      );
+      _trim();
+      notifyListeners();
+      return frameId;
+    } finally {
+      _captureInFlight = false;
+      if (_scheduledCapture != null) {
+        _ensureCapturePumpScheduled();
+      }
+    }
+  }
+
+  void recordPointerDown(Offset position) {
+    final resolver = _anchorResolver;
+    final target = resolver?.targetAt(position, route: _currentRoute);
+    final beforeFrame = _latestFrameId;
+    final eventId = _nextId('event');
+    _pendingTapEventId = eventId;
+    _pendingTapTargetAnchor = target;
+    _addEvent(
+      TugboatEvent(
+        id: eventId,
+        atMs: atMs,
+        type: 'tap',
+        stateAnchor: _currentStateAnchor,
+        targetAnchor: target,
+        beforeFrame: beforeFrame,
+        data: {'x': position.dx, 'y': position.dy},
+      ),
+    );
+    notifyListeners();
+  }
+
+  void recordPointerUp(Offset position) {
+    _queue = _queue.then((_) async {
+      if (_disposed) return;
+      final beforeState = _currentStateAnchor;
+      final beforeFrame = _latestFrameId;
+      final tapEventId = _pendingTapEventId;
+      final tapTargetAnchor = _pendingTapTargetAnchor;
+      _pendingTapEventId = null;
+      _pendingTapTargetAnchor = null;
+
+      final String? afterFrame;
+      if (_routeCapturePending) {
+        afterFrame = _latestFrameId;
+      } else {
+        _refreshStateAnchor();
+        afterFrame = await _requestCapture(trigger: TugboatFrameTrigger.tap);
+      }
+      final afterState = _currentStateAnchor;
+
+      TugboatInteractionResult result = TugboatInteractionResult.unknown;
+      if (afterFrame != null && afterFrame == beforeFrame) {
+        result = TugboatInteractionResult.noVisibleChange;
+      } else if (beforeState == afterState && beforeFrame == afterFrame) {
+        result = TugboatInteractionResult.noVisibleChange;
+      } else if (afterFrame != beforeFrame) {
+        result = TugboatInteractionResult.changed;
+      }
+
+      _addEvent(
+        TugboatEvent(
+          id: _nextId('event'),
+          atMs: atMs,
+          type: 'tap_settled',
+          stateAnchor: afterState,
+          targetAnchor: tapTargetAnchor,
+          beforeFrame: beforeFrame,
+          afterFrame: afterFrame,
+          result: result,
+          relatedEventId: tapEventId,
+          data: {'x': position.dx, 'y': position.dy},
+        ),
+      );
+      _maybeEmitStateChange(
+        beforeState: beforeState,
+        afterState: afterState,
+        beforeFrame: beforeFrame,
+        afterFrame: afterFrame,
+      );
+      notifyListeners();
+    });
+  }
+
+  void onScrollActivityChanged({required bool active}) {
+    _scrolling = active;
+    if (active) {
+      _scrollStartedAt = atMs;
+      _activeScrollBeforeFrame = _latestFrameId;
+    }
+  }
+
+  void recordScrollStart(double offset) {
+    _scrolling = true;
+    _scrollStartedAt = atMs;
+    _scrollStartOffset = offset;
+    _activeScrollBeforeFrame = _latestFrameId;
+    _lastScrollCaptureAt = DateTime.now();
+    final session = _session;
+    if (session != null) {
+      session.scrollSamples.add(
+        TugboatScrollSample(
+          atMs: atMs,
+          offset: offset,
+          beforeFrame: _activeScrollBeforeFrame,
+        ),
+      );
+      _trimScrollSamples();
+    }
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'scroll_start',
+        stateAnchor: _currentStateAnchor,
+        beforeFrame: _latestFrameId,
+        data: {'offset': offset},
+      ),
+    );
+    notifyListeners();
+  }
+
+  void recordScrollSample(double offset) {
+    final session = _session;
+    if (session == null || _capturePaused || !_scrolling) return;
+    if (!config.captureScrollSamples) return;
+    final now = DateTime.now();
+    if (_lastScrollCaptureAt != null &&
+        now.difference(_lastScrollCaptureAt!) < config.scrollCaptureInterval) {
+      return;
+    }
+    _lastScrollCaptureAt = now;
+    session.scrollSamples.add(
+      TugboatScrollSample(
+        atMs: atMs,
+        offset: offset,
+        beforeFrame: _activeScrollBeforeFrame,
+      ),
+    );
+    _trimScrollSamples();
+    unawaited(_requestCapture(trigger: TugboatFrameTrigger.scroll));
+  }
+
+  void recordScrollEnd(double offset) {
+    _scrolling = false;
+    _queue = _queue.then((_) async {
+      final afterFrame = await _requestCapture(
+        trigger: TugboatFrameTrigger.scroll,
+      );
+      if (_session != null && _session!.scrollSamples.isNotEmpty) {
+        final last = _session!.scrollSamples.last;
+        _session!.scrollSamples[_session!.scrollSamples.length -
+            1] = TugboatScrollSample(
+          atMs: last.atMs,
+          offset: last.offset,
+          beforeFrame: last.beforeFrame,
+          afterFrame: afterFrame,
+        );
+      }
+      _addEvent(
+        TugboatEvent(
+          id: _nextId('event'),
+          atMs: atMs,
+          type: 'scroll_end',
+          stateAnchor: _refreshStateAnchor(),
+          beforeFrame: _activeScrollBeforeFrame,
+          afterFrame: afterFrame,
+          data: {
+            'startOffset': _scrollStartOffset,
+            'endOffset': offset,
+            'durationMs': _scrollStartedAt == null
+                ? null
+                : atMs - _scrollStartedAt!,
+          },
+        ),
+      );
+      _scrollStartedAt = null;
+      _scrollStartOffset = null;
+      _activeScrollBeforeFrame = null;
+      notifyListeners();
+    });
+  }
+
+  Future<void> route(String type, Route<dynamic>? route) {
+    final routeName = route?.settings.name ?? route?.runtimeType.toString();
+    final transitionDuration = route is TransitionRoute<dynamic>
+        ? route.transitionDuration
+        : Duration.zero;
+
+    final updatesRoute =
+        type == 'route_push' ||
+        type == 'route_replace' ||
+        (type == 'route_pop' && route != null) ||
+        (type == 'route_remove' && route != null);
+
+    final previousRoute = _currentRoute;
+    final destinationRoute = updatesRoute ? routeName : _currentRoute;
+    if (type == 'route_push' || type == 'route_replace') {
+      _currentRoute = routeName;
+    } else if ((type == 'route_pop' || type == 'route_remove') &&
+        route != null) {
+      _currentRoute = routeName;
+    }
+
+    _routeCapturePending = true;
+    _skipCapture = transitionDuration > Duration.zero;
+    _queue = _queue.then((_) async {
+      try {
+        await Future<void>.delayed(transitionDuration + config.settleDelay);
+        _skipCapture = false;
+        if (_disposed) return;
+        if (updatesRoute) {
+          if (type == 'route_push' || type == 'route_replace') {
+            _currentRoute = routeName;
+          } else if (route != null) {
+            _currentRoute = routeName;
+          }
+        }
+        final isStackCleanupOnly =
+            type == 'route_remove' &&
+            previousRoute != null &&
+            destinationRoute != null &&
+            previousRoute == destinationRoute;
+        if (isStackCleanupOnly) {
+          return;
+        }
+        _refreshStateAnchor();
+        final afterFrame = await _requestCapture(
+          trigger: TugboatFrameTrigger.route,
+          force: true,
+        );
+        _addEvent(
+          TugboatEvent(
+            id: _nextId('event'),
+            atMs: atMs,
+            type: 'route_change',
+            stateAnchor: _currentStateAnchor,
+            afterFrame: afterFrame,
+            result: TugboatInteractionResult.navigated,
+            data: {
+              if (previousRoute != null) 'fromRoute': previousRoute,
+              if (destinationRoute != null) 'route': destinationRoute,
+              'navigation': type,
+            },
+          ),
+        );
+        notifyListeners();
+      } finally {
+        _routeCapturePending = false;
+      }
+    });
+    return _queue;
+  }
+
+  void _maybeEmitStateChange({
+    required TugboatStateAnchor? beforeState,
+    required TugboatStateAnchor? afterState,
+    required String? beforeFrame,
+    required String? afterFrame,
+  }) {
+    final beforeSignature = beforeState?.signature ?? '';
+    final afterSignature = afterState?.signature ?? '';
+    if (beforeSignature.isEmpty || afterSignature.isEmpty) return;
+    if (beforeSignature == afterSignature) return;
+
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'state_change',
+        stateAnchor: afterState,
+        beforeFrame: beforeFrame,
+        afterFrame: afterFrame,
+        result: TugboatInteractionResult.changed,
+        data: {
+          if (afterState?.subLabel != null) 'subLabel': afterState!.subLabel,
+        },
+      ),
+    );
+  }
+
+  void _addEvent(TugboatEvent event) {
+    final session = _session;
+    if (session == null) return;
+    final enriched = event.withExplorationContext(
+      sessionId: session.id,
+      explorationRunId: _activeExplorationRunId ?? config.explorationRunId,
+      actionId: _activeActionId,
+    );
+    session.events.add(enriched);
+    _explorationTransport?.sendEvent(enriched);
+    _trim();
+  }
+
+  void setExplorationActionWindow({
+    required String explorationRunId,
+    required String actionId,
+  }) {
+    _activeExplorationRunId = explorationRunId;
+    _activeActionId = actionId;
+  }
+
+  void clearExplorationActionWindow() {
+    _activeActionId = null;
+  }
+
+  void handleExplorationControl(Map<String, dynamic> message) {
+    final type = message['type'] as String?;
+    switch (type) {
+      case 'set_action_window':
+        final runId = message['explorationRunId'] as String?;
+        final actionId = message['actionId'] as String?;
+        if (runId != null && actionId != null) {
+          setExplorationActionWindow(
+            explorationRunId: runId,
+            actionId: actionId,
+          );
+          _explorationTransport?.acknowledge(type!, actionId: actionId);
+        }
+      case 'clear_action_window':
+        clearExplorationActionWindow();
+        _explorationTransport?.acknowledge(
+          type!,
+          actionId: message['actionId'] as String?,
+        );
+      case 'pause_capture':
+        setCapturePaused(true);
+        _explorationTransport?.acknowledge(type!);
+      case 'resume_capture':
+        setCapturePaused(false);
+        _explorationTransport?.acknowledge(type!);
+      default:
+        break;
+    }
+  }
+
+  void _trim() {
+    final session = _session;
+    if (session == null) return;
+    while (session.events.length > config.maxEvents) {
+      session.events.removeAt(0);
+      session.truncated = true;
+    }
+    while (session.frames.length > config.maxFrames) {
+      final removed = session.frames.removeAt(0);
+      session.frameBytes.remove(removed.id);
+      _hashToFrameId.remove(removed.contentHash);
+      session.truncated = true;
+    }
+  }
+
+  void _trimScrollSamples() {
+    const maxScrollSamples = 200;
+    final session = _session;
+    if (session == null) return;
+    while (session.scrollSamples.length > maxScrollSamples) {
+      session.scrollSamples.removeAt(0);
+      session.truncated = true;
+    }
+  }
+
+  String _nextId(String prefix) => '$prefix-${_id++}';
+}

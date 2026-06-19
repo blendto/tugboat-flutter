@@ -1,0 +1,22 @@
+name: tugboat_flutter_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.9.2
+
+workspace:
+  - packages/tugboat
+  - packages/tugboat/example
+  - packages/tugboat_builder
+
+dev_dependencies:
+  melos: ^7.8.2
+
+melos:
+  scripts:
+    analyze:
+      run: dart analyze .
+      description: Analyze every package in the workspace.
+    test:
+      run: dart test packages/tugboat_builder/test && flutter test packages/tugboat
+      description: Run all package tests.
