@@ -14,9 +14,21 @@ dev_dependencies:
 
 melos:
   scripts:
+    format:
+      run: dart format .
+      description: Format Dart source across the workspace.
     analyze:
       run: dart analyze .
       description: Analyze every package in the workspace.
     test:
       run: dart test packages/tugboat_builder/test && flutter test packages/tugboat
       description: Run all package tests.
+    test:builder:
+      run: dart test packages/tugboat_builder/test
+      description: Run the widget catalog builder tests.
+    test:sdk:
+      run: flutter test packages/tugboat
+      description: Run the Flutter SDK tests.
+    generate:example:
+      run: cd packages/tugboat/example && dart run build_runner build --delete-conflicting-outputs
+      description: Regenerate the example application's widget catalog.
