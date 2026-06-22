@@ -32,6 +32,16 @@ Masking defaults follow the capture profile: `exploration` masks only explicit
 `PmkitSensitive` subtrees, while `productionLean` masks all text, editable
 fields, and images. Override this with `PmkitReplayConfig.screenshotMaskLevel`.
 
+## Collector integration
+
+The SDK can stream capture output to:
+
+- the local CLI exploration collector over WebSocket
+- the standalone HTTP collector (`pmkit-collector`) with batched REST ingestion
+
+See [docs/collector-integration.md](docs/collector-integration.md) for setup
+details, including the default event batch size of `10`.
+
 ## Optional widget catalog
 
 `pmkit_builder` can preserve public source-level widget names in canonical paths,

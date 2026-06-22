@@ -9,6 +9,7 @@ export 'src/anchors.dart'
         pmkitIconHash,
         pmkitLabelHash;
 export 'src/capture_profile.dart' show PmkitCaptureProfile;
+export 'src/collector_config.dart';
 export 'src/controller.dart' show PmkitReplayConfig, PmkitReplayController;
 export 'src/exploration_transport.dart' show PmkitExplorationTransport;
 export 'src/models.dart';

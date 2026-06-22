@@ -4,7 +4,10 @@ import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
 import 'capture_profile.dart';
-import 'exploration_transport.dart';
+import 'capture_sink.dart';
+import 'collector_config.dart';
+import 'collector_http_sink.dart';
+import 'exploration_sink.dart';
 import 'models.dart';
 import 'screenshot_capturer.dart';
 import 'screenshot_mask_level.dart';
@@ -21,6 +24,7 @@ class PmkitReplayConfig {
     this.enableGlobalPointerCapture = true,
     this.explorationCollectorUrl,
     this.explorationRunId,
+    this.collector,
     this.screenshotMaskLevel,
     this.widgetNames = const {},
   });
@@ -35,6 +39,7 @@ class PmkitReplayConfig {
   final bool enableGlobalPointerCapture;
   final String? explorationCollectorUrl;
   final String? explorationRunId;
+  final PmkitCollectorConfig? collector;
   final PmkitScreenshotMaskLevel? screenshotMaskLevel;
   final Map<Type, String> widgetNames;
 
@@ -58,6 +63,7 @@ class PmkitReplayConfig {
     bool? enableGlobalPointerCapture,
     String? explorationCollectorUrl,
     String? explorationRunId,
+    PmkitCollectorConfig? collector,
     PmkitScreenshotMaskLevel? screenshotMaskLevel,
     Map<Type, String>? widgetNames,
   }) {
@@ -75,6 +81,7 @@ class PmkitReplayConfig {
       explorationCollectorUrl:
           explorationCollectorUrl ?? this.explorationCollectorUrl,
       explorationRunId: explorationRunId ?? this.explorationRunId,
+      collector: collector ?? this.collector,
       screenshotMaskLevel: screenshotMaskLevel ?? this.screenshotMaskLevel,
       widgetNames: widgetNames ?? this.widgetNames,
     );
@@ -135,7 +142,9 @@ class PmkitReplayController extends ChangeNotifier {
   PmkitSession? _session;
   ScreenshotCapturer? _capturer;
   AnchorResolver? _anchorResolver;
-  PmkitExplorationTransport? _explorationTransport;
+  PmkitCaptureSinkHub? _sinkHub;
+  ExplorationCaptureSink? _explorationSink;
+  CollectorHttpSink? _collectorHttpSink;
   String? _activeExplorationRunId;
   String? _activeActionId;
 
@@ -186,23 +195,40 @@ class PmkitReplayController extends ChangeNotifier {
       rootKey: _boundaryKey,
       widgetNames: config.widgetNames,
     );
+    final sinks = <PmkitCaptureSink>[];
     final collectorUrl = config.explorationCollectorUrl;
     if (collectorUrl != null) {
-      _explorationTransport = PmkitExplorationTransport(
+      _explorationSink = ExplorationCaptureSink(
         url: collectorUrl,
         runId: config.explorationRunId,
         onControl: handleExplorationControl,
       );
-      unawaited(_explorationTransport!.connect());
+      sinks.add(_explorationSink!);
+      unawaited(_explorationSink!.connect());
+    }
+    final collectorConfig = config.collector;
+    if (collectorConfig != null) {
+      _collectorHttpSink = CollectorHttpSink(config: collectorConfig);
+      sinks.add(_collectorHttpSink!);
+    }
+    if (sinks.isNotEmpty) {
+      _sinkHub = PmkitCaptureSinkHub(sinks);
     }
   }
 
   @override
   void dispose() {
     _disposed = true;
+    final hub = _sinkHub;
+    _sinkHub = null;
     _session = null;
     _scheduledCapture = null;
-    _explorationTransport?.dispose();
+    if (hub != null) {
+      unawaited(hub.endSession());
+      hub.dispose();
+    }
+    _explorationSink = null;
+    _collectorHttpSink = null;
     super.dispose();
   }
 
@@ -228,8 +254,8 @@ class PmkitReplayController extends ChangeNotifier {
     _hashToFrameId.clear();
     _lastCapturedStateSignature = null;
     _lastDHash = null;
-    notifyListeners();
-    _explorationTransport?.sendSession(_session!);
+    if (!_disposed) notifyListeners();
+    _sinkHub?.startSession(_session!);
     _addEvent(
       PmkitEvent(
         id: _nextId('event'),
@@ -421,14 +447,14 @@ class PmkitReplayController extends ChangeNotifier {
       if (signature.isNotEmpty) {
         _lastCapturedStateSignature = signature;
       }
-      _explorationTransport?.sendFrame(
+      _sinkHub?.recordFrame(
         frame,
         result.bytes,
         sessionId: activeSession.id,
         actionId: _activeActionId,
       );
       _trim();
-      notifyListeners();
+      if (!_disposed) notifyListeners();
       return frameId;
     } finally {
       _captureInFlight = false;
@@ -456,7 +482,7 @@ class PmkitReplayController extends ChangeNotifier {
         data: {'x': position.dx, 'y': position.dy},
       ),
     );
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   void recordPointerUp(Offset position) {
@@ -507,7 +533,7 @@ class PmkitReplayController extends ChangeNotifier {
         beforeFrame: beforeFrame,
         afterFrame: afterFrame,
       );
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     });
   }
 
@@ -546,7 +572,7 @@ class PmkitReplayController extends ChangeNotifier {
         data: {'offset': offset},
       ),
     );
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   void recordScrollSample(double offset) {
@@ -606,7 +632,7 @@ class PmkitReplayController extends ChangeNotifier {
       _scrollStartedAt = null;
       _scrollStartOffset = null;
       _activeScrollBeforeFrame = null;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     });
   }
 
@@ -673,7 +699,7 @@ class PmkitReplayController extends ChangeNotifier {
             },
           ),
         );
-        notifyListeners();
+        if (!_disposed) notifyListeners();
       } finally {
         _routeCapturePending = false;
       }
@@ -717,7 +743,7 @@ class PmkitReplayController extends ChangeNotifier {
       actionId: _activeActionId,
     );
     session.events.add(enriched);
-    _explorationTransport?.sendEvent(enriched);
+    _sinkHub?.recordEvent(enriched);
     _trim();
   }
 
@@ -744,20 +770,20 @@ class PmkitReplayController extends ChangeNotifier {
             explorationRunId: runId,
             actionId: actionId,
           );
-          _explorationTransport?.acknowledge(type!, actionId: actionId);
+          _explorationSink?.transport.acknowledge(type!, actionId: actionId);
         }
       case 'clear_action_window':
         clearExplorationActionWindow();
-        _explorationTransport?.acknowledge(
+        _explorationSink?.transport.acknowledge(
           type!,
           actionId: message['actionId'] as String?,
         );
       case 'pause_capture':
         setCapturePaused(true);
-        _explorationTransport?.acknowledge(type!);
+        _explorationSink?.transport.acknowledge(type!);
       case 'resume_capture':
         setCapturePaused(false);
-        _explorationTransport?.acknowledge(type!);
+        _explorationSink?.transport.acknowledge(type!);
       default:
         break;
     }
