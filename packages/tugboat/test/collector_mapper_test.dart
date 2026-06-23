@@ -79,6 +79,8 @@ void main() {
       (mapped['targetAnchor'] as Map)['fingerprint'],
       '9eadb7c56ae836bc',
     );
+    expect(mapped['actionId'], 'A-1');
+    expect(mapped['explorationRunId'], 'run-1');
     expect((mapped['payload'] as Map)['x'], 100);
     expect((mapped['payload'] as Map)['actionId'], 'A-1');
     expect((mapped['payload'] as Map)['explorationRunId'], 'run-1');
@@ -99,6 +101,8 @@ void main() {
     expect((mapped['device'] as Map)['platform'], 'ios');
     expect((mapped['ipInfo'] as Map)['ip'], '127.0.0.1');
     expect((mapped['locale'] as Map)['language'], 'en');
+    expect(mapped['platform'], 'ios');
+    expect(mapped['fingerprintSchemaVersion'], tugboatFingerprintSchemaVersion);
   });
 
   test('extracts frame numbers from tugboat frame ids', () {

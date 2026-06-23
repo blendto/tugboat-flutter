@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'anchors.dart';
 import 'models.dart';
 
 typedef TugboatExplorationControlHandler =
@@ -57,6 +58,8 @@ class TugboatExplorationTransport {
     _sendJson({
       'type': 'session',
       if (runId != null) 'explorationRunId': runId,
+      'fingerprintSchemaVersion': tugboatFingerprintSchemaVersion,
+      'platform': session.platform,
       'payload': session.toJson()['session'],
     });
   }

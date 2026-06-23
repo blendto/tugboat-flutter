@@ -1,3 +1,4 @@
+import 'anchors.dart';
 import 'collector_config.dart';
 import 'models.dart';
 
@@ -24,6 +25,9 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
     'sessionId': sessionId,
     'userId': userId,
     'eventType': event.type,
+    if (event.explorationRunId != null)
+      'explorationRunId': event.explorationRunId,
+    if (event.actionId != null) 'actionId': event.actionId,
     if (event.beforeFrame != null) 'beforeFrame': event.beforeFrame,
     if (event.afterFrame != null) 'afterFrame': event.afterFrame,
     'stateAnchor': event.stateAnchor?.toJson() ?? <String, Object?>{},
@@ -45,6 +49,8 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
     'userId': userId ?? config.userId,
     'eventType': eventType,
     'triggeredAt': triggeredAt.toUtc().toIso8601String(),
+    'platform': config.deviceInfo.platform,
+    'fingerprintSchemaVersion': tugboatFingerprintSchemaVersion,
     'appInfo': config.appInfo.toJson(),
     'device': config.deviceInfo.toJson(),
     'ipInfo': config.ipInfo.toJson(),

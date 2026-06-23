@@ -338,6 +338,56 @@ class TugboatTargetAnchor {
   );
 }
 
+/// Actionable control emitted in a screen inventory snapshot.
+class TugboatControlInventoryItem {
+  const TugboatControlInventoryItem({
+    required this.fingerprint,
+    this.role,
+    this.widgetType,
+    this.label,
+    this.x,
+    this.y,
+    this.enabled = true,
+    this.canonicalPath,
+    this.fingerprintConfidence,
+  });
+
+  final String fingerprint;
+  final String? role;
+  final String? widgetType;
+  final String? label;
+  final double? x;
+  final double? y;
+  final bool enabled;
+  final String? canonicalPath;
+  final String? fingerprintConfidence;
+
+  Map<String, Object?> toJson() => {
+    'fingerprint': fingerprint,
+    if (role != null) 'role': role,
+    if (widgetType != null) 'widgetType': widgetType,
+    if (label != null && label!.isNotEmpty) 'label': label,
+    if (x != null) 'x': x,
+    if (y != null) 'y': y,
+    'enabled': enabled,
+    if (canonicalPath != null) 'canonicalPath': canonicalPath,
+    if (fingerprintConfidence != null) 'fingerprintConfidence': fingerprintConfidence,
+  };
+
+  factory TugboatControlInventoryItem.fromJson(Map<String, dynamic> json) =>
+      TugboatControlInventoryItem(
+        fingerprint: json['fingerprint'] as String,
+        role: json['role'] as String?,
+        widgetType: json['widgetType'] as String?,
+        label: json['label'] as String?,
+        x: (json['x'] as num?)?.toDouble(),
+        y: (json['y'] as num?)?.toDouble(),
+        enabled: json['enabled'] as bool? ?? true,
+        canonicalPath: json['canonicalPath'] as String?,
+        fingerprintConfidence: json['fingerprintConfidence'] as String?,
+      );
+}
+
 /// Compact canonical signature of the current screen state.
 class TugboatStateAnchor {
   const TugboatStateAnchor({
@@ -1149,6 +1199,63 @@ class AnchorResolver {
         widget is IgnorePointer ||
         widget is AbsorbPointer ||
         widget is Semantics;
+  }
+
+  List<TugboatControlInventoryItem> buildControlInventory({
+    required String? route,
+    required bool keyboardOpen,
+    required bool modalOpen,
+  }) {
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+    if (rootContext is! Element || rootRender is! RenderBox) return const [];
+
+    final tokenMap = _buildTokenMap(rootContext, rootRender);
+    final viewport = rootRender.size;
+    final items = <TugboatControlInventoryItem>[];
+
+    for (final element in tokenMap.isActionable.keys) {
+      if (tokenMap.isActionable[element] != true) continue;
+      if (!tokenMap.tokens.containsKey(element)) continue;
+      final anchor = _anchorForElement(
+        hitElement: element,
+        rootRender: rootRender,
+        viewport: viewport,
+        route: route,
+        tokenMap: tokenMap,
+      );
+      final fingerprint = anchor.fingerprint;
+      if (fingerprint == null || fingerprint.isEmpty) continue;
+
+      Rect? bounds;
+      final render = element.renderObject;
+      if (render is RenderBox && render.hasSize) {
+        bounds = MatrixUtils.transformRect(
+          render.getTransformTo(rootRender),
+          render.paintBounds,
+        );
+      }
+
+      items.add(
+        TugboatControlInventoryItem(
+          fingerprint: fingerprint,
+          role: anchor.role,
+          widgetType: anchor.widgetType,
+          x: bounds == null || viewport.width <= 0
+              ? null
+              : bounds.center.dx / viewport.width,
+          y: bounds == null || viewport.height <= 0
+              ? null
+              : bounds.center.dy / viewport.height,
+          enabled: anchor.enabled ?? true,
+          canonicalPath: anchor.canonicalPath,
+          fingerprintConfidence: anchor.fingerprintConfidence,
+        ),
+      );
+    }
+
+    items.sort((left, right) => left.fingerprint.compareTo(right.fingerprint));
+    return items;
   }
 
   TugboatStateAnchor buildStateAnchor({
