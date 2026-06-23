@@ -151,6 +151,7 @@ class PmkitReplayController extends ChangeNotifier {
   int _id = 0;
   String? _currentRoute;
   PmkitStateAnchor? _currentStateAnchor;
+  String? _lastControlInventorySignature;
   String? _latestFrameId;
   String? _pendingTapEventId;
   PmkitTargetAnchor? _pendingTapTargetAnchor;
@@ -291,7 +292,38 @@ class PmkitReplayController extends ChangeNotifier {
       keyboardOpen: keyboardOpen,
       modalOpen: modalOpen,
     );
+    _maybeEmitControlInventory(
+      keyboardOpen: keyboardOpen,
+      modalOpen: modalOpen,
+    );
     return _currentStateAnchor;
+  }
+
+  void _maybeEmitControlInventory({
+    required bool keyboardOpen,
+    required bool modalOpen,
+  }) {
+    final resolver = _anchorResolver;
+    if (resolver == null) return;
+    final items = resolver.buildControlInventory(
+      route: _currentRoute,
+      keyboardOpen: keyboardOpen,
+      modalOpen: modalOpen,
+    );
+    final signature = items.map((item) => item.fingerprint).join('|');
+    if (signature.isEmpty || signature == _lastControlInventorySignature) return;
+    _lastControlInventorySignature = signature;
+    _addEvent(
+      PmkitEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'control_inventory',
+        stateAnchor: _currentStateAnchor,
+        data: {
+          'controls': items.map((item) => item.toJson()).toList(growable: false),
+        },
+      ),
+    );
   }
 
   bool _isKeyboardOpen() {

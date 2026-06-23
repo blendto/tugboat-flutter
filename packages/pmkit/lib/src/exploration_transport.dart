@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'anchors.dart';
 import 'models.dart';
 
 typedef PmkitExplorationControlHandler =
@@ -57,6 +58,8 @@ class PmkitExplorationTransport {
     _sendJson({
       'type': 'session',
       if (runId != null) 'explorationRunId': runId,
+      'fingerprintSchemaVersion': pmkitFingerprintSchemaVersion,
+      'platform': session.platform,
       'payload': session.toJson()['session'],
     });
   }
