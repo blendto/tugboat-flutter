@@ -151,7 +151,6 @@ class TugboatReplayController extends ChangeNotifier {
   int _id = 0;
   String? _currentRoute;
   TugboatStateAnchor? _currentStateAnchor;
-  String? _lastControlInventorySignature;
   String? _latestFrameId;
   String? _pendingTapEventId;
   TugboatTargetAnchor? _pendingTapTargetAnchor;
@@ -292,38 +291,7 @@ class TugboatReplayController extends ChangeNotifier {
       keyboardOpen: keyboardOpen,
       modalOpen: modalOpen,
     );
-    _maybeEmitControlInventory(
-      keyboardOpen: keyboardOpen,
-      modalOpen: modalOpen,
-    );
     return _currentStateAnchor;
-  }
-
-  void _maybeEmitControlInventory({
-    required bool keyboardOpen,
-    required bool modalOpen,
-  }) {
-    final resolver = _anchorResolver;
-    if (resolver == null) return;
-    final items = resolver.buildControlInventory(
-      route: _currentRoute,
-      keyboardOpen: keyboardOpen,
-      modalOpen: modalOpen,
-    );
-    final signature = items.map((item) => item.fingerprint).join('|');
-    if (signature.isEmpty || signature == _lastControlInventorySignature) return;
-    _lastControlInventorySignature = signature;
-    _addEvent(
-      TugboatEvent(
-        id: _nextId('event'),
-        atMs: atMs,
-        type: 'control_inventory',
-        stateAnchor: _currentStateAnchor,
-        data: {
-          'controls': items.map((item) => item.toJson()).toList(growable: false),
-        },
-      ),
-    );
   }
 
   bool _isKeyboardOpen() {
