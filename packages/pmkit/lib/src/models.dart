@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
+import 'collector_config.dart';
 
 class PmkitRect {
   const PmkitRect(this.x, this.y, this.width, this.height);
@@ -209,12 +210,14 @@ class PmkitSession {
     required this.startedAt,
     required this.platform,
     required this.viewport,
+    this.appInfo,
   });
 
   final String id;
   final DateTime startedAt;
   final String platform;
   final PmkitRect viewport;
+  final PmkitCollectorAppInfo? appInfo;
 
   final List<PmkitFrame> frames = [];
   final Map<String, Uint8List> frameBytes = {};
@@ -262,6 +265,7 @@ class PmkitSession {
       'platform': platform,
       'viewport': viewport.toJson(),
       'truncated': truncated,
+      if (appInfo != null) 'appInfo': appInfo!.toJson(),
     },
     'frames': frames.map((frame) => frame.toJson()).toList(),
     'events': events.map((event) => event.toJson()).toList(),
@@ -279,6 +283,7 @@ class PmkitSession {
     final viewportJson = Map<String, dynamic>.from(
       sessionJson['viewport'] as Map,
     );
+    final appInfoJson = sessionJson['appInfo'];
     final session = PmkitSession(
       id: sessionJson['id'] as String,
       startedAt: DateTime.parse(sessionJson['startedAt'] as String),
@@ -289,6 +294,14 @@ class PmkitSession {
         (viewportJson['width'] as num).toDouble(),
         (viewportJson['height'] as num).toDouble(),
       ),
+      appInfo: appInfoJson == null
+          ? null
+          : PmkitCollectorAppInfo(
+              name: (appInfoJson as Map)['name'] as String,
+              version: appInfoJson['version'] as String,
+              buildNumber: appInfoJson['buildNumber'] as String,
+              installationId: appInfoJson['installationId'] as String,
+            ),
     )..truncated = sessionJson['truncated'] as bool? ?? false;
 
     session.frames.addAll(

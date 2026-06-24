@@ -24,6 +24,7 @@ class PmkitReplayConfig {
     this.enableGlobalPointerCapture = true,
     this.explorationCollectorUrl,
     this.explorationRunId,
+    this.appInfo,
     this.collector,
     this.screenshotMaskLevel,
     this.widgetNames = const {},
@@ -39,6 +40,7 @@ class PmkitReplayConfig {
   final bool enableGlobalPointerCapture;
   final String? explorationCollectorUrl;
   final String? explorationRunId;
+  final PmkitCollectorAppInfo? appInfo;
   final PmkitCollectorConfig? collector;
   final PmkitScreenshotMaskLevel? screenshotMaskLevel;
   final Map<Type, String> widgetNames;
@@ -63,6 +65,7 @@ class PmkitReplayConfig {
     bool? enableGlobalPointerCapture,
     String? explorationCollectorUrl,
     String? explorationRunId,
+    PmkitCollectorAppInfo? appInfo,
     PmkitCollectorConfig? collector,
     PmkitScreenshotMaskLevel? screenshotMaskLevel,
     Map<Type, String>? widgetNames,
@@ -81,6 +84,7 @@ class PmkitReplayConfig {
       explorationCollectorUrl:
           explorationCollectorUrl ?? this.explorationCollectorUrl,
       explorationRunId: explorationRunId ?? this.explorationRunId,
+      appInfo: appInfo ?? this.appInfo,
       collector: collector ?? this.collector,
       screenshotMaskLevel: screenshotMaskLevel ?? this.screenshotMaskLevel,
       widgetNames: widgetNames ?? this.widgetNames,
@@ -245,6 +249,7 @@ class PmkitReplayController extends ChangeNotifier {
       startedAt: DateTime.now(),
       platform: platform,
       viewport: PmkitRect(0, 0, viewport.width, viewport.height),
+      appInfo: config.appInfo ?? config.collector?.appInfo,
     );
     _currentRoute = null;
     _currentStateAnchor = null;

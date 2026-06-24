@@ -16,10 +16,20 @@ PmkitReplay.wrapApp(
   config: const PmkitReplayConfig(
     explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
     explorationRunId: 'optional-run-id',
+    appInfo: PmkitCollectorAppInfo(
+      name: 'My App',
+      version: '1.0.0',
+      buildNumber: '42',
+      installationId: 'device-installation-id',
+    ),
   ),
   child: child,
 );
 ```
+
+When `appInfo` is omitted, the SDK falls back to `collector.appInfo` if a HTTP collector is also configured.
+
+The CLI stores the session payload in `session.json`, including `appInfo` when provided.
 
 The CLI starts the collector and sets up `adb reverse tcp:7832 tcp:7832` so the app can reach the host at `127.0.0.1:7832`.
 
