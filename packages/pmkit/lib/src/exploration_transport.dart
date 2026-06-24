@@ -9,6 +9,8 @@ import 'models.dart';
 typedef PmkitExplorationControlHandler =
     void Function(Map<String, dynamic> message);
 
+typedef PmkitExplorationConnectionHandler = void Function();
+
 /// Best-effort live transport used only by SDK-enabled exploration builds.
 ///
 /// Capture remains authoritative in the in-memory session. Connection and
@@ -19,11 +21,15 @@ class PmkitExplorationTransport {
     required this.url,
     required this.runId,
     required this.onControl,
+    this.onConnected,
+    this.onDisconnected,
   });
 
   final String url;
   final String? runId;
   final PmkitExplorationControlHandler onControl;
+  final PmkitExplorationConnectionHandler? onConnected;
+  final PmkitExplorationConnectionHandler? onDisconnected;
 
   WebSocket? _socket;
   bool _disposed = false;
@@ -46,6 +52,7 @@ class PmkitExplorationTransport {
         onError: (_) => _onDisconnected(),
         cancelOnError: true,
       );
+      onConnected?.call();
       _flush();
     } catch (_) {
       _scheduleReconnect();
@@ -104,8 +111,12 @@ class PmkitExplorationTransport {
   void dispose() {
     _disposed = true;
     _pending.clear();
-    unawaited(_socket?.close());
+    final socket = _socket;
     _socket = null;
+    if (socket != null) {
+      onDisconnected?.call();
+      unawaited(socket.close());
+    }
   }
 
   void _sendJson(Map<String, Object?> message) => _send(jsonEncode(message));
@@ -144,7 +155,9 @@ class PmkitExplorationTransport {
   }
 
   void _onDisconnected() {
+    if (_socket == null) return;
     _socket = null;
+    onDisconnected?.call();
     _scheduleReconnect();
   }
 

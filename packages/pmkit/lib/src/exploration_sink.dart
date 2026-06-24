@@ -11,10 +11,14 @@ class ExplorationCaptureSink implements PmkitCaptureSink {
     required String url,
     required String? runId,
     required PmkitExplorationControlHandler onControl,
+    PmkitExplorationConnectionHandler? onConnected,
+    PmkitExplorationConnectionHandler? onDisconnected,
   }) : transport = PmkitExplorationTransport(
          url: url,
          runId: runId,
          onControl: onControl,
+         onConnected: onConnected,
+         onDisconnected: onDisconnected,
        );
 
   final PmkitExplorationTransport transport;
@@ -36,12 +40,7 @@ class ExplorationCaptureSink implements PmkitCaptureSink {
     required String sessionId,
     String? actionId,
   }) {
-    transport.sendFrame(
-      frame,
-      bytes,
-      sessionId: sessionId,
-      actionId: actionId,
-    );
+    // CLI exploration runs use ADB screenshots; skip frame bytes on the wire.
   }
 
   @override

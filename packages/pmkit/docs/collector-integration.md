@@ -33,6 +33,8 @@ The CLI stores the session payload in `session.json`, including `appInfo` when p
 
 The CLI starts the collector and sets up `adb reverse tcp:7832 tcp:7832` so the app can reach the host at `127.0.0.1:7832`.
 
+When the exploration WebSocket connects and no HTTP collector is configured, the SDK **stops taking Flutter screenshots** and emits interaction events without waiting on screenshot capture. The CLI still records ADB `before.jpg` / `after.jpg` per step. Fingerprints and SDK events continue to stream over the socket.
+
 ## Production ingestion (HTTP)
 
 Use this for the standalone `pmkit-collector` service:
