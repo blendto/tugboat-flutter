@@ -76,8 +76,13 @@ Three decoupled layers tied together by a **session capture id**:
 | Profile           | Fingerprints | Screenshots            | Logs/Net/Perf | Use                          |
 | ----------------- | ------------ | ---------------------- | ------------- | ---------------------------- |
 | `dormant`         | off          | off                    | off           | default in release           |
-| `exploration`     | on           | full, every state      | on            | graphing session (operator)  |
+| `exploration`     | on           | full, every state*     | on            | graphing session (operator)  |
 | `production-lean` | on           | sampled / thumbnails   | sampled       | real end users               |
+
+\* **CLI WebSocket exploration (2026-06-24):** when `explorationCollectorUrl` is set and no
+HTTP collector is configured, frame capture is suppressed after the WebSocket connects — the
+CLI records ADB `before.jpg` / `after.jpg` per gesture instead. HTTP collector and production
+profiles are unchanged.
 
 Dormant must be truly zero-cost. **This is not true today** and is real work, not a flag:
 `wrapApp` unconditionally creates the controller, schedules `controller.start(...)` in a
