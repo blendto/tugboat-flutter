@@ -53,6 +53,12 @@ class ReplayDemoApp extends StatelessWidget {
         config: TugboatReplayConfig(
           // Local CLI exploration collector over adb reverse.
           explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
+          appInfo: const TugboatCollectorAppInfo(
+            name: 'Tugboat Replay Demo',
+            version: '1.0.0',
+            buildNumber: '1',
+            installationId: 'demo-installation',
+          ),
           // Standalone HTTP collector for production ingestion.
           collector: _productionCollector,
           widgetNames: tugboatWidgetNames,

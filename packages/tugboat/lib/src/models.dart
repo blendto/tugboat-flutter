@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
+import 'collector_config.dart';
 
 class TugboatRect {
   const TugboatRect(this.x, this.y, this.width, this.height);
@@ -209,12 +210,14 @@ class TugboatSession {
     required this.startedAt,
     required this.platform,
     required this.viewport,
+    this.appInfo,
   });
 
   final String id;
   final DateTime startedAt;
   final String platform;
   final TugboatRect viewport;
+  final TugboatCollectorAppInfo? appInfo;
 
   final List<TugboatFrame> frames = [];
   final Map<String, Uint8List> frameBytes = {};
@@ -262,6 +265,7 @@ class TugboatSession {
       'platform': platform,
       'viewport': viewport.toJson(),
       'truncated': truncated,
+      if (appInfo != null) 'appInfo': appInfo!.toJson(),
     },
     'frames': frames.map((frame) => frame.toJson()).toList(),
     'events': events.map((event) => event.toJson()).toList(),
@@ -279,6 +283,7 @@ class TugboatSession {
     final viewportJson = Map<String, dynamic>.from(
       sessionJson['viewport'] as Map,
     );
+    final appInfoJson = sessionJson['appInfo'];
     final session = TugboatSession(
       id: sessionJson['id'] as String,
       startedAt: DateTime.parse(sessionJson['startedAt'] as String),
@@ -289,6 +294,14 @@ class TugboatSession {
         (viewportJson['width'] as num).toDouble(),
         (viewportJson['height'] as num).toDouble(),
       ),
+      appInfo: appInfoJson == null
+          ? null
+          : TugboatCollectorAppInfo(
+              name: (appInfoJson as Map)['name'] as String,
+              version: appInfoJson['version'] as String,
+              buildNumber: appInfoJson['buildNumber'] as String,
+              installationId: appInfoJson['installationId'] as String,
+            ),
     )..truncated = sessionJson['truncated'] as bool? ?? false;
 
     session.frames.addAll(

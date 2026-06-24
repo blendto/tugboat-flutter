@@ -495,11 +495,18 @@ void main() {
   });
 
   test('session round-trips through JSON', () {
+    const appInfo = TugboatCollectorAppInfo(
+      name: 'Example App',
+      version: '1.2.3',
+      buildNumber: '42',
+      installationId: 'install-1',
+    );
     final session = TugboatSession(
       id: 's1',
       startedAt: DateTime.utc(2026, 6, 15),
       platform: 'test',
       viewport: const TugboatRect(0, 0, 100, 200),
+      appInfo: appInfo,
     );
     session.frames.add(
       const TugboatFrame(
@@ -522,7 +529,9 @@ void main() {
     expect(json.containsKey('routes'), isFalse);
     expect(json['events'], [isNot(contains('route'))]);
     expect(json['frames'], [containsPair('captureMicros', 12345)]);
+    expect((json['session'] as Map)['appInfo'], appInfo.toJson());
     final restored = TugboatSession.fromJson(json);
+    expect(restored.appInfo?.buildNumber, '42');
     expect(restored.frames.length, 1);
     expect(restored.frames.single.captureMicros, 12345);
   });

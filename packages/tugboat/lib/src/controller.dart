@@ -24,6 +24,7 @@ class TugboatReplayConfig {
     this.enableGlobalPointerCapture = true,
     this.explorationCollectorUrl,
     this.explorationRunId,
+    this.appInfo,
     this.collector,
     this.screenshotMaskLevel,
     this.widgetNames = const {},
@@ -39,6 +40,7 @@ class TugboatReplayConfig {
   final bool enableGlobalPointerCapture;
   final String? explorationCollectorUrl;
   final String? explorationRunId;
+  final TugboatCollectorAppInfo? appInfo;
   final TugboatCollectorConfig? collector;
   final TugboatScreenshotMaskLevel? screenshotMaskLevel;
   final Map<Type, String> widgetNames;
@@ -63,6 +65,7 @@ class TugboatReplayConfig {
     bool? enableGlobalPointerCapture,
     String? explorationCollectorUrl,
     String? explorationRunId,
+    TugboatCollectorAppInfo? appInfo,
     TugboatCollectorConfig? collector,
     TugboatScreenshotMaskLevel? screenshotMaskLevel,
     Map<Type, String>? widgetNames,
@@ -81,6 +84,7 @@ class TugboatReplayConfig {
       explorationCollectorUrl:
           explorationCollectorUrl ?? this.explorationCollectorUrl,
       explorationRunId: explorationRunId ?? this.explorationRunId,
+      appInfo: appInfo ?? this.appInfo,
       collector: collector ?? this.collector,
       screenshotMaskLevel: screenshotMaskLevel ?? this.screenshotMaskLevel,
       widgetNames: widgetNames ?? this.widgetNames,
@@ -245,6 +249,7 @@ class TugboatReplayController extends ChangeNotifier {
       startedAt: DateTime.now(),
       platform: platform,
       viewport: TugboatRect(0, 0, viewport.width, viewport.height),
+      appInfo: config.appInfo ?? config.collector?.appInfo,
     );
     _currentRoute = null;
     _currentStateAnchor = null;
