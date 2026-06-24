@@ -162,6 +162,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   bool _disposed = false;
   bool _capturePaused = false;
+  bool _explorationFramesSuppressed = false;
   bool _captureInFlight = false;
   bool _capturePumpScheduled = false;
   bool _scrolling = false;
@@ -206,6 +207,8 @@ class TugboatReplayController extends ChangeNotifier {
         url: collectorUrl,
         runId: config.explorationRunId,
         onControl: handleExplorationControl,
+        onConnected: _handleExplorationCollectorConnected,
+        onDisconnected: _handleExplorationCollectorDisconnected,
       );
       sinks.add(_explorationSink!);
       unawaited(_explorationSink!.connect());
@@ -316,7 +319,8 @@ class TugboatReplayController extends ChangeNotifier {
     bool force = false,
     Duration? settleDelay,
   }) {
-    if (_disposed || _capturePaused || _skipCapture) {
+    if (_disposed || _capturePaused || _skipCapture || _shouldSuppressFrameCapture) {
+      _refreshStateAnchor();
       return Future<String?>.value(_latestFrameId);
     }
 
@@ -388,7 +392,11 @@ class TugboatReplayController extends ChangeNotifier {
     required TugboatFrameTrigger trigger,
     bool force = false,
   }) async {
-    if (_disposed || _capturePaused || _skipCapture || _captureInFlight) {
+    if (_disposed ||
+        _capturePaused ||
+        _skipCapture ||
+        _shouldSuppressFrameCapture ||
+        _captureInFlight) {
       return _latestFrameId;
     }
     final session = _session;
@@ -664,9 +672,11 @@ class TugboatReplayController extends ChangeNotifier {
 
     _routeCapturePending = true;
     _skipCapture = transitionDuration > Duration.zero;
+    final postRouteSettle =
+        _shouldSuppressFrameCapture ? Duration.zero : config.settleDelay;
     _queue = _queue.then((_) async {
       try {
-        await Future<void>.delayed(transitionDuration + config.settleDelay);
+        await Future<void>.delayed(transitionDuration + postRouteSettle);
         _skipCapture = false;
         if (_disposed) return;
         if (updatesRoute) {
@@ -763,6 +773,18 @@ class TugboatReplayController extends ChangeNotifier {
   void clearExplorationActionWindow() {
     _activeActionId = null;
   }
+
+  void _handleExplorationCollectorConnected() {
+    if (config.collector != null) return;
+    _explorationFramesSuppressed = true;
+  }
+
+  void _handleExplorationCollectorDisconnected() {
+    _explorationFramesSuppressed = false;
+  }
+
+  bool get _shouldSuppressFrameCapture =>
+      _explorationFramesSuppressed && config.collector == null;
 
   void handleExplorationControl(Map<String, dynamic> message) {
     final type = message['type'] as String?;
