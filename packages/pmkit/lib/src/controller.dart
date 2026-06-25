@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
@@ -11,6 +12,20 @@ import 'exploration_sink.dart';
 import 'models.dart';
 import 'screenshot_capturer.dart';
 import 'screenshot_mask_level.dart';
+
+class _PendingTap {
+  _PendingTap({
+    required this.eventId,
+    required this.targetAnchor,
+    required this.beforeState,
+    required this.beforeFrame,
+  });
+
+  final String eventId;
+  final PmkitTargetAnchor? targetAnchor;
+  final PmkitStateAnchor? beforeState;
+  final String? beforeFrame;
+}
 
 class PmkitReplayConfig {
   const PmkitReplayConfig({
@@ -156,8 +171,7 @@ class PmkitReplayController extends ChangeNotifier {
   String? _currentRoute;
   PmkitStateAnchor? _currentStateAnchor;
   String? _latestFrameId;
-  String? _pendingTapEventId;
-  PmkitTargetAnchor? _pendingTapTargetAnchor;
+  final Map<int, _PendingTap> _pendingTaps = {};
   final Map<String, String> _hashToFrameId = {};
 
   bool _disposed = false;
@@ -187,6 +201,34 @@ class PmkitReplayController extends ChangeNotifier {
   String? get currentRoute => _currentRoute;
   PmkitStateAnchor? get currentStateAnchor => _currentStateAnchor;
   String? get latestFrameId => _latestFrameId;
+
+  @visibleForTesting
+  void debugSetCurrentStateAnchor(PmkitStateAnchor? anchor) {
+    _currentStateAnchor = anchor;
+  }
+
+  @visibleForTesting
+  void debugSetExplorationFramesSuppressed(bool suppressed) {
+    _explorationFramesSuppressed = suppressed;
+  }
+
+  @visibleForTesting
+  Future<void> drainPointerQueue() => _queue;
+
+  @visibleForTesting
+  PmkitInteractionResult debugComputeTapSettleResult({
+    required PmkitStateAnchor? beforeState,
+    required PmkitStateAnchor? afterState,
+    required String? beforeFrame,
+    required String? afterFrame,
+  }) {
+    return _computeTapSettleResult(
+      beforeState: beforeState,
+      afterState: afterState,
+      beforeFrame: beforeFrame,
+      afterFrame: afterFrame,
+    );
+  }
 
   GlobalKey get boundaryKey => _boundaryKey;
 
@@ -257,8 +299,7 @@ class PmkitReplayController extends ChangeNotifier {
     _currentRoute = null;
     _currentStateAnchor = null;
     _latestFrameId = null;
-    _pendingTapEventId = null;
-    _pendingTapTargetAnchor = null;
+    _pendingTaps.clear();
     _hashToFrameId.clear();
     _lastCapturedStateSignature = null;
     _lastDHash = null;
@@ -477,19 +518,24 @@ class PmkitReplayController extends ChangeNotifier {
     }
   }
 
-  void recordPointerDown(Offset position) {
+  void recordPointerDown(Offset position, {int pointer = 0}) {
     final resolver = _anchorResolver;
     final target = resolver?.targetAt(position, route: _currentRoute);
     final beforeFrame = _latestFrameId;
+    final beforeState = _currentStateAnchor;
     final eventId = _nextId('event');
-    _pendingTapEventId = eventId;
-    _pendingTapTargetAnchor = target;
+    _pendingTaps[pointer] = _PendingTap(
+      eventId: eventId,
+      targetAnchor: target,
+      beforeState: beforeState,
+      beforeFrame: beforeFrame,
+    );
     _addEvent(
       PmkitEvent(
         id: eventId,
         atMs: atMs,
         type: 'tap',
-        stateAnchor: _currentStateAnchor,
+        stateAnchor: beforeState,
         targetAnchor: target,
         beforeFrame: beforeFrame,
         data: {'x': position.dx, 'y': position.dy},
@@ -498,15 +544,16 @@ class PmkitReplayController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  void recordPointerUp(Offset position) {
+  void recordPointerUp(Offset position, {int pointer = 0}) {
+    final pending = _pendingTaps.remove(pointer);
+    if (pending == null) return;
+
     _queue = _queue.then((_) async {
       if (_disposed) return;
-      final beforeState = _currentStateAnchor;
-      final beforeFrame = _latestFrameId;
-      final tapEventId = _pendingTapEventId;
-      final tapTargetAnchor = _pendingTapTargetAnchor;
-      _pendingTapEventId = null;
-      _pendingTapTargetAnchor = null;
+      final beforeState = pending.beforeState;
+      final beforeFrame = pending.beforeFrame;
+      final tapEventId = pending.eventId;
+      final tapTargetAnchor = pending.targetAnchor;
 
       final String? afterFrame;
       if (_routeCapturePending) {
@@ -516,15 +563,12 @@ class PmkitReplayController extends ChangeNotifier {
         afterFrame = await _requestCapture(trigger: PmkitFrameTrigger.tap);
       }
       final afterState = _currentStateAnchor;
-
-      PmkitInteractionResult result = PmkitInteractionResult.unknown;
-      if (afterFrame != null && afterFrame == beforeFrame) {
-        result = PmkitInteractionResult.noVisibleChange;
-      } else if (beforeState == afterState && beforeFrame == afterFrame) {
-        result = PmkitInteractionResult.noVisibleChange;
-      } else if (afterFrame != beforeFrame) {
-        result = PmkitInteractionResult.changed;
-      }
+      final result = _computeTapSettleResult(
+        beforeState: beforeState,
+        afterState: afterState,
+        beforeFrame: beforeFrame,
+        afterFrame: afterFrame,
+      );
 
       _addEvent(
         PmkitEvent(
@@ -548,6 +592,28 @@ class PmkitReplayController extends ChangeNotifier {
       );
       if (!_disposed) notifyListeners();
     });
+  }
+
+  PmkitInteractionResult _computeTapSettleResult({
+    required PmkitStateAnchor? beforeState,
+    required PmkitStateAnchor? afterState,
+    required String? beforeFrame,
+    required String? afterFrame,
+  }) {
+    final beforeSig = beforeState?.signature ?? '';
+    final afterSig = afterState?.signature ?? '';
+    if (beforeSig.isNotEmpty && afterSig.isNotEmpty && beforeSig != afterSig) {
+      return PmkitInteractionResult.changed;
+    }
+    if (afterFrame != null &&
+        beforeFrame != null &&
+        afterFrame != beforeFrame) {
+      return PmkitInteractionResult.changed;
+    }
+    if (beforeSig.isNotEmpty && afterSig.isNotEmpty) {
+      return PmkitInteractionResult.noVisibleChange;
+    }
+    return PmkitInteractionResult.unknown;
   }
 
   void onScrollActivityChanged({required bool active}) {
