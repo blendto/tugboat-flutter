@@ -30,9 +30,9 @@ class InputCapture {
     if (!controller.recording) return;
 
     if (event is PointerDownEvent) {
-      controller.recordPointerDown(event.position);
+      controller.recordPointerDown(event.position, pointer: event.pointer);
     } else if (event is PointerUpEvent) {
-      controller.recordPointerUp(event.position);
+      controller.recordPointerUp(event.position, pointer: event.pointer);
     } else if (event is PointerMoveEvent && controller.scrolling) {
       _maybeRecordScrollSample(event.position);
     }

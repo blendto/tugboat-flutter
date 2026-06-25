@@ -760,7 +760,8 @@ void main() {
           ),
         ),
       );
-      controller.recordPointerUp(const Offset(10, 10));
+      controller.recordPointerDown(const Offset(10, 10), pointer: 1);
+      controller.recordPointerUp(const Offset(10, 10), pointer: 1);
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });
     await tester.pump();
@@ -795,5 +796,68 @@ void main() {
     await _waitForCaptures(tester);
 
     expect(TugboatReplay.controller!.session!.frames.length, framesBeforeScroll);
+  });
+
+  test('tap_settled result prefers signature change over stale frame ids', () {
+    final rootKey = GlobalKey();
+    final controller = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: rootKey,
+    );
+
+    final result = controller.debugComputeTapSettleResult(
+      beforeState: const TugboatStateAnchor(signature: 'sig-before'),
+      afterState: const TugboatStateAnchor(signature: 'sig-after'),
+      beforeFrame: 'frame-1',
+      afterFrame: 'frame-1',
+    );
+    expect(result, TugboatInteractionResult.changed);
+    controller.dispose();
+  });
+
+  test('tap_settled result uses tap-down baseline signatures', () {
+    final rootKey = GlobalKey();
+    final controller = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: rootKey,
+    );
+
+    final result = controller.debugComputeTapSettleResult(
+      beforeState: const TugboatStateAnchor(signature: 'home-sig'),
+      afterState: const TugboatStateAnchor(signature: 'route-sig'),
+      beforeFrame: 'frame-1',
+      afterFrame: 'frame-1',
+    );
+    expect(result, TugboatInteractionResult.changed);
+    controller.dispose();
+  });
+
+  test('overlapping taps keep pointer-specific relatedEventId links', () async {
+    final rootKey = GlobalKey();
+    final controller = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: rootKey,
+    );
+    await controller.initialize();
+    controller.start(const Size(100, 100), 'test');
+    controller.debugSetExplorationFramesSuppressed(true);
+
+    controller.recordPointerDown(const Offset(1, 1), pointer: 1);
+    controller.recordPointerDown(const Offset(2, 2), pointer: 2);
+    controller.recordPointerUp(const Offset(1, 1), pointer: 1);
+    controller.recordPointerUp(const Offset(2, 2), pointer: 2);
+    await controller.drainPointerQueue();
+
+    final taps = controller.session!.events
+        .where((event) => event.type == 'tap')
+        .toList();
+    final settles = controller.session!.events
+        .where((event) => event.type == 'tap_settled')
+        .toList();
+    expect(taps, hasLength(2));
+    expect(settles, hasLength(2));
+    expect(settles[0].relatedEventId, taps[0].id);
+    expect(settles[1].relatedEventId, taps[1].id);
+    controller.dispose();
   });
 }

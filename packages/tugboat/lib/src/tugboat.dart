@@ -198,9 +198,14 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot> {
         else
           Listener(
             behavior: HitTestBehavior.translucent,
-            onPointerDown: (event) =>
-                controller.recordPointerDown(event.position),
-            onPointerUp: (event) => controller.recordPointerUp(event.position),
+            onPointerDown: (event) => controller.recordPointerDown(
+              event.position,
+              pointer: event.pointer,
+            ),
+            onPointerUp: (event) => controller.recordPointerUp(
+              event.position,
+              pointer: event.pointer,
+            ),
             child: content,
           ),
       ],

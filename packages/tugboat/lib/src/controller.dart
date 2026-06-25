@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
@@ -11,6 +12,20 @@ import 'exploration_sink.dart';
 import 'models.dart';
 import 'screenshot_capturer.dart';
 import 'screenshot_mask_level.dart';
+
+class _PendingTap {
+  _PendingTap({
+    required this.eventId,
+    required this.targetAnchor,
+    required this.beforeState,
+    required this.beforeFrame,
+  });
+
+  final String eventId;
+  final TugboatTargetAnchor? targetAnchor;
+  final TugboatStateAnchor? beforeState;
+  final String? beforeFrame;
+}
 
 class TugboatReplayConfig {
   const TugboatReplayConfig({
@@ -156,8 +171,7 @@ class TugboatReplayController extends ChangeNotifier {
   String? _currentRoute;
   TugboatStateAnchor? _currentStateAnchor;
   String? _latestFrameId;
-  String? _pendingTapEventId;
-  TugboatTargetAnchor? _pendingTapTargetAnchor;
+  final Map<int, _PendingTap> _pendingTaps = {};
   final Map<String, String> _hashToFrameId = {};
 
   bool _disposed = false;
@@ -187,6 +201,34 @@ class TugboatReplayController extends ChangeNotifier {
   String? get currentRoute => _currentRoute;
   TugboatStateAnchor? get currentStateAnchor => _currentStateAnchor;
   String? get latestFrameId => _latestFrameId;
+
+  @visibleForTesting
+  void debugSetCurrentStateAnchor(TugboatStateAnchor? anchor) {
+    _currentStateAnchor = anchor;
+  }
+
+  @visibleForTesting
+  void debugSetExplorationFramesSuppressed(bool suppressed) {
+    _explorationFramesSuppressed = suppressed;
+  }
+
+  @visibleForTesting
+  Future<void> drainPointerQueue() => _queue;
+
+  @visibleForTesting
+  TugboatInteractionResult debugComputeTapSettleResult({
+    required TugboatStateAnchor? beforeState,
+    required TugboatStateAnchor? afterState,
+    required String? beforeFrame,
+    required String? afterFrame,
+  }) {
+    return _computeTapSettleResult(
+      beforeState: beforeState,
+      afterState: afterState,
+      beforeFrame: beforeFrame,
+      afterFrame: afterFrame,
+    );
+  }
 
   GlobalKey get boundaryKey => _boundaryKey;
 
@@ -257,8 +299,7 @@ class TugboatReplayController extends ChangeNotifier {
     _currentRoute = null;
     _currentStateAnchor = null;
     _latestFrameId = null;
-    _pendingTapEventId = null;
-    _pendingTapTargetAnchor = null;
+    _pendingTaps.clear();
     _hashToFrameId.clear();
     _lastCapturedStateSignature = null;
     _lastDHash = null;
@@ -477,19 +518,24 @@ class TugboatReplayController extends ChangeNotifier {
     }
   }
 
-  void recordPointerDown(Offset position) {
+  void recordPointerDown(Offset position, {int pointer = 0}) {
     final resolver = _anchorResolver;
     final target = resolver?.targetAt(position, route: _currentRoute);
     final beforeFrame = _latestFrameId;
+    final beforeState = _currentStateAnchor;
     final eventId = _nextId('event');
-    _pendingTapEventId = eventId;
-    _pendingTapTargetAnchor = target;
+    _pendingTaps[pointer] = _PendingTap(
+      eventId: eventId,
+      targetAnchor: target,
+      beforeState: beforeState,
+      beforeFrame: beforeFrame,
+    );
     _addEvent(
       TugboatEvent(
         id: eventId,
         atMs: atMs,
         type: 'tap',
-        stateAnchor: _currentStateAnchor,
+        stateAnchor: beforeState,
         targetAnchor: target,
         beforeFrame: beforeFrame,
         data: {'x': position.dx, 'y': position.dy},
@@ -498,15 +544,16 @@ class TugboatReplayController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  void recordPointerUp(Offset position) {
+  void recordPointerUp(Offset position, {int pointer = 0}) {
+    final pending = _pendingTaps.remove(pointer);
+    if (pending == null) return;
+
     _queue = _queue.then((_) async {
       if (_disposed) return;
-      final beforeState = _currentStateAnchor;
-      final beforeFrame = _latestFrameId;
-      final tapEventId = _pendingTapEventId;
-      final tapTargetAnchor = _pendingTapTargetAnchor;
-      _pendingTapEventId = null;
-      _pendingTapTargetAnchor = null;
+      final beforeState = pending.beforeState;
+      final beforeFrame = pending.beforeFrame;
+      final tapEventId = pending.eventId;
+      final tapTargetAnchor = pending.targetAnchor;
 
       final String? afterFrame;
       if (_routeCapturePending) {
@@ -516,15 +563,12 @@ class TugboatReplayController extends ChangeNotifier {
         afterFrame = await _requestCapture(trigger: TugboatFrameTrigger.tap);
       }
       final afterState = _currentStateAnchor;
-
-      TugboatInteractionResult result = TugboatInteractionResult.unknown;
-      if (afterFrame != null && afterFrame == beforeFrame) {
-        result = TugboatInteractionResult.noVisibleChange;
-      } else if (beforeState == afterState && beforeFrame == afterFrame) {
-        result = TugboatInteractionResult.noVisibleChange;
-      } else if (afterFrame != beforeFrame) {
-        result = TugboatInteractionResult.changed;
-      }
+      final result = _computeTapSettleResult(
+        beforeState: beforeState,
+        afterState: afterState,
+        beforeFrame: beforeFrame,
+        afterFrame: afterFrame,
+      );
 
       _addEvent(
         TugboatEvent(
@@ -548,6 +592,28 @@ class TugboatReplayController extends ChangeNotifier {
       );
       if (!_disposed) notifyListeners();
     });
+  }
+
+  TugboatInteractionResult _computeTapSettleResult({
+    required TugboatStateAnchor? beforeState,
+    required TugboatStateAnchor? afterState,
+    required String? beforeFrame,
+    required String? afterFrame,
+  }) {
+    final beforeSig = beforeState?.signature ?? '';
+    final afterSig = afterState?.signature ?? '';
+    if (beforeSig.isNotEmpty && afterSig.isNotEmpty && beforeSig != afterSig) {
+      return TugboatInteractionResult.changed;
+    }
+    if (afterFrame != null &&
+        beforeFrame != null &&
+        afterFrame != beforeFrame) {
+      return TugboatInteractionResult.changed;
+    }
+    if (beforeSig.isNotEmpty && afterSig.isNotEmpty) {
+      return TugboatInteractionResult.noVisibleChange;
+    }
+    return TugboatInteractionResult.unknown;
   }
 
   void onScrollActivityChanged({required bool active}) {
