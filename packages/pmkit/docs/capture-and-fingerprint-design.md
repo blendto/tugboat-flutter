@@ -195,6 +195,12 @@ A `PmkitTag` (or a `ValueKey<String>`) on/above an element emits a separate
 `tagFingerprint`. It never enters the canonical path, route key, target fingerprint, or
 state signature. This makes tags purely additive and safe to add after sessions exist.
 
+**Recommendation:** wrap primary CTAs (Continue, Submit, checkout, sign-in) and other
+high-value controls in `PmkitTag` or give them a stable `ValueKey<String>`. Structural
+paths cover most controls after v5 actionable retention, but tags remain the only
+`high`-confidence alias when wrapper churn or ambiguous siblings would otherwise weaken
+identity.
+
 ### 4.6 Confidence model (matches are weighted, not truths)
 
 Every fingerprint carries a `confidence`, and ingestion treats it as a weight, never as
@@ -281,6 +287,11 @@ identity and schema version live **beside** the hash; neither is mixed into the 
 Ingestion
 joins only across matching `apkSha256` **and** `fingerprintSchemaVersion`, and diffs/remaps
 across builds rather than churning.
+
+**v5 retains actionable role widgets on the wrapper denylist** (e.g. `InkWell`) in the
+canonical path and climbs from untokenized hit elements to the nearest tokenized ancestor.
+This prevents empty-path fingerprints for common tap targets. Fingerprints change; v4 and
+v5 evidence must not be joined directly.
 
 **v4 makes capture reflect the currently usable UI:** each resolution builds a
 fresh canonical tree, drops offstage/hidden/zero-opacity/off-viewport nodes,

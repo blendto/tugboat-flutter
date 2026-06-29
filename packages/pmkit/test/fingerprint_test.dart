@@ -504,6 +504,68 @@ void main() {
     expect(state.actionableSummary['button'], isNull);
   });
 
+  testWidgets('InkWell-based button yields non-empty canonical path', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: InkWell(
+              onTap: () {},
+              child: const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Continue'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final center = tester.getCenter(find.text('Continue'));
+    final anchor = AnchorResolver(
+      rootKey: rootKey,
+    ).targetAt(center, route: '/intro')!;
+    expect(anchor.canonicalPath, isNotEmpty);
+    expect(anchor.canonicalPath, contains('InkWell'));
+    expect(anchor.fingerprint, isNotEmpty);
+    expect(anchor.fingerprintConfidence, 'low');
+  });
+
+  testWidgets('ValueKey tag on InkWell yields high-confidence tagFingerprint', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: InkWell(
+              key: const ValueKey<String>('intro-continue'),
+              onTap: () {},
+              child: const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Continue'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final center = tester.getCenter(find.text('Continue'));
+    final anchor = AnchorResolver(
+      rootKey: rootKey,
+    ).targetAt(center, route: '/intro')!;
+    expect(anchor.canonicalPath, contains('InkWell'));
+    expect(anchor.tagFingerprint, isNotNull);
+    expect(anchor.fingerprintParts, containsPair('tag', 'intro-continue'));
+  });
+
   testWidgets('transformed targets use their painted position', (tester) async {
     final rootKey = GlobalKey();
     await tester.pumpWidget(
