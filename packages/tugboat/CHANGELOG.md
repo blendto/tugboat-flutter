@@ -10,8 +10,9 @@
 
 ### Changed
 
-- Split `anchors.dart` into focused part files (`anchor_fingerprint.dart`,
-  `anchor_models.dart`, `anchor_resolver.dart`) to improve maintainability.
+- **`actionableSummary` deduplication** — count only leaf canonical controls (one per
+  `FilledButton`/`TextButton`, not nested ink-well chrome). Fixes over-counting in modal,
+  visibility, and rebuild fingerprint tests.
 
 ## 0.1.0
 

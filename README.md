@@ -113,18 +113,6 @@ also an integration fixture. Do not edit it manually.
   not automatically require releasing the other.
 - Update the example whenever a public API or builder output changes.
 
-## Known Test Baseline
-
-Workspace analysis and the builder tests currently pass. The SDK suite has four
-pre-existing failures that are also reproducible in the archived source package:
-
-- Three fingerprint tests count additional actionable controls.
-- One controller test completes with pending asynchronous work and later uses a
-  disposed `TugboatReplayController`.
-
-Treat additional failures as regressions, and remove this section when those
-baseline issues are fixed.
-
 ## Before Publishing
 
 - Replace the placeholder SDK `LICENSE` with the chosen project license and add
