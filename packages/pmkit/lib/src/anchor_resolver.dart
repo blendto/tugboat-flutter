@@ -179,11 +179,9 @@ class AnchorResolver {
     final labelAnnotations = <Element, String>{};
     final hasBareItem = <Element, bool>{};
     final isActionable = <Element, bool>{};
-    final actionablePaths = <String>{};
     final ordinalCounters = <Object, int>{};
     final renderElements = <RenderObject, Element>{};
     final included = _collectIncludedElements(rootElement);
-    final actionableSummary = <String, int>{};
     String? subLabel;
 
     void visit(
@@ -247,12 +245,8 @@ class AnchorResolver {
       }
 
       final role = retainable ? _roleForWidget(widget, <String>{}) : null;
-      if (role != null && role.$2 != false) {
+      if (role != null && role.$2 != false && tokens.containsKey(element)) {
         isActionable[element] = true;
-        actionableSummary[role.$1] = (actionableSummary[role.$1] ?? 0) + 1;
-        if (tokens.containsKey(element)) {
-          actionablePaths.add(_pathForMaps(element, tokens, retainedParents));
-        }
       }
 
       // Once we emit an `[item]` token we are inside a single list entry, so
@@ -274,6 +268,19 @@ class AnchorResolver {
     rootElement.debugVisitOnstageChildren(
       (child) => visit(child, null, false, false),
     );
+
+    final actionableSummary = <String, int>{};
+    final actionablePaths = <String>{};
+    for (final element in included.elements) {
+      if (isActionable[element] != true || !tokens.containsKey(element)) {
+        continue;
+      }
+      if (_hasActionableDescendant(element, isActionable)) continue;
+      final role = _roleForWidget(element.widget, <String>{});
+      if (role == null || role.$2 == false) continue;
+      actionableSummary[role.$1] = (actionableSummary[role.$1] ?? 0) + 1;
+      actionablePaths.add(_pathForMaps(element, tokens, retainedParents));
+    }
 
     final sortedPaths = actionablePaths.toList()..sort();
     final structuralRouteSignature = pmkitLabelHash(sortedPaths.join('|'));
@@ -341,6 +348,25 @@ class AnchorResolver {
     }
 
     return collect(root);
+  }
+
+  bool _hasActionableDescendant(
+    Element element,
+    Map<Element, bool> isActionable,
+  ) {
+    var found = false;
+    void walk(Element node) {
+      node.visitChildElements((child) {
+        if (isActionable[child] == true) {
+          found = true;
+          return;
+        }
+        walk(child);
+      });
+    }
+
+    walk(element);
+    return found;
   }
 
   bool _isOverlayLevel(Element element) {
