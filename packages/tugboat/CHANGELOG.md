@@ -1,5 +1,19 @@
 ## Unreleased
 
+### Added
+
+- **Capture attribution diagnostics** — SDK emits `action_window_set`, `action_window_cleared`,
+  `tap_outside_tree`, and `pointer_cancel` events during CLI exploration runs.
+- **`recordPointerCancel`** — wired from `InputCapture` and the root `Listener` so cancelled
+  gestures are visible in the event stream.
+
+### Changed
+
+- **`ExplorationCaptureSink.recordFrame`** — forwards frame metadata and PNG bytes over the
+  exploration WebSocket instead of dropping them. The CLI persists these under `frames/` when
+  Flutter capture produces them (local capture may still be suppressed after the socket connects
+  for performance; see `collector-integration.md`).
+
 ### Removed
 
 - **`control_inventory` SDK events** — the SDK no longer emits per-screen control

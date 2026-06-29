@@ -4,6 +4,10 @@ Flutter packages for capturing Tugboat session evidence and generating stable
 widget catalogs. The Tugboat CLI is intentionally maintained separately; this
 repository contains only Flutter and Dart packages.
 
+Recent cross-repo work (2026-06-29): **capture redesign** — attribution diagnostic
+events, pointer-cancel handling, and exploration frame streaming to `tugboat-cli`.
+See `packages/tugboat/CHANGELOG.md` and `packages/tugboat/docs/collector-integration.md`.
+
 ## Packages
 
 - [`tugboat`](packages/tugboat): the Flutter SDK.

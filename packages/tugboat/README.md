@@ -65,10 +65,15 @@ their fingerprints to match.
 
 - **Evidence plane:** PNG screenshots at checkpoints (initial, before/after tap,
   optional scroll samples, route changes), deduplicated by content hash and
-  perceptual hash
+  perceptual hash. During CLI exploration, captured frames are streamed over the
+  WebSocket when produced; the recorder persists them under `frames/`.
 - **Interaction plane:** tap events with target and state anchors, route changes
   in event `data`, and `beforeFrame` / `afterFrame` references. Text,
   accessibility, tooltip, and icon labels are not retained in telemetry.
+- **Attribution diagnostics (CLI exploration):** `action_window_set` /
+  `action_window_cleared` (recorder action-window lifecycle), `tap_outside_tree`
+  (pointer down with no hit-test target), and `pointer_cancel` (gesture cancelled
+  before up).
 - **Settle delay:** default 1s after taps and route transitions before capture
 - **Profiles:** `dormant` (default, zero overhead until `TugboatReplay.activate`),
   `exploration`, `productionLean`

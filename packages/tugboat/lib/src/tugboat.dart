@@ -206,6 +206,10 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot> {
               event.position,
               pointer: event.pointer,
             ),
+            onPointerCancel: (event) => controller.recordPointerCancel(
+              event.position,
+              pointer: event.pointer,
+            ),
             child: content,
           ),
       ],

@@ -1,7 +1,12 @@
 # Collector Integration
 
-**Recording data quality (2026-06-24):** ✅ When the exploration WebSocket connects and no
-HTTP collector is configured, the SDK suppresses Flutter frame capture so events stream faster
+**Recording data quality (2026-06-29):** When the exploration WebSocket connects and no HTTP
+collector is configured, the SDK suppresses *new* Flutter frame capture for performance. Frames
+that are captured (including before connect) are streamed over the WebSocket and persisted by
+`tugboat-cli` under `frames/`. ADB step screenshots remain the primary gesture-level evidence.
+
+**Earlier note (2026-06-24):** ✅ When the exploration WebSocket connects and no HTTP collector
+is configured, the SDK suppresses Flutter frame capture so events stream faster
 during `tugboat-cli` recordings. ADB screenshots remain the visual evidence per step. Tracked in
 `tugboat-cli/docs/recording-data-quality-plan.md` (Phase 1 + SDK cross-repo item).
 
@@ -38,7 +43,11 @@ The CLI stores the session payload in `session.json`, including `appInfo` when p
 
 The CLI starts the collector and sets up `adb reverse tcp:7832 tcp:7832` so the app can reach the host at `127.0.0.1:7832`.
 
-When the exploration WebSocket connects and no HTTP collector is configured, the SDK **stops taking Flutter screenshots** and emits interaction events without waiting on screenshot capture. The CLI still records ADB `before.jpg` / `after.jpg` per step. Fingerprints and SDK events continue to stream over the socket. ✅ **Implemented** in `controller.dart` / `exploration_transport.dart` (2026-06-24).
+When the exploration WebSocket connects and no HTTP collector is configured, the SDK **stops
+scheduling new Flutter screenshots** (performance) and emits interaction events without waiting
+on screenshot capture. The CLI still records ADB `before.jpg` / `after.jpg` per step. Any frames
+that *are* captured are streamed over the socket and persisted under `frames/` by `tugboat-cli`.
+Fingerprints and SDK events continue to stream over the socket.
 
 ## Production ingestion (HTTP)
 

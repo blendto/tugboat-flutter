@@ -230,6 +230,27 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
+  /// Debug helper for host apps to dump current semantic anchors (CLI diffing).
+  @visibleForTesting
+  Map<String, Object?> debugExportSemanticSnapshot({Offset? tapPoint}) {
+    final stateAnchor = _refreshStateAnchor();
+    final resolver = _anchorResolver;
+    TugboatTargetAnchor? targetAnchor;
+    if (tapPoint != null && resolver != null) {
+      targetAnchor = resolver.targetAt(tapPoint, route: _currentRoute);
+    }
+
+    return {
+      'atMs': atMs,
+      'route': _currentRoute,
+      'frameId': _latestFrameId,
+      'stateAnchor': stateAnchor?.toJson(),
+      if (tapPoint != null)
+        'tapPoint': {'x': tapPoint.dx, 'y': tapPoint.dy},
+      if (targetAnchor != null) 'targetAnchor': targetAnchor.toJson(),
+    };
+  }
+
   GlobalKey get boundaryKey => _boundaryKey;
 
   Future<void> initialize() async {
@@ -530,6 +551,18 @@ class TugboatReplayController extends ChangeNotifier {
       beforeState: beforeState,
       beforeFrame: beforeFrame,
     );
+    if (target == null) {
+      _addEvent(
+        TugboatEvent(
+          id: _nextId('event'),
+          atMs: atMs,
+          type: 'tap_outside_tree',
+          stateAnchor: beforeState,
+          beforeFrame: beforeFrame,
+          data: {'x': position.dx, 'y': position.dy, 'pointer': pointer},
+        ),
+      );
+    }
     _addEvent(
       TugboatEvent(
         id: eventId,
@@ -539,6 +572,20 @@ class TugboatReplayController extends ChangeNotifier {
         targetAnchor: target,
         beforeFrame: beforeFrame,
         data: {'x': position.dx, 'y': position.dy},
+      ),
+    );
+    if (!_disposed) notifyListeners();
+  }
+
+  void recordPointerCancel(Offset position, {int pointer = 0}) {
+    _pendingTaps.remove(pointer);
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'pointer_cancel',
+        stateAnchor: _currentStateAnchor,
+        data: {'x': position.dx, 'y': position.dy, 'pointer': pointer},
       ),
     );
     if (!_disposed) notifyListeners();
@@ -834,9 +881,31 @@ class TugboatReplayController extends ChangeNotifier {
   }) {
     _activeExplorationRunId = explorationRunId;
     _activeActionId = actionId;
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'action_window_set',
+        data: {
+          'actionId': actionId,
+          'explorationRunId': explorationRunId,
+        },
+      ),
+    );
   }
 
   void clearExplorationActionWindow() {
+    final clearedActionId = _activeActionId;
+    if (clearedActionId != null) {
+      _addEvent(
+        TugboatEvent(
+          id: _nextId('event'),
+          atMs: atMs,
+          type: 'action_window_cleared',
+          data: {'actionId': clearedActionId},
+        ),
+      );
+    }
     _activeActionId = null;
   }
 
