@@ -202,11 +202,19 @@ class AnchorResolver {
 
       final retainable = _isRetainable(element, rootRender);
       final canonical = retainable ? _canonicalType(widget) : null;
+      final role = retainable ? _roleForWidget(widget, <String>{}) : null;
+      // Salient-node retention: actionable widgets must appear in the path even
+      // when they sit on the wrapper denylist (e.g. InkWell, InkResponse).
+      final retainType =
+          canonical ??
+          (role != null && role.$2 != false
+              ? _actionableTypeName(widget)
+              : null);
       Element? newRetainedParent = retainedParent;
       String? token;
       var bareItem = false;
 
-      if (canonical != null) {
+      if (retainType != null) {
         if (inList) {
           // Collapse the row's positional index to `[item]`, but bake any safe
           // static discriminator into the token so descendants inherit it via
@@ -225,10 +233,10 @@ class AnchorResolver {
           }
           hasBareItem[element] = bareItem;
         } else {
-          final counterKey = Object.hash(retainedParent, canonical);
+          final counterKey = Object.hash(retainedParent, retainType);
           final ordinal = ordinalCounters[counterKey] ?? 0;
           ordinalCounters[counterKey] = ordinal + 1;
-          token = '$canonical#$ordinal';
+          token = '$retainType#$ordinal';
 
           // Discriminators are only embedded for list rows (`[item]`) and via
           // explicit tags. Container nodes are left as bare `Type#ordinal` to
@@ -244,7 +252,6 @@ class AnchorResolver {
         newRetainedParent = element;
       }
 
-      final role = retainable ? _roleForWidget(widget, <String>{}) : null;
       if (role != null && role.$2 != false && tokens.containsKey(element)) {
         isActionable[element] = true;
       }
@@ -420,8 +427,21 @@ class AnchorResolver {
     Map<Element, String> tokens,
     Map<Element, Element?> retainedParents,
   ) {
+    Element? walkStart = element;
+    if (!tokens.containsKey(walkStart)) {
+      Element? tokenizedAncestor;
+      walkStart!.visitAncestorElements((ancestor) {
+        if (tokens.containsKey(ancestor)) {
+          tokenizedAncestor = ancestor;
+          return false;
+        }
+        return true;
+      });
+      walkStart = tokenizedAncestor ?? walkStart;
+    }
+
     final parts = <String>[];
-    Element? current = element;
+    Element? current = walkStart;
     while (current != null) {
       final token = tokens[current];
       if (token != null) parts.add(token);
@@ -536,7 +556,7 @@ class AnchorResolver {
     return false;
   }
 
-  String? _canonicalType(Widget widget) {
+  String? _normalizedWidgetTypeName(Widget widget) {
     if (_isCaptureChrome(widget)) return null;
     if (widget is TugboatInternal || widget is TugboatTag) return null;
     var type = _widgetName(widget);
@@ -547,9 +567,18 @@ class AnchorResolver {
     if (type.startsWith('_')) return null;
     // All Sliver* widgets are scroll plumbing; the meaningful unit is the row.
     if (type.startsWith('Sliver')) return null;
-    if (_canonicalDenylist.contains(type)) return null;
     return type;
   }
+
+  String? _canonicalType(Widget widget) {
+    final type = _normalizedWidgetTypeName(widget);
+    if (type == null || _canonicalDenylist.contains(type)) return null;
+    return type;
+  }
+
+  /// Type name for an actionable widget that must be retained even when it is
+  /// on the wrapper denylist (e.g. InkWell).
+  String? _actionableTypeName(Widget widget) => _normalizedWidgetTypeName(widget);
 
   String _widgetName(Widget widget) =>
       widgetNames[widget.runtimeType] ?? widget.runtimeType.toString();

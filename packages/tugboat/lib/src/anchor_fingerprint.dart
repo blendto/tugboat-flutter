@@ -2,13 +2,17 @@ part of 'anchors.dart';
 
 /// Algorithm version for canonical-tree fingerprinting (denylist, tokenization).
 ///
+/// v5: retain actionable role widgets (e.g. InkWell) even when on the wrapper
+/// denylist, and climb from untokenized hit elements to the nearest tokenized
+/// ancestor when building canonical paths.
+///
 /// v4: visibility and modal-overlay filtering, fresh per-capture trees,
 /// generated widget names, and expanded actionable-role detection.
 ///
 /// v3: fixed `[item]` list-collapse (single token per row), generic-aware
 /// denylist matching + expanded denylist, and the verbose structural path
 /// skeleton moved out of the serialized `*Parts` (hash-only now).
-const int tugboatFingerprintSchemaVersion = 4;
+const int tugboatFingerprintSchemaVersion = 5;
 
 const _canonicalDenylist = <String>{
   'Padding',
