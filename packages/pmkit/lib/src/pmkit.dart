@@ -206,6 +206,10 @@ class _PmkitReplayRootState extends State<_PmkitReplayRoot> {
               event.position,
               pointer: event.pointer,
             ),
+            onPointerCancel: (event) => controller.recordPointerCancel(
+              event.position,
+              pointer: event.pointer,
+            ),
             child: content,
           ),
       ],

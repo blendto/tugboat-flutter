@@ -79,10 +79,12 @@ Three decoupled layers tied together by a **session capture id**:
 | `exploration`     | on           | full, every state*     | on            | graphing session (operator)  |
 | `production-lean` | on           | sampled / thumbnails   | sampled       | real end users               |
 
-\* **CLI WebSocket exploration (2026-06-24):** when `explorationCollectorUrl` is set and no
-HTTP collector is configured, frame capture is suppressed after the WebSocket connects — the
-CLI records ADB `before.jpg` / `after.jpg` per gesture instead. HTTP collector and production
-profiles are unchanged.
+\* **CLI WebSocket exploration:** when `explorationCollectorUrl` is set and no HTTP collector
+is configured, Flutter frame capture is **suppressed after the WebSocket connects** to keep the
+UI thread light; the CLI still records ADB `before.jpg` / `after.jpg` per gesture. When frames
+*are* captured (for example before the socket connects), `ExplorationCaptureSink` streams frame
+bytes over the WebSocket and the CLI persists them under `frames/<id>.{json,png}`. HTTP collector
+and production profiles are unchanged.
 
 Dormant must be truly zero-cost. **This is not true today** and is real work, not a flag:
 `wrapApp` unconditionally creates the controller, schedules `controller.start(...)` in a

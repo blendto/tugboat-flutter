@@ -40,7 +40,12 @@ class ExplorationCaptureSink implements PmkitCaptureSink {
     required String sessionId,
     String? actionId,
   }) {
-    // CLI exploration runs use ADB screenshots; skip frame bytes on the wire.
+    transport.sendFrame(
+      frame,
+      bytes,
+      sessionId: sessionId,
+      actionId: actionId,
+    );
   }
 
   @override

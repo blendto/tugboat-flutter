@@ -4,6 +4,10 @@ Flutter packages for capturing PMKit session evidence and generating stable
 widget catalogs. The PMKit CLI is intentionally maintained separately; this
 repository contains only Flutter and Dart packages.
 
+Recent cross-repo work (2026-06-29): **capture redesign** — attribution diagnostic
+events, pointer-cancel handling, and exploration frame streaming to `pmkit_cli`.
+See `packages/pmkit/CHANGELOG.md` and `packages/pmkit/docs/collector-integration.md`.
+
 ## Packages
 
 - [`pmkit`](packages/pmkit): the Flutter SDK.
