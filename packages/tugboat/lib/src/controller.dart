@@ -182,6 +182,7 @@ class TugboatReplayController extends ChangeNotifier {
   bool _scrolling = false;
   bool _skipCapture = false;
   bool _routeCapturePending = false;
+  int _routeEpoch = 0;
   int? _scrollStartedAt;
   double? _scrollStartOffset;
   DateTime? _lastScrollCaptureAt;
@@ -812,6 +813,7 @@ class TugboatReplayController extends ChangeNotifier {
 
     _routeCapturePending = true;
     _skipCapture = transitionDuration > Duration.zero;
+    final epoch = ++_routeEpoch;
     final postRouteSettle =
         _shouldSuppressFrameCapture ? Duration.zero : config.settleDelay;
     _queue = _queue.then((_) async {
@@ -819,6 +821,7 @@ class TugboatReplayController extends ChangeNotifier {
         await Future<void>.delayed(transitionDuration + postRouteSettle);
         _skipCapture = false;
         if (_disposed) return;
+        if (epoch != _routeEpoch) return;
         if (updatesRoute) {
           if (type == 'route_push' || type == 'route_replace') {
             _currentRoute = routeName;

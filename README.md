@@ -4,9 +4,14 @@ Flutter packages for capturing Tugboat session evidence and generating stable
 widget catalogs. The Tugboat CLI is intentionally maintained separately; this
 repository contains only Flutter and Dart packages.
 
-Recent cross-repo work (2026-06-29): **capture redesign** — attribution diagnostic
-events, pointer-cancel handling, and exploration frame streaming to `tugboat-cli`.
-See `packages/tugboat/CHANGELOG.md` and `packages/tugboat/docs/collector-integration.md`.
+Recent cross-repo work: **scene inventory pipeline** (2026-07-03) — per-screen control
+inventories with fingerprint aliases, tap injection, route epoch guard, and item-normalized
+state signatures. See `packages/tugboat/CHANGELOG.md` and
+`packages/tugboat/docs/capture-and-fingerprint-design.md` §4.9.
+
+Earlier (2026-06-29): **capture redesign** — attribution diagnostic events, pointer-cancel
+handling, and exploration frame streaming to `tugboat-cli`.
+See `packages/tugboat/docs/collector-integration.md`.
 
 ## Packages
 

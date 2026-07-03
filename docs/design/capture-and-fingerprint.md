@@ -304,7 +304,30 @@ alter fingerprints, so v3 and v4 evidence are never joined directly.
 consistent within a build, so paths still match as long as the graph was built from the
 *same* APK (`apkSha256`). Ingestion enforces this.
 
-### 4.8 CLI graph join (`tugboat-cli`)
+### 4.9 Scene inventory (exploration profile)
+
+During exploration, after a screen settles the SDK enumerates interactive controls and
+writes a per-screen inventory file via the CLI sink (`inventories/<stateSignature>.json`).
+Each entry carries `fingerprint`, `canonicalPath`, `role`, `widgetType`, `boundsNorm`, and
+optional `aliases[]` (alternate structural fingerprints for the same logical control).
+
+**Tap injection:** if a tap resolves to a fingerprint not present in the enumerated
+inventory (edge tap, modal barrier, grid item), the tap target is appended so CLI
+`inspect` inventory joins stay at 100% for exploration taps.
+
+**Signature stability (2026-07-03):**
+
+- **Item normalization** — `[item:hash]` segments in actionable paths are collapsed to
+  `[item]` when computing `stateSignature` only. Scrolling a list no longer forks
+  inventories for the same logical screen.
+- **Route epoch guard** — rapid navigation no longer mislabels inventories under stale
+  route callbacks (e.g. paywall screen captured under `/home`).
+
+Downstream, `tugboat-context-graph` ingests these files into `controls` rows (with
+`aliases[]`) so production tap lookup can resolve elements never directly tapped during
+recording.
+
+### 4.10 CLI graph join (`tugboat-cli`)
 
 - State node id becomes `stateSignature` (not LLM title/controls).
 - Transition identity becomes `(fromSig, targetFingerprint, toSig)`.
