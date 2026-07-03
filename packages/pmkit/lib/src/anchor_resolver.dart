@@ -835,6 +835,11 @@ class AnchorResolver {
             .toSet()
             .toList()
           ..sort();
+    final signaturePaths = sortedPaths
+        .map(_normalizeItemPathForSignature)
+        .toSet()
+        .toList()
+      ..sort();
     final actionableSummary = tokenMap.actionableSummary;
     final subLabel = tokenMap.subLabel;
     // Hash input carries the full actionable-path skeleton (the determinant of
@@ -842,7 +847,7 @@ class AnchorResolver {
     final effectiveModalOpen = modalOpen || tokenMap.hasBlockingOverlay;
     final hashParts = <String, String>{
       'routeKey': routeKey,
-      'actionablePaths': sortedPaths.join('|'),
+      'actionablePaths': signaturePaths.join('|'),
       if (keyboardOpen) 'keyboardOpen': 'true',
       if (effectiveModalOpen) 'modalOpen': 'true',
       if (subLabel != null && subLabel.isNotEmpty) 'subLabel': subLabel,
@@ -1242,6 +1247,10 @@ class AnchorResolver {
 
   bool _pathsOnSameChain(String leftPath, String rightPath) {
     return leftPath.startsWith(rightPath) || rightPath.startsWith(leftPath);
+  }
+
+  String _normalizeItemPathForSignature(String path) {
+    return path.replaceAll(RegExp(r'\[item:[^\]]+\]'), '[item]');
   }
 
   bool _hasTokenizedActionableDescendant(

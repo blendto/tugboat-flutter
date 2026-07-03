@@ -4,9 +4,14 @@ Flutter packages for capturing PMKit session evidence and generating stable
 widget catalogs. The PMKit CLI is intentionally maintained separately; this
 repository contains only Flutter and Dart packages.
 
-Recent cross-repo work (2026-06-29): **capture redesign** — attribution diagnostic
-events, pointer-cancel handling, and exploration frame streaming to `pmkit_cli`.
-See `packages/pmkit/CHANGELOG.md` and `packages/pmkit/docs/collector-integration.md`.
+Recent cross-repo work: **scene inventory pipeline** (2026-07-03) — per-screen control
+inventories with fingerprint aliases, tap injection, route epoch guard, and item-normalized
+state signatures. See `packages/pmkit/CHANGELOG.md` and
+`packages/pmkit/docs/capture-and-fingerprint-design.md` §4.9.
+
+Earlier (2026-06-29): **capture redesign** — attribution diagnostic events, pointer-cancel
+handling, and exploration frame streaming to `pmkit_cli`.
+See `packages/pmkit/docs/collector-integration.md`.
 
 ## Packages
 

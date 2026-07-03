@@ -281,6 +281,64 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('stale route callbacks do not clobber newer routes', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: rootKey,
+        child: const SizedBox(width: 390, height: 844),
+      ),
+    );
+    final controller = PmkitReplayController(
+      config: const PmkitReplayConfig(
+        profile: PmkitCaptureProfile.exploration,
+        settleDelay: Duration(milliseconds: 50),
+        enableGlobalPointerCapture: false,
+        capturePixelRatio: 1.0,
+      ),
+      boundaryKey: rootKey,
+    );
+    controller.start(const Size(390, 844), 'test');
+
+    PageRoute<void> delayedRoute(String name) => PageRouteBuilder<void>(
+      settings: RouteSettings(name: name),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (_, _, _) => const SizedBox.shrink(),
+    );
+    PageRoute<void> instantRoute(String name) => PageRouteBuilder<void>(
+      settings: RouteSettings(name: name),
+      transitionDuration: Duration.zero,
+      pageBuilder: (_, _, _) => const SizedBox.shrink(),
+    );
+
+    await tester.runAsync(() async {
+      final homeFuture = controller.route(
+        'route_push',
+        delayedRoute('/home'),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await controller.route('route_push', instantRoute('/paywall'));
+      await homeFuture;
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    });
+
+    expect(controller.currentRoute, '/paywall');
+
+    final changes = controller.session!.events
+        .where((event) => event.type == 'route_change')
+        .toList();
+    expect(
+      changes.where((event) => event.data['route'] == '/home'),
+      isEmpty,
+      reason: 'stale /home callback must not emit route_change',
+    );
+    expect(changes.last.data['route'], '/paywall');
+
+    controller.dispose();
+  });
+
   testWidgets('captures scroll checkpoints and samples', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
