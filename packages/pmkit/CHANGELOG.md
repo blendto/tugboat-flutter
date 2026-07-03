@@ -2,6 +2,9 @@
 
 ### Added
 
+- **`scene_inventory` events** — during exploration, emit a deduped structural inventory
+  of actionable elements and `Image` widgets per settled screen state (fingerprints, bounds,
+  roles). Fingerprints match tap `targetAnchor` resolution for the same element.
 - **Capture attribution diagnostics** — SDK emits `action_window_set`, `action_window_cleared`,
   `tap_outside_tree`, and `pointer_cancel` events during CLI exploration runs.
 - **`recordPointerCancel`** — wired from `InputCapture` and the root `Listener` so cancelled
