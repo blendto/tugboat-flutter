@@ -55,7 +55,69 @@ class AnchorResolver {
     if (rootRender is! RenderBox || rootContext is! Element) return null;
 
     final tokenMap = _buildTokenMap(rootContext, rootRender);
+    return _targetAtWithTokenMap(
+      globalPosition,
+      route: route,
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+    );
+  }
 
+  /// Builds inventory and resolves a tap target from one token-map walk.
+  ({PmkitSceneInventory? inventory, PmkitTargetAnchor? target})
+  buildTapContext({
+    required Offset tapPosition,
+    required String? route,
+    required bool keyboardOpen,
+    required bool modalOpen,
+  }) {
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+    if (rootRender is! RenderBox || rootContext is! Element) {
+      return (inventory: null, target: null);
+    }
+
+    final tokenMap = _buildTokenMap(rootContext, rootRender);
+    final stateAnchor = _stateAnchorFromTokenMap(
+      tokenMap: tokenMap,
+      route: route,
+      keyboardOpen: keyboardOpen,
+      modalOpen: modalOpen,
+    );
+    if (stateAnchor.signature.isEmpty) {
+      return (inventory: null, target: null);
+    }
+
+    final target = _targetAtWithTokenMap(
+      tapPosition,
+      route: route,
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+    );
+    var inventory = _buildSceneInventoryFromTokenMap(
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+      route: route,
+      stateAnchor: stateAnchor,
+    );
+    inventory = _injectTapTargetIntoInventory(
+      inventory: inventory,
+      target: target,
+      tapPosition: tapPosition,
+      stateAnchor: stateAnchor,
+      route: route,
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+    );
+    return (inventory: inventory, target: target);
+  }
+
+  PmkitTargetAnchor? _targetAtWithTokenMap(
+    Offset globalPosition, {
+    required String? route,
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
+  }) {
     final viewport = rootRender.size;
     final result = BoxHitTestResult();
     rootRender.hitTest(result, position: globalPosition);
@@ -751,7 +813,20 @@ class AnchorResolver {
     }
 
     final tokenMap = _buildTokenMap(rootContext, rootRender);
+    return _stateAnchorFromTokenMap(
+      tokenMap: tokenMap,
+      route: route,
+      keyboardOpen: keyboardOpen,
+      modalOpen: modalOpen,
+    );
+  }
 
+  PmkitStateAnchor _stateAnchorFromTokenMap({
+    required _TokenMap tokenMap,
+    required String? route,
+    required bool keyboardOpen,
+    required bool modalOpen,
+  }) {
     final routeKey = _resolveRouteKey(route, tokenMap);
     final sortedPaths =
         tokenMap.isActionable.keys
@@ -798,6 +873,418 @@ class AnchorResolver {
       ]),
       signatureParts: signatureParts,
     );
+  }
+
+  /// Minimum normalized paint area for tokenized [Text] widgets to qualify as
+  /// content-tier inventory entries.
+  static const double _largeTextAreaThreshold = 0.02;
+
+  /// Enumerates tokenized actionable elements, [Image] widgets, and large
+  /// [Text] blocks on the current screen. Fingerprints match [targetAt] for the
+  /// same element.
+  PmkitSceneInventory? buildSceneInventory({
+    required String? route,
+    required bool keyboardOpen,
+    required bool modalOpen,
+  }) {
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+    if (rootContext is! Element || rootRender is! RenderBox) return null;
+
+    final tokenMap = _buildTokenMap(rootContext, rootRender);
+    final stateAnchor = _stateAnchorFromTokenMap(
+      tokenMap: tokenMap,
+      route: route,
+      keyboardOpen: keyboardOpen,
+      modalOpen: modalOpen,
+    );
+    if (stateAnchor.signature.isEmpty) return null;
+
+    return _buildSceneInventoryFromTokenMap(
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+      route: route,
+      stateAnchor: stateAnchor,
+    );
+  }
+
+  PmkitSceneInventory? _buildSceneInventoryFromTokenMap({
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
+    required String? route,
+    required PmkitStateAnchor stateAnchor,
+  }) {
+    final routeKey = _resolveRouteKey(route, tokenMap);
+    final viewport = rootRender.size;
+    final contentEntries = <PmkitSceneInventoryEntry>[];
+    final interactiveByFingerprint = <String, PmkitSceneInventoryEntry>{};
+    final seenContentFingerprints = <String>{};
+    final hitCache = <String, PmkitTargetAnchor?>{};
+
+    for (final element in tokenMap.includedElements) {
+      if (!tokenMap.tokens.containsKey(element)) continue;
+
+      final widget = element.widget;
+      final isImage = widget is Image;
+      final isLargeText = widget is Text && _isLargeTextBounds(
+        _boundsForElement(element, rootRender, viewport),
+      );
+      final isActionable = tokenMap.isActionable[element] == true;
+      if (!isActionable && !isImage && !isLargeText) continue;
+
+      final structuralPath = _pathFor(element, tokenMap);
+      final bounds = _boundsForElement(element, rootRender, viewport);
+      if (bounds == null) continue;
+
+      if (isActionable) {
+        final result = _interactiveInventoryEntry(
+          element: element,
+          widget: widget,
+          structuralPath: structuralPath,
+          bounds: bounds,
+          routeKey: routeKey,
+          route: route,
+          tokenMap: tokenMap,
+          rootRender: rootRender,
+          viewport: viewport,
+          hitCache: hitCache,
+        );
+        if (result == null) continue;
+        _accumulateInteractiveEntry(
+          interactiveByFingerprint,
+          result.entry,
+          result.structuralFingerprint,
+        );
+        continue;
+      }
+
+      final fingerprint = _fingerprintForParts({
+        'routeKey': routeKey,
+        'path': structuralPath,
+      });
+      if (fingerprint.isEmpty || !seenContentFingerprints.add(fingerprint)) {
+        continue;
+      }
+
+      contentEntries.add(
+        PmkitSceneInventoryEntry(
+          fingerprint: fingerprint,
+          canonicalPath: structuralPath,
+          widgetType: _widgetName(widget),
+          role: 'display',
+          boundsNorm: bounds,
+          tier: 'content',
+        ),
+      );
+    }
+
+    final elements = [...interactiveByFingerprint.values, ...contentEntries];
+    if (elements.isEmpty) return null;
+
+    return _inventoryFromElements(
+      stateAnchor: stateAnchor,
+      routeKey: routeKey,
+      elements: elements,
+    );
+  }
+
+  PmkitSceneInventory _inventoryFromElements({
+    required PmkitStateAnchor stateAnchor,
+    required String routeKey,
+    required List<PmkitSceneInventoryEntry> elements,
+  }) {
+    final fingerprints = elements.map((entry) => entry.fingerprint).toList()
+      ..sort();
+    final inventoryHash = pmkitLabelHash(fingerprints.join('|'));
+
+    return PmkitSceneInventory(
+      stateAnchor: stateAnchor,
+      stateSignature: stateAnchor.signature,
+      inventoryHash: inventoryHash,
+      routeKey: routeKey,
+      elements: elements,
+    );
+  }
+
+  void _accumulateInteractiveEntry(
+    Map<String, PmkitSceneInventoryEntry> interactiveByFingerprint,
+    PmkitSceneInventoryEntry entry,
+    String structuralFingerprint,
+  ) {
+    final existing = interactiveByFingerprint[entry.fingerprint];
+    if (existing == null) {
+      final aliases = _mergeAliasFingerprints(
+        existingAliases: const [],
+        primaryFingerprint: entry.fingerprint,
+        structuralFingerprint: structuralFingerprint,
+      );
+      interactiveByFingerprint[entry.fingerprint] = entry.copyWith(
+        aliases: aliases,
+      );
+      return;
+    }
+
+    final aliases = _mergeAliasFingerprints(
+      existingAliases: existing.aliases,
+      primaryFingerprint: entry.fingerprint,
+      structuralFingerprint: structuralFingerprint,
+    );
+    interactiveByFingerprint[entry.fingerprint] = existing.copyWith(
+      aliases: aliases,
+    );
+  }
+
+  List<String> _mergeAliasFingerprints({
+    required List<String> existingAliases,
+    required String primaryFingerprint,
+    required String structuralFingerprint,
+  }) {
+    final merged = {...existingAliases};
+    if (structuralFingerprint.isNotEmpty &&
+        structuralFingerprint != primaryFingerprint) {
+      merged.add(structuralFingerprint);
+    }
+    final sorted = merged.toList()..sort();
+    return sorted;
+  }
+
+  bool _inventoryContainsFingerprint(
+    PmkitSceneInventory? inventory,
+    String fingerprint,
+  ) {
+    if (inventory == null) return false;
+    for (final entry in inventory.elements) {
+      if (entry.fingerprint == fingerprint) return true;
+      if (entry.aliases.contains(fingerprint)) return true;
+    }
+    return false;
+  }
+
+  PmkitSceneInventory? _injectTapTargetIntoInventory({
+    required PmkitSceneInventory? inventory,
+    required PmkitTargetAnchor? target,
+    required Offset tapPosition,
+    required PmkitStateAnchor stateAnchor,
+    required String? route,
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
+  }) {
+    final fingerprint = target?.fingerprint;
+    if (fingerprint == null || fingerprint.isEmpty) {
+      return inventory;
+    }
+    if (_inventoryContainsFingerprint(inventory, fingerprint)) {
+      return inventory;
+    }
+
+    final routeKey = _resolveRouteKey(route, tokenMap);
+    final viewport = rootRender.size;
+    final injectedEntry = _entryFromTargetAnchor(
+      target: target!,
+      tapPosition: tapPosition,
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+      viewport: viewport,
+    );
+    if (injectedEntry == null) return inventory;
+
+    final elements = [
+      ...(inventory?.elements ?? const <PmkitSceneInventoryEntry>[]),
+      injectedEntry,
+    ];
+    return _inventoryFromElements(
+      stateAnchor: stateAnchor,
+      routeKey: inventory?.routeKey ?? routeKey,
+      elements: elements,
+    );
+  }
+
+  PmkitSceneInventoryEntry? _entryFromTargetAnchor({
+    required PmkitTargetAnchor target,
+    required Offset tapPosition,
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
+    required Size viewport,
+  }) {
+    final fingerprint = target.fingerprint;
+    final canonicalPath = target.canonicalPath;
+    if (fingerprint == null ||
+        fingerprint.isEmpty ||
+        canonicalPath == null ||
+        canonicalPath.isEmpty) {
+      return null;
+    }
+
+    final bounds = _boundsAtTapPosition(
+          tapPosition,
+          tokenMap: tokenMap,
+          rootRender: rootRender,
+          viewport: viewport,
+        ) ??
+        PmkitNormalizedBounds(
+          left: (tapPosition.dx / viewport.width).clamp(0.0, 1.0),
+          top: (tapPosition.dy / viewport.height).clamp(0.0, 1.0),
+          width: 0.01,
+          height: 0.01,
+        );
+
+    return PmkitSceneInventoryEntry(
+      fingerprint: fingerprint,
+      canonicalPath: canonicalPath,
+      widgetType: target.widgetType,
+      role: target.role,
+      actions: target.actions,
+      enabled: target.enabled,
+      boundsNorm: bounds,
+      tier: 'interactive',
+    );
+  }
+
+  PmkitNormalizedBounds? _boundsAtTapPosition(
+    Offset tapPosition, {
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
+    required Size viewport,
+  }) {
+    final result = BoxHitTestResult();
+    rootRender.hitTest(result, position: tapPosition);
+    for (final entry in result.path) {
+      if (entry.target is! RenderObject) continue;
+      final element = tokenMap.renderElements[entry.target as RenderObject];
+      if (element == null || _isCaptureChrome(element.widget)) continue;
+      return _boundsForElement(element, rootRender, viewport);
+    }
+    return null;
+  }
+
+  ({PmkitSceneInventoryEntry entry, String structuralFingerprint})?
+  _interactiveInventoryEntry({
+    required Element element,
+    required Widget widget,
+    required String structuralPath,
+    required PmkitNormalizedBounds bounds,
+    required String routeKey,
+    required String? route,
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
+    required Size viewport,
+    required Map<String, PmkitTargetAnchor?> hitCache,
+  }) {
+    final structuralFingerprint = _fingerprintForParts({
+      'routeKey': routeKey,
+      'path': structuralPath,
+    });
+
+    final center = Offset(
+      (bounds.left + bounds.width / 2) * viewport.width,
+      (bounds.top + bounds.height / 2) * viewport.height,
+    );
+    final cacheKey = '${center.dx}|${center.dy}';
+    final resolved = hitCache.putIfAbsent(
+      cacheKey,
+      () => _targetAtWithTokenMap(
+        center,
+        route: route,
+        tokenMap: tokenMap,
+        rootRender: rootRender,
+      ),
+    );
+
+    final resolvedFingerprint = resolved?.fingerprint;
+    final resolvedPath = resolved?.canonicalPath;
+    if (resolvedFingerprint != null &&
+        resolvedFingerprint.isNotEmpty &&
+        resolvedPath != null &&
+        resolvedPath.isNotEmpty &&
+        _pathsOnSameChain(structuralPath, resolvedPath)) {
+      return (
+        entry: PmkitSceneInventoryEntry(
+          fingerprint: resolvedFingerprint,
+          canonicalPath: resolvedPath,
+          widgetType: resolved?.widgetType ?? _widgetName(widget),
+          role: resolved?.role,
+          actions: resolved?.actions ?? const [],
+          enabled: resolved?.enabled,
+          boundsNorm: bounds,
+          tier: 'interactive',
+        ),
+        structuralFingerprint: structuralFingerprint,
+      );
+    }
+
+    if (_hasTokenizedActionableDescendant(
+      element,
+      tokenMap.isActionable,
+      tokenMap.tokens,
+    )) {
+      return null;
+    }
+
+    if (structuralFingerprint.isEmpty) return null;
+
+    final actions = <String>{};
+    final roleInfo = _roleForWidget(widget, actions);
+
+    return (
+      entry: PmkitSceneInventoryEntry(
+        fingerprint: structuralFingerprint,
+        canonicalPath: structuralPath,
+        widgetType: _widgetName(widget),
+        role: roleInfo?.$1,
+        actions: actions.toList()..sort(),
+        enabled: roleInfo?.$2,
+        boundsNorm: bounds,
+        tier: 'interactive',
+      ),
+      structuralFingerprint: structuralFingerprint,
+    );
+  }
+
+  bool _pathsOnSameChain(String leftPath, String rightPath) {
+    return leftPath.startsWith(rightPath) || rightPath.startsWith(leftPath);
+  }
+
+  bool _hasTokenizedActionableDescendant(
+    Element element,
+    Map<Element, bool> isActionable,
+    Map<Element, String> tokens,
+  ) {
+    var found = false;
+    void walk(Element node) {
+      node.visitChildElements((child) {
+        if (isActionable[child] == true && tokens.containsKey(child)) {
+          found = true;
+          return;
+        }
+        if (!found) walk(child);
+      });
+    }
+
+    walk(element);
+    return found;
+  }
+
+  bool _isLargeTextBounds(PmkitNormalizedBounds? bounds) {
+    if (bounds == null) return false;
+    return bounds.width * bounds.height >= _largeTextAreaThreshold;
+  }
+
+  PmkitNormalizedBounds? _boundsForElement(
+    Element element,
+    RenderBox rootRender,
+    Size viewport,
+  ) {
+    final render = element.renderObject;
+    if (render is! RenderBox || !render.hasSize) return null;
+    try {
+      final rect = MatrixUtils.transformRect(
+        render.getTransformTo(rootRender),
+        render.paintBounds,
+      );
+      return PmkitNormalizedBounds.fromRect(rect, viewport);
+    } catch (_) {
+      return null;
+    }
   }
 
   String? _relativePosition(Rect? bounds, Size viewport) {

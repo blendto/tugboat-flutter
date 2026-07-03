@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:pmkit/pmkit.dart';
-import 'package:pmkit/src/anchors.dart' show AnchorResolver;
+import 'package:pmkit/src/anchors.dart' show AnchorResolver, pmkitFingerprintSchemaVersion;
 import 'package:pmkit/src/perceptual_hash.dart'
     show computeDHashFromRgba;
 
@@ -91,7 +91,10 @@ void main() {
     expect(tapEvents.first.targetAnchor!.canonicalPath, isNotEmpty);
     expect(
       tapEvents.first.targetAnchor!.fingerprintParts,
-      containsPair('schemaVersion', '4'),
+      containsPair(
+        'schemaVersion',
+        pmkitFingerprintSchemaVersion.toString(),
+      ),
     );
     expect(
       tapEvents.first.targetAnchor!.fingerprintParts.containsKey('labels'),
