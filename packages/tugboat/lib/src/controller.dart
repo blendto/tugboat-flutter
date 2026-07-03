@@ -187,6 +187,7 @@ class TugboatReplayController extends ChangeNotifier {
   DateTime? _lastScrollCaptureAt;
   String? _activeScrollBeforeFrame;
   String? _lastCapturedStateSignature;
+  final Set<String> _emittedInventories = <String>{};
   String? _lastDHash;
 
   _ScheduledCapture? _scheduledCapture;
@@ -323,6 +324,7 @@ class TugboatReplayController extends ChangeNotifier {
     _pendingTaps.clear();
     _hashToFrameId.clear();
     _lastCapturedStateSignature = null;
+    _emittedInventories.clear();
     _lastDHash = null;
     if (!_disposed) notifyListeners();
     _sinkHub?.startSession(_session!);
@@ -338,7 +340,9 @@ class TugboatReplayController extends ChangeNotifier {
       _requestCapture(
         trigger: TugboatFrameTrigger.initial,
         settleDelay: Duration.zero,
-      ),
+      ).then((_) {
+        _maybeEmitSceneInventory();
+      }),
     );
   }
 
@@ -383,6 +387,7 @@ class TugboatReplayController extends ChangeNotifier {
   }) {
     if (_disposed || _capturePaused || _skipCapture || _shouldSuppressFrameCapture) {
       _refreshStateAnchor();
+      _maybeEmitSceneInventory();
       return Future<String?>.value(_latestFrameId);
     }
 
@@ -499,6 +504,7 @@ class TugboatReplayController extends ChangeNotifier {
         if (signature.isNotEmpty) {
           _lastCapturedStateSignature = signature;
         }
+        _maybeEmitSceneInventory();
         return existingId;
       }
 
@@ -522,6 +528,7 @@ class TugboatReplayController extends ChangeNotifier {
       if (signature.isNotEmpty) {
         _lastCapturedStateSignature = signature;
       }
+      _maybeEmitSceneInventory();
       _sinkHub?.recordFrame(
         frame,
         result.bytes,
@@ -541,9 +548,29 @@ class TugboatReplayController extends ChangeNotifier {
 
   void recordPointerDown(Offset position, {int pointer = 0}) {
     final resolver = _anchorResolver;
-    final target = resolver?.targetAt(position, route: _currentRoute);
+    TugboatTargetAnchor? target;
+    TugboatStateAnchor? tapState = _currentStateAnchor;
+
+    if (resolver != null && config.profile != TugboatCaptureProfile.dormant) {
+      final tapContext = resolver.buildTapContext(
+        tapPosition: position,
+        route: _currentRoute,
+        keyboardOpen: _isKeyboardOpen(),
+        modalOpen: _isModalOpen(),
+      );
+      target = tapContext.target;
+      final inventory = tapContext.inventory;
+      if (inventory != null) {
+        _currentStateAnchor = inventory.stateAnchor;
+        tapState = inventory.stateAnchor;
+        _emitSceneInventory(inventory);
+      }
+    } else {
+      target = resolver?.targetAt(position, route: _currentRoute);
+    }
+
     final beforeFrame = _latestFrameId;
-    final beforeState = _currentStateAnchor;
+    final beforeState = tapState;
     final eventId = _nextId('event');
     _pendingTaps[pointer] = _PendingTap(
       eventId: eventId,
@@ -827,6 +854,7 @@ class TugboatReplayController extends ChangeNotifier {
             },
           ),
         );
+        _maybeEmitSceneInventory();
         if (!_disposed) notifyListeners();
       } finally {
         _routeCapturePending = false;
@@ -858,6 +886,38 @@ class TugboatReplayController extends ChangeNotifier {
         data: {
           if (afterState?.subLabel != null) 'subLabel': afterState!.subLabel,
         },
+      ),
+    );
+    _maybeEmitSceneInventory();
+  }
+
+  void _maybeEmitSceneInventory() {
+    if (config.profile == TugboatCaptureProfile.dormant) return;
+    final resolver = _anchorResolver;
+    if (resolver == null || _session == null) return;
+
+    final inventory = resolver.buildSceneInventory(
+      route: _currentRoute,
+      keyboardOpen: _isKeyboardOpen(),
+      modalOpen: _isModalOpen(),
+    );
+    if (inventory == null) return;
+
+    _currentStateAnchor = inventory.stateAnchor;
+    _emitSceneInventory(inventory);
+  }
+
+  void _emitSceneInventory(TugboatSceneInventory inventory) {
+    final dedupeKey = '${inventory.stateSignature}|${inventory.inventoryHash}';
+    if (!_emittedInventories.add(dedupeKey)) return;
+
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'scene_inventory',
+        stateAnchor: inventory.stateAnchor,
+        data: inventory.toJson(),
       ),
     );
   }
