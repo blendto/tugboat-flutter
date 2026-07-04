@@ -104,7 +104,7 @@ class AnchorResolver {
       target: target,
       inventory: inventory,
       tapPosition: tapPosition,
-      viewport: rootRender.size,
+      rootRender: rootRender,
     );
     inventory = _injectTapTargetIntoInventory(
       inventory: inventory,
@@ -1084,26 +1084,37 @@ class AnchorResolver {
   /// When hit-testing produced a target without a canonical path (e.g. a
   /// decorated box that is not part of the token map), its fingerprint can
   /// never join the scene inventory. Re-anchor the tap to the smallest
-  /// inventory element whose bounds contain the tap point so the event and
-  /// the inventory agree on identity.
+  /// interactive inventory element whose bounds contain the tap point so the
+  /// event and the inventory agree on identity.
+  ///
+  /// The snap is meant to rejoin the *same* conceptual element (a video's
+  /// gesture wrapper behind its Texture, a control mid-transition), not to
+  /// attribute the tap to whatever sits underneath an opaque overlay. Two
+  /// guards enforce that: only interactive-tier entries qualify, and the
+  /// candidate's area must be comparable to the area of the render object the
+  /// pointer actually hit — a small button underneath a screen-sized overlay
+  /// fails that ratio and the tap stays pathless.
   PmkitTargetAnchor? _snapPathlessTargetToInventory({
     required PmkitTargetAnchor? target,
     required PmkitSceneInventory? inventory,
     required Offset tapPosition,
-    required Size viewport,
+    required RenderBox rootRender,
   }) {
     if (target == null || inventory == null) return target;
     final hasPath = target.canonicalPath?.isNotEmpty ?? false;
     if (hasPath) return target;
+    final viewport = rootRender.size;
     if (viewport.width <= 0 || viewport.height <= 0) return target;
 
     final nx = tapPosition.dx / viewport.width;
     final ny = tapPosition.dy / viewport.height;
+    final hitAreaNorm = _hitLeafAreaNorm(rootRender, tapPosition);
 
     PmkitSceneInventoryEntry? best;
     var bestArea = double.infinity;
     for (final entry in inventory.elements) {
-      if (entry.role == null) continue;
+      if (entry.tier != 'interactive') continue;
+      if (entry.role == null && entry.actions.isEmpty) continue;
       final b = entry.boundsNorm;
       final within =
           nx >= b.left &&
@@ -1112,6 +1123,9 @@ class AnchorResolver {
           ny <= b.top + b.height;
       if (!within) continue;
       final area = b.width * b.height;
+      // Reject candidates far smaller than the surface the pointer actually
+      // landed on: they are occluded content, not the tapped element.
+      if (hitAreaNorm != null && area < hitAreaNorm * 0.5) continue;
       if (area < bestArea) {
         bestArea = area;
         best = entry;
@@ -1125,12 +1139,33 @@ class AnchorResolver {
       role: best.role ?? target.role,
       fingerprint: best.fingerprint,
       fingerprintConfidence: 'low',
-      fingerprintParts: target.fingerprintParts,
+      // The fingerprint now describes the inventory element, so the original
+      // anchor's parts would be stale; inventory entries carry no parts.
+      fingerprintParts: const {},
+      tagFingerprint: target.tagFingerprint,
       canonicalPath: best.canonicalPath,
       relativePosition: target.relativePosition,
       enabled: best.enabled ?? target.enabled,
       actions: best.actions.isNotEmpty ? best.actions : target.actions,
     );
+  }
+
+  /// Normalized area of the deepest render box the pointer actually hit.
+  /// Used to keep the pathless-tap snap from re-anchoring to occluded
+  /// elements that are much smaller than the hit surface.
+  double? _hitLeafAreaNorm(RenderBox rootRender, Offset tapPosition) {
+    final viewport = rootRender.size;
+    final result = BoxHitTestResult();
+    rootRender.hitTest(result, position: tapPosition);
+    for (final entry in result.path) {
+      final hit = entry.target;
+      if (hit is! RenderBox || !hit.hasSize) continue;
+      final area =
+          (hit.size.width / viewport.width) * (hit.size.height / viewport.height);
+      if (area <= 0) continue;
+      return area;
+    }
+    return null;
   }
 
   PmkitSceneInventory? _injectTapTargetIntoInventory({
