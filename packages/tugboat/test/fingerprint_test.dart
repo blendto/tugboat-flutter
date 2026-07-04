@@ -70,6 +70,60 @@ void main() {
     expect(await signatureFor(3), await signatureFor(7));
   });
 
+  testWidgets('scroll changes visible items without forking state signature', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    final scrollController = ScrollController();
+
+    Future<String> signatureAt(double offset, {bool showChrome = false}) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RepaintBoundary(
+            key: rootKey,
+            child: Scaffold(
+              body: Column(
+                children: [
+                  if (showChrome)
+                    FilledButton(onPressed: () {}, child: const Text('Filter')),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollController,
+                      itemCount: 30,
+                      itemBuilder: (context, index) => ListTile(
+                        key: ValueKey('row-$index'),
+                        title: Text('Plan ${index % 3}'),
+                        onTap: () {},
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      scrollController.jumpTo(offset);
+      await tester.pump();
+      return AnchorResolver(rootKey: rootKey)
+          .buildStateAnchor(
+            route: '/feed',
+            keyboardOpen: false,
+            modalOpen: false,
+          )
+          .signature;
+    }
+
+    final topSignature = await signatureAt(0);
+    final scrolledSignature = await signatureAt(800);
+    expect(topSignature, scrolledSignature);
+    expect(
+      await signatureAt(0, showChrome: true),
+      isNot(topSignature),
+    );
+  });
+
   testWidgets(
     'list row taps without discriminator share low-confidence fingerprint',
     (tester) async {

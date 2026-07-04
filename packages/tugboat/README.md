@@ -70,6 +70,10 @@ their fingerprints to match.
 - **Interaction plane:** tap events with target and state anchors, route changes
   in event `data`, and `beforeFrame` / `afterFrame` references. Text,
   accessibility, tooltip, and icon labels are not retained in telemetry.
+- **Scene inventory (exploration):** per settled screen state, the SDK enumerates
+  interactive controls and persists them via the CLI sink as `inventories/<stateSignature>.json`.
+  Entries include fingerprints, canonical paths, roles, and aliases. Tap injection guarantees
+  exploration taps join their inventory even when the element was not center-probed.
 - **Attribution diagnostics (CLI exploration):** `action_window_set` /
   `action_window_cleared` (recorder action-window lifecycle), `tap_outside_tree`
   (pointer down with no hit-test target), and `pointer_cancel` (gesture cancelled

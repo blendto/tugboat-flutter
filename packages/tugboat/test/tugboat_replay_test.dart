@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:tugboat/tugboat.dart';
-import 'package:tugboat/src/anchors.dart' show AnchorResolver;
+import 'package:tugboat/src/anchors.dart' show AnchorResolver, tugboatFingerprintSchemaVersion;
 import 'package:tugboat/src/perceptual_hash.dart'
     show computeDHashFromRgba;
 
@@ -91,7 +91,10 @@ void main() {
     expect(tapEvents.first.targetAnchor!.canonicalPath, isNotEmpty);
     expect(
       tapEvents.first.targetAnchor!.fingerprintParts,
-      containsPair('schemaVersion', '4'),
+      containsPair(
+        'schemaVersion',
+        tugboatFingerprintSchemaVersion.toString(),
+      ),
     );
     expect(
       tapEvents.first.targetAnchor!.fingerprintParts.containsKey('labels'),
@@ -275,6 +278,64 @@ void main() {
       'route': '/intro',
       'navigation': 'route_push',
     });
+    controller.dispose();
+  });
+
+  testWidgets('stale route callbacks do not clobber newer routes', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: rootKey,
+        child: const SizedBox(width: 390, height: 844),
+      ),
+    );
+    final controller = TugboatReplayController(
+      config: const TugboatReplayConfig(
+        profile: TugboatCaptureProfile.exploration,
+        settleDelay: Duration(milliseconds: 50),
+        enableGlobalPointerCapture: false,
+        capturePixelRatio: 1.0,
+      ),
+      boundaryKey: rootKey,
+    );
+    controller.start(const Size(390, 844), 'test');
+
+    PageRoute<void> delayedRoute(String name) => PageRouteBuilder<void>(
+      settings: RouteSettings(name: name),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (_, _, _) => const SizedBox.shrink(),
+    );
+    PageRoute<void> instantRoute(String name) => PageRouteBuilder<void>(
+      settings: RouteSettings(name: name),
+      transitionDuration: Duration.zero,
+      pageBuilder: (_, _, _) => const SizedBox.shrink(),
+    );
+
+    await tester.runAsync(() async {
+      final homeFuture = controller.route(
+        'route_push',
+        delayedRoute('/home'),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await controller.route('route_push', instantRoute('/paywall'));
+      await homeFuture;
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    });
+
+    expect(controller.currentRoute, '/paywall');
+
+    final changes = controller.session!.events
+        .where((event) => event.type == 'route_change')
+        .toList();
+    expect(
+      changes.where((event) => event.data['route'] == '/home'),
+      isEmpty,
+      reason: 'stale /home callback must not emit route_change',
+    );
+    expect(changes.last.data['route'], '/paywall');
+
     controller.dispose();
   });
 

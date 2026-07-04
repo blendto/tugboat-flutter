@@ -224,3 +224,83 @@ class TugboatStateAnchor {
     ),
   );
 }
+
+/// One salient element in a screen's structural inventory.
+class TugboatSceneInventoryEntry {
+  const TugboatSceneInventoryEntry({
+    required this.fingerprint,
+    required this.canonicalPath,
+    this.widgetType,
+    this.role,
+    this.actions = const [],
+    this.enabled,
+    required this.boundsNorm,
+    required this.tier,
+    this.aliases = const [],
+  });
+
+  final String fingerprint;
+  final String canonicalPath;
+  final String? widgetType;
+  final String? role;
+  final List<String> actions;
+  final bool? enabled;
+  final TugboatNormalizedBounds boundsNorm;
+  final String tier;
+
+  /// Alternate structural fingerprints for the same control (wrapper layers).
+  final List<String> aliases;
+
+  Map<String, Object?> toJson() => {
+    'fingerprint': fingerprint,
+    'canonicalPath': canonicalPath,
+    if (widgetType != null) 'widgetType': widgetType,
+    if (role != null) 'role': role,
+    if (actions.isNotEmpty) 'actions': actions,
+    if (enabled != null) 'enabled': enabled,
+    'boundsNorm': boundsNorm.toJson(),
+    'tier': tier,
+    if (aliases.isNotEmpty) 'aliases': aliases,
+  };
+
+  TugboatSceneInventoryEntry copyWith({
+    List<String>? aliases,
+  }) {
+    return TugboatSceneInventoryEntry(
+      fingerprint: fingerprint,
+      canonicalPath: canonicalPath,
+      widgetType: widgetType,
+      role: role,
+      actions: actions,
+      enabled: enabled,
+      boundsNorm: boundsNorm,
+      tier: tier,
+      aliases: aliases ?? this.aliases,
+    );
+  }
+}
+
+/// Structural inventory of salient elements on a settled screen state.
+class TugboatSceneInventory {
+  const TugboatSceneInventory({
+    required this.stateAnchor,
+    required this.stateSignature,
+    required this.inventoryHash,
+    required this.routeKey,
+    required this.elements,
+  });
+
+  /// Anchor the inventory was computed against; not serialized into [toJson].
+  final TugboatStateAnchor stateAnchor;
+  final String stateSignature;
+  final String inventoryHash;
+  final String routeKey;
+  final List<TugboatSceneInventoryEntry> elements;
+
+  Map<String, Object?> toJson() => {
+    'stateSignature': stateSignature,
+    'inventoryHash': inventoryHash,
+    'routeKey': routeKey,
+    'elements': elements.map((entry) => entry.toJson()).toList(),
+  };
+}
