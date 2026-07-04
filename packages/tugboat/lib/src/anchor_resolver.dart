@@ -88,7 +88,7 @@ class AnchorResolver {
       return (inventory: null, target: null);
     }
 
-    final target = _targetAtWithTokenMap(
+    var target = _targetAtWithTokenMap(
       tapPosition,
       route: route,
       tokenMap: tokenMap,
@@ -99,6 +99,12 @@ class AnchorResolver {
       rootRender: rootRender,
       route: route,
       stateAnchor: stateAnchor,
+    );
+    target = _snapPathlessTargetToInventory(
+      target: target,
+      inventory: inventory,
+      tapPosition: tapPosition,
+      viewport: rootRender.size,
     );
     inventory = _injectTapTargetIntoInventory(
       inventory: inventory,
@@ -122,6 +128,7 @@ class AnchorResolver {
     final result = BoxHitTestResult();
     rootRender.hitTest(result, position: globalPosition);
 
+    TugboatTargetAnchor? roleOnly;
     TugboatTargetAnchor? fallback;
     for (final entry in result.path) {
       if (entry.target is! RenderObject) continue;
@@ -135,10 +142,19 @@ class AnchorResolver {
         route: route,
         tokenMap: tokenMap,
       );
-      if (anchor.role != null) return anchor;
-      fallback ??= anchor;
+      final hasPath = anchor.canonicalPath?.isNotEmpty ?? false;
+      // Prefer an anchor that is both actionable and structurally addressable.
+      // A role without a canonical path (e.g. a Texture overlay with a
+      // long-press ancestor) cannot join a scene inventory, so keep scanning
+      // for a deeper hit entry that can.
+      if (anchor.role != null && hasPath) return anchor;
+      if (anchor.role != null) {
+        roleOnly ??= anchor;
+      } else {
+        fallback ??= anchor;
+      }
     }
-    return fallback;
+    return roleOnly ?? fallback;
   }
 
   TugboatTargetAnchor _anchorForElement({
@@ -1063,6 +1079,58 @@ class AnchorResolver {
       if (entry.aliases.contains(fingerprint)) return true;
     }
     return false;
+  }
+
+  /// When hit-testing produced a target without a canonical path (e.g. a
+  /// decorated box that is not part of the token map), its fingerprint can
+  /// never join the scene inventory. Re-anchor the tap to the smallest
+  /// inventory element whose bounds contain the tap point so the event and
+  /// the inventory agree on identity.
+  TugboatTargetAnchor? _snapPathlessTargetToInventory({
+    required TugboatTargetAnchor? target,
+    required TugboatSceneInventory? inventory,
+    required Offset tapPosition,
+    required Size viewport,
+  }) {
+    if (target == null || inventory == null) return target;
+    final hasPath = target.canonicalPath?.isNotEmpty ?? false;
+    if (hasPath) return target;
+    if (viewport.width <= 0 || viewport.height <= 0) return target;
+
+    final nx = tapPosition.dx / viewport.width;
+    final ny = tapPosition.dy / viewport.height;
+
+    TugboatSceneInventoryEntry? best;
+    var bestArea = double.infinity;
+    for (final entry in inventory.elements) {
+      if (entry.role == null) continue;
+      final b = entry.boundsNorm;
+      final within =
+          nx >= b.left &&
+          nx <= b.left + b.width &&
+          ny >= b.top &&
+          ny <= b.top + b.height;
+      if (!within) continue;
+      final area = b.width * b.height;
+      if (area < bestArea) {
+        bestArea = area;
+        best = entry;
+      }
+    }
+    if (best == null) return target;
+
+    return TugboatTargetAnchor(
+      schemaVersion: target.schemaVersion,
+      widgetType: best.widgetType ?? target.widgetType,
+      role: best.role ?? target.role,
+      fingerprint: best.fingerprint,
+      fingerprintConfidence: 'low',
+      fingerprintParts: target.fingerprintParts,
+      canonicalPath: best.canonicalPath,
+      relativePosition: target.relativePosition,
+      enabled: best.enabled ?? target.enabled,
+      actions: best.actions.isNotEmpty ? best.actions : target.actions,
+    );
   }
 
   TugboatSceneInventory? _injectTapTargetIntoInventory({
