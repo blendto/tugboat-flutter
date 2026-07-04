@@ -2,6 +2,18 @@
 
 ### Added
 
+- **Pathless-tap snap** (2026-07-04) — when hit-testing resolves a tap to a target
+  with a role but no canonical path (opaque `Texture`, decorated boxes outside the
+  token map), the tap is re-anchored to the smallest *interactive* scene-inventory
+  element containing the tap point, so its fingerprint always joins the inventory.
+  Guards: only interactive-tier entries qualify, and the candidate's area must be
+  comparable to the render surface the pointer actually hit (occluded controls under
+  opaque overlays are never falsely attributed). Snapped anchors keep
+  `tagFingerprint`, drop stale `fingerprintParts`, and are marked
+  `fingerprintConfidence: 'low'`.
+- **Structurally addressable anchor preference** — `_targetAtWithTokenMap` prefers
+  hit-test candidates that have both a role and a non-empty canonical path over
+  role-only candidates, fixing joins for paywall dismiss buttons and overlay chrome.
 - **`scene_inventory` events** — during exploration, emit a deduped structural inventory
   of actionable elements and `Image` widgets per settled screen state (fingerprints, bounds,
   roles). Fingerprints match tap `targetAnchor` resolution for the same element.

@@ -4,7 +4,13 @@ Flutter packages for capturing Tugboat session evidence and generating stable
 widget catalogs. The Tugboat CLI is intentionally maintained separately; this
 repository contains only Flutter and Dart packages.
 
-Recent cross-repo work: **scene inventory pipeline** (2026-07-03) — per-screen control
+Recent cross-repo work: **semantic tap joins** (2026-07-04) — pathless taps (opaque
+textures, overlay chrome) snap to the smallest interactive inventory element containing
+the tap point, with occlusion guards; hit-testing prefers anchors that carry both a role
+and a canonical path. Validated end-to-end at 100% tap legibility against the
+`tugboat-context-graph` enrichment lookup on a real device session.
+
+Earlier (2026-07-03): **scene inventory pipeline** — per-screen control
 inventories with fingerprint aliases, tap injection, route epoch guard, and item-normalized
 state signatures. See `packages/tugboat/CHANGELOG.md` and
 `packages/tugboat/docs/capture-and-fingerprint-design.md` §4.9.
@@ -121,6 +127,15 @@ also an integration fixture. Do not edit it manually.
 - Keep package versions and changelogs independent. A change to one package does
   not automatically require releasing the other.
 - Update the example whenever a public API or builder output changes.
+
+## Future plans
+
+- **Tap-time inventory reliability** — the SDK occasionally skips the tap-time
+  inventory emit, producing `INVENTORY_MISSING` on otherwise-known screens; make
+  inventory emission deterministic on every settled state.
+- **iOS parity** — the capture pipeline (anchors, inventories, exploration
+  transport) is validated on Android only.
+- **Publishing readiness** — license, metadata, and first pub.dev release (below).
 
 ## Before Publishing
 
