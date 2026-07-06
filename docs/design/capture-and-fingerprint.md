@@ -270,9 +270,10 @@ Scroll and swipe events use the same anchor contract. `scroll_start` / `scroll_e
 (`axis`, `offset`, normalized offset, edge/overscroll, optional `sectionLabel`). Pointer drags
 beyond touch slop emit `swipe`; `data.scrolled:false` with `result:noVisibleChange` is the
 canonical dead-swipe signal, while `data.scrolled:true` links to the scroll sequence through
-`scrollStartEventId`. The context graph service preserves these fields in
-`/v1/enrichment/map-event` summaries so production sessions can identify scroll confusion
-without replaying raw payloads.
+`scrollStartEventId`. The context graph service preserves these fields in `/v1/enrichment/map-event` summaries so
+production sessions can identify scroll confusion without replaying raw payloads. The collector
+consumer stores the full mapping at `payload.contextEnrichment` at ingest; event-aware labels
+include `Scroll did not move on …` for dead swipes. See `tugboat-collector/docs/enrichment.md`.
 
 The enclosing session telemetry uses schema v6. It removes all state/target label arrays,
 stores navigation strings only in `route_change.data` as `fromRoute`, `route`, and
