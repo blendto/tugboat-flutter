@@ -405,7 +405,9 @@ class AnchorResolver {
       actionablePaths.add(_pathForMaps(element, tokens, retainedParents));
     }
 
-    final sortedPaths = actionablePaths.toList()..sort();
+    final sortedPaths =
+        actionablePaths.map(_normalizeItemPathForSignature).toSet().toList()
+          ..sort();
     final structuralRouteSignature = tugboatLabelHash(sortedPaths.join('|'));
 
     return _TokenMap(
