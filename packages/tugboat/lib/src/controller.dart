@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
@@ -288,8 +287,7 @@ class TugboatReplayController extends ChangeNotifier {
       'route': _currentRoute,
       'frameId': _latestFrameId,
       'stateAnchor': stateAnchor?.toJson(),
-      if (tapPoint != null)
-        'tapPoint': {'x': tapPoint.dx, 'y': tapPoint.dy},
+      if (tapPoint != null) 'tapPoint': {'x': tapPoint.dx, 'y': tapPoint.dy},
       if (targetAnchor != null) 'targetAnchor': targetAnchor.toJson(),
     };
   }
@@ -429,7 +427,10 @@ class TugboatReplayController extends ChangeNotifier {
     bool force = false,
     Duration? settleDelay,
   }) {
-    if (_disposed || _capturePaused || _skipCapture || _shouldSuppressFrameCapture) {
+    if (_disposed ||
+        _capturePaused ||
+        _skipCapture ||
+        _shouldSuppressFrameCapture) {
       _refreshStateAnchor();
       _maybeEmitSceneInventory();
       return Future<String?>.value(_latestFrameId);
@@ -939,8 +940,7 @@ class TugboatReplayController extends ChangeNotifier {
 
     final now = DateTime.now();
     if (tracker.lastSampleAt != null &&
-        now.difference(tracker.lastSampleAt!) <
-            config.scrollCaptureInterval) {
+        now.difference(tracker.lastSampleAt!) < config.scrollCaptureInterval) {
       return;
     }
     tracker.lastSampleAt = now;
@@ -985,16 +985,16 @@ class TugboatReplayController extends ChangeNotifier {
       );
       if (_session != null && _session!.scrollSamples.isNotEmpty) {
         final last = _session!.scrollSamples.last;
-        _session!.scrollSamples[_session!.scrollSamples.length - 1] =
-            TugboatScrollSample(
-              atMs: last.atMs,
-              offset: metrics.pixels,
-              beforeFrame: last.beforeFrame,
-              afterFrame: afterFrame,
-              scrollableFingerprint: last.scrollableFingerprint,
-              axis: last.axis,
-              offsetNorm: last.offsetNorm,
-            );
+        _session!.scrollSamples[_session!.scrollSamples.length -
+            1] = TugboatScrollSample(
+          atMs: last.atMs,
+          offset: metrics.pixels,
+          beforeFrame: last.beforeFrame,
+          afterFrame: afterFrame,
+          scrollableFingerprint: last.scrollableFingerprint,
+          axis: last.axis,
+          offsetNorm: last.offsetNorm,
+        );
       }
       _addEvent(
         TugboatEvent(
@@ -1044,8 +1044,9 @@ class TugboatReplayController extends ChangeNotifier {
     _routeCapturePending = true;
     _skipCapture = transitionDuration > Duration.zero;
     final epoch = ++_routeEpoch;
-    final postRouteSettle =
-        _shouldSuppressFrameCapture ? Duration.zero : config.settleDelay;
+    final postRouteSettle = _shouldSuppressFrameCapture
+        ? Duration.zero
+        : config.settleDelay;
     _queue = _queue.then((_) async {
       try {
         await Future<void>.delayed(transitionDuration + postRouteSettle);
@@ -1179,10 +1180,7 @@ class TugboatReplayController extends ChangeNotifier {
         id: _nextId('event'),
         atMs: atMs,
         type: 'action_window_set',
-        data: {
-          'actionId': actionId,
-          'explorationRunId': explorationRunId,
-        },
+        data: {'actionId': actionId, 'explorationRunId': explorationRunId},
       ),
     );
   }

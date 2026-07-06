@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -49,15 +48,13 @@ void main() {
     server.listen((request) async {
       final path = request.uri.path;
       if (path == '/v1/sessions') {
-        final body =
-            jsonDecode(await utf8.decoder.bind(request).join()) as Map;
+        final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         sessionPosts.add(Map<String, dynamic>.from(body));
         request.response
           ..statusCode = 202
           ..write(jsonEncode({'accepted': true, 'sessionId': 'sess_server'}));
       } else if (path == '/v1/events/batch') {
-        final body =
-            jsonDecode(await utf8.decoder.bind(request).join()) as Map;
+        final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         final events = (body['events'] as List)
             .map((event) => Map<String, dynamic>.from(event as Map))
             .toList();
@@ -84,7 +81,12 @@ void main() {
         });
         request.response
           ..statusCode = 202
-          ..write(jsonEncode({'accepted': true, 'keys': ['sess_server/0.png']}));
+          ..write(
+            jsonEncode({
+              'accepted': true,
+              'keys': ['sess_server/0.png'],
+            }),
+          );
       } else {
         request.response.statusCode = 404;
       }
@@ -158,11 +160,7 @@ void main() {
     final session = createSession();
     sink.startSession(session);
     sink.recordEvent(
-      TugboatEvent(
-        id: 'event-start',
-        atMs: 0,
-        type: 'session_start',
-      ),
+      TugboatEvent(id: 'event-start', atMs: 0, type: 'session_start'),
     );
     sink.recordEvent(createEvent(1));
 
