@@ -15,9 +15,11 @@ resolution: workspace
 
 dependencies:
   crypto: ^3.0.6
+  device_info_plus: ^10.1.1
   flutter:
     sdk: flutter
   http: ^1.4.0
+  package_info_plus: ^8.0.1
   http_parser: ^4.1.2
   image: ^4.5.4
 

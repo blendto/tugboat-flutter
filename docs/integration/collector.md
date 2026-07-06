@@ -54,6 +54,21 @@ Fingerprints and SDK events continue to stream over the socket.
 Use this for the standalone `tugboat-collector` service:
 
 ```dart
+final collector = await TugboatCollectorHost.fromPlatform(
+  apiKey: apiKey,
+  baseUrl: TugboatCollectorDefaults.productionBaseUrl,
+  productionProfile: true,
+);
+
+TugboatReplay.wrapApp(
+  config: TugboatReplayConfig(collector: collector),
+  child: child,
+);
+```
+
+For full manual control, build [TugboatCollectorConfig] directly:
+
+```dart
 TugboatReplay.wrapApp(
   config: TugboatReplayConfig(
     collector: TugboatCollectorConfig(
