@@ -39,7 +39,7 @@ The SDK can stream capture output to:
 - the local CLI exploration collector over WebSocket
 - the standalone HTTP collector (`tugboat-collector`) with batched REST ingestion
 
-See [docs/collector-integration.md](docs/collector-integration.md) for setup
+See [Collector integration](../../docs/integration/collector.md) for setup
 details, including the default event batch size of `10`.
 
 ## Optional widget catalog

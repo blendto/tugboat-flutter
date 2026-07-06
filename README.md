@@ -1,31 +1,20 @@
 # Tugboat Flutter
 
-Flutter packages for capturing Tugboat session evidence and generating stable
-widget catalogs. The Tugboat CLI is intentionally maintained separately; this
-repository contains only Flutter and Dart packages.
+Flutter SDK for capturing session evidence and generating stable widget catalogs.
+The Tugboat CLI is maintained separately; this repository contains only Flutter and
+Dart packages.
 
-Recent cross-repo work: **semantic tap joins** (2026-07-04) — pathless taps (opaque
-textures, overlay chrome) snap to the smallest interactive inventory element containing
-the tap point, with occlusion guards; hit-testing prefers anchors that carry both a role
-and a canonical path. Validated end-to-end at 100% tap legibility against the
-`tugboat-context-graph` enrichment lookup on a real device session.
-
-Earlier (2026-07-03): **scene inventory pipeline** — per-screen control
-inventories with fingerprint aliases, tap injection, route epoch guard, and item-normalized
-state signatures. See `packages/tugboat/CHANGELOG.md` and
-`packages/tugboat/docs/capture-and-fingerprint-design.md` §4.9.
-
-Earlier (2026-06-29): **capture redesign** — attribution diagnostic events, pointer-cancel
-handling, and exploration frame streaming to `tugboat-cli`.
-See `packages/tugboat/docs/collector-integration.md`.
+**Repository:** [github.com/blendto/tugboat-flutter](https://github.com/blendto/tugboat-flutter)
 
 ## Packages
 
-- [`tugboat`](packages/tugboat): the Flutter SDK.
-- [`tugboat_builder`](packages/tugboat_builder): the optional build-time widget
-  catalog generator.
-- [`tugboat_example`](packages/tugboat/example): an example and integration fixture
-  for both packages. It is not published.
+- [`tugboat`](packages/tugboat) — the Flutter SDK
+- [`tugboat_builder`](packages/tugboat_builder) — optional build-time widget catalog generator
+- [`tugboat/example`](packages/tugboat/example) — demo app and integration fixture (not published)
+
+## Documentation
+
+See [docs/](docs/README.md) for integration guides and design notes.
 
 ## Requirements
 
@@ -33,116 +22,52 @@ See `packages/tugboat/docs/collector-integration.md`.
 - Dart 3.9.2 or newer
 - Git
 
-The repository uses a native Dart pub workspace for local package resolution
-and Melos 7 for shared development commands.
+The repository uses a native Dart pub workspace for local package resolution and
+Melos 7 for shared development commands.
 
 ## Setup
 
-From the repository root, install all workspace dependencies:
+From the repository root:
 
 ```sh
 dart pub get
-```
-
-Melos is already a development dependency, so a global installation is not
-required. Run it through Dart:
-
-```sh
 dart run melos list
 dart run melos run analyze
 ```
 
-If you prefer the shorter `melos` command, install it globally and ensure the
-pub cache executable directory is on your `PATH`:
-
-```sh
-dart pub global activate melos
-melos list
-```
-
-Use the version constrained in the root `pubspec.yaml` when global and local
-Melos behavior differs.
-
 ## Development
-
-Format and analyze the complete workspace before committing:
 
 ```sh
 dart run melos run format
 dart run melos run analyze
-```
-
-Run all package tests:
-
-```sh
 dart run melos run test
 ```
 
-During focused development, run only the affected package:
+Package-specific tests:
 
 ```sh
 dart run melos run test:builder
 dart run melos run test:sdk
 ```
 
-The underlying commands also work directly:
-
-```sh
-dart test packages/tugboat_builder/test
-flutter test packages/tugboat
-```
-
-## Testing Changes
-
-For SDK changes:
-
-1. Add or update tests under `packages/tugboat/test`.
-2. Run `dart run melos run test:sdk`.
-3. Run the example from `packages/tugboat/example` when behavior is visible or
-   requires real navigation, screenshots, or masking.
-
-For builder changes:
-
-1. Add or update tests under `packages/tugboat_builder/test`.
-2. Run `dart run melos run test:builder`.
-3. Regenerate the example catalog and inspect the result:
+Regenerate the example widget catalog:
 
 ```sh
 dart run melos run generate:example
 git diff -- packages/tugboat/example/lib/tugboat_widgets.g.dart
 ```
 
-`tugboat_widgets.g.dart` is generated but intentionally committed because it is
-also an integration fixture. Do not edit it manually.
+`tugboat_widgets.g.dart` is generated but intentionally committed as an integration
+fixture. Do not edit it manually.
 
-## Workspace Conventions
+## Workspace conventions
 
-- Run dependency commands from the repository root. The workspace has one
-  shared `pubspec.lock`; package-level lockfiles should not be committed.
-- Workspace packages depend on each other with normal version constraints, not
-  relative path dependencies. Pub resolves matching workspace members locally.
+- Run dependency commands from the repository root. The workspace has one shared
+  `pubspec.lock`; package-level lockfiles should not be committed.
 - Public SDK imports use `package:tugboat/tugboat.dart`.
-- Builder imports and configuration use `tugboat_builder`, including the builder
-  key `tugboat_builder|widget_catalog`.
-- Keep package versions and changelogs independent. A change to one package does
-  not automatically require releasing the other.
-- Update the example whenever a public API or builder output changes.
+- Builder configuration uses the key `tugboat_builder|widget_catalog`.
+- Keep package versions and changelogs independent.
 
-## Future plans
+## License
 
-- **Tap-time inventory reliability** — the SDK occasionally skips the tap-time
-  inventory emit, producing `INVENTORY_MISSING` on otherwise-known screens; make
-  inventory emission deterministic on every settled state.
-- **iOS parity** — the capture pipeline (anchors, inventories, exploration
-  transport) is validated on Android only.
-- **Publishing readiness** — license, metadata, and first pub.dev release (below).
-
-## Before Publishing
-
-- Replace the placeholder SDK `LICENSE` with the chosen project license and add
-  a license to `tugboat_builder`.
-- Update the relevant package version and `CHANGELOG.md`.
-- Run formatting, analysis, package tests, and the example builder integration.
-- Run `dart pub publish --dry-run` from the package directory being released.
-- Confirm package metadata such as repository and issue-tracker URLs before the
-  first pub.dev release.
+[GNU Affero General Public License v3.0](LICENSE)

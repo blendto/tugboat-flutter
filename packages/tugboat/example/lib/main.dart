@@ -4,36 +4,10 @@ import 'package:tugboat/tugboat.dart';
 import 'tugboat_widgets.g.dart';
 import 'screens/home_screen.dart';
 
-/// Example collector configuration for the standalone HTTP collector.
-///
-/// Keep API keys out of source control in production apps. Tokens are
-/// client-visible on mobile, so use environment-specific keys with the
-/// narrowest scope possible.
+/// HTTP collector config for production ingestion. See
+/// `docs/integration/collector.md` for setup. Keep API keys out of source
+/// control — mobile tokens are client-visible.
 const TugboatCollectorConfig? _productionCollector = null;
-// const _productionCollector = TugboatCollectorConfig(
-//   baseUrl: TugboatCollectorDefaults.productionBaseUrl,
-//   apiKey: 'pmk_example_dev_token',
-//   appInfo: TugboatCollectorAppInfo(
-//     name: 'Tugboat Replay Demo',
-//     version: '1.0.0',
-//     buildNumber: '1',
-//     installationId: 'demo-installation',
-//   ),
-//   deviceInfo: TugboatCollectorDeviceInfo(
-//     id: 'demo-device',
-//     platform: 'ios',
-//     screenSize: TugboatCollectorScreenSize(width: 390, height: 844),
-//     screenDensity: 3,
-//     screenDpi: 460,
-//     screenPixelDensity: 3,
-//   ),
-//   ipInfo: TugboatCollectorIpInfo(ip: '127.0.0.1'),
-//   locale: TugboatCollectorLocaleInfo(
-//     language: 'en',
-//     country: 'US',
-//     timezone: 'America/New_York',
-//   ),
-// );
 
 void main() => runApp(const ReplayDemoApp());
 

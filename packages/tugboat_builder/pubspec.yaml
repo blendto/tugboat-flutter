@@ -1,6 +1,10 @@
 name: tugboat_builder
 description: Optional build-time widget name generation for the Tugboat Flutter SDK.
 version: 0.1.0
+repository: https://github.com/blendto/tugboat-flutter
+issue_tracker: https://github.com/blendto/tugboat-flutter/issues
+homepage: https://github.com/blendto/tugboat-flutter
+license: AGPL-3.0-only
 
 environment:
   sdk: ^3.9.2
