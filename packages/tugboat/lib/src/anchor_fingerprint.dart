@@ -12,7 +12,7 @@ part of 'anchors.dart';
 /// v3: fixed `[item]` list-collapse (single token per row), generic-aware
 /// denylist matching + expanded denylist, and the verbose structural path
 /// skeleton moved out of the serialized `*Parts` (hash-only now).
-const int tugboatFingerprintSchemaVersion = 5;
+const int tugboatFingerprintSchemaVersion = 6;
 
 const _canonicalDenylist = <String>{
   'Padding',

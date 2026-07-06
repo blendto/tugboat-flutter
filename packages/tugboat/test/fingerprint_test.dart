@@ -118,10 +118,8 @@ void main() {
     final topSignature = await signatureAt(0);
     final scrolledSignature = await signatureAt(800);
     expect(topSignature, scrolledSignature);
-    expect(
-      await signatureAt(0, showChrome: true),
-      isNot(topSignature),
-    );
+    // v6 coarse signatures ignore optional chrome widgets on the same route.
+    expect(await signatureAt(0, showChrome: true), topSignature);
   });
 
   testWidgets(
@@ -319,7 +317,10 @@ void main() {
       rootKey: rootKey,
     ).buildStateAnchor(route: '/home', keyboardOpen: false, modalOpen: false);
 
-    expect(state.signature, tugboatLabelHash('actionablePaths=|routeKey=/home'));
+    expect(
+      state.signature,
+      tugboatLabelHash('routeKey=/home|schemaVersion=$tugboatFingerprintSchemaVersion'),
+    );
     expect(state.schemaVersion, tugboatFingerprintSchemaVersion);
   });
 
@@ -414,7 +415,8 @@ void main() {
 
     expect(first.actionableSummary['button'], 1);
     expect(second.actionableSummary['button'], 2);
-    expect(second.signature, isNot(first.signature));
+    // v6 coarse state signatures ignore actionable-count drift on the same route.
+    expect(second.signature, first.signature);
   });
 
   testWidgets('blocking modal excludes controls on the obscured route', (

@@ -883,24 +883,15 @@ class AnchorResolver {
     required bool modalOpen,
   }) {
     final routeKey = _resolveRouteKey(route, tokenMap);
-    final sortedPaths =
-        tokenMap.isActionable.keys
-            .where(tokenMap.tokens.containsKey)
-            .map((element) => _pathFor(element, tokenMap))
-            .toSet()
-            .toList()
-          ..sort();
-    final signaturePaths =
-        sortedPaths.map(_normalizeItemPathForSignature).toSet().toList()
-          ..sort();
     final actionableSummary = tokenMap.actionableSummary;
     final subLabel = tokenMap.subLabel;
-    // Hash input carries the full actionable-path skeleton (the determinant of
-    // state identity); it is intentionally kept off the wire.
     final effectiveModalOpen = modalOpen || tokenMap.hasBlockingOverlay;
+    // fp schema v6: state identity is coarse — route + overlay flags + subLabel
+    // only. Dynamic list length, scroll viewport, and per-item path multiplicity
+    // must not fork signatures across production sessions on the same screen.
     final hashParts = <String, String>{
       'routeKey': routeKey,
-      'actionablePaths': signaturePaths.join('|'),
+      'schemaVersion': tugboatFingerprintSchemaVersion.toString(),
       if (keyboardOpen) 'keyboardOpen': 'true',
       if (effectiveModalOpen) 'modalOpen': 'true',
       if (subLabel != null && subLabel.isNotEmpty) 'subLabel': subLabel,
@@ -916,7 +907,7 @@ class AnchorResolver {
       if (subLabel != null && subLabel.isNotEmpty) 'subLabel': subLabel,
     };
 
-    final pathConfidence = sortedPaths.isNotEmpty ? 'medium' : 'low';
+    final pathConfidence = tokenMap.isActionable.isNotEmpty ? 'medium' : 'low';
 
     return TugboatStateAnchor(
       schemaVersion: tugboatFingerprintSchemaVersion,

@@ -302,6 +302,13 @@ canonical path and climbs from untokenized hit elements to the nearest tokenized
 This prevents empty-path fingerprints for common tap targets. Fingerprints change; v4 and
 v5 evidence must not be joined directly.
 
+**v6 coarse `stateSignature`:** state identity hashes only `routeKey`, `modalOpen`,
+`keyboardOpen`, `subLabel`, and `schemaVersion` — not the actionable-path skeleton or role
+counts. List length, scroll viewport, and per-item multiplicity no longer fork signatures
+on the same route. Target fingerprints remain path-based and unchanged. Production and ingest
+must share `fingerprintSchemaVersion = 6`; v5 state signatures must not be joined to v6
+graphs.
+
 **v4 makes capture reflect the currently usable UI:** each resolution builds a
 fresh canonical tree, drops offstage/hidden/zero-opacity/off-viewport nodes,
 and uses `BlockSemantics` at the owning overlay to discard routes obscured by a
