@@ -87,18 +87,28 @@ class TugboatScrollSample {
     required this.offset,
     this.beforeFrame,
     this.afterFrame,
+    this.scrollableFingerprint,
+    this.axis,
+    this.offsetNorm,
   });
 
   final int atMs;
   final double offset;
   final String? beforeFrame;
   final String? afterFrame;
+  final String? scrollableFingerprint;
+  final String? axis;
+  final double? offsetNorm;
 
   Map<String, Object?> toJson() => {
     'atMs': atMs,
     'offset': offset,
     if (beforeFrame != null) 'beforeFrame': beforeFrame,
     if (afterFrame != null) 'afterFrame': afterFrame,
+    if (scrollableFingerprint != null)
+      'scrollableFingerprint': scrollableFingerprint,
+    if (axis != null) 'axis': axis,
+    if (offsetNorm != null) 'offsetNorm': offsetNorm,
   };
 
   factory TugboatScrollSample.fromJson(Map<String, dynamic> json) =>
@@ -107,6 +117,9 @@ class TugboatScrollSample {
         offset: (json['offset'] as num).toDouble(),
         beforeFrame: json['beforeFrame'] as String?,
         afterFrame: json['afterFrame'] as String?,
+        scrollableFingerprint: json['scrollableFingerprint'] as String?,
+        axis: json['axis'] as String?,
+        offsetNorm: (json['offsetNorm'] as num?)?.toDouble(),
       );
 }
 

@@ -13,18 +13,62 @@ import 'models.dart';
 import 'screenshot_capturer.dart';
 import 'screenshot_mask_level.dart';
 
+import 'scroll_capture.dart';
+
 class _PendingTap {
   _PendingTap({
     required this.eventId,
     required this.targetAnchor,
     required this.beforeState,
     required this.beforeFrame,
+    required this.startPosition,
+    required this.startedAtMs,
   });
 
   final String eventId;
   final TugboatTargetAnchor? targetAnchor;
   final TugboatStateAnchor? beforeState;
   final String? beforeFrame;
+  final Offset startPosition;
+  final int startedAtMs;
+  bool suppressSettle = false;
+}
+
+class _PointerGestureState {
+  _PointerGestureState({required this.tapEventId});
+
+  final String tapEventId;
+  final List<String> scrollStartEventIds = [];
+}
+
+class _ScrollTracker {
+  _ScrollTracker({
+    required this.scrollableElement,
+    required this.startEventId,
+    required this.startedAtMs,
+    required this.startOffset,
+    required this.beforeFrame,
+    required this.targetAnchor,
+    required this.sectionLabel,
+    required this.axis,
+    required this.depth,
+    required this.maxScrollExtent,
+    this.pageStart,
+  });
+
+  final Element scrollableElement;
+  final String startEventId;
+  final int startedAtMs;
+  final double startOffset;
+  final String? beforeFrame;
+  final TugboatTargetAnchor? targetAnchor;
+  final String? sectionLabel;
+  final String axis;
+  final int depth;
+  final double maxScrollExtent;
+  final double? pageStart;
+  int overscrollCount = 0;
+  DateTime? lastSampleAt;
 }
 
 class TugboatReplayConfig {
@@ -179,14 +223,11 @@ class TugboatReplayController extends ChangeNotifier {
   bool _explorationFramesSuppressed = false;
   bool _captureInFlight = false;
   bool _capturePumpScheduled = false;
-  bool _scrolling = false;
   bool _skipCapture = false;
   bool _routeCapturePending = false;
   int _routeEpoch = 0;
-  int? _scrollStartedAt;
-  double? _scrollStartOffset;
-  DateTime? _lastScrollCaptureAt;
-  String? _activeScrollBeforeFrame;
+  final Map<Element, _ScrollTracker> _scrollTrackers = {};
+  final Map<int, _PointerGestureState> _activeGestures = {};
   String? _lastCapturedStateSignature;
   final Set<String> _emittedInventories = <String>{};
   String? _lastDHash;
@@ -197,7 +238,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   TugboatSession? get session => _session;
   bool get recording => _session != null;
-  bool get scrolling => _scrolling;
+  bool get scrolling => _scrollTrackers.isNotEmpty;
   bool get capturePaused => _capturePaused;
   int get atMs => _clock.elapsedMilliseconds;
   String? get currentRoute => _currentRoute;
@@ -323,6 +364,8 @@ class TugboatReplayController extends ChangeNotifier {
     _currentStateAnchor = null;
     _latestFrameId = null;
     _pendingTaps.clear();
+    _scrollTrackers.clear();
+    _activeGestures.clear();
     _hashToFrameId.clear();
     _lastCapturedStateSignature = null;
     _emittedInventories.clear();
@@ -578,7 +621,10 @@ class TugboatReplayController extends ChangeNotifier {
       targetAnchor: target,
       beforeState: beforeState,
       beforeFrame: beforeFrame,
+      startPosition: position,
+      startedAtMs: atMs,
     );
+    _activeGestures[pointer] = _PointerGestureState(tapEventId: eventId);
     if (target == null) {
       _addEvent(
         TugboatEvent(
@@ -607,6 +653,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   void recordPointerCancel(Offset position, {int pointer = 0}) {
     _pendingTaps.remove(pointer);
+    _activeGestures.remove(pointer);
     _addEvent(
       TugboatEvent(
         id: _nextId('event'),
@@ -619,9 +666,60 @@ class TugboatReplayController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  void markPendingTapAsSwipe(int pointer) {
+    final pending = _pendingTaps[pointer];
+    if (pending != null) {
+      pending.suppressSettle = true;
+    }
+  }
+
   void recordPointerUp(Offset position, {int pointer = 0}) {
     final pending = _pendingTaps.remove(pointer);
+    final gesture = _activeGestures.remove(pointer);
     if (pending == null) return;
+
+    if (pending.suppressSettle) {
+      final delta = position - pending.startPosition;
+      final durationMs = atMs - pending.startedAtMs;
+      final velocity = durationMs > 0
+          ? delta.distance / (durationMs / 1000)
+          : 0.0;
+      final scrollStartEventId = gesture?.scrollStartEventIds.isNotEmpty == true
+          ? gesture!.scrollStartEventIds.first
+          : null;
+      final scrolled = scrollStartEventId != null;
+      _addEvent(
+        TugboatEvent(
+          id: _nextId('event'),
+          atMs: atMs,
+          type: 'swipe',
+          stateAnchor: _refreshStateAnchor(),
+          targetAnchor: pending.targetAnchor,
+          beforeFrame: pending.beforeFrame,
+          relatedEventId: pending.eventId,
+          result: scrolled
+              ? TugboatInteractionResult.changed
+              : TugboatInteractionResult.noVisibleChange,
+          data: {
+            'x': position.dx,
+            'y': position.dy,
+            'startX': pending.startPosition.dx,
+            'startY': pending.startPosition.dy,
+            'deltaX': delta.dx,
+            'deltaY': delta.dy,
+            'direction': tugboatSwipeDirection(delta),
+            'distance': delta.distance,
+            'velocity': velocity,
+            'durationMs': durationMs,
+            'scrolled': scrolled,
+            if (scrollStartEventId != null)
+              'scrollStartEventId': scrollStartEventId,
+          },
+        ),
+      );
+      if (!_disposed) notifyListeners();
+      return;
+    }
 
     _queue = _queue.then((_) async {
       if (_disposed) return;
@@ -691,80 +789,212 @@ class TugboatReplayController extends ChangeNotifier {
     return TugboatInteractionResult.unknown;
   }
 
-  void onScrollActivityChanged({required bool active}) {
-    _scrolling = active;
-    if (active) {
-      _scrollStartedAt = atMs;
-      _activeScrollBeforeFrame = _latestFrameId;
+  void _linkScrollStartToActiveGestures(String scrollStartEventId) {
+    for (final gesture in _activeGestures.values) {
+      gesture.scrollStartEventIds.add(scrollStartEventId);
     }
   }
 
-  void recordScrollStart(double offset) {
-    _scrolling = true;
-    _scrollStartedAt = atMs;
-    _scrollStartOffset = offset;
-    _activeScrollBeforeFrame = _latestFrameId;
-    _lastScrollCaptureAt = DateTime.now();
+  Element? _scrollableElementFor(BuildContext? context) {
+    if (context is! Element) return null;
+    if (context.widget is Scrollable) return context;
+    Element? found;
+    context.visitAncestorElements((ancestor) {
+      if (ancestor.widget is Scrollable) {
+        found = ancestor;
+        return false;
+      }
+      return true;
+    });
+    return found;
+  }
+
+  TugboatTargetAnchor? _resolveScrollableAnchor(Element scrollableElement) {
+    final resolver = _anchorResolver;
+    if (resolver == null || config.profile == TugboatCaptureProfile.dormant) {
+      return null;
+    }
+    return resolver.scrollableAnchorFor(
+      scrollableElement,
+      route: _currentRoute,
+    );
+  }
+
+  String? _sectionLabelFor(Element scrollableElement) {
+    return _anchorResolver?.subViewLabelFor(scrollableElement);
+  }
+
+  Map<String, Object?> _scrollEventData({
+    required ScrollMetrics metrics,
+    required int depth,
+    required _ScrollTracker tracker,
+    double? endOffset,
+    int? durationMs,
+    int? overscrollCount,
+  }) {
+    final data = tugboatScrollMetricsData(metrics)
+      ..['depth'] = depth
+      ..['startOffset'] = tracker.startOffset;
+    if (endOffset != null) {
+      data['endOffset'] = endOffset;
+    }
+    if (durationMs != null) {
+      data['durationMs'] = durationMs;
+    }
+    if (tracker.pageStart != null) {
+      data['pageStart'] = tracker.pageStart;
+      if (metrics is PageMetrics) {
+        data['pageEnd'] = metrics.page;
+      }
+    }
+    if (tracker.sectionLabel != null) {
+      data['sectionLabel'] = tracker.sectionLabel;
+    }
+    if (overscrollCount != null && overscrollCount > 0) {
+      data['overscrollCount'] = overscrollCount;
+    }
+    data.addAll(tugboatScrollEdgeData(metrics));
+    return data;
+  }
+
+  void recordScrollStart({
+    required BuildContext? scrollContext,
+    required ScrollMetrics metrics,
+    required int depth,
+  }) {
+    final scrollableElement = _scrollableElementFor(scrollContext);
+    if (scrollableElement == null) return;
+    if (_scrollTrackers.containsKey(scrollableElement)) return;
+
+    _refreshStateAnchor();
+    final targetAnchor = _resolveScrollableAnchor(scrollableElement);
+    final sectionLabel = _sectionLabelFor(scrollableElement);
+    final beforeFrame = _latestFrameId;
+    final startEventId = _nextId('event');
+    final pageStart = metrics is PageMetrics ? metrics.page : null;
+
+    final tracker = _ScrollTracker(
+      scrollableElement: scrollableElement,
+      startEventId: startEventId,
+      startedAtMs: atMs,
+      startOffset: metrics.pixels,
+      beforeFrame: beforeFrame,
+      targetAnchor: targetAnchor,
+      sectionLabel: sectionLabel,
+      axis: metrics.axis.name,
+      depth: depth,
+      maxScrollExtent: metrics.maxScrollExtent,
+      pageStart: pageStart,
+    );
+    _scrollTrackers[scrollableElement] = tracker;
+
     final session = _session;
     if (session != null) {
       session.scrollSamples.add(
         TugboatScrollSample(
           atMs: atMs,
-          offset: offset,
-          beforeFrame: _activeScrollBeforeFrame,
+          offset: metrics.pixels,
+          beforeFrame: beforeFrame,
+          scrollableFingerprint: targetAnchor?.fingerprint,
+          axis: metrics.axis.name,
+          offsetNorm: metrics.maxScrollExtent > 0
+              ? metrics.pixels / metrics.maxScrollExtent
+              : null,
         ),
       );
       _trimScrollSamples();
     }
+
     _addEvent(
       TugboatEvent(
-        id: _nextId('event'),
+        id: startEventId,
         atMs: atMs,
         type: 'scroll_start',
         stateAnchor: _currentStateAnchor,
-        beforeFrame: _latestFrameId,
-        data: {'offset': offset},
+        targetAnchor: targetAnchor,
+        beforeFrame: beforeFrame,
+        data: _scrollEventData(
+          metrics: metrics,
+          depth: depth,
+          tracker: tracker,
+        ),
       ),
     );
+    _linkScrollStartToActiveGestures(startEventId);
     if (!_disposed) notifyListeners();
   }
 
-  void recordScrollSample(double offset) {
+  void recordScrollUpdate({
+    required BuildContext? scrollContext,
+    required ScrollMetrics metrics,
+  }) {
+    final scrollableElement = _scrollableElementFor(scrollContext);
+    if (scrollableElement == null) return;
+    final tracker = _scrollTrackers[scrollableElement];
+    if (tracker == null) return;
+
     final session = _session;
-    if (session == null || _capturePaused || !_scrolling) return;
+    if (session == null || _capturePaused) return;
     if (!config.captureScrollSamples) return;
+
     final now = DateTime.now();
-    if (_lastScrollCaptureAt != null &&
-        now.difference(_lastScrollCaptureAt!) < config.scrollCaptureInterval) {
+    if (tracker.lastSampleAt != null &&
+        now.difference(tracker.lastSampleAt!) <
+            config.scrollCaptureInterval) {
       return;
     }
-    _lastScrollCaptureAt = now;
+    tracker.lastSampleAt = now;
+
     session.scrollSamples.add(
       TugboatScrollSample(
         atMs: atMs,
-        offset: offset,
-        beforeFrame: _activeScrollBeforeFrame,
+        offset: metrics.pixels,
+        beforeFrame: tracker.beforeFrame,
+        scrollableFingerprint: tracker.targetAnchor?.fingerprint,
+        axis: metrics.axis.name,
+        offsetNorm: metrics.maxScrollExtent > 0
+            ? metrics.pixels / metrics.maxScrollExtent
+            : null,
       ),
     );
     _trimScrollSamples();
     unawaited(_requestCapture(trigger: TugboatFrameTrigger.scroll));
   }
 
-  void recordScrollEnd(double offset) {
-    _scrolling = false;
+  void recordScrollOverscroll({required BuildContext? scrollContext}) {
+    final scrollableElement = _scrollableElementFor(scrollContext);
+    if (scrollableElement == null) return;
+    final tracker = _scrollTrackers[scrollableElement];
+    if (tracker == null) return;
+    tracker.overscrollCount++;
+  }
+
+  void recordScrollEnd({
+    required BuildContext? scrollContext,
+    required ScrollMetrics metrics,
+  }) {
+    final scrollableElement = _scrollableElementFor(scrollContext);
+    if (scrollableElement == null) return;
+    final tracker = _scrollTrackers.remove(scrollableElement);
+    if (tracker == null) return;
+
     _queue = _queue.then((_) async {
       final afterFrame = await _requestCapture(
         trigger: TugboatFrameTrigger.scroll,
+        force: true,
       );
       if (_session != null && _session!.scrollSamples.isNotEmpty) {
         final last = _session!.scrollSamples.last;
-        _session!.scrollSamples[_session!.scrollSamples.length -
-            1] = TugboatScrollSample(
-          atMs: last.atMs,
-          offset: last.offset,
-          beforeFrame: last.beforeFrame,
-          afterFrame: afterFrame,
-        );
+        _session!.scrollSamples[_session!.scrollSamples.length - 1] =
+            TugboatScrollSample(
+              atMs: last.atMs,
+              offset: metrics.pixels,
+              beforeFrame: last.beforeFrame,
+              afterFrame: afterFrame,
+              scrollableFingerprint: last.scrollableFingerprint,
+              axis: last.axis,
+              offsetNorm: last.offsetNorm,
+            );
       }
       _addEvent(
         TugboatEvent(
@@ -772,20 +1002,20 @@ class TugboatReplayController extends ChangeNotifier {
           atMs: atMs,
           type: 'scroll_end',
           stateAnchor: _refreshStateAnchor(),
-          beforeFrame: _activeScrollBeforeFrame,
+          targetAnchor: tracker.targetAnchor,
+          beforeFrame: tracker.beforeFrame,
           afterFrame: afterFrame,
-          data: {
-            'startOffset': _scrollStartOffset,
-            'endOffset': offset,
-            'durationMs': _scrollStartedAt == null
-                ? null
-                : atMs - _scrollStartedAt!,
-          },
+          relatedEventId: tracker.startEventId,
+          data: _scrollEventData(
+            metrics: metrics,
+            depth: tracker.depth,
+            tracker: tracker,
+            endOffset: metrics.pixels,
+            durationMs: atMs - tracker.startedAtMs,
+            overscrollCount: tracker.overscrollCount,
+          ),
         ),
       );
-      _scrollStartedAt = null;
-      _scrollStartOffset = null;
-      _activeScrollBeforeFrame = null;
       if (!_disposed) notifyListeners();
     });
   }

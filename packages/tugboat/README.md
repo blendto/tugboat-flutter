@@ -68,8 +68,14 @@ their fingerprints to match.
   perceptual hash. During CLI exploration, captured frames are streamed over the
   WebSocket when produced; the recorder persists them under `frames/`.
 - **Interaction plane:** tap events with target and state anchors, route changes
-  in event `data`, and `beforeFrame` / `afterFrame` references. Text,
-  accessibility, tooltip, and icon labels are not retained in telemetry.
+  in event `data`, scroll/swipe events with scrollable anchors, and
+  `beforeFrame` / `afterFrame` references. Text, accessibility, tooltip, and
+  icon labels are not retained in telemetry.
+- **Scroll/swipe attribution:** `scroll_start` / `scroll_end` include the
+  resolved scrollable `targetAnchor` plus axis, depth, edge/overscroll, section
+  label, and offset metrics in `data`. Pointer drags beyond touch slop emit a
+  `swipe` event instead of a normal `tap_settled`; `data.scrolled:false` marks a
+  dead swipe / failed scroll intent.
 - **Scene inventory (exploration):** per settled screen state, the SDK enumerates
   interactive controls and persists them via the CLI sink as `inventories/<stateSignature>.json`.
   Entries include fingerprints, canonical paths, roles, and aliases. Tap injection guarantees

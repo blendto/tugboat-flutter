@@ -831,7 +831,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('does not capture on scroll start', (tester) async {
+  testWidgets('scroll_end forces after-frame capture when samples disabled', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
@@ -850,13 +852,17 @@ void main() {
     );
 
     await _waitForCaptures(tester);
-    final framesBeforeScroll = TugboatReplay.controller!.session!.frames.length;
+    final session = TugboatReplay.controller!.session!;
+    final framesBeforeScroll = session.frames.length;
 
     await tester.drag(find.byType(ListView), const Offset(0, -40));
-    await tester.pump();
     await _waitForCaptures(tester);
 
-    expect(TugboatReplay.controller!.session!.frames.length, framesBeforeScroll);
+    final scrollEnds =
+        session.events.where((event) => event.type == 'scroll_end').toList();
+    expect(scrollEnds, isNotEmpty);
+    expect(scrollEnds.last.afterFrame, isNotNull);
+    expect(session.frames.length, greaterThanOrEqualTo(framesBeforeScroll));
   });
 
   test('tap_settled result prefers signature change over stale frame ids', () {

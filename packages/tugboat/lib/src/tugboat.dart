@@ -171,17 +171,28 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot> {
 
   @override
   Widget build(BuildContext context) {
-    final content = NotificationListener<ScrollNotification>(
+    final content = NotificationListener<Notification>(
       onNotification: (notification) {
         if (notification is ScrollStartNotification) {
-          controller.recordScrollStart(notification.metrics.pixels);
-          inputCapture?.onScrollStart(notification.dragDetails?.globalPosition);
-        } else if (notification is ScrollUpdateNotification &&
-            controller.scrolling) {
-          controller.recordScrollSample(notification.metrics.pixels);
+          controller.recordScrollStart(
+            scrollContext: notification.context,
+            metrics: notification.metrics,
+            depth: notification.depth,
+          );
+        } else if (notification is ScrollUpdateNotification) {
+          controller.recordScrollUpdate(
+            scrollContext: notification.context,
+            metrics: notification.metrics,
+          );
         } else if (notification is ScrollEndNotification) {
-          inputCapture?.onScrollEnd(null);
-          controller.recordScrollEnd(notification.metrics.pixels);
+          controller.recordScrollEnd(
+            scrollContext: notification.context,
+            metrics: notification.metrics,
+          );
+        } else if (notification is OverscrollNotification) {
+          controller.recordScrollOverscroll(
+            scrollContext: notification.context,
+          );
         }
         return false;
       },
@@ -198,18 +209,12 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot> {
         else
           Listener(
             behavior: HitTestBehavior.translucent,
-            onPointerDown: (event) => controller.recordPointerDown(
-              event.position,
-              pointer: event.pointer,
-            ),
-            onPointerUp: (event) => controller.recordPointerUp(
-              event.position,
-              pointer: event.pointer,
-            ),
-            onPointerCancel: (event) => controller.recordPointerCancel(
-              event.position,
-              pointer: event.pointer,
-            ),
+            onPointerDown: (event) =>
+                inputCapture?.handlePointerDown(event),
+            onPointerMove: (event) => inputCapture?.handlePointerMove(event),
+            onPointerUp: (event) => inputCapture?.handlePointerUp(event),
+            onPointerCancel: (event) =>
+                inputCapture?.handlePointerCancel(event),
             child: content,
           ),
       ],

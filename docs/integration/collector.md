@@ -93,6 +93,25 @@ TugboatReplay.wrapApp(
 - Events are batched with a default size of `10`
 - Partial batches flush on a timer and when the controller disposes
 
+### Scroll and swipe events
+
+The SDK emits scroll and swipe events as first-class interaction evidence:
+
+- `scroll_start` and `scroll_end` carry `targetAnchor` for the resolved `Scrollable` when
+  available. `scroll_end.relatedEventId` points back to the matching `scroll_start`.
+- Scroll event `data` includes `axis`, `depth`, `offset`, `startOffset`, `endOffset`,
+  `offsetNorm`, edge flags, `overscrollCount`, and `sectionLabel` when the scrollable is inside
+  a `TugboatSubView`.
+- Pointer drags beyond touch slop emit `swipe` on pointer up. A swipe with
+  `data.scrolled:false` and `result:noVisibleChange` represents a dead swipe / failed scroll
+  intent; a swipe with `data.scrolled:true` includes `scrollStartEventId` linking it to the
+  scroll sequence.
+
+Context graph enrichment consumes these events through
+`POST /v1/enrichment/map-event`: if a scroll/swipe event has a `targetAnchor.fingerprint`, the
+mapped event can attach screen/control context and preserve fields such as `isDeadSwipe`,
+`scrolled`, direction, axis, section label, edge, and overscroll count.
+
 ### Security note
 
 Mobile API keys are client-visible. Do not hardcode production secrets in the app binary without accepting that risk. Prefer environment-specific keys with the narrowest scope possible.

@@ -118,6 +118,44 @@ class AnchorResolver {
     return (inventory: inventory, target: target);
   }
 
+  /// Resolves a [TugboatTargetAnchor] for the [Scrollable] element that emitted
+  /// a scroll notification.
+  TugboatTargetAnchor? scrollableAnchorFor(
+    Element scrollableElement, {
+    required String? route,
+  }) {
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+    if (rootContext is! Element || rootRender is! RenderBox) return null;
+
+    final tokenMap = _buildTokenMap(rootContext, rootRender);
+    final viewport = rootRender.size;
+    final anchor = _anchorForElement(
+      hitElement: scrollableElement,
+      rootRender: rootRender,
+      viewport: viewport,
+      route: route,
+      tokenMap: tokenMap,
+    );
+    if (anchor.fingerprint == null || anchor.fingerprint!.isEmpty) {
+      return null;
+    }
+    return anchor;
+  }
+
+  /// Nearest enclosing [TugboatSubView] label for section attribution.
+  String? subViewLabelFor(Element element) {
+    String? label;
+    element.visitAncestorElements((ancestor) {
+      if (ancestor.widget is TugboatSubView) {
+        label = (ancestor.widget as TugboatSubView).label;
+        return false;
+      }
+      return true;
+    });
+    return label;
+  }
+
   TugboatTargetAnchor? _targetAtWithTokenMap(
     Offset globalPosition, {
     required String? route,
@@ -508,7 +546,7 @@ class AnchorResolver {
     Element? walkStart = element;
     if (!tokens.containsKey(walkStart)) {
       Element? tokenizedAncestor;
-      walkStart!.visitAncestorElements((ancestor) {
+      walkStart.visitAncestorElements((ancestor) {
         if (tokens.containsKey(ancestor)) {
           tokenizedAncestor = ancestor;
           return false;
@@ -656,7 +694,8 @@ class AnchorResolver {
 
   /// Type name for an actionable widget that must be retained even when it is
   /// on the wrapper denylist (e.g. InkWell).
-  String? _actionableTypeName(Widget widget) => _normalizedWidgetTypeName(widget);
+  String? _actionableTypeName(Widget widget) =>
+      _normalizedWidgetTypeName(widget);
 
   String _widgetName(Widget widget) =>
       widgetNames[widget.runtimeType] ?? widget.runtimeType.toString();
@@ -851,11 +890,9 @@ class AnchorResolver {
             .toSet()
             .toList()
           ..sort();
-    final signaturePaths = sortedPaths
-        .map(_normalizeItemPathForSignature)
-        .toSet()
-        .toList()
-      ..sort();
+    final signaturePaths =
+        sortedPaths.map(_normalizeItemPathForSignature).toSet().toList()
+          ..sort();
     final actionableSummary = tokenMap.actionableSummary;
     final subLabel = tokenMap.subLabel;
     // Hash input carries the full actionable-path skeleton (the determinant of
@@ -947,9 +984,9 @@ class AnchorResolver {
 
       final widget = element.widget;
       final isImage = widget is Image;
-      final isLargeText = widget is Text && _isLargeTextBounds(
-        _boundsForElement(element, rootRender, viewport),
-      );
+      final isLargeText =
+          widget is Text &&
+          _isLargeTextBounds(_boundsForElement(element, rootRender, viewport));
       final isActionable = tokenMap.isActionable[element] == true;
       if (!isActionable && !isImage && !isLargeText) continue;
 
@@ -1161,7 +1198,8 @@ class AnchorResolver {
       final hit = entry.target;
       if (hit is! RenderBox || !hit.hasSize) continue;
       final area =
-          (hit.size.width / viewport.width) * (hit.size.height / viewport.height);
+          (hit.size.width / viewport.width) *
+          (hit.size.height / viewport.height);
       if (area <= 0) continue;
       return area;
     }
@@ -1223,7 +1261,8 @@ class AnchorResolver {
       return null;
     }
 
-    final bounds = _boundsAtTapPosition(
+    final bounds =
+        _boundsAtTapPosition(
           tapPosition,
           tokenMap: tokenMap,
           rootRender: rootRender,

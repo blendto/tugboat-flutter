@@ -6,6 +6,7 @@ import 'browse_screen.dart';
 import 'cart_screen.dart';
 import 'catalog_screen.dart';
 import 'profile_screen.dart';
+import 'scroll_playground_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -124,6 +125,16 @@ class HomeScreen extends StatelessWidget {
                   context,
                   routeName: '/browse',
                   screen: const BrowseScreen(),
+                ),
+              ),
+              DemoNavTile(
+                title: 'Scroll playground',
+                subtitle: 'Scrollable anchors, dead swipes, nested carousels',
+                icon: Icons.swipe_vertical_outlined,
+                onTap: () => pushDemoScreen(
+                  context,
+                  routeName: '/scroll-playground',
+                  screen: const ScrollPlaygroundScreen(),
                 ),
               ),
               DemoNavTile(
