@@ -120,6 +120,12 @@ class TugboatCollectorLocaleInfo {
   };
 }
 
+/// Well-known defaults for the standalone HTTP collector (`tugboat-collector`).
+abstract final class TugboatCollectorDefaults {
+  /// Production collector base URL (no trailing slash).
+  static const productionBaseUrl = 'https://collector.gettugboat.com';
+}
+
 /// Configuration for the standalone HTTP collector (`tugboat-collector`).
 class TugboatCollectorConfig {
   const TugboatCollectorConfig({

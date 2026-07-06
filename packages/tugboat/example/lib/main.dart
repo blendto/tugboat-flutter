@@ -11,7 +11,7 @@ import 'screens/home_screen.dart';
 /// narrowest scope possible.
 const TugboatCollectorConfig? _productionCollector = null;
 // const _productionCollector = TugboatCollectorConfig(
-//   baseUrl: 'http://localhost:3000',
+//   baseUrl: TugboatCollectorDefaults.productionBaseUrl,
 //   apiKey: 'pmk_example_dev_token',
 //   appInfo: TugboatCollectorAppInfo(
 //     name: 'Tugboat Replay Demo',

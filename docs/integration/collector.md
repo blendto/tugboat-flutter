@@ -57,7 +57,7 @@ Use this for the standalone `tugboat-collector` service:
 TugboatReplay.wrapApp(
   config: TugboatReplayConfig(
     collector: TugboatCollectorConfig(
-      baseUrl: 'https://collector.example.com',
+      baseUrl: TugboatCollectorDefaults.productionBaseUrl,
       apiKey: 'pmk_your_token',
       appInfo: TugboatCollectorAppInfo(
         name: 'My App',
@@ -92,6 +92,24 @@ TugboatReplay.wrapApp(
 - `POST /v1/frames` for screenshot uploads
 - Events are batched with a default size of `10`
 - Partial batches flush on a timer and when the controller disposes
+
+### Enrichment at ingest
+
+When the collector consumer has `TUGBOAT_CONTEXT_GRAPH_URL` configured, each event is mapped
+through `POST /v1/enrichment/map-event` before ClickHouse insert. The consumer passes the
+previous event in the same session so `route_change` / `state_change` can resolve transition
+lookups. Results are stored at `payload.contextEnrichment.mapping`.
+
+**Label behavior (2026-07):**
+
+- `tap` — `Screen → Control` (intent)
+- `tap_settled` — outcome phrasing: `No visible change after tapping …` / `Changed after tapping …`
+- `route_change` — navigation phrasing: `Navigated from X to Y`, `Went back from X to Y`
+- `swipe` with `scrolled:false` — `Scroll did not move on …`
+
+`tap_settled` is an immediate micro-outcome, not final truth. Prefer later `route_change` or
+`state_change` when reconstructing what the user accomplished. See
+`tugboat-collector/docs/enrichment.md`.
 
 ### Scroll and swipe events
 
