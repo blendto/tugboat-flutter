@@ -304,3 +304,110 @@ class TugboatSceneInventory {
     'elements': elements.map((entry) => entry.toJson()).toList(),
   };
 }
+
+/// One semantics-backed node in a viewport semantic map.
+class TugboatViewportSemanticNode {
+  const TugboatViewportSemanticNode({
+    required this.nodeId,
+    this.parentId,
+    required this.depth,
+    this.siblingIndex,
+    this.role,
+    this.actions = const [],
+    this.enabled,
+    required this.boundsNorm,
+    this.scrollable = false,
+    this.linkedFingerprint,
+    this.linkedCanonicalPath,
+  });
+
+  final int nodeId;
+  final int? parentId;
+  final int depth;
+  final int? siblingIndex;
+  final String? role;
+  final List<String> actions;
+  final bool? enabled;
+  final TugboatNormalizedBounds boundsNorm;
+  final bool scrollable;
+  final String? linkedFingerprint;
+  final String? linkedCanonicalPath;
+
+  bool get isActionable => actions.isNotEmpty;
+
+  Map<String, Object?> toJson() => {
+    'nodeId': nodeId,
+    if (parentId != null) 'parentId': parentId,
+    'depth': depth,
+    if (siblingIndex != null) 'siblingIndex': siblingIndex,
+    if (role != null) 'role': role,
+    if (actions.isNotEmpty) 'actions': actions,
+    if (enabled != null) 'enabled': enabled,
+    'boundsNorm': boundsNorm.toJson(),
+    if (scrollable) 'scrollable': scrollable,
+    if (linkedFingerprint != null) 'linkedFingerprint': linkedFingerprint,
+    if (linkedCanonicalPath != null) 'linkedCanonicalPath': linkedCanonicalPath,
+  };
+}
+
+/// Exploration-only viewport semantic map for a settled screen state.
+class TugboatViewportSemanticMap {
+  const TugboatViewportSemanticMap({
+    required this.stateAnchor,
+    required this.stateSignature,
+    required this.routeKey,
+    required this.viewport,
+    required this.nodes,
+    required this.summary,
+    required this.mapHash,
+  });
+
+  /// Anchor the map was computed against; not serialized into [toJson].
+  final TugboatStateAnchor stateAnchor;
+  final String stateSignature;
+  final String routeKey;
+  final Size viewport;
+  final List<TugboatViewportSemanticNode> nodes;
+  final Map<String, int> summary;
+  final String mapHash;
+
+  Map<String, Object?> toJson() => {
+    'stateSignature': stateSignature,
+    'routeKey': routeKey,
+    'viewport': {'width': viewport.width, 'height': viewport.height},
+    'nodes': nodes.map((node) => node.toJson()).toList(),
+    'summary': summary,
+    'mapHash': mapHash,
+  };
+}
+
+/// Result of resolving a tap against a viewport semantic map.
+class TugboatViewportSemanticResolution {
+  const TugboatViewportSemanticResolution({
+    required this.status,
+    this.nodeId,
+    this.role,
+    this.actions = const [],
+    this.boundsNorm,
+    this.linkedFingerprint,
+    this.enabled,
+  });
+
+  final String status;
+  final int? nodeId;
+  final String? role;
+  final List<String> actions;
+  final TugboatNormalizedBounds? boundsNorm;
+  final String? linkedFingerprint;
+  final bool? enabled;
+
+  Map<String, Object?> toJson() => {
+    'status': status,
+    if (nodeId != null) 'nodeId': nodeId,
+    if (role != null) 'role': role,
+    if (actions.isNotEmpty) 'actions': actions,
+    if (boundsNorm != null) 'boundsNorm': boundsNorm!.toJson(),
+    if (linkedFingerprint != null) 'linkedFingerprint': linkedFingerprint,
+    if (enabled != null) 'enabled': enabled,
+  };
+}

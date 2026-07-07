@@ -1445,4 +1445,359 @@ class AnchorResolver {
     if (widget is Opacity) return widget.opacity == 0;
     return false;
   }
+
+  /// Builds an exploration-only viewport semantic map from Flutter semantics,
+  /// enriched with scene inventory fingerprints when overlap is clear.
+  TugboatViewportSemanticMap? buildViewportSemanticMap({
+    required TugboatSceneInventory inventory,
+  }) {
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+    if (rootRender is! RenderBox || !rootRender.hasSize) return null;
+
+    final viewport = rootRender.size;
+    if (viewport.width <= 0 || viewport.height <= 0) return null;
+
+    WidgetsBinding.instance.pipelineOwner.flushSemantics();
+    final rootNode = WidgetsBinding
+        .instance
+        .pipelineOwner
+        .semanticsOwner
+        ?.rootSemanticsNode;
+    if (rootNode == null) return null;
+
+    final nodes = <TugboatViewportSemanticNode>[];
+    void walk(SemanticsNode node) {
+      if (node.id != 0) {
+        final built = _viewportSemanticNodeFromSemantics(
+          node: node,
+          rootRender: rootRender,
+          viewport: viewport,
+          inventory: inventory,
+        );
+        if (built != null) {
+          nodes.add(built);
+        }
+      }
+      node.visitChildren((SemanticsNode child) {
+        walk(child);
+        return true;
+      });
+    }
+
+    walk(rootNode);
+    if (nodes.isEmpty) return null;
+
+    nodes.sort((left, right) => left.nodeId.compareTo(right.nodeId));
+    final summary = _viewportSemanticMapSummary(nodes);
+    final mapHash = _viewportSemanticMapHash(nodes);
+
+    return TugboatViewportSemanticMap(
+      stateAnchor: inventory.stateAnchor,
+      stateSignature: inventory.stateSignature,
+      routeKey: inventory.routeKey,
+      viewport: viewport,
+      nodes: nodes,
+      summary: summary,
+      mapHash: mapHash,
+    );
+  }
+
+  /// Resolves a tap point against [map], preferring enabled actionable nodes,
+  /// then smallest bounds, then deepest node.
+  TugboatViewportSemanticResolution resolveTapOnViewportSemanticMap({
+    required Offset tapPosition,
+    required TugboatViewportSemanticMap map,
+    required RenderBox rootRender,
+  }) {
+    final viewport = map.viewport;
+    if (viewport.width <= 0 || viewport.height <= 0) {
+      return const TugboatViewportSemanticResolution(
+        status: 'outside_known_ui',
+      );
+    }
+
+    final localPoint = rootRender.globalToLocal(tapPosition);
+    final nx = localPoint.dx / viewport.width;
+    final ny = localPoint.dy / viewport.height;
+
+    final candidates = map.nodes
+        .where((node) => _normalizedPointInBounds(nx, ny, node.boundsNorm))
+        .toList();
+    if (candidates.isEmpty) {
+      return const TugboatViewportSemanticResolution(
+        status: 'outside_known_ui',
+      );
+    }
+
+    final enabledActionable = candidates
+        .where(
+          (node) => node.isActionable && node.enabled != false,
+        )
+        .toList();
+    if (enabledActionable.isNotEmpty) {
+      return _resolutionForNode(
+        node: _pickViewportSemanticWinner(enabledActionable),
+        status: 'matched_actionable',
+      );
+    }
+
+    final disabledActionable = candidates
+        .where(
+          (node) => node.isActionable && node.enabled == false,
+        )
+        .toList();
+    if (disabledActionable.isNotEmpty) {
+      return _resolutionForNode(
+        node: _pickViewportSemanticWinner(disabledActionable),
+        status: 'matched_disabled',
+      );
+    }
+
+    return _resolutionForNode(
+      node: _pickViewportSemanticWinner(candidates),
+      status: 'matched_non_actionable',
+    );
+  }
+
+  TugboatViewportSemanticNode? _viewportSemanticNodeFromSemantics({
+    required SemanticsNode node,
+    required RenderBox rootRender,
+    required Size viewport,
+    required TugboatSceneInventory inventory,
+  }) {
+    if (node.isInvisible) return null;
+
+    final data = node.getSemanticsData();
+    if (data.rect.isEmpty) return null;
+
+    final localRect = _semanticsRectInRootCoordinates(
+      data.rect,
+      rootRender: rootRender,
+    );
+    if (localRect.isEmpty) return null;
+
+    final boundsNorm = TugboatNormalizedBounds.fromRect(localRect, viewport);
+    if (boundsNorm.width <= 0 || boundsNorm.height <= 0) return null;
+    if (!_boundsIntersectsViewport(boundsNorm)) return null;
+
+    final actions = _semanticsActionsFromData(data);
+    final role = _semanticsRoleFromData(data);
+    final enabled = data.flagsCollection.isEnabled;
+    final scrollable = _semanticsNodeIsScrollable(data);
+    if (actions.isEmpty &&
+        role == null &&
+        !scrollable &&
+        !data.flagsCollection.isHeader &&
+        !data.flagsCollection.isImage &&
+        !data.flagsCollection.isTextField) {
+      return null;
+    }
+
+    final link = _linkInventoryToSemanticNode(
+      role: role,
+      actions: actions,
+      boundsNorm: boundsNorm,
+      inventory: inventory,
+    );
+
+    return TugboatViewportSemanticNode(
+      nodeId: node.id,
+      parentId: node.parent?.id,
+      depth: node.depth,
+      siblingIndex: node.indexInParent,
+      role: role,
+      actions: actions,
+      enabled: enabled,
+      boundsNorm: boundsNorm,
+      scrollable: scrollable,
+      linkedFingerprint: link?.fingerprint,
+      linkedCanonicalPath: link?.canonicalPath,
+    );
+  }
+
+  Rect _semanticsRectInRootCoordinates(Rect globalRect, {required RenderBox rootRender}) {
+    final topLeft = rootRender.globalToLocal(globalRect.topLeft);
+    final bottomRight = rootRender.globalToLocal(globalRect.bottomRight);
+    return Rect.fromPoints(topLeft, bottomRight);
+  }
+
+  List<String> _semanticsActionsFromData(SemanticsData data) {
+    final actions = <String>[];
+    if (data.hasAction(SemanticsAction.tap)) actions.add('tap');
+    if (data.hasAction(SemanticsAction.longPress)) actions.add('longPress');
+    if (data.hasAction(SemanticsAction.scrollUp)) actions.add('scrollUp');
+    if (data.hasAction(SemanticsAction.scrollDown)) actions.add('scrollDown');
+    if (data.hasAction(SemanticsAction.scrollLeft)) actions.add('scrollLeft');
+    if (data.hasAction(SemanticsAction.scrollRight)) actions.add('scrollRight');
+    actions.sort();
+    return actions;
+  }
+
+  String? _semanticsRoleFromData(SemanticsData data) {
+    if (data.role != SemanticsRole.none) {
+      return data.role.name;
+    }
+    if (data.flagsCollection.isButton) return 'button';
+    if (data.flagsCollection.isLink) return 'link';
+    if (data.flagsCollection.isTextField) return 'textField';
+    if (data.flagsCollection.isImage) return 'image';
+    if (data.flagsCollection.isHeader) return 'header';
+    return null;
+  }
+
+  bool _semanticsNodeIsScrollable(SemanticsData data) {
+    return data.flagsCollection.hasImplicitScrolling ||
+        data.scrollExtentMax != null ||
+        data.hasAction(SemanticsAction.scrollUp) ||
+        data.hasAction(SemanticsAction.scrollDown) ||
+        data.hasAction(SemanticsAction.scrollLeft) ||
+        data.hasAction(SemanticsAction.scrollRight);
+  }
+
+  TugboatSceneInventoryEntry? _linkInventoryToSemanticNode({
+    required String? role,
+    required List<String> actions,
+    required TugboatNormalizedBounds boundsNorm,
+    required TugboatSceneInventory inventory,
+  }) {
+    TugboatSceneInventoryEntry? best;
+    var bestOverlap = 0.0;
+    for (final entry in inventory.elements) {
+      final overlap = _boundsOverlapRatio(boundsNorm, entry.boundsNorm);
+      if (overlap < 0.5) continue;
+      if (!_inventoryRoleCompatible(role, entry.role)) continue;
+      if (!_inventoryActionsCompatible(actions, entry.actions)) continue;
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        best = entry;
+      }
+    }
+    return best;
+  }
+
+  bool _inventoryRoleCompatible(String? semanticRole, String? inventoryRole) {
+    if (semanticRole == null || inventoryRole == null) return true;
+    if (semanticRole == inventoryRole) return true;
+    if (semanticRole == 'button' && inventoryRole == 'button') return true;
+    if (semanticRole == 'display' && inventoryRole == 'display') return true;
+    return semanticRole == 'button' || inventoryRole == 'button';
+  }
+
+  bool _inventoryActionsCompatible(
+    List<String> semanticActions,
+    List<String> inventoryActions,
+  ) {
+    if (semanticActions.isEmpty || inventoryActions.isEmpty) return true;
+    return semanticActions.toSet().intersection(inventoryActions.toSet()).isNotEmpty;
+  }
+
+  double _boundsOverlapRatio(
+    TugboatNormalizedBounds left,
+    TugboatNormalizedBounds right,
+  ) {
+    final overlapLeft = left.left > right.left ? left.left : right.left;
+    final overlapTop = left.top > right.top ? left.top : right.top;
+    final overlapRight = (left.left + left.width) < (right.left + right.width)
+        ? (left.left + left.width)
+        : (right.left + right.width);
+    final overlapBottom = (left.top + left.height) < (right.top + right.height)
+        ? (left.top + left.height)
+        : (right.top + right.height);
+    final overlapWidth = overlapRight - overlapLeft;
+    final overlapHeight = overlapBottom - overlapTop;
+    if (overlapWidth <= 0 || overlapHeight <= 0) return 0;
+    final overlapArea = overlapWidth * overlapHeight;
+    final leftArea = left.width * left.height;
+    if (leftArea <= 0) return 0;
+    return overlapArea / leftArea;
+  }
+
+  bool _normalizedPointInBounds(
+    double nx,
+    double ny,
+    TugboatNormalizedBounds bounds,
+  ) {
+    return nx >= bounds.left &&
+        nx <= bounds.left + bounds.width &&
+        ny >= bounds.top &&
+        ny <= bounds.top + bounds.height;
+  }
+
+  bool _boundsIntersectsViewport(TugboatNormalizedBounds bounds) {
+    return bounds.left < 1 &&
+        bounds.top < 1 &&
+        bounds.left + bounds.width > 0 &&
+        bounds.top + bounds.height > 0;
+  }
+
+  TugboatViewportSemanticNode _pickViewportSemanticWinner(
+    List<TugboatViewportSemanticNode> candidates,
+  ) {
+    final sorted = [...candidates]
+      ..sort((left, right) {
+        final leftArea = left.boundsNorm.width * left.boundsNorm.height;
+        final rightArea = right.boundsNorm.width * right.boundsNorm.height;
+        final areaCompare = leftArea.compareTo(rightArea);
+        if (areaCompare != 0) return areaCompare;
+        return right.depth.compareTo(left.depth);
+      });
+    return sorted.first;
+  }
+
+  TugboatViewportSemanticResolution _resolutionForNode({
+    required TugboatViewportSemanticNode node,
+    required String status,
+  }) {
+    return TugboatViewportSemanticResolution(
+      status: status,
+      nodeId: node.nodeId,
+      role: node.role,
+      actions: node.actions,
+      boundsNorm: node.boundsNorm,
+      linkedFingerprint: node.linkedFingerprint,
+      enabled: node.enabled,
+    );
+  }
+
+  Map<String, int> _viewportSemanticMapSummary(
+    List<TugboatViewportSemanticNode> nodes,
+  ) {
+    var actionableCount = 0;
+    var scrollableCount = 0;
+    var disabledCount = 0;
+    for (final node in nodes) {
+      if (node.isActionable) actionableCount++;
+      if (node.scrollable) scrollableCount++;
+      if (node.enabled == false) disabledCount++;
+    }
+    return {
+      'totalNodes': nodes.length,
+      'actionableCount': actionableCount,
+      'scrollableCount': scrollableCount,
+      'disabledCount': disabledCount,
+    };
+  }
+
+  String _viewportSemanticMapHash(List<TugboatViewportSemanticNode> nodes) {
+    final parts = nodes.map((node) {
+      final bounds = node.boundsNorm;
+      return [
+        node.nodeId,
+        node.parentId ?? -1,
+        node.depth,
+        node.siblingIndex ?? -1,
+        node.role ?? '',
+        node.actions.join(','),
+        node.enabled ?? true,
+        bounds.left,
+        bounds.top,
+        bounds.width,
+        bounds.height,
+        node.scrollable,
+        node.linkedFingerprint ?? '',
+      ].join('|');
+    }).toList();
+    return tugboatLabelHash(parts.join('\n'));
+  }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
@@ -86,6 +87,8 @@ class TugboatReplayConfig {
     this.collector,
     this.screenshotMaskLevel,
     this.widgetNames = const {},
+    this.enableViewportSemanticMap = false,
+    this.enableViewportSemanticMapDebugLogs = false,
   });
 
   final TugboatCaptureProfile profile;
@@ -102,6 +105,8 @@ class TugboatReplayConfig {
   final TugboatCollectorConfig? collector;
   final TugboatScreenshotMaskLevel? screenshotMaskLevel;
   final Map<Type, String> widgetNames;
+  final bool enableViewportSemanticMap;
+  final bool enableViewportSemanticMapDebugLogs;
 
   TugboatScreenshotMaskLevel get effectiveScreenshotMaskLevel =>
       screenshotMaskLevel ??
@@ -127,6 +132,8 @@ class TugboatReplayConfig {
     TugboatCollectorConfig? collector,
     TugboatScreenshotMaskLevel? screenshotMaskLevel,
     Map<Type, String>? widgetNames,
+    bool? enableViewportSemanticMap,
+    bool? enableViewportSemanticMapDebugLogs,
   }) {
     return TugboatReplayConfig(
       profile: profile ?? this.profile,
@@ -146,6 +153,11 @@ class TugboatReplayConfig {
       collector: collector ?? this.collector,
       screenshotMaskLevel: screenshotMaskLevel ?? this.screenshotMaskLevel,
       widgetNames: widgetNames ?? this.widgetNames,
+      enableViewportSemanticMap:
+          enableViewportSemanticMap ?? this.enableViewportSemanticMap,
+      enableViewportSemanticMapDebugLogs:
+          enableViewportSemanticMapDebugLogs ??
+          this.enableViewportSemanticMapDebugLogs,
     );
   }
 }
@@ -229,6 +241,9 @@ class TugboatReplayController extends ChangeNotifier {
   final Map<int, _PointerGestureState> _activeGestures = {};
   String? _lastCapturedStateSignature;
   final Set<String> _emittedInventories = <String>{};
+  final Set<String> _emittedSemanticMaps = <String>{};
+  TugboatViewportSemanticMap? _latestViewportSemanticMap;
+  SemanticsHandle? _semanticsHandle;
   String? _lastDHash;
 
   _ScheduledCapture? _scheduledCapture;
@@ -243,6 +258,13 @@ class TugboatReplayController extends ChangeNotifier {
   String? get currentRoute => _currentRoute;
   TugboatStateAnchor? get currentStateAnchor => _currentStateAnchor;
   String? get latestFrameId => _latestFrameId;
+
+  bool get _viewportSemanticMapEnabled =>
+      config.enableViewportSemanticMap &&
+      config.profile == TugboatCaptureProfile.exploration;
+
+  bool get _viewportSemanticMapDebugLogsEnabled =>
+      config.enableViewportSemanticMapDebugLogs && _viewportSemanticMapEnabled;
 
   @visibleForTesting
   void debugSetCurrentStateAnchor(TugboatStateAnchor? anchor) {
@@ -325,11 +347,17 @@ class TugboatReplayController extends ChangeNotifier {
     if (sinks.isNotEmpty) {
       _sinkHub = TugboatCaptureSinkHub(sinks);
     }
+    if (_viewportSemanticMapEnabled) {
+      _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
+    }
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _semanticsHandle?.dispose();
+    _semanticsHandle = null;
+    _latestViewportSemanticMap = null;
     final hub = _sinkHub;
     _sinkHub = null;
     _session = null;
@@ -367,6 +395,8 @@ class TugboatReplayController extends ChangeNotifier {
     _hashToFrameId.clear();
     _lastCapturedStateSignature = null;
     _emittedInventories.clear();
+    _emittedSemanticMaps.clear();
+    _latestViewportSemanticMap = null;
     _lastDHash = null;
     if (!_disposed) notifyListeners();
     _sinkHub?.startSession(_session!);
@@ -595,6 +625,7 @@ class TugboatReplayController extends ChangeNotifier {
     final resolver = _anchorResolver;
     TugboatTargetAnchor? target;
     TugboatStateAnchor? tapState = _currentStateAnchor;
+    TugboatSceneInventory? tapInventory;
 
     if (resolver != null && config.profile != TugboatCaptureProfile.dormant) {
       final tapContext = resolver.buildTapContext(
@@ -604,15 +635,26 @@ class TugboatReplayController extends ChangeNotifier {
         modalOpen: _isModalOpen(),
       );
       target = tapContext.target;
-      final inventory = tapContext.inventory;
-      if (inventory != null) {
-        _currentStateAnchor = inventory.stateAnchor;
-        tapState = inventory.stateAnchor;
-        _emitSceneInventory(inventory);
+      tapInventory = tapContext.inventory;
+      if (tapInventory != null) {
+        _currentStateAnchor = tapInventory.stateAnchor;
+        tapState = tapInventory.stateAnchor;
+        _emitSceneInventory(tapInventory);
       }
     } else {
       target = resolver?.targetAt(position, route: _currentRoute);
     }
+
+    final viewportResolution = _resolveViewportSemanticTap(
+      position: position,
+      inventory: tapInventory,
+    );
+    final tapData = <String, Object?>{
+      'x': position.dx,
+      'y': position.dy,
+      if (viewportResolution != null)
+        'viewportSemanticResolution': viewportResolution.toJson(),
+    };
 
     final beforeFrame = _latestFrameId;
     final beforeState = tapState;
@@ -646,9 +688,12 @@ class TugboatReplayController extends ChangeNotifier {
         stateAnchor: beforeState,
         targetAnchor: target,
         beforeFrame: beforeFrame,
-        data: {'x': position.dx, 'y': position.dy},
+        data: tapData,
       ),
     );
+    if (viewportResolution != null) {
+      _logViewportSemanticTapResolution(position, viewportResolution);
+    }
     if (!_disposed) notifyListeners();
   }
 
@@ -1154,6 +1199,103 @@ class TugboatReplayController extends ChangeNotifier {
         data: inventory.toJson(),
       ),
     );
+    _maybeEmitViewportSemanticMap(inventory);
+  }
+
+  void _maybeEmitViewportSemanticMap(TugboatSceneInventory inventory) {
+    if (!_viewportSemanticMapEnabled) return;
+    final resolver = _anchorResolver;
+    if (resolver == null) return;
+
+    final map = resolver.buildViewportSemanticMap(inventory: inventory);
+    if (map == null) return;
+
+    final dedupeKey = '${map.stateSignature}|${map.mapHash}';
+    if (!_emittedSemanticMaps.add(dedupeKey)) {
+      _latestViewportSemanticMap = map;
+      return;
+    }
+
+    _latestViewportSemanticMap = map;
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'viewport_semantic_map',
+        stateAnchor: map.stateAnchor,
+        data: map.toJson(),
+      ),
+    );
+    _logViewportSemanticMapEmit(map);
+  }
+
+  TugboatViewportSemanticResolution? _resolveViewportSemanticTap({
+    required Offset position,
+    TugboatSceneInventory? inventory,
+  }) {
+    if (!_viewportSemanticMapEnabled) return null;
+    final resolver = _anchorResolver;
+    final rootRender = _boundaryKey.currentContext?.findRenderObject();
+    if (resolver == null || rootRender is! RenderBox) return null;
+
+    if (inventory != null &&
+        (_latestViewportSemanticMap == null ||
+            _latestViewportSemanticMap!.stateSignature !=
+                inventory.stateSignature)) {
+      _maybeEmitViewportSemanticMap(inventory);
+    }
+
+    final map = _latestViewportSemanticMap;
+    if (map == null) {
+      return const TugboatViewportSemanticResolution(
+        status: 'outside_known_ui',
+      );
+    }
+
+    return resolver.resolveTapOnViewportSemanticMap(
+      tapPosition: position,
+      map: map,
+      rootRender: rootRender,
+    );
+  }
+
+  void _logViewportSemanticMapEmit(TugboatViewportSemanticMap map) {
+    if (!_viewportSemanticMapDebugLogsEnabled) return;
+    debugPrint(
+      '[tugboat] viewport_semantic_map route=${map.routeKey} '
+      'state=${map.stateSignature} nodes=${map.summary['totalNodes']} '
+      'actionable=${map.summary['actionableCount']} '
+      'scrollable=${map.summary['scrollableCount']} hash=${map.mapHash}',
+    );
+  }
+
+  void _logViewportSemanticTapResolution(
+    Offset position,
+    TugboatViewportSemanticResolution resolution,
+  ) {
+    if (!_viewportSemanticMapDebugLogsEnabled) return;
+    final bounds = resolution.boundsNorm;
+    final boundsSummary = bounds == null
+        ? 'none'
+        : 'l=${bounds.left.toStringAsFixed(3)},'
+              't=${bounds.top.toStringAsFixed(3)},'
+              'w=${bounds.width.toStringAsFixed(3)},'
+              'h=${bounds.height.toStringAsFixed(3)}';
+    debugPrint(
+      '[tugboat] viewport_semantic_tap '
+      'point=(${position.dx.toStringAsFixed(1)},${position.dy.toStringAsFixed(1)}) '
+      'status=${resolution.status} role=${resolution.role ?? 'none'} '
+      'actions=${resolution.actions.join(',')} bounds=$boundsSummary '
+      'fingerprint=${resolution.linkedFingerprint ?? 'none'}',
+    );
+    if (resolution.status == 'outside_known_ui' ||
+        resolution.status == 'matched_non_actionable' ||
+        resolution.status == 'matched_disabled') {
+      debugPrint(
+        '[tugboat] viewport_semantic_anomaly status=${resolution.status} '
+        'at=(${position.dx.toStringAsFixed(1)},${position.dy.toStringAsFixed(1)})',
+      );
+    }
   }
 
   void _addEvent(TugboatEvent event) {
