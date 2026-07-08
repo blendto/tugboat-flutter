@@ -347,6 +347,39 @@ void main() {
     expect(afterSecondTap, afterFirstTap);
   });
 
+  testWidgets('production lean does not emit scene inventory events', (
+    tester,
+  ) async {
+    const config = TugboatReplayConfig(
+      profile: TugboatCaptureProfile.productionLean,
+      settleDelay: Duration.zero,
+      enableGlobalPointerCapture: false,
+      capturePixelRatio: 1.0,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: config, child: child!),
+        home: Scaffold(
+          body: FilledButton(onPressed: () {}, child: const Text('Go')),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    final controller = TugboatReplay.controller!;
+    final tapCenter = tester.getCenter(find.text('Go'));
+    controller.recordPointerDown(tapCenter);
+    await tester.pump();
+
+    final eventTypes = controller.session!.events.map((event) => event.type);
+    expect(eventTypes, contains('tap'));
+    expect(eventTypes, isNot(contains('scene_inventory')));
+  });
+
   testWidgets('scene inventory event is deduped per state', (tester) async {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,

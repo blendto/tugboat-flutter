@@ -1190,7 +1190,7 @@ class TugboatReplayController extends ChangeNotifier {
   void _maybeEmitSceneInventory({
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
-    if (config.profile == TugboatCaptureProfile.dormant) return;
+    if (config.profile != TugboatCaptureProfile.exploration) return;
     final resolver = _anchorResolver;
     if (resolver == null || _session == null) return;
 
@@ -1210,6 +1210,7 @@ class TugboatReplayController extends ChangeNotifier {
     bool emitViewportSemanticMap = true,
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
+    if (config.profile != TugboatCaptureProfile.exploration) return;
     final dedupeKey = '${inventory.stateSignature}|${inventory.inventoryHash}';
     if (_emittedInventories.add(dedupeKey)) {
       _addEvent(
