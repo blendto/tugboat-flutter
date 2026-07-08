@@ -899,6 +899,33 @@ void main() {
     controller.dispose();
   });
 
+  test('a throwing queued task does not poison later tap settles', () async {
+    final rootKey = GlobalKey();
+    final controller = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: rootKey,
+    );
+    await controller.initialize();
+    controller.start(const Size(100, 100), 'test');
+    controller.debugSetExplorationFramesSuppressed(true);
+
+    unawaited(
+      controller.debugEnqueueTask('test_failure', () async {
+        throw StateError('simulated capture failure');
+      }),
+    );
+
+    controller.recordPointerDown(const Offset(5, 5), pointer: 1);
+    controller.recordPointerUp(const Offset(5, 5), pointer: 1);
+    await controller.drainPointerQueue();
+
+    final settles = controller.session!.events
+        .where((event) => event.type == 'tap_settled')
+        .toList();
+    expect(settles, hasLength(1));
+    controller.dispose();
+  });
+
   test('overlapping taps keep pointer-specific relatedEventId links', () async {
     final rootKey = GlobalKey();
     final controller = TugboatReplayController(

@@ -16,7 +16,12 @@ class TugboatNormalizedBounds {
 
   factory TugboatNormalizedBounds.fromRect(Rect rect, Size viewport) {
     if (viewport.width <= 0 || viewport.height <= 0) {
-      return const TugboatNormalizedBounds(left: 0, top: 0, width: 0, height: 0);
+      return const TugboatNormalizedBounds(
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0,
+      );
     }
     return TugboatNormalizedBounds(
       left: rect.left / viewport.width,
@@ -32,6 +37,19 @@ class TugboatNormalizedBounds {
     'width': width,
     'height': height,
   };
+
+  TugboatNormalizedBounds clampToViewport() {
+    final right = (left + width).clamp(0.0, 1.0);
+    final bottom = (top + height).clamp(0.0, 1.0);
+    final clampedLeft = left.clamp(0.0, 1.0);
+    final clampedTop = top.clamp(0.0, 1.0);
+    return TugboatNormalizedBounds(
+      left: clampedLeft,
+      top: clampedTop,
+      width: (right - clampedLeft).clamp(0.0, 1.0),
+      height: (bottom - clampedTop).clamp(0.0, 1.0),
+    );
+  }
 
   factory TugboatNormalizedBounds.fromJson(Map<String, dynamic> json) =>
       TugboatNormalizedBounds(
@@ -263,9 +281,7 @@ class TugboatSceneInventoryEntry {
     if (aliases.isNotEmpty) 'aliases': aliases,
   };
 
-  TugboatSceneInventoryEntry copyWith({
-    List<String>? aliases,
-  }) {
+  TugboatSceneInventoryEntry copyWith({List<String>? aliases}) {
     return TugboatSceneInventoryEntry(
       fingerprint: fingerprint,
       canonicalPath: canonicalPath,
@@ -312,6 +328,7 @@ class TugboatViewportSemanticNode {
     this.parentId,
     required this.depth,
     this.siblingIndex,
+    this.source = 'semantic',
     this.role,
     this.actions = const [],
     this.enabled,
@@ -325,6 +342,7 @@ class TugboatViewportSemanticNode {
   final int? parentId;
   final int depth;
   final int? siblingIndex;
+  final String source;
   final String? role;
   final List<String> actions;
   final bool? enabled;
@@ -335,11 +353,29 @@ class TugboatViewportSemanticNode {
 
   bool get isActionable => actions.isNotEmpty;
 
+  TugboatViewportSemanticNode copyWith({TugboatNormalizedBounds? boundsNorm}) {
+    return TugboatViewportSemanticNode(
+      nodeId: nodeId,
+      parentId: parentId,
+      depth: depth,
+      siblingIndex: siblingIndex,
+      source: source,
+      role: role,
+      actions: actions,
+      enabled: enabled,
+      boundsNorm: boundsNorm ?? this.boundsNorm,
+      scrollable: scrollable,
+      linkedFingerprint: linkedFingerprint,
+      linkedCanonicalPath: linkedCanonicalPath,
+    );
+  }
+
   Map<String, Object?> toJson() => {
     'nodeId': nodeId,
     if (parentId != null) 'parentId': parentId,
     'depth': depth,
     if (siblingIndex != null) 'siblingIndex': siblingIndex,
+    'source': source,
     if (role != null) 'role': role,
     if (actions.isNotEmpty) 'actions': actions,
     if (enabled != null) 'enabled': enabled,
@@ -347,6 +383,55 @@ class TugboatViewportSemanticNode {
     if (scrollable) 'scrollable': scrollable,
     if (linkedFingerprint != null) 'linkedFingerprint': linkedFingerprint,
     if (linkedCanonicalPath != null) 'linkedCanonicalPath': linkedCanonicalPath,
+  };
+}
+
+/// Scroll position attached to a viewport semantic observation.
+class TugboatViewportSemanticScrollContext {
+  const TugboatViewportSemanticScrollContext({
+    required this.trigger,
+    this.scrollableFingerprint,
+    this.axis,
+    this.offset,
+    this.offsetNorm,
+    this.startOffset,
+    this.endOffset,
+    this.depth,
+    this.observedTopNorm,
+    this.observedBottomNorm,
+  });
+
+  final String trigger;
+  final String? scrollableFingerprint;
+  final String? axis;
+  final double? offset;
+  final double? offsetNorm;
+  final double? startOffset;
+  final double? endOffset;
+  final int? depth;
+  final double? observedTopNorm;
+  final double? observedBottomNorm;
+
+  String get dedupeKey => [
+    trigger,
+    scrollableFingerprint ?? '',
+    axis ?? '',
+    offsetNorm == null ? '' : offsetNorm!.toStringAsFixed(3),
+    offset == null ? '' : offset!.round().toString(),
+  ].join('|');
+
+  Map<String, Object?> toJson() => {
+    'trigger': trigger,
+    if (scrollableFingerprint != null)
+      'scrollableFingerprint': scrollableFingerprint,
+    if (axis != null) 'axis': axis,
+    if (offset != null) 'offset': offset,
+    if (offsetNorm != null) 'offsetNorm': offsetNorm,
+    if (startOffset != null) 'startOffset': startOffset,
+    if (endOffset != null) 'endOffset': endOffset,
+    if (depth != null) 'depth': depth,
+    if (observedTopNorm != null) 'observedTopNorm': observedTopNorm,
+    if (observedBottomNorm != null) 'observedBottomNorm': observedBottomNorm,
   };
 }
 
@@ -360,6 +445,7 @@ class TugboatViewportSemanticMap {
     required this.nodes,
     required this.summary,
     required this.mapHash,
+    this.scrollContext,
   });
 
   /// Anchor the map was computed against; not serialized into [toJson].
@@ -370,6 +456,25 @@ class TugboatViewportSemanticMap {
   final List<TugboatViewportSemanticNode> nodes;
   final Map<String, int> summary;
   final String mapHash;
+  final TugboatViewportSemanticScrollContext? scrollContext;
+
+  TugboatViewportSemanticMap copyWith({
+    List<TugboatViewportSemanticNode>? nodes,
+    Map<String, int>? summary,
+    String? mapHash,
+    TugboatViewportSemanticScrollContext? scrollContext,
+  }) {
+    return TugboatViewportSemanticMap(
+      stateAnchor: stateAnchor,
+      stateSignature: stateSignature,
+      routeKey: routeKey,
+      viewport: viewport,
+      nodes: nodes ?? this.nodes,
+      summary: summary ?? this.summary,
+      mapHash: mapHash ?? this.mapHash,
+      scrollContext: scrollContext ?? this.scrollContext,
+    );
+  }
 
   Map<String, Object?> toJson() => {
     'stateSignature': stateSignature,
@@ -378,6 +483,51 @@ class TugboatViewportSemanticMap {
     'nodes': nodes.map((node) => node.toJson()).toList(),
     'summary': summary,
     'mapHash': mapHash,
+    if (scrollContext != null) 'scrollContext': scrollContext!.toJson(),
+  };
+}
+
+/// Multi-viewport semantic evidence observed during a scroll interaction.
+class TugboatScrollSemanticSnapshot {
+  const TugboatScrollSemanticSnapshot({
+    required this.stateSignature,
+    required this.routeKey,
+    required this.scrollableFingerprint,
+    required this.axis,
+    required this.observedSliceCount,
+    required this.observedNodeCount,
+    required this.observedActionableCount,
+    required this.linkedNodeCount,
+    required this.observedTopNorm,
+    required this.observedBottomNorm,
+    required this.snapshotHash,
+  });
+
+  final String stateSignature;
+  final String routeKey;
+  final String? scrollableFingerprint;
+  final String? axis;
+  final int observedSliceCount;
+  final int observedNodeCount;
+  final int observedActionableCount;
+  final int linkedNodeCount;
+  final double? observedTopNorm;
+  final double? observedBottomNorm;
+  final String snapshotHash;
+
+  Map<String, Object?> toJson() => {
+    'stateSignature': stateSignature,
+    'routeKey': routeKey,
+    if (scrollableFingerprint != null)
+      'scrollableFingerprint': scrollableFingerprint,
+    if (axis != null) 'axis': axis,
+    'observedSliceCount': observedSliceCount,
+    'observedNodeCount': observedNodeCount,
+    'observedActionableCount': observedActionableCount,
+    'linkedNodeCount': linkedNodeCount,
+    if (observedTopNorm != null) 'observedTopNorm': observedTopNorm,
+    if (observedBottomNorm != null) 'observedBottomNorm': observedBottomNorm,
+    'snapshotHash': snapshotHash,
   };
 }
 
