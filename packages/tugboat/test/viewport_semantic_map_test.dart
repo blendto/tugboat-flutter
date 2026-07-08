@@ -350,6 +350,59 @@ void main() {
     }
   });
 
+  testWidgets(
+    'production tap-resolution opt-in resolves taps without emitting maps',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => TugboatReplay.wrapApp(
+            config: const TugboatReplayConfig(
+              profile: TugboatCaptureProfile.productionLean,
+              settleDelay: Duration.zero,
+              enableGlobalPointerCapture: false,
+              capturePixelRatio: 1.0,
+              enableViewportSemanticMap: true,
+              enableViewportSemanticTapResolutionInProduction: true,
+            ),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: FilledButton(onPressed: () {}, child: const Text('Go')),
+          ),
+        ),
+      );
+      await tester.pump();
+      await _waitForCaptures(tester);
+
+      final controller = TugboatReplay.controller!;
+
+      final tapCenter = tester.getCenter(find.text('Go'));
+      controller.recordPointerDown(tapCenter);
+      await tester.pump();
+
+      final mapEvents = controller.session!.events
+          .where(
+            (event) =>
+                event.type == 'viewport_semantic_map' ||
+                event.type == 'scroll_semantic_snapshot',
+          )
+          .toList();
+      expect(mapEvents, isEmpty);
+
+      final tapEvent = controller.session!.events
+          .where((event) => event.type == 'tap')
+          .last;
+      final resolution =
+          tapEvent.data['viewportSemanticResolution']
+              as Map<Object?, Object?>?;
+      expect(resolution, isNotNull);
+      expect(resolution!['status'], 'matched_actionable');
+      // Verdict payload must remain text-free.
+      expect(resolution.keys, isNot(contains('label')));
+      expect(resolution.keys, isNot(contains('text')));
+    },
+  );
+
   testWidgets('production semantic map requires explicit test opt-in', (
     tester,
   ) async {

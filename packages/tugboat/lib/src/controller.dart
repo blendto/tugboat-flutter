@@ -106,6 +106,7 @@ class TugboatReplayConfig {
     this.enableViewportSemanticMap = false,
     this.enableViewportSemanticMapDebugLogs = false,
     this.enableViewportSemanticMapInProductionForTesting = false,
+    this.enableViewportSemanticTapResolutionInProduction = false,
     this.viewportSemanticMapMaxNodes = 120,
     this.viewportSemanticMapMaxBytes = 48000,
   });
@@ -127,6 +128,15 @@ class TugboatReplayConfig {
   final bool enableViewportSemanticMap;
   final bool enableViewportSemanticMapDebugLogs;
   final bool enableViewportSemanticMapInProductionForTesting;
+
+  /// Production opt-in for the per-tap semantic verdict only.
+  ///
+  /// When enabled with [enableViewportSemanticMap] in `productionLean`, the
+  /// SDK builds viewport semantic maps as an on-device lookup table and
+  /// attaches `viewportSemanticResolution` (status/role/actions/bounds/
+  /// fingerprint — no text) to tap events, but does NOT emit
+  /// `viewport_semantic_map` or `scroll_semantic_snapshot` payload events.
+  final bool enableViewportSemanticTapResolutionInProduction;
   final int viewportSemanticMapMaxNodes;
   final int viewportSemanticMapMaxBytes;
 
@@ -157,6 +167,7 @@ class TugboatReplayConfig {
     bool? enableViewportSemanticMap,
     bool? enableViewportSemanticMapDebugLogs,
     bool? enableViewportSemanticMapInProductionForTesting,
+    bool? enableViewportSemanticTapResolutionInProduction,
     int? viewportSemanticMapMaxNodes,
     int? viewportSemanticMapMaxBytes,
   }) {
@@ -186,6 +197,9 @@ class TugboatReplayConfig {
       enableViewportSemanticMapInProductionForTesting:
           enableViewportSemanticMapInProductionForTesting ??
           this.enableViewportSemanticMapInProductionForTesting,
+      enableViewportSemanticTapResolutionInProduction:
+          enableViewportSemanticTapResolutionInProduction ??
+          this.enableViewportSemanticTapResolutionInProduction,
       viewportSemanticMapMaxNodes:
           viewportSemanticMapMaxNodes ?? this.viewportSemanticMapMaxNodes,
       viewportSemanticMapMaxBytes:
@@ -296,14 +310,28 @@ class TugboatReplayController extends ChangeNotifier {
   TugboatStateAnchor? get currentStateAnchor => _currentStateAnchor;
   String? get latestFrameId => _latestFrameId;
 
-  bool get _viewportSemanticMapEnabled =>
+  /// Whether the semantic engine runs at all: builds viewport maps as an
+  /// on-device lookup table and resolves tap verdicts against them.
+  bool get _viewportSemanticEngineEnabled =>
+      config.enableViewportSemanticMap &&
+      (config.profile == TugboatCaptureProfile.exploration ||
+          (config.profile == TugboatCaptureProfile.productionLean &&
+              (config.enableViewportSemanticMapInProductionForTesting ||
+                  config.enableViewportSemanticTapResolutionInProduction)));
+
+  /// Whether full `viewport_semantic_map` / `scroll_semantic_snapshot`
+  /// payload events are emitted. In productionLean this stays off unless the
+  /// explicit testing opt-in is set; the tap-resolution-only production flag
+  /// keeps maps device-local.
+  bool get _viewportSemanticMapEventsEnabled =>
       config.enableViewportSemanticMap &&
       (config.profile == TugboatCaptureProfile.exploration ||
           (config.profile == TugboatCaptureProfile.productionLean &&
               config.enableViewportSemanticMapInProductionForTesting));
 
   bool get _viewportSemanticMapDebugLogsEnabled =>
-      config.enableViewportSemanticMapDebugLogs && _viewportSemanticMapEnabled;
+      config.enableViewportSemanticMapDebugLogs &&
+      _viewportSemanticEngineEnabled;
 
   @visibleForTesting
   void debugSetCurrentStateAnchor(TugboatStateAnchor? anchor) {
@@ -408,7 +436,7 @@ class TugboatReplayController extends ChangeNotifier {
     if (sinks.isNotEmpty) {
       _sinkHub = TugboatCaptureSinkHub(sinks);
     }
-    if (_viewportSemanticMapEnabled) {
+    if (_viewportSemanticEngineEnabled) {
       _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
     }
   }
@@ -1356,7 +1384,7 @@ class TugboatReplayController extends ChangeNotifier {
     TugboatSceneInventory inventory, {
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
-    if (!_viewportSemanticMapEnabled) {
+    if (!_viewportSemanticEngineEnabled) {
       if (_viewportSemanticMapDebugLogsEnabled) {
         debugPrint(
           '[tugboat] viewport_semantic_map skipped '
@@ -1386,14 +1414,27 @@ class TugboatReplayController extends ChangeNotifier {
     final map = _boundedViewportSemanticMap(mapWithContext);
     if (map == null) return;
 
-    final dedupeKey =
-        '${map.stateSignature}|${map.mapHash}|${map.scrollContext?.dedupeKey ?? ''}';
-    if (!_emittedSemanticMaps.add(dedupeKey)) {
-      _latestViewportSemanticMap = map;
+    _latestViewportSemanticMap = map;
+
+    // Tap-resolution-only production mode: keep the map as a device-local
+    // lookup table without emitting map/snapshot payload events.
+    if (!_viewportSemanticMapEventsEnabled) {
+      if (_viewportSemanticMapDebugLogsEnabled) {
+        debugPrint(
+          '[tugboat] viewport_semantic_map cached_only '
+          'route=${map.routeKey} state=${map.stateSignature} '
+          'reason=production_tap_resolution_only',
+        );
+      }
       return;
     }
 
-    _latestViewportSemanticMap = map;
+    final dedupeKey =
+        '${map.stateSignature}|${map.mapHash}|${map.scrollContext?.dedupeKey ?? ''}';
+    if (!_emittedSemanticMaps.add(dedupeKey)) {
+      return;
+    }
+
     _addEvent(
       TugboatEvent(
         id: _nextId('event'),
@@ -1588,7 +1629,7 @@ class TugboatReplayController extends ChangeNotifier {
     required Offset position,
     TugboatSceneInventory? inventory,
   }) {
-    if (!_viewportSemanticMapEnabled) return null;
+    if (!_viewportSemanticEngineEnabled) return null;
     final resolver = _anchorResolver;
     final rootRender = _boundaryKey.currentContext?.findRenderObject();
     if (resolver == null || rootRender is! RenderBox) return null;
