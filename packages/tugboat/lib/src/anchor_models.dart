@@ -50,14 +50,6 @@ class TugboatNormalizedBounds {
       height: (bottom - clampedTop).clamp(0.0, 1.0),
     );
   }
-
-  factory TugboatNormalizedBounds.fromJson(Map<String, dynamic> json) =>
-      TugboatNormalizedBounds(
-        left: (json['left'] as num).toDouble(),
-        top: (json['top'] as num).toDouble(),
-        width: (json['width'] as num).toDouble(),
-        height: (json['height'] as num).toDouble(),
-      );
 }
 
 /// Compact description of the actionable target under a touch.
@@ -109,25 +101,6 @@ class TugboatTargetAnchor {
     if (enabled != null) 'enabled': enabled,
     if (actions.isNotEmpty) 'actions': actions,
   };
-
-  factory TugboatTargetAnchor.fromJson(Map<String, dynamic> json) =>
-      TugboatTargetAnchor(
-        schemaVersion: json['schemaVersion'] as int? ?? 1,
-        widgetType: json['widgetType'] as String?,
-        role: json['role'] as String?,
-        fingerprint: json['fingerprint'] as String?,
-        fingerprintConfidence: json['fingerprintConfidence'] as String?,
-        tagFingerprint: json['tagFingerprint'] as String?,
-        fingerprintParts: json['fingerprintParts'] == null
-            ? const {}
-            : Map<String, String>.from(json['fingerprintParts'] as Map),
-        canonicalPath: json['canonicalPath'] as String?,
-        relativePosition: json['relativePosition'] as String?,
-        enabled: json['enabled'] as bool?,
-        actions: (json['actions'] as List<dynamic>? ?? [])
-            .cast<String>()
-            .toList(),
-      );
 
   @override
   bool operator ==(Object other) =>
@@ -199,22 +172,6 @@ class TugboatStateAnchor {
       'signatureConfidence': signatureConfidence,
     if (signatureParts.isNotEmpty) 'signatureParts': signatureParts,
   };
-
-  factory TugboatStateAnchor.fromJson(Map<String, dynamic> json) =>
-      TugboatStateAnchor(
-        schemaVersion: json['schemaVersion'] as int? ?? 1,
-        actionableSummary: json['actionableSummary'] == null
-            ? _summaryFromRoles(json['actionableRoles'] as List<dynamic>?)
-            : Map<String, int>.from(json['actionableSummary'] as Map),
-        keyboardOpen: json['keyboardOpen'] as bool? ?? false,
-        modalOpen: json['modalOpen'] as bool? ?? false,
-        subLabel: json['subLabel'] as String?,
-        signature: json['signature'] as String? ?? '',
-        signatureConfidence: json['signatureConfidence'] as String?,
-        signatureParts: json['signatureParts'] == null
-            ? const {}
-            : Map<String, String>.from(json['signatureParts'] as Map),
-      );
 
   @override
   bool operator ==(Object other) =>

@@ -1,6 +1,6 @@
 # Tugboat Flutter
 
-Flutter SDK for capturing session evidence and generating stable widget catalogs.
+Flutter SDK for capturing session evidence for Tugboat.
 The Tugboat CLI is maintained separately; this repository contains only Flutter and
 Dart packages.
 
@@ -9,7 +9,6 @@ Dart packages.
 ## Packages
 
 - [`tugboat`](packages/tugboat) — the Flutter SDK
-- [`tugboat_builder`](packages/tugboat_builder) — optional build-time widget catalog generator
 - [`tugboat/example`](packages/tugboat/example) — demo app and integration fixture (not published)
 
 ## Documentation
@@ -46,26 +45,14 @@ dart run melos run test
 Package-specific tests:
 
 ```sh
-dart run melos run test:builder
 dart run melos run test:sdk
 ```
-
-Regenerate the example widget catalog:
-
-```sh
-dart run melos run generate:example
-git diff -- packages/tugboat/example/lib/tugboat_widgets.g.dart
-```
-
-`tugboat_widgets.g.dart` is generated but intentionally committed as an integration
-fixture. Do not edit it manually.
 
 ## Workspace conventions
 
 - Run dependency commands from the repository root. The workspace has one shared
   `pubspec.lock`; package-level lockfiles should not be committed.
 - Public SDK imports use `package:tugboat/tugboat.dart`.
-- Builder configuration uses the key `tugboat_builder|widget_catalog`.
 - Keep package versions and changelogs independent.
 
 ## License

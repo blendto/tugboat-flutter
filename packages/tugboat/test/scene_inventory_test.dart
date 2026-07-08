@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:tugboat/tugboat.dart';
-import 'package:tugboat/src/anchors.dart' show AnchorResolver;
+import 'package:tugboat/src/anchors.dart';
 
 class PillButton extends StatelessWidget {
   const PillButton({super.key, required this.onPressed, required this.child});

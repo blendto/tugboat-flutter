@@ -8,6 +8,10 @@ class _TokenMap {
     required this.labelAnnotations,
     required this.hasBareItem,
     required this.isActionable,
+    required this.hasActionableDescendant,
+    required this.hasTokenizedActionableDescendant,
+    required this.isSensitive,
+    required this.underActionable,
     required this.structuralRouteSignature,
     required this.renderElements,
     required this.hasBlockingOverlay,
@@ -22,6 +26,10 @@ class _TokenMap {
   final Map<Element, String> labelAnnotations;
   final Map<Element, bool> hasBareItem;
   final Map<Element, bool> isActionable;
+  final Map<Element, bool> hasActionableDescendant;
+  final Map<Element, bool> hasTokenizedActionableDescendant;
+  final Map<Element, bool> isSensitive;
+  final Map<Element, bool> underActionable;
   final String structuralRouteSignature;
   final Map<RenderObject, Element> renderElements;
   final bool hasBlockingOverlay;
@@ -30,16 +38,20 @@ class _TokenMap {
   final String? subLabel;
 }
 
-class _IncludedElements {
-  const _IncludedElements({
+class _VisitAcc {
+  const _VisitAcc({
     this.elements = const {},
     this.pendingBlocker = false,
     this.hasBlockingOverlay = false,
+    this.hasActionableDescendant = false,
+    this.hasTokenizedActionableDescendant = false,
   });
 
   final Set<Element> elements;
   final bool pendingBlocker;
   final bool hasBlockingOverlay;
+  final bool hasActionableDescendant;
+  final bool hasTokenizedActionableDescendant;
 }
 
 /// Builds target anchors from hit-test results.
@@ -49,12 +61,102 @@ class AnchorResolver {
   final GlobalKey rootKey;
   final Map<Type, String> widgetNames;
 
+  _TokenMap? _cachedTokenMap;
+  int? _cachedFrameId;
+  RenderBox? _cachedRootRender;
+  @visibleForTesting
+  int debugTokenMapBuildCount = 0;
+  int _frameEpoch = 0;
+  bool _frameCallbackScheduled = false;
+
+  void invalidateTokenMapCache() {
+    _cachedTokenMap = null;
+    _cachedFrameId = null;
+    _cachedRootRender = null;
+  }
+
+  /// Collects screenshot mask rectangles using a frame-scoped token map when
+  /// available, avoiding a second full element walk.
+  List<Rect> collectMaskRects({
+    required RenderBox rootRender,
+    required bool Function(
+      Widget widget,
+      RenderBox renderObject,
+      bool explicitlySensitive,
+      bool actionable,
+    )
+    shouldMask,
+  }) {
+    final rootContext = rootKey.currentContext;
+    if (rootContext is! Element) return const [];
+    final tokenMap = _tokenMapFor(rootContext, rootRender);
+    if (tokenMap == null) return const [];
+
+    final masks = <Rect>[];
+    final maskedRenderObjects = <RenderObject>{};
+    for (final element in tokenMap.includedElements) {
+      final widget = element.widget;
+      final renderObject = element.renderObject;
+      if (renderObject is! RenderBox ||
+          !renderObject.attached ||
+          !renderObject.hasSize) {
+        continue;
+      }
+      final sensitive = tokenMap.isSensitive[element] == true;
+      final actionable = tokenMap.underActionable[element] == true ||
+          tugboatIsActionableWidget(widget);
+      if (!shouldMask(widget, renderObject, sensitive, actionable)) continue;
+      if (!maskedRenderObjects.add(renderObject)) continue;
+      try {
+        final transformed = MatrixUtils.transformRect(
+          renderObject.getTransformTo(rootRender),
+          renderObject.paintBounds,
+        );
+        final rect = transformed.intersect(rootRender.paintBounds);
+        if (rect.width > 0 && rect.height > 0) {
+          masks.add(rect);
+        }
+      } catch (_) {
+        // Detached render object can race capture; omit its mask safely.
+      }
+    }
+    return masks;
+  }
+
+  void _scheduleFrameCacheInvalidation() {
+    if (_frameCallbackScheduled) return;
+    _frameCallbackScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _frameCallbackScheduled = false;
+      _frameEpoch++;
+      _cachedTokenMap = null;
+      _cachedFrameId = null;
+      _cachedRootRender = null;
+    });
+  }
+
+  _TokenMap? _tokenMapFor(Element rootContext, RenderBox rootRender) {
+    // Reuse within the current frame when the root render object is unchanged.
+    if (_cachedTokenMap != null &&
+        _cachedFrameId == _frameEpoch &&
+        identical(_cachedRootRender, rootRender)) {
+      return _cachedTokenMap;
+    }
+    final built = _buildTokenMap(rootContext, rootRender);
+    _cachedTokenMap = built;
+    _cachedFrameId = _frameEpoch;
+    _cachedRootRender = rootRender;
+    _scheduleFrameCacheInvalidation();
+    return built;
+  }
+
   TugboatTargetAnchor? targetAt(Offset globalPosition, {String? route}) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
     if (rootRender is! RenderBox || rootContext is! Element) return null;
 
-    final tokenMap = _buildTokenMap(rootContext, rootRender);
+    final tokenMap = _tokenMapFor(rootContext, rootRender);
+    if (tokenMap == null) return null;
     return _targetAtWithTokenMap(
       globalPosition,
       route: route,
@@ -77,7 +179,8 @@ class AnchorResolver {
       return (inventory: null, target: null);
     }
 
-    final tokenMap = _buildTokenMap(rootContext, rootRender);
+    final tokenMap = _tokenMapFor(rootContext, rootRender);
+    if (tokenMap == null) return (inventory: null, target: null);
     final stateAnchor = _stateAnchorFromTokenMap(
       tokenMap: tokenMap,
       route: route,
@@ -128,7 +231,8 @@ class AnchorResolver {
     final rootRender = rootContext?.findRenderObject();
     if (rootContext is! Element || rootRender is! RenderBox) return null;
 
-    final tokenMap = _buildTokenMap(rootContext, rootRender);
+    final tokenMap = _tokenMapFor(rootContext, rootRender);
+    if (tokenMap == null) return null;
     final viewport = rootRender.size;
     final anchor = _anchorForElement(
       hitElement: scrollableElement,
@@ -164,14 +268,15 @@ class AnchorResolver {
   }) {
     final viewport = rootRender.size;
     final result = BoxHitTestResult();
-    rootRender.hitTest(result, position: globalPosition);
+    final localPosition = rootRender.globalToLocal(globalPosition);
+    rootRender.hitTest(result, position: localPosition);
 
     TugboatTargetAnchor? roleOnly;
     TugboatTargetAnchor? fallback;
     for (final entry in result.path) {
       if (entry.target is! RenderObject) continue;
       final element = tokenMap.renderElements[entry.target as RenderObject];
-      if (element == null || _isCaptureChrome(element.widget)) continue;
+      if (element == null || tugboatIsCaptureChrome(element.widget)) continue;
 
       final anchor = _anchorForElement(
         hitElement: element,
@@ -211,14 +316,15 @@ class AnchorResolver {
 
     void inspectElement(Element element) {
       final widget = element.widget;
-      final widgetRole = _roleForWidget(widget, actions);
+      final widgetRole = tugboatRoleForWidget(widget);
       if (widgetRole != null) {
-        role ??= widgetRole.$1;
-        enabled ??= widgetRole.$2;
+        role ??= widgetRole.name;
+        enabled ??= widgetRole.enabled;
+        actions.addAll(widgetRole.actions);
         boundsElement ??= element;
         widgetType ??= _widgetName(widget);
         fingerprintElement ??= element;
-      } else if (widgetType == null && !_isCaptureChrome(widget)) {
+      } else if (widgetType == null && !tugboatIsCaptureChrome(widget)) {
         widgetType = _widgetName(widget);
       }
     }
@@ -289,28 +395,44 @@ class AnchorResolver {
   }
 
   _TokenMap _buildTokenMap(Element rootElement, RenderBox rootRender) {
+    debugTokenMapBuildCount++;
     final tokens = <Element, String>{};
     final retainedParents = <Element, Element?>{};
     final tagIds = <Element, String>{};
     final labelAnnotations = <Element, String>{};
     final hasBareItem = <Element, bool>{};
     final isActionable = <Element, bool>{};
+    final hasActionableDescendant = <Element, bool>{};
+    final hasTokenizedActionableDescendant = <Element, bool>{};
+    final isSensitiveMap = <Element, bool>{};
+    final underActionableMap = <Element, bool>{};
     final ordinalCounters = <Object, int>{};
     final renderElements = <RenderObject, Element>{};
-    final included = _collectIncludedElements(rootElement);
+    final includedElements = <Element>{};
     String? subLabel;
+    var rootHasBlockingOverlay = false;
 
-    void visit(
+    _VisitAcc visit(
       Element element,
       Element? retainedParent,
       bool inList,
       bool sensitive,
+      bool underActionable,
     ) {
       final widget = element.widget;
-      if (!included.elements.contains(element)) return;
-      if (_hidesSubtree(widget) || widget is TugboatInternal) return;
-      final isSensitive = sensitive || widget is TugboatSensitive;
       final renderObject = element.renderObject;
+      if (tugboatHidesSubtree(widget) ||
+          widget is TugboatInternal ||
+          tugboatHidesRenderObject(renderObject)) {
+        return const _VisitAcc();
+      }
+      if (renderObject is RenderExcludeSemantics && renderObject.excluding) {
+        return const _VisitAcc();
+      }
+
+      final isSensitive = sensitive || widget is TugboatSensitive;
+      isSensitiveMap[element] = isSensitive;
+      underActionableMap[element] = underActionable;
       if (renderObject != null) renderElements[renderObject] = element;
       if (widget is TugboatSubView && subLabel == null) {
         subLabel = widget.label;
@@ -318,12 +440,12 @@ class AnchorResolver {
 
       final retainable = _isRetainable(element, rootRender);
       final canonical = retainable ? _canonicalType(widget) : null;
-      final role = retainable ? _roleForWidget(widget, <String>{}) : null;
+      final role = retainable ? tugboatRoleForWidget(widget) : null;
       // Salient-node retention: actionable widgets must appear in the path even
       // when they sit on the wrapper denylist (e.g. InkWell, InkResponse).
       final retainType =
           canonical ??
-          (role != null && role.$2 != false
+          (role != null && role.enabled != false
               ? _actionableTypeName(widget)
               : null);
       Element? newRetainedParent = retainedParent;
@@ -368,9 +490,13 @@ class AnchorResolver {
         newRetainedParent = element;
       }
 
-      if (role != null && role.$2 != false && tokens.containsKey(element)) {
+      final elementIsActionable =
+          role != null && role.enabled != false && tokens.containsKey(element);
+      if (elementIsActionable) {
         isActionable[element] = true;
       }
+      final childUnderActionable =
+          underActionable || tugboatIsActionableWidget(widget);
 
       // Once we emit an `[item]` token we are inside a single list entry, so
       // descendants resume normal tokenization (and only a *nested* list
@@ -378,30 +504,117 @@ class AnchorResolver {
       final childInList = token == '[item]'
           ? false
           : (inList || _isListContainer(widget));
-      element.debugVisitOnstageChildren((child) {
-        visit(
+
+      var pendingBlocker =
+          renderObject is RenderBlockSemantics && renderObject.blocking;
+      var hasBlockingOverlay = false;
+      var childHasActionable = false;
+      var childHasTokenizedActionable = false;
+      final childElements = <Element>{};
+      element.visitChildElements((child) {
+        final childResult = visit(
           child,
           newRetainedParent ?? retainedParent,
           childInList,
           isSensitive,
+          childUnderActionable,
         );
+        // Overlay-level BlockSemantics (modal barrier) replaces previously
+        // collected sibling routes with the blocking child's subtree. Regular
+        // OverlayPortal content (Tooltip) does not set pendingBlocker.
+        if (childResult.pendingBlocker && _isOverlayLevel(element)) {
+          childElements
+            ..clear()
+            ..add(element);
+          // Drop sibling routes from shared maps so hit-tests cannot rejoin them.
+          for (final previous in [...includedElements]) {
+            if (!identical(previous, element)) {
+              includedElements.remove(previous);
+            }
+          }
+          for (final key in [...tokens.keys]) {
+            if (!identical(key, element) && !childResult.elements.contains(key)) {
+              tokens.remove(key);
+              retainedParents.remove(key);
+              tagIds.remove(key);
+              labelAnnotations.remove(key);
+              hasBareItem.remove(key);
+              isActionable.remove(key);
+              hasActionableDescendant.remove(key);
+              hasTokenizedActionableDescendant.remove(key);
+              isSensitiveMap.remove(key);
+              underActionableMap.remove(key);
+            }
+          }
+          for (final entry in [...renderElements.entries]) {
+            final mapped = entry.value;
+            if (!identical(mapped, element) &&
+                !childResult.elements.contains(mapped)) {
+              renderElements.remove(entry.key);
+            }
+          }
+          pendingBlocker = false;
+          hasBlockingOverlay = true;
+          rootHasBlockingOverlay = true;
+        }
+        childElements.addAll(childResult.elements);
+        pendingBlocker = pendingBlocker || childResult.pendingBlocker;
+        hasBlockingOverlay =
+            hasBlockingOverlay || childResult.hasBlockingOverlay;
+        childHasActionable =
+            childHasActionable || childResult.hasActionableDescendant;
+        childHasTokenizedActionable =
+            childHasTokenizedActionable ||
+            childResult.hasTokenizedActionableDescendant;
       });
+
+      if (hasBlockingOverlay) {
+        rootHasBlockingOverlay = true;
+      }
+
+      includedElements.add(element);
+      includedElements.addAll(childElements);
+      final actionableInSubtree =
+          childHasActionable ||
+          childElements.any((child) => isActionable[child] == true);
+      final tokenizedActionableInSubtree =
+          childHasTokenizedActionable ||
+          childElements.any(
+            (child) =>
+                isActionable[child] == true && tokens.containsKey(child),
+          );
+      hasActionableDescendant[element] = actionableInSubtree;
+      hasTokenizedActionableDescendant[element] = tokenizedActionableInSubtree;
+
+      return _VisitAcc(
+        elements: {element, ...childElements},
+        pendingBlocker: pendingBlocker,
+        hasBlockingOverlay: hasBlockingOverlay,
+        hasActionableDescendant:
+            actionableInSubtree || elementIsActionable,
+        hasTokenizedActionableDescendant:
+            tokenizedActionableInSubtree || elementIsActionable,
+      );
     }
 
-    rootElement.debugVisitOnstageChildren(
-      (child) => visit(child, null, false, false),
+    // Visit the full element tree (not only onstage) so OverlayPortal/Tooltip
+    // subtrees stay addressable for hit testing, matching pre-merge inclusion.
+    rootElement.visitChildElements(
+      (child) => visit(child, null, false, false, false),
     );
+    // Always include the capture root so hit mapping stays consistent.
+    includedElements.add(rootElement);
 
     final actionableSummary = <String, int>{};
     final actionablePaths = <String>{};
-    for (final element in included.elements) {
+    for (final element in includedElements) {
       if (isActionable[element] != true || !tokens.containsKey(element)) {
         continue;
       }
-      if (_hasActionableDescendant(element, isActionable)) continue;
-      final role = _roleForWidget(element.widget, <String>{});
-      if (role == null || role.$2 == false) continue;
-      actionableSummary[role.$1] = (actionableSummary[role.$1] ?? 0) + 1;
+      if (hasActionableDescendant[element] == true) continue;
+      final role = tugboatRoleForWidget(element.widget);
+      if (role == null || role.enabled == false) continue;
+      actionableSummary[role.name] = (actionableSummary[role.name] ?? 0) + 1;
       actionablePaths.add(_pathForMaps(element, tokens, retainedParents));
     }
 
@@ -417,81 +630,17 @@ class AnchorResolver {
       labelAnnotations: labelAnnotations,
       hasBareItem: hasBareItem,
       isActionable: isActionable,
+      hasActionableDescendant: hasActionableDescendant,
+      hasTokenizedActionableDescendant: hasTokenizedActionableDescendant,
+      isSensitive: isSensitiveMap,
+      underActionable: underActionableMap,
       structuralRouteSignature: structuralRouteSignature,
       renderElements: renderElements,
-      hasBlockingOverlay: included.hasBlockingOverlay,
-      includedElements: included.elements,
+      hasBlockingOverlay: rootHasBlockingOverlay,
+      includedElements: includedElements,
       actionableSummary: actionableSummary,
       subLabel: subLabel,
     );
-  }
-
-  _IncludedElements _collectIncludedElements(Element root) {
-    _IncludedElements collect(Element element) {
-      final widget = element.widget;
-      final renderObject = element.renderObject;
-      if (_hidesSubtree(widget) || widget is TugboatInternal) {
-        return const _IncludedElements();
-      }
-      if (renderObject is RenderOffstage && renderObject.offstage) {
-        return const _IncludedElements();
-      }
-      if (renderObject is RenderOpacity && renderObject.opacity == 0) {
-        return const _IncludedElements();
-      }
-      if (renderObject is RenderAnimatedOpacity &&
-          renderObject.opacity.value == 0) {
-        return const _IncludedElements();
-      }
-      if (renderObject is RenderExcludeSemantics && renderObject.excluding) {
-        return const _IncludedElements();
-      }
-
-      final elements = <Element>{element};
-      var pendingBlocker =
-          renderObject is RenderBlockSemantics && renderObject.blocking;
-      var hasBlockingOverlay = false;
-      element.visitChildElements((child) {
-        final childResult = collect(child);
-        if (childResult.pendingBlocker && _isOverlayLevel(element)) {
-          elements
-            ..clear()
-            ..add(element);
-          pendingBlocker = false;
-          hasBlockingOverlay = true;
-        }
-        elements.addAll(childResult.elements);
-        pendingBlocker = pendingBlocker || childResult.pendingBlocker;
-        hasBlockingOverlay =
-            hasBlockingOverlay || childResult.hasBlockingOverlay;
-      });
-      return _IncludedElements(
-        elements: elements,
-        pendingBlocker: pendingBlocker,
-        hasBlockingOverlay: hasBlockingOverlay,
-      );
-    }
-
-    return collect(root);
-  }
-
-  bool _hasActionableDescendant(
-    Element element,
-    Map<Element, bool> isActionable,
-  ) {
-    var found = false;
-    void walk(Element node) {
-      node.visitChildElements((child) {
-        if (isActionable[child] == true) {
-          found = true;
-          return;
-        }
-        walk(child);
-      });
-    }
-
-    walk(element);
-    return found;
   }
 
   bool _isOverlayLevel(Element element) {
@@ -504,6 +653,7 @@ class AnchorResolver {
     });
     return found;
   }
+
 
   bool _isRetainable(Element element, RenderBox rootRender) {
     final renderObject = element.renderObject;
@@ -620,7 +770,7 @@ class AnchorResolver {
     void visit(Element node, bool nodeSensitive) {
       if (label != null) return;
       final nodeWidget = node.widget;
-      if (_hidesSubtree(nodeWidget) || nodeWidget is TugboatInternal) return;
+      if (tugboatHidesSubtree(nodeWidget) || nodeWidget is TugboatInternal) return;
       final isNodeSensitive = nodeSensitive || nodeWidget is TugboatSensitive;
       if (isNodeSensitive) return;
 
@@ -675,7 +825,7 @@ class AnchorResolver {
   }
 
   String? _normalizedWidgetTypeName(Widget widget) {
-    if (_isCaptureChrome(widget)) return null;
+    if (tugboatIsCaptureChrome(widget)) return null;
     if (widget is TugboatInternal || widget is TugboatTag) return null;
     var type = _widgetName(widget);
     // Collapse generic arguments so `BlocProvider<AuthBloc>` and
@@ -711,153 +861,6 @@ class AnchorResolver {
     return type.startsWith('Sliver');
   }
 
-  (String, bool?)? _roleForWidget(Widget widget, Set<String> actions) {
-    if (widget is ButtonStyleButton) {
-      if (widget.onPressed != null) actions.add('tap');
-      return ('button', widget.onPressed != null);
-    }
-    if (widget is IconButton) {
-      if (widget.onPressed != null) actions.add('tap');
-      return ('button', widget.onPressed != null);
-    }
-    if (widget is CupertinoButton) {
-      if (widget.onPressed != null) actions.add('tap');
-      return ('button', widget.onPressed != null);
-    }
-    if (widget is MaterialButton) {
-      if (widget.onPressed != null) actions.add('tap');
-      return ('button', widget.onPressed != null);
-    }
-    if (widget is FloatingActionButton) {
-      if (widget.onPressed != null) actions.add('tap');
-      return ('button', widget.onPressed != null);
-    }
-    if (widget is PopupMenuButton) {
-      if (widget.enabled) actions.add('tap');
-      return ('button', widget.enabled);
-    }
-    if (widget is PopupMenuItem) {
-      if (widget.enabled) actions.add('tap');
-      return ('button', widget.enabled);
-    }
-    if (widget is ExpansionTile) {
-      if (widget.enabled) actions.add('tap');
-      return ('button', widget.enabled);
-    }
-    if (widget is InkWell) {
-      if (widget.onTap != null) actions.add('tap');
-      return ('button', widget.onTap != null);
-    }
-    if (widget is InkResponse) {
-      if (widget.onTap != null) actions.add('tap');
-      return ('button', widget.onTap != null);
-    }
-    if (widget is ListTile &&
-        (widget.onTap != null || widget.onLongPress != null)) {
-      if (widget.enabled && widget.onTap != null) {
-        actions.add('tap');
-      }
-      if (widget.enabled && widget.onLongPress != null) {
-        actions.add('longPress');
-      }
-      return ('button', widget.enabled);
-    }
-    if (widget is GestureDetector) {
-      if (widget.onTap != null) actions.add('tap');
-      if (widget.onDoubleTap != null) actions.add('doubleTap');
-      if (widget.onLongPress != null) actions.add('longPress');
-      if (actions.isNotEmpty) return ('button', true);
-    }
-    if (widget is InputChip ||
-        widget is ActionChip ||
-        widget is FilterChip ||
-        widget is ChoiceChip) {
-      final enabled = switch (widget) {
-        InputChip w => w.onPressed != null || w.onSelected != null,
-        ActionChip w => w.onPressed != null,
-        FilterChip w => w.onSelected != null,
-        ChoiceChip w => w.onSelected != null,
-        _ => false,
-      };
-      if (enabled) actions.add('tap');
-      return ('button', enabled);
-    }
-    if (widget is Scrollable) {
-      actions.add('scroll');
-      return ('scrollable', null);
-    }
-    if (widget is Checkbox) {
-      if (widget.onChanged != null) actions.add('tap');
-      return ('checkbox', widget.onChanged != null);
-    }
-    if (widget is CheckboxListTile) {
-      if (widget.onChanged != null) actions.add('tap');
-      return ('checkbox', widget.onChanged != null);
-    }
-    if (widget is Switch) {
-      if (widget.onChanged != null) actions.add('tap');
-      return ('switch', widget.onChanged != null);
-    }
-    if (widget is CupertinoSwitch) {
-      if (widget.onChanged != null) actions.add('tap');
-      return ('switch', widget.onChanged != null);
-    }
-    if (widget is SwitchListTile) {
-      if (widget.onChanged != null) actions.add('tap');
-      return ('switch', widget.onChanged != null);
-    }
-    if (widget is Radio || widget is RadioListTile) {
-      final enabled = switch (widget) {
-        // ignore: deprecated_member_use
-        Radio w => w.onChanged != null,
-        // ignore: deprecated_member_use
-        RadioListTile w => w.onChanged != null,
-        _ => false,
-      };
-      if (enabled) actions.add('tap');
-      return ('radio', enabled);
-    }
-    if (widget is Slider ||
-        widget is RangeSlider ||
-        widget is CupertinoSlider) {
-      final enabled = switch (widget) {
-        Slider w => w.onChanged != null,
-        RangeSlider w => w.onChanged != null,
-        CupertinoSlider w => w.onChanged != null,
-        _ => false,
-      };
-      if (enabled) actions.add('slide');
-      return ('slider', enabled);
-    }
-    if (widget is DropdownButton) {
-      final enabled = widget.onChanged != null;
-      if (enabled) actions.add('tap');
-      return ('dropdown', enabled);
-    }
-    if (widget is EditableText ||
-        widget is TextField ||
-        widget is TextFormField) {
-      final enabled = switch (widget) {
-        TextField w => w.enabled ?? true,
-        TextFormField w => w.enabled,
-        EditableText w => !w.readOnly,
-        _ => true,
-      };
-      if (enabled) actions.add('input');
-      return ('textField', enabled);
-    }
-    return null;
-  }
-
-  bool _isCaptureChrome(Widget widget) {
-    return widget is RepaintBoundary ||
-        widget is NotificationListener ||
-        widget is Listener ||
-        widget is IgnorePointer ||
-        widget is AbsorbPointer ||
-        widget is Semantics;
-  }
-
   TugboatStateAnchor buildStateAnchor({
     required String? route,
     required bool keyboardOpen,
@@ -872,7 +875,13 @@ class AnchorResolver {
       );
     }
 
-    final tokenMap = _buildTokenMap(rootContext, rootRender);
+    final tokenMap = _tokenMapFor(rootContext, rootRender);
+    if (tokenMap == null) {
+      return TugboatStateAnchor(
+        keyboardOpen: keyboardOpen,
+        modalOpen: modalOpen,
+      );
+    }
     return _stateAnchorFromTokenMap(
       tokenMap: tokenMap,
       route: route,
@@ -929,491 +938,8 @@ class AnchorResolver {
     );
   }
 
-  /// Minimum normalized paint area for tokenized [Text] widgets to qualify as
-  /// content-tier inventory entries.
-  static const double _largeTextAreaThreshold = 0.02;
-
-  /// Enumerates tokenized actionable elements, [Image] widgets, and large
-  /// [Text] blocks on the current screen. Fingerprints match [targetAt] for the
-  /// same element.
-  TugboatSceneInventory? buildSceneInventory({
-    required String? route,
-    required bool keyboardOpen,
-    required bool modalOpen,
-  }) {
-    final rootContext = rootKey.currentContext;
-    final rootRender = rootContext?.findRenderObject();
-    if (rootContext is! Element || rootRender is! RenderBox) return null;
-
-    final tokenMap = _buildTokenMap(rootContext, rootRender);
-    final stateAnchor = _stateAnchorFromTokenMap(
-      tokenMap: tokenMap,
-      route: route,
-      keyboardOpen: keyboardOpen,
-      modalOpen: modalOpen,
-    );
-    if (stateAnchor.signature.isEmpty) return null;
-
-    return _buildSceneInventoryFromTokenMap(
-      tokenMap: tokenMap,
-      rootRender: rootRender,
-      route: route,
-      stateAnchor: stateAnchor,
-    );
-  }
-
-  TugboatSceneInventory? _buildSceneInventoryFromTokenMap({
-    required _TokenMap tokenMap,
-    required RenderBox rootRender,
-    required String? route,
-    required TugboatStateAnchor stateAnchor,
-  }) {
-    final routeKey = _resolveRouteKey(route, tokenMap);
-    final viewport = rootRender.size;
-    final contentEntries = <TugboatSceneInventoryEntry>[];
-    final interactiveByFingerprint = <String, TugboatSceneInventoryEntry>{};
-    final seenContentFingerprints = <String>{};
-    final hitCache = <String, TugboatTargetAnchor?>{};
-
-    for (final element in tokenMap.includedElements) {
-      if (!tokenMap.tokens.containsKey(element)) continue;
-
-      final widget = element.widget;
-      final isImage = widget is Image;
-      final isLargeText =
-          widget is Text &&
-          _isLargeTextBounds(_boundsForElement(element, rootRender, viewport));
-      final isActionable = tokenMap.isActionable[element] == true;
-      if (!isActionable && !isImage && !isLargeText) continue;
-
-      final structuralPath = _pathFor(element, tokenMap);
-      final bounds = _boundsForElement(element, rootRender, viewport);
-      if (bounds == null) continue;
-
-      if (isActionable) {
-        final result = _interactiveInventoryEntry(
-          element: element,
-          widget: widget,
-          structuralPath: structuralPath,
-          bounds: bounds,
-          routeKey: routeKey,
-          route: route,
-          tokenMap: tokenMap,
-          rootRender: rootRender,
-          viewport: viewport,
-          hitCache: hitCache,
-        );
-        if (result == null) continue;
-        _accumulateInteractiveEntry(
-          interactiveByFingerprint,
-          result.entry,
-          result.structuralFingerprint,
-        );
-        continue;
-      }
-
-      final fingerprint = _fingerprintForParts({
-        'routeKey': routeKey,
-        'path': structuralPath,
-      });
-      if (fingerprint.isEmpty || !seenContentFingerprints.add(fingerprint)) {
-        continue;
-      }
-
-      contentEntries.add(
-        TugboatSceneInventoryEntry(
-          fingerprint: fingerprint,
-          canonicalPath: structuralPath,
-          widgetType: _widgetName(widget),
-          role: 'display',
-          boundsNorm: bounds,
-          tier: 'content',
-        ),
-      );
-    }
-
-    final elements = [...interactiveByFingerprint.values, ...contentEntries];
-    if (elements.isEmpty) return null;
-
-    return _inventoryFromElements(
-      stateAnchor: stateAnchor,
-      routeKey: routeKey,
-      elements: elements,
-    );
-  }
-
-  TugboatSceneInventory _inventoryFromElements({
-    required TugboatStateAnchor stateAnchor,
-    required String routeKey,
-    required List<TugboatSceneInventoryEntry> elements,
-  }) {
-    final fingerprints = elements.map((entry) => entry.fingerprint).toList()
-      ..sort();
-    final inventoryHash = tugboatLabelHash(fingerprints.join('|'));
-
-    return TugboatSceneInventory(
-      stateAnchor: stateAnchor,
-      stateSignature: stateAnchor.signature,
-      inventoryHash: inventoryHash,
-      routeKey: routeKey,
-      elements: elements,
-    );
-  }
-
-  void _accumulateInteractiveEntry(
-    Map<String, TugboatSceneInventoryEntry> interactiveByFingerprint,
-    TugboatSceneInventoryEntry entry,
-    String structuralFingerprint,
-  ) {
-    final existing = interactiveByFingerprint[entry.fingerprint];
-    if (existing == null) {
-      final aliases = _mergeAliasFingerprints(
-        existingAliases: const [],
-        primaryFingerprint: entry.fingerprint,
-        structuralFingerprint: structuralFingerprint,
-      );
-      interactiveByFingerprint[entry.fingerprint] = entry.copyWith(
-        aliases: aliases,
-      );
-      return;
-    }
-
-    final aliases = _mergeAliasFingerprints(
-      existingAliases: existing.aliases,
-      primaryFingerprint: entry.fingerprint,
-      structuralFingerprint: structuralFingerprint,
-    );
-    interactiveByFingerprint[entry.fingerprint] = existing.copyWith(
-      aliases: aliases,
-    );
-  }
-
-  List<String> _mergeAliasFingerprints({
-    required List<String> existingAliases,
-    required String primaryFingerprint,
-    required String structuralFingerprint,
-  }) {
-    final merged = {...existingAliases};
-    if (structuralFingerprint.isNotEmpty &&
-        structuralFingerprint != primaryFingerprint) {
-      merged.add(structuralFingerprint);
-    }
-    final sorted = merged.toList()..sort();
-    return sorted;
-  }
-
-  bool _inventoryContainsFingerprint(
-    TugboatSceneInventory? inventory,
-    String fingerprint,
-  ) {
-    if (inventory == null) return false;
-    for (final entry in inventory.elements) {
-      if (entry.fingerprint == fingerprint) return true;
-      if (entry.aliases.contains(fingerprint)) return true;
-    }
-    return false;
-  }
-
-  /// When hit-testing produced a target without a canonical path (e.g. a
-  /// decorated box that is not part of the token map), its fingerprint can
-  /// never join the scene inventory. Re-anchor the tap to the smallest
-  /// interactive inventory element whose bounds contain the tap point so the
-  /// event and the inventory agree on identity.
-  ///
-  /// The snap is meant to rejoin the *same* conceptual element (a video's
-  /// gesture wrapper behind its Texture, a control mid-transition), not to
-  /// attribute the tap to whatever sits underneath an opaque overlay. Two
-  /// guards enforce that: only interactive-tier entries qualify, and the
-  /// candidate's area must be comparable to the area of the render object the
-  /// pointer actually hit — a small button underneath a screen-sized overlay
-  /// fails that ratio and the tap stays pathless.
-  TugboatTargetAnchor? _snapPathlessTargetToInventory({
-    required TugboatTargetAnchor? target,
-    required TugboatSceneInventory? inventory,
-    required Offset tapPosition,
-    required RenderBox rootRender,
-  }) {
-    if (target == null || inventory == null) return target;
-    final hasPath = target.canonicalPath?.isNotEmpty ?? false;
-    if (hasPath) return target;
-    final viewport = rootRender.size;
-    if (viewport.width <= 0 || viewport.height <= 0) return target;
-
-    final nx = tapPosition.dx / viewport.width;
-    final ny = tapPosition.dy / viewport.height;
-    final hitAreaNorm = _hitLeafAreaNorm(rootRender, tapPosition);
-
-    TugboatSceneInventoryEntry? best;
-    var bestArea = double.infinity;
-    for (final entry in inventory.elements) {
-      if (entry.tier != 'interactive') continue;
-      if (entry.role == null && entry.actions.isEmpty) continue;
-      final b = entry.boundsNorm;
-      final within =
-          nx >= b.left &&
-          nx <= b.left + b.width &&
-          ny >= b.top &&
-          ny <= b.top + b.height;
-      if (!within) continue;
-      final area = b.width * b.height;
-      // Reject candidates far smaller than the surface the pointer actually
-      // landed on: they are occluded content, not the tapped element.
-      if (hitAreaNorm != null && area < hitAreaNorm * 0.5) continue;
-      if (area < bestArea) {
-        bestArea = area;
-        best = entry;
-      }
-    }
-    if (best == null) return target;
-
-    return TugboatTargetAnchor(
-      schemaVersion: target.schemaVersion,
-      widgetType: best.widgetType ?? target.widgetType,
-      role: best.role ?? target.role,
-      fingerprint: best.fingerprint,
-      fingerprintConfidence: 'low',
-      // The fingerprint now describes the inventory element, so the original
-      // anchor's parts would be stale; inventory entries carry no parts.
-      fingerprintParts: const {},
-      tagFingerprint: target.tagFingerprint,
-      canonicalPath: best.canonicalPath,
-      relativePosition: target.relativePosition,
-      enabled: best.enabled ?? target.enabled,
-      actions: best.actions.isNotEmpty ? best.actions : target.actions,
-    );
-  }
-
-  /// Normalized area of the deepest render box the pointer actually hit.
-  /// Used to keep the pathless-tap snap from re-anchoring to occluded
-  /// elements that are much smaller than the hit surface.
-  double? _hitLeafAreaNorm(RenderBox rootRender, Offset tapPosition) {
-    final viewport = rootRender.size;
-    final result = BoxHitTestResult();
-    rootRender.hitTest(result, position: tapPosition);
-    for (final entry in result.path) {
-      final hit = entry.target;
-      if (hit is! RenderBox || !hit.hasSize) continue;
-      final area =
-          (hit.size.width / viewport.width) *
-          (hit.size.height / viewport.height);
-      if (area <= 0) continue;
-      return area;
-    }
-    return null;
-  }
-
-  TugboatSceneInventory? _injectTapTargetIntoInventory({
-    required TugboatSceneInventory? inventory,
-    required TugboatTargetAnchor? target,
-    required Offset tapPosition,
-    required TugboatStateAnchor stateAnchor,
-    required String? route,
-    required _TokenMap tokenMap,
-    required RenderBox rootRender,
-  }) {
-    final fingerprint = target?.fingerprint;
-    if (fingerprint == null || fingerprint.isEmpty) {
-      return inventory;
-    }
-    if (_inventoryContainsFingerprint(inventory, fingerprint)) {
-      return inventory;
-    }
-
-    final routeKey = _resolveRouteKey(route, tokenMap);
-    final viewport = rootRender.size;
-    final injectedEntry = _entryFromTargetAnchor(
-      target: target!,
-      tapPosition: tapPosition,
-      tokenMap: tokenMap,
-      rootRender: rootRender,
-      viewport: viewport,
-    );
-    if (injectedEntry == null) return inventory;
-
-    final elements = [
-      ...(inventory?.elements ?? const <TugboatSceneInventoryEntry>[]),
-      injectedEntry,
-    ];
-    return _inventoryFromElements(
-      stateAnchor: stateAnchor,
-      routeKey: inventory?.routeKey ?? routeKey,
-      elements: elements,
-    );
-  }
-
-  TugboatSceneInventoryEntry? _entryFromTargetAnchor({
-    required TugboatTargetAnchor target,
-    required Offset tapPosition,
-    required _TokenMap tokenMap,
-    required RenderBox rootRender,
-    required Size viewport,
-  }) {
-    final fingerprint = target.fingerprint;
-    final canonicalPath = target.canonicalPath;
-    if (fingerprint == null ||
-        fingerprint.isEmpty ||
-        canonicalPath == null ||
-        canonicalPath.isEmpty) {
-      return null;
-    }
-
-    final bounds =
-        _boundsAtTapPosition(
-          tapPosition,
-          tokenMap: tokenMap,
-          rootRender: rootRender,
-          viewport: viewport,
-        ) ??
-        TugboatNormalizedBounds(
-          left: (tapPosition.dx / viewport.width).clamp(0.0, 1.0),
-          top: (tapPosition.dy / viewport.height).clamp(0.0, 1.0),
-          width: 0.01,
-          height: 0.01,
-        );
-
-    return TugboatSceneInventoryEntry(
-      fingerprint: fingerprint,
-      canonicalPath: canonicalPath,
-      widgetType: target.widgetType,
-      role: target.role,
-      actions: target.actions,
-      enabled: target.enabled,
-      boundsNorm: bounds,
-      tier: 'interactive',
-    );
-  }
-
-  TugboatNormalizedBounds? _boundsAtTapPosition(
-    Offset tapPosition, {
-    required _TokenMap tokenMap,
-    required RenderBox rootRender,
-    required Size viewport,
-  }) {
-    final result = BoxHitTestResult();
-    rootRender.hitTest(result, position: tapPosition);
-    for (final entry in result.path) {
-      if (entry.target is! RenderObject) continue;
-      final element = tokenMap.renderElements[entry.target as RenderObject];
-      if (element == null || _isCaptureChrome(element.widget)) continue;
-      return _boundsForElement(element, rootRender, viewport);
-    }
-    return null;
-  }
-
-  ({TugboatSceneInventoryEntry entry, String structuralFingerprint})?
-  _interactiveInventoryEntry({
-    required Element element,
-    required Widget widget,
-    required String structuralPath,
-    required TugboatNormalizedBounds bounds,
-    required String routeKey,
-    required String? route,
-    required _TokenMap tokenMap,
-    required RenderBox rootRender,
-    required Size viewport,
-    required Map<String, TugboatTargetAnchor?> hitCache,
-  }) {
-    final structuralFingerprint = _fingerprintForParts({
-      'routeKey': routeKey,
-      'path': structuralPath,
-    });
-
-    final center = Offset(
-      (bounds.left + bounds.width / 2) * viewport.width,
-      (bounds.top + bounds.height / 2) * viewport.height,
-    );
-    final cacheKey = '${center.dx}|${center.dy}';
-    final resolved = hitCache.putIfAbsent(
-      cacheKey,
-      () => _targetAtWithTokenMap(
-        center,
-        route: route,
-        tokenMap: tokenMap,
-        rootRender: rootRender,
-      ),
-    );
-
-    final resolvedFingerprint = resolved?.fingerprint;
-    final resolvedPath = resolved?.canonicalPath;
-    if (resolvedFingerprint != null &&
-        resolvedFingerprint.isNotEmpty &&
-        resolvedPath != null &&
-        resolvedPath.isNotEmpty &&
-        _pathsOnSameChain(structuralPath, resolvedPath)) {
-      return (
-        entry: TugboatSceneInventoryEntry(
-          fingerprint: resolvedFingerprint,
-          canonicalPath: resolvedPath,
-          widgetType: resolved?.widgetType ?? _widgetName(widget),
-          role: resolved?.role,
-          actions: resolved?.actions ?? const [],
-          enabled: resolved?.enabled,
-          boundsNorm: bounds,
-          tier: 'interactive',
-        ),
-        structuralFingerprint: structuralFingerprint,
-      );
-    }
-
-    if (_hasTokenizedActionableDescendant(
-      element,
-      tokenMap.isActionable,
-      tokenMap.tokens,
-    )) {
-      return null;
-    }
-
-    if (structuralFingerprint.isEmpty) return null;
-
-    final actions = <String>{};
-    final roleInfo = _roleForWidget(widget, actions);
-
-    return (
-      entry: TugboatSceneInventoryEntry(
-        fingerprint: structuralFingerprint,
-        canonicalPath: structuralPath,
-        widgetType: _widgetName(widget),
-        role: roleInfo?.$1,
-        actions: actions.toList()..sort(),
-        enabled: roleInfo?.$2,
-        boundsNorm: bounds,
-        tier: 'interactive',
-      ),
-      structuralFingerprint: structuralFingerprint,
-    );
-  }
-
-  bool _pathsOnSameChain(String leftPath, String rightPath) {
-    return leftPath.startsWith(rightPath) || rightPath.startsWith(leftPath);
-  }
-
   String _normalizeItemPathForSignature(String path) {
     return path.replaceAll(RegExp(r'\[item:[^\]]+\]'), '[item]');
-  }
-
-  bool _hasTokenizedActionableDescendant(
-    Element element,
-    Map<Element, bool> isActionable,
-    Map<Element, String> tokens,
-  ) {
-    var found = false;
-    void walk(Element node) {
-      node.visitChildElements((child) {
-        if (isActionable[child] == true && tokens.containsKey(child)) {
-          found = true;
-          return;
-        }
-        if (!found) walk(child);
-      });
-    }
-
-    walk(element);
-    return found;
-  }
-
-  bool _isLargeTextBounds(TugboatNormalizedBounds? bounds) {
-    if (bounds == null) return false;
-    return bounds.width * bounds.height >= _largeTextAreaThreshold;
   }
 
   TugboatNormalizedBounds? _boundsForElement(
@@ -1441,559 +967,5 @@ class AnchorResolver {
     if (centerY > 0.66) return 'bottom';
     return 'center';
   }
-
-  bool _hidesSubtree(Widget widget) {
-    if (widget is Offstage) return widget.offstage;
-    if (widget is Visibility) return !widget.visible;
-    if (widget is Opacity) return widget.opacity == 0;
-    return false;
-  }
-
-  /// Builds an exploration-only viewport semantic map from Flutter semantics,
-  /// enriched with scene inventory fingerprints when overlap is clear.
-  TugboatViewportSemanticMap? buildViewportSemanticMap({
-    required TugboatSceneInventory inventory,
-  }) {
-    final rootContext = rootKey.currentContext;
-    final rootRender = rootContext?.findRenderObject();
-    if (rootContext is! Element ||
-        rootRender is! RenderBox ||
-        !rootRender.hasSize) {
-      return null;
-    }
-
-    final viewport = rootRender.size;
-    if (viewport.width <= 0 || viewport.height <= 0) return null;
-    final devicePixelRatio = View.maybeOf(rootContext)?.devicePixelRatio ?? 1.0;
-
-    final initialPipelineOwner =
-        rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
-    final semanticsAlreadyEnabled =
-        initialPipelineOwner.semanticsOwner != null ||
-        RendererBinding.instance.rootPipelineOwner.semanticsOwner != null;
-    final semanticsHandle = semanticsAlreadyEnabled
-        ? null
-        : SemanticsBinding.instance.ensureSemantics();
-    try {
-      final pipelineOwner =
-          rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
-      pipelineOwner.flushSemantics();
-      final nodes = <TugboatViewportSemanticNode>[];
-      final rootNode =
-          pipelineOwner.semanticsOwner?.rootSemanticsNode ??
-          RendererBinding
-              .instance
-              .rootPipelineOwner
-              .semanticsOwner
-              ?.rootSemanticsNode;
-      void walk(SemanticsNode node, {required Matrix4 transformToRoot}) {
-        if (node.id != 0) {
-          final built = _viewportSemanticNodeFromSemantics(
-            node: node,
-            transformToRoot: transformToRoot,
-            rootRender: rootRender,
-            viewport: viewport,
-            devicePixelRatio: devicePixelRatio,
-            inventory: inventory,
-          );
-          if (built != null) {
-            nodes.add(built);
-          }
-        }
-        node.visitChildren((SemanticsNode child) {
-          final childTransform = Matrix4.copy(transformToRoot);
-          if (child.transform != null) {
-            childTransform.multiply(child.transform!);
-          }
-          walk(child, transformToRoot: childTransform);
-          return true;
-        });
-      }
-
-      if (rootNode != null) {
-        walk(rootNode, transformToRoot: Matrix4.identity());
-      }
-      _addInventoryFallbackSemanticNodes(nodes, inventory);
-      final filteredCount = _normalizeViewportSemanticNodes(nodes);
-      if (nodes.isEmpty) return null;
-
-      nodes.sort(_compareViewportSemanticNodes);
-      final summary = _viewportSemanticMapSummary(
-        nodes,
-        filteredCount: filteredCount,
-      );
-      final mapHash = _viewportSemanticMapHash(nodes);
-
-      return TugboatViewportSemanticMap(
-        stateAnchor: inventory.stateAnchor,
-        stateSignature: inventory.stateSignature,
-        routeKey: inventory.routeKey,
-        viewport: viewport,
-        nodes: nodes,
-        summary: summary,
-        mapHash: mapHash,
-      );
-    } finally {
-      semanticsHandle?.dispose();
-    }
-  }
-
-  /// Resolves a tap point against [map], preferring enabled actionable nodes,
-  /// then smallest bounds, then deepest node.
-  TugboatViewportSemanticResolution resolveTapOnViewportSemanticMap({
-    required Offset tapPosition,
-    required TugboatViewportSemanticMap map,
-    required RenderBox rootRender,
-  }) {
-    final viewport = map.viewport;
-    if (viewport.width <= 0 || viewport.height <= 0) {
-      return const TugboatViewportSemanticResolution(
-        status: 'outside_known_ui',
-      );
-    }
-
-    final localPoint = rootRender.globalToLocal(tapPosition);
-    final nx = localPoint.dx / viewport.width;
-    final ny = localPoint.dy / viewport.height;
-
-    final candidates = map.nodes
-        .where((node) => _normalizedPointInBounds(nx, ny, node.boundsNorm))
-        .toList();
-    if (candidates.isEmpty) {
-      return const TugboatViewportSemanticResolution(
-        status: 'outside_known_ui',
-      );
-    }
-
-    final enabledActionable = candidates
-        .where((node) => node.isActionable && node.enabled != false)
-        .toList();
-    if (enabledActionable.isNotEmpty) {
-      return _resolutionForNode(
-        node: _pickViewportSemanticWinner(enabledActionable),
-        status: 'matched_actionable',
-      );
-    }
-
-    final disabledActionable = candidates
-        .where((node) => node.isActionable && node.enabled == false)
-        .toList();
-    if (disabledActionable.isNotEmpty) {
-      return _resolutionForNode(
-        node: _pickViewportSemanticWinner(disabledActionable),
-        status: 'matched_disabled',
-      );
-    }
-
-    return _resolutionForNode(
-      node: _pickViewportSemanticWinner(candidates),
-      status: 'matched_non_actionable',
-    );
-  }
-
-  TugboatViewportSemanticNode? _viewportSemanticNodeFromSemantics({
-    required SemanticsNode node,
-    required Matrix4 transformToRoot,
-    required RenderBox rootRender,
-    required Size viewport,
-    required double devicePixelRatio,
-    required TugboatSceneInventory inventory,
-  }) {
-    if (node.isInvisible) return null;
-
-    final data = node.getSemanticsData();
-    if (node.rect.isEmpty) return null;
-
-    final actions = _semanticsActionsFromData(data);
-    final role = _semanticsRoleFromData(data);
-    // Nodes that don't declare an enabled state are unknown (null), not
-    // disabled; treating them as disabled skews tap resolution.
-    final bool? enabled = data.flagsCollection.hasEnabledState
-        ? data.flagsCollection.isEnabled
-        : null;
-    final scrollable = _semanticsNodeIsScrollable(data);
-    final hasReadableContent =
-        data.label.isNotEmpty || data.value.isNotEmpty || data.hint.isNotEmpty;
-    if (actions.isEmpty &&
-        role == null &&
-        !scrollable &&
-        !data.flagsCollection.isHeader &&
-        !data.flagsCollection.isImage &&
-        !data.flagsCollection.isTextField &&
-        !hasReadableContent) {
-      return null;
-    }
-
-    final boundsNorm = _bestSemanticBoundsCandidate(
-      rawRect: node.rect,
-      transformToRoot: transformToRoot,
-      rootRender: rootRender,
-      viewport: viewport,
-      devicePixelRatio: devicePixelRatio,
-    );
-    if (boundsNorm == null) return null;
-
-    final link = _linkInventoryToSemanticNode(
-      role: role,
-      actions: actions,
-      boundsNorm: boundsNorm,
-      inventory: inventory,
-    );
-
-    return TugboatViewportSemanticNode(
-      nodeId: node.id,
-      parentId: node.parent?.id,
-      depth: node.depth,
-      siblingIndex: node.indexInParent,
-      source: 'semantic',
-      role: role,
-      actions: actions,
-      enabled: enabled,
-      boundsNorm: link?.boundsNorm ?? boundsNorm,
-      scrollable: scrollable,
-      linkedFingerprint: link?.fingerprint,
-      linkedCanonicalPath: link?.canonicalPath,
-    );
-  }
-
-  void _addInventoryFallbackSemanticNodes(
-    List<TugboatViewportSemanticNode> nodes,
-    TugboatSceneInventory inventory,
-  ) {
-    var syntheticIndex = 0;
-    for (final entry in inventory.elements) {
-      if (_inventoryEntryCoveredBySemanticNode(entry, nodes)) continue;
-      nodes.add(
-        TugboatViewportSemanticNode(
-          nodeId: -1 - syntheticIndex,
-          depth: 0,
-          siblingIndex: syntheticIndex,
-          source: 'inventory',
-          role: entry.role,
-          actions: entry.actions,
-          enabled: entry.enabled,
-          boundsNorm: entry.boundsNorm,
-          scrollable: entry.role == 'scrollable',
-          linkedFingerprint: entry.fingerprint,
-          linkedCanonicalPath: entry.canonicalPath,
-        ),
-      );
-      syntheticIndex++;
-    }
-  }
-
-  int _normalizeViewportSemanticNodes(List<TugboatViewportSemanticNode> nodes) {
-    var filteredCount = 0;
-    for (var index = nodes.length - 1; index >= 0; index--) {
-      final node = nodes[index];
-      final clamped = node.boundsNorm.clampToViewport();
-      final shouldDrop = _shouldDropViewportSemanticNode(node, clamped);
-      if (shouldDrop) {
-        nodes.removeAt(index);
-        filteredCount++;
-      } else if (clamped != node.boundsNorm) {
-        nodes[index] = node.copyWith(boundsNorm: clamped);
-      }
-    }
-    return filteredCount;
-  }
-
-  bool _shouldDropViewportSemanticNode(
-    TugboatViewportSemanticNode node,
-    TugboatNormalizedBounds clampedBounds,
-  ) {
-    if (node.linkedFingerprint?.isNotEmpty == true) return false;
-    if (clampedBounds.width <= 0 || clampedBounds.height <= 0) return true;
-    final original = node.boundsNorm;
-    final touchesEdge =
-        original.left < 0 ||
-        original.top < 0 ||
-        original.left + original.width > 1 ||
-        original.top + original.height > 1;
-    final tinyArea = clampedBounds.width * clampedBounds.height < 0.002;
-    final tinyHeight = clampedBounds.height < 0.015;
-    if (touchesEdge && (tinyArea || tinyHeight)) return true;
-    if (node.isActionable && node.enabled != false) return false;
-    return false;
-  }
-
-  bool _inventoryEntryCoveredBySemanticNode(
-    TugboatSceneInventoryEntry entry,
-    List<TugboatViewportSemanticNode> nodes,
-  ) {
-    for (final node in nodes) {
-      if (node.linkedFingerprint == entry.fingerprint ||
-          entry.aliases.contains(node.linkedFingerprint)) {
-        return true;
-      }
-      final overlap = _boundsOverlapRatio(node.boundsNorm, entry.boundsNorm);
-      if (overlap < 0.8) continue;
-      if (!_inventoryRoleCompatible(node.role, entry.role)) continue;
-      if (!_inventoryActionsCompatible(node.actions, entry.actions)) continue;
-      return true;
-    }
-    return false;
-  }
-
-  TugboatNormalizedBounds? _bestSemanticBoundsCandidate({
-    required Rect rawRect,
-    required Matrix4 transformToRoot,
-    required RenderBox rootRender,
-    required Size viewport,
-    required double devicePixelRatio,
-  }) {
-    // The accumulated child-transform chain maps node-local rects into the
-    // root semantics space (physical pixels: the device-pixel-ratio scale is
-    // carried on the render view's child semantics transform, which the walk
-    // includes). Physical -> logical global -> boundary-local is therefore
-    // deterministic; no candidate voting is needed.
-    final transformed = MatrixUtils.transformRect(transformToRoot, rawRect);
-    final logical = _scaleRect(transformed, 1 / devicePixelRatio);
-    final rootLocal = Rect.fromPoints(
-      rootRender.globalToLocal(logical.topLeft),
-      rootRender.globalToLocal(logical.bottomRight),
-    );
-    if (rootLocal.isEmpty) return null;
-    final boundsNorm = TugboatNormalizedBounds.fromRect(rootLocal, viewport);
-    if (boundsNorm.width <= 0 || boundsNorm.height <= 0) return null;
-    if (!_boundsIntersectsViewport(boundsNorm)) return null;
-    return boundsNorm;
-  }
-
-  Rect _scaleRect(Rect rect, double scale) {
-    return Rect.fromLTRB(
-      rect.left * scale,
-      rect.top * scale,
-      rect.right * scale,
-      rect.bottom * scale,
-    );
-  }
-
-  List<String> _semanticsActionsFromData(SemanticsData data) {
-    final actions = <String>[];
-    if (data.hasAction(SemanticsAction.tap)) actions.add('tap');
-    if (data.hasAction(SemanticsAction.longPress)) actions.add('longPress');
-    if (data.hasAction(SemanticsAction.scrollUp)) actions.add('scrollUp');
-    if (data.hasAction(SemanticsAction.scrollDown)) actions.add('scrollDown');
-    if (data.hasAction(SemanticsAction.scrollLeft)) actions.add('scrollLeft');
-    if (data.hasAction(SemanticsAction.scrollRight)) actions.add('scrollRight');
-    actions.sort();
-    return actions;
-  }
-
-  String? _semanticsRoleFromData(SemanticsData data) {
-    if (data.role != SemanticsRole.none) {
-      return data.role.name;
-    }
-    if (data.flagsCollection.isButton) return 'button';
-    if (data.flagsCollection.isLink) return 'link';
-    if (data.flagsCollection.isTextField) return 'textField';
-    if (data.flagsCollection.isImage) return 'image';
-    if (data.flagsCollection.isHeader) return 'header';
-    if (data.label.isNotEmpty ||
-        data.value.isNotEmpty ||
-        data.hint.isNotEmpty) {
-      return 'text';
-    }
-    return null;
-  }
-
-  bool _semanticsNodeIsScrollable(SemanticsData data) {
-    return data.flagsCollection.hasImplicitScrolling ||
-        data.scrollExtentMax != null ||
-        data.hasAction(SemanticsAction.scrollUp) ||
-        data.hasAction(SemanticsAction.scrollDown) ||
-        data.hasAction(SemanticsAction.scrollLeft) ||
-        data.hasAction(SemanticsAction.scrollRight);
-  }
-
-  TugboatSceneInventoryEntry? _linkInventoryToSemanticNode({
-    required String? role,
-    required List<String> actions,
-    required TugboatNormalizedBounds boundsNorm,
-    required TugboatSceneInventory inventory,
-  }) {
-    TugboatSceneInventoryEntry? best;
-    var bestOverlap = 0.0;
-    for (final entry in inventory.elements) {
-      if (actions.isEmpty && entry.actions.isNotEmpty) continue;
-      if ((role == 'text' || role == 'display') &&
-          entry.tier == 'interactive') {
-        continue;
-      }
-      final overlap = _boundsOverlapRatio(boundsNorm, entry.boundsNorm);
-      if (overlap < 0.5) continue;
-      if (!_inventoryRoleCompatible(role, entry.role)) continue;
-      if (!_inventoryActionsCompatible(actions, entry.actions)) continue;
-      if (overlap > bestOverlap) {
-        bestOverlap = overlap;
-        best = entry;
-      }
-    }
-    return best;
-  }
-
-  bool _inventoryRoleCompatible(String? semanticRole, String? inventoryRole) {
-    if (semanticRole == null || inventoryRole == null) return true;
-    if (semanticRole == inventoryRole) return true;
-    if (semanticRole == 'text' && inventoryRole == 'display') return true;
-    if (semanticRole == 'display' && inventoryRole == 'text') return true;
-    return false;
-  }
-
-  bool _inventoryActionsCompatible(
-    List<String> semanticActions,
-    List<String> inventoryActions,
-  ) {
-    if (semanticActions.isEmpty || inventoryActions.isEmpty) return true;
-    return semanticActions
-        .toSet()
-        .intersection(inventoryActions.toSet())
-        .isNotEmpty;
-  }
-
-  double _boundsOverlapRatio(
-    TugboatNormalizedBounds left,
-    TugboatNormalizedBounds right,
-  ) {
-    final overlapLeft = left.left > right.left ? left.left : right.left;
-    final overlapTop = left.top > right.top ? left.top : right.top;
-    final overlapRight = (left.left + left.width) < (right.left + right.width)
-        ? (left.left + left.width)
-        : (right.left + right.width);
-    final overlapBottom = (left.top + left.height) < (right.top + right.height)
-        ? (left.top + left.height)
-        : (right.top + right.height);
-    final overlapWidth = overlapRight - overlapLeft;
-    final overlapHeight = overlapBottom - overlapTop;
-    if (overlapWidth <= 0 || overlapHeight <= 0) return 0;
-    final overlapArea = overlapWidth * overlapHeight;
-    final leftArea = left.width * left.height;
-    if (leftArea <= 0) return 0;
-    return overlapArea / leftArea;
-  }
-
-  bool _normalizedPointInBounds(
-    double nx,
-    double ny,
-    TugboatNormalizedBounds bounds,
-  ) {
-    return nx >= bounds.left &&
-        nx <= bounds.left + bounds.width &&
-        ny >= bounds.top &&
-        ny <= bounds.top + bounds.height;
-  }
-
-  bool _boundsIntersectsViewport(TugboatNormalizedBounds bounds) {
-    return bounds.left < 1 &&
-        bounds.top < 1 &&
-        bounds.left + bounds.width > 0 &&
-        bounds.top + bounds.height > 0;
-  }
-
-  TugboatViewportSemanticNode _pickViewportSemanticWinner(
-    List<TugboatViewportSemanticNode> candidates,
-  ) {
-    final sorted = [...candidates]..sort(_compareViewportSemanticCandidates);
-    return sorted.first;
-  }
-
-  int _compareViewportSemanticCandidates(
-    TugboatViewportSemanticNode left,
-    TugboatViewportSemanticNode right,
-  ) {
-    final leftArea = left.boundsNorm.width * left.boundsNorm.height;
-    final rightArea = right.boundsNorm.width * right.boundsNorm.height;
-    final areaCompare = leftArea.compareTo(rightArea);
-    if (areaCompare != 0) return areaCompare;
-    final depthCompare = right.depth.compareTo(left.depth);
-    if (depthCompare != 0) return depthCompare;
-    return _compareViewportSemanticNodes(left, right);
-  }
-
-  int _compareViewportSemanticNodes(
-    TugboatViewportSemanticNode left,
-    TugboatViewportSemanticNode right,
-  ) {
-    final leftTop = left.boundsNorm.top.compareTo(right.boundsNorm.top);
-    if (leftTop != 0) return leftTop;
-    final leftLeft = left.boundsNorm.left.compareTo(right.boundsNorm.left);
-    if (leftLeft != 0) return leftLeft;
-    final depthCompare = left.depth.compareTo(right.depth);
-    if (depthCompare != 0) return depthCompare;
-    final siblingCompare = (left.siblingIndex ?? -1).compareTo(
-      right.siblingIndex ?? -1,
-    );
-    if (siblingCompare != 0) return siblingCompare;
-    final roleCompare = (left.role ?? '').compareTo(right.role ?? '');
-    if (roleCompare != 0) return roleCompare;
-    return (left.linkedFingerprint ?? '').compareTo(
-      right.linkedFingerprint ?? '',
-    );
-  }
-
-  TugboatViewportSemanticResolution _resolutionForNode({
-    required TugboatViewportSemanticNode node,
-    required String status,
-  }) {
-    return TugboatViewportSemanticResolution(
-      status: status,
-      nodeId: node.nodeId,
-      role: node.role,
-      actions: node.actions,
-      boundsNorm: node.boundsNorm,
-      linkedFingerprint: node.linkedFingerprint,
-      enabled: node.enabled,
-    );
-  }
-
-  Map<String, int> _viewportSemanticMapSummary(
-    List<TugboatViewportSemanticNode> nodes, {
-    int filteredCount = 0,
-  }) {
-    var actionableCount = 0;
-    var scrollableCount = 0;
-    var disabledCount = 0;
-    var linkedCount = 0;
-    for (final node in nodes) {
-      if (node.isActionable) actionableCount++;
-      if (node.scrollable) scrollableCount++;
-      if (node.enabled == false) disabledCount++;
-      if (node.linkedFingerprint?.isNotEmpty == true) linkedCount++;
-    }
-    return {
-      'totalNodes': nodes.length,
-      'actionableCount': actionableCount,
-      'scrollableCount': scrollableCount,
-      'disabledCount': disabledCount,
-      'linkedCount': linkedCount,
-      'semanticCount': nodes.where((node) => node.source == 'semantic').length,
-      'inventoryCount': nodes
-          .where((node) => node.source == 'inventory')
-          .length,
-      'filteredCount': filteredCount,
-    };
-  }
-
-  String _viewportSemanticMapHash(List<TugboatViewportSemanticNode> nodes) {
-    final parts = nodes.map((node) {
-      final bounds = node.boundsNorm;
-      return [
-        node.depth,
-        node.siblingIndex ?? -1,
-        node.source,
-        node.role ?? '',
-        node.actions.join(','),
-        node.enabled ?? true,
-        bounds.left.toStringAsFixed(3),
-        bounds.top.toStringAsFixed(3),
-        bounds.width.toStringAsFixed(3),
-        bounds.height.toStringAsFixed(3),
-        node.scrollable,
-        node.linkedFingerprint ?? '',
-        node.linkedCanonicalPath ?? '',
-      ].join('|');
-    }).toList();
-    return tugboatLabelHash(parts.join('\n'));
-  }
 }
+

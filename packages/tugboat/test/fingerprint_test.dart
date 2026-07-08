@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
-import 'package:tugboat/src/anchors.dart'
-    show AnchorResolver, tugboatFingerprintSchemaVersion, tugboatLabelHash;
+import 'package:tugboat/src/anchors.dart';
 
 void main() {
   testWidgets('fingerprints are deterministic for the same widget tree', (

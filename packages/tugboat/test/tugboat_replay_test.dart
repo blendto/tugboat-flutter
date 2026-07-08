@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:tugboat/tugboat.dart';
-import 'package:tugboat/src/anchors.dart' show AnchorResolver, tugboatFingerprintSchemaVersion;
+import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/perceptual_hash.dart'
     show computeDHashFromRgba;
+
+import 'helpers/json_roundtrip.dart';
 
 const _testConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
@@ -591,7 +593,7 @@ void main() {
     expect(json['events'], [isNot(contains('route'))]);
     expect(json['frames'], [containsPair('captureMicros', 12345)]);
     expect((json['session'] as Map)['appInfo'], appInfo.toJson());
-    final restored = TugboatSession.fromJson(json);
+    final restored = TugboatSessionTestJson.fromJson(json);
     expect(restored.appInfo?.buildNumber, '42');
     expect(restored.frames.length, 1);
     expect(restored.frames.single.captureMicros, 12345);
@@ -607,16 +609,19 @@ void main() {
     final json = session.toJson();
 
     expect(
-      () => TugboatSession.fromJson({...json, 'schemaVersion': 5}),
+      () => TugboatSessionTestJson.fromJson({...json, 'schemaVersion': 5}),
       throwsFormatException,
     );
     final withoutVersion = Map<String, Object?>.from(json)
       ..remove('schemaVersion');
-    expect(() => TugboatSession.fromJson(withoutVersion), throwsFormatException);
+    expect(
+      () => TugboatSessionTestJson.fromJson(withoutVersion),
+      throwsFormatException,
+    );
   });
 
   test('frame JSON defaults missing capture timing for older sessions', () {
-    final frame = TugboatFrame.fromJson({
+    final frame = TugboatFrameTestJson.fromJson({
       'id': 'frame-0',
       'atMs': 0,
       'width': 100,
@@ -646,7 +651,7 @@ void main() {
       enabled: true,
       actions: ['tap'],
     );
-    final restored = TugboatTargetAnchor.fromJson(anchor.toJson());
+    final restored = TugboatTargetAnchorTestJson.fromJson(anchor.toJson());
     expect(restored.fingerprint, 'stable-target');
     expect(restored.fingerprintConfidence, 'high');
     expect(restored.tagFingerprint, 'stable-tag');
@@ -739,7 +744,7 @@ void main() {
       explorationRunId: 'run-1',
       actionId: 'A-1',
     );
-    final restored = TugboatEvent.fromJson(event.toJson());
+    final restored = TugboatEventTestJson.fromJson(event.toJson());
     expect(restored.sessionId, 's1');
     expect(restored.toJson().containsKey('route'), isFalse);
     expect(restored.explorationRunId, 'run-1');

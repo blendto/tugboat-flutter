@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tugboat/tugboat.dart';
 
-import 'tugboat_widgets.g.dart';
 import 'screens/home_screen.dart';
 
 /// HTTP collector config for production ingestion. See
@@ -35,7 +34,6 @@ class ReplayDemoApp extends StatelessWidget {
           ),
           // Standalone HTTP collector for production ingestion.
           collector: _productionCollector,
-          widgetNames: tugboatWidgetNames,
         ),
         child: child!,
       ),

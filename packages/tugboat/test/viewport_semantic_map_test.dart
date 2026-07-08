@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
-import 'package:tugboat/src/anchors.dart' show AnchorResolver;
+import 'package:tugboat/src/anchors.dart';
 
 const _semanticMapConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
   settleDelay: Duration.zero,
   enableGlobalPointerCapture: false,
   capturePixelRatio: 1.0,
-  enableViewportSemanticMap: true,
+  viewportSemanticMode: TugboatViewportSemanticMode.full,
 );
 
 const _semanticMapConfigWithLogs = TugboatReplayConfig(
@@ -16,8 +16,7 @@ const _semanticMapConfigWithLogs = TugboatReplayConfig(
   settleDelay: Duration.zero,
   enableGlobalPointerCapture: false,
   capturePixelRatio: 1.0,
-  enableViewportSemanticMap: true,
-  enableViewportSemanticMapDebugLogs: true,
+  viewportSemanticMode: TugboatViewportSemanticMode.fullWithDebugLogs,
 );
 
 const _scrollSemanticMapConfig = TugboatReplayConfig(
@@ -27,8 +26,7 @@ const _scrollSemanticMapConfig = TugboatReplayConfig(
   scrollCaptureInterval: Duration.zero,
   captureScrollSamples: true,
   capturePixelRatio: 1.0,
-  enableViewportSemanticMap: true,
-  enableViewportSemanticMapDebugLogs: true,
+  viewportSemanticMode: TugboatViewportSemanticMode.fullWithDebugLogs,
 );
 
 Future<void> _waitForSemanticMap(WidgetTester tester) async {
@@ -300,7 +298,7 @@ void main() {
     expect(resolution['linkedFingerprint'], isNotEmpty);
   });
 
-  testWidgets('dormant and production profiles do not emit viewport maps', (
+  testWidgets('dormant and production profiles stay off without mode opt-in', (
     tester,
   ) async {
     for (final profile in [
@@ -315,7 +313,7 @@ void main() {
               settleDelay: Duration.zero,
               enableGlobalPointerCapture: false,
               capturePixelRatio: 1.0,
-              enableViewportSemanticMap: true,
+              // Mode stays off: dormant/production do not invent semantics.
             ),
             child: child!,
           ),
@@ -361,8 +359,8 @@ void main() {
               settleDelay: Duration.zero,
               enableGlobalPointerCapture: false,
               capturePixelRatio: 1.0,
-              enableViewportSemanticMap: true,
-              enableViewportSemanticTapResolutionInProduction: true,
+              viewportSemanticMode:
+                  TugboatViewportSemanticMode.tapResolutionOnly,
             ),
             child: child!,
           ),
@@ -421,8 +419,7 @@ void main() {
         settleDelay: Duration.zero,
         enableGlobalPointerCapture: false,
         capturePixelRatio: 1.0,
-        enableViewportSemanticMap: true,
-        enableViewportSemanticMapInProductionForTesting: true,
+        viewportSemanticMode: TugboatViewportSemanticMode.full,
         viewportSemanticMapMaxNodes: 1,
       ),
     );

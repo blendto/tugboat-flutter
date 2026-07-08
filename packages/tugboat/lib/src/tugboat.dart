@@ -11,6 +11,11 @@ export 'screenshot_mask_level.dart' show TugboatScreenshotMaskLevel;
 export 'markers.dart'
     show TugboatInternal, TugboatSensitive, TugboatSubView, TugboatTag;
 
+/// Host-app entry point for Tugboat session capture.
+///
+/// Install [navigatorObserver] on [MaterialApp]/[CupertinoApp] and wrap the
+/// app builder with [wrapApp]. Capture stays dormant until [activate] when
+/// using [TugboatCaptureProfile.dormant].
 class TugboatReplay {
   TugboatReplay._();
 
@@ -50,6 +55,10 @@ class TugboatReplay {
     _controller = null;
   }
 
+  /// Wraps [child] with capture plumbing (repaint boundary, scroll listener).
+  ///
+  /// Returns [child] unchanged when the profile is dormant and [activate] has
+  /// not been called.
   static Widget wrapApp({
     required Widget child,
     TugboatReplayConfig config = const TugboatReplayConfig(),

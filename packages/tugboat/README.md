@@ -15,7 +15,10 @@ MaterialApp(
   navigatorObservers: [TugboatReplay.navigatorObserver],
   builder: (context, child) => TugboatReplay.wrapApp(
     child: child!,
-    config: const TugboatReplayConfig(),
+    config: const TugboatReplayConfig(
+      profile: TugboatCaptureProfile.exploration,
+      viewportSemanticMode: TugboatViewportSemanticMode.full,
+    ),
   ),
 );
 ```
@@ -32,6 +35,39 @@ Masking defaults follow the capture profile: `exploration` masks only explicit
 `TugboatSensitive` subtrees, while `productionLean` masks all text, editable
 fields, and images. Override this with `TugboatReplayConfig.screenshotMaskLevel`.
 
+Optional `TugboatReplayConfig.widgetNames` can override runtime type names used
+in canonical paths (useful for obfuscated builds); supply the map by hand.
+
+## Architecture
+
+The SDK has three capture pipelines that share a frame-scoped widget walk:
+
+```text
+pointer / route / scroll
+        │
+        ▼
+┌───────────────────┐
+│  AnchorResolver   │  single token-map walk per frame (cached)
+│  scene inventory  │
+└─────────┬─────────┘
+          │
+          ├── screenshots (RepaintBoundary → engine PNG, dHash thumbnail)
+          └── viewport semantic map (Flutter Semantics, exploration-heavy)
+          │
+          ▼
+     capture sinks (WS exploration / HTTP collector)
+```
+
+Performance notes:
+
+- Token maps are reused within a Flutter frame across tap, state, inventory, and
+  mask-rect collection.
+- Screenshot encoding uses the engine PNG encoder (no Dart isolate / `image`
+  package on the hot path). dHash is computed from a 9×8 downscale so unchanged
+  frames skip PNG work.
+- A persistent `SemanticsHandle` is held only in the exploration profile;
+  production tap resolution avoids permanent semantics cost.
+
 ## Collector integration
 
 The SDK can stream capture output to:
@@ -41,25 +77,6 @@ The SDK can stream capture output to:
 
 See [Collector integration](../../docs/integration/collector.md) for setup
 details, including the default event batch size of `10`.
-
-## Optional widget catalog
-
-`tugboat_builder` can preserve public source-level widget names in canonical paths,
-including in obfuscated builds. Add `tugboat_builder` and `build_runner` as dev
-dependencies, run `dart run build_runner build`, then pass the generated map:
-
-```dart
-import 'tugboat_widgets.g.dart';
-
-TugboatReplay.wrapApp(
-  config: const TugboatReplayConfig(widgetNames: tugboatWidgetNames),
-  child: child,
-)
-```
-
-The generator is optional. Without it, Tugboat continues to use runtime type
-names. Exploration and production must use the same catalog configuration for
-their fingerprints to match.
 
 ## Capture model
 
@@ -87,9 +104,9 @@ their fingerprints to match.
 - **Settle delay:** default 1s after taps and route transitions before capture
 - **Profiles:** `dormant` (default, zero overhead until `TugboatReplay.activate`),
   `exploration`, `productionLean`
-- **Fingerprint schema:** v4 uses fresh visibility-aware trees, filters blocked
-  modal routes, and supports generated widget names. Schema-v3 evidence remains
-  readable but must not be joined directly with v4 fingerprints.
+- **Fingerprint schema:** v6 uses coarse state identity (route + overlay flags +
+  subLabel). Optional `TugboatReplayConfig.widgetNames` can override runtime type
+  names used in canonical paths (useful for obfuscated builds); supply the map by hand.
 
 ## Current limits
 

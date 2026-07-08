@@ -1,7 +1,0 @@
-builders:
-  widget_catalog:
-    import: "package:tugboat_builder/tugboat_builder.dart"
-    builder_factories: ["tugboatWidgetCatalogBuilder"]
-    auto_apply: root_package
-    build_to: source
-    build_extensions: { "$lib$": ["tugboat_widgets.g.dart"] }
