@@ -141,6 +141,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     try {
       final response = await _client.post(
         _baseUri.resolve('/v1/sessions'),
+        headers: _CollectorHttpClient._jsonHeaders,
         body: jsonEncode(body),
       );
 
@@ -200,6 +201,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     try {
       final response = await _client.post(
         _baseUri.resolve('/v1/events/batch'),
+        headers: _CollectorHttpClient._jsonHeaders,
         body: jsonEncode({'events': events}),
       );
 
@@ -262,8 +264,9 @@ class _CollectorHttpClient extends http.BaseClient {
       _defaultHeaders = {
         'X-PMKit-API-Key': apiKey,
         'X-Tugboat-API-Key': apiKey,
-        'Content-Type': 'application/json',
       };
+
+  static const _jsonHeaders = {'Content-Type': 'application/json'};
 
   final http.Client _inner;
   final Map<String, String> _defaultHeaders;

@@ -173,14 +173,13 @@ class ViewportSemanticSession {
     if (maxNodes > 0 && bounded.nodes.length > maxNodes) {
       final sorted = [...bounded.nodes]
         ..sort((left, right) {
-          final linkedCompare = (right.linkedFingerprint?.isNotEmpty == true)
-              .toString()
-              .compareTo(
-                (left.linkedFingerprint?.isNotEmpty == true).toString(),
+          final linkedCompare =
+              (right.linkedFingerprint?.isNotEmpty == true ? 1 : 0).compareTo(
+                left.linkedFingerprint?.isNotEmpty == true ? 1 : 0,
               );
           if (linkedCompare != 0) return linkedCompare;
-          final actionableCompare = right.isActionable.toString().compareTo(
-            left.isActionable.toString(),
+          final actionableCompare = (right.isActionable ? 1 : 0).compareTo(
+            left.isActionable ? 1 : 0,
           );
           if (actionableCompare != 0) return actionableCompare;
           return left.depth.compareTo(right.depth);

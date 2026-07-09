@@ -519,14 +519,18 @@ class TugboatReplayController extends ChangeNotifier {
       if (activeSession == null) return _latestFrameId;
 
       if (result.skippedByDHash) {
-        _lastDHash = result.dHash;
+        if (result.dHash != null) {
+          _lastDHash = result.dHash;
+        }
         return _latestFrameId;
       }
 
       final existingId = _hashToFrameId[result.contentHash];
       if (!force && existingId != null) {
         _latestFrameId = existingId;
-        _lastDHash = result.dHash;
+        if (result.dHash != null) {
+          _lastDHash = result.dHash;
+        }
         if (signature.isNotEmpty) {
           _lastCapturedStateSignature = signature;
         }
@@ -550,7 +554,9 @@ class TugboatReplayController extends ChangeNotifier {
       activeSession.frameBytes[frameId] = result.bytes;
       _hashToFrameId[result.contentHash] = frameId;
       _latestFrameId = frameId;
-      _lastDHash = result.dHash;
+      if (result.dHash != null) {
+        _lastDHash = result.dHash;
+      }
       if (signature.isNotEmpty) {
         _lastCapturedStateSignature = signature;
       }

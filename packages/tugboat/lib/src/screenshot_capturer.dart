@@ -20,7 +20,7 @@ class ScreenshotCaptureResult {
   const ScreenshotCaptureResult({
     required this.bytes,
     required this.contentHash,
-    required this.dHash,
+    this.dHash,
     required this.width,
     required this.height,
     required this.masked,
@@ -31,7 +31,7 @@ class ScreenshotCaptureResult {
 
   final Uint8List bytes;
   final String contentHash;
-  final String dHash;
+  final String? dHash;
   final int width;
   final int height;
   final bool masked;
@@ -116,8 +116,8 @@ class ScreenshotCapturer {
         final quickDHash = await _dHashFromThumbnail(rasterImage);
         final compareDHash = lastDHash ?? _lastDHash;
         if (!force &&
+            quickDHash != null &&
             compareDHash != null &&
-            compareDHash.isNotEmpty &&
             quickDHash == compareDHash) {
           sw.stop();
           return ScreenshotCaptureResult(
@@ -141,7 +141,9 @@ class ScreenshotCapturer {
         final png = byteData.buffer.asUint8List();
         final contentHash = sha256.convert(png).toString();
         final encodeMicros = sw.elapsedMicroseconds - encodeStart;
-        _lastDHash = quickDHash;
+        if (quickDHash != null) {
+          _lastDHash = quickDHash;
+        }
         sw.stop();
         return ScreenshotCaptureResult(
           bytes: png,
@@ -163,7 +165,7 @@ class ScreenshotCapturer {
     }
   }
 
-  Future<String> _dHashFromThumbnail(ui.Image source) async {
+  Future<String?> _dHashFromThumbnail(ui.Image source) async {
     const hashWidth = 9;
     const hashHeight = 8;
     final recorder = ui.PictureRecorder();
@@ -179,7 +181,7 @@ class ScreenshotCapturer {
     picture.dispose();
     try {
       final bytes = await thumb.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (bytes == null) return '';
+      if (bytes == null) return null;
       return computeDHashFromRgba(
         bytes.buffer.asUint8List(),
         hashWidth,
