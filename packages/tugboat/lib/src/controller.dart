@@ -1,18 +1,26 @@
 import 'dart:async';
 
+import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
 import 'capture_profile.dart';
 import 'capture_sink.dart';
-import 'collector_config.dart';
 import 'collector_http_sink.dart';
+import 'debug_logging.dart';
 import 'exploration_sink.dart';
 import 'models.dart';
+import 'replay_config.dart';
 import 'screenshot_capturer.dart';
-import 'screenshot_mask_level.dart';
-
 import 'scroll_capture.dart';
+import 'viewport_semantic_session.dart';
+
+export 'replay_config.dart'
+    show
+        TugboatReplayConfig,
+        TugboatViewportSemanticMode,
+        TugboatViewportSemanticPolicy,
+        resolveViewportSemanticPolicy;
 
 class _PendingTap {
   _PendingTap({
@@ -70,86 +78,6 @@ class _ScrollTracker {
   DateTime? lastSampleAt;
 }
 
-class TugboatReplayConfig {
-  const TugboatReplayConfig({
-    this.profile = TugboatCaptureProfile.dormant,
-    this.settleDelay = const Duration(seconds: 1),
-    this.maxFrames = 500,
-    this.maxEvents = 5000,
-    this.scrollCaptureInterval = const Duration(seconds: 2),
-    this.captureScrollSamples = false,
-    this.capturePixelRatio = 0.75,
-    this.enableGlobalPointerCapture = true,
-    this.explorationCollectorUrl,
-    this.explorationRunId,
-    this.appInfo,
-    this.collector,
-    this.screenshotMaskLevel,
-    this.widgetNames = const {},
-  });
-
-  final TugboatCaptureProfile profile;
-  final Duration settleDelay;
-  final int maxFrames;
-  final int maxEvents;
-  final Duration scrollCaptureInterval;
-  final bool captureScrollSamples;
-  final double capturePixelRatio;
-  final bool enableGlobalPointerCapture;
-  final String? explorationCollectorUrl;
-  final String? explorationRunId;
-  final TugboatCollectorAppInfo? appInfo;
-  final TugboatCollectorConfig? collector;
-  final TugboatScreenshotMaskLevel? screenshotMaskLevel;
-  final Map<Type, String> widgetNames;
-
-  TugboatScreenshotMaskLevel get effectiveScreenshotMaskLevel =>
-      screenshotMaskLevel ??
-      switch (profile) {
-        TugboatCaptureProfile.productionLean =>
-          TugboatScreenshotMaskLevel.allTextAndMedia,
-        TugboatCaptureProfile.dormant || TugboatCaptureProfile.exploration =>
-          TugboatScreenshotMaskLevel.explicitOnly,
-      };
-
-  TugboatReplayConfig copyWith({
-    TugboatCaptureProfile? profile,
-    Duration? settleDelay,
-    int? maxFrames,
-    int? maxEvents,
-    Duration? scrollCaptureInterval,
-    bool? captureScrollSamples,
-    double? capturePixelRatio,
-    bool? enableGlobalPointerCapture,
-    String? explorationCollectorUrl,
-    String? explorationRunId,
-    TugboatCollectorAppInfo? appInfo,
-    TugboatCollectorConfig? collector,
-    TugboatScreenshotMaskLevel? screenshotMaskLevel,
-    Map<Type, String>? widgetNames,
-  }) {
-    return TugboatReplayConfig(
-      profile: profile ?? this.profile,
-      settleDelay: settleDelay ?? this.settleDelay,
-      maxFrames: maxFrames ?? this.maxFrames,
-      maxEvents: maxEvents ?? this.maxEvents,
-      scrollCaptureInterval:
-          scrollCaptureInterval ?? this.scrollCaptureInterval,
-      captureScrollSamples: captureScrollSamples ?? this.captureScrollSamples,
-      capturePixelRatio: capturePixelRatio ?? this.capturePixelRatio,
-      enableGlobalPointerCapture:
-          enableGlobalPointerCapture ?? this.enableGlobalPointerCapture,
-      explorationCollectorUrl:
-          explorationCollectorUrl ?? this.explorationCollectorUrl,
-      explorationRunId: explorationRunId ?? this.explorationRunId,
-      appInfo: appInfo ?? this.appInfo,
-      collector: collector ?? this.collector,
-      screenshotMaskLevel: screenshotMaskLevel ?? this.screenshotMaskLevel,
-      widgetNames: widgetNames ?? this.widgetNames,
-    );
-  }
-}
-
 class _ScheduledCapture {
   _ScheduledCapture({
     required this.trigger,
@@ -192,8 +120,10 @@ class _ScheduledCapture {
 }
 
 class TugboatReplayController extends ChangeNotifier {
-  TugboatReplayController({required this.config, required GlobalKey boundaryKey})
-    : _boundaryKey = boundaryKey;
+  TugboatReplayController({
+    required this.config,
+    required GlobalKey boundaryKey,
+  }) : _boundaryKey = boundaryKey;
 
   final TugboatReplayConfig config;
   final GlobalKey _boundaryKey;
@@ -229,7 +159,15 @@ class TugboatReplayController extends ChangeNotifier {
   final Map<int, _PointerGestureState> _activeGestures = {};
   String? _lastCapturedStateSignature;
   final Set<String> _emittedInventories = <String>{};
+  SemanticsHandle? _semanticsHandle;
   String? _lastDHash;
+  late final ViewportSemanticSession _viewportSemantics =
+      ViewportSemanticSession(
+        config: config,
+        nextEventId: _nextId,
+        atMs: () => atMs,
+        addEvent: _addEvent,
+      );
 
   _ScheduledCapture? _scheduledCapture;
 
@@ -244,6 +182,13 @@ class TugboatReplayController extends ChangeNotifier {
   TugboatStateAnchor? get currentStateAnchor => _currentStateAnchor;
   String? get latestFrameId => _latestFrameId;
 
+  bool get _viewportSemanticMapDebugLogsEnabled => _viewportSemantics.debugLogs;
+
+  /// Hold Flutter's SemanticsHandle for the whole session only in exploration.
+  /// Production acquires/disposes semantics transiently inside the map builder.
+  bool get _holdPersistentSemanticsHandle =>
+      _viewportSemantics.holdPersistentSemanticsHandle;
+
   @visibleForTesting
   void debugSetCurrentStateAnchor(TugboatStateAnchor? anchor) {
     _currentStateAnchor = anchor;
@@ -256,6 +201,26 @@ class TugboatReplayController extends ChangeNotifier {
 
   @visibleForTesting
   Future<void> drainPointerQueue() => _queue;
+
+  @visibleForTesting
+  Future<void> debugEnqueueTask(String label, Future<void> Function() task) =>
+      _enqueue(label, task);
+
+  /// Serializes [task] on the controller queue while guaranteeing that a
+  /// failure in one task never poisons the chain: an uncaught error in a
+  /// plain `_queue.then(...)` would turn `_queue` into an errored future and
+  /// silently skip every later task (tap settles, scroll ends, route
+  /// captures) for the rest of the session.
+  Future<void> _enqueue(String label, Future<void> Function() task) {
+    _queue = _queue.then((_) async {
+      try {
+        await task();
+      } catch (error, stackTrace) {
+        debugPrint('[tugboat] queued $label task failed: $error\n$stackTrace');
+      }
+    });
+    return _queue;
+  }
 
   @visibleForTesting
   TugboatInteractionResult debugComputeTapSettleResult({
@@ -295,14 +260,16 @@ class TugboatReplayController extends ChangeNotifier {
   GlobalKey get boundaryKey => _boundaryKey;
 
   Future<void> initialize() async {
+    final resolver = AnchorResolver(
+      rootKey: _boundaryKey,
+      widgetNames: config.widgetNames,
+    );
+    _anchorResolver = resolver;
     _capturer = ScreenshotCapturer(
       boundaryKey: _boundaryKey,
       pixelRatio: config.capturePixelRatio,
       maskLevel: config.effectiveScreenshotMaskLevel,
-    );
-    _anchorResolver = AnchorResolver(
-      rootKey: _boundaryKey,
-      widgetNames: config.widgetNames,
+      anchorResolver: resolver,
     );
     final sinks = <TugboatCaptureSink>[];
     final collectorUrl = config.explorationCollectorUrl;
@@ -325,11 +292,16 @@ class TugboatReplayController extends ChangeNotifier {
     if (sinks.isNotEmpty) {
       _sinkHub = TugboatCaptureSinkHub(sinks);
     }
+    if (_holdPersistentSemanticsHandle) {
+      _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
+    }
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _semanticsHandle?.dispose();
+    _semanticsHandle = null;
     final hub = _sinkHub;
     _sinkHub = null;
     _session = null;
@@ -367,6 +339,7 @@ class TugboatReplayController extends ChangeNotifier {
     _hashToFrameId.clear();
     _lastCapturedStateSignature = null;
     _emittedInventories.clear();
+    _viewportSemantics.clear();
     _lastDHash = null;
     if (!_disposed) notifyListeners();
     _sinkHub?.startSession(_session!);
@@ -482,10 +455,18 @@ class TugboatReplayController extends ChangeNotifier {
       }
 
       _scheduledCapture = null;
-      final frameId = await _executeCapture(
-        trigger: scheduled.trigger,
-        force: scheduled.force,
-      );
+      String? frameId;
+      try {
+        frameId = await _executeCapture(
+          trigger: scheduled.trigger,
+          force: scheduled.force,
+        );
+      } catch (error, stackTrace) {
+        // A capture failure must not kill the pump loop or strand waiters:
+        // stranded waiters would freeze the controller queue permanently.
+        debugPrint('[tugboat] capture failed: $error\n$stackTrace');
+        frameId = _latestFrameId;
+      }
       for (final waiter in scheduled.waiters) {
         if (!waiter.isCompleted) {
           waiter.complete(frameId);
@@ -538,14 +519,18 @@ class TugboatReplayController extends ChangeNotifier {
       if (activeSession == null) return _latestFrameId;
 
       if (result.skippedByDHash) {
-        _lastDHash = result.dHash;
+        if (result.dHash != null) {
+          _lastDHash = result.dHash;
+        }
         return _latestFrameId;
       }
 
       final existingId = _hashToFrameId[result.contentHash];
       if (!force && existingId != null) {
         _latestFrameId = existingId;
-        _lastDHash = result.dHash;
+        if (result.dHash != null) {
+          _lastDHash = result.dHash;
+        }
         if (signature.isNotEmpty) {
           _lastCapturedStateSignature = signature;
         }
@@ -569,7 +554,9 @@ class TugboatReplayController extends ChangeNotifier {
       activeSession.frameBytes[frameId] = result.bytes;
       _hashToFrameId[result.contentHash] = frameId;
       _latestFrameId = frameId;
-      _lastDHash = result.dHash;
+      if (result.dHash != null) {
+        _lastDHash = result.dHash;
+      }
       if (signature.isNotEmpty) {
         _lastCapturedStateSignature = signature;
       }
@@ -595,6 +582,7 @@ class TugboatReplayController extends ChangeNotifier {
     final resolver = _anchorResolver;
     TugboatTargetAnchor? target;
     TugboatStateAnchor? tapState = _currentStateAnchor;
+    TugboatSceneInventory? tapInventory;
 
     if (resolver != null && config.profile != TugboatCaptureProfile.dormant) {
       final tapContext = resolver.buildTapContext(
@@ -604,15 +592,31 @@ class TugboatReplayController extends ChangeNotifier {
         modalOpen: _isModalOpen(),
       );
       target = tapContext.target;
-      final inventory = tapContext.inventory;
-      if (inventory != null) {
-        _currentStateAnchor = inventory.stateAnchor;
-        tapState = inventory.stateAnchor;
-        _emitSceneInventory(inventory);
+      tapInventory = tapContext.inventory;
+      if (tapInventory != null) {
+        _currentStateAnchor = tapInventory.stateAnchor;
+        tapState = tapInventory.stateAnchor;
+        _emitSceneInventory(tapInventory, emitViewportSemanticMap: false);
       }
     } else {
       target = resolver?.targetAt(position, route: _currentRoute);
     }
+
+    // Resolve after the tap context so a stale settled map can be refreshed
+    // against the tap-time inventory state.
+    final viewportResolution = _viewportSemantics.resolveTap(
+      position: position,
+      resolver: _anchorResolver,
+      boundaryKey: _boundaryKey,
+      inventory: tapInventory,
+    );
+
+    final tapData = <String, Object?>{
+      'x': position.dx,
+      'y': position.dy,
+      if (viewportResolution != null)
+        'viewportSemanticResolution': viewportResolution.toJson(),
+    };
 
     final beforeFrame = _latestFrameId;
     final beforeState = tapState;
@@ -646,9 +650,12 @@ class TugboatReplayController extends ChangeNotifier {
         stateAnchor: beforeState,
         targetAnchor: target,
         beforeFrame: beforeFrame,
-        data: {'x': position.dx, 'y': position.dy},
+        data: tapData,
       ),
     );
+    if (viewportResolution != null && _viewportSemanticMapDebugLogsEnabled) {
+      tugboatLogViewportSemanticTapResolution(position, viewportResolution);
+    }
     if (!_disposed) notifyListeners();
   }
 
@@ -722,7 +729,7 @@ class TugboatReplayController extends ChangeNotifier {
       return;
     }
 
-    _queue = _queue.then((_) async {
+    _enqueue('tap_settled', () async {
       if (_disposed) return;
       final beforeState = pending.beforeState;
       final beforeFrame = pending.beforeFrame;
@@ -858,6 +865,36 @@ class TugboatReplayController extends ChangeNotifier {
     return data;
   }
 
+  TugboatViewportSemanticScrollContext _scrollSemanticContext({
+    required String trigger,
+    required ScrollMetrics metrics,
+    required _ScrollTracker tracker,
+    double? endOffset,
+  }) {
+    final maxExtent = metrics.maxScrollExtent;
+    final offsetNorm = maxExtent > 0 ? metrics.pixels / maxExtent : null;
+    final startNorm = maxExtent > 0 ? tracker.startOffset / maxExtent : null;
+    final endNorm = maxExtent > 0
+        ? (endOffset ?? metrics.pixels) / maxExtent
+        : null;
+    return TugboatViewportSemanticScrollContext(
+      trigger: trigger,
+      scrollableFingerprint: tracker.targetAnchor?.fingerprint,
+      axis: metrics.axis.name,
+      offset: metrics.pixels,
+      offsetNorm: offsetNorm,
+      startOffset: tracker.startOffset,
+      endOffset: endOffset,
+      depth: tracker.depth,
+      observedTopNorm: startNorm != null && endNorm != null
+          ? (startNorm < endNorm ? startNorm : endNorm)
+          : offsetNorm,
+      observedBottomNorm: startNorm != null && endNorm != null
+          ? (startNorm > endNorm ? startNorm : endNorm)
+          : offsetNorm,
+    );
+  }
+
   void recordScrollStart({
     required BuildContext? scrollContext,
     required ScrollMetrics metrics,
@@ -921,6 +958,13 @@ class TugboatReplayController extends ChangeNotifier {
         ),
       ),
     );
+    _maybeEmitSceneInventory(
+      scrollContext: _scrollSemanticContext(
+        trigger: 'scroll_start',
+        metrics: metrics,
+        tracker: tracker,
+      ),
+    );
     _linkScrollStartToActiveGestures(startEventId);
     if (!_disposed) notifyListeners();
   }
@@ -959,6 +1003,21 @@ class TugboatReplayController extends ChangeNotifier {
     );
     _trimScrollSamples();
     unawaited(_requestCapture(trigger: TugboatFrameTrigger.scroll));
+    // Debounce semantic/inventory rebuilds during continuous scroll; capture
+    // still happens, and scroll_end emits a force update.
+    if (!_viewportSemantics.allowScrollSemanticRebuild(
+      now,
+      config.scrollCaptureInterval,
+    )) {
+      return;
+    }
+    _maybeEmitSceneInventory(
+      scrollContext: _scrollSemanticContext(
+        trigger: 'scroll_update',
+        metrics: metrics,
+        tracker: tracker,
+      ),
+    );
   }
 
   void recordScrollOverscroll({required BuildContext? scrollContext}) {
@@ -978,7 +1037,7 @@ class TugboatReplayController extends ChangeNotifier {
     final tracker = _scrollTrackers.remove(scrollableElement);
     if (tracker == null) return;
 
-    _queue = _queue.then((_) async {
+    _enqueue('scroll_end', () async {
       final afterFrame = await _requestCapture(
         trigger: TugboatFrameTrigger.scroll,
         force: true,
@@ -996,6 +1055,14 @@ class TugboatReplayController extends ChangeNotifier {
           offsetNorm: last.offsetNorm,
         );
       }
+      _maybeEmitSceneInventory(
+        scrollContext: _scrollSemanticContext(
+          trigger: 'scroll_end',
+          metrics: metrics,
+          tracker: tracker,
+          endOffset: metrics.pixels,
+        ),
+      );
       _addEvent(
         TugboatEvent(
           id: _nextId('event'),
@@ -1047,7 +1114,7 @@ class TugboatReplayController extends ChangeNotifier {
     final postRouteSettle = _shouldSuppressFrameCapture
         ? Duration.zero
         : config.settleDelay;
-    _queue = _queue.then((_) async {
+    return _enqueue('route_change', () async {
       try {
         await Future<void>.delayed(transitionDuration + postRouteSettle);
         _skipCapture = false;
@@ -1094,7 +1161,6 @@ class TugboatReplayController extends ChangeNotifier {
         _routeCapturePending = false;
       }
     });
-    return _queue;
   }
 
   void _maybeEmitStateChange({
@@ -1125,8 +1191,10 @@ class TugboatReplayController extends ChangeNotifier {
     _maybeEmitSceneInventory();
   }
 
-  void _maybeEmitSceneInventory() {
-    if (config.profile == TugboatCaptureProfile.dormant) return;
+  void _maybeEmitSceneInventory({
+    TugboatViewportSemanticScrollContext? scrollContext,
+  }) {
+    if (config.profile != TugboatCaptureProfile.exploration) return;
     final resolver = _anchorResolver;
     if (resolver == null || _session == null) return;
 
@@ -1138,22 +1206,34 @@ class TugboatReplayController extends ChangeNotifier {
     if (inventory == null) return;
 
     _currentStateAnchor = inventory.stateAnchor;
-    _emitSceneInventory(inventory);
+    _emitSceneInventory(inventory, scrollContext: scrollContext);
   }
 
-  void _emitSceneInventory(TugboatSceneInventory inventory) {
+  void _emitSceneInventory(
+    TugboatSceneInventory inventory, {
+    bool emitViewportSemanticMap = true,
+    TugboatViewportSemanticScrollContext? scrollContext,
+  }) {
+    if (config.profile != TugboatCaptureProfile.exploration) return;
     final dedupeKey = '${inventory.stateSignature}|${inventory.inventoryHash}';
-    if (!_emittedInventories.add(dedupeKey)) return;
-
-    _addEvent(
-      TugboatEvent(
-        id: _nextId('event'),
-        atMs: atMs,
-        type: 'scene_inventory',
-        stateAnchor: inventory.stateAnchor,
-        data: inventory.toJson(),
-      ),
-    );
+    if (_emittedInventories.add(dedupeKey)) {
+      _addEvent(
+        TugboatEvent(
+          id: _nextId('event'),
+          atMs: atMs,
+          type: 'scene_inventory',
+          stateAnchor: inventory.stateAnchor,
+          data: inventory.toJson(),
+        ),
+      );
+    }
+    if (emitViewportSemanticMap) {
+      _viewportSemantics.maybeEmit(
+        inventory,
+        resolver: _anchorResolver,
+        scrollContext: scrollContext,
+      );
+    }
   }
 
   void _addEvent(TugboatEvent event) {

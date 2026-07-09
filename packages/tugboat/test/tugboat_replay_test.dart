@@ -6,9 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:tugboat/tugboat.dart';
-import 'package:tugboat/src/anchors.dart' show AnchorResolver, tugboatFingerprintSchemaVersion;
-import 'package:tugboat/src/perceptual_hash.dart'
-    show computeDHashFromRgba;
+import 'package:tugboat/src/anchors.dart';
+import 'package:tugboat/src/perceptual_hash.dart' show computeDHashFromRgba;
+
+import 'helpers/json_roundtrip.dart';
 
 const _testConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
@@ -91,10 +92,7 @@ void main() {
     expect(tapEvents.first.targetAnchor!.canonicalPath, isNotEmpty);
     expect(
       tapEvents.first.targetAnchor!.fingerprintParts,
-      containsPair(
-        'schemaVersion',
-        tugboatFingerprintSchemaVersion.toString(),
-      ),
+      containsPair('schemaVersion', tugboatFingerprintSchemaVersion.toString()),
     );
     expect(
       tapEvents.first.targetAnchor!.fingerprintParts.containsKey('labels'),
@@ -314,10 +312,7 @@ void main() {
     );
 
     await tester.runAsync(() async {
-      final homeFuture = controller.route(
-        'route_push',
-        delayedRoute('/home'),
-      );
+      final homeFuture = controller.route('route_push', delayedRoute('/home'));
       await Future<void>.delayed(const Duration(milliseconds: 10));
       await controller.route('route_push', instantRoute('/paywall'));
       await homeFuture;
@@ -591,7 +586,7 @@ void main() {
     expect(json['events'], [isNot(contains('route'))]);
     expect(json['frames'], [containsPair('captureMicros', 12345)]);
     expect((json['session'] as Map)['appInfo'], appInfo.toJson());
-    final restored = TugboatSession.fromJson(json);
+    final restored = TugboatSessionTestJson.fromJson(json);
     expect(restored.appInfo?.buildNumber, '42');
     expect(restored.frames.length, 1);
     expect(restored.frames.single.captureMicros, 12345);
@@ -607,16 +602,19 @@ void main() {
     final json = session.toJson();
 
     expect(
-      () => TugboatSession.fromJson({...json, 'schemaVersion': 5}),
+      () => TugboatSessionTestJson.fromJson({...json, 'schemaVersion': 5}),
       throwsFormatException,
     );
     final withoutVersion = Map<String, Object?>.from(json)
       ..remove('schemaVersion');
-    expect(() => TugboatSession.fromJson(withoutVersion), throwsFormatException);
+    expect(
+      () => TugboatSessionTestJson.fromJson(withoutVersion),
+      throwsFormatException,
+    );
   });
 
   test('frame JSON defaults missing capture timing for older sessions', () {
-    final frame = TugboatFrame.fromJson({
+    final frame = TugboatFrameTestJson.fromJson({
       'id': 'frame-0',
       'atMs': 0,
       'width': 100,
@@ -646,7 +644,7 @@ void main() {
       enabled: true,
       actions: ['tap'],
     );
-    final restored = TugboatTargetAnchor.fromJson(anchor.toJson());
+    final restored = TugboatTargetAnchorTestJson.fromJson(anchor.toJson());
     expect(restored.fingerprint, 'stable-target');
     expect(restored.fingerprintConfidence, 'high');
     expect(restored.tagFingerprint, 'stable-tag');
@@ -739,11 +737,41 @@ void main() {
       explorationRunId: 'run-1',
       actionId: 'A-1',
     );
-    final restored = TugboatEvent.fromJson(event.toJson());
+    final restored = TugboatEventTestJson.fromJson(event.toJson());
     expect(restored.sessionId, 's1');
     expect(restored.toJson().containsKey('route'), isFalse);
     expect(restored.explorationRunId, 'run-1');
     expect(restored.actionId, 'A-1');
+  });
+
+  testWidgets('disabled SDK passes through child without capture', (
+    tester,
+  ) async {
+    addTearDown(() {
+      TugboatReplay.disabled = false;
+      TugboatReplay.deactivate();
+    });
+
+    TugboatReplay.disabled = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorObservers: [TugboatReplay.navigatorObserver],
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: const Scaffold(body: Text('Disabled')),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    expect(TugboatReplay.isEnabled, isFalse);
+    expect(TugboatReplay.controller, isNull);
+    expect(find.text('Disabled'), findsOneWidget);
+
+    TugboatReplay.activate(
+      sessionId: 'session-disabled',
+      profile: TugboatCaptureProfile.exploration,
+    );
+    expect(TugboatReplay.isActivated, isFalse);
   });
 
   testWidgets('dormant profile passes through child until activated', (
@@ -858,8 +886,9 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -40));
     await _waitForCaptures(tester);
 
-    final scrollEnds =
-        session.events.where((event) => event.type == 'scroll_end').toList();
+    final scrollEnds = session.events
+        .where((event) => event.type == 'scroll_end')
+        .toList();
     expect(scrollEnds, isNotEmpty);
     expect(scrollEnds.last.afterFrame, isNotNull);
     expect(session.frames.length, greaterThanOrEqualTo(framesBeforeScroll));
@@ -896,6 +925,33 @@ void main() {
       afterFrame: 'frame-1',
     );
     expect(result, TugboatInteractionResult.changed);
+    controller.dispose();
+  });
+
+  test('a throwing queued task does not poison later tap settles', () async {
+    final rootKey = GlobalKey();
+    final controller = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: rootKey,
+    );
+    await controller.initialize();
+    controller.start(const Size(100, 100), 'test');
+    controller.debugSetExplorationFramesSuppressed(true);
+
+    unawaited(
+      controller.debugEnqueueTask('test_failure', () async {
+        throw StateError('simulated capture failure');
+      }),
+    );
+
+    controller.recordPointerDown(const Offset(5, 5), pointer: 1);
+    controller.recordPointerUp(const Offset(5, 5), pointer: 1);
+    await controller.drainPointerQueue();
+
+    final settles = controller.session!.events
+        .where((event) => event.type == 'tap_settled')
+        .toList();
+    expect(settles, hasLength(1));
     controller.dispose();
   });
 

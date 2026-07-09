@@ -21,18 +21,12 @@ class TugboatCollectorAppInfo {
 }
 
 class TugboatCollectorScreenSize {
-  const TugboatCollectorScreenSize({
-    required this.width,
-    required this.height,
-  });
+  const TugboatCollectorScreenSize({required this.width, required this.height});
 
   final double width;
   final double height;
 
-  Map<String, Object?> toJson() => {
-    'width': width,
-    'height': height,
-  };
+  Map<String, Object?> toJson() => {'width': width, 'height': height};
 }
 
 /// Host-provided device metadata required by the standalone HTTP collector.

@@ -192,14 +192,6 @@ String tugboatIconLabel(IconData icon) => [
   if (icon.fontPackage != null && icon.fontPackage!.isNotEmpty)
     icon.fontPackage,
 ].join(':');
-Map<String, int> _summaryFromRoles(List<dynamic>? roles) {
-  final summary = <String, int>{};
-  if (roles == null) return summary;
-  for (final role in roles.cast<String>()) {
-    summary[role] = (summary[role] ?? 0) + 1;
-  }
-  return summary;
-}
 
 bool _listEquals<T>(List<T> a, List<T> b) {
   if (a.length != b.length) return false;

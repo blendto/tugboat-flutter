@@ -65,20 +65,6 @@ class TugboatFrame {
     'byteLength': byteLength,
     'captureMicros': captureMicros,
   };
-
-  factory TugboatFrame.fromJson(Map<String, dynamic> json) => TugboatFrame(
-    id: json['id'] as String,
-    atMs: json['atMs'] as int,
-    width: json['width'] as int,
-    height: json['height'] as int,
-    contentHash: json['contentHash'] as String,
-    masked: json['masked'] as bool? ?? false,
-    trigger: TugboatFrameTrigger.values.byName(
-      json['trigger'] as String? ?? 'manual',
-    ),
-    byteLength: json['byteLength'] as int? ?? 0,
-    captureMicros: json['captureMicros'] as int? ?? 0,
-  );
 }
 
 class TugboatScrollSample {
@@ -110,17 +96,6 @@ class TugboatScrollSample {
     if (axis != null) 'axis': axis,
     if (offsetNorm != null) 'offsetNorm': offsetNorm,
   };
-
-  factory TugboatScrollSample.fromJson(Map<String, dynamic> json) =>
-      TugboatScrollSample(
-        atMs: json['atMs'] as int,
-        offset: (json['offset'] as num).toDouble(),
-        beforeFrame: json['beforeFrame'] as String?,
-        afterFrame: json['afterFrame'] as String?,
-        scrollableFingerprint: json['scrollableFingerprint'] as String?,
-        axis: json['axis'] as String?,
-        offsetNorm: (json['offsetNorm'] as num?)?.toDouble(),
-      );
 }
 
 class TugboatEvent {
@@ -169,32 +144,6 @@ class TugboatEvent {
     if (explorationRunId != null) 'explorationRunId': explorationRunId,
     if (actionId != null) 'actionId': actionId,
   };
-
-  factory TugboatEvent.fromJson(Map<String, dynamic> json) => TugboatEvent(
-    id: json['id'] as String,
-    atMs: json['atMs'] as int,
-    type: json['type'] as String,
-    sessionId: json['sessionId'] as String?,
-    stateAnchor: json['stateAnchor'] == null
-        ? null
-        : TugboatStateAnchor.fromJson(
-            Map<String, dynamic>.from(json['stateAnchor'] as Map),
-          ),
-    targetAnchor: json['targetAnchor'] == null
-        ? null
-        : TugboatTargetAnchor.fromJson(
-            Map<String, dynamic>.from(json['targetAnchor'] as Map),
-          ),
-    beforeFrame: json['beforeFrame'] as String?,
-    afterFrame: json['afterFrame'] as String?,
-    result: json['result'] == null
-        ? null
-        : TugboatInteractionResult.values.byName(json['result'] as String),
-    relatedEventId: json['relatedEventId'] as String?,
-    data: Map<String, Object?>.from(json['data'] as Map? ?? {}),
-    explorationRunId: json['explorationRunId'] as String?,
-    actionId: json['actionId'] as String?,
-  );
 
   TugboatEvent withExplorationContext({
     String? sessionId,
@@ -287,53 +236,4 @@ class TugboatSession {
   };
 
   String toPrettyJson() => const JsonEncoder.withIndent('  ').convert(toJson());
-
-  static TugboatSession fromJson(Map<String, dynamic> json) {
-    if (json['schemaVersion'] != 6) {
-      throw const FormatException('Unsupported Tugboat session schema version.');
-    }
-    final sessionJson = Map<String, dynamic>.from(json['session'] as Map);
-    final viewportJson = Map<String, dynamic>.from(
-      sessionJson['viewport'] as Map,
-    );
-    final appInfoJson = sessionJson['appInfo'];
-    final session = TugboatSession(
-      id: sessionJson['id'] as String,
-      startedAt: DateTime.parse(sessionJson['startedAt'] as String),
-      platform: sessionJson['platform'] as String,
-      viewport: TugboatRect(
-        (viewportJson['x'] as num).toDouble(),
-        (viewportJson['y'] as num).toDouble(),
-        (viewportJson['width'] as num).toDouble(),
-        (viewportJson['height'] as num).toDouble(),
-      ),
-      appInfo: appInfoJson == null
-          ? null
-          : TugboatCollectorAppInfo(
-              name: (appInfoJson as Map)['name'] as String,
-              version: appInfoJson['version'] as String,
-              buildNumber: appInfoJson['buildNumber'] as String,
-              installationId: appInfoJson['installationId'] as String,
-            ),
-    )..truncated = sessionJson['truncated'] as bool? ?? false;
-
-    session.frames.addAll(
-      (json['frames'] as List<dynamic>? ?? []).map(
-        (frame) => TugboatFrame.fromJson(Map<String, dynamic>.from(frame as Map)),
-      ),
-    );
-    session.events.addAll(
-      (json['events'] as List<dynamic>? ?? []).map(
-        (event) => TugboatEvent.fromJson(Map<String, dynamic>.from(event as Map)),
-      ),
-    );
-    session.scrollSamples.addAll(
-      (json['scrollSamples'] as List<dynamic>? ?? []).map(
-        (sample) => TugboatScrollSample.fromJson(
-          Map<String, dynamic>.from(sample as Map),
-        ),
-      ),
-    );
-    return session;
-  }
 }

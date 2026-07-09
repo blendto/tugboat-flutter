@@ -17,5 +17,4 @@ Documentation for the [Tugboat Flutter SDK](https://github.com/blendto/tugboat-f
 | Path | Description |
 |------|-------------|
 | `packages/tugboat` | Flutter SDK (`package:tugboat`) |
-| `packages/tugboat_builder` | Optional build-time widget catalog generator |
 | `packages/tugboat/example` | Demo app and integration fixture (not published) |
