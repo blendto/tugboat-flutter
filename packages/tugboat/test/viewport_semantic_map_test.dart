@@ -298,132 +298,132 @@ void main() {
     expect(resolution['linkedFingerprint'], isNotEmpty);
   });
 
-  testWidgets('dormant and production profiles stay off without mode opt-in', (
+  testWidgets('dormant profile stays off with default semantic mode', (
     tester,
   ) async {
-    for (final profile in [
-      TugboatCaptureProfile.dormant,
-      TugboatCaptureProfile.productionLean,
-    ]) {
-      await tester.pumpWidget(
-        MaterialApp(
-          builder: (context, child) => TugboatReplay.wrapApp(
-            config: TugboatReplayConfig(
-              profile: profile,
-              settleDelay: Duration.zero,
-              enableGlobalPointerCapture: false,
-              capturePixelRatio: 1.0,
-              // Mode stays off: dormant/production do not invent semantics.
-            ),
-            child: child!,
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: const TugboatReplayConfig(
+            profile: TugboatCaptureProfile.dormant,
+            settleDelay: Duration.zero,
+            enableGlobalPointerCapture: false,
+            capturePixelRatio: 1.0,
           ),
-          home: Scaffold(
-            body: FilledButton(onPressed: () {}, child: const Text('Go')),
-          ),
+          child: child!,
         ),
-      );
-      await tester.pump();
-      await tester.pumpAndSettle();
+        home: Scaffold(
+          body: FilledButton(onPressed: () {}, child: const Text('Go')),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
 
-      final controller = TugboatReplay.controller;
-      if (controller == null) {
-        continue;
-      }
-
-      final mapEvents =
-          controller.session?.events
-              .where((event) => event.type == 'viewport_semantic_map')
-              .toList() ??
-          [];
-      expect(mapEvents, isEmpty);
-
-      final tapCenter = tester.getCenter(find.text('Go'));
-      controller.recordPointerDown(tapCenter);
-      await tester.pump();
-
-      final tapEvent = controller.session!.events
-          .where((event) => event.type == 'tap')
-          .last;
-      expect(tapEvent.data.containsKey('viewportSemanticResolution'), isFalse);
+    final controller = TugboatReplay.controller;
+    if (controller == null) {
+      return;
     }
+
+    final mapEvents =
+        controller.session?.events
+            .where((event) => event.type == 'viewport_semantic_map')
+            .toList() ??
+        [];
+    expect(mapEvents, isEmpty);
+
+    final tapCenter = tester.getCenter(find.text('Go'));
+    controller.recordPointerDown(tapCenter);
+    await tester.pump();
+
+    final tapEvent = controller.session!.events
+        .where((event) => event.type == 'tap')
+        .last;
+    expect(tapEvent.data.containsKey('viewportSemanticResolution'), isFalse);
   });
 
-  testWidgets(
-    'production tap-resolution opt-in resolves taps without emitting maps',
-    (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          builder: (context, child) => TugboatReplay.wrapApp(
-            config: const TugboatReplayConfig(
-              profile: TugboatCaptureProfile.productionLean,
-              settleDelay: Duration.zero,
-              enableGlobalPointerCapture: false,
-              capturePixelRatio: 1.0,
-              viewportSemanticMode:
-                  TugboatViewportSemanticMode.tapResolutionOnly,
-            ),
-            child: child!,
+  testWidgets('production default resolves taps without emitting maps', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: const TugboatReplayConfig(
+            profile: TugboatCaptureProfile.productionLean,
+            settleDelay: Duration.zero,
+            enableGlobalPointerCapture: false,
+            capturePixelRatio: 1.0,
           ),
-          home: Scaffold(
-            body: FilledButton(onPressed: () {}, child: const Text('Go')),
-          ),
+          child: child!,
         ),
-      );
-      await tester.pump();
-      await _waitForCaptures(tester);
+        home: Scaffold(
+          body: FilledButton(onPressed: () {}, child: const Text('Go')),
+        ),
+      ),
+    );
+    await tester.pump();
+    await _waitForCaptures(tester);
 
-      final controller = TugboatReplay.controller!;
+    final controller = TugboatReplay.controller!;
 
-      final tapCenter = tester.getCenter(find.text('Go'));
-      controller.recordPointerDown(tapCenter);
-      await tester.pump();
+    final tapCenter = tester.getCenter(find.text('Go'));
+    controller.recordPointerDown(tapCenter);
+    await tester.pump();
 
-      final mapEvents = controller.session!.events
-          .where(
-            (event) =>
-                event.type == 'viewport_semantic_map' ||
-                event.type == 'scroll_semantic_snapshot',
-          )
-          .toList();
-      expect(mapEvents, isEmpty);
+    final mapEvents = controller.session!.events
+        .where(
+          (event) =>
+              event.type == 'viewport_semantic_map' ||
+              event.type == 'scroll_semantic_snapshot',
+        )
+        .toList();
+    expect(mapEvents, isEmpty);
 
-      final tapEvent = controller.session!.events
-          .where((event) => event.type == 'tap')
-          .last;
-      final resolution =
-          tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-      expect(resolution, isNotNull);
-      expect(resolution!['status'], 'matched_actionable');
-      // Verdict payload must remain text-free.
-      expect(resolution.keys, isNot(contains('label')));
-      expect(resolution.keys, isNot(contains('text')));
-    },
-  );
+    final tapEvent = controller.session!.events
+        .where((event) => event.type == 'tap')
+        .last;
+    final resolution =
+        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
+    expect(resolution, isNotNull);
+    expect(resolution!['status'], 'matched_actionable');
+    // Verdict payload must remain text-free.
+    expect(resolution.keys, isNot(contains('label')));
+    expect(resolution.keys, isNot(contains('text')));
+  });
 
   testWidgets('production semantic map requires explicit test opt-in', (
     tester,
   ) async {
-    await _pumpSettledScreen(
-      tester,
-      Scaffold(
-        body: Column(
-          children: [
-            FilledButton(onPressed: () {}, child: const Text('Go')),
-            FilledButton(onPressed: () {}, child: const Text('Next')),
-          ],
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: const TugboatReplayConfig(
+            profile: TugboatCaptureProfile.productionLean,
+            settleDelay: Duration.zero,
+            enableGlobalPointerCapture: false,
+            capturePixelRatio: 1.0,
+            viewportSemanticMode: TugboatViewportSemanticMode.full,
+            viewportSemanticMapMaxNodes: 1,
+          ),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: Column(
+            children: [
+              FilledButton(onPressed: () {}, child: const Text('Go')),
+              FilledButton(onPressed: () {}, child: const Text('Next')),
+            ],
+          ),
         ),
       ),
-      config: const TugboatReplayConfig(
-        profile: TugboatCaptureProfile.productionLean,
-        settleDelay: Duration.zero,
-        enableGlobalPointerCapture: false,
-        capturePixelRatio: 1.0,
-        viewportSemanticMode: TugboatViewportSemanticMode.full,
-        viewportSemanticMapMaxNodes: 1,
-      ),
     );
+    await tester.pump();
+    await _waitForCaptures(tester);
 
     final controller = TugboatReplay.controller!;
+    controller.recordPointerDown(tester.getCenter(find.text('Go')));
+    await tester.pump();
+
     final mapEvent = controller.session!.events
         .where((event) => event.type == 'viewport_semantic_map')
         .single;
@@ -432,6 +432,43 @@ void main() {
     expect(nodes.length, lessThanOrEqualTo(1));
     expect(summary['truncatedCount'], isA<int>());
     expect(summary['totalNodes'], nodes.length);
+  });
+
+  testWidgets('production semantic map stays off with default mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: const TugboatReplayConfig(
+            profile: TugboatCaptureProfile.productionLean,
+            settleDelay: Duration.zero,
+            enableGlobalPointerCapture: false,
+            capturePixelRatio: 1.0,
+          ),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: Column(
+            children: [
+              FilledButton(onPressed: () {}, child: const Text('Go')),
+              FilledButton(onPressed: () {}, child: const Text('Next')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await _waitForCaptures(tester);
+
+    final controller = TugboatReplay.controller!;
+    controller.recordPointerDown(tester.getCenter(find.text('Go')));
+    await tester.pump();
+
+    final mapEvents = controller.session!.events
+        .where((event) => event.type == 'viewport_semantic_map')
+        .toList();
+    expect(mapEvents, isEmpty);
   });
 
   testWidgets(

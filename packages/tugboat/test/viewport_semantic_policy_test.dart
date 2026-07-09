@@ -50,11 +50,11 @@ void main() {
     expect(productionFull.emitEvents, isTrue);
     expect(productionFull.holdPersistentSemanticsHandle, isFalse);
 
-    expect(
-      const TugboatReplayConfig(
-        profile: TugboatCaptureProfile.productionLean,
-      ).viewportSemanticPolicy,
-      TugboatViewportSemanticPolicy.off,
-    );
+    final productionDefault = const TugboatReplayConfig(
+      profile: TugboatCaptureProfile.productionLean,
+    ).viewportSemanticPolicy;
+    expect(productionDefault.engineEnabled, isTrue);
+    expect(productionDefault.emitEvents, isFalse);
+    expect(productionDefault.holdPersistentSemanticsHandle, isFalse);
   });
 }

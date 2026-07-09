@@ -93,7 +93,7 @@ class TugboatReplayConfig {
 
     /// Optional Type→name overrides for canonical paths (e.g. obfuscated builds).
     this.widgetNames = const {},
-    this.viewportSemanticMode = TugboatViewportSemanticMode.off,
+    this.viewportSemanticMode = TugboatViewportSemanticMode.tapResolutionOnly,
     this.viewportSemanticMapMaxNodes = 120,
     this.viewportSemanticMapMaxBytes = 48000,
   });
