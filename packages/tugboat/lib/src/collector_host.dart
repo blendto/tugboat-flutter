@@ -18,6 +18,7 @@ abstract final class TugboatCollectorHost {
       version: packageInfo.version,
       buildNumber: packageInfo.buildNumber,
       installationId: device.id,
+      packageName: packageInfo.packageName,
     );
   }
 
