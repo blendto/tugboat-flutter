@@ -20,7 +20,9 @@ Future<void> _waitForCaptures(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('ListView scroll carries scrollable target anchor', (tester) async {
+  testWidgets('ListView scroll carries scrollable target anchor', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
@@ -40,10 +42,12 @@ void main() {
     await _waitForCaptures(tester);
 
     final session = TugboatReplay.controller!.session!;
-    final scrollStarts =
-        session.events.where((event) => event.type == 'scroll_start').toList();
-    final scrollEnds =
-        session.events.where((event) => event.type == 'scroll_end').toList();
+    final scrollStarts = session.events
+        .where((event) => event.type == 'scroll_start')
+        .toList();
+    final scrollEnds = session.events
+        .where((event) => event.type == 'scroll_end')
+        .toList();
 
     expect(scrollStarts, isNotEmpty);
     expect(scrollEnds, isNotEmpty);
@@ -53,8 +57,10 @@ void main() {
     expect(scrollStarts.first.data['axis'], isNotNull);
     expect(scrollStarts.first.data['depth'], isNotNull);
     expect(scrollEnds.first.relatedEventId, scrollStarts.first.id);
-    expect(scrollEnds.first.targetAnchor?.fingerprint,
-        scrollStarts.first.targetAnchor?.fingerprint);
+    expect(
+      scrollEnds.first.targetAnchor?.fingerprint,
+      scrollStarts.first.targetAnchor?.fingerprint,
+    );
   });
 
   testWidgets('dead swipe on static widget emits swipe without tap_settled', (
@@ -78,15 +84,22 @@ void main() {
     );
 
     await _waitForCaptures(tester);
-    await tester.drag(find.byKey(const Key('static-block')), const Offset(0, -120));
+    await tester.drag(
+      find.byKey(const Key('static-block')),
+      const Offset(0, -120),
+    );
     await _waitForCaptures(tester);
 
     final session = TugboatReplay.controller!.session!;
-    final swipes = session.events.where((event) => event.type == 'swipe').toList();
-    final settled =
-        session.events.where((event) => event.type == 'tap_settled').toList();
-    final scrollStarts =
-        session.events.where((event) => event.type == 'scroll_start').toList();
+    final swipes = session.events
+        .where((event) => event.type == 'swipe')
+        .toList();
+    final settled = session.events
+        .where((event) => event.type == 'tap_settled')
+        .toList();
+    final scrollStarts = session.events
+        .where((event) => event.type == 'scroll_start')
+        .toList();
 
     expect(swipes, isNotEmpty);
     expect(swipes.first.data['scrolled'], isFalse);
@@ -118,17 +131,17 @@ void main() {
     await _waitForCaptures(tester);
 
     final session = TugboatReplay.controller!.session!;
-    final swipes = session.events.where((event) => event.type == 'swipe').toList();
-    final scrollStarts =
-        session.events.where((event) => event.type == 'scroll_start').toList();
+    final swipes = session.events
+        .where((event) => event.type == 'swipe')
+        .toList();
+    final scrollStarts = session.events
+        .where((event) => event.type == 'scroll_start')
+        .toList();
 
     expect(swipes, isNotEmpty);
     expect(scrollStarts, isNotEmpty);
     expect(swipes.first.data['scrolled'], isTrue);
-    expect(
-      swipes.first.data['scrollStartEventId'],
-      scrollStarts.first.id,
-    );
+    expect(swipes.first.data['scrollStartEventId'], scrollStarts.first.id);
   });
 
   testWidgets('sub-slop tap still emits tap_settled', (tester) async {
@@ -137,10 +150,7 @@ void main() {
         builder: (context, child) =>
             TugboatReplay.wrapApp(config: _scrollTestConfig, child: child!),
         home: Scaffold(
-          body: FilledButton(
-            onPressed: () {},
-            child: const Text('Tap me'),
-          ),
+          body: FilledButton(onPressed: () {}, child: const Text('Tap me')),
         ),
       ),
     );
@@ -151,11 +161,16 @@ void main() {
 
     final session = TugboatReplay.controller!.session!;
     expect(session.events.where((event) => event.type == 'tap'), isNotEmpty);
-    expect(session.events.where((event) => event.type == 'tap_settled'), isNotEmpty);
+    expect(
+      session.events.where((event) => event.type == 'tap_settled'),
+      isNotEmpty,
+    );
     expect(session.events.where((event) => event.type == 'swipe'), isEmpty);
   });
 
-  testWidgets('TugboatSubView label appears on scroll_start data', (tester) async {
+  testWidgets('TugboatSubView label appears on scroll_start data', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
@@ -177,8 +192,9 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -180));
     await _waitForCaptures(tester);
 
-    final scrollStart = TugboatReplay.controller!.session!.events
-        .firstWhere((event) => event.type == 'scroll_start');
+    final scrollStart = TugboatReplay.controller!.session!.events.firstWhere(
+      (event) => event.type == 'scroll_start',
+    );
     expect(scrollStart.data['sectionLabel'], 'feed-section');
   });
 
@@ -214,7 +230,8 @@ void main() {
 
     await _waitForCaptures(tester);
     final horizontalList = find.byWidgetPredicate(
-      (widget) => widget is ListView && widget.scrollDirection == Axis.horizontal,
+      (widget) =>
+          widget is ListView && widget.scrollDirection == Axis.horizontal,
     );
     final verticalList = find.byWidgetPredicate(
       (widget) => widget is ListView && widget.scrollDirection == Axis.vertical,
@@ -225,10 +242,12 @@ void main() {
     await _waitForCaptures(tester);
 
     final session = TugboatReplay.controller!.session!;
-    final scrollStarts =
-        session.events.where((event) => event.type == 'scroll_start').toList();
-    final scrollEnds =
-        session.events.where((event) => event.type == 'scroll_end').toList();
+    final scrollStarts = session.events
+        .where((event) => event.type == 'scroll_start')
+        .toList();
+    final scrollEnds = session.events
+        .where((event) => event.type == 'scroll_end')
+        .toList();
 
     expect(scrollStarts.length, greaterThanOrEqualTo(2));
     expect(scrollEnds.length, greaterThanOrEqualTo(2));

@@ -7,8 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:tugboat/tugboat.dart';
 import 'package:tugboat/src/anchors.dart';
-import 'package:tugboat/src/perceptual_hash.dart'
-    show computeDHashFromRgba;
+import 'package:tugboat/src/perceptual_hash.dart' show computeDHashFromRgba;
 
 import 'helpers/json_roundtrip.dart';
 
@@ -93,10 +92,7 @@ void main() {
     expect(tapEvents.first.targetAnchor!.canonicalPath, isNotEmpty);
     expect(
       tapEvents.first.targetAnchor!.fingerprintParts,
-      containsPair(
-        'schemaVersion',
-        tugboatFingerprintSchemaVersion.toString(),
-      ),
+      containsPair('schemaVersion', tugboatFingerprintSchemaVersion.toString()),
     );
     expect(
       tapEvents.first.targetAnchor!.fingerprintParts.containsKey('labels'),
@@ -316,10 +312,7 @@ void main() {
     );
 
     await tester.runAsync(() async {
-      final homeFuture = controller.route(
-        'route_push',
-        delayedRoute('/home'),
-      );
+      final homeFuture = controller.route('route_push', delayedRoute('/home'));
       await Future<void>.delayed(const Duration(milliseconds: 10));
       await controller.route('route_push', instantRoute('/paywall'));
       await homeFuture;
@@ -751,6 +744,36 @@ void main() {
     expect(restored.actionId, 'A-1');
   });
 
+  testWidgets('disabled SDK passes through child without capture', (
+    tester,
+  ) async {
+    addTearDown(() {
+      TugboatReplay.disabled = false;
+      TugboatReplay.deactivate();
+    });
+
+    TugboatReplay.disabled = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorObservers: [TugboatReplay.navigatorObserver],
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: const Scaffold(body: Text('Disabled')),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    expect(TugboatReplay.isEnabled, isFalse);
+    expect(TugboatReplay.controller, isNull);
+    expect(find.text('Disabled'), findsOneWidget);
+
+    TugboatReplay.activate(
+      sessionId: 'session-disabled',
+      profile: TugboatCaptureProfile.exploration,
+    );
+    expect(TugboatReplay.isActivated, isFalse);
+  });
+
   testWidgets('dormant profile passes through child until activated', (
     tester,
   ) async {
@@ -863,8 +886,9 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -40));
     await _waitForCaptures(tester);
 
-    final scrollEnds =
-        session.events.where((event) => event.type == 'scroll_end').toList();
+    final scrollEnds = session.events
+        .where((event) => event.type == 'scroll_end')
+        .toList();
     expect(scrollEnds, isNotEmpty);
     expect(scrollEnds.last.afterFrame, isNotNull);
     expect(session.frames.length, greaterThanOrEqualTo(framesBeforeScroll));

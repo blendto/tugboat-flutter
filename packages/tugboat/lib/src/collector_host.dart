@@ -85,13 +85,16 @@ abstract final class TugboatCollectorHost {
     return 'http://127.0.0.1:3000';
   }
 
-  static Future<({
-    String id,
-    String platform,
-    String? manufacturer,
-    String? model,
-    String? osVersion,
-  })> _resolveDeviceMetadata() async {
+  static Future<
+    ({
+      String id,
+      String platform,
+      String? manufacturer,
+      String? model,
+      String? osVersion,
+    })
+  >
+  _resolveDeviceMetadata() async {
     final deviceInfo = DeviceInfoPlugin();
 
     if (Platform.isAndroid) {

@@ -318,7 +318,9 @@ void main() {
 
     expect(
       state.signature,
-      tugboatLabelHash('routeKey=/home|schemaVersion=$tugboatFingerprintSchemaVersion'),
+      tugboatLabelHash(
+        'routeKey=/home|schemaVersion=$tugboatFingerprintSchemaVersion',
+      ),
     );
     expect(state.schemaVersion, tugboatFingerprintSchemaVersion);
   });

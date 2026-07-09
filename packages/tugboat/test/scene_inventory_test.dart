@@ -83,10 +83,7 @@ void main() {
       isTrue,
       reason: 'tap fingerprint must match an inventory entry',
     );
-    expect(
-      interactive.first.boundsNorm.width > 0,
-      isTrue,
-    );
+    expect(interactive.first.boundsNorm.width > 0, isTrue);
 
     final imageEntry = inventory.elements.firstWhere(
       (entry) => entry.tier == 'content' && entry.role == 'display',
@@ -105,10 +102,7 @@ void main() {
         home: RepaintBoundary(
           key: rootKey,
           child: Scaffold(
-            body: PillButton(
-              onPressed: () {},
-              child: const Text('Continue'),
-            ),
+            body: PillButton(onPressed: () {}, child: const Text('Continue')),
           ),
         ),
       ),
@@ -146,10 +140,7 @@ void main() {
         home: RepaintBoundary(
           key: rootKey,
           child: Scaffold(
-            body: PillButton(
-              onPressed: () {},
-              child: const Text('Continue'),
-            ),
+            body: PillButton(onPressed: () {}, child: const Text('Continue')),
           ),
         ),
       ),
@@ -187,66 +178,67 @@ void main() {
     );
   });
 
-  testWidgets('tap-time inventory matches tap state signature and fingerprint', (
-    tester,
-  ) async {
-    const config = TugboatReplayConfig(
-      profile: TugboatCaptureProfile.exploration,
-      settleDelay: Duration.zero,
-      enableGlobalPointerCapture: false,
-      capturePixelRatio: 1.0,
-    );
+  testWidgets(
+    'tap-time inventory matches tap state signature and fingerprint',
+    (tester) async {
+      const config = TugboatReplayConfig(
+        profile: TugboatCaptureProfile.exploration,
+        settleDelay: Duration.zero,
+        enableGlobalPointerCapture: false,
+        capturePixelRatio: 1.0,
+      );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        builder: (context, child) =>
-            TugboatReplay.wrapApp(config: config, child: child!),
-        home: Scaffold(
-          body: FilledButton(onPressed: () {}, child: const Text('Go')),
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              TugboatReplay.wrapApp(config: config, child: child!),
+          home: Scaffold(
+            body: FilledButton(onPressed: () {}, child: const Text('Go')),
+          ),
         ),
-      ),
-    );
+      );
 
-    await tester.pump();
-    await tester.pump();
+      await tester.pump();
+      await tester.pump();
 
-    final controller = TugboatReplay.controller!;
-    final tapCenter = tester.getCenter(find.text('Go'));
-    controller.recordPointerDown(tapCenter);
-    await tester.pump();
+      final controller = TugboatReplay.controller!;
+      final tapCenter = tester.getCenter(find.text('Go'));
+      controller.recordPointerDown(tapCenter);
+      await tester.pump();
 
-    final tapEvents = controller.session!.events
-        .where((event) => event.type == 'tap')
-        .toList();
-    expect(tapEvents, hasLength(1));
+      final tapEvents = controller.session!.events
+          .where((event) => event.type == 'tap')
+          .toList();
+      expect(tapEvents, hasLength(1));
 
-    final tapEvent = tapEvents.single;
-    final tapFingerprint = tapEvent.targetAnchor?.fingerprint;
-    final tapSignature = tapEvent.stateAnchor?.signature;
-    expect(tapFingerprint, isNotEmpty);
-    expect(tapSignature, isNotEmpty);
+      final tapEvent = tapEvents.single;
+      final tapFingerprint = tapEvent.targetAnchor?.fingerprint;
+      final tapSignature = tapEvent.stateAnchor?.signature;
+      expect(tapFingerprint, isNotEmpty);
+      expect(tapSignature, isNotEmpty);
 
-    final inventoryEvents = controller.session!.events
-        .where((event) => event.type == 'scene_inventory')
-        .toList();
-    expect(inventoryEvents, isNotEmpty);
+      final inventoryEvents = controller.session!.events
+          .where((event) => event.type == 'scene_inventory')
+          .toList();
+      expect(inventoryEvents, isNotEmpty);
 
-    final tapInventory = inventoryEvents.lastWhere(
-      (event) => event.stateAnchor?.signature == tapSignature,
-    );
-    expect(tapInventory.data['stateSignature'], tapSignature);
+      final tapInventory = inventoryEvents.lastWhere(
+        (event) => event.stateAnchor?.signature == tapSignature,
+      );
+      expect(tapInventory.data['stateSignature'], tapSignature);
 
-    final elements = tapInventory.data['elements'] as List<dynamic>;
-    expect(
-      elements.any(
-        (element) =>
-            (element as Map<Object?, Object?>)['fingerprint'] ==
-            tapFingerprint,
-      ),
-      isTrue,
-      reason: 'tap fingerprint must appear in tap-time inventory',
-    );
-  });
+      final elements = tapInventory.data['elements'] as List<dynamic>;
+      expect(
+        elements.any(
+          (element) =>
+              (element as Map<Object?, Object?>)['fingerprint'] ==
+              tapFingerprint,
+        ),
+        isTrue,
+        reason: 'tap fingerprint must appear in tap-time inventory',
+      );
+    },
+  );
 
   testWidgets('tap injection emits inventory when enumeration is empty', (
     tester,
@@ -265,10 +257,7 @@ void main() {
         home: Stack(
           children: [
             const Scaffold(body: SizedBox.expand()),
-            ModalBarrier(
-              dismissible: true,
-              onDismiss: () {},
-            ),
+            ModalBarrier(dismissible: true, onDismiss: () {}),
           ],
         ),
       ),
@@ -294,7 +283,8 @@ void main() {
     expect(inventoryEvents, isNotEmpty);
 
     final tapInventory = inventoryEvents.lastWhere(
-      (event) => event.stateAnchor?.signature == tapEvent.stateAnchor?.signature,
+      (event) =>
+          event.stateAnchor?.signature == tapEvent.stateAnchor?.signature,
     );
     final elements = tapInventory.data['elements'] as List<dynamic>;
     expect(

@@ -111,7 +111,9 @@ extension TugboatEventTestJson on TugboatEvent {
 extension TugboatSessionTestJson on TugboatSession {
   static TugboatSession fromJson(Map<String, dynamic> json) {
     if (json['schemaVersion'] != 6) {
-      throw const FormatException('Unsupported Tugboat session schema version.');
+      throw const FormatException(
+        'Unsupported Tugboat session schema version.',
+      );
     }
     final sessionJson = Map<String, dynamic>.from(json['session'] as Map);
     final viewportJson = Map<String, dynamic>.from(
@@ -147,8 +149,9 @@ extension TugboatSessionTestJson on TugboatSession {
     );
     session.events.addAll(
       (json['events'] as List<dynamic>? ?? []).map(
-        (event) =>
-            TugboatEventTestJson.fromJson(Map<String, dynamic>.from(event as Map)),
+        (event) => TugboatEventTestJson.fromJson(
+          Map<String, dynamic>.from(event as Map),
+        ),
       ),
     );
     session.scrollSamples.addAll(

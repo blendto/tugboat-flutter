@@ -1,7 +1,6 @@
 part of 'anchors.dart';
 
 extension TugboatViewportSemanticsApi on AnchorResolver {
-
   /// Builds a viewport semantic map from Flutter semantics,
   /// enriched with scene inventory fingerprints when overlap is clear.
   TugboatViewportSemanticMap? buildViewportSemanticMap({
@@ -549,5 +548,4 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     }).toList();
     return tugboatLabelHash(parts.join('\n'));
   }
-
 }

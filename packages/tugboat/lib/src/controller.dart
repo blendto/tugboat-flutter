@@ -216,9 +216,7 @@ class TugboatReplayController extends ChangeNotifier {
       try {
         await task();
       } catch (error, stackTrace) {
-        debugPrint(
-          '[tugboat] queued $label task failed: $error\n$stackTrace',
-        );
+        debugPrint('[tugboat] queued $label task failed: $error\n$stackTrace');
       }
     });
     return _queue;

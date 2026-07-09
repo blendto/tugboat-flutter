@@ -103,7 +103,8 @@ class AnchorResolver {
         continue;
       }
       final sensitive = tokenMap.isSensitive[element] == true;
-      final actionable = tokenMap.underActionable[element] == true ||
+      final actionable =
+          tokenMap.underActionable[element] == true ||
           tugboatIsActionableWidget(widget);
       if (!shouldMask(widget, renderObject, sensitive, actionable)) continue;
       if (!maskedRenderObjects.add(renderObject)) continue;
@@ -533,7 +534,8 @@ class AnchorResolver {
             }
           }
           for (final key in [...tokens.keys]) {
-            if (!identical(key, element) && !childResult.elements.contains(key)) {
+            if (!identical(key, element) &&
+                !childResult.elements.contains(key)) {
               tokens.remove(key);
               retainedParents.remove(key);
               tagIds.remove(key);
@@ -580,8 +582,7 @@ class AnchorResolver {
       final tokenizedActionableInSubtree =
           childHasTokenizedActionable ||
           childElements.any(
-            (child) =>
-                isActionable[child] == true && tokens.containsKey(child),
+            (child) => isActionable[child] == true && tokens.containsKey(child),
           );
       hasActionableDescendant[element] = actionableInSubtree;
       hasTokenizedActionableDescendant[element] = tokenizedActionableInSubtree;
@@ -590,8 +591,7 @@ class AnchorResolver {
         elements: {element, ...childElements},
         pendingBlocker: pendingBlocker,
         hasBlockingOverlay: hasBlockingOverlay,
-        hasActionableDescendant:
-            actionableInSubtree || elementIsActionable,
+        hasActionableDescendant: actionableInSubtree || elementIsActionable,
         hasTokenizedActionableDescendant:
             tokenizedActionableInSubtree || elementIsActionable,
       );
@@ -653,7 +653,6 @@ class AnchorResolver {
     });
     return found;
   }
-
 
   bool _isRetainable(Element element, RenderBox rootRender) {
     final renderObject = element.renderObject;
@@ -770,7 +769,8 @@ class AnchorResolver {
     void visit(Element node, bool nodeSensitive) {
       if (label != null) return;
       final nodeWidget = node.widget;
-      if (tugboatHidesSubtree(nodeWidget) || nodeWidget is TugboatInternal) return;
+      if (tugboatHidesSubtree(nodeWidget) || nodeWidget is TugboatInternal)
+        return;
       final isNodeSensitive = nodeSensitive || nodeWidget is TugboatSensitive;
       if (isNodeSensitive) return;
 
@@ -968,4 +968,3 @@ class AnchorResolver {
     return 'center';
   }
 }
-

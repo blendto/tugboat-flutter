@@ -90,6 +90,7 @@ class TugboatReplayConfig {
     this.appInfo,
     this.collector,
     this.screenshotMaskLevel,
+
     /// Optional Type→name overrides for canonical paths (e.g. obfuscated builds).
     this.widgetNames = const {},
     this.viewportSemanticMode = TugboatViewportSemanticMode.off,

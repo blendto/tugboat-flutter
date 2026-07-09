@@ -90,7 +90,10 @@ void main() {
     await settle(tester);
 
     // Vertical feed scroll
-    await tester.drag(find.byKey(const Key('vertical-feed')), const Offset(0, -160));
+    await tester.drag(
+      find.byKey(const Key('vertical-feed')),
+      const Offset(0, -160),
+    );
     await settle(tester);
 
     // Horizontal carousel scroll
@@ -98,28 +101,38 @@ void main() {
     await settle(tester);
 
     // Dead swipe on static block
-    await tester.drag(find.byKey(const Key('hero-image')), const Offset(0, -120));
+    await tester.drag(
+      find.byKey(const Key('hero-image')),
+      const Offset(0, -120),
+    );
     await settle(tester);
 
     // PageView swipe
-    await tester.drag(find.byKey(const Key('page-view')), const Offset(-260, 0));
+    await tester.drag(
+      find.byKey(const Key('page-view')),
+      const Offset(-260, 0),
+    );
     await settle(tester);
 
     final session = TugboatReplay.controller!.session!;
     final interesting = session.events
-        .where((e) =>
-            e.type == 'scroll_start' ||
-            e.type == 'scroll_end' ||
-            e.type == 'swipe')
-        .map((e) => {
-              'type': e.type,
-              'id': e.id,
-              if (e.relatedEventId != null) 'relatedEventId': e.relatedEventId,
-              if (e.targetAnchor?.role != null) 'role': e.targetAnchor!.role,
-              if (e.targetAnchor?.canonicalPath != null)
-                'path': e.targetAnchor!.canonicalPath,
-              'data': e.data,
-            })
+        .where(
+          (e) =>
+              e.type == 'scroll_start' ||
+              e.type == 'scroll_end' ||
+              e.type == 'swipe',
+        )
+        .map(
+          (e) => {
+            'type': e.type,
+            'id': e.id,
+            if (e.relatedEventId != null) 'relatedEventId': e.relatedEventId,
+            if (e.targetAnchor?.role != null) 'role': e.targetAnchor!.role,
+            if (e.targetAnchor?.canonicalPath != null)
+              'path': e.targetAnchor!.canonicalPath,
+            'data': e.data,
+          },
+        )
         .toList();
 
     // ignore: avoid_print
@@ -127,8 +140,10 @@ void main() {
     // ignore: avoid_print
     print(const JsonEncoder.withIndent('  ').convert(interesting));
 
-    expect(interesting.where((e) => e['type'] == 'scroll_start').length,
-        greaterThanOrEqualTo(2));
+    expect(
+      interesting.where((e) => e['type'] == 'scroll_start').length,
+      greaterThanOrEqualTo(2),
+    );
     expect(interesting.where((e) => e['type'] == 'swipe'), isNotEmpty);
 
     // Hero-image drag is inside the outer ListView: parent scroll fires with

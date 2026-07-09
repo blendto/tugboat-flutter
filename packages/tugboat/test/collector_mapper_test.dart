@@ -71,14 +71,8 @@ void main() {
     expect(mapped['userId'], 'user_1');
     expect(mapped['eventType'], 'tap');
     expect(mapped['beforeFrame'], 'frame-3');
-    expect(
-      (mapped['stateAnchor'] as Map)['signature'],
-      '23f17a629520d522',
-    );
-    expect(
-      (mapped['targetAnchor'] as Map)['fingerprint'],
-      '9eadb7c56ae836bc',
-    );
+    expect((mapped['stateAnchor'] as Map)['signature'], '23f17a629520d522');
+    expect((mapped['targetAnchor'] as Map)['fingerprint'], '9eadb7c56ae836bc');
     expect(mapped['actionId'], 'A-1');
     expect(mapped['explorationRunId'], 'run-1');
     expect((mapped['payload'] as Map)['x'], 100);

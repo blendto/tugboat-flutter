@@ -29,6 +29,7 @@ class TugboatReplay {
   static bool _activated = false;
   static String? _activeSessionId;
   static TugboatCaptureProfile? _activeProfile;
+  static bool _disabled = false;
 
   static TugboatReplayController? get controller => _controller;
   static GlobalKey get boundaryKey => _boundaryKey;
@@ -36,11 +37,29 @@ class TugboatReplay {
   static String? get activeSessionId => _activeSessionId;
   static TugboatCaptureProfile? get activeProfile => _activeProfile;
 
+  /// When `true`, the SDK is fully inert (no capture, no wrapping overhead).
+  ///
+  /// Setting this to `true` tears down any active session. Intended for remote
+  /// config or feature-flag kill switches.
+  static bool get disabled => _disabled;
+
+  static set disabled(bool value) {
+    if (value == _disabled) return;
+    _disabled = value;
+    if (value) {
+      deactivate();
+    }
+  }
+
+  /// Whether capture machinery is allowed to run ([disabled] is `false`).
+  static bool get isEnabled => !_disabled;
+
   /// Enables capture machinery for dormant builds at runtime.
   static void activate({
     required String sessionId,
     TugboatCaptureProfile profile = TugboatCaptureProfile.productionLean,
   }) {
+    if (_disabled) return;
     _activated = true;
     _activeSessionId = sessionId;
     _activeProfile = profile;
@@ -63,6 +82,9 @@ class TugboatReplay {
     required Widget child,
     TugboatReplayConfig config = const TugboatReplayConfig(),
   }) {
+    if (_disabled) {
+      return child;
+    }
     final effectiveProfile = _activeProfile ?? config.profile;
     if (effectiveProfile == TugboatCaptureProfile.dormant && !_activated) {
       return child;
@@ -76,29 +98,34 @@ class TugboatReplay {
 
 class TugboatNavigatorObserver extends NavigatorObserver {
   void _syncContext() {
+    if (TugboatReplay.disabled) return;
     TugboatReplay.controller?.navigatorContext = navigator?.context;
   }
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (TugboatReplay.disabled) return;
     _syncContext();
     TugboatReplay.controller?.route('route_push', route);
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (TugboatReplay.disabled) return;
     _syncContext();
     TugboatReplay.controller?.route('route_pop', previousRoute);
   }
 
   @override
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (TugboatReplay.disabled) return;
     _syncContext();
     TugboatReplay.controller?.route('route_replace', newRoute);
   }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (TugboatReplay.disabled) return;
     _syncContext();
     TugboatReplay.controller?.route('route_remove', previousRoute);
   }
@@ -218,8 +245,7 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot> {
         else
           Listener(
             behavior: HitTestBehavior.translucent,
-            onPointerDown: (event) =>
-                inputCapture?.handlePointerDown(event),
+            onPointerDown: (event) => inputCapture?.handlePointerDown(event),
             onPointerMove: (event) => inputCapture?.handlePointerMove(event),
             onPointerUp: (event) => inputCapture?.handlePointerUp(event),
             onPointerCancel: (event) =>

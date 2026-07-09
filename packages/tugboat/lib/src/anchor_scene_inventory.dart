@@ -1,7 +1,6 @@
 part of 'anchors.dart';
 
 extension TugboatSceneInventoryApi on AnchorResolver {
-
   /// Minimum normalized paint area for tokenized [Text] widgets to qualify as
   /// content-tier inventory entries.
   static const double _largeTextAreaThreshold = 0.02;
@@ -465,4 +464,3 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     return bounds.width * bounds.height >= _largeTextAreaThreshold;
   }
 }
-

@@ -16,10 +16,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
     required TugboatCollectorConfig config,
     http.Client? client,
   }) : _config = config,
-       _client = client ?? http.Client();
+       _client = _CollectorHttpClient(
+         inner: client ?? http.Client(),
+         apiKey: config.apiKey,
+       );
 
   final TugboatCollectorConfig _config;
-  final http.Client _client;
+  final _CollectorHttpClient _client;
 
   bool _disposed = false;
   TugboatSession? _session;
@@ -30,11 +33,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
   final List<List<Map<String, Object?>>> _retryBatches = [];
 
   Uri get _baseUri => Uri.parse(_config.baseUrl.replaceAll(RegExp(r'/+$'), ''));
-
-  Map<String, String> get _headers => {
-    'X-Tugboat-API-Key': _config.apiKey,
-    'Content-Type': 'application/json',
-  };
 
   @override
   void startSession(TugboatSession session) {
@@ -125,7 +123,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _flushTimer = null;
   }
 
-  Future<void> _postSessionLifecycle(String eventType, DateTime triggeredAt) async {
+  Future<void> _postSessionLifecycle(
+    String eventType,
+    DateTime triggeredAt,
+  ) async {
     final session = _session;
     if (session == null) return;
 
@@ -140,7 +141,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
     try {
       final response = await _client.post(
         _baseUri.resolve('/v1/sessions'),
-        headers: _headers,
         body: jsonEncode(body),
       );
 
@@ -200,7 +200,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
     try {
       final response = await _client.post(
         _baseUri.resolve('/v1/events/batch'),
-        headers: _headers,
         body: jsonEncode({'events': events}),
       );
 
@@ -224,7 +223,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
       'POST',
       _baseUri.resolve('/v1/frames'),
     );
-    request.headers['X-Tugboat-API-Key'] = _config.apiKey;
     request.fields['sessionId'] = uploads.first.sessionId;
     request.fields['frameNos'] = uploads
         .map((upload) => upload.frameNo.toString())
@@ -256,6 +254,30 @@ class CollectorHttpSink implements TugboatCaptureSink {
   }
 
   bool _shouldRetry(int statusCode) => statusCode == 503 || statusCode == 429;
+}
+
+class _CollectorHttpClient extends http.BaseClient {
+  _CollectorHttpClient({required http.Client inner, required String apiKey})
+    : _inner = inner,
+      _defaultHeaders = {
+        'X-PMKit-API-Key': apiKey,
+        'X-Tugboat-API-Key': apiKey,
+        'Content-Type': 'application/json',
+      };
+
+  final http.Client _inner;
+  final Map<String, String> _defaultHeaders;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    for (final entry in _defaultHeaders.entries) {
+      request.headers.putIfAbsent(entry.key, () => entry.value);
+    }
+    return _inner.send(request);
+  }
+
+  @override
+  void close() => _inner.close();
 }
 
 class _PendingFrameUpload {

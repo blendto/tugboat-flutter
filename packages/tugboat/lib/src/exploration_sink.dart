@@ -40,12 +40,7 @@ class ExplorationCaptureSink implements TugboatCaptureSink {
     required String sessionId,
     String? actionId,
   }) {
-    transport.sendFrame(
-      frame,
-      bytes,
-      sessionId: sessionId,
-      actionId: actionId,
-    );
+    transport.sendFrame(frame, bytes, sessionId: sessionId, actionId: actionId);
   }
 
   @override

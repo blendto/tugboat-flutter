@@ -391,8 +391,7 @@ void main() {
           .where((event) => event.type == 'tap')
           .last;
       final resolution =
-          tapEvent.data['viewportSemanticResolution']
-              as Map<Object?, Object?>?;
+          tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
       expect(resolution, isNotNull);
       expect(resolution!['status'], 'matched_actionable');
       // Verdict payload must remain text-free.
