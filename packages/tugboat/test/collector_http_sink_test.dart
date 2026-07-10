@@ -27,6 +27,7 @@ void main() {
       version: '1.0.0',
       buildNumber: '1',
       installationId: 'inst_1',
+      appId: 'com.example.app',
     ),
     deviceInfo: const TugboatCollectorDeviceInfo(
       id: 'device_client',
@@ -342,8 +343,7 @@ void main() {
 
     final deliveredIds = [
       for (final batch in batchPosts)
-        for (final event in batch)
-          event['id'] as String,
+        for (final event in batch) event['id'] as String,
     ];
     expect(deliveredIds, containsAll(['event-28', 'event-29']));
     expect(deliveredIds, isNot(contains('event-0')));

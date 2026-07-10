@@ -602,6 +602,7 @@ void main() {
       version: '1.2.3',
       buildNumber: '42',
       installationId: 'install-1',
+      appId: 'com.example.app',
     );
     final session = TugboatSession(
       id: 's1',

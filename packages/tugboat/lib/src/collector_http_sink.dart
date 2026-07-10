@@ -22,6 +22,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
          platform: config.deviceInfo.platform,
          buildNumber: config.appInfo.buildNumber,
          versionName: config.appInfo.version,
+         appId: config.appInfo.appId,
        );
 
   final TugboatCollectorConfig _config;
@@ -360,6 +361,7 @@ class _CollectorHttpClient extends http.BaseClient {
     required String platform,
     required String buildNumber,
     required String versionName,
+    required String appId,
   }) : _inner = inner,
        _defaultHeaders = {
          'X-PMKit-API-Key': apiKey,
@@ -367,6 +369,7 @@ class _CollectorHttpClient extends http.BaseClient {
          'X-Platform': platform,
          'X-App-Build': buildNumber,
          'X-App-Version': versionName,
+         'X-App-Id': appId,
        };
 
   static const _jsonHeaders = {'Content-Type': 'application/json'};

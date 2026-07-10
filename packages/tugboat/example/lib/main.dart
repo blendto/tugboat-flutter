@@ -31,6 +31,7 @@ class ReplayDemoApp extends StatelessWidget {
             version: '1.0.0',
             buildNumber: '1',
             installationId: 'demo-installation',
+            appId: 'com.example.tugboat.demo',
           ),
           // Standalone HTTP collector for production ingestion.
           collector: _productionCollector,
