@@ -160,9 +160,7 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     final role = _semanticsRoleFromData(data);
     // Nodes that don't declare an enabled state are unknown (null), not
     // disabled; treating them as disabled skews tap resolution.
-    final bool? enabled = data.flagsCollection.hasEnabledState
-        ? data.flagsCollection.isEnabled
-        : null;
+    final bool? enabled = semanticsEnabledFromFlags(data.flagsCollection);
     final scrollable = _semanticsNodeIsScrollable(data);
     final hasReadableContent =
         data.label.isNotEmpty || data.value.isNotEmpty || data.hint.isNotEmpty;

@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'markers.dart';
+import 'semantics_flags_compat.dart';
 
 part 'anchor_fingerprint.dart';
 part 'anchor_models.dart';
