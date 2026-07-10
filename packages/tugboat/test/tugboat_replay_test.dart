@@ -48,6 +48,52 @@ bool _containsLabelTelemetry(Object? value) {
 }
 
 void main() {
+  testWidgets('detached lifecycle emits session_end once', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: const SizedBox.expand(),
+      ),
+    );
+    await tester.pump();
+
+    final session = TugboatReplay.controller!.session!;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.detached);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.detached);
+    await tester.pump();
+
+    expect(
+      session.events.where((event) => event.type == 'session_end'),
+      hasLength(1),
+    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+  });
+
+  testWidgets('paused lifecycle does not emit session_end', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: const SizedBox.expand(),
+      ),
+    );
+    await tester.pump();
+
+    final session = TugboatReplay.controller!.session!;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(
+      session.events.where((event) => event.type == 'session_end'),
+      isEmpty,
+    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+  });
+
   testWidgets('captures initial screenshot and tap interaction anchors', (
     tester,
   ) async {

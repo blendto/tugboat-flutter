@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
@@ -28,9 +29,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
   TugboatSession? _session;
   String? _collectorSessionId;
   Timer? _flushTimer;
+  Future<void>? _flushInFlight;
+  bool _framesNeedRetry = false;
   final List<Map<String, Object?>> _pendingEvents = [];
   final List<_PendingFrameUpload> _pendingFrames = [];
   final List<List<Map<String, Object?>>> _retryBatches = [];
+  _PendingSessionLifecycle? _pendingLifecycle;
+  _PendingSessionLifecycle? _pendingLifecycleTail;
 
   Uri get _baseUri => Uri.parse(_config.baseUrl.replaceAll(RegExp(r'/+$'), ''));
 
@@ -40,13 +45,14 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _session = session;
     _collectorSessionId = session.id;
     _scheduleFlushTimer();
-    unawaited(_postSessionLifecycle('session_start', session.startedAt));
+    _enqueueSessionLifecycle('session_start', session.startedAt);
+    unawaited(_flushLifecyclePosts());
   }
 
   @override
   void recordEvent(TugboatEvent event) {
     if (_disposed || _session == null) return;
-    if (event.type == 'session_start') {
+    if (event.type == 'session_start' || event.type == 'session_end') {
       // Lifecycle is sent through POST /v1/sessions.
       return;
     }
@@ -60,6 +66,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
         userId: _config.userId,
       ),
     );
+    _trimPendingEvents();
 
     if (_pendingEvents.length >= _config.eventBatchSize) {
       unawaited(flush());
@@ -81,22 +88,35 @@ class CollectorHttpSink implements TugboatCaptureSink {
         sessionId: _collectorSessionId ?? sessionId,
       ),
     );
-    unawaited(_flushFrames());
+    _trimPendingFrames();
+    // While a frame upload is retrying, rely on the periodic flush timer.
+    if (!_framesNeedRetry) {
+      unawaited(flush());
+    }
   }
 
   @override
-  Future<void> flush() async {
-    if (_disposed) return;
-    await _flushEventBatch();
-    await _flushFrames();
-    await _flushRetryBatches();
+  Future<void> flush() {
+    if (_disposed) return Future<void>.value();
+    final active = _flushInFlight;
+    if (active != null) return active;
+
+    late final Future<void> operation;
+    operation = _flushOnce().whenComplete(() {
+      if (identical(_flushInFlight, operation)) {
+        _flushInFlight = null;
+      }
+    });
+    _flushInFlight = operation;
+    return operation;
   }
 
   @override
   Future<void> endSession() async {
     if (_disposed || _session == null) return;
     await flush();
-    await _postSessionLifecycle('session_end', DateTime.now());
+    _enqueueSessionLifecycle('session_end', DateTime.now());
+    await _drainLifecyclePosts();
     _cancelFlushTimer();
   }
 
@@ -108,6 +128,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingEvents.clear();
     _pendingFrames.clear();
     _retryBatches.clear();
+    _pendingLifecycle = null;
+    _pendingLifecycleTail = null;
+    _flushInFlight = null;
     _session = null;
   }
 
@@ -123,12 +146,47 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _flushTimer = null;
   }
 
-  Future<void> _postSessionLifecycle(
+  void _enqueueSessionLifecycle(String eventType, DateTime triggeredAt) {
+    final post = _PendingSessionLifecycle(
+      eventType: eventType,
+      triggeredAt: triggeredAt,
+    );
+    if (_pendingLifecycle == null) {
+      _pendingLifecycle = post;
+      return;
+    }
+    _pendingLifecycleTail = post;
+  }
+
+  Future<void> _drainLifecyclePosts() async {
+    while (!_disposed &&
+        (_pendingLifecycle != null || _pendingLifecycleTail != null)) {
+      await _flushLifecyclePosts();
+      if (_pendingLifecycle != null) return;
+    }
+  }
+
+  Future<void> _flushLifecyclePosts() async {
+    final pending = _pendingLifecycle;
+    if (pending == null || _disposed) return;
+
+    final result = await _sendSessionLifecycle(
+      pending.eventType,
+      pending.triggeredAt,
+    );
+    if (_disposed) return;
+    if (result == _SendResult.accepted) {
+      _pendingLifecycle = _pendingLifecycleTail;
+      _pendingLifecycleTail = null;
+    }
+  }
+
+  Future<_SendResult> _sendSessionLifecycle(
     String eventType,
     DateTime triggeredAt,
   ) async {
     final session = _session;
-    if (session == null) return;
+    if (session == null) return _SendResult.accepted;
 
     final body = mapTugboatSessionLifecycleToCollectorSession(
       eventType: eventType,
@@ -145,47 +203,43 @@ class CollectorHttpSink implements TugboatCaptureSink {
         body: jsonEncode(body),
       );
 
-      if (_shouldRetry(response.statusCode)) {
-        return;
-      }
-
-      if (response.statusCode == 202) {
+      final result = _classifyResponse(response.statusCode);
+      if (result == _SendResult.accepted) {
         final decoded = jsonDecode(response.body) as Map<String, dynamic>;
         final sessionId = decoded['sessionId'] as String?;
         if (sessionId != null && sessionId.isNotEmpty) {
           _collectorSessionId = sessionId;
         }
       }
+      return result;
     } catch (_) {
-      // Best-effort ingestion only.
+      return _SendResult.retry;
     }
   }
 
   Future<void> _flushEventBatch() async {
     if (_pendingEvents.isEmpty) return;
 
-    final batch = List<Map<String, Object?>>.from(_pendingEvents);
-    _pendingEvents.clear();
+    final count = _pendingEvents.length < _config.eventBatchSize
+        ? _pendingEvents.length
+        : _config.eventBatchSize;
+    final batch = _pendingEvents.sublist(0, count);
+    _pendingEvents.removeRange(0, count);
 
-    final success = await _sendEventBatch(batch);
-    if (!success) {
+    final result = await _sendEventBatch(batch);
+    if (_disposed) return;
+    if (result == _SendResult.retry) {
       _enqueueRetryBatch(batch);
     }
   }
 
   Future<void> _flushRetryBatches() async {
-    if (_retryBatches.isEmpty) return;
-
-    final remaining = <List<Map<String, Object?>>>[];
-    for (final batch in _retryBatches) {
-      final success = await _sendEventBatch(batch);
-      if (!success) {
-        remaining.add(batch);
-      }
+    while (_retryBatches.isNotEmpty) {
+      final result = await _sendEventBatch(_retryBatches.first);
+      if (_disposed) return;
+      if (result == _SendResult.retry) return;
+      _retryBatches.removeAt(0);
     }
-    _retryBatches
-      ..clear()
-      ..addAll(remaining);
   }
 
   void _enqueueRetryBatch(List<Map<String, Object?>> batch) {
@@ -195,8 +249,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     }
   }
 
-  Future<bool> _sendEventBatch(List<Map<String, Object?>> events) async {
-    if (events.isEmpty) return true;
+  Future<_SendResult> _sendEventBatch(List<Map<String, Object?>> events) async {
+    if (events.isEmpty) return _SendResult.accepted;
 
     try {
       final response = await _client.post(
@@ -205,14 +259,22 @@ class CollectorHttpSink implements TugboatCaptureSink {
         body: jsonEncode({'events': events}),
       );
 
-      if (_shouldRetry(response.statusCode)) {
-        return false;
-      }
-
-      return response.statusCode == 202;
+      return _classifyResponse(response.statusCode);
     } catch (_) {
-      return false;
+      return _SendResult.retry;
     }
+  }
+
+  Future<void> _flushOnce() async {
+    await _flushLifecyclePosts();
+    if (_retryBatches.isNotEmpty) {
+      // Try the retry head once, but keep draining fresh events below.
+      await _flushRetryBatches();
+    }
+    while (_pendingEvents.isNotEmpty) {
+      await _flushEventBatch();
+    }
+    await _flushFrames();
   }
 
   Future<void> _flushFrames() async {
@@ -244,19 +306,50 @@ class CollectorHttpSink implements TugboatCaptureSink {
     try {
       final streamed = await _client.send(request);
       final response = await http.Response.fromStream(streamed);
-      if (_shouldRetry(response.statusCode)) {
+      if (_disposed) return;
+      final result = _classifyResponse(response.statusCode);
+      _framesNeedRetry = result == _SendResult.retry;
+      if (_framesNeedRetry) {
         _pendingFrames.insertAll(0, uploads);
+        _trimPendingFrames();
       }
     } catch (_) {
+      if (_disposed) return;
+      _framesNeedRetry = true;
       _pendingFrames.insertAll(0, uploads);
-      while (_pendingFrames.length > _config.maxPendingBatches * 10) {
-        _pendingFrames.removeAt(0);
-      }
+      _trimPendingFrames();
     }
   }
 
-  bool _shouldRetry(int statusCode) => statusCode == 503 || statusCode == 429;
+  void _trimPendingEvents() {
+    if (_pendingEvents.length <= _config.maxPendingEvents) return;
+    final dropped = _pendingEvents.length - _config.maxPendingEvents;
+    _pendingEvents.removeRange(0, dropped);
+    debugPrint(
+      '[tugboat] collector dropped $dropped pending event(s) due to backpressure',
+    );
+  }
+
+  void _trimPendingFrames() {
+    if (_pendingFrames.length <= _config.maxPendingFrames) return;
+    final dropped = _pendingFrames.length - _config.maxPendingFrames;
+    _pendingFrames.removeRange(0, dropped);
+    debugPrint(
+      '[tugboat] collector dropped $dropped pending frame(s) due to backpressure',
+    );
+  }
+
+  _SendResult _classifyResponse(int statusCode) {
+    if (statusCode == 202) return _SendResult.accepted;
+    if (_shouldRetry(statusCode)) return _SendResult.retry;
+    return _SendResult.drop;
+  }
+
+  bool _shouldRetry(int statusCode) =>
+      statusCode == 408 || statusCode == 429 || statusCode >= 500;
 }
+
+enum _SendResult { accepted, retry, drop }
 
 class _CollectorHttpClient extends http.BaseClient {
   _CollectorHttpClient({required http.Client inner, required String apiKey})
@@ -281,6 +374,16 @@ class _CollectorHttpClient extends http.BaseClient {
 
   @override
   void close() => _inner.close();
+}
+
+class _PendingSessionLifecycle {
+  const _PendingSessionLifecycle({
+    required this.eventType,
+    required this.triggeredAt,
+  });
+
+  final String eventType;
+  final DateTime triggeredAt;
 }
 
 class _PendingFrameUpload {

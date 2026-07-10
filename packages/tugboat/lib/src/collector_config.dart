@@ -12,6 +12,7 @@ class TugboatCollectorAppInfo {
   final String version;
   final String buildNumber;
   final String installationId;
+
   /// Native package / bundle identifier (e.g. `to.blend.mobile_app`).
   final String? packageName;
 
@@ -135,8 +136,10 @@ class TugboatCollectorConfig {
     required this.locale,
     this.userId,
     this.eventBatchSize = 10,
-    this.eventFlushInterval = const Duration(seconds: 5),
+    this.eventFlushInterval = const Duration(seconds: 3),
     this.maxPendingBatches = 20,
+    this.maxPendingEvents = 60,
+    this.maxPendingFrames = 20,
   });
 
   final String baseUrl;
@@ -149,4 +152,6 @@ class TugboatCollectorConfig {
   final int eventBatchSize;
   final Duration eventFlushInterval;
   final int maxPendingBatches;
+  final int maxPendingEvents;
+  final int maxPendingFrames;
 }

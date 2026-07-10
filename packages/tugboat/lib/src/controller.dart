@@ -130,6 +130,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   final Stopwatch _clock = Stopwatch();
   Future<void> _queue = Future.value();
+  Future<void>? _endSessionFuture;
 
   TugboatSession? _session;
   ScreenshotCapturer? _capturer;
@@ -299,20 +300,45 @@ class TugboatReplayController extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_disposed) return;
+    final hub = _sinkHub;
+    final ending = endSession();
     _disposed = true;
     _semanticsHandle?.dispose();
     _semanticsHandle = null;
-    final hub = _sinkHub;
     _sinkHub = null;
     _session = null;
     _scheduledCapture = null;
     if (hub != null) {
-      unawaited(hub.endSession());
-      hub.dispose();
+      unawaited(ending.whenComplete(hub.dispose));
     }
     _explorationSink = null;
     _collectorHttpSink = null;
     super.dispose();
+  }
+
+  /// Emits the final timeline event and flushes lifecycle output once.
+  Future<void> endSession() {
+    final active = _endSessionFuture;
+    if (active != null) return active;
+    if (_session == null) return Future<void>.value();
+
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'session_end',
+        stateAnchor: _currentStateAnchor,
+      ),
+    );
+    final future = _sinkHub?.endSession() ?? Future<void>.value();
+    _endSessionFuture = future;
+    return future;
+  }
+
+  /// Pushes buffered capture output without closing the session.
+  Future<void> flushCapture() {
+    return _sinkHub?.flush() ?? Future<void>.value();
   }
 
   void setCapturePaused(bool paused) {
@@ -320,6 +346,7 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   void start(Size viewport, String platform) {
+    _endSessionFuture = null;
     _clock
       ..reset()
       ..start();

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -141,13 +142,18 @@ class _TugboatReplayRoot extends StatefulWidget {
   State<_TugboatReplayRoot> createState() => _TugboatReplayRootState();
 }
 
-class _TugboatReplayRootState extends State<_TugboatReplayRoot> {
+class _TugboatReplayRootState extends State<_TugboatReplayRoot>
+    with WidgetsBindingObserver {
+  static const _backgroundFlushDelay = Duration(milliseconds: 500);
+
   late final TugboatReplayController controller;
   InputCapture? inputCapture;
+  Timer? _backgroundFlushTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     controller = TugboatReplayController(
       config: widget.config,
       boundaryKey: TugboatReplay._boundaryKey,
@@ -158,6 +164,35 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot> {
       rootKey: TugboatReplay._boundaryKey,
     );
     _scheduleSessionStart();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        _scheduleBackgroundFlush();
+      case AppLifecycleState.resumed:
+        _cancelBackgroundFlush();
+      case AppLifecycleState.detached:
+        _cancelBackgroundFlush();
+        unawaited(controller.endSession());
+      case AppLifecycleState.inactive:
+        break;
+    }
+  }
+
+  void _scheduleBackgroundFlush() {
+    _backgroundFlushTimer?.cancel();
+    _backgroundFlushTimer = Timer(_backgroundFlushDelay, () {
+      _backgroundFlushTimer = null;
+      unawaited(controller.flushCapture());
+    });
+  }
+
+  void _cancelBackgroundFlush() {
+    _backgroundFlushTimer?.cancel();
+    _backgroundFlushTimer = null;
   }
 
   void _scheduleSessionStart() {
@@ -197,6 +232,8 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot> {
 
   @override
   void dispose() {
+    _cancelBackgroundFlush();
+    WidgetsBinding.instance.removeObserver(this);
     inputCapture?.dispose();
     if (identical(TugboatReplay._controller, controller)) {
       TugboatReplay._controller = null;

@@ -13,6 +13,9 @@ void main() {
   final sessionPosts = <Map<String, dynamic>>[];
   final batchPosts = <List<Map<String, dynamic>>>[];
   final framePosts = <Map<String, dynamic>>[];
+  var eventStatus = 202;
+  var frameStatus = 202;
+  var sessionStatus = 202;
 
   final collectorConfig = TugboatCollectorConfig(
     baseUrl: 'http://127.0.0.1:0',
@@ -41,6 +44,9 @@ void main() {
     sessionPosts.clear();
     batchPosts.clear();
     framePosts.clear();
+    eventStatus = 202;
+    frameStatus = 202;
+    sessionStatus = 202;
 
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     baseUri = Uri.parse('http://127.0.0.1:${server.port}');
@@ -51,7 +57,7 @@ void main() {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         sessionPosts.add(Map<String, dynamic>.from(body));
         request.response
-          ..statusCode = 202
+          ..statusCode = sessionStatus
           ..write(jsonEncode({'accepted': true, 'sessionId': 'sess_server'}));
       } else if (path == '/v1/events/batch') {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
@@ -60,7 +66,7 @@ void main() {
             .toList();
         batchPosts.add(events);
         request.response
-          ..statusCode = 202
+          ..statusCode = eventStatus
           ..write(
             jsonEncode({
               'accepted': true,
@@ -75,12 +81,17 @@ void main() {
           BytesBuilder(),
           (builder, data) => builder..add(data),
         );
+        final bytes = bodyBytes.takeBytes();
+        final encodedBody = latin1.decode(bytes);
         framePosts.add({
           'contentType': contentType?.mimeType,
-          'bytes': bodyBytes.takeBytes(),
+          'bytes': bytes,
+          'frameNos': RegExp(
+            r'filename="(\d+)\.png"',
+          ).allMatches(encodedBody).map((match) => match.group(1)).toList(),
         });
         request.response
-          ..statusCode = 202
+          ..statusCode = frameStatus
           ..write(
             jsonEncode({
               'accepted': true,
@@ -98,12 +109,19 @@ void main() {
     await server.close(force: true);
   });
 
-  TugboatCollectorConfig configForServer() {
+  TugboatCollectorConfig configForServer({
+    int maxPendingBatches = 20,
+    int maxPendingEvents = 200,
+    int maxPendingFrames = 50,
+  }) {
     return TugboatCollectorConfig(
       baseUrl: baseUri.toString(),
       apiKey: collectorConfig.apiKey,
       eventBatchSize: collectorConfig.eventBatchSize,
       eventFlushInterval: collectorConfig.eventFlushInterval,
+      maxPendingBatches: maxPendingBatches,
+      maxPendingEvents: maxPendingEvents,
+      maxPendingFrames: maxPendingFrames,
       appInfo: collectorConfig.appInfo,
       deviceInfo: collectorConfig.deviceInfo,
       ipInfo: collectorConfig.ipInfo,
@@ -128,6 +146,20 @@ void main() {
       data: {'index': index},
     );
   }
+
+  test('collector defaults flush low-volume events every 3 seconds', () {
+    expect(
+      TugboatCollectorConfig(
+        baseUrl: baseUri.toString(),
+        apiKey: collectorConfig.apiKey,
+        appInfo: collectorConfig.appInfo,
+        deviceInfo: collectorConfig.deviceInfo,
+        ipInfo: collectorConfig.ipInfo,
+        locale: collectorConfig.locale,
+      ).eventFlushInterval,
+      const Duration(seconds: 3),
+    );
+  });
 
   test('posts session_start and batches events after 10 records', () async {
     final sink = CollectorHttpSink(config: configForServer());
@@ -222,6 +254,132 @@ void main() {
     expect(batchPosts, isNotEmpty);
     expect(batchPosts.first.length, lessThan(10));
 
+    sink.dispose();
+  });
+
+  test('endSession posts the final lifecycle event', () async {
+    final sink = CollectorHttpSink(config: configForServer());
+    sink.startSession(createSession());
+
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await sink.endSession();
+
+    expect(sessionPosts.map((post) => post['eventType']), [
+      'session_start',
+      'session_end',
+    ]);
+    sink.dispose();
+  });
+
+  test('session lifecycle retries after transient failure', () async {
+    sessionStatus = 503;
+    final sink = CollectorHttpSink(config: configForServer());
+    sink.startSession(createSession());
+
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts.map((post) => post['eventType']), ['session_start']);
+    expect(
+      sessionPosts.where((post) => post['eventType'] == 'session_end'),
+      isEmpty,
+    );
+
+    sessionStatus = 202;
+    await sink.endSession();
+
+    expect(sessionPosts.first['eventType'], 'session_start');
+    expect(sessionPosts.last['eventType'], 'session_end');
+    expect(
+      sessionPosts.where((post) => post['eventType'] == 'session_start').length,
+      greaterThanOrEqualTo(2),
+    );
+    sink.dispose();
+  });
+
+  test('fresh events flush even when retry head remains blocked', () async {
+    eventStatus = 503;
+    final sink = CollectorHttpSink(config: configForServer());
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    for (var i = 0; i < 10; i++) {
+      sink.recordEvent(createEvent(i));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    batchPosts.clear();
+    sink.recordEvent(createEvent(10));
+    sink.recordEvent(createEvent(11));
+
+    eventStatus = 202;
+    await sink.flush();
+
+    expect(batchPosts, hasLength(2));
+    expect(batchPosts.first.map((event) => event['id']), [
+      for (var i = 0; i < 10; i++) 'event-$i',
+    ]);
+    expect(batchPosts.last.map((event) => event['id']), [
+      'event-10',
+      'event-11',
+    ]);
+    sink.dispose();
+  });
+
+  test('event failures keep only a bounded in-memory tail', () async {
+    eventStatus = 503;
+    final sink = CollectorHttpSink(
+      config: configForServer(maxPendingBatches: 1, maxPendingEvents: 12),
+    );
+    sink.startSession(createSession());
+
+    for (var i = 0; i < 30; i++) {
+      sink.recordEvent(createEvent(i));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    batchPosts.clear();
+    eventStatus = 202;
+    await sink.flush();
+
+    final deliveredIds = [
+      for (final batch in batchPosts)
+        for (final event in batch)
+          event['id'] as String,
+    ];
+    expect(deliveredIds, containsAll(['event-28', 'event-29']));
+    expect(deliveredIds, isNot(contains('event-0')));
+    expect(deliveredIds.length, lessThanOrEqualTo(22));
+    sink.dispose();
+  });
+
+  test('frame failures keep only the configured in-memory tail', () async {
+    frameStatus = 503;
+    final sink = CollectorHttpSink(
+      config: configForServer(maxPendingFrames: 3),
+    );
+    final session = createSession();
+    sink.startSession(session);
+
+    for (var i = 0; i < 5; i++) {
+      sink.recordFrame(
+        TugboatFrame(
+          id: 'frame-$i',
+          atMs: i,
+          width: 1,
+          height: 1,
+          contentHash: 'hash-$i',
+        ),
+        Uint8List.fromList([i]),
+        sessionId: session.id,
+      );
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    framePosts.clear();
+    frameStatus = 202;
+    await sink.flush();
+
+    expect(framePosts, hasLength(1));
+    expect(framePosts.single['frameNos'], ['2', '3', '4']);
     sink.dispose();
   });
 }
