@@ -5,11 +5,8 @@ class TugboatCollectorAppInfo {
     required this.version,
     required this.buildNumber,
     required this.installationId,
-    String? appId,
-    @Deprecated('Use appId instead.') String? packageName,
-  }) : assert(appId != null || packageName != null, 'appId is required.'),
-       _appId = appId,
-       _packageName = packageName;
+    required this.appId,
+  });
 
   final String name;
   final String version;
@@ -17,13 +14,7 @@ class TugboatCollectorAppInfo {
   final String installationId;
 
   /// Native package / bundle identifier (e.g. `to.blend.mobile_app`).
-  String get appId => _appId ?? _packageName!;
-
-  final String? _appId;
-  final String? _packageName;
-
-  @Deprecated('Use appId instead.')
-  String? get packageName => _packageName;
+  final String appId;
 
   Map<String, Object?> toJson() => {
     'name': name,
@@ -31,7 +22,7 @@ class TugboatCollectorAppInfo {
     'buildNumber': buildNumber,
     'installationId': installationId,
     'appId': appId,
-    // TODO: Keeping packageName for backwards compatibility. Should be removed in a future release.
+    // Collector enrichment still resolves CG app id via packageName.
     'packageName': appId,
   };
 }

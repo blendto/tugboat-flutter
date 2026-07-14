@@ -199,10 +199,103 @@ void main() {
     expect(batchPosts.first, hasLength(10));
     expect(batchPosts.first.first['sessionId'], 'sess_server');
     expect(batchPosts.first.first['eventType'], 'tap');
+    expect(batchPosts.first.first['build'], isA<Map>());
+    expect(
+      (batchPosts.first.first['build'] as Map)['appId'],
+      collectorConfig.appInfo.appId,
+    );
 
     sink.dispose();
   });
 
+  test('holds event flushes until session_start is accepted', () async {
+    sessionStatus = 503;
+    final sink = CollectorHttpSink(
+      config: TugboatCollectorConfig(
+        baseUrl: baseUri.toString(),
+        apiKey: collectorConfig.apiKey,
+        eventBatchSize: 2,
+        eventFlushInterval: const Duration(hours: 1),
+        appInfo: collectorConfig.appInfo,
+        deviceInfo: collectorConfig.deviceInfo,
+        ipInfo: collectorConfig.ipInfo,
+        locale: collectorConfig.locale,
+      ),
+    );
+
+    final session = createSession();
+    sink.startSession(session);
+    sink.recordEvent(createEvent(0));
+    sink.recordEvent(createEvent(1));
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(batchPosts, isEmpty);
+
+    sessionStatus = 202;
+    await sink.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    expect(batchPosts, isNotEmpty);
+    expect(
+      batchPosts.expand((batch) => batch).every((event) => event['sessionId'] == 'sess_server'),
+      isTrue,
+    );
+    sink.dispose();
+  });
+
+  test('stamps collector session id on events at send time', () async {
+    sessionStatus = 503;
+    final sink = CollectorHttpSink(
+      config: TugboatCollectorConfig(
+        baseUrl: baseUri.toString(),
+        apiKey: collectorConfig.apiKey,
+        eventBatchSize: 5,
+        eventFlushInterval: const Duration(hours: 1),
+        appInfo: collectorConfig.appInfo,
+        deviceInfo: collectorConfig.deviceInfo,
+        ipInfo: collectorConfig.ipInfo,
+        locale: collectorConfig.locale,
+      ),
+    );
+
+    final session = createSession();
+    sink.startSession(session);
+    sink.recordEvent(createEvent(0));
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(batchPosts, isEmpty);
+
+    sessionStatus = 202;
+    await sink.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    expect(batchPosts, isNotEmpty);
+    expect(batchPosts.first.single['sessionId'], 'sess_server');
+    sink.dispose();
+  });
+
+  test('drops frames with malformed ids without throwing', () async {
+    final sink = CollectorHttpSink(config: configForServer());
+    final session = createSession();
+    sink.startSession(session);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    sink.recordFrame(
+      const TugboatFrame(
+        id: 'no-digits',
+        atMs: 0,
+        width: 1,
+        height: 1,
+        contentHash: 'hash',
+      ),
+      Uint8List.fromList([1]),
+      sessionId: session.id,
+    );
+    await sink.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(framePosts, isEmpty);
+    sink.dispose();
+  });
   test('skips duplicate session_start events in the event batch', () async {
     final sink = CollectorHttpSink(config: configForServer());
     final session = createSession();

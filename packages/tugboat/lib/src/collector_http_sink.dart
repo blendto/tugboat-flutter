@@ -30,6 +30,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   bool _disposed = false;
   TugboatSession? _session;
+  /// Collector-issued id; null until session_start is accepted.
   String? _collectorSessionId;
   Timer? _flushTimer;
   Future<void>? _flushInFlight;
@@ -42,14 +43,24 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   Uri get _baseUri => Uri.parse(_config.baseUrl.replaceAll(RegExp(r'/+$'), ''));
 
+  bool get _hasCollectorSessionId =>
+      _collectorSessionId != null && _collectorSessionId!.isNotEmpty;
+
   @override
   void startSession(TugboatSession session) {
     if (_disposed) return;
     _session = session;
-    _collectorSessionId = session.id;
+    // Clear any prior collector-issued id so a new session cannot route to the old one.
+    _collectorSessionId = null;
+    _pendingEvents.clear();
+    _pendingFrames.clear();
+    _retryBatches.clear();
+    _pendingLifecycle = null;
+    _pendingLifecycleTail = null;
+    _framesNeedRetry = false;
     _scheduleFlushTimer();
     _enqueueSessionLifecycle('session_start', session.startedAt);
-    unawaited(_flushLifecyclePosts());
+    unawaited(_kickFlush());
   }
 
   @override
@@ -61,11 +72,12 @@ class CollectorHttpSink implements TugboatCaptureSink {
     }
 
     final session = _session!;
+    // sessionId is stamped at send time once the collector id is known.
     _pendingEvents.add(
       mapTugboatEventToCollectorEvent(
         event: event,
-        sessionId: _collectorSessionId ?? session.id,
         sessionStartedAt: session.startedAt,
+        collectorConfig: _config,
         userId: _config.userId,
       ),
     );
@@ -84,13 +96,14 @@ class CollectorHttpSink implements TugboatCaptureSink {
     String? actionId,
   }) {
     if (_disposed) return;
-    _pendingFrames.add(
-      _PendingFrameUpload(
-        frameNo: frameNumberFromId(frame.id),
-        bytes: bytes,
-        sessionId: _collectorSessionId ?? sessionId,
-      ),
-    );
+    final frameNo = frameNumberFromId(frame.id);
+    if (frameNo == null) {
+      debugPrint(
+        '[tugboat] collector dropped frame with malformed id: ${frame.id}',
+      );
+      return;
+    }
+    _pendingFrames.add(_PendingFrameUpload(frameNo: frameNo, bytes: bytes));
     _trimPendingFrames();
     // While a frame upload is retrying, rely on the periodic flush timer.
     if (!_framesNeedRetry) {
@@ -114,6 +127,14 @@ class CollectorHttpSink implements TugboatCaptureSink {
     return operation;
   }
 
+  /// Wait for any in-flight flush, then run another so newly enqueued work is sent.
+  Future<void> _kickFlush() async {
+    final active = _flushInFlight;
+    if (active != null) await active;
+    if (_disposed) return;
+    await flush();
+  }
+
   @override
   Future<void> endSession() async {
     if (_disposed || _session == null) return;
@@ -135,6 +156,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingLifecycleTail = null;
     _flushInFlight = null;
     _session = null;
+    _collectorSessionId = null;
   }
 
   void _scheduleFlushTimer() {
@@ -164,7 +186,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<void> _drainLifecyclePosts() async {
     while (!_disposed &&
         (_pendingLifecycle != null || _pendingLifecycleTail != null)) {
-      await _flushLifecyclePosts();
+      await flush();
       if (_pendingLifecycle != null) return;
     }
   }
@@ -191,9 +213,14 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final session = _session;
     if (session == null) return _SendResult.accepted;
 
+    // session_start uses the local id; later lifecycle uses the collector id when known.
+    final sessionId = eventType == 'session_start'
+        ? session.id
+        : (_collectorSessionId ?? session.id);
+
     final body = mapTugboatSessionLifecycleToCollectorSession(
       eventType: eventType,
-      sessionId: _collectorSessionId ?? session.id,
+      sessionId: sessionId,
       triggeredAt: triggeredAt,
       config: _config,
       userId: _config.userId,
@@ -207,12 +234,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
       );
 
       final result = _classifyResponse(response.statusCode);
-      if (result == _SendResult.accepted) {
+      if (result == _SendResult.accepted && eventType == 'session_start') {
         final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-        final sessionId = decoded['sessionId'] as String?;
-        if (sessionId != null && sessionId.isNotEmpty) {
-          _collectorSessionId = sessionId;
-        }
+        final serverId = decoded['sessionId'] as String?;
+        _collectorSessionId =
+            (serverId != null && serverId.isNotEmpty) ? serverId : session.id;
       }
       return result;
     } catch (_) {
@@ -255,6 +281,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<_SendResult> _sendEventBatch(List<Map<String, Object?>> events) async {
     if (events.isEmpty) return _SendResult.accepted;
 
+    final sessionId = _collectorSessionId!;
+    for (final event in events) {
+      event['sessionId'] = sessionId;
+    }
+
     try {
       final response = await _client.post(
         _baseUri.resolve('/v1/events/batch'),
@@ -270,6 +301,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   Future<void> _flushOnce() async {
     await _flushLifecyclePosts();
+    // Never upload events or frames until the collector session id is known.
+    if (!_hasCollectorSessionId) {
+      return;
+    }
     if (_retryBatches.isNotEmpty) {
       // Try the retry head once, but keep draining fresh events below.
       await _flushRetryBatches();
@@ -283,14 +318,16 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<void> _flushFrames() async {
     if (_pendingFrames.isEmpty) return;
 
-    final uploads = List<_PendingFrameUpload>.from(_pendingFrames);
+    final uploads = List<_PendingFrameUpload>.from(_pendingFrames)
+      ..sort((a, b) => a.frameNo.compareTo(b.frameNo));
     _pendingFrames.clear();
 
+    final sessionId = _collectorSessionId!;
     final request = http.MultipartRequest(
       'POST',
       _baseUri.resolve('/v1/frames'),
     );
-    request.fields['sessionId'] = uploads.first.sessionId;
+    request.fields['sessionId'] = sessionId;
     request.fields['frameNos'] = uploads
         .map((upload) => upload.frameNo.toString())
         .join(',');
@@ -400,13 +437,8 @@ class _PendingSessionLifecycle {
 }
 
 class _PendingFrameUpload {
-  const _PendingFrameUpload({
-    required this.frameNo,
-    required this.bytes,
-    required this.sessionId,
-  });
+  const _PendingFrameUpload({required this.frameNo, required this.bytes});
 
   final int frameNo;
   final Uint8List bytes;
-  final String sessionId;
 }
