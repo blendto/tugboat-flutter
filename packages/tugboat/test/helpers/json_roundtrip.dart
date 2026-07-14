@@ -1,5 +1,4 @@
 import 'package:tugboat/tugboat.dart';
-import 'package:tugboat/src/anchors.dart';
 
 /// Test-only deserializers. The runtime SDK only emits JSON.
 extension TugboatNormalizedBoundsTestJson on TugboatNormalizedBounds {
@@ -137,6 +136,9 @@ extension TugboatSessionTestJson on TugboatSession {
               version: appInfoJson['version'] as String,
               buildNumber: appInfoJson['buildNumber'] as String,
               installationId: appInfoJson['installationId'] as String,
+              appId:
+                  (appInfoJson['appId'] ?? appInfoJson['packageName'])
+                      as String,
             ),
     )..truncated = sessionJson['truncated'] as bool? ?? false;
 

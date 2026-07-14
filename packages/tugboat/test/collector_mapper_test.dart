@@ -13,7 +13,7 @@ void main() {
       version: '1.0.0',
       buildNumber: '1',
       installationId: 'inst_1',
-      packageName: 'com.example.app',
+      appId: 'com.example.app',
     ),
     deviceInfo: const TugboatCollectorDeviceInfo(
       id: 'device_client',
@@ -93,7 +93,7 @@ void main() {
     expect(mapped['eventType'], 'session_start');
     expect(mapped['userId'], 'user_1');
     expect((mapped['appInfo'] as Map)['name'], 'Example App');
-    expect((mapped['appInfo'] as Map)['packageName'], 'com.example.app');
+    expect((mapped['appInfo'] as Map)['appId'], 'com.example.app');
     expect((mapped['device'] as Map)['platform'], 'ios');
     expect((mapped['ipInfo'] as Map)['ip'], '127.0.0.1');
     expect((mapped['locale'] as Map)['language'], 'en');

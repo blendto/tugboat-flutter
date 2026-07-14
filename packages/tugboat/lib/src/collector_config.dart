@@ -5,8 +5,11 @@ class TugboatCollectorAppInfo {
     required this.version,
     required this.buildNumber,
     required this.installationId,
-    this.packageName,
-  });
+    String? appId,
+    @Deprecated('Use appId instead.') String? packageName,
+  }) : assert(appId != null || packageName != null, 'appId is required.'),
+       _appId = appId,
+       _packageName = packageName;
 
   final String name;
   final String version;
@@ -14,14 +17,22 @@ class TugboatCollectorAppInfo {
   final String installationId;
 
   /// Native package / bundle identifier (e.g. `to.blend.mobile_app`).
-  final String? packageName;
+  String get appId => _appId ?? _packageName!;
+
+  final String? _appId;
+  final String? _packageName;
+
+  @Deprecated('Use appId instead.')
+  String? get packageName => _packageName;
 
   Map<String, Object?> toJson() => {
     'name': name,
     'version': version,
     'buildNumber': buildNumber,
     'installationId': installationId,
-    if (packageName != null) 'packageName': packageName,
+    'appId': appId,
+    // TODO: Keeping packageName for backwards compatibility. Should be removed in a future release.
+    'packageName': appId,
   };
 }
 

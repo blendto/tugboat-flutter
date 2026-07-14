@@ -13,6 +13,7 @@ void main() {
   final sessionPosts = <Map<String, dynamic>>[];
   final batchPosts = <List<Map<String, dynamic>>>[];
   final framePosts = <Map<String, dynamic>>[];
+  final headersByPath = <String, List<Map<String, String?>>>{};
   var eventStatus = 202;
   var frameStatus = 202;
   var sessionStatus = 202;
@@ -27,6 +28,7 @@ void main() {
       version: '1.0.0',
       buildNumber: '1',
       installationId: 'inst_1',
+      appId: 'com.example.app',
     ),
     deviceInfo: const TugboatCollectorDeviceInfo(
       id: 'device_client',
@@ -44,6 +46,7 @@ void main() {
     sessionPosts.clear();
     batchPosts.clear();
     framePosts.clear();
+    headersByPath.clear();
     eventStatus = 202;
     frameStatus = 202;
     sessionStatus = 202;
@@ -53,6 +56,12 @@ void main() {
 
     server.listen((request) async {
       final path = request.uri.path;
+      (headersByPath[path] ??= []).add({
+        'X-Platform': request.headers.value('X-Platform'),
+        'X-App-Build': request.headers.value('X-App-Build'),
+        'X-App-Version': request.headers.value('X-App-Version'),
+        'X-App-Id': request.headers.value('X-App-Id'),
+      });
       if (path == '/v1/sessions') {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         sessionPosts.add(Map<String, dynamic>.from(body));
@@ -147,6 +156,13 @@ void main() {
     );
   }
 
+  void expectCollectorHeaders(Map<String, String?> headers) {
+    expect(headers['X-Platform'], collectorConfig.deviceInfo.platform);
+    expect(headers['X-App-Build'], collectorConfig.appInfo.buildNumber);
+    expect(headers['X-App-Version'], collectorConfig.appInfo.version);
+    expect(headers['X-App-Id'], collectorConfig.appInfo.appId);
+  }
+
   test('collector defaults flush low-volume events every 3 seconds', () {
     expect(
       TugboatCollectorConfig(
@@ -230,6 +246,37 @@ void main() {
 
     sink.dispose();
   });
+
+  test(
+    'sends collector context headers on JSON and multipart requests',
+    () async {
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      sink.recordEvent(createEvent(0));
+      await sink.flush();
+
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-0',
+          atMs: 0,
+          width: 100,
+          height: 200,
+          contentHash: 'abc',
+        ),
+        Uint8List.fromList([1, 2, 3]),
+        sessionId: session.id,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expectCollectorHeaders(headersByPath['/v1/sessions']!.first);
+      expectCollectorHeaders(headersByPath['/v1/events/batch']!.first);
+      expectCollectorHeaders(headersByPath['/v1/frames']!.first);
+      sink.dispose();
+    },
+  );
 
   test('flush timer sends partial batches', () async {
     final sink = CollectorHttpSink(
@@ -342,8 +389,7 @@ void main() {
 
     final deliveredIds = [
       for (final batch in batchPosts)
-        for (final event in batch)
-          event['id'] as String,
+        for (final event in batch) event['id'] as String,
     ];
     expect(deliveredIds, containsAll(['event-28', 'event-29']));
     expect(deliveredIds, isNot(contains('event-0')));

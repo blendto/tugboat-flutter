@@ -769,8 +769,9 @@ class AnchorResolver {
     void visit(Element node, bool nodeSensitive) {
       if (label != null) return;
       final nodeWidget = node.widget;
-      if (tugboatHidesSubtree(nodeWidget) || nodeWidget is TugboatInternal)
+      if (tugboatHidesSubtree(nodeWidget) || nodeWidget is TugboatInternal) {
         return;
+      }
       final isNodeSensitive = nodeSensitive || nodeWidget is TugboatSensitive;
       if (isNodeSensitive) return;
 

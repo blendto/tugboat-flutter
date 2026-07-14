@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -20,6 +19,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
        _client = _CollectorHttpClient(
          inner: client ?? http.Client(),
          apiKey: config.apiKey,
+         platform: config.deviceInfo.platform,
+         buildNumber: config.appInfo.buildNumber,
+         versionName: config.appInfo.version,
+         appId: config.appInfo.appId,
        );
 
   final TugboatCollectorConfig _config;
@@ -352,12 +355,22 @@ class CollectorHttpSink implements TugboatCaptureSink {
 enum _SendResult { accepted, retry, drop }
 
 class _CollectorHttpClient extends http.BaseClient {
-  _CollectorHttpClient({required http.Client inner, required String apiKey})
-    : _inner = inner,
-      _defaultHeaders = {
-        'X-PMKit-API-Key': apiKey,
-        'X-Tugboat-API-Key': apiKey,
-      };
+  _CollectorHttpClient({
+    required http.Client inner,
+    required String apiKey,
+    required String platform,
+    required String buildNumber,
+    required String versionName,
+    required String appId,
+  }) : _inner = inner,
+       _defaultHeaders = {
+         'X-PMKit-API-Key': apiKey,
+         'X-Tugboat-API-Key': apiKey,
+         'X-Platform': platform,
+         'X-App-Build': buildNumber,
+         'X-App-Version': versionName,
+         'X-App-Id': appId,
+       };
 
   static const _jsonHeaders = {'Content-Type': 'application/json'};
 
