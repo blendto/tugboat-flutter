@@ -17,6 +17,8 @@ void main() {
   var eventStatus = 202;
   var frameStatus = 202;
   var sessionStatus = 202;
+  var eventResponseDelay = Duration.zero;
+  var frameResponseDelay = Duration.zero;
 
   final collectorConfig = TugboatCollectorConfig(
     baseUrl: 'http://127.0.0.1:0',
@@ -50,6 +52,8 @@ void main() {
     eventStatus = 202;
     frameStatus = 202;
     sessionStatus = 202;
+    eventResponseDelay = Duration.zero;
+    frameResponseDelay = Duration.zero;
 
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     baseUri = Uri.parse('http://127.0.0.1:${server.port}');
@@ -74,6 +78,9 @@ void main() {
             .map((event) => Map<String, dynamic>.from(event as Map))
             .toList();
         batchPosts.add(events);
+        if (eventResponseDelay > Duration.zero) {
+          await Future<void>.delayed(eventResponseDelay);
+        }
         request.response
           ..statusCode = eventStatus
           ..write(
@@ -99,6 +106,9 @@ void main() {
             r'filename="(\d+)\.png"',
           ).allMatches(encodedBody).map((match) => match.group(1)).toList(),
         });
+        if (frameResponseDelay > Duration.zero) {
+          await Future<void>.delayed(frameResponseDelay);
+        }
         request.response
           ..statusCode = frameStatus
           ..write(
@@ -138,9 +148,9 @@ void main() {
     );
   }
 
-  TugboatSession createSession() {
+  TugboatSession createSession({String id = 'session-local'}) {
     return TugboatSession(
-      id: 'session-local',
+      id: id,
       startedAt: DateTime.utc(2026, 6, 19),
       platform: 'ios',
       viewport: const TugboatRect(0, 0, 390, 844),
@@ -237,7 +247,9 @@ void main() {
 
     expect(batchPosts, isNotEmpty);
     expect(
-      batchPosts.expand((batch) => batch).every((event) => event['sessionId'] == 'sess_server'),
+      batchPosts
+          .expand((batch) => batch)
+          .every((event) => event['sessionId'] == 'sess_server'),
       isTrue,
     );
     sink.dispose();
@@ -272,6 +284,46 @@ void main() {
     expect(batchPosts.first.single['sessionId'], 'sess_server');
     sink.dispose();
   });
+
+  test(
+    'does not requeue stale event retries after a new session starts',
+    () async {
+      eventStatus = 503;
+      eventResponseDelay = const Duration(milliseconds: 80);
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      for (var i = 0; i < 10; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      while (batchPosts.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+
+      sink.startSession(createSession(id: 'session-new'));
+      batchPosts.clear();
+      eventStatus = 202;
+      eventResponseDelay = Duration.zero;
+      await Future<void>.delayed(const Duration(milliseconds: 140));
+
+      for (var i = 100; i < 110; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      await sink.flush();
+
+      final deliveredIds = [
+        for (final batch in batchPosts)
+          for (final event in batch) event['id'] as String,
+      ];
+      expect(
+        deliveredIds,
+        containsAll([for (var i = 100; i < 110; i++) 'event-$i']),
+      );
+      expect(deliveredIds, isNot(contains('event-0')));
+      sink.dispose();
+    },
+  );
 
   test('drops frames with malformed ids without throwing', () async {
     final sink = CollectorHttpSink(config: configForServer());
@@ -339,6 +391,57 @@ void main() {
 
     sink.dispose();
   });
+
+  test(
+    'does not requeue stale frame retries after a new session starts',
+    () async {
+      frameStatus = 503;
+      frameResponseDelay = const Duration(milliseconds: 80);
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-0',
+          atMs: 0,
+          width: 1,
+          height: 1,
+          contentHash: 'old',
+        ),
+        Uint8List.fromList([0]),
+        sessionId: session.id,
+      );
+      while (framePosts.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+
+      final nextSession = createSession(id: 'session-new');
+      sink.startSession(nextSession);
+      framePosts.clear();
+      frameStatus = 202;
+      frameResponseDelay = Duration.zero;
+      await Future<void>.delayed(const Duration(milliseconds: 140));
+
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-1',
+          atMs: 1,
+          width: 1,
+          height: 1,
+          contentHash: 'new',
+        ),
+        Uint8List.fromList([1]),
+        sessionId: nextSession.id,
+      );
+      await sink.flush();
+
+      expect(framePosts, hasLength(1));
+      expect(framePosts.single['frameNos'], ['1']);
+      sink.dispose();
+    },
+  );
 
   test(
     'sends collector context headers on JSON and multipart requests',

@@ -120,6 +120,21 @@ void main() {
     expect(mapped['fingerprintSchemaVersion'], tugboatFingerprintSchemaVersion);
   });
 
+  test('keeps deprecated packageName constructor compatibility', () {
+    const appInfo = TugboatCollectorAppInfo(
+      name: 'Example App',
+      version: '1.0.0',
+      buildNumber: '1',
+      installationId: 'inst_1',
+      // ignore: deprecated_member_use_from_same_package
+      packageName: 'com.example.legacy',
+    );
+
+    expect(appInfo.appId, 'com.example.legacy');
+    expect(appInfo.toJson()['appId'], 'com.example.legacy');
+    expect(appInfo.toJson()['packageName'], 'com.example.legacy');
+  });
+
   test('extracts frame numbers from tugboat frame ids', () {
     expect(frameNumberFromId('frame-0'), 0);
     expect(frameNumberFromId('frame-12'), 12);
