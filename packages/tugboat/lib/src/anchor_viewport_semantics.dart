@@ -5,6 +5,7 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
   /// enriched with scene inventory fingerprints when overlap is clear.
   TugboatViewportSemanticMap? buildViewportSemanticMap({
     required TugboatSceneInventory inventory,
+    bool allowTransientSemanticsHandle = true,
   }) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
@@ -23,21 +24,22 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     final semanticsAlreadyEnabled =
         initialPipelineOwner.semanticsOwner != null ||
         RendererBinding.instance.rootPipelineOwner.semanticsOwner != null;
-    final semanticsHandle = semanticsAlreadyEnabled
+    final semanticsHandle =
+        semanticsAlreadyEnabled || !allowTransientSemanticsHandle
         ? null
         : SemanticsBinding.instance.ensureSemantics();
     try {
       final pipelineOwner =
           rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
-      pipelineOwner.flushSemantics();
       final nodes = <TugboatViewportSemanticNode>[];
-      final rootNode =
-          pipelineOwner.semanticsOwner?.rootSemanticsNode ??
-          RendererBinding
-              .instance
-              .rootPipelineOwner
-              .semanticsOwner
-              ?.rootSemanticsNode;
+      SemanticsNode? rootNode;
+      final semanticsOwner =
+          pipelineOwner.semanticsOwner ??
+          RendererBinding.instance.rootPipelineOwner.semanticsOwner;
+      if (semanticsOwner != null) {
+        pipelineOwner.flushSemantics();
+        rootNode = semanticsOwner.rootSemanticsNode;
+      }
       void walk(SemanticsNode node, {required Matrix4 transformToRoot}) {
         if (node.id != 0) {
           final built = _viewportSemanticNodeFromSemantics(

@@ -120,7 +120,10 @@ class ViewportSemanticSession {
     if (!engineEnabled || resolver == null) return;
 
     final buildStopwatch = Stopwatch()..start();
-    final rawMap = resolver.buildViewportSemanticMap(inventory: inventory);
+    final rawMap = resolver.buildViewportSemanticMap(
+      inventory: inventory,
+      allowTransientSemanticsHandle: holdPersistentSemanticsHandle,
+    );
     buildStopwatch.stop();
     if (rawMap == null) {
       if (debugLogs) {
