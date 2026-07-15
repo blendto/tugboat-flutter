@@ -17,6 +17,7 @@ void main() {
   var eventStatus = 202;
   var frameStatus = 202;
   var sessionStatus = 202;
+  var sessionFailuresRemaining = 0;
   var eventResponseDelay = Duration.zero;
   var frameResponseDelay = Duration.zero;
 
@@ -52,6 +53,7 @@ void main() {
     eventStatus = 202;
     frameStatus = 202;
     sessionStatus = 202;
+    sessionFailuresRemaining = 0;
     eventResponseDelay = Duration.zero;
     frameResponseDelay = Duration.zero;
 
@@ -69,8 +71,14 @@ void main() {
       if (path == '/v1/sessions') {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         sessionPosts.add(Map<String, dynamic>.from(body));
+        final status = sessionFailuresRemaining > 0
+            ? (() {
+                sessionFailuresRemaining -= 1;
+                return 503;
+              })()
+            : sessionStatus;
         request.response
-          ..statusCode = sessionStatus
+          ..statusCode = status
           ..write(jsonEncode({'accepted': true, 'sessionId': 'sess_server'}));
       } else if (path == '/v1/events/batch') {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
@@ -535,6 +543,56 @@ void main() {
       sessionPosts.where((post) => post['eventType'] == 'session_start').length,
       greaterThanOrEqualTo(2),
     );
+    sink.dispose();
+  });
+
+  test(
+    'endSession drains session_end after session_start advances mid-drain',
+    () async {
+      sessionStatus = 503;
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'session_start'),
+        isNotEmpty,
+      );
+
+      // Fail endSession's first flush (session_start still pending), then allow
+      // drain to accept start and continue on to session_end.
+      sessionStatus = 202;
+      sessionFailuresRemaining = 1;
+      await sink.endSession();
+
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'session_end'),
+        isNotEmpty,
+      );
+      expect(sessionPosts.last['eventType'], 'session_end');
+      sink.dispose();
+    },
+  );
+
+  test('recordFrame drops frames with a stale sessionId', () async {
+    final sink = CollectorHttpSink(config: configForServer());
+    final session = createSession();
+    sink.startSession(session);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    sink.recordFrame(
+      const TugboatFrame(
+        id: 'frame-0',
+        atMs: 0,
+        width: 1,
+        height: 1,
+        contentHash: 'hash-0',
+      ),
+      Uint8List.fromList([0]),
+      sessionId: 'stale-session',
+    );
+    await sink.flush();
+
+    expect(framePosts, isEmpty);
     sink.dispose();
   });
 
