@@ -87,6 +87,7 @@ class TugboatReplayConfig {
     this.enableGlobalPointerCapture = true,
     this.explorationCollectorUrl,
     this.explorationRunId,
+    this.userId,
     this.appInfo,
     this.collector,
     this.screenshotMaskLevel,
@@ -108,6 +109,7 @@ class TugboatReplayConfig {
   final bool enableGlobalPointerCapture;
   final String? explorationCollectorUrl;
   final String? explorationRunId;
+  final String? userId;
   final TugboatCollectorAppInfo? appInfo;
   final TugboatCollectorConfig? collector;
   final TugboatScreenshotMaskLevel? screenshotMaskLevel;
@@ -143,6 +145,7 @@ class TugboatReplayConfig {
     bool? enableGlobalPointerCapture,
     String? explorationCollectorUrl,
     String? explorationRunId,
+    String? userId,
     TugboatCollectorAppInfo? appInfo,
     TugboatCollectorConfig? collector,
     TugboatScreenshotMaskLevel? screenshotMaskLevel,
@@ -165,6 +168,7 @@ class TugboatReplayConfig {
       explorationCollectorUrl:
           explorationCollectorUrl ?? this.explorationCollectorUrl,
       explorationRunId: explorationRunId ?? this.explorationRunId,
+      userId: userId ?? this.userId,
       appInfo: appInfo ?? this.appInfo,
       collector: collector ?? this.collector,
       screenshotMaskLevel: screenshotMaskLevel ?? this.screenshotMaskLevel,

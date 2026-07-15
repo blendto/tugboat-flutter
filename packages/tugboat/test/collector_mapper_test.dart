@@ -135,6 +135,20 @@ void main() {
     expect(appInfo.toJson()['packageName'], 'com.example.legacy');
   });
 
+  test('copies collector config with replay userId override', () {
+    final copied = collectorConfig.withUserId('user_from_replay');
+
+    expect(copied.userId, 'user_from_replay');
+    expect(copied.baseUrl, collectorConfig.baseUrl);
+    expect(copied.apiKey, collectorConfig.apiKey);
+    expect(copied.appInfo, collectorConfig.appInfo);
+    expect(copied.deviceInfo, collectorConfig.deviceInfo);
+  });
+
+  test('copying collector config preserves existing userId by default', () {
+    expect(collectorConfig.withUserId(null).userId, 'user_1');
+  });
+
   test('extracts frame numbers from tugboat frame ids', () {
     expect(frameNumberFromId('frame-0'), 0);
     expect(frameNumberFromId('frame-12'), 12);

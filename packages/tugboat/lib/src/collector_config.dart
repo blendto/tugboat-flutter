@@ -162,4 +162,21 @@ class TugboatCollectorConfig {
   final int maxPendingBatches;
   final int maxPendingEvents;
   final int maxPendingFrames;
+
+  TugboatCollectorConfig withUserId(String? userId) {
+    return TugboatCollectorConfig(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      userId: userId ?? this.userId,
+      appInfo: appInfo,
+      deviceInfo: deviceInfo,
+      ipInfo: ipInfo,
+      locale: locale,
+      eventBatchSize: eventBatchSize,
+      eventFlushInterval: eventFlushInterval,
+      maxPendingBatches: maxPendingBatches,
+      maxPendingEvents: maxPendingEvents,
+      maxPendingFrames: maxPendingFrames,
+    );
+  }
 }

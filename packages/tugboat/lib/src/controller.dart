@@ -287,7 +287,9 @@ class TugboatReplayController extends ChangeNotifier {
     }
     final collectorConfig = config.collector;
     if (collectorConfig != null) {
-      _collectorHttpSink = CollectorHttpSink(config: collectorConfig);
+      _collectorHttpSink = CollectorHttpSink(
+        config: collectorConfig.withUserId(config.userId),
+      );
       sinks.add(_collectorHttpSink!);
     }
     if (sinks.isNotEmpty) {
