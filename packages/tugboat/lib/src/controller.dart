@@ -1244,6 +1244,9 @@ class TugboatReplayController extends ChangeNotifier {
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
     if (config.profile != TugboatCaptureProfile.exploration) return;
+    // Always emit raw scene_inventory first (when new). Semantic-map emission
+    // must not replace or suppress inventory — it is the local inventory source
+    // of truth; maps are a companion / production bridge.
     final dedupeKey = '${inventory.stateSignature}|${inventory.inventoryHash}';
     if (_emittedInventories.add(dedupeKey)) {
       _addEvent(

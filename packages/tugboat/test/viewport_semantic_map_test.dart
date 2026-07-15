@@ -533,6 +533,110 @@ void main() {
     expect((inventory['elements'] as List).isNotEmpty, isTrue);
   });
 
+  testWidgets(
+    'settled exploration screen emits both scene_inventory and viewport_semantic_map',
+    (tester) async {
+      await _pumpSettledScreen(
+        tester,
+        Scaffold(
+          body: FilledButton(onPressed: () {}, child: const Text('Go')),
+        ),
+      );
+
+      final controller = TugboatReplay.controller!;
+      final events = controller.session!.events;
+      final inventoryEvents = events
+          .where((event) => event.type == 'scene_inventory')
+          .toList();
+      final mapEvents = events
+          .where((event) => event.type == 'viewport_semantic_map')
+          .toList();
+
+      expect(inventoryEvents, isNotEmpty);
+      expect(mapEvents, isNotEmpty);
+
+      final inventory = inventoryEvents.first.data;
+      expect(inventory['stateSignature'], isA<String>());
+      expect(inventory['routeKey'], isA<String>());
+      expect(inventory['inventoryHash'], isA<String>());
+      expect(inventory['elements'], isA<List<dynamic>>());
+      expect((inventory['elements'] as List).isNotEmpty, isTrue);
+
+      final map = mapEvents.first.data;
+      expect(map['stateSignature'], inventory['stateSignature']);
+      expect(map['routeKey'], inventory['routeKey']);
+
+      final inventoryFingerprints = (inventory['elements'] as List)
+          .cast<Map<Object?, Object?>>()
+          .map((element) => element['fingerprint'] as String)
+          .toSet();
+      final linkedFingerprints = (map['nodes'] as List)
+          .cast<Map<Object?, Object?>>()
+          .map((node) => node['linkedFingerprint'])
+          .whereType<String>()
+          .where((fingerprint) => fingerprint.isNotEmpty)
+          .toSet();
+      expect(linkedFingerprints.intersection(inventoryFingerprints), isNotEmpty);
+
+      final inventoryIndex = events.indexWhere(
+        (event) => event.type == 'scene_inventory',
+      );
+      final mapIndex = events.indexWhere(
+        (event) => event.type == 'viewport_semantic_map',
+      );
+      expect(inventoryIndex, lessThan(mapIndex));
+    },
+  );
+
+  testWidgets(
+    'semantic-map emission does not suppress or replace raw inventory emission',
+    (tester) async {
+      await _pumpSettledScreen(
+        tester,
+        Scaffold(
+          body: FilledButton(onPressed: () {}, child: const Text('Go')),
+        ),
+        config: _semanticMapConfigWithLogs,
+      );
+
+      final controller = TugboatReplay.controller!;
+      final types = controller.session!.events.map((e) => e.type).toList();
+      expect(types, contains('scene_inventory'));
+      expect(types, contains('viewport_semantic_map'));
+
+      // Re-trigger settle-style inventory+map emit; inventory must still be present
+      // even when a semantic map is also emitted for the same state.
+      final beforeInventoryCount = controller.session!.events
+          .where((event) => event.type == 'scene_inventory')
+          .length;
+      final beforeMapCount = controller.session!.events
+          .where((event) => event.type == 'viewport_semantic_map')
+          .length;
+      expect(beforeInventoryCount, greaterThan(0));
+      expect(beforeMapCount, greaterThan(0));
+
+      final tapCenter = tester.getCenter(find.text('Go'));
+      controller.recordPointerDown(tapCenter);
+      await tester.pump();
+
+      final afterInventoryCount = controller.session!.events
+          .where((event) => event.type == 'scene_inventory')
+          .length;
+      final afterMapCount = controller.session!.events
+          .where((event) => event.type == 'viewport_semantic_map')
+          .length;
+      // Inventory must not disappear or be replaced by map-only emission.
+      expect(afterInventoryCount, greaterThanOrEqualTo(beforeInventoryCount));
+      expect(afterMapCount, greaterThanOrEqualTo(beforeMapCount));
+      expect(
+        controller.session!.events.any(
+          (event) => event.type == 'scene_inventory',
+        ),
+        isTrue,
+      );
+    },
+  );
+
   testWidgets('debug log config does not change emitted payload shape', (
     tester,
   ) async {
