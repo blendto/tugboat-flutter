@@ -9,17 +9,36 @@ export 'src/anchors.dart'
         tugboatIconHash,
         tugboatLabelHash;
 export 'src/capture_profile.dart' show TugboatCaptureProfile;
+export 'src/capture_sink.dart'
+    show
+        TugboatCaptureSink,
+        TugboatCaptureSinkFactory,
+        TugboatCaptureSinkHub,
+        TugboatSessionCaptureSink,
+        TugboatSinkSessionContext,
+        TugboatCaptureEnvelope,
+        TugboatEnvelopeKind;
 export 'src/collector_config.dart';
 export 'src/collector_host.dart' show TugboatCollectorHost;
 export 'src/controller.dart' show TugboatReplayController;
+export 'src/exploration_transport.dart' show TugboatExplorationTransport;
+export 'src/health.dart'
+    show
+        TugboatSdkHealth,
+        TugboatSinkHealth,
+        TugboatOutboxHealth,
+        TugboatScreenshotBudgetHealth,
+        TugboatSanitizedFailure;
+export 'src/lifecycle.dart' show TugboatLifecycleState, TugboatLifecycleNotifier;
+export 'src/models.dart';
+export 'src/outbox/outbox.dart'
+    show TugboatOutboxConfig, TugboatOutboxEnvelope, TugboatOutboxStore;
 export 'src/replay_config.dart'
     show
         TugboatReplayConfig,
         TugboatViewportSemanticMode,
         TugboatViewportSemanticPolicy,
+        TugboatScreenshotBudgetConfig,
         resolveViewportSemanticPolicy;
-
-export 'src/exploration_transport.dart' show TugboatExplorationTransport;
-export 'src/models.dart';
 export 'src/tugboat.dart';
 export 'src/screenshot_mask_level.dart' show TugboatScreenshotMaskLevel;

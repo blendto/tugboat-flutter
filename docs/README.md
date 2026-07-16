@@ -1,16 +1,20 @@
-# Tugboat Flutter SDK — Documentation
+# Tugboat Flutter SDK documentation
 
 Documentation for the [Tugboat Flutter SDK](https://github.com/blendto/tugboat-flutter).
 
+These pages describe the Flutter package in this repository. The CLI,
+collector, dashboard, and Atlas services have separate ownership and should be
+verified in their own repositories.
+
 ## Getting started
 
-- [SDK README](../packages/tugboat/README.md) — installation, usage, and capture model
-- [Collector integration](integration/collector.md) — WebSocket exploration and HTTP ingestion
+- [SDK README](../packages/tugboat/README.md) — install, public API, configuration, and limits
+- [Collector integration](integration/collector.md) — Flutter WebSocket and HTTP wire behavior
 - [Example exploration brief](exploration/example-brief.md) — goals and constraints for the demo app
 
 ## Design
 
-- [Capture & fingerprint design](design/capture-and-fingerprint.md) — structural identity, scene inventory, and ingestion join keys
+- [Capture and fingerprint architecture](design/capture-and-fingerprint.md) — implemented schema-v6 identity, screenshots, semantic evidence, gaps, and next steps
 
 ## Repository layout
 
@@ -18,3 +22,18 @@ Documentation for the [Tugboat Flutter SDK](https://github.com/blendto/tugboat-f
 |------|-------------|
 | `packages/tugboat` | Flutter SDK (`package:tugboat`) |
 | `packages/tugboat/example` | Demo app and integration fixture (not published) |
+| `docs/design` | Current architecture and forward-looking SDK decisions |
+| `docs/integration` | Host-app and transport integration contracts |
+
+## Current compatibility
+
+- package version: `0.2.0`;
+- session JSON schema: `6`;
+- fingerprint schema: `6`;
+- minimum Dart SDK: `3.9.2`;
+- minimum Flutter SDK: `3.35.0`.
+
+Start with the SDK README for integration. Use the architecture document when
+changing identity, capture cadence, privacy boundaries, activation, or sink
+behavior; these changes can invalidate downstream evidence even when the Dart
+API remains source-compatible.

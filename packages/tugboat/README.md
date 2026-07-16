@@ -1,14 +1,28 @@
 # Tugboat Flutter SDK
 
-Screenshot-based session replay for Tugboat. The SDK captures masked screenshot
-checkpoints around meaningful interactions, plus compact interaction anchors
-(hit-test target, state signature, and route transitions), then streams the raw evidence to the
-Tugboat collector.
+Screenshot-based session evidence for Tugboat. The SDK records masked visual
+checkpoints around meaningful interactions, compact structural anchors, route
+transitions, scrolling evidence, and optional viewport semantic maps. Capture
+can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-This follows the Tugboat ideation architecture: visual evidence frames +
-lightweight interaction telemetry, not widget-tree scene reconstruction.
+The current package version is `0.2.0`. Session JSON uses schema version `7`
+(readers still accept `6`), and structural fingerprints use fingerprint schema
+version `6`.
 
-## Usage
+## Install
+
+Add `tugboat` to the host app and import the public barrel:
+
+```dart
+import 'package:tugboat/tugboat.dart';
+```
+
+The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
+
+## Minimal integration
+
+Install both the app wrapper and navigator observer. Capture is dormant by
+default, so choose an active profile when the app should record immediately:
 
 ```dart
 MaterialApp(
@@ -17,13 +31,95 @@ MaterialApp(
     child: child!,
     config: const TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,
+      explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
       viewportSemanticMode: TugboatViewportSemanticMode.full,
     ),
   ),
 );
 ```
 
-Use `TugboatSensitive` when a subtree must always be masked in screenshots:
+Without `TugboatReplay.navigatorObserver`, pointer and scroll capture still
+work, but route-change events and route-backed anchors are incomplete. Without
+`wrapApp`, no capture controller, repaint boundary, or input/scroll listener is
+installed.
+
+## Capture profiles and runtime state
+
+`TugboatReplayConfig.profile` controls whether the wrapper installs capture
+machinery:
+
+| Profile | Current behavior | Default screenshot masking |
+| --- | --- | --- |
+| `dormant` | Lightweight gate mounted; no capture machinery until `activate` | explicit subtrees only, if activated |
+| `exploration` | full interaction capture, scene inventories, optional emitted semantic maps | `TugboatSensitive` only |
+| `productionLean` | interaction capture and sampled/deduplicated screenshots; no scene-inventory events | all text, editable fields, and images |
+
+The global kill switch is fully inert:
+
+```dart
+TugboatReplay.disabled = true; // deactivates and disposes the active controller
+```
+
+Dormant builds can be activated at runtime without rebuilding `MaterialApp`:
+
+```dart
+TugboatReplay.activate(
+  activationRequestId: captureRequestId,
+  profile: TugboatCaptureProfile.productionLean,
+);
+```
+
+Identity contract:
+
+- `activationRequestId` — host orchestration / request correlation
+- `captureSessionId` (`session.id`) — SDK-generated emitted evidence session
+- `collectorSessionId` — stamped after HTTP `session_start` acceptance
+- `explorationRunId` — exploration control-plane ID from config
+
+`TugboatReplay.activeSessionId` remains as a deprecated alias for
+`activationRequestId`. Inspect `TugboatReplay.health` for sink/outbox/screenshot
+budget pressure without reading protected content.
+
+Optional durable HTTP delivery (Collector only, default off):
+
+```dart
+TugboatReplayConfig(
+  profile: TugboatCaptureProfile.productionLean,
+  collector: collectorConfig,
+  outbox: TugboatOutboxConfig(enabled: true),
+);
+```
+
+Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
+
+## Configuration reference
+
+`TugboatReplayConfig` currently exposes:
+
+| Field | Default | Purpose |
+| --- | --- | --- |
+| `profile` | `dormant` | capture cost and exploration-only behavior |
+| `settleDelay` | 1 second | delay before post-interaction and post-route capture |
+| `maxFrames` | 500 | in-memory frame bound |
+| `maxEvents` | 5000 | in-memory event bound |
+| `scrollCaptureInterval` | 2 seconds | interval for scroll checkpoint capture |
+| `captureScrollSamples` | `false` | retain `TugboatScrollSample` records in session JSON |
+| `capturePixelRatio` | `0.75` | repaint-boundary screenshot scale |
+| `enableGlobalPointerCapture` | `true` | use global pointer routing; `false` uses a local `Listener` |
+| `explorationCollectorUrl` | null | local exploration WebSocket endpoint |
+| `explorationRunId` | null | optional run correlation ID |
+| `userId` | null | optional HTTP event user ID |
+| `appInfo` | null | app metadata used by exploration and as a fallback |
+| `collector` | null | HTTP collector configuration |
+| `screenshotMaskLevel` | profile default | explicit screenshot redaction policy |
+| `widgetNames` | empty | `Type` to stable-name overrides for canonical paths |
+| `viewportSemanticMode` | `tapResolutionOnly` | semantic engine and emission mode |
+| `viewportSemanticMapMaxNodes` | 120 | emitted map node budget |
+| `viewportSemanticMapMaxBytes` | 48000 | emitted map byte budget |
+
+## Privacy and payload boundary
+
+Use `TugboatSensitive` for content that must always be hidden in screenshots:
 
 ```dart
 TugboatSensitive(
@@ -31,86 +127,121 @@ TugboatSensitive(
 )
 ```
 
-Masking defaults follow the capture profile: `exploration` masks only explicit
-`TugboatSensitive` subtrees, while `productionLean` masks all text, editable
-fields, and images. Override this with `TugboatReplayConfig.screenshotMaskLevel`.
+Available mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
+`allTextExceptActionable`, and `sensitiveInputsOnly`.
 
-Optional `TugboatReplayConfig.widgetNames` can override runtime type names used
-in canonical paths (useful for obfuscated builds); supply the map by hand.
+The structural telemetry does not retain arbitrary `Text`, accessibility,
+tooltip, or icon label strings. Dynamic list discriminators are hashed before
+they enter canonical paths. Telemetry does include developer-authored routing
+and identity strings where applicable:
 
-## Architecture
+- route names in `route_change.data` and anchor `routeKey` fields;
+- `TugboatSubView.label` in state/scroll context;
+- `TugboatTag.id` in `targetAnchor.fingerprintParts.tag` (and its hashed
+  `tagFingerprint`);
+- widget type names and canonical structural paths;
+- normalized bounds, pointer coordinates, scroll metrics, and screenshot
+  pixels after the configured masking policy is applied.
 
-The SDK has three capture pipelines that share a frame-scoped widget walk:
+Screenshots are the only captured surface that can contain rendered user
+content. Choose an explicit production masking policy and test custom widgets,
+platform views, and overlays in the target app before enabling production
+capture.
 
-```text
-pointer / route / scroll
-        │
-        ▼
-┌───────────────────┐
-│  AnchorResolver   │  single token-map walk per frame (cached)
-│  scene inventory  │
-└─────────┬─────────┘
-          │
-          ├── screenshots (RepaintBoundary → engine PNG, dHash thumbnail)
-          └── viewport semantic map (Flutter Semantics, exploration-heavy)
-          │
-          ▼
-     capture sinks (WS exploration / HTTP collector)
+## Event and frame model
+
+The controller maintains an in-memory `TugboatSession` and fans new evidence
+out to configured sinks. Sink failures are isolated from the host app. The
+session is bounded by `maxFrames` and `maxEvents`; trimming marks it
+`truncated`.
+
+Emitted event types currently include:
+
+- lifecycle: `session_start`, `session_end`;
+- input: `tap`, `tap_settled`, `swipe`, `pointer_cancel`,
+  `tap_outside_tree`;
+- state/navigation: `state_change`, `route_change`;
+- scrolling: `scroll_start`, `scroll_end`;
+- exploration: `scene_inventory`, `action_window_set`,
+  `action_window_cleared`;
+- semantic-map modes: `viewport_semantic_map`,
+  `scroll_semantic_snapshot`.
+
+Frames can be triggered by initial startup, taps, scrolls, routes, lifecycle,
+or explicit controller calls. Capture requests are serialized and coalesced.
+The SDK first skips repeated state signatures, then uses a small dHash to avoid
+PNG encoding for visually unchanged content, and finally deduplicates encoded
+frames by content hash.
+
+During local WebSocket exploration, connecting without an HTTP collector
+suppresses new Flutter screenshot capture for UI-thread performance. Events,
+anchors, inventories, and semantic evidence continue to stream; the CLI's ADB
+before/after screenshots remain the primary gesture-level visual evidence.
+
+## Structural identity
+
+Fingerprint schema v6 derives target identity from route plus a normalized
+canonical widget path. Wrapper widgets are filtered, same-type siblings receive
+ordinals, list positions collapse to `[item]`, and conservative static list
+discriminators are hashed. `TugboatTag` adds an alias without changing the
+structural fingerprint:
+
+```dart
+TugboatTag(
+  'checkout-submit',
+  child: FilledButton(onPressed: submit, child: const Text('Submit')),
+)
 ```
 
-Performance notes:
+`TugboatSubView` adds a developer-owned section label useful for nested content
+and scroll attribution. `widgetNames` can replace runtime type names used in
+canonical paths, which is particularly useful when an obfuscated build needs a
+generated stable-name map.
 
-- Token maps are reused within a Flutter frame across tap, state, inventory, and
-  mask-rect collection.
-- Screenshot encoding uses the engine PNG encoder (no Dart isolate / `image`
-  package on the hot path). dHash is computed from a 9×8 downscale so unchanged
-  frames skip PNG work.
-- A persistent `SemanticsHandle` is held only in the exploration profile;
-  production tap resolution avoids permanent semantics cost.
+State signatures in v6 are deliberately coarse: route key plus keyboard,
+modal, and subview state. Role counts remain diagnostic metadata but do not
+determine the signature. Identity should be joined only within the same build
+and fingerprint schema version.
 
-## Collector integration
+## Lifecycle
 
-The SDK can stream capture output to:
+- A session starts after the wrapped repaint boundary has a non-zero viewport.
+- `paused` or `hidden` schedules a sink flush after 500 ms; resuming cancels a
+  pending flush.
+- `detached` ends the session.
+- Removing the wrapper or deactivating disposes the controller, emits
+  `session_end`, and asks configured sinks to finish asynchronously.
+- The HTTP sink also flushes partial batches on its timer and before session
+  end.
 
-- the local CLI exploration collector over WebSocket
-- the standalone HTTP collector (`tugboat-collector`) with batched REST ingestion
+## Public surface
 
-See [Collector integration](../../docs/integration/collector.md) for setup
-details, including the default event batch size of `10`.
+The supported import exports `TugboatReplay`, `TugboatNavigatorObserver`,
+`TugboatReplayConfig`, capture/semantic/masking enums and policies, collector
+configuration and host helpers, markers (`TugboatSensitive`, `TugboatTag`,
+`TugboatSubView`, `TugboatInternal`), anchor and session models, the controller,
+and `TugboatExplorationTransport`.
 
-## Capture model
-
-- **Evidence plane:** PNG screenshots at checkpoints (initial, before/after tap,
-  optional scroll samples, route changes), deduplicated by content hash and
-  perceptual hash. During CLI exploration, captured frames are streamed over the
-  WebSocket when produced; the recorder persists them under `frames/`.
-- **Interaction plane:** tap events with target and state anchors, route changes
-  in event `data`, scroll/swipe events with scrollable anchors, and
-  `beforeFrame` / `afterFrame` references. Text, accessibility, tooltip, and
-  icon labels are not retained in telemetry.
-- **Scroll/swipe attribution:** `scroll_start` / `scroll_end` include the
-  resolved scrollable `targetAnchor` plus axis, depth, edge/overscroll, section
-  label, and offset metrics in `data`. Pointer drags beyond touch slop emit a
-  `swipe` event instead of a normal `tap_settled`; `data.scrolled:false` marks a
-  dead swipe / failed scroll intent.
-- **Scene inventory (exploration):** per settled screen state, the SDK enumerates
-  interactive controls and persists them via the CLI sink as `inventories/<stateSignature>.json`.
-  Entries include fingerprints, canonical paths, roles, and aliases. Tap injection guarantees
-  exploration taps join their inventory even when the element was not center-probed.
-- **Attribution diagnostics (CLI exploration):** `action_window_set` /
-  `action_window_cleared` (recorder action-window lifecycle), `tap_outside_tree`
-  (pointer down with no hit-test target), and `pointer_cancel` (gesture cancelled
-  before up).
-- **Settle delay:** default 1s after taps and route transitions before capture
-- **Profiles:** `dormant` (default, zero overhead until `TugboatReplay.activate`),
-  `exploration`, `productionLean`
-- **Fingerprint schema:** v6 uses coarse state identity (route + overlay flags +
-  subLabel). Optional `TugboatReplayConfig.widgetNames` can override runtime type
-  names used in canonical paths (useful for obfuscated builds); supply the map by hand.
+`TugboatCaptureSink` and the built-in sink implementations are internal today;
+config supports only the WebSocket and HTTP destinations above. A stable custom
+sink registration API has not been published.
 
 ## Current limits
 
-- Platform views, maps, and native overlays are not captured faithfully
-- Screenshot capture can cause brief UI-thread work at checkpoints
-- Sessions remain in memory and are streamed to the configured collector
-- The host app must install the wrapper and navigator observer
+- Platform views, maps, video textures, and native overlays may be absent or
+  incomplete in repaint-boundary screenshots and structural walks.
+- Screenshot readback and PNG encoding perform UI-thread work at checkpoints.
+- Runtime activation/deactivation requires a host rebuild, and activation IDs
+  are not yet the emitted session IDs.
+- There is no automatic Android intent-extra/deep-link bridge, offline file
+  sink, durable on-device retry store, or public custom-sink API.
+- HTTP retry queues are bounded and in-memory only. Process death loses pending
+  output.
+- Nested navigator and anonymous-route identity depends on structural fallback
+  and needs app-specific validation.
+- The package captures no logs, network traffic, analytics events, or native
+  performance signals.
+
+See [Collector integration](../../docs/integration/collector.md) and
+[Capture and fingerprint status](../../docs/design/capture-and-fingerprint.md)
+for transport details, implementation evidence, and prioritized next work.

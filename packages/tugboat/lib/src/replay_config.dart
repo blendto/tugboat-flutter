@@ -1,6 +1,8 @@
 import 'capture_profile.dart';
 import 'collector_config.dart';
+import 'outbox/outbox.dart';
 import 'screenshot_mask_level.dart';
+import 'sinks/capture_sink.dart' show TugboatCaptureSinkFactory;
 import 'viewport_semantic_mode.dart';
 
 export 'viewport_semantic_mode.dart' show TugboatViewportSemanticMode;
@@ -36,15 +38,6 @@ class TugboatViewportSemanticPolicy {
 }
 
 /// Derives [TugboatViewportSemanticPolicy] from profile + mode.
-///
-/// Matrix:
-/// - dormant: always off
-/// - exploration + off: off
-/// - exploration + tapResolutionOnly: engine, no emit
-/// - exploration + full / fullWithDebugLogs: engine + emit (+ debug for latter)
-/// - productionLean + off: off
-/// - productionLean + tapResolutionOnly: engine, no emit, transient semantics
-/// - productionLean + full / fullWithDebugLogs: engine + emit, transient semantics
 TugboatViewportSemanticPolicy resolveViewportSemanticPolicy({
   required TugboatCaptureProfile profile,
   required TugboatViewportSemanticMode mode,
@@ -74,6 +67,21 @@ TugboatViewportSemanticPolicy resolveViewportSemanticPolicy({
   );
 }
 
+/// Rolling screenshot budget policy.
+class TugboatScreenshotBudgetConfig {
+  const TugboatScreenshotBudgetConfig({
+    this.window = const Duration(seconds: 5),
+    this.budgetMicros = 80 * 1000,
+    this.skipEligibleWhenDegraded = true,
+  });
+
+  final Duration window;
+  final int budgetMicros;
+  final bool skipEligibleWhenDegraded;
+
+  static const defaults = TugboatScreenshotBudgetConfig();
+}
+
 /// Capture session configuration.
 class TugboatReplayConfig {
   const TugboatReplayConfig({
@@ -91,12 +99,13 @@ class TugboatReplayConfig {
     this.appInfo,
     this.collector,
     this.screenshotMaskLevel,
-
-    /// Optional Type→name overrides for canonical paths (e.g. obfuscated builds).
     this.widgetNames = const {},
     this.viewportSemanticMode = TugboatViewportSemanticMode.tapResolutionOnly,
     this.viewportSemanticMapMaxNodes = 120,
     this.viewportSemanticMapMaxBytes = 48000,
+    this.sinkFactories = const [],
+    this.outbox = TugboatOutboxConfig.disabled,
+    this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,
   });
 
   final TugboatCaptureProfile profile;
@@ -117,6 +126,9 @@ class TugboatReplayConfig {
   final TugboatViewportSemanticMode viewportSemanticMode;
   final int viewportSemanticMapMaxNodes;
   final int viewportSemanticMapMaxBytes;
+  final List<TugboatCaptureSinkFactory> sinkFactories;
+  final TugboatOutboxConfig outbox;
+  final TugboatScreenshotBudgetConfig screenshotBudget;
 
   TugboatScreenshotMaskLevel get effectiveScreenshotMaskLevel =>
       screenshotMaskLevel ??
@@ -127,7 +139,6 @@ class TugboatReplayConfig {
           TugboatScreenshotMaskLevel.explicitOnly,
       };
 
-  /// Policy for building / emitting viewport semantic maps.
   TugboatViewportSemanticPolicy get viewportSemanticPolicy =>
       resolveViewportSemanticPolicy(
         profile: profile,
@@ -153,6 +164,9 @@ class TugboatReplayConfig {
     TugboatViewportSemanticMode? viewportSemanticMode,
     int? viewportSemanticMapMaxNodes,
     int? viewportSemanticMapMaxBytes,
+    List<TugboatCaptureSinkFactory>? sinkFactories,
+    TugboatOutboxConfig? outbox,
+    TugboatScreenshotBudgetConfig? screenshotBudget,
   }) {
     return TugboatReplayConfig(
       profile: profile ?? this.profile,
@@ -178,6 +192,9 @@ class TugboatReplayConfig {
           viewportSemanticMapMaxNodes ?? this.viewportSemanticMapMaxNodes,
       viewportSemanticMapMaxBytes:
           viewportSemanticMapMaxBytes ?? this.viewportSemanticMapMaxBytes,
+      sinkFactories: sinkFactories ?? this.sinkFactories,
+      outbox: outbox ?? this.outbox,
+      screenshotBudget: screenshotBudget ?? this.screenshotBudget,
     );
   }
 }

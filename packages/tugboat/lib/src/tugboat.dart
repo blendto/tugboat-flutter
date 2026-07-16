@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 
 import 'capture_profile.dart';
 import 'controller.dart';
+import 'health.dart';
 import 'input_capture.dart';
+import 'lifecycle.dart';
 
 export 'capture_profile.dart' show TugboatCaptureProfile;
+export 'lifecycle.dart' show TugboatLifecycleState;
 export 'screenshot_mask_level.dart' show TugboatScreenshotMaskLevel;
 export 'markers.dart'
     show TugboatInternal, TugboatSensitive, TugboatSubView, TugboatTag;
@@ -17,6 +20,9 @@ export 'markers.dart'
 /// Install [navigatorObserver] on [MaterialApp]/[CupertinoApp] and wrap the
 /// app builder with [wrapApp]. Capture stays dormant until [activate] when
 /// using [TugboatCaptureProfile.dormant].
+///
+/// [wrapApp] always mounts a lightweight activation gate so [activate] and
+/// [deactivate] take effect without requiring an unrelated host rebuild.
 class TugboatReplay {
   TugboatReplay._();
 
@@ -26,74 +32,95 @@ class TugboatReplay {
   );
   static final TugboatNavigatorObserver navigatorObserver =
       TugboatNavigatorObserver();
-
-  static bool _activated = false;
-  static String? _activeSessionId;
-  static TugboatCaptureProfile? _activeProfile;
-  static bool _disabled = false;
+  static final TugboatLifecycleNotifier _lifecycle =
+      TugboatLifecycleNotifier();
 
   static TugboatReplayController? get controller => _controller;
   static GlobalKey get boundaryKey => _boundaryKey;
-  static bool get isActivated => _activated;
-  static String? get activeSessionId => _activeSessionId;
-  static TugboatCaptureProfile? get activeProfile => _activeProfile;
+  static TugboatLifecycleNotifier get lifecycle => _lifecycle;
+  static TugboatLifecycleState get lifecycleState => _lifecycle.state;
+  static bool get isActivated => _lifecycle.isActivated;
+  static String? get activationRequestId => _lifecycle.activationRequestId;
+
+  /// Deprecated alias for [activationRequestId].
+  static String? get activeSessionId => _lifecycle.activationRequestId;
+  static TugboatCaptureProfile? get activeProfile => _lifecycle.activeProfile;
 
   /// When `true`, the SDK is fully inert (no capture, no wrapping overhead).
   ///
   /// Setting this to `true` tears down any active session. Intended for remote
   /// config or feature-flag kill switches.
-  static bool get disabled => _disabled;
+  static bool get disabled => _lifecycle.disabled;
 
   static set disabled(bool value) {
-    if (value == _disabled) return;
-    _disabled = value;
+    _lifecycle.setDisabled(value);
     if (value) {
-      deactivate();
+      _controller?.dispose();
+      _controller = null;
     }
   }
 
   /// Whether capture machinery is allowed to run ([disabled] is `false`).
-  static bool get isEnabled => !_disabled;
+  static bool get isEnabled => !_lifecycle.disabled;
 
   /// Enables capture machinery for dormant builds at runtime.
+  ///
+  /// Prefer [activationRequestId]; [sessionId] is retained for compatibility.
   static void activate({
-    required String sessionId,
+    String? activationRequestId,
+    @Deprecated('Use activationRequestId') String? sessionId,
     TugboatCaptureProfile profile = TugboatCaptureProfile.productionLean,
   }) {
-    if (_disabled) return;
-    _activated = true;
-    _activeSessionId = sessionId;
-    _activeProfile = profile;
+    final requestId = activationRequestId ?? sessionId;
+    if (requestId == null) {
+      throw ArgumentError(
+        'activate requires activationRequestId (or legacy sessionId)',
+      );
+    }
+    _lifecycle.activate(activationRequestId: requestId, profile: profile);
   }
 
   /// Returns the SDK to dormant mode without tearing down the host app.
   static void deactivate() {
-    _activated = false;
-    _activeSessionId = null;
-    _activeProfile = null;
-    _controller?.dispose();
-    _controller = null;
+    _lifecycle.deactivate();
   }
 
-  /// Wraps [child] with capture plumbing (repaint boundary, scroll listener).
+  /// Current sanitized health snapshot (empty when no controller).
+  static TugboatSdkHealth get health {
+    final c = _controller;
+    if (c != null) return c.healthSnapshot();
+    return TugboatSdkHealth(
+      lifecycle: _lifecycle.state.name,
+      profile: (_lifecycle.activeProfile ?? TugboatCaptureProfile.dormant).name,
+      activationRequestId: _lifecycle.activationRequestId,
+    );
+  }
+
+  /// Wraps [child] with a lightweight activation gate.
   ///
-  /// Returns [child] unchanged when the profile is dormant and [activate] has
-  /// not been called.
+  /// While dormant or disabled, the gate installs no capture machinery and
+  /// preserves the host child. While active, it mounts session capture.
   static Widget wrapApp({
     required Widget child,
     TugboatReplayConfig config = const TugboatReplayConfig(),
   }) {
-    if (_disabled) {
+    if (_lifecycle.disabled) {
       return child;
     }
-    final effectiveProfile = _activeProfile ?? config.profile;
-    if (effectiveProfile == TugboatCaptureProfile.dormant && !_activated) {
-      return child;
-    }
-    return _TugboatReplayRoot(
-      config: config.copyWith(profile: effectiveProfile),
-      child: child,
-    );
+    return _TugboatActivationGate(config: config, child: child);
+  }
+
+  /// Clears any durable outbox entries (consent / logout).
+  static Future<void> clearDurableOutbox() async {
+    await _controller?.clearDurableOutbox();
+  }
+
+  /// Resets lifecycle state between tests.
+  @visibleForTesting
+  static void resetForTest() {
+    _controller?.dispose();
+    _controller = null;
+    _lifecycle.resetForTest();
   }
 }
 
@@ -132,11 +159,112 @@ class TugboatNavigatorObserver extends NavigatorObserver {
   }
 }
 
-class _TugboatReplayRoot extends StatefulWidget {
-  const _TugboatReplayRoot({required this.config, required this.child});
+/// Always-mounted gate that mounts capture only while the lifecycle requests it.
+class _TugboatActivationGate extends StatefulWidget {
+  const _TugboatActivationGate({required this.config, required this.child});
 
   final TugboatReplayConfig config;
   final Widget child;
+
+  @override
+  State<_TugboatActivationGate> createState() => _TugboatActivationGateState();
+}
+
+class _TugboatActivationGateState extends State<_TugboatActivationGate> {
+  late final VoidCallback _listener;
+  int? _mountedEpoch;
+  bool _captureMounted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _listener = _onLifecycle;
+    TugboatReplay._lifecycle.addListener(_listener);
+    _syncCaptureFlag();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TugboatActivationGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.config.profile != widget.config.profile) {
+      _syncCaptureFlag();
+    }
+  }
+
+  @override
+  void dispose() {
+    TugboatReplay._lifecycle.removeListener(_listener);
+    super.dispose();
+  }
+
+  void _onLifecycle() {
+    if (!mounted) return;
+    _syncCaptureFlag();
+  }
+
+  void _syncCaptureFlag() {
+    final lifecycle = TugboatReplay._lifecycle;
+    final should = lifecycle.shouldCapture(widget.config.profile);
+    final epoch = lifecycle.requestEpoch;
+
+    if (!should) {
+      if (_captureMounted) {
+        setState(() {
+          _captureMounted = false;
+          _mountedEpoch = epoch;
+        });
+        // Tear-down completion is observed via capture root dispose.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (!_captureMounted) {
+            lifecycle.markDormant(epoch);
+          }
+        });
+      } else if (lifecycle.state == TugboatLifecycleState.stopping) {
+        lifecycle.markDormant(epoch);
+      }
+      return;
+    }
+
+    // Capture requested.
+    if (!_captureMounted || _mountedEpoch != epoch) {
+      setState(() {
+        _captureMounted = true;
+        _mountedEpoch = epoch;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_captureMounted || TugboatReplay.disabled) {
+      return widget.child;
+    }
+    final lifecycle = TugboatReplay._lifecycle;
+    final profile = lifecycle.effectiveProfile(widget.config.profile);
+    return _TugboatReplayRoot(
+      key: ValueKey('tugboat-capture-$profile-${_mountedEpoch ?? 0}'),
+      config: widget.config.copyWith(profile: profile),
+      activationRequestId: lifecycle.activationRequestId,
+      sessionEpoch: _mountedEpoch ?? lifecycle.requestEpoch,
+      child: widget.child,
+    );
+  }
+}
+
+class _TugboatReplayRoot extends StatefulWidget {
+  const _TugboatReplayRoot({
+    super.key,
+    required this.config,
+    required this.child,
+    this.activationRequestId,
+    required this.sessionEpoch,
+  });
+
+  final TugboatReplayConfig config;
+  final Widget child;
+  final String? activationRequestId;
+  final int sessionEpoch;
 
   @override
   State<_TugboatReplayRoot> createState() => _TugboatReplayRootState();
@@ -149,6 +277,7 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
   late final TugboatReplayController controller;
   InputCapture? inputCapture;
   Timer? _backgroundFlushTimer;
+  bool _started = false;
 
   @override
   void initState() {
@@ -157,6 +286,8 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
     controller = TugboatReplayController(
       config: widget.config,
       boundaryKey: TugboatReplay._boundaryKey,
+      activationRequestId: widget.activationRequestId,
+      sessionEpoch: widget.sessionEpoch,
     );
     TugboatReplay._controller = controller;
     inputCapture = InputCapture(
@@ -197,7 +328,7 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
 
   void _scheduleSessionStart() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
+      if (!mounted || _started) return;
       final viewport = _captureViewportSize();
       if (viewport == null) {
         _scheduleSessionStart();
@@ -208,6 +339,8 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
       controller.navigatorContext =
           TugboatReplay.navigatorObserver.navigator?.context;
       controller.start(viewport, Platform.isIOS ? 'ios' : 'android');
+      _started = true;
+      TugboatReplay._lifecycle.markActive(widget.sessionEpoch);
       if (widget.config.enableGlobalPointerCapture) {
         inputCapture?.install();
       }

@@ -1,161 +1,250 @@
-# Collector Integration
+# Collector integration
 
-**Recording data quality (2026-06-29):** When the exploration WebSocket connects and no HTTP
-collector is configured, the SDK suppresses *new* Flutter frame capture for performance. Frames
-that are captured (including before connect) are streamed over the WebSocket and persisted by
-`tugboat-cli` under `frames/`. ADB step screenshots remain the primary gesture-level evidence.
+This page documents the transport behavior implemented by the Flutter SDK.
+Server-side storage, enrichment, and Atlas behavior are outside this repository
+and must be verified against the service that receives these requests.
 
-**Earlier note (2026-06-24):** ✅ When the exploration WebSocket connects and no HTTP collector
-is configured, the SDK suppresses Flutter frame capture so events stream faster
-during `tugboat-cli` recordings. ADB screenshots remain the visual evidence per step. Tracked in
-`tugboat-cli/docs/recording-data-quality-plan.md` (Phase 1 + SDK cross-repo item).
+The SDK can enable either or both built-in destinations:
 
-The Tugboat Flutter SDK can stream capture output to two collectors:
+- a local exploration WebSocket;
+- a standalone HTTP collector.
 
-- **Local exploration collector** (`tugboat-cli`) over WebSocket
-- **Standalone HTTP collector** (`tugboat-collector`) over REST
+Evidence remains authoritative in the controller's bounded, in-memory session.
+Transport failures are isolated from the host app.
 
-Both sinks are optional and can be enabled together.
+## Required app integration
 
-## Local exploration (WebSocket)
-
-Use this during autonomous CLI exploration runs:
+Install the wrapper and navigator observer. Capture is dormant by default, so
+select an active profile for startup capture:
 
 ```dart
-TugboatReplay.wrapApp(
-  config: const TugboatReplayConfig(
-    explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
-    explorationRunId: 'optional-run-id',
-    appInfo: TugboatCollectorAppInfo(
-      name: 'My App',
-      version: '1.0.0',
-      buildNumber: '42',
-      installationId: 'device-installation-id',
-    ),
+MaterialApp(
+  navigatorObservers: [TugboatReplay.navigatorObserver],
+  builder: (context, child) => TugboatReplay.wrapApp(
+    child: child!,
+    config: config,
   ),
-  child: child,
 );
 ```
 
-When `appInfo` is omitted, the SDK falls back to `collector.appInfo` if a HTTP collector is also configured.
+Without the observer, pointer and scroll evidence still works but route-change
+events and route-backed anchors are incomplete. Without the wrapper no capture
+controller or transport is installed.
 
-The CLI stores the session payload in `session.json`, including `appInfo` when provided.
+## Local exploration WebSocket
 
-The CLI starts the collector and sets up `adb reverse tcp:7832 tcp:7832` so the app can reach the host at `127.0.0.1:7832`.
+Use the exploration destination for an interactive local run:
 
-When the exploration WebSocket connects and no HTTP collector is configured, the SDK **stops
-scheduling new Flutter screenshots** (performance) and emits interaction events without waiting
-on screenshot capture. The CLI still records ADB `before.jpg` / `after.jpg` per step. Any frames
-that *are* captured are streamed over the socket and persisted under `frames/` by `tugboat-cli`.
-Fingerprints and SDK events continue to stream over the socket.
+```dart
+const config = TugboatReplayConfig(
+  profile: TugboatCaptureProfile.exploration,
+  explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
+  explorationRunId: 'optional-run-id',
+  appInfo: TugboatCollectorAppInfo(
+    name: 'My App',
+    version: '1.0.0',
+    buildNumber: '42',
+    installationId: 'device-installation-id',
+    appId: 'com.example.my_app',
+  ),
+);
+```
 
-## Production ingestion (HTTP)
+For an Android emulator the host-side runner must make the socket reachable,
+for example with `adb reverse tcp:7832 tcp:7832` when using
+`127.0.0.1:7832`. Connection setup is not performed by the Flutter package.
 
-Use this for the standalone `tugboat-collector` service:
+If `appInfo` is omitted, session metadata falls back to
+`collector.appInfo` when the HTTP destination is also configured.
+
+### WebSocket messages
+
+The SDK sends:
+
+- `type: session`: session metadata, platform, exploration run ID when set, and
+  `fingerprintSchemaVersion`;
+- `type: event`: serialized event payload plus available session/run/action
+  correlation fields;
+- `type: frame`: frame metadata followed by a binary PNG message;
+- `type: control_ack`: acknowledgement for supported exploration commands.
+
+Incoming JSON control messages are forwarded to the controller. The current
+controller understands `set_action_window`, `clear_action_window`,
+`pause_capture`, and `resume_capture`, and acknowledges recognized commands.
+Malformed or unknown messages are ignored.
+
+The transport reconnects after two seconds. Messages produced while
+disconnected are queued in memory, with a maximum of 200 messages; the oldest
+message is dropped when the bound is exceeded. The queue is not persisted.
+
+### Exploration screenshot suppression
+
+When the WebSocket connects and no HTTP collector is configured, the controller
+suppresses new Flutter screenshot capture to reduce UI-thread work. Events,
+anchors, scene inventories, and enabled viewport semantic evidence continue to
+stream. Frames captured before the socket connects can still be sent.
+
+The external exploration runner may record its own before/after screenshots,
+but that behavior is not implemented or guaranteed by this Flutter package.
+
+## HTTP collector
+
+For the lowest-friction host metadata setup:
 
 ```dart
 final collector = await TugboatCollectorHost.fromPlatform(
   apiKey: apiKey,
   baseUrl: TugboatCollectorDefaults.productionBaseUrl,
   productionProfile: true,
+  userId: currentUserId,
 );
 
-TugboatReplay.wrapApp(
-  config: TugboatReplayConfig(collector: collector),
-  child: child,
+final config = TugboatReplayConfig(
+  profile: TugboatCaptureProfile.productionLean,
+  collector: collector,
 );
 ```
 
-For full manual control, build [TugboatCollectorConfig] directly:
+`fromPlatform` uses `package_info_plus` and `device_info_plus` to populate app,
+device, viewport, locale, and time-zone fields. With no explicit `baseUrl`, it
+uses:
+
+- `https://collector.gettugboat.com` for a production profile;
+- `http://10.0.2.2:3000` for a local Android collector;
+- `http://127.0.0.1:3000` for other local platforms.
+
+The derived IP field is only a reachability placeholder (`10.0.2.2` or
+`127.0.0.1`); it is not public-IP discovery.
+
+### Manual HTTP configuration
+
+Build `TugboatCollectorConfig` directly when the host owns metadata:
 
 ```dart
-TugboatReplay.wrapApp(
-  config: TugboatReplayConfig(
-    collector: TugboatCollectorConfig(
-      baseUrl: TugboatCollectorDefaults.productionBaseUrl,
-      apiKey: 'pmk_your_token',
-      appInfo: TugboatCollectorAppInfo(
-        name: 'My App',
-        version: '1.0.0',
-        buildNumber: '1',
-        installationId: installationId,
-      ),
-      deviceInfo: TugboatCollectorDeviceInfo(
-        id: deviceId,
-        platform: 'ios',
-        screenSize: TugboatCollectorScreenSize(width: 390, height: 844),
-        screenDensity: 3,
-        screenDpi: 460,
-        screenPixelDensity: 3,
-      ),
-      ipInfo: TugboatCollectorIpInfo(ip: '203.0.113.10'),
-      locale: TugboatCollectorLocaleInfo(
-        language: 'en',
-        country: 'US',
-        timezone: 'America/New_York',
-      ),
-    ),
+final collector = TugboatCollectorConfig(
+  baseUrl: 'https://collector.example.com',
+  apiKey: 'client-visible-token',
+  userId: currentUserId,
+  appInfo: const TugboatCollectorAppInfo(
+    name: 'My App',
+    version: '1.0.0',
+    buildNumber: '42',
+    installationId: 'installation-id',
+    appId: 'com.example.my_app',
   ),
-  child: child,
+  deviceInfo: const TugboatCollectorDeviceInfo(
+    id: 'device-id',
+    platform: 'ios',
+    screenSize: TugboatCollectorScreenSize(width: 390, height: 844),
+    screenDensity: 3,
+    screenDpi: 480,
+    screenPixelDensity: 3,
+  ),
+  ipInfo: const TugboatCollectorIpInfo(ip: '127.0.0.1'),
+  locale: const TugboatCollectorLocaleInfo(
+    language: 'en',
+    country: 'US',
+    timezone: 'America/New_York',
+  ),
 );
 ```
 
-### HTTP behavior
+`appId` is the native package or bundle identifier. The serialized app metadata
+currently includes the same value under both `appId` and legacy
+`packageName` keys for consumer compatibility.
 
-- `POST /v1/sessions` on session start and session end
-- `POST /v1/events/batch` for interaction events
-- `POST /v1/frames` for screenshot uploads
-- Events are batched with a default size of `10`
-- Partial batches flush on a timer and when the controller disposes
+### HTTP request contract
 
-### Enrichment at ingest
+The SDK calls:
 
-When the collector consumer has `TUGBOAT_CONTEXT_GRAPH_URL` configured, each event is mapped
-through `POST /v1/enrichment/map-event` before ClickHouse insert. The consumer passes the
-previous event in the same session so `route_change` / `state_change` can resolve transition
-lookups. Results are stored at `payload.contextEnrichment.mapping`.
+| Request | Purpose |
+| --- | --- |
+| `POST /v1/sessions` | `session_start` and `session_end` lifecycle payloads |
+| `POST /v1/events/batch` | JSON event batches |
+| `POST /v1/frames` | multipart PNG frame upload |
 
-**Label behavior (2026-07):**
+Every request includes both `X-PMKit-API-Key` and `X-Tugboat-API-Key`, plus
+platform, build number, version name, and app ID headers. Mobile API keys are
+client-visible; use the narrowest possible scope and assume a determined user
+can extract them from the app or process.
 
-- `tap` — `Screen → Control` (intent)
-- `tap_settled` — outcome phrasing: `No visible change after tapping …` / `Changed after tapping …`
-- `route_change` — navigation phrasing: `Navigated from X to Y`, `Went back from X to Y`
-- `swipe` with `scrolled:false` — `Scroll did not move on …`
+The start lifecycle request uses the SDK's local session ID. The sink waits for
+an accepted start response and reads its `sessionId`; events, frames, and the
+end lifecycle request then use that collector-issued ID. Events and frames are
+not uploaded before this handshake completes.
 
-`tap_settled` is an immediate micro-outcome, not final truth. Prefer later `route_change` or
-`state_change` when reconstructing what the user accomplished. See
-`tugboat-collector/docs/enrichment.md`.
+Event payloads contain:
 
-### Scroll and swipe events
+- event ID, type, `atMs`, and absolute UTC `triggeredAt`;
+- optional user/session/run/action IDs;
+- optional before/after frame references, related-event ID, and result;
+- serialized state and target anchors;
+- event-specific data under `payload`;
+- build identity: app ID, platform, version name, build number, and fingerprint
+  schema version.
 
-The SDK emits scroll and swipe events as first-class interaction evidence:
+Frame uploads are sorted by numeric frame suffix and sent as multipart files
+named `<frameNo>.png`, with `sessionId` and comma-separated `frameNos` fields.
+Malformed frame IDs and frames belonging to a stale SDK session are dropped.
 
-- `scroll_start` and `scroll_end` carry `targetAnchor` for the resolved `Scrollable` when
-  available. `scroll_end.relatedEventId` points back to the matching `scroll_start`.
-- Scroll event `data` includes `axis`, `depth`, `offset`, `startOffset`, `endOffset`,
-  `offsetNorm`, edge flags, `overscrollCount`, and `sectionLabel` when the scrollable is inside
-  a `TugboatSubView`.
-- Pointer drags beyond touch slop emit `swipe` on pointer up. A swipe with
-  `data.scrolled:false` and `result:noVisibleChange` represents a dead swipe / failed scroll
-  intent; a swipe with `data.scrolled:true` includes `scrollStartEventId` linking it to the
-  scroll sequence.
+### Batching, retry, and backpressure
 
-Context graph enrichment consumes these events through
-`POST /v1/enrichment/map-event`: if a scroll/swipe event has a `targetAnchor.fingerprint`, the
-mapped event can attach screen/control context and preserve fields such as `isDeadSwipe`,
-`scrolled`, direction, axis, section label, edge, and overscroll count.
+`TugboatCollectorConfig` defaults are:
 
-### Security note
+| Field | Default |
+| --- | --- |
+| `eventBatchSize` | `10` |
+| `eventFlushInterval` | `3 seconds` |
+| `maxPendingBatches` | `20` |
+| `maxPendingEvents` | `60` |
+| `maxPendingFrames` | `20` |
 
-Mobile API keys are client-visible. Do not hardcode production secrets in the app binary without accepting that risk. Prefer environment-specific keys with the narrowest scope possible.
+A full batch triggers a flush; the periodic timer sends partial batches.
+Lifecycle backgrounding also asks the sink hub to flush, and session end drains
+events before posting the final lifecycle message.
 
-## Using both collectors
+The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
+`429`, and `5xx`; other response codes are dropped. Retry batches, unsent
+events, and frames are bounded in memory. When a bound is exceeded the oldest
+items are discarded and a debug message is printed.
+
+When `TugboatReplayConfig.outbox` is enabled, sanitized Collector envelopes are
+also appended to an on-device outbox before send and replayed after process
+restart (at-least-once, with local idempotency keys). The outbox is opt-in,
+bounded by bytes/age/entries, and cleared via `TugboatReplay.clearDurableOutbox()`.
+WebSocket exploration traffic remains in-memory only.
+
+Fresh events can continue to flush even while an older retry head remains
+blocked. Session epochs prevent an in-flight response from a prior session from
+stamping or clearing a newer session's evidence.
+
+## Using both destinations
 
 ```dart
-TugboatReplayConfig(
+final config = TugboatReplayConfig(
+  profile: TugboatCaptureProfile.exploration,
   explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
   collector: productionCollectorConfig,
-)
+);
 ```
 
-Capture remains authoritative in the in-memory `TugboatSession`. Sink failures are swallowed so the host app is never blocked by collector availability.
+The sink hub fans each session, event, and frame to both destinations and
+isolates failures per sink. With HTTP configured, connecting the WebSocket does
+not enable exploration-only screenshot suppression because frames still need to
+reach the HTTP destination.
+
+Custom destinations can be registered through `sinkFactories` on
+`TugboatReplayConfig`; the SDK owns one sink instance per capture session.
+
+## Operational limits
+
+- Durable outbox is Collector HTTP only; exploration WS stays process-local.
+- Delivery is at-least-once when the outbox is enabled; server-side dedupe is
+  not assumed.
+- `activationRequestId` and `captureSessionId` are distinct and both emitted.
+- Platform-view / video-texture capture adapters are deferred.
+- Disposal requests asynchronous finalization; a force-killed process can still
+  lose in-flight work that has not yet been appended to the outbox.
+
+See [Capture and fingerprint architecture](../design/capture-and-fingerprint.md)
+for identity, screenshot, privacy, and lifecycle details.

@@ -6,6 +6,9 @@ import 'package:flutter/widgets.dart';
 import 'anchors.dart';
 import 'collector_config.dart';
 
+/// Current session JSON schema. Writers emit this; readers accept 6 and 7.
+const int tugboatSessionSchemaVersion = 7;
+
 class TugboatRect {
   const TugboatRect(this.x, this.y, this.width, this.height);
 
@@ -42,6 +45,7 @@ class TugboatFrame {
     this.trigger = TugboatFrameTrigger.manual,
     this.byteLength = 0,
     this.captureMicros = 0,
+    this.captureSessionId,
   });
 
   final String id;
@@ -53,6 +57,7 @@ class TugboatFrame {
   final TugboatFrameTrigger trigger;
   final int byteLength;
   final int captureMicros;
+  final String? captureSessionId;
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -64,6 +69,7 @@ class TugboatFrame {
     'trigger': trigger.name,
     'byteLength': byteLength,
     'captureMicros': captureMicros,
+    if (captureSessionId != null) 'captureSessionId': captureSessionId,
   };
 }
 
@@ -104,6 +110,8 @@ class TugboatEvent {
     required this.atMs,
     required this.type,
     this.sessionId,
+    this.captureSessionId,
+    this.activationRequestId,
     this.stateAnchor,
     this.targetAnchor,
     this.beforeFrame,
@@ -118,7 +126,11 @@ class TugboatEvent {
   final String id;
   final int atMs;
   final String type;
+
+  /// Legacy alias for [captureSessionId].
   final String? sessionId;
+  final String? captureSessionId;
+  final String? activationRequestId;
   final TugboatStateAnchor? stateAnchor;
   final TugboatTargetAnchor? targetAnchor;
   final String? beforeFrame;
@@ -129,11 +141,15 @@ class TugboatEvent {
   final String? explorationRunId;
   final String? actionId;
 
+  String? get effectiveCaptureSessionId => captureSessionId ?? sessionId;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'atMs': atMs,
     'type': type,
     if (sessionId != null) 'sessionId': sessionId,
+    if (captureSessionId != null) 'captureSessionId': captureSessionId,
+    if (activationRequestId != null) 'activationRequestId': activationRequestId,
     if (stateAnchor != null) 'stateAnchor': stateAnchor!.toJson(),
     if (targetAnchor != null) 'targetAnchor': targetAnchor!.toJson(),
     if (beforeFrame != null) 'beforeFrame': beforeFrame,
@@ -147,6 +163,8 @@ class TugboatEvent {
 
   TugboatEvent withExplorationContext({
     String? sessionId,
+    String? captureSessionId,
+    String? activationRequestId,
     String? explorationRunId,
     String? actionId,
   }) => TugboatEvent(
@@ -154,6 +172,8 @@ class TugboatEvent {
     atMs: atMs,
     type: type,
     sessionId: sessionId ?? this.sessionId,
+    captureSessionId: captureSessionId ?? this.captureSessionId,
+    activationRequestId: activationRequestId ?? this.activationRequestId,
     stateAnchor: stateAnchor,
     targetAnchor: targetAnchor,
     beforeFrame: beforeFrame,
@@ -173,19 +193,34 @@ class TugboatSession {
     required this.platform,
     required this.viewport,
     this.appInfo,
+    this.activationRequestId,
+    this.explorationRunId,
+    this.collectorSessionId,
   });
 
+  /// SDK-generated capture session ID (emitted evidence identity).
   final String id;
   final DateTime startedAt;
   final String platform;
   final TugboatRect viewport;
   final TugboatCollectorAppInfo? appInfo;
 
+  /// Host-supplied activation / request correlation ID.
+  final String? activationRequestId;
+
+  /// Exploration control-plane run ID from config, if any.
+  final String? explorationRunId;
+
+  /// Collector-issued transport ID (stamped after session_start accept).
+  String? collectorSessionId;
+
   final List<TugboatFrame> frames = [];
   final Map<String, Uint8List> frameBytes = {};
   final List<TugboatEvent> events = [];
   final List<TugboatScrollSample> scrollSamples = [];
   bool truncated = false;
+
+  String get captureSessionId => id;
 
   Size get viewportSize {
     if (viewport.width > 0 && viewport.height > 0) {
@@ -220,9 +255,14 @@ class TugboatSession {
       frames.isEmpty ? 0 : totalFrameBytes / frames.length;
 
   Map<String, Object?> toJson() => {
-    'schemaVersion': 6,
+    'schemaVersion': tugboatSessionSchemaVersion,
     'session': {
       'id': id,
+      'captureSessionId': id,
+      if (activationRequestId != null)
+        'activationRequestId': activationRequestId,
+      if (collectorSessionId != null) 'collectorSessionId': collectorSessionId,
+      if (explorationRunId != null) 'explorationRunId': explorationRunId,
       'startedAt': startedAt.toUtc().toIso8601String(),
       'platform': platform,
       'viewport': viewport.toJson(),

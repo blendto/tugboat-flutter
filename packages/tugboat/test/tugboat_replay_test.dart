@@ -628,7 +628,7 @@ void main() {
     );
 
     final json = jsonDecode(session.toPrettyJson()) as Map<String, dynamic>;
-    expect(json['schemaVersion'], 6);
+    expect(json['schemaVersion'], 7);
     expect(json.containsKey('routes'), isFalse);
     expect(json['events'], [isNot(contains('route'))]);
     expect(json['frames'], [containsPair('captureMicros', 12345)]);
@@ -796,7 +796,7 @@ void main() {
   ) async {
     addTearDown(() {
       TugboatReplay.disabled = false;
-      TugboatReplay.deactivate();
+      TugboatReplay.resetForTest();
     });
 
     TugboatReplay.disabled = true;
@@ -815,20 +815,23 @@ void main() {
     expect(find.text('Disabled'), findsOneWidget);
 
     TugboatReplay.activate(
-      sessionId: 'session-disabled',
+      activationRequestId: 'session-disabled',
       profile: TugboatCaptureProfile.exploration,
     );
     expect(TugboatReplay.isActivated, isFalse);
   });
 
-  testWidgets('dormant profile passes through child until activated', (
+  testWidgets('dormant profile stays inert until activated without rebuild', (
     tester,
   ) async {
-    addTearDown(TugboatReplay.deactivate);
+    addTearDown(TugboatReplay.resetForTest);
 
     await tester.pumpWidget(
       MaterialApp(
-        builder: (context, child) => TugboatReplay.wrapApp(child: child!),
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: _testConfig.copyWith(profile: TugboatCaptureProfile.dormant),
+          child: child!,
+        ),
         home: const Scaffold(body: Text('Dormant')),
       ),
     );
@@ -836,26 +839,97 @@ void main() {
 
     expect(TugboatReplay.controller, isNull);
     expect(find.text('Dormant'), findsOneWidget);
+    expect(TugboatReplay.boundaryKey.currentContext, isNull);
 
     TugboatReplay.activate(
-      sessionId: 'session-1',
+      activationRequestId: 'request-1',
       profile: TugboatCaptureProfile.exploration,
     );
+    await _waitForCaptures(tester);
+
+    expect(TugboatReplay.controller, isNotNull);
+    expect(TugboatReplay.activationRequestId, 'request-1');
+    expect(
+      TugboatReplay.controller!.config.profile,
+      TugboatCaptureProfile.exploration,
+    );
+    expect(
+      TugboatReplay.controller!.session!.activationRequestId,
+      'request-1',
+    );
+    expect(
+      TugboatReplay.controller!.session!.id,
+      isNot(equals('request-1')),
+    );
+  });
+
+  testWidgets('activate-deactivate-activate ends each session once', (
+    tester,
+  ) async {
+    addTearDown(TugboatReplay.resetForTest);
+
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
           config: _testConfig.copyWith(profile: TugboatCaptureProfile.dormant),
           child: child!,
         ),
-        home: const Scaffold(body: Text('Active')),
+        home: const Scaffold(body: Text('Gate')),
       ),
     );
-    await _waitForCaptures(tester);
-    expect(TugboatReplay.controller, isNotNull);
-    expect(
-      TugboatReplay.controller!.config.profile,
-      TugboatCaptureProfile.exploration,
+    await tester.pump();
+
+    TugboatReplay.activate(
+      activationRequestId: 'req-a',
+      profile: TugboatCaptureProfile.exploration,
     );
+    await _waitForCaptures(tester);
+    final firstId = TugboatReplay.controller!.session!.id;
+
+    TugboatReplay.deactivate();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(TugboatReplay.controller, isNull);
+
+    TugboatReplay.activate(
+      activationRequestId: 'req-b',
+      profile: TugboatCaptureProfile.exploration,
+    );
+    await _waitForCaptures(tester);
+    final secondId = TugboatReplay.controller!.session!.id;
+    expect(secondId, isNot(equals(firstId)));
+    expect(TugboatReplay.activationRequestId, 'req-b');
+  });
+
+  testWidgets('identical activate request is idempotent', (tester) async {
+    addTearDown(TugboatReplay.resetForTest);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: _testConfig.copyWith(profile: TugboatCaptureProfile.dormant),
+          child: child!,
+        ),
+        home: const Scaffold(body: Text('Idempotent')),
+      ),
+    );
+    await tester.pump();
+
+    TugboatReplay.activate(
+      activationRequestId: 'same',
+      profile: TugboatCaptureProfile.exploration,
+    );
+    await _waitForCaptures(tester);
+    final sessionId = TugboatReplay.controller!.session!.id;
+    final epoch = TugboatReplay.lifecycle.requestEpoch;
+
+    TugboatReplay.activate(
+      activationRequestId: 'same',
+      profile: TugboatCaptureProfile.exploration,
+    );
+    await tester.pump();
+    expect(TugboatReplay.lifecycle.requestEpoch, epoch);
+    expect(TugboatReplay.controller!.session!.id, sessionId);
   });
 
   test('perceptual hash is stable for identical rgba input', () {

@@ -85,6 +85,8 @@ extension TugboatEventTestJson on TugboatEvent {
     atMs: json['atMs'] as int,
     type: json['type'] as String,
     sessionId: json['sessionId'] as String?,
+    captureSessionId: json['captureSessionId'] as String?,
+    activationRequestId: json['activationRequestId'] as String?,
     stateAnchor: json['stateAnchor'] == null
         ? null
         : TugboatStateAnchorTestJson.fromJson(
@@ -109,7 +111,8 @@ extension TugboatEventTestJson on TugboatEvent {
 
 extension TugboatSessionTestJson on TugboatSession {
   static TugboatSession fromJson(Map<String, dynamic> json) {
-    if (json['schemaVersion'] != 6) {
+    final version = json['schemaVersion'] as int?;
+    if (version != 6 && version != 7) {
       throw const FormatException(
         'Unsupported Tugboat session schema version.',
       );
@@ -120,7 +123,7 @@ extension TugboatSessionTestJson on TugboatSession {
     );
     final appInfoJson = sessionJson['appInfo'];
     final session = TugboatSession(
-      id: sessionJson['id'] as String,
+      id: (sessionJson['captureSessionId'] ?? sessionJson['id']) as String,
       startedAt: DateTime.parse(sessionJson['startedAt'] as String),
       platform: sessionJson['platform'] as String,
       viewport: TugboatRect(
@@ -140,6 +143,9 @@ extension TugboatSessionTestJson on TugboatSession {
                   (appInfoJson['appId'] ?? appInfoJson['packageName'])
                       as String,
             ),
+      activationRequestId: sessionJson['activationRequestId'] as String?,
+      explorationRunId: sessionJson['explorationRunId'] as String?,
+      collectorSessionId: sessionJson['collectorSessionId'] as String?,
     )..truncated = sessionJson['truncated'] as bool? ?? false;
 
     session.frames.addAll(

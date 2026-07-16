@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
@@ -9,7 +10,10 @@ import 'capture_sink.dart';
 import 'collector_http_sink.dart';
 import 'debug_logging.dart';
 import 'exploration_sink.dart';
+import 'health.dart';
 import 'models.dart';
+import 'outbox/outbox.dart';
+import 'outbox/outbox_sink.dart';
 import 'replay_config.dart';
 import 'screenshot_capturer.dart';
 import 'scroll_capture.dart';
@@ -123,10 +127,18 @@ class TugboatReplayController extends ChangeNotifier {
   TugboatReplayController({
     required this.config,
     required GlobalKey boundaryKey,
+    this.activationRequestId,
+    this.sessionEpoch = 0,
   }) : _boundaryKey = boundaryKey;
 
   final TugboatReplayConfig config;
   final GlobalKey _boundaryKey;
+
+  /// Host-supplied activation / request correlation ID (distinct from capture).
+  final String? activationRequestId;
+
+  /// Monotonic gate epoch fencing evidence to this capture mount.
+  final int sessionEpoch;
 
   final Stopwatch _clock = Stopwatch();
   Future<void> _queue = Future.value();
@@ -138,6 +150,11 @@ class TugboatReplayController extends ChangeNotifier {
   TugboatCaptureSinkHub? _sinkHub;
   ExplorationCaptureSink? _explorationSink;
   CollectorHttpSink? _collectorHttpSink;
+  TugboatOutboxStore? _outboxStore;
+  final TugboatScreenshotBudgetTracker _screenshotBudget =
+      TugboatScreenshotBudgetTracker();
+  final List<TugboatSanitizedFailure> _recentFailures = [];
+  final List<TugboatCaptureSink> _builtinSinks = [];
   String? _activeExplorationRunId;
   String? _activeActionId;
 
@@ -261,6 +278,10 @@ class TugboatReplayController extends ChangeNotifier {
   GlobalKey get boundaryKey => _boundaryKey;
 
   Future<void> initialize() async {
+    final budget = config.screenshotBudget;
+    _screenshotBudget
+      ..window = budget.window
+      ..budgetMicros = budget.budgetMicros;
     final resolver = AnchorResolver(
       rootKey: _boundaryKey,
       widgetNames: config.widgetNames,
@@ -290,14 +311,58 @@ class TugboatReplayController extends ChangeNotifier {
       _collectorHttpSink = CollectorHttpSink(
         config: collectorConfig.withUserId(config.userId),
       );
-      sinks.add(_collectorHttpSink!);
+      TugboatCaptureSink httpSink = _collectorHttpSink!;
+      if (config.outbox.enabled) {
+        _outboxStore = TugboatOutboxStore(
+          config: config.outbox,
+          directory: config.outbox.directory,
+        );
+        httpSink = OutboxBackedCaptureSink(
+          inner: httpSink,
+          store: _outboxStore!,
+        );
+      }
+      sinks.add(httpSink);
     }
-    if (sinks.isNotEmpty) {
+    _builtinSinks
+      ..clear()
+      ..addAll(sinks);
+    if (sinks.isNotEmpty || config.sinkFactories.isNotEmpty) {
       _sinkHub = TugboatCaptureSinkHub(sinks);
     }
     if (_holdPersistentSemanticsHandle) {
       _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
     }
+  }
+
+  Future<void> clearDurableOutbox() async {
+    await _outboxStore?.clear();
+  }
+
+  TugboatSdkHealth healthSnapshot() {
+    final outbox = _outboxStore;
+    return TugboatSdkHealth(
+      lifecycle: _session == null ? 'dormant' : 'active',
+      profile: config.profile.name,
+      activationRequestId: activationRequestId,
+      captureSessionId: _session?.id,
+      sinks: TugboatSinkHealth(
+        pending: _sinkHub?.pendingCount ?? 0,
+        accepted: _sinkHub?.acceptCount ?? 0,
+        dropped: _sinkHub?.dropCount ?? 0,
+      ),
+      outbox: outbox == null
+          ? null
+          : TugboatOutboxHealth(
+              enabled: config.outbox.enabled,
+              pending: outbox.entryCount,
+              bytes: outbox.byteSize,
+              quarantined: outbox.quarantineReasons.length,
+            ),
+      screenshots: _screenshotBudget.snapshot(),
+      truncated: _session?.truncated ?? false,
+      recentFailures: List.unmodifiable(_recentFailures),
+    );
   }
 
   @override
@@ -358,6 +423,8 @@ class TugboatReplayController extends ChangeNotifier {
       platform: platform,
       viewport: TugboatRect(0, 0, viewport.width, viewport.height),
       appInfo: config.appInfo ?? config.collector?.appInfo,
+      activationRequestId: activationRequestId,
+      explorationRunId: config.explorationRunId,
     );
     _currentRoute = null;
     _currentStateAnchor = null;
@@ -371,6 +438,22 @@ class TugboatReplayController extends ChangeNotifier {
     _viewportSemantics.clear();
     _lastDHash = null;
     if (!_disposed) notifyListeners();
+
+    final context = TugboatSinkSessionContext(
+      captureSessionId: _session!.id,
+      sessionEpoch: sessionEpoch,
+      activationRequestId: activationRequestId,
+      explorationRunId: config.explorationRunId,
+      profileName: config.profile.name,
+    );
+    if (config.sinkFactories.isNotEmpty) {
+      final all = <TugboatCaptureSink>[
+        ..._builtinSinks,
+        for (final factory in config.sinkFactories)
+          _FactorySinkAdapter(factory.create(context), context),
+      ];
+      _sinkHub = TugboatCaptureSinkHub(all);
+    }
     _sinkHub?.startSession(_session!);
     _addEvent(
       TugboatEvent(
@@ -525,7 +608,29 @@ class TugboatReplayController extends ChangeNotifier {
     final capturer = _capturer;
     if (session == null || capturer == null) return _latestFrameId;
 
+    final eligibleToSkip =
+        !force &&
+        trigger != TugboatFrameTrigger.initial &&
+        trigger != TugboatFrameTrigger.lifecycle &&
+        config.screenshotBudget.skipEligibleWhenDegraded &&
+        _screenshotBudget.shouldSkipEligible;
+    if (eligibleToSkip) {
+      _screenshotBudget.record(
+        queueWaitMicros: 0,
+        readbackMicros: 0,
+        encodeMicros: 0,
+        encodedBytes: 0,
+        dropReason: 'budget',
+      );
+      _refreshStateAnchor();
+      _maybeEmitSceneInventory();
+      return _latestFrameId;
+    }
+
+    final queueStarted = DateTime.now();
     await capturer.waitForFrameBudget();
+    final queueWaitMicros =
+        DateTime.now().difference(queueStarted).inMicroseconds;
     if (_disposed || _capturePaused || _skipCapture) return _latestFrameId;
     _refreshStateAnchor();
     final signature = _currentStateAnchor?.signature ?? '';
@@ -546,6 +651,14 @@ class TugboatReplayController extends ChangeNotifier {
       if (result == null || _disposed) return _latestFrameId;
       final activeSession = _session;
       if (activeSession == null) return _latestFrameId;
+
+      _screenshotBudget.record(
+        queueWaitMicros: queueWaitMicros,
+        readbackMicros: result.captureMicros,
+        encodeMicros: result.encodeMicros,
+        encodedBytes: result.bytes.length,
+        coalescedCapture: result.skippedByDHash,
+      );
 
       if (result.skippedByDHash) {
         if (result.dHash != null) {
@@ -578,6 +691,7 @@ class TugboatReplayController extends ChangeNotifier {
         trigger: trigger,
         byteLength: result.bytes.length,
         captureMicros: result.captureMicros + result.encodeMicros,
+        captureSessionId: activeSession.id,
       );
       activeSession.frames.add(frame);
       activeSession.frameBytes[frameId] = result.bytes;
@@ -1273,6 +1387,8 @@ class TugboatReplayController extends ChangeNotifier {
     if (session == null) return;
     final enriched = event.withExplorationContext(
       sessionId: session.id,
+      captureSessionId: session.id,
+      activationRequestId: session.activationRequestId ?? activationRequestId,
       explorationRunId: _activeExplorationRunId ?? config.explorationRunId,
       actionId: _activeActionId,
     );
@@ -1380,4 +1496,72 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   String _nextId(String prefix) => '$prefix-${_id++}';
+}
+
+/// Adapts a session-owned factory sink to the legacy hub interface.
+class _FactorySinkAdapter implements TugboatCaptureSink {
+  _FactorySinkAdapter(this._sink, this._context);
+
+  final TugboatSessionCaptureSink _sink;
+  final TugboatSinkSessionContext _context;
+  bool _finished = false;
+
+  @override
+  void startSession(TugboatSession session) {
+    // ignore: discarded_futures
+    _sink.start(_context);
+  }
+
+  @override
+  void recordEvent(TugboatEvent event) {
+    if (_finished) return;
+    _sink.accept(
+      TugboatCaptureEnvelope(
+        kind: TugboatEnvelopeKind.event,
+        captureSessionId: _context.captureSessionId,
+        sessionEpoch: _context.sessionEpoch,
+        activationRequestId: _context.activationRequestId,
+        idempotencyKey: 'event:${event.id}',
+        event: event,
+      ),
+    );
+  }
+
+  @override
+  void recordFrame(
+    TugboatFrame frame,
+    Uint8List bytes, {
+    required String sessionId,
+    String? actionId,
+  }) {
+    if (_finished) return;
+    _sink.accept(
+      TugboatCaptureEnvelope(
+        kind: TugboatEnvelopeKind.frame,
+        captureSessionId: _context.captureSessionId,
+        sessionEpoch: _context.sessionEpoch,
+        activationRequestId: _context.activationRequestId,
+        idempotencyKey: 'frame:${frame.id}',
+        frame: frame,
+        frameBytes: bytes,
+        actionId: actionId,
+      ),
+    );
+  }
+
+  @override
+  Future<void> flush() => _sink.flush();
+
+  @override
+  Future<void> endSession() async {
+    if (_finished) return;
+    _finished = true;
+    await _sink.finish();
+  }
+
+  @override
+  void dispose() {
+    // ignore: discarded_futures
+    _sink.dispose();
+  }
 }
