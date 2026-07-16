@@ -232,6 +232,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     DateTime triggeredAt,
     int epoch,
   ) async {
+    if (!_isCurrentEpoch(epoch)) return _SendResult.drop;
     final session = _session;
     if (session == null) return _SendResult.accepted;
 
@@ -352,17 +353,20 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<void> _flushFrames() async {
     if (_pendingFrames.isEmpty) return;
     final epoch = _sessionEpoch;
+    final sessionId = _collectorSessionId;
+    // Confirm the current collector session before draining so frames queued
+    // for a newer session cannot be cleared by a stale in-flight flush.
+    if (sessionId == null || sessionId.isEmpty || !_isCurrentEpoch(epoch)) {
+      return;
+    }
 
     final uploads = List<_PendingFrameUpload>.from(_pendingFrames)
       ..sort((a, b) => a.frameNo.compareTo(b.frameNo));
     _pendingFrames.clear();
 
-    final sessionId = _collectorSessionId;
     // Drop extracted uploads when the session was reset mid-flush rather than
-    // sending them under a missing/stale collector id.
-    if (sessionId == null ||
-        sessionId.isEmpty ||
-        !_isCurrentEpoch(epoch)) {
+    // sending them under a stale collector id.
+    if (!_isCurrentEpoch(epoch)) {
       return;
     }
     final request = http.MultipartRequest(

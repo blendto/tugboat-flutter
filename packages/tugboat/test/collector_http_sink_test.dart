@@ -400,6 +400,37 @@ void main() {
     sink.dispose();
   });
 
+  test('keeps queued frames until collector session id is available', () async {
+    sessionStatus = 503;
+    final sink = CollectorHttpSink(config: configForServer());
+    final session = createSession();
+    sink.startSession(session);
+
+    sink.recordFrame(
+      const TugboatFrame(
+        id: 'frame-0',
+        atMs: 0,
+        width: 100,
+        height: 200,
+        contentHash: 'abc',
+      ),
+      Uint8List.fromList([1, 2, 3]),
+      sessionId: session.id,
+    );
+    await sink.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(framePosts, isEmpty);
+
+    sessionStatus = 202;
+    await sink.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    expect(framePosts, hasLength(1));
+    expect(framePosts.single['frameNos'], ['0']);
+    sink.dispose();
+  });
+
   test(
     'does not requeue stale frame retries after a new session starts',
     () async {

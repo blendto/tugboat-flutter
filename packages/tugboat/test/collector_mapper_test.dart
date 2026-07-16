@@ -120,13 +120,13 @@ void main() {
     expect(mapped['fingerprintSchemaVersion'], tugboatFingerprintSchemaVersion);
   });
 
-  test('keeps deprecated packageName constructor compatibility', () {
-    const appInfo = TugboatCollectorAppInfo(
+  test('keeps deprecated packageName legacy constructor compatibility', () {
+    // ignore: deprecated_member_use_from_same_package
+    const appInfo = TugboatCollectorAppInfo.legacyPackageName(
       name: 'Example App',
       version: '1.0.0',
       buildNumber: '1',
       installationId: 'inst_1',
-      // ignore: deprecated_member_use_from_same_package
       packageName: 'com.example.legacy',
     );
 
