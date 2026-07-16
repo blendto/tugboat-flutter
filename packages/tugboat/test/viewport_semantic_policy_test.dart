@@ -57,4 +57,15 @@ void main() {
     expect(productionDefault.emitEvents, isFalse);
     expect(productionDefault.holdPersistentSemanticsHandle, isFalse);
   });
+
+  test('replay config carries userId through copyWith', () {
+    const config = TugboatReplayConfig(userId: 'user_1');
+
+    expect(config.userId, 'user_1');
+    expect(
+      config.copyWith(profile: TugboatCaptureProfile.productionLean).userId,
+      'user_1',
+    );
+    expect(config.copyWith(userId: 'user_2').userId, 'user_2');
+  });
 }

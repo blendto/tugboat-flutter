@@ -120,7 +120,12 @@ class ViewportSemanticSession {
     if (!engineEnabled || resolver == null) return;
 
     final buildStopwatch = Stopwatch()..start();
-    final rawMap = resolver.buildViewportSemanticMap(inventory: inventory);
+    // Exploration holds a persistent SemanticsHandle for the session.
+    // Production must be allowed to acquire a transient handle per build.
+    final rawMap = resolver.buildViewportSemanticMap(
+      inventory: inventory,
+      allowTransientSemanticsHandle: !holdPersistentSemanticsHandle,
+    );
     buildStopwatch.stop();
     if (rawMap == null) {
       if (debugLogs) {

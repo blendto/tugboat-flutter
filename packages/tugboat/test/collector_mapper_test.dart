@@ -63,6 +63,7 @@ void main() {
       sessionId: 'sess_123',
       sessionStartedAt: sessionStartedAt,
       userId: 'user_1',
+      collectorConfig: collectorConfig,
     );
 
     expect(mapped['id'], 'event-5');
@@ -79,6 +80,23 @@ void main() {
     expect((mapped['payload'] as Map)['x'], 100);
     expect((mapped['payload'] as Map)['actionId'], 'A-1');
     expect((mapped['payload'] as Map)['explorationRunId'], 'run-1');
+    expect(mapped['build'], {
+      'appId': 'com.example.app',
+      'platform': 'ios',
+      'versionName': '1.0.0',
+      'buildNumber': '1',
+      'fingerprintSchemaVersion': tugboatFingerprintSchemaVersion,
+    });
+  });
+
+  test('omits sessionId when not provided so the sink can stamp at send', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(id: 'event-1', atMs: 0, type: 'tap'),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+    expect(mapped.containsKey('sessionId'), isFalse);
+    expect(mapped['build'], isNotNull);
   });
 
   test('maps session lifecycle payloads for collector sessions endpoint', () {
@@ -94,6 +112,7 @@ void main() {
     expect(mapped['userId'], 'user_1');
     expect((mapped['appInfo'] as Map)['name'], 'Example App');
     expect((mapped['appInfo'] as Map)['appId'], 'com.example.app');
+    expect((mapped['appInfo'] as Map)['packageName'], 'com.example.app');
     expect((mapped['device'] as Map)['platform'], 'ios');
     expect((mapped['ipInfo'] as Map)['ip'], '127.0.0.1');
     expect((mapped['locale'] as Map)['language'], 'en');
@@ -101,8 +120,38 @@ void main() {
     expect(mapped['fingerprintSchemaVersion'], tugboatFingerprintSchemaVersion);
   });
 
+  test('keeps deprecated packageName legacy constructor compatibility', () {
+    // ignore: deprecated_member_use_from_same_package
+    const appInfo = TugboatCollectorAppInfo.legacyPackageName(
+      name: 'Example App',
+      version: '1.0.0',
+      buildNumber: '1',
+      installationId: 'inst_1',
+      packageName: 'com.example.legacy',
+    );
+
+    expect(appInfo.appId, 'com.example.legacy');
+    expect(appInfo.toJson()['appId'], 'com.example.legacy');
+    expect(appInfo.toJson()['packageName'], 'com.example.legacy');
+  });
+
+  test('copies collector config with replay userId override', () {
+    final copied = collectorConfig.withUserId('user_from_replay');
+
+    expect(copied.userId, 'user_from_replay');
+    expect(copied.baseUrl, collectorConfig.baseUrl);
+    expect(copied.apiKey, collectorConfig.apiKey);
+    expect(copied.appInfo, collectorConfig.appInfo);
+    expect(copied.deviceInfo, collectorConfig.deviceInfo);
+  });
+
+  test('copying collector config preserves existing userId by default', () {
+    expect(collectorConfig.withUserId(null).userId, 'user_1');
+  });
+
   test('extracts frame numbers from tugboat frame ids', () {
     expect(frameNumberFromId('frame-0'), 0);
     expect(frameNumberFromId('frame-12'), 12);
+    expect(frameNumberFromId('frame'), isNull);
   });
 }

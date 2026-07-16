@@ -340,11 +340,16 @@ class AnchorResolver {
 
     Rect? bounds;
     final render = anchorElement.renderObject;
-    if (render is RenderBox && render.hasSize) {
-      bounds = MatrixUtils.transformRect(
-        render.getTransformTo(rootRender),
-        render.paintBounds,
-      );
+    if (render is RenderBox && render.attached && render.hasSize) {
+      try {
+        bounds = MatrixUtils.transformRect(
+          render.getTransformTo(rootRender),
+          render.paintBounds,
+        );
+      } catch (_) {
+        // A scroll/layout update can detach or invalidate a hit render box
+        // between hit testing and anchor construction. Bounds are optional.
+      }
     }
 
     final relativePosition = _relativePosition(bounds, viewport);

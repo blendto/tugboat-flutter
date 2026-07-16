@@ -561,6 +561,53 @@ void main() {
     expect(state.actionableSummary['button'], isNull);
   });
 
+  testWidgets('typed async dropdown callbacks do not crash role inspection', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    final selected = ValueNotifier<int>(1);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: ValueListenableBuilder<int>(
+              valueListenable: selected,
+              builder: (context, value, child) {
+                return DropdownButton<int>(
+                  value: value,
+                  items: const [
+                    DropdownMenuItem(value: 1, child: Text('One')),
+                    DropdownMenuItem(value: 2, child: Text('Two')),
+                  ],
+                  onChanged: (next) async {
+                    if (next != null) selected.value = next;
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final resolver = AnchorResolver(rootKey: rootKey);
+    final target = resolver.targetAt(
+      tester.getCenter(find.text('One')),
+      route: '/dropdown',
+    );
+
+    final role = tugboatRoleForWidget(
+      tester.widget<DropdownButton<int>>(find.byType(DropdownButton<int>)),
+    );
+    expect(role?.name, 'dropdown');
+    expect(role?.enabled, isTrue);
+    expect(target, isNotNull);
+    selected.dispose();
+  });
+
   testWidgets('InkWell-based button yields non-empty canonical path', (
     tester,
   ) async {

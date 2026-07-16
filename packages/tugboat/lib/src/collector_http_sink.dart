@@ -30,7 +30,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   bool _disposed = false;
   TugboatSession? _session;
+
+  /// Collector-issued id; null until session_start is accepted.
   String? _collectorSessionId;
+  int _sessionEpoch = 0;
   Timer? _flushTimer;
   Future<void>? _flushInFlight;
   bool _framesNeedRetry = false;
@@ -42,14 +45,25 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   Uri get _baseUri => Uri.parse(_config.baseUrl.replaceAll(RegExp(r'/+$'), ''));
 
+  bool get _hasCollectorSessionId =>
+      _collectorSessionId != null && _collectorSessionId!.isNotEmpty;
+
   @override
   void startSession(TugboatSession session) {
     if (_disposed) return;
+    _sessionEpoch += 1;
     _session = session;
-    _collectorSessionId = session.id;
+    // Clear any prior collector-issued id so a new session cannot route to the old one.
+    _collectorSessionId = null;
+    _pendingEvents.clear();
+    _pendingFrames.clear();
+    _retryBatches.clear();
+    _pendingLifecycle = null;
+    _pendingLifecycleTail = null;
+    _framesNeedRetry = false;
     _scheduleFlushTimer();
     _enqueueSessionLifecycle('session_start', session.startedAt);
-    unawaited(_flushLifecyclePosts());
+    unawaited(_kickFlush());
   }
 
   @override
@@ -61,11 +75,12 @@ class CollectorHttpSink implements TugboatCaptureSink {
     }
 
     final session = _session!;
+    // sessionId is stamped at send time once the collector id is known.
     _pendingEvents.add(
       mapTugboatEventToCollectorEvent(
         event: event,
-        sessionId: _collectorSessionId ?? session.id,
         sessionStartedAt: session.startedAt,
+        collectorConfig: _config,
         userId: _config.userId,
       ),
     );
@@ -84,13 +99,24 @@ class CollectorHttpSink implements TugboatCaptureSink {
     String? actionId,
   }) {
     if (_disposed) return;
-    _pendingFrames.add(
-      _PendingFrameUpload(
-        frameNo: frameNumberFromId(frame.id),
-        bytes: bytes,
-        sessionId: _collectorSessionId ?? sessionId,
-      ),
-    );
+    // Enforce in release builds too — assert-only would let stale frames
+    // upload under the wrong collector session after a rapid restart.
+    final activeSession = _session;
+    if (activeSession != null && activeSession.id != sessionId) {
+      debugPrint(
+        '[tugboat] collector dropped frame for stale sessionId: $sessionId '
+        '(active=${activeSession.id})',
+      );
+      return;
+    }
+    final frameNo = frameNumberFromId(frame.id);
+    if (frameNo == null) {
+      debugPrint(
+        '[tugboat] collector dropped frame with malformed id: ${frame.id}',
+      );
+      return;
+    }
+    _pendingFrames.add(_PendingFrameUpload(frameNo: frameNo, bytes: bytes));
     _trimPendingFrames();
     // While a frame upload is retrying, rely on the periodic flush timer.
     if (!_framesNeedRetry) {
@@ -114,6 +140,14 @@ class CollectorHttpSink implements TugboatCaptureSink {
     return operation;
   }
 
+  /// Wait for any in-flight flush, then run another so newly enqueued work is sent.
+  Future<void> _kickFlush() async {
+    final active = _flushInFlight;
+    if (active != null) await active;
+    if (_disposed) return;
+    await flush();
+  }
+
   @override
   Future<void> endSession() async {
     if (_disposed || _session == null) return;
@@ -135,7 +169,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingLifecycleTail = null;
     _flushInFlight = null;
     _session = null;
+    _collectorSessionId = null;
+    _sessionEpoch += 1;
   }
+
+  bool _isCurrentEpoch(int epoch) => !_disposed && epoch == _sessionEpoch;
 
   void _scheduleFlushTimer() {
     _cancelFlushTimer();
@@ -164,20 +202,25 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<void> _drainLifecyclePosts() async {
     while (!_disposed &&
         (_pendingLifecycle != null || _pendingLifecycleTail != null)) {
-      await _flushLifecyclePosts();
-      if (_pendingLifecycle != null) return;
+      final head = _pendingLifecycle;
+      await flush();
+      // Stop only when the head was not accepted (still retrying). Advancing
+      // from session_start → session_end must continue draining.
+      if (identical(head, _pendingLifecycle)) return;
     }
   }
 
   Future<void> _flushLifecyclePosts() async {
     final pending = _pendingLifecycle;
     if (pending == null || _disposed) return;
+    final epoch = _sessionEpoch;
 
     final result = await _sendSessionLifecycle(
       pending.eventType,
       pending.triggeredAt,
+      epoch,
     );
-    if (_disposed) return;
+    if (!_isCurrentEpoch(epoch)) return;
     if (result == _SendResult.accepted) {
       _pendingLifecycle = _pendingLifecycleTail;
       _pendingLifecycleTail = null;
@@ -187,13 +230,20 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<_SendResult> _sendSessionLifecycle(
     String eventType,
     DateTime triggeredAt,
+    int epoch,
   ) async {
+    if (!_isCurrentEpoch(epoch)) return _SendResult.drop;
     final session = _session;
     if (session == null) return _SendResult.accepted;
 
+    // session_start uses the local id; later lifecycle uses the collector id when known.
+    final sessionId = eventType == 'session_start'
+        ? session.id
+        : (_collectorSessionId ?? session.id);
+
     final body = mapTugboatSessionLifecycleToCollectorSession(
       eventType: eventType,
-      sessionId: _collectorSessionId ?? session.id,
+      sessionId: sessionId,
       triggeredAt: triggeredAt,
       config: _config,
       userId: _config.userId,
@@ -207,11 +257,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
       );
 
       final result = _classifyResponse(response.statusCode);
-      if (result == _SendResult.accepted) {
+      if (result == _SendResult.accepted && eventType == 'session_start') {
         final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-        final sessionId = decoded['sessionId'] as String?;
-        if (sessionId != null && sessionId.isNotEmpty) {
-          _collectorSessionId = sessionId;
+        final serverId = decoded['sessionId'] as String?;
+        if (_isCurrentEpoch(epoch)) {
+          _collectorSessionId = (serverId != null && serverId.isNotEmpty)
+              ? serverId
+              : session.id;
         }
       }
       return result;
@@ -222,6 +274,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   Future<void> _flushEventBatch() async {
     if (_pendingEvents.isEmpty) return;
+    final epoch = _sessionEpoch;
 
     final count = _pendingEvents.length < _config.eventBatchSize
         ? _pendingEvents.length
@@ -229,17 +282,18 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final batch = _pendingEvents.sublist(0, count);
     _pendingEvents.removeRange(0, count);
 
-    final result = await _sendEventBatch(batch);
-    if (_disposed) return;
+    final result = await _sendEventBatch(batch, epoch: epoch);
+    if (!_isCurrentEpoch(epoch)) return;
     if (result == _SendResult.retry) {
       _enqueueRetryBatch(batch);
     }
   }
 
   Future<void> _flushRetryBatches() async {
+    final epoch = _sessionEpoch;
     while (_retryBatches.isNotEmpty) {
-      final result = await _sendEventBatch(_retryBatches.first);
-      if (_disposed) return;
+      final result = await _sendEventBatch(_retryBatches.first, epoch: epoch);
+      if (!_isCurrentEpoch(epoch)) return;
       if (result == _SendResult.retry) return;
       _retryBatches.removeAt(0);
     }
@@ -252,8 +306,18 @@ class CollectorHttpSink implements TugboatCaptureSink {
     }
   }
 
-  Future<_SendResult> _sendEventBatch(List<Map<String, Object?>> events) async {
+  Future<_SendResult> _sendEventBatch(
+    List<Map<String, Object?>> events, {
+    required int epoch,
+  }) async {
     if (events.isEmpty) return _SendResult.accepted;
+    if (!_isCurrentEpoch(epoch)) return _SendResult.drop;
+
+    final sessionId = _collectorSessionId;
+    if (sessionId == null || sessionId.isEmpty) return _SendResult.retry;
+    for (final event in events) {
+      event['sessionId'] = sessionId;
+    }
 
     try {
       final response = await _client.post(
@@ -269,7 +333,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
   }
 
   Future<void> _flushOnce() async {
+    final epoch = _sessionEpoch;
     await _flushLifecyclePosts();
+    if (!_isCurrentEpoch(epoch)) return;
+    // Never upload events or frames until the collector session id is known.
+    if (!_hasCollectorSessionId) {
+      return;
+    }
     if (_retryBatches.isNotEmpty) {
       // Try the retry head once, but keep draining fresh events below.
       await _flushRetryBatches();
@@ -282,15 +352,28 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   Future<void> _flushFrames() async {
     if (_pendingFrames.isEmpty) return;
+    final epoch = _sessionEpoch;
+    final sessionId = _collectorSessionId;
+    // Confirm the current collector session before draining so frames queued
+    // for a newer session cannot be cleared by a stale in-flight flush.
+    if (sessionId == null || sessionId.isEmpty || !_isCurrentEpoch(epoch)) {
+      return;
+    }
 
-    final uploads = List<_PendingFrameUpload>.from(_pendingFrames);
+    final uploads = List<_PendingFrameUpload>.from(_pendingFrames)
+      ..sort((a, b) => a.frameNo.compareTo(b.frameNo));
     _pendingFrames.clear();
 
+    // Drop extracted uploads when the session was reset mid-flush rather than
+    // sending them under a stale collector id.
+    if (!_isCurrentEpoch(epoch)) {
+      return;
+    }
     final request = http.MultipartRequest(
       'POST',
       _baseUri.resolve('/v1/frames'),
     );
-    request.fields['sessionId'] = uploads.first.sessionId;
+    request.fields['sessionId'] = sessionId;
     request.fields['frameNos'] = uploads
         .map((upload) => upload.frameNo.toString())
         .join(',');
@@ -309,7 +392,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     try {
       final streamed = await _client.send(request);
       final response = await http.Response.fromStream(streamed);
-      if (_disposed) return;
+      if (!_isCurrentEpoch(epoch)) return;
       final result = _classifyResponse(response.statusCode);
       _framesNeedRetry = result == _SendResult.retry;
       if (_framesNeedRetry) {
@@ -317,7 +400,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
         _trimPendingFrames();
       }
     } catch (_) {
-      if (_disposed) return;
+      if (!_isCurrentEpoch(epoch)) return;
       _framesNeedRetry = true;
       _pendingFrames.insertAll(0, uploads);
       _trimPendingFrames();
@@ -400,13 +483,8 @@ class _PendingSessionLifecycle {
 }
 
 class _PendingFrameUpload {
-  const _PendingFrameUpload({
-    required this.frameNo,
-    required this.bytes,
-    required this.sessionId,
-  });
+  const _PendingFrameUpload({required this.frameNo, required this.bytes});
 
   final int frameNo;
   final Uint8List bytes;
-  final String sessionId;
 }

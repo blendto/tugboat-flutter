@@ -215,7 +215,11 @@ WidgetRole? tugboatRoleForWidget(Widget widget) {
     );
   }
   if (widget is DropdownButton) {
-    final enabled = widget.onChanged != null;
+    // Reading a generic DropdownButton callback through the promoted
+    // DropdownButton<dynamic> view can cast a typed async callback to
+    // void Function(dynamic), which is not a valid runtime cast. Keep this
+    // inspection dynamic so role detection never invokes that cast.
+    final enabled = (widget as dynamic).onChanged != null;
     return WidgetRole(
       'dropdown',
       enabled,
