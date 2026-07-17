@@ -123,6 +123,53 @@ class _ScheduledCapture {
   }
 }
 
+/// Typed navigator semantics for [TugboatReplayController.route].
+enum _RouteNavigationKind {
+  push('route_push'),
+  replace('route_replace'),
+  pop('route_pop'),
+  remove('route_remove');
+
+  const _RouteNavigationKind(this.wireName);
+
+  /// The `data.navigation` string emitted on `route_change` events.
+  final String wireName;
+
+  static _RouteNavigationKind parse(String type) => values.firstWhere(
+    (kind) => kind.wireName == type,
+    orElse: () => throw ArgumentError.value(type, 'type', 'unknown route type'),
+  );
+}
+
+/// A raw navigator callback converted into typed route semantics.
+class _RouteTransition {
+  const _RouteTransition({
+    required this.kind,
+    required this.routeName,
+    required this.transitionDuration,
+  });
+
+  final _RouteNavigationKind kind;
+  final String? routeName;
+  final Duration transitionDuration;
+}
+
+/// A resolved, visible navigation: what to record and how to update
+/// [TugboatReplayController._currentRoute].
+class _VisibleRouteChange {
+  const _VisibleRouteChange({
+    required this.previousRoute,
+    required this.destinationRoute,
+    required this.navigation,
+    required this.updatesRoute,
+  });
+
+  final String? previousRoute;
+  final String? destinationRoute;
+  final String navigation;
+  final bool updatesRoute;
+}
+
 class TugboatReplayController extends ChangeNotifier {
   TugboatReplayController({
     required this.config,
@@ -1231,58 +1278,34 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   Future<void> route(String type, Route<dynamic>? route) {
-    final routeName = route?.settings.name ?? route?.runtimeType.toString();
-    final transitionDuration = route is TransitionRoute<dynamic>
-        ? route.transitionDuration
-        : Duration.zero;
+    final transition = _parseRouteTransition(type, route);
+    final change = _resolveVisibleRouteChange(transition);
+    if (change == null) return Future<void>.value();
 
-    final updatesRoute =
-        type == 'route_push' ||
-        type == 'route_replace' ||
-        (type == 'route_pop' && route != null) ||
-        (type == 'route_remove' && route != null);
-
-    final previousRoute = _currentRoute;
-    final destinationRoute = updatesRoute ? routeName : _currentRoute;
-    if (type == 'route_push' || type == 'route_replace') {
-      _currentRoute = routeName;
-    } else if ((type == 'route_pop' || type == 'route_remove') &&
-        route != null) {
-      _currentRoute = routeName;
-    }
+    if (change.updatesRoute) _currentRoute = change.destinationRoute;
 
     _routeCapturePending = true;
-    _skipCapture = transitionDuration > Duration.zero;
+    _skipCapture = transition.transitionDuration > Duration.zero;
     final epoch = ++_routeEpoch;
     final postRouteSettle = _shouldSuppressFrameCapture
         ? Duration.zero
         : config.settleDelay;
     return _enqueue('route_change', () async {
       try {
-        await Future<void>.delayed(transitionDuration + postRouteSettle);
+        await Future<void>.delayed(
+          transition.transitionDuration + postRouteSettle,
+        );
         _skipCapture = false;
         if (_disposed) return;
         if (epoch != _routeEpoch) return;
-        if (updatesRoute) {
-          if (type == 'route_push' || type == 'route_replace') {
-            _currentRoute = routeName;
-          } else if (route != null) {
-            _currentRoute = routeName;
-          }
-        }
-        final isStackCleanupOnly =
-            type == 'route_remove' &&
-            previousRoute != null &&
-            destinationRoute != null &&
-            previousRoute == destinationRoute;
-        if (isStackCleanupOnly) {
-          return;
-        }
+        if (change.updatesRoute) _currentRoute = change.destinationRoute;
         _refreshStateAnchor();
         final afterFrame = await _requestCapture(
           trigger: TugboatFrameTrigger.route,
           force: true,
         );
+        final previousRoute = change.previousRoute;
+        final destinationRoute = change.destinationRoute;
         _addEvent(
           TugboatEvent(
             id: _nextId('event'),
@@ -1294,7 +1317,7 @@ class TugboatReplayController extends ChangeNotifier {
             data: {
               if (previousRoute != null) 'fromRoute': previousRoute,
               if (destinationRoute != null) 'route': destinationRoute,
-              'navigation': type,
+              'navigation': change.navigation,
             },
           ),
         );
@@ -1304,6 +1327,44 @@ class TugboatReplayController extends ChangeNotifier {
         _routeCapturePending = false;
       }
     });
+  }
+
+  _RouteTransition _parseRouteTransition(String type, Route<dynamic>? route) {
+    return _RouteTransition(
+      kind: _RouteNavigationKind.parse(type),
+      routeName: route?.settings.name ?? route?.runtimeType.toString(),
+      transitionDuration: route is TransitionRoute<dynamic>
+          ? route.transitionDuration
+          : Duration.zero,
+    );
+  }
+
+  /// Resolves [transition] against [_currentRoute], or returns null when it
+  /// is not visible navigation.
+  ///
+  /// Stack-cleanup removals (e.g. `pushNamedAndRemoveUntil` clearing routes
+  /// below the new top) resolve to null and must not bump the route epoch:
+  /// doing so cancels the pending capture scheduled by the preceding push,
+  /// dropping both the route_change event and its screenshot for the
+  /// destination route.
+  _VisibleRouteChange? _resolveVisibleRouteChange(_RouteTransition transition) {
+    final routeName = transition.routeName;
+    if (transition.kind == _RouteNavigationKind.remove &&
+        (routeName == null || routeName == _currentRoute)) {
+      return null;
+    }
+    // Pop/remove callbacks carry the route that becomes visible; without one
+    // there is no destination to record, so the current route is kept.
+    final updatesRoute =
+        transition.kind == _RouteNavigationKind.push ||
+        transition.kind == _RouteNavigationKind.replace ||
+        routeName != null;
+    return _VisibleRouteChange(
+      previousRoute: _currentRoute,
+      destinationRoute: updatesRoute ? routeName : _currentRoute,
+      navigation: transition.kind.wireName,
+      updatesRoute: updatesRoute,
+    );
   }
 
   void _maybeEmitStateChange({

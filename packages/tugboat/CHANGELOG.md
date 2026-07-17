@@ -52,6 +52,23 @@
 - **`actionableSummary` deduplication** — count only leaf canonical controls (one per
   `FilledButton`/`TextButton`, not nested ink-well chrome). Fixes over-counting in modal,
   visibility, and rebuild fingerprint tests.
+- **`nonAssetImagesOnly` contract narrowed to what is actually classified** — README and
+  enum docs now state the mode masks non-asset `Image` widgets (such as `Image.network`,
+  `Image.file`, and `Image.memory`) plus sensitive inputs. Custom-painted or decorated
+  image surfaces (e.g. `ExtendedImage`, `DecorationImage`, `CustomPaint`) are not
+  classified by this mode and must be wrapped in `TugboatSensitive` when private.
+  Image-provenance detection is isolated in a single helper (`_isNonAssetImageWidget`)
+  as the one place to extend classification later. Behavior is unchanged; regression
+  tests cover asset-visible, memory-masked, and Sensitive-always-masked cases.
+- **Typed route transitions in the controller** — `route()` converts raw navigator
+  callback strings into an internal typed model (`_RouteNavigationKind`,
+  `_RouteTransition`) and resolves visible navigation in one place
+  (`_resolveVisibleRouteChange`), replacing string-driven branching and collapsing the
+  two duplicate `route_remove` stack-cleanup checks into a single normalized decision.
+  The `route_change` wire format (`data.fromRoute` / `data.route` / `data.navigation`)
+  and epoch/capture semantics are unchanged; stack-cleanup removals from
+  `pushNamedAndRemoveUntil` still never bump the route epoch or cancel the pending
+  destination capture (now covered by a dedicated regression test).
 
 ## 0.1.0
 

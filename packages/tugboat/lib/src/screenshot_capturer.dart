@@ -1,14 +1,37 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:image/image.dart' as img;
 
 import 'anchors.dart';
 import 'perceptual_hash.dart';
 import 'screenshot_mask_level.dart';
+
+/// JPEG quality for emitted frames. Screenshots are photo-heavy once masking
+/// is relaxed, where JPEG is ~5x smaller than PNG at comparable legibility.
+const int _jpegQuality = 80;
+
+class _JpegEncodeRequest {
+  const _JpegEncodeRequest(this.rgba, this.width, this.height);
+
+  final Uint8List rgba;
+  final int width;
+  final int height;
+}
+
+Uint8List _encodeJpeg(_JpegEncodeRequest request) {
+  final image = img.Image.fromBytes(
+    width: request.width,
+    height: request.height,
+    bytes: request.rgba.buffer,
+    order: img.ChannelOrder.rgba,
+  );
+  return Uint8List.fromList(img.encodeJpg(image, quality: _jpegQuality));
+}
 
 class MaskRect {
   const MaskRect(this.rect);
@@ -135,18 +158,25 @@ class ScreenshotCapturer {
 
         final encodeStart = sw.elapsedMicroseconds;
         final byteData = await rasterImage.toByteData(
-          format: ui.ImageByteFormat.png,
+          format: ui.ImageByteFormat.rawRgba,
         );
         if (byteData == null) return null;
-        final png = byteData.buffer.asUint8List();
-        final contentHash = sha256.convert(png).toString();
+        final jpeg = await compute(
+          _encodeJpeg,
+          _JpegEncodeRequest(
+            byteData.buffer.asUint8List(),
+            scaledWidth,
+            scaledHeight,
+          ),
+        );
+        final contentHash = sha256.convert(jpeg).toString();
         final encodeMicros = sw.elapsedMicroseconds - encodeStart;
         if (quickDHash != null) {
           _lastDHash = quickDHash;
         }
         sw.stop();
         return ScreenshotCaptureResult(
-          bytes: png,
+          bytes: jpeg,
           contentHash: contentHash,
           dHash: quickDHash,
           width: scaledWidth,
@@ -200,6 +230,7 @@ class ScreenshotCapturer {
   }
 
   bool _shouldMask(
+    Element element,
     Widget widget,
     RenderBox renderObject,
     bool explicitlySensitive,
@@ -221,6 +252,45 @@ class ScreenshotCapturer {
       TugboatScreenshotMaskLevel.allTextExceptActionable =>
         isSensitiveInput || ((isText || isTextInput) && !actionable),
       TugboatScreenshotMaskLevel.sensitiveInputsOnly => isSensitiveInput,
+      TugboatScreenshotMaskLevel.nonAssetImagesOnly =>
+        isSensitiveInput || (isMedia && _isNonAssetImageWidget(element)),
     };
+  }
+
+  /// Image provenance for `nonAssetImagesOnly`: whether the
+  /// [RenderImage]-owning [element] renders anything other than a bundled
+  /// asset. This is the single place to extend image classification.
+  ///
+  /// `Image` builds a `RawImage` whose `ui.Image` carries no provenance, so
+  /// the provider is recovered from the nearest `Image` ancestor. Anything
+  /// without a resolvable asset provider (network, file, memory, or
+  /// third-party providers like cached/extended network images) is treated
+  /// as user content and masked.
+  bool _isNonAssetImageWidget(Element element) {
+    ImageProvider? provider;
+    final widget = element.widget;
+    if (widget is Image) {
+      provider = widget.image;
+    } else {
+      var hops = 0;
+      element.visitAncestorElements((ancestor) {
+        final ancestorWidget = ancestor.widget;
+        if (ancestorWidget is Image) {
+          provider = ancestorWidget.image;
+          return false;
+        }
+        return ++hops < 16;
+      });
+    }
+    final resolved = provider;
+    if (resolved == null) return true;
+    return !_providerIsAsset(resolved);
+  }
+
+  bool _providerIsAsset(ImageProvider provider) {
+    if (provider is ResizeImage) {
+      return _providerIsAsset(provider.imageProvider);
+    }
+    return provider is AssetBundleImageProvider;
   }
 }

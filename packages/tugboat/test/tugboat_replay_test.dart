@@ -325,6 +325,63 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('stack cleanup keeps the pending destination capture', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: rootKey,
+        child: const SizedBox(width: 390, height: 844),
+      ),
+    );
+    final controller = TugboatReplayController(
+      config: const TugboatReplayConfig(
+        profile: TugboatCaptureProfile.exploration,
+        settleDelay: Duration(milliseconds: 50),
+        enableGlobalPointerCapture: false,
+        capturePixelRatio: 1.0,
+      ),
+      boundaryKey: rootKey,
+    );
+    controller.start(const Size(390, 844), 'test');
+
+    PageRoute<void> route(String name, Duration transition) =>
+        PageRouteBuilder<void>(
+          settings: RouteSettings(name: name),
+          transitionDuration: transition,
+          pageBuilder: (_, _, _) => const SizedBox.shrink(),
+        );
+
+    await tester.runAsync(() async {
+      await controller.route('route_push', route('/old', Duration.zero));
+      final pushFuture = controller.route(
+        'route_push',
+        route('/home', const Duration(milliseconds: 200)),
+      );
+      // pushNamedAndRemoveUntil cleanup: didRemove reports the new top as
+      // the still-visible route while the push capture is pending.
+      await controller.route('route_remove', route('/home', Duration.zero));
+      await pushFuture;
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+
+    final changes = controller.session!.events
+        .where((event) => event.type == 'route_change')
+        .toList();
+    expect(changes.map((event) => event.data['navigation']), [
+      'route_push',
+      'route_push',
+    ]);
+    expect(changes.last.data, {
+      'fromRoute': '/old',
+      'route': '/home',
+      'navigation': 'route_push',
+    });
+    expect(controller.currentRoute, '/home');
+    controller.dispose();
+  });
+
   testWidgets('stale route callbacks do not clobber newer routes', (
     tester,
   ) async {
@@ -478,7 +535,7 @@ void main() {
     final session = TugboatReplay.controller!.session!;
     expect(session.frames.single.masked, isTrue);
     final encoded = session.frameBytes[session.frames.single.id]!;
-    final image = img.decodePng(encoded)!;
+    final image = img.decodeImage(encoded)!;
     final textCenter = tester.getCenter(find.text('Automatically private'));
     final pixel = image.getPixel(textCenter.dx.round(), textCenter.dy.round());
     expect(pixel.r, closeTo(0x1a, 2));
@@ -506,6 +563,142 @@ void main() {
 
     await _waitForCaptures(tester);
     expect(TugboatReplay.controller!.session!.frames.single.masked, isFalse);
+  });
+
+  testWidgets('nonAssetImagesOnly leaves bundled asset images visible', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: _testConfig.copyWith(
+            screenshotMaskLevel: TugboatScreenshotMaskLevel.nonAssetImagesOnly,
+          ),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 64,
+              height: 64,
+              child: Image.asset(
+                'test/assets/red_square.png',
+                fit: BoxFit.fill,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(() async {
+      await precacheImage(
+        const AssetImage('test/assets/red_square.png'),
+        tester.element(find.byType(Scaffold)),
+      );
+    });
+    await tester.pump();
+
+    await _waitForCaptures(tester);
+
+    final session = TugboatReplay.controller!.session!;
+    final frame = session.frames.last;
+    expect(frame.masked, isFalse);
+    final image = img.decodeImage(session.frameBytes[frame.id]!)!;
+    final center = tester.getCenter(find.byType(Image));
+    final pixel = image.getPixel(center.dx.round(), center.dy.round());
+    expect(pixel.r, greaterThan(0xc0));
+    expect(pixel.g, lessThan(0x40));
+  });
+
+  testWidgets('nonAssetImagesOnly masks memory images', (tester) async {
+    final green = img.Image(width: 8, height: 8);
+    img.fill(green, color: img.ColorRgb8(0, 255, 0));
+    final imageBytes = Uint8List.fromList(img.encodePng(green));
+    final provider = MemoryImage(imageBytes);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: _testConfig.copyWith(
+            screenshotMaskLevel: TugboatScreenshotMaskLevel.nonAssetImagesOnly,
+          ),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 64,
+              height: 64,
+              child: Image(image: provider, fit: BoxFit.fill),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(() async {
+      await precacheImage(provider, tester.element(find.byType(Scaffold)));
+    });
+    await tester.pump();
+
+    await _waitForCaptures(tester);
+
+    final session = TugboatReplay.controller!.session!;
+    final frame = session.frames.last;
+    expect(frame.masked, isTrue);
+    final image = img.decodeImage(session.frameBytes[frame.id]!)!;
+    final center = tester.getCenter(find.byType(Image));
+    final pixel = image.getPixel(center.dx.round(), center.dy.round());
+    expect(pixel.r, closeTo(0x1a, 2));
+    expect(pixel.g, closeTo(0x1a, 2));
+    expect(pixel.b, closeTo(0x1a, 2));
+  });
+
+  testWidgets('nonAssetImagesOnly still masks TugboatSensitive asset images', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: _testConfig.copyWith(
+            screenshotMaskLevel: TugboatScreenshotMaskLevel.nonAssetImagesOnly,
+          ),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: Center(
+            child: TugboatSensitive(
+              child: SizedBox(
+                width: 64,
+                height: 64,
+                child: Image.asset(
+                  'test/assets/red_square.png',
+                  fit: BoxFit.fill,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(() async {
+      await precacheImage(
+        const AssetImage('test/assets/red_square.png'),
+        tester.element(find.byType(Scaffold)),
+      );
+    });
+    await tester.pump();
+
+    await _waitForCaptures(tester);
+
+    final session = TugboatReplay.controller!.session!;
+    final frame = session.frames.last;
+    expect(frame.masked, isTrue);
+    final image = img.decodeImage(session.frameBytes[frame.id]!)!;
+    final center = tester.getCenter(find.byType(Image));
+    final pixel = image.getPixel(center.dx.round(), center.dy.round());
+    expect(pixel.r, closeTo(0x1a, 2));
+    expect(pixel.g, closeTo(0x1a, 2));
+    expect(pixel.b, closeTo(0x1a, 2));
   });
 
   testWidgets('exploration action window annotates captured events', (

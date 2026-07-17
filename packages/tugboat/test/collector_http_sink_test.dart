@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/collector_http_sink.dart';
 import 'package:tugboat/src/models.dart';
+import 'package:tugboat/src/sdk_version.dart';
 
 void main() {
   late HttpServer server;
@@ -67,6 +68,7 @@ void main() {
         'X-App-Build': request.headers.value('X-App-Build'),
         'X-App-Version': request.headers.value('X-App-Version'),
         'X-App-Id': request.headers.value('X-App-Id'),
+        'X-Sdk-Version': request.headers.value('X-Sdk-Version'),
       });
       if (path == '/v1/sessions') {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
@@ -111,7 +113,7 @@ void main() {
           'contentType': contentType?.mimeType,
           'bytes': bytes,
           'frameNos': RegExp(
-            r'filename="(\d+)\.png"',
+            r'filename="(\d+)\.jpg"',
           ).allMatches(encodedBody).map((match) => match.group(1)).toList(),
         });
         if (frameResponseDelay > Duration.zero) {
@@ -179,6 +181,7 @@ void main() {
     expect(headers['X-App-Build'], collectorConfig.appInfo.buildNumber);
     expect(headers['X-App-Version'], collectorConfig.appInfo.version);
     expect(headers['X-App-Id'], collectorConfig.appInfo.appId);
+    expect(headers['X-Sdk-Version'], tugboatSdkVersion);
   }
 
   test('collector defaults flush low-volume events every 3 seconds', () {

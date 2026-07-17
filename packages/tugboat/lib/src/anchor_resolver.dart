@@ -80,6 +80,7 @@ class AnchorResolver {
   List<Rect> collectMaskRects({
     required RenderBox rootRender,
     required bool Function(
+      Element element,
       Widget widget,
       RenderBox renderObject,
       bool explicitlySensitive,
@@ -106,7 +107,9 @@ class AnchorResolver {
       final actionable =
           tokenMap.underActionable[element] == true ||
           tugboatIsActionableWidget(widget);
-      if (!shouldMask(widget, renderObject, sensitive, actionable)) continue;
+      if (!shouldMask(element, widget, renderObject, sensitive, actionable)) {
+        continue;
+      }
       if (!maskedRenderObjects.add(renderObject)) continue;
       try {
         final transformed = MatrixUtils.transformRect(

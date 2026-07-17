@@ -9,6 +9,7 @@ import 'capture_sink.dart';
 import 'collector_config.dart';
 import 'collector_mapper.dart';
 import 'models.dart';
+import 'sdk_version.dart';
 
 /// Best-effort HTTP sink for the standalone `tugboat-collector` service.
 class CollectorHttpSink implements TugboatCaptureSink {
@@ -383,8 +384,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
         http.MultipartFile.fromBytes(
           'files',
           upload.bytes,
-          filename: '${upload.frameNo}.png',
-          contentType: MediaType('image', 'png'),
+          filename: '${upload.frameNo}.jpg',
+          contentType: MediaType('image', 'jpeg'),
         ),
       );
     }
@@ -453,6 +454,7 @@ class _CollectorHttpClient extends http.BaseClient {
          'X-App-Build': buildNumber,
          'X-App-Version': versionName,
          'X-App-Id': appId,
+         'X-Sdk-Version': tugboatSdkVersion,
        };
 
   static const _jsonHeaders = {'Content-Type': 'application/json'};

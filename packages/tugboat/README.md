@@ -128,7 +128,11 @@ TugboatSensitive(
 ```
 
 Available mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
-`allTextExceptActionable`, and `sensitiveInputsOnly`.
+`allTextExceptActionable`, `sensitiveInputsOnly`, and `nonAssetImagesOnly`
+(masks non-asset `Image` widgets — such as `Image.network`, `Image.file`, and
+`Image.memory` — plus sensitive inputs, while bundled asset graphics and text
+stay visible; other custom-painted or decorated image surfaces are not
+classified by this mode, so wrap them in `TugboatSensitive` when needed).
 
 The structural telemetry does not retain arbitrary `Text`, accessibility,
 tooltip, or icon label strings. Dynamic list discriminators are hashed before
