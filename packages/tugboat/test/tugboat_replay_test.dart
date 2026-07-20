@@ -94,6 +94,42 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('app background and foreground transitions are explicit', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: const SizedBox.expand(),
+      ),
+    );
+    await tester.pump();
+
+    final session = TugboatReplay.controller!.session!;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    final lifecycleEvents = session.events
+        .where(
+          (event) =>
+              event.type == 'app_backgrounded' ||
+              event.type == 'app_foregrounded',
+        )
+        .toList();
+    expect(lifecycleEvents.length, greaterThanOrEqualTo(2));
+    expect(
+      lifecycleEvents.map((event) => event.type),
+      containsAllInOrder(['app_backgrounded', 'app_foregrounded']),
+    );
+    expect(
+      lifecycleEvents.map((event) => event.data['state']),
+      containsAllInOrder(['paused', 'resumed']),
+    );
+  });
+
   testWidgets('captures initial screenshot and tap interaction anchors', (
     tester,
   ) async {

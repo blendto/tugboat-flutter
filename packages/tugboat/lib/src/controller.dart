@@ -1329,6 +1329,31 @@ class TugboatReplayController extends ChangeNotifier {
     });
   }
 
+  void recordAppLifecycleState(AppLifecycleState state) {
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: _appLifecycleEventType(state),
+        data: {'state': state.name},
+      ),
+    );
+  }
+
+  String _appLifecycleEventType(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        return 'app_backgrounded';
+      case AppLifecycleState.resumed:
+        return 'app_foregrounded';
+      case AppLifecycleState.inactive:
+        return 'app_inactive';
+      case AppLifecycleState.detached:
+        return 'app_detached';
+    }
+  }
+
   _RouteTransition _parseRouteTransition(String type, Route<dynamic>? route) {
     return _RouteTransition(
       kind: _RouteNavigationKind.parse(type),

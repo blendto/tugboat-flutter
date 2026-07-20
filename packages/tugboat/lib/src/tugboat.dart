@@ -299,6 +299,9 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!TugboatReplay.disabled) {
+      TugboatReplay.controller?.recordAppLifecycleState(state);
+    }
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
