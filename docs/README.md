@@ -28,7 +28,7 @@ verified in their own repositories.
 ## Current compatibility
 
 - package version: `0.4.0`;
-- session JSON schema: `6`;
+- session JSON schema: `7`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;
 - minimum Flutter SDK: `3.35.0`.
