@@ -341,10 +341,11 @@ class TugboatReplayController extends ChangeNotifier {
   DateTime _now() => debugNow?.call() ?? DateTime.now();
 
   Future<void> _delay(Duration duration) {
-    if (duration <= Duration.zero) return Future<void>.value();
+    // Preserve Future.delayed(Duration.zero) yielding semantics; never sync-complete.
+    final effective = duration < Duration.zero ? Duration.zero : duration;
     final override = debugDelay;
-    if (override != null) return override(duration);
-    return Future<void>.delayed(duration);
+    if (override != null) return override(effective);
+    return Future<void>.delayed(effective);
   }
 
   /// Serializes [task] on the controller queue while guaranteeing that a
@@ -732,10 +733,15 @@ class TugboatReplayController extends ChangeNotifier {
       }
       _captureInFlight = true;
       try {
+        // Match the production capture path: refresh state before capture and
+        // emit inventory after, so the override seam does not leave anchors
+        // stale relative to real screenshot execution.
+        _refreshStateAnchor();
         final frameId = await captureOverride(trigger: trigger, force: force);
         if (frameId != null) {
           _latestFrameId = frameId;
         }
+        _maybeEmitSceneInventory();
         return frameId ?? _latestFrameId;
       } finally {
         _captureInFlight = false;

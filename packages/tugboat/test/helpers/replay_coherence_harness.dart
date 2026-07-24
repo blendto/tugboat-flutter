@@ -24,7 +24,12 @@ class ControllableScheduler {
   Duration get elapsed => _elapsed;
 
   Future<void> delay(Duration duration) {
-    if (duration <= Duration.zero) return Future<void>.value();
+    if (duration <= Duration.zero) {
+      // Mirror Future.delayed(Duration.zero): yield a turn to the event loop.
+      final completer = Completer<void>();
+      scheduleMicrotask(completer.complete);
+      return completer.future;
+    }
     final completer = Completer<void>();
     _delays.add(
       _ScheduledDelay(due: _elapsed + duration, completer: completer),
