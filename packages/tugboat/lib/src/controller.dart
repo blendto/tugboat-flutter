@@ -259,10 +259,45 @@ class TugboatReplayController extends ChangeNotifier {
     _currentStateAnchor = anchor;
   }
 
+  /// When true, [_refreshStateAnchor] keeps the last planted state instead of
+  /// rebuilding from the widget tree. Characterization tests use this when
+  /// driving the controller without a mounted scene.
+  @visibleForTesting
+  bool debugFreezeStateAnchor = false;
+
   @visibleForTesting
   void debugSetExplorationFramesSuppressed(bool suppressed) {
     _explorationFramesSuppressed = suppressed;
   }
+
+  /// Test-only clock for capture scheduling. Defaults to [DateTime.now].
+  @visibleForTesting
+  DateTime Function()? debugNow;
+
+  /// Test-only delay primitive used by route and capture waits.
+  ///
+  /// Defaults to [Future.delayed]. Harnesses should make each delay
+  /// explicitly advanceable so tests never rely on wall-clock sleeps.
+  @visibleForTesting
+  Future<void> Function(Duration duration)? debugDelay;
+
+  /// Test-only capture executor. When set, replaces screenshot readback while
+  /// preserving the production request/queue/pending-route control flow.
+  @visibleForTesting
+  Future<String?> Function({
+    required TugboatFrameTrigger trigger,
+    required bool force,
+  })?
+  debugExecuteCapture;
+
+  @visibleForTesting
+  int get debugRouteEpoch => _routeEpoch;
+
+  @visibleForTesting
+  bool get debugRouteCapturePending => _routeCapturePending;
+
+  @visibleForTesting
+  bool get debugCaptureInFlight => _captureInFlight;
 
   @visibleForTesting
   Future<void> drainPointerQueue() => _queue;
@@ -270,6 +305,47 @@ class TugboatReplayController extends ChangeNotifier {
   @visibleForTesting
   Future<void> debugEnqueueTask(String label, Future<void> Function() task) =>
       _enqueue(label, task);
+
+  /// Plants a synthetic frame for characterization tests that drive the
+  /// controller without real screenshot readback.
+  @visibleForTesting
+  String debugSeedFrame({
+    String? contentHash,
+    TugboatFrameTrigger trigger = TugboatFrameTrigger.manual,
+    int width = 10,
+    int height = 10,
+  }) {
+    final session = _session;
+    if (session == null) {
+      throw StateError('debugSeedFrame requires an active session');
+    }
+    final frameId = _nextId('frame');
+    final hash = contentHash ?? 'hash-$frameId';
+    final frame = TugboatFrame(
+      id: frameId,
+      atMs: atMs,
+      width: width,
+      height: height,
+      contentHash: hash,
+      trigger: trigger,
+      byteLength: 0,
+      captureSessionId: session.id,
+    );
+    session.frames.add(frame);
+    session.frameBytes[frameId] = Uint8List(0);
+    _hashToFrameId[hash] = frameId;
+    _latestFrameId = frameId;
+    return frameId;
+  }
+
+  DateTime _now() => debugNow?.call() ?? DateTime.now();
+
+  Future<void> _delay(Duration duration) {
+    if (duration <= Duration.zero) return Future<void>.value();
+    final override = debugDelay;
+    if (override != null) return override(duration);
+    return Future<void>.delayed(duration);
+  }
 
   /// Serializes [task] on the controller queue while guaranteeing that a
   /// failure in one task never poisons the chain: an uncaught error in a
@@ -530,6 +606,7 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   TugboatStateAnchor? _refreshStateAnchor() {
+    if (debugFreezeStateAnchor) return _currentStateAnchor;
     final resolver = _anchorResolver;
     if (resolver == null) return _currentStateAnchor;
     final keyboardOpen = _isKeyboardOpen();
@@ -569,7 +646,7 @@ class TugboatReplayController extends ChangeNotifier {
     }
 
     final delay = settleDelay ?? config.settleDelay;
-    final notBefore = DateTime.now().add(delay);
+    final notBefore = _now().add(delay);
     final completer = Completer<String?>();
     final incoming = _ScheduledCapture(
       trigger: trigger,
@@ -598,9 +675,9 @@ class TugboatReplayController extends ChangeNotifier {
     _capturePumpScheduled = false;
     while (!_disposed && _scheduledCapture != null) {
       final scheduled = _scheduledCapture!;
-      final wait = scheduled.notBefore.difference(DateTime.now());
+      final wait = scheduled.notBefore.difference(_now());
       if (wait > Duration.zero) {
-        await Future<void>.delayed(wait);
+        await _delay(wait);
       }
       if (_disposed) break;
 
@@ -636,7 +713,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   Future<void> _waitForCaptureIdle() async {
     while (_captureInFlight && !_disposed) {
-      await Future<void>.delayed(const Duration(milliseconds: 16));
+      await _delay(const Duration(milliseconds: 16));
     }
   }
 
@@ -644,6 +721,30 @@ class TugboatReplayController extends ChangeNotifier {
     required TugboatFrameTrigger trigger,
     bool force = false,
   }) async {
+    final captureOverride = debugExecuteCapture;
+    if (captureOverride != null) {
+      if (_disposed ||
+          _capturePaused ||
+          _skipCapture ||
+          _shouldSuppressFrameCapture ||
+          _captureInFlight) {
+        return _latestFrameId;
+      }
+      _captureInFlight = true;
+      try {
+        final frameId = await captureOverride(trigger: trigger, force: force);
+        if (frameId != null) {
+          _latestFrameId = frameId;
+        }
+        return frameId ?? _latestFrameId;
+      } finally {
+        _captureInFlight = false;
+        if (_scheduledCapture != null) {
+          _ensureCapturePumpScheduled();
+        }
+      }
+    }
+
     if (_disposed ||
         _capturePaused ||
         _skipCapture ||
@@ -1292,9 +1393,7 @@ class TugboatReplayController extends ChangeNotifier {
         : config.settleDelay;
     return _enqueue('route_change', () async {
       try {
-        await Future<void>.delayed(
-          transition.transitionDuration + postRouteSettle,
-        );
+        await _delay(transition.transitionDuration + postRouteSettle);
         _skipCapture = false;
         if (_disposed) return;
         if (epoch != _routeEpoch) return;

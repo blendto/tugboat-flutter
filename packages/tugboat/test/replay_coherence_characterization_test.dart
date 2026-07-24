@@ -1,0 +1,385 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:tugboat/tugboat.dart';
+
+import 'helpers/replay_coherence_harness.dart';
+
+/// Characterization coverage for SDK replay races (#5).
+///
+/// These tests reproduce current 0.4.x ordering/frame attribution behavior.
+/// Where production is known-broken, the test asserts the broken sequence and
+/// also records that [CoherenceInvariants] currently fail against it. Follow-up
+/// issues (#6–#10) flip those invariants to true without rewriting the harness.
+void main() {
+  test('tap with no navigation keeps linked settle evidence on one route', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    final originFrame = harness.seedRouteState(
+      route: '/home',
+      signature: 'sig-home',
+      frameContentHash: 'home-pixels',
+    );
+
+    harness.controller.recordPointerDown(const Offset(12, 12));
+    harness.controller.recordPointerUp(const Offset(12, 12));
+    await harness.flushScheduler();
+
+    final session = harness.controller.session!;
+    final tap = session.ofType('tap').single;
+    final settle = session.ofType('tap_settled').single;
+
+    expect(settle.relatedEventId, tap.id);
+    expect(tap.beforeFrame, originFrame);
+    expect(settle.beforeFrame, originFrame);
+    expect(settle.afterFrame, isNotNull);
+    expect(settle.stateAnchor?.signature, 'sig-home');
+    expect(
+      CoherenceInvariants.tapSettleIsRouteCoherent(
+        tap: tap,
+        settle: settle,
+        expectedRouteSignature: 'sig-home',
+      ),
+      isTrue,
+    );
+  });
+
+  test(
+    'tap that starts navigation currently emits noVisibleChange before route_change',
+    () async {
+      final harness = ReplayCoherenceHarness(
+        settleDelay: const Duration(milliseconds: 50),
+      );
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final originFrame = harness.seedRouteState(
+        route: '/scan',
+        signature: 'sig-scan',
+        frameContentHash: 'scan-pixels',
+      );
+
+      // Pointer-up enqueues tap_settled first.
+      harness.controller.recordPointerDown(const Offset(20, 20));
+      harness.controller.recordPointerUp(const Offset(20, 20));
+
+      // Navigation callback arrives while settle is queued: route updates and
+      // pending flag flip immediately; capture waits on the serialized queue.
+      final routeFuture = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/home',
+          transitionDuration: const Duration(milliseconds: 200),
+        ),
+      );
+
+      // Pump queue work without awaiting the parked route delay.
+      await harness.pumpQueueWork();
+
+      final midSession = harness.controller.session!;
+      final settle = midSession.ofType('tap_settled').single;
+      expect(settle.relatedEventId, midSession.ofType('tap').single.id);
+      expect(
+        settle.result,
+        TugboatInteractionResult.noVisibleChange,
+        reason:
+            'pending-route settle skips state refresh and reuses origin frame',
+      );
+      expect(
+        settle.afterFrame,
+        originFrame,
+        reason: 'tap_settled consumed _latestFrameId while route capture pending',
+      );
+      expect(
+        midSession.ofType('route_change'),
+        isEmpty,
+        reason: 'route capture is still waiting on transition delay',
+      );
+      expect(harness.controller.debugRouteCapturePending, isTrue);
+
+      await harness.flushScheduler();
+      await routeFuture;
+
+      final session = harness.controller.session!;
+      final routeChange = session.ofType('route_change').single;
+      expect(routeChange.data['route'], '/home');
+      expect(routeChange.afterFrame, isNot(originFrame));
+      expect(
+        session.events.map((event) => event.type).toList(),
+        containsAll(['tap', 'tap_settled', 'route_change']),
+      );
+      final tapIndex = session.events.indexWhere((e) => e.type == 'tap');
+      final settleIndex = session.events.indexWhere(
+        (e) => e.type == 'tap_settled',
+      );
+      final routeIndex = session.events.indexWhere(
+        (e) => e.type == 'route_change',
+      );
+      expect(tapIndex, lessThan(settleIndex));
+      expect(settleIndex, lessThan(routeIndex));
+
+      // Desired invariant fails on this known broken sequence.
+      expect(
+        CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
+          events: session.events,
+          tapEventId: session.ofType('tap').single.id,
+        ),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'destination tap while route capture pending carries previous route frame',
+    () async {
+      final harness = ReplayCoherenceHarness(
+        settleDelay: const Duration(milliseconds: 40),
+      );
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final originFrame = harness.seedRouteState(
+        route: '/scan',
+        signature: 'sig-scan',
+        frameContentHash: 'scan-pixels',
+      );
+
+      final routeFuture = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/home',
+          transitionDuration: const Duration(milliseconds: 150),
+        ),
+      );
+      expect(harness.controller.debugRouteCapturePending, isTrue);
+      expect(harness.controller.currentRoute, '/home');
+      expect(harness.controller.latestFrameId, originFrame);
+
+      // Destination UI semantics are already visible, but the route capture has
+      // not published a destination frame yet.
+      harness.controller.debugSetCurrentStateAnchor(
+        const TugboatStateAnchor(
+          signature: 'sig-home',
+          signatureParts: {'route': '/home'},
+        ),
+      );
+
+      harness.controller.recordPointerDown(const Offset(30, 30));
+      harness.controller.recordPointerUp(const Offset(30, 30));
+
+      // The tap is recorded synchronously against the still-origin latest frame
+      // while the route capture remains pending. Settle itself is queued behind
+      // the blocking transition wait (see #6), so characterize the tap event.
+      final session = harness.controller.session!;
+      final destinationTap = session.ofType('tap').single;
+      expect(destinationTap.beforeFrame, originFrame);
+      expect(destinationTap.stateAnchor?.signature, 'sig-home');
+      expect(harness.controller.debugRouteCapturePending, isTrue);
+      expect(
+        CoherenceInvariants.actionFrameMatchesRoute(
+          action: destinationTap,
+          originFrameId: originFrame,
+          destinationFrameId: 'destination-frame-not-captured-yet',
+        ),
+        isFalse,
+      );
+
+      await harness.flushScheduler();
+      await routeFuture;
+
+      final routeChange = session.ofType('route_change').single;
+      expect(routeChange.afterFrame, isNot(originFrame));
+      expect(routeChange.data['route'], '/home');
+
+      // After the blocking route wait finishes, settle may run with a newer
+      // frame — the cross-route attribution already happened on the tap.
+      final destinationSettle = session.ofType('tap_settled').single;
+      expect(destinationSettle.relatedEventId, destinationTap.id);
+      expect(destinationSettle.beforeFrame, originFrame);
+    },
+  );
+
+  test(
+    'rapid route changes cancel obsolete epochs without hanging the queue',
+    () async {
+      final harness = ReplayCoherenceHarness(
+        settleDelay: const Duration(milliseconds: 30),
+      );
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/', signature: 'sig-root');
+
+      final first = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/a',
+          transitionDuration: const Duration(milliseconds: 200),
+        ),
+      );
+      final firstEpoch = harness.controller.debugRouteEpoch;
+      await harness.tick(const Duration(milliseconds: 10));
+
+      final second = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/b',
+          transitionDuration: const Duration(milliseconds: 20),
+        ),
+      );
+      expect(harness.controller.debugRouteEpoch, greaterThan(firstEpoch));
+
+      await harness.flushScheduler();
+      await first;
+      await second;
+
+      expect(harness.controller.currentRoute, '/b');
+      final changes = harness.controller.session!.ofType('route_change');
+      expect(
+        changes.where((event) => event.data['route'] == '/a'),
+        isEmpty,
+        reason: 'superseded epoch must not emit',
+      );
+      expect(changes.last.data['route'], '/b');
+      expect(harness.controller.debugRouteCapturePending, isFalse);
+      expect(harness.scheduler.hasPendingDelays, isFalse);
+    },
+  );
+
+  test('modal push/pop and replacement share the route ordering path', () async {
+    final harness = ReplayCoherenceHarness(
+      settleDelay: const Duration(milliseconds: 20),
+    );
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    harness.seedRouteState(route: '/home', signature: 'sig-home');
+
+    final push = harness.controller.route(
+      'route_push',
+      harness.route(
+        '/modal',
+        transitionDuration: const Duration(milliseconds: 40),
+      ),
+    );
+    await harness.flushScheduler();
+    await push;
+
+    final pop = harness.controller.route(
+      'route_pop',
+      harness.route(
+        '/home',
+        transitionDuration: const Duration(milliseconds: 40),
+      ),
+    );
+    await harness.flushScheduler();
+    await pop;
+
+    final replace = harness.controller.route(
+      'route_replace',
+      harness.route(
+        '/home2',
+        transitionDuration: const Duration(milliseconds: 40),
+      ),
+    );
+    await harness.flushScheduler();
+    await replace;
+
+    final navigations = harness.controller.session!
+        .ofType('route_change')
+        .map((event) => event.data['navigation'])
+        .toList();
+    expect(navigations, ['route_push', 'route_pop', 'route_replace']);
+    expect(harness.controller.currentRoute, '/home2');
+    expect(
+      harness.controller.session!
+          .ofType('route_change')
+          .every((event) => event.afterFrame != null),
+      isTrue,
+    );
+  });
+
+  test(
+    'signature-only change with unchanged frame currently reports changed',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final frame = harness.seedRouteState(
+        route: '/home',
+        signature: 'sig-before',
+        frameContentHash: 'same-pixels',
+      );
+
+      harness.controller.recordPointerDown(const Offset(8, 8));
+      harness.controller.debugSetCurrentStateAnchor(
+        const TugboatStateAnchor(
+          signature: 'sig-after',
+          signatureParts: {'route': '/home'},
+        ),
+      );
+      harness.capturer.frameFactory = (trigger, force) => frame;
+      harness.controller.recordPointerUp(const Offset(8, 8));
+      await harness.flushScheduler();
+
+      final settle = harness.controller.session!.ofType('tap_settled').single;
+      expect(settle.beforeFrame, frame);
+      expect(settle.afterFrame, frame);
+      expect(settle.result, TugboatInteractionResult.changed);
+      expect(settle.stateAnchor?.signature, 'sig-after');
+    },
+  );
+
+  test(
+    'capture failure does not strand queued waiters or later settles',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/home', signature: 'sig-home');
+      harness.capturer.failNext = true;
+
+      harness.controller.recordPointerDown(const Offset(4, 4));
+      harness.controller.recordPointerUp(const Offset(4, 4));
+      await harness.flushScheduler();
+
+      final settles = harness.controller.session!.ofType('tap_settled');
+      expect(settles, hasLength(1));
+      expect(harness.controller.debugCaptureInFlight, isFalse);
+      expect(harness.controller.debugRouteCapturePending, isFalse);
+
+      harness.controller.recordPointerDown(const Offset(5, 5));
+      harness.controller.recordPointerUp(const Offset(5, 5));
+      await harness.flushScheduler();
+      expect(harness.controller.session!.ofType('tap_settled'), hasLength(2));
+    },
+  );
+
+  test(
+    'blocked capture eventually completes waiters without wall-clock sleeps',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/home', signature: 'sig-home');
+      harness.capturer.blockNext = true;
+
+      harness.controller.recordPointerDown(const Offset(6, 6));
+      harness.controller.recordPointerUp(const Offset(6, 6));
+      await harness.pumpQueueWork();
+
+      expect(harness.capturer.blockedCount, 1);
+      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      expect(harness.controller.debugCaptureInFlight, isTrue);
+
+      harness.capturer.completeBlocked();
+      await harness.flushScheduler();
+
+      expect(harness.controller.session!.ofType('tap_settled'), hasLength(1));
+      expect(harness.controller.debugCaptureInFlight, isFalse);
+    },
+  );
+}
