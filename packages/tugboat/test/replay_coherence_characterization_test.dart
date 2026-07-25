@@ -496,6 +496,51 @@ void main() {
   );
 
   test(
+    'route capture after navigation stamps destination route provenance',
+    () async {
+      final harness = ReplayCoherenceHarness(
+        settleDelay: const Duration(milliseconds: 30),
+      );
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final originFrame = harness.seedRouteState(
+        route: '/scan',
+        signature: 'sig-scan',
+        frameContentHash: 'scan-pixels',
+      );
+      final originEpoch = harness.controller.debugRouteEpoch;
+
+      final routeFuture = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/home',
+          transitionDuration: const Duration(milliseconds: 100),
+        ),
+      );
+      expect(harness.controller.currentRoute, '/home');
+      expect(
+        harness.controller.currentStateAnchor?.signatureParts['route'],
+        '/scan',
+        reason: 'debugFreezeStateAnchor retains origin semantics during capture',
+      );
+
+      await harness.flushScheduler();
+      await routeFuture;
+
+      final routeChange = harness.controller.session!.ofType('route_change').single;
+      final destinationFrame = routeChange.afterFrame!;
+      final destinationEpoch = harness.provenanceFor(destinationFrame)!.routeEpoch;
+
+      expect(harness.provenanceFor(originFrame)!.route, '/scan');
+      expect(harness.provenanceFor(originFrame)!.routeEpoch, originEpoch);
+      expect(harness.provenanceFor(destinationFrame)!.route, '/home');
+      expect(destinationEpoch, greaterThan(originEpoch));
+      expect(destinationEpoch, harness.controller.debugRouteEpoch);
+    },
+  );
+
+  test(
     'rapid route changes cancel obsolete epochs without hanging the queue',
     () async {
       final harness = ReplayCoherenceHarness(
