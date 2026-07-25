@@ -16,6 +16,9 @@ export 'screenshot_mask_level.dart' show TugboatScreenshotMaskLevel;
 export 'markers.dart'
     show TugboatInternal, TugboatSensitive, TugboatSubView, TugboatTag;
 
+typedef TugboatControllerTestHook =
+    void Function(TugboatReplayController controller);
+
 /// Host-app entry point for Tugboat session capture.
 ///
 /// Install [navigatorObserver] on [MaterialApp]/[CupertinoApp] and wrap the
@@ -39,8 +42,7 @@ class TugboatReplay {
   /// session start. This exists only for widget tests: production callers
   /// never configure a controller before capture begins.
   @visibleForTesting
-  static void Function(TugboatReplayController controller)?
-  debugConfigureControllerForTest;
+  static TugboatControllerTestHook? debugConfigureControllerForTest;
 
   static TugboatReplayController? get controller => _controller;
   static GlobalKey get boundaryKey => _boundaryKey;
