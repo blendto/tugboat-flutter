@@ -1031,10 +1031,8 @@ void main() {
     await harness.setUp();
     addTearDown(harness.dispose);
 
-    final first = harness.seedRouteState(
-      route: '/home',
-      signature: 'sig-home',
-      frameContentHash: 'first-pixels',
+    final first = harness.controller.debugSeedFrame(
+      contentHash: 'first-pixels',
     );
     harness.controller.recordPointerDown(const Offset(1, 1), pointer: 1);
     final retainedTap = harness.controller.session!.ofType('tap').single;
@@ -1062,11 +1060,11 @@ void main() {
     final harness = ReplayCoherenceHarness(maxFrames: 1);
     await harness.setUp();
     addTearDown(harness.dispose);
+    final baselineProvenanceCount =
+        harness.controller.debugFrameProvenanceCount;
 
-    final first = harness.seedRouteState(
-      route: '/home',
-      signature: 'sig-home',
-      frameContentHash: 'first-pixels',
+    final first = harness.controller.debugSeedFrame(
+      contentHash: 'first-pixels',
     );
     final second = harness.controller.debugSeedFrame(
       contentHash: 'second-pixels',
@@ -1076,7 +1074,11 @@ void main() {
       second,
     ]);
     expect(harness.controller.debugFrameProvenance(first), isNull);
-    expect(harness.controller.debugFrameProvenanceCount, 1);
+    expect(harness.controller.debugFrameProvenance(second), isNotNull);
+    expect(
+      harness.controller.debugFrameProvenanceCount,
+      baselineProvenanceCount + 1,
+    );
     expect(harness.controller.latestFrameId, second);
   });
 
@@ -1796,11 +1798,11 @@ void main() {
       expect(settles.single.result, TugboatInteractionResult.unknown);
       expect(settles.single.data['frameAttachment'], {
         'after': 'unavailable',
-        'reason': 'capture_unavailable',
+        'reason': 'capture_processing_failed',
       });
       final observation = settles.single.data['settleObservation'] as Map;
       expect(observation['captureOutcome'], 'failed');
-      expect(observation['captureFailure'], 'capture_unavailable');
+      expect(observation['captureFailure'], 'capture_processing_failed');
       expect(observation['visual'], {
         'changed': null,
         'evidence': 'unavailable',

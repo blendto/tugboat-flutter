@@ -218,6 +218,38 @@ and fingerprint schema version.
 - The HTTP sink also flushes partial batches on its timer and before session
   end.
 
+## Capture diagnostics
+
+Each logical capture request emits exactly one privacy-safe
+`capture_diagnostic` event and contributes to the bounded, session-scoped
+`healthSnapshot().captureDiagnostics` counter. Distinct request IDs with the
+same execution ID (and `coalesced: true`) identify scheduler coalescing.
+Diagnostics contain only bounded correlation, outcome, route epoch, trigger,
+and evidence fields; they never include image bytes, labels, raw errors, or
+stack traces. `visualEvidence` distinguishes fresh, reused, and unavailable
+visual evidence, while `interactionEvidence` states whether the request links
+to an interaction event. The closed outcome vocabulary is:
+
+| Outcome | Meaning |
+| --- | --- |
+| `fresh_accepted` | A fresh frame was accepted. |
+| `exact_content_reused` | An exact content hash reused a compatible frame. |
+| `perceptual_hash_coalesced` | A perceptual hash reused a compatible frame. |
+| `state_signature_short_circuit` | Compatible semantic state made capture unnecessary. |
+| `screenshot_budget_skip` | Degraded screenshot budget skipped eligible work. |
+| `superseded_route_epoch` | Navigation superseded the request's route epoch. |
+| `paint_readiness_timeout` | A fresh paint did not become available in time. |
+| `boundary_unavailable` | The repaint boundary was detached, replaced, or unpainted. |
+| `capture_processing_failed` | Readback, masking, or encoding failed. |
+| `cancelled` | The session/controller was cancelled. |
+| `no_compatible_frame` | No frame was safe to attach to the request context. |
+| `no_frame_available` | No frame has been captured for the request context. |
+
+Cancellation diagnostics add one bounded reason such as `dispose`,
+`session_end`, `session_replacement`, or `lifecycle_deactivate`. The counter
+caps both total values and distinct outcome keys and resets for each session,
+so it is suitable for health polling and cannot grow with session duration.
+
 ## Public surface
 
 The supported import exports `TugboatReplay`, `TugboatNavigatorObserver`,
