@@ -661,4 +661,106 @@ void main() {
       expect(harness.controller.debugCaptureInFlight, isFalse);
     },
   );
+
+  testWidgets('widget-backed tap and settle share target anchor fingerprint', (
+    tester,
+  ) async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUpWidgetBacked(tester);
+    addTearDown(harness.dispose);
+
+    harness.seedRouteState(route: '/home', signature: 'sig-home');
+
+    final tapPoint = harness.targetTapPosition(tester);
+    harness.controller.recordPointerDown(tapPoint);
+    harness.controller.recordPointerUp(tapPoint);
+    await harness.flushScheduler();
+
+    final session = harness.controller.session!;
+    final tap = session.ofType('tap').single;
+    final settle = session.ofType('tap_settled').single;
+    final inventory = session.ofType('scene_inventory').last;
+    final inventorySignature =
+        inventory.stateAnchor?.signature ??
+        inventory.data['stateSignature'] as String?;
+
+    expect(tap.targetAnchor, isNotNull);
+    expect(tap.targetAnchor!.fingerprint, isNotNull);
+    expect(tap.targetAnchor!.fingerprint, isNotEmpty);
+    expect(tap.targetAnchor!.canonicalPath, isNotEmpty);
+    expect(tap.targetAnchor!.role, 'button');
+    expect(tap.targetAnchor!.widgetType, isNot('RepaintBoundary'));
+    expect(tap.stateAnchor?.signature, inventorySignature);
+    expect(settle.targetAnchor, isNotNull);
+    expect(settle.targetAnchor!.fingerprint, tap.targetAnchor!.fingerprint);
+    expect(settle.targetAnchor!.canonicalPath, tap.targetAnchor!.canonicalPath);
+    expect(settle.targetAnchor!.role, 'button');
+    expect(settle.relatedEventId, tap.id);
+
+    harness.controller.recordPointerDown(tapPoint);
+    harness.controller.recordPointerUp(tapPoint);
+    await harness.flushScheduler();
+
+    final repeatTap = session.ofType('tap').last;
+    expect(repeatTap.targetAnchor!.fingerprint, tap.targetAnchor!.fingerprint);
+    expect(
+      repeatTap.targetAnchor!.canonicalPath,
+      tap.targetAnchor!.canonicalPath,
+    );
+    expect(repeatTap.targetAnchor!.role, tap.targetAnchor!.role);
+  });
+
+  testWidgets(
+    'widget-backed pending-route tap keeps linked target anchor',
+    (tester) async {
+      final harness = ReplayCoherenceHarness(
+        settleDelay: const Duration(milliseconds: 40),
+      );
+      await harness.setUpWidgetBacked(tester);
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/scan', signature: 'sig-scan');
+
+      final routeFuture = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/home',
+          transitionDuration: const Duration(milliseconds: 150),
+        ),
+      );
+      expect(harness.controller.debugRouteCapturePending, isTrue);
+
+      final tapPoint = harness.targetTapPosition(tester);
+      harness.controller.recordPointerDown(tapPoint);
+      harness.controller.recordPointerUp(tapPoint);
+      await harness.pumpQueueWork();
+
+      final session = harness.controller.session!;
+      final tap = session.ofType('tap').single;
+      final inventory = session.ofType('scene_inventory').last;
+      final inventorySignature =
+          inventory.stateAnchor?.signature ??
+          inventory.data['stateSignature'] as String?;
+
+      expect(tap.targetAnchor, isNotNull);
+      expect(tap.targetAnchor!.fingerprint, isNotNull);
+      expect(tap.targetAnchor!.fingerprint, isNotEmpty);
+      expect(tap.targetAnchor!.canonicalPath, isNotEmpty);
+      expect(tap.targetAnchor!.role, 'button');
+      expect(tap.stateAnchor?.signature, inventorySignature);
+
+      await harness.flushScheduler();
+      await routeFuture;
+
+      final settle = session.ofType('tap_settled').single;
+      expect(settle.targetAnchor, isNotNull);
+      expect(settle.targetAnchor!.fingerprint, tap.targetAnchor!.fingerprint);
+      expect(
+        settle.targetAnchor!.canonicalPath,
+        tap.targetAnchor!.canonicalPath,
+      );
+      expect(settle.targetAnchor!.role, tap.targetAnchor!.role);
+      expect(settle.relatedEventId, tap.id);
+    },
+  );
 }
