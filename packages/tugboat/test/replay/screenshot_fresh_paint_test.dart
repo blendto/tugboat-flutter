@@ -22,6 +22,14 @@ Widget _scene(GlobalKey boundaryKey, Color color) => Directionality(
   ),
 );
 
+Widget _plainRepaintScene(GlobalKey boundaryKey) => Directionality(
+  textDirection: TextDirection.ltr,
+  child: RepaintBoundary(
+    key: boundaryKey,
+    child: const SizedBox.square(dimension: 80),
+  ),
+);
+
 Color _centerColor(ScreenshotCaptureResult result) {
   final decoded = img.decodeJpg(result.bytes)!;
   final pixel = decoded.getPixel(decoded.width ~/ 2, decoded.height ~/ 2);
@@ -129,6 +137,23 @@ void main() {
       frameWaiter: () => Future<void>.value(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
+
+    final attempt = await capturer.captureAttempt(requireFreshPaint: true);
+    expect(attempt.result, isNull);
+    expect(attempt.failure, ScreenshotCaptureFailure.paintNotAdvanced);
+  });
+
+  testWidgets('plain repaint boundary cannot prove fresh paint', (
+    tester,
+  ) async {
+    final boundaryKey = GlobalKey();
+    final capturer = ScreenshotCapturer(
+      boundaryKey: boundaryKey,
+      maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
+      anchorResolver: AnchorResolver(rootKey: boundaryKey),
+      frameWaiter: () => Future<void>.value(),
+    );
+    await tester.pumpWidget(_plainRepaintScene(boundaryKey));
 
     final attempt = await capturer.captureAttempt(requireFreshPaint: true);
     expect(attempt.result, isNull);

@@ -88,6 +88,7 @@ class _ScheduledCapture {
     required this.force,
     required this.freshness,
     required this.notBefore,
+    required this.enqueuedAt,
     required this.context,
   });
 
@@ -95,6 +96,7 @@ class _ScheduledCapture {
   bool force;
   _CaptureFreshness freshness;
   DateTime notBefore;
+  DateTime enqueuedAt;
   final _CaptureRequestContext context;
   final List<Completer<String?>> waiters = [];
   _ScheduledCapture? next;
@@ -109,6 +111,9 @@ class _ScheduledCapture {
     }
     if (other.notBefore.isAfter(notBefore)) {
       notBefore = other.notBefore;
+    }
+    if (other.enqueuedAt.isBefore(enqueuedAt)) {
+      enqueuedAt = other.enqueuedAt;
     }
     waiters.addAll(other.waiters);
   }
@@ -1127,14 +1132,16 @@ class TugboatReplayController extends ChangeNotifier {
       );
     }
 
+    final now = _now();
     final delay = settleDelay ?? config.settleDelay;
-    final notBefore = _now().add(delay);
+    final notBefore = now.add(delay);
     final completer = Completer<String?>();
     final incoming = _ScheduledCapture(
       trigger: trigger,
       force: force,
       freshness: freshness,
       notBefore: notBefore,
+      enqueuedAt: now,
       context: context,
     )..waiters.add(completer);
 
@@ -1205,6 +1212,9 @@ class TugboatReplayController extends ChangeNotifier {
         continue;
       }
 
+      final queueWaitMicros = _now()
+          .difference(scheduled.enqueuedAt)
+          .inMicroseconds;
       _scheduledCapture = scheduled.next;
       scheduled.next = null;
       String? frameId;
@@ -1214,6 +1224,7 @@ class TugboatReplayController extends ChangeNotifier {
           force: scheduled.force,
           freshness: scheduled.freshness,
           context: scheduled.context.withTrigger(scheduled.trigger),
+          queueWaitMicros: queueWaitMicros,
         );
       } catch (error, stackTrace) {
         // A capture failure must not kill the pump loop or strand waiters:
@@ -1274,6 +1285,7 @@ class TugboatReplayController extends ChangeNotifier {
     bool force = false,
     required _CaptureFreshness freshness,
     required _CaptureRequestContext context,
+    required int queueWaitMicros,
   }) async {
     final captureGeneration = _captureGeneration;
     final captureCancellation = _captureCancellation.future;
@@ -1338,7 +1350,7 @@ class TugboatReplayController extends ChangeNotifier {
         _screenshotBudget.shouldSkipEligible;
     if (eligibleToSkip) {
       _screenshotBudget.record(
-        queueWaitMicros: 0,
+        queueWaitMicros: queueWaitMicros,
         readbackMicros: 0,
         encodeMicros: 0,
         encodedBytes: 0,
@@ -1382,7 +1394,7 @@ class TugboatReplayController extends ChangeNotifier {
             )) {
           _captureFailureCount++;
           _screenshotBudget.record(
-            queueWaitMicros: 0,
+            queueWaitMicros: queueWaitMicros,
             frameWaitMicros: attempt.frameWaitMicros,
             readbackMicros: 0,
             encodeMicros: 0,
@@ -1406,7 +1418,7 @@ class TugboatReplayController extends ChangeNotifier {
       final completionStateAnchor = _snapshotStateAnchor(_refreshStateAnchor());
 
       _screenshotBudget.record(
-        queueWaitMicros: 0,
+        queueWaitMicros: queueWaitMicros,
         frameWaitMicros: attempt.frameWaitMicros,
         readbackMicros: result.captureMicros,
         maskMicros: result.maskMicros,

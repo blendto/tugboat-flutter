@@ -218,12 +218,17 @@ class ScreenshotCapturer {
         ? requestedBoundary.paintGeneration
         : null;
     if (requireFreshPaint) {
+      if (requestedBoundary is! TugboatCaptureRenderBoundary) {
+        return const ScreenshotCaptureAttempt(
+          failure: ScreenshotCaptureFailure.paintNotAdvanced,
+        );
+      }
       final paintFailure = _boundaryFailure(requestedBoundary);
       if (paintFailure != null) {
         return ScreenshotCaptureAttempt(failure: paintFailure);
       }
       try {
-        requestedBoundary!.markNeedsPaint();
+        requestedBoundary.markNeedsPaint();
         SchedulerBinding.instance.ensureVisualUpdate();
       } on FlutterError {
         return const ScreenshotCaptureAttempt(
@@ -273,8 +278,7 @@ class ScreenshotCapturer {
       final advanced = currentBoundary is TugboatCaptureRenderBoundary
           ? paintGeneration != null &&
                 currentBoundary.paintGeneration > paintGeneration
-          : currentBoundary is RenderRepaintBoundary &&
-                !currentBoundary.debugNeedsPaint;
+          : false;
       if (!advanced) {
         return ScreenshotCaptureAttempt(
           failure: ScreenshotCaptureFailure.paintNotAdvanced,
