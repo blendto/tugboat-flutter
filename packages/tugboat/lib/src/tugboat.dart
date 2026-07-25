@@ -35,6 +35,13 @@ class TugboatReplay {
       TugboatNavigatorObserver();
   static final TugboatLifecycleNotifier _lifecycle = TugboatLifecycleNotifier();
 
+  /// Installs deterministic controller seams before its first post-frame
+  /// session start. This exists only for widget tests: production callers
+  /// never configure a controller before capture begins.
+  @visibleForTesting
+  static void Function(TugboatReplayController controller)?
+  debugConfigureControllerForTest;
+
   static TugboatReplayController? get controller => _controller;
   static GlobalKey get boundaryKey => _boundaryKey;
   static TugboatLifecycleNotifier get lifecycle => _lifecycle;
@@ -120,6 +127,7 @@ class TugboatReplay {
   static void resetForTest() {
     _controller?.dispose();
     _controller = null;
+    debugConfigureControllerForTest = null;
     _lifecycle.resetForTest();
   }
 }
@@ -290,6 +298,7 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
       sessionEpoch: widget.sessionEpoch,
     );
     TugboatReplay._controller = controller;
+    TugboatReplay.debugConfigureControllerForTest?.call(controller);
     inputCapture = InputCapture(
       controller: controller,
       rootKey: TugboatReplay._boundaryKey,
