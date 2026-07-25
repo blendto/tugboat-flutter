@@ -779,7 +779,11 @@ class TugboatReplayController extends ChangeNotifier {
     return (
       done: completer.future,
       cancel: () {
-        _scheduledCapture?.waiters.remove(completer);
+        final scheduled = _scheduledCapture;
+        scheduled?.waiters.remove(completer);
+        if (scheduled != null && scheduled.waiters.isEmpty) {
+          _scheduledCapture = null;
+        }
         if (!completer.isCompleted) completer.complete(_latestFrameId);
       },
     );
@@ -1550,7 +1554,7 @@ class TugboatReplayController extends ChangeNotifier {
     _activeRouteCapture = work;
     _routeCapturePending = true;
     _skipCapture = transition.transitionDuration > Duration.zero;
-    if (work.deadline == Duration.zero) {
+    if (work.deadline <= Duration.zero) {
       // There is no wait to move out of the queue. Keeping this path queued
       // preserves the observer-backed zero-duration navigation contract while
       // still allowing real transition waits to run independently.
