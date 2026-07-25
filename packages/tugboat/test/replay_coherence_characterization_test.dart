@@ -123,11 +123,195 @@ void main() {
         CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
           events: session.events,
           tapEventId: session.ofType('tap').single.id,
+          expectedDestinationRoute: '/home',
+          expectedRouteEventId: routeChange.id,
         ),
         isFalse,
       );
     },
   );
+
+  group('navigationTapHasNoEarlyNoVisibleChange ordering', () {
+    TugboatEvent syntheticEvent({
+      required String id,
+      required String type,
+      required int atMs,
+      String? relatedEventId,
+      TugboatInteractionResult? result,
+      Map<String, Object?> data = const {},
+    }) {
+      return TugboatEvent(
+        id: id,
+        atMs: atMs,
+        type: type,
+        relatedEventId: relatedEventId,
+        result: result,
+        data: data,
+      );
+    }
+
+    test('fails when route_change precedes tap_settled with noVisibleChange', () {
+      final events = [
+        syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
+        syntheticEvent(
+          id: 'route-1',
+          type: 'route_change',
+          atMs: 150,
+          data: {'route': '/home'},
+        ),
+        syntheticEvent(
+          id: 'settle-1',
+          type: 'tap_settled',
+          atMs: 200,
+          relatedEventId: 'tap-1',
+          result: TugboatInteractionResult.noVisibleChange,
+        ),
+      ];
+      expect(
+        CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
+          events: events,
+          tapEventId: 'tap-1',
+          expectedDestinationRoute: '/home',
+          expectedRouteEventId: 'route-1',
+        ),
+        isFalse,
+      );
+    });
+
+    test('fails when route_change follows tap_settled with noVisibleChange', () {
+      final events = [
+        syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
+        syntheticEvent(
+          id: 'settle-1',
+          type: 'tap_settled',
+          atMs: 150,
+          relatedEventId: 'tap-1',
+          result: TugboatInteractionResult.noVisibleChange,
+        ),
+        syntheticEvent(
+          id: 'route-1',
+          type: 'route_change',
+          atMs: 200,
+          data: {'route': '/home'},
+        ),
+      ];
+      expect(
+        CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
+          events: events,
+          tapEventId: 'tap-1',
+          expectedDestinationRoute: '/home',
+          expectedRouteEventId: 'route-1',
+        ),
+        isFalse,
+      );
+    });
+
+    test('fails when destination route_change is missing', () {
+      final events = [
+        syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
+        syntheticEvent(
+          id: 'settle-1',
+          type: 'tap_settled',
+          atMs: 150,
+          relatedEventId: 'tap-1',
+          result: TugboatInteractionResult.noVisibleChange,
+        ),
+      ];
+      expect(
+        CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
+          events: events,
+          tapEventId: 'tap-1',
+          expectedDestinationRoute: '/home',
+          expectedRouteEventId: 'route-1',
+        ),
+        isFalse,
+      );
+    });
+
+    test('fails when expected route event id does not match destination', () {
+      final events = [
+        syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
+        syntheticEvent(
+          id: 'route-1',
+          type: 'route_change',
+          atMs: 120,
+          data: {'route': '/settings'},
+        ),
+        syntheticEvent(
+          id: 'settle-1',
+          type: 'tap_settled',
+          atMs: 180,
+          relatedEventId: 'tap-1',
+          result: TugboatInteractionResult.changed,
+        ),
+      ];
+      expect(
+        CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
+          events: events,
+          tapEventId: 'tap-1',
+          expectedDestinationRoute: '/home',
+          expectedRouteEventId: 'route-1',
+        ),
+        isFalse,
+      );
+    });
+
+    test('fails when route_change occurs before tap', () {
+      final events = [
+        syntheticEvent(
+          id: 'route-1',
+          type: 'route_change',
+          atMs: 50,
+          data: {'route': '/home'},
+        ),
+        syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
+        syntheticEvent(
+          id: 'settle-1',
+          type: 'tap_settled',
+          atMs: 180,
+          relatedEventId: 'tap-1',
+          result: TugboatInteractionResult.changed,
+        ),
+      ];
+      expect(
+        CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
+          events: events,
+          tapEventId: 'tap-1',
+          expectedDestinationRoute: '/home',
+          expectedRouteEventId: 'route-1',
+        ),
+        isFalse,
+      );
+    });
+
+    test('passes when matching route exists and settle is not noVisibleChange', () {
+      final events = [
+        syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
+        syntheticEvent(
+          id: 'route-1',
+          type: 'route_change',
+          atMs: 120,
+          data: {'route': '/home'},
+        ),
+        syntheticEvent(
+          id: 'settle-1',
+          type: 'tap_settled',
+          atMs: 180,
+          relatedEventId: 'tap-1',
+          result: TugboatInteractionResult.changed,
+        ),
+      ];
+      expect(
+        CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
+          events: events,
+          tapEventId: 'tap-1',
+          expectedDestinationRoute: '/home',
+          expectedRouteEventId: 'route-1',
+        ),
+        isTrue,
+      );
+    });
+  });
 
   test(
     'destination tap while route capture pending carries previous route frame',

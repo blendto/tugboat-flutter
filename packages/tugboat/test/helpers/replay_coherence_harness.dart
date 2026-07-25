@@ -371,21 +371,44 @@ class CoherenceInvariants {
     return true;
   }
 
-  /// Navigation-producing taps must not emit an early unrelated noVisibleChange.
+  /// Navigation-producing taps must not emit an unrelated noVisibleChange.
+  ///
+  /// Harness causality contract: when expectations are provided, the exact
+  /// destination route event must exist, match [expectedDestinationRoute], and
+  /// occur no earlier than the tap. Missing destination/id returns false.
   static bool navigationTapHasNoEarlyNoVisibleChange({
     required List<TugboatEvent> events,
     required String tapEventId,
+    String? expectedDestinationRoute,
+    String? expectedRouteEventId,
   }) {
+    final tap = events.cast<TugboatEvent?>().firstWhere(
+      (event) => event?.id == tapEventId,
+      orElse: () => null,
+    );
+    if (tap == null) return false;
+
     final settle = events.cast<TugboatEvent?>().firstWhere(
       (event) =>
           event?.type == 'tap_settled' && event?.relatedEventId == tapEventId,
       orElse: () => null,
     );
     if (settle == null) return false;
-    final routeAfter = events.any(
-      (event) => event.type == 'route_change' && event.atMs >= settle.atMs,
+    if (settle.relatedEventId != tapEventId) return false;
+
+    if (expectedDestinationRoute == null || expectedRouteEventId == null) {
+      return false;
+    }
+
+    final routeEvent = events.cast<TugboatEvent?>().firstWhere(
+      (event) => event?.id == expectedRouteEventId,
+      orElse: () => null,
     );
-    if (!routeAfter) return true;
+    if (routeEvent == null) return false;
+    if (routeEvent.type != 'route_change') return false;
+    if (routeEvent.data['route'] != expectedDestinationRoute) return false;
+    if (routeEvent.atMs < tap.atMs) return false;
+
     return settle.result != TugboatInteractionResult.noVisibleChange;
   }
 }
