@@ -1,6 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show AppLifecycleState, Size;
-
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 
@@ -55,7 +54,7 @@ void main() {
   );
 
   test(
-    'tap that starts navigation currently emits noVisibleChange before route_change',
+    'tap that starts navigation awaits the matching route capture',
     () async {
       final harness = ReplayCoherenceHarness(
         settleDelay: const Duration(milliseconds: 50),
@@ -73,8 +72,8 @@ void main() {
       harness.controller.recordPointerDown(const Offset(20, 20));
       harness.controller.recordPointerUp(const Offset(20, 20));
 
-      // Navigation callback arrives while settle is queued: route updates and
-      // pending flag flip immediately; capture waits on the serialized queue.
+      // Navigation callback arrives while settle is queued. The settle must
+      // join this route epoch's capture instead of consuming the old frame.
       final routeFuture = harness.controller.route(
         'route_push',
         harness.route(
@@ -83,24 +82,12 @@ void main() {
         ),
       );
 
-      // Pump queue work without awaiting the parked route delay.
+      // Pump queue work without advancing the route deadline: settle is now
+      // waiting on the route barrier, not publishing stale evidence.
       await harness.pumpQueueWork();
 
       final midSession = harness.controller.session!;
-      final settle = midSession.ofType('tap_settled').single;
-      expect(settle.relatedEventId, midSession.ofType('tap').single.id);
-      expect(
-        settle.result,
-        TugboatInteractionResult.noVisibleChange,
-        reason:
-            'pending-route settle skips state refresh and reuses origin frame',
-      );
-      expect(
-        settle.afterFrame,
-        originFrame,
-        reason:
-            'tap_settled consumed _latestFrameId while route capture pending',
-      );
+      expect(midSession.ofType('tap_settled'), isEmpty);
       expect(
         midSession.ofType('route_change'),
         isEmpty,
@@ -113,6 +100,11 @@ void main() {
 
       final session = harness.controller.session!;
       final routeChange = session.ofType('route_change').single;
+      final settle = session.ofType('tap_settled').single;
+      expect(settle.relatedEventId, session.ofType('tap').single.id);
+      expect(settle.afterFrame, routeChange.afterFrame);
+      expect(settle.afterFrame, isNot(originFrame));
+      expect(settle.result, TugboatInteractionResult.changed);
       expect(routeChange.data['route'], '/home');
       expect(routeChange.afterFrame, isNot(originFrame));
       expect(
@@ -127,9 +119,8 @@ void main() {
         (e) => e.type == 'route_change',
       );
       expect(tapIndex, lessThan(settleIndex));
-      expect(settleIndex, lessThan(routeIndex));
+      expect(routeIndex, lessThan(settleIndex));
 
-      // Desired invariant fails on this known broken sequence.
       expect(
         CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
           events: session.events,
@@ -137,8 +128,332 @@ void main() {
           expectedDestinationRoute: '/home',
           expectedRouteEventId: routeChange.id,
         ),
-        isFalse,
+        isTrue,
       );
+    },
+  );
+
+  test(
+    'navigation before pointer-up shares one route capture across settles',
+    () async {
+      final harness = ReplayCoherenceHarness(
+        settleDelay: const Duration(milliseconds: 20),
+      );
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final originFrame = harness.seedRouteState(
+        route: '/scan',
+        signature: 'sig-scan',
+      );
+      final routeFuture = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/home',
+          transitionDuration: const Duration(milliseconds: 20),
+        ),
+      );
+
+      harness.controller.recordPointerDown(const Offset(10, 10), pointer: 1);
+      harness.controller.recordPointerUp(const Offset(10, 10), pointer: 1);
+      harness.controller.recordPointerDown(const Offset(20, 20), pointer: 2);
+      harness.controller.recordPointerUp(const Offset(20, 20), pointer: 2);
+      await harness.tick(const Duration(milliseconds: 19));
+      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+
+      await harness.tick(const Duration(milliseconds: 1));
+      await harness.flushScheduler();
+      await routeFuture;
+
+      final session = harness.controller.session!;
+      final routeFrame = session.ofType('route_change').single.afterFrame;
+      final settles = session.ofType('tap_settled');
+      expect(settles, hasLength(2));
+      expect(
+        settles.map((event) => event.afterFrame),
+        everyElement(routeFrame),
+      );
+      expect(
+        harness.capturer.triggers.where(
+          (trigger) => trigger == TugboatFrameTrigger.route,
+        ),
+        hasLength(1),
+      );
+      expect(routeFrame, isNot(originFrame));
+    },
+  );
+
+  test('route just before tap settle boundary wins the capture slot', () async {
+    final harness = ReplayCoherenceHarness(
+      settleDelay: const Duration(milliseconds: 20),
+    );
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    harness.seedRouteState(route: '/scan', signature: 'sig-scan');
+    harness.controller.recordPointerDown(const Offset(10, 10));
+    harness.controller.recordPointerUp(const Offset(10, 10));
+    await harness.tick(const Duration(milliseconds: 19));
+
+    final routeFuture = harness.controller.route(
+      'route_push',
+      harness.route('/home'),
+    );
+    await harness.tick(const Duration(milliseconds: 1));
+    await harness.flushScheduler();
+    await routeFuture;
+
+    final session = harness.controller.session!;
+    final routeFrame = session.ofType('route_change').single.afterFrame;
+    expect(session.ofType('tap_settled').single.afterFrame, routeFrame);
+    expect(
+      harness.capturer.triggers.where(
+        (trigger) => trigger == TugboatFrameTrigger.route,
+      ),
+      hasLength(1),
+    );
+    expect(harness.capturer.triggers, isNot(contains(TugboatFrameTrigger.tap)));
+  });
+
+  test('successor chain resolves a waiting settle only to C', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+    harness.seedRouteState(route: '/root', signature: 'root');
+    harness.controller.recordPointerDown(const Offset(1, 1));
+    final a = harness.controller.route('route_push', harness.route('/a'));
+    harness.controller.recordPointerUp(const Offset(1, 1));
+    final b = harness.controller.route('route_push', harness.route('/b'));
+    final c = harness.controller.route('route_push', harness.route('/c'));
+    await harness.flushScheduler();
+    await Future.wait([a, b, c]);
+    final changes = harness.controller.session!.ofType('route_change');
+    expect(changes.map((event) => event.data['route']), ['/c']);
+    expect(
+      harness.controller.session!.ofType('tap_settled').single.afterFrame,
+      changes.single.afterFrame,
+    );
+  });
+
+  test('cancelling a settle deadline removes its scheduler entry', () async {
+    final harness = ReplayCoherenceHarness(
+      settleDelay: const Duration(milliseconds: 20),
+    );
+    await harness.setUp();
+    addTearDown(harness.dispose);
+    harness.controller.recordPointerDown(const Offset(1, 1));
+    harness.controller.recordPointerUp(const Offset(1, 1));
+    expect(harness.scheduler.pendingDelayCount, 1);
+    await harness.controller.endSession();
+    expect(harness.scheduler.pendingDelayCount, 0);
+  });
+
+  test('replacement during route readback suppresses old tap output', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+    harness.controller.recordPointerDown(const Offset(1, 1));
+    harness.controller.recordPointerUp(const Offset(1, 1));
+    harness.capturer.blockNext = true;
+    final route = harness.controller.route('route_push', harness.route('/old'));
+    await harness.pumpQueueWork();
+    expect(harness.capturer.blockedCount, 1);
+    harness.controller.start(const Size(390, 844), 'replacement');
+    harness.capturer.completeBlocked('old-frame');
+    await route;
+    await harness.flushScheduler();
+    expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+    expect(harness.controller.session!.ofType('route_change'), isEmpty);
+  });
+
+  test(
+    'ending session during route readback suppresses waiting tap output',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/scan', signature: 'sig-scan');
+      harness.controller.recordPointerDown(const Offset(10, 10));
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      harness.capturer.blockNext = true;
+      final routeFuture = harness.controller.route(
+        'route_push',
+        harness.route('/home'),
+      );
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+      await harness.controller.endSession();
+      harness.capturer.completeBlocked('late-route-frame');
+      await routeFuture;
+      await harness.pumpQueueWork();
+
+      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      expect(harness.controller.session!.ofType('route_change'), isEmpty);
+      expect(harness.controller.latestFrameId, isNot('late-route-frame'));
+    },
+  );
+
+  test(
+    'ending session invalidates an in-flight standalone tap capture',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final originFrame = harness.seedRouteState(
+        route: '/scan',
+        signature: 'sig-scan',
+      );
+      final frameCount = harness.controller.session!.frames.length;
+      harness.capturer.blockNext = true;
+      harness.controller.recordPointerDown(const Offset(10, 10));
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+
+      await harness.controller.endSession();
+      harness.capturer.completeBlocked('late-tap-frame');
+      await harness.pumpQueueWork();
+
+      final session = harness.controller.session!;
+      expect(session.ofType('tap_settled'), isEmpty);
+      expect(session.frames, hasLength(frameCount));
+      expect(harness.controller.latestFrameId, originFrame);
+    },
+  );
+
+  test(
+    'backgrounding invalidates an in-flight standalone tap capture',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final originFrame = harness.seedRouteState(
+        route: '/scan',
+        signature: 'sig-scan',
+      );
+      final frameCount = harness.controller.session!.frames.length;
+      harness.capturer.blockNext = true;
+      harness.controller.recordPointerDown(const Offset(10, 10));
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+
+      harness.controller.recordAppLifecycleState(AppLifecycleState.paused);
+      harness.capturer.completeBlocked('late-background-frame');
+      await harness.pumpQueueWork();
+
+      final session = harness.controller.session!;
+      expect(session.ofType('tap_settled'), isEmpty);
+      expect(session.frames, hasLength(frameCount));
+      expect(harness.controller.latestFrameId, originFrame);
+    },
+  );
+
+  testWidgets('ending session suppresses blocked scroll_end output', (
+    tester,
+  ) async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+    await _mountScrollableHarness(tester, harness);
+
+    final originFrame = harness.seedRouteState(
+      route: '/list',
+      signature: 'sig-list',
+    );
+    harness.capturer.blockNext = true;
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    await harness.pumpQueueWork();
+    expect(harness.controller.session!.ofType('scroll_start'), hasLength(1));
+    expect(harness.capturer.blockedCount, 1);
+
+    await harness.controller.endSession();
+    harness.capturer.completeBlocked('late-scroll-frame');
+    await harness.pumpQueueWork();
+
+    expect(harness.controller.session!.ofType('scroll_end'), isEmpty);
+    expect(harness.controller.latestFrameId, originFrame);
+    harness.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('backgrounding suppresses blocked scroll_end output', (
+    tester,
+  ) async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+    await _mountScrollableHarness(tester, harness);
+
+    final originFrame = harness.seedRouteState(
+      route: '/list',
+      signature: 'sig-list',
+    );
+    harness.capturer.blockNext = true;
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    await harness.pumpQueueWork();
+    expect(harness.controller.session!.ofType('scroll_start'), hasLength(1));
+    expect(harness.capturer.blockedCount, 1);
+
+    harness.controller.recordAppLifecycleState(AppLifecycleState.paused);
+    harness.capturer.completeBlocked('late-scroll-frame');
+    await harness.pumpQueueWork();
+
+    expect(harness.controller.session!.ofType('scroll_end'), isEmpty);
+    expect(harness.controller.latestFrameId, originFrame);
+    harness.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  test('ending a session cancels a tap waiting on route capture', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    harness.seedRouteState(route: '/scan', signature: 'sig-scan');
+    harness.controller.recordPointerDown(const Offset(10, 10));
+    harness.controller.recordPointerUp(const Offset(10, 10));
+    final routeFuture = harness.controller.route(
+      'route_push',
+      harness.route(
+        '/home',
+        transitionDuration: const Duration(milliseconds: 20),
+      ),
+    );
+    await harness.controller.endSession();
+    await routeFuture;
+    await harness.pumpQueueWork();
+
+    expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+    expect(harness.controller.session!.ofType('route_change'), isEmpty);
+  });
+
+  test(
+    'replacement session rejects a tap waiting on old route capture',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/scan', signature: 'sig-scan');
+      harness.controller.recordPointerDown(const Offset(10, 10));
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      final routeFuture = harness.controller.route(
+        'route_push',
+        harness.route('/home'),
+      );
+      await harness.pumpQueueWork();
+      harness.controller.start(const Size(390, 844), 'replacement');
+      await routeFuture;
+      await harness.flushScheduler();
+
+      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      expect(harness.controller.session!.ofType('route_change'), isEmpty);
     },
   );
 
@@ -789,6 +1104,125 @@ void main() {
   );
 
   test(
+    'blocked route readback times out without publishing a late frame',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/origin', signature: 'origin');
+      harness.controller.recordPointerDown(const Offset(10, 10));
+      harness.capturer.blockNext = true;
+      final route = harness.controller.route(
+        'route_push',
+        harness.route('/blocked'),
+      );
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+      final frameBeforeTimeout = harness.controller.latestFrameId;
+
+      // Private controller timeout: 5 seconds. The controllable scheduler
+      // proves this is a bounded barrier rather than a wall-clock test.
+      await harness.tick(const Duration(seconds: 5));
+      await route;
+      await harness.pumpQueueWork();
+
+      final change = harness.controller.session!.ofType('route_change').single;
+      expect(change.afterFrame, isNull);
+      expect(change.result, TugboatInteractionResult.unknown);
+      expect(change.data['captureOutcome'], 'timed_out');
+      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      expect(harness.controller.latestFrameId, frameBeforeTimeout);
+
+      harness.capturer.completeBlocked('late-route-frame');
+      await harness.pumpQueueWork();
+      expect(harness.controller.latestFrameId, frameBeforeTimeout);
+      expect(harness.controller.session!.ofType('route_change'), hasLength(1));
+    },
+  );
+
+  test(
+    'absolute route timeout releases waiters before queued admission',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final predecessor = Completer<void>();
+      unawaited(
+        harness.controller.debugEnqueueTask(
+          'unrelated predecessor',
+          () => predecessor.future,
+        ),
+      );
+      await harness.pumpQueueWork();
+
+      harness.controller.recordPointerDown(const Offset(10, 10));
+      final route = harness.controller.route(
+        'route_push',
+        harness.route('/queued'),
+      );
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      await harness.tick(const Duration(seconds: 5));
+      await route;
+      await harness.pumpQueueWork();
+
+      // Neither route finalization nor tap_settled can enter the blocked
+      // queue, but their waiters have already reached a terminal outcome.
+      expect(harness.controller.debugActiveTapSettleCount, 0);
+      final changes = harness.controller.session!.ofType('route_change');
+      expect(changes, hasLength(1));
+      expect(changes.single.data['captureOutcome'], 'timed_out');
+      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+
+      predecessor.complete();
+      await harness.flushScheduler();
+      expect(harness.controller.session!.ofType('route_change'), hasLength(1));
+      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+    },
+  );
+
+  test(
+    'timed-out route never transfers its waiting tap to a later route',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.controller.recordPointerDown(const Offset(10, 10));
+      harness.capturer.blockNext = true;
+      final timedOut = harness.controller.route(
+        'route_push',
+        harness.route('/timed-out'),
+      );
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      await harness.pumpQueueWork();
+      await harness.tick(const Duration(seconds: 5));
+      await timedOut;
+
+      final next = harness.controller.route(
+        'route_push',
+        harness.route('/next'),
+      );
+      await harness.pumpQueueWork();
+      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      // Releasing the stale platform readback lets the scheduler run B, but the
+      // timed-out A waiter must remain terminal rather than joining B.
+      harness.capturer.completeBlocked('late-a-frame');
+      await harness.flushScheduler();
+      await next;
+
+      final changes = harness.controller.session!.ofType('route_change');
+      expect(changes.map((event) => event.data['route']), [
+        '/timed-out',
+        '/next',
+      ]);
+      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+    },
+  );
+
+  test(
     'replacement session rejects a capture from the prior route epoch',
     () async {
       final harness = ReplayCoherenceHarness();
@@ -850,6 +1284,8 @@ void main() {
         '/first',
         '/recovered',
       ]);
+      expect(changes.first.afterFrame, isNull);
+      expect(changes.first.data['captureOutcome'], 'failed');
       expect(harness.controller.debugRouteCapturePending, isFalse);
       expect(harness.scheduler.pendingDelayCount, 0);
     },
@@ -1176,4 +1612,43 @@ void main() {
       );
     },
   );
+}
+
+Future<void> _mountScrollableHarness(
+  WidgetTester tester,
+  ReplayCoherenceHarness harness,
+) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification is ScrollStartNotification) {
+            harness.controller.recordScrollStart(
+              scrollContext: notification.context,
+              metrics: notification.metrics,
+              depth: notification.depth,
+            );
+          } else if (notification is ScrollUpdateNotification) {
+            harness.controller.recordScrollUpdate(
+              scrollContext: notification.context,
+              metrics: notification.metrics,
+            );
+          } else if (notification is ScrollEndNotification) {
+            harness.controller.recordScrollEnd(
+              scrollContext: notification.context,
+              metrics: notification.metrics,
+            );
+          }
+          return false;
+        },
+        child: ListView(
+          children: List<Widget>.generate(
+            30,
+            (index) => SizedBox(height: 80, child: Text('$index')),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
 }

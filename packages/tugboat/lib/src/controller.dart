@@ -170,6 +170,19 @@ class _VisibleRouteChange {
   final bool updatesRoute;
 }
 
+/// The terminal state of a private route-capture barrier.
+///
+/// This is intentionally not part of the public replay schema. The event
+/// writer turns the timeout case into additive `captureOutcome` data.
+enum _RouteCaptureOutcome { captured, failed, cancelled, timedOut }
+
+class _RouteCaptureResult {
+  const _RouteCaptureResult(this.outcome, {this.frameId});
+
+  final _RouteCaptureOutcome outcome;
+  final String? frameId;
+}
+
 /// One deferred route capture. Its deadline deliberately runs outside the
 /// controller queue so a Navigator transition can never stall tap/scroll work.
 class _RouteCaptureWork {
@@ -182,12 +195,17 @@ class _RouteCaptureWork {
   final int epoch;
   final _VisibleRouteChange change;
   final Duration deadline;
-  final Completer<void> completer = Completer<void>();
+
+  /// Completes once with this epoch's terminal barrier outcome.
+  final Completer<_RouteCaptureResult> completer =
+      Completer<_RouteCaptureResult>();
   bool cancelled = false;
   void Function()? _cancelDeadline;
+  void Function()? _cancelBarrierTimeout;
   void Function()? _cancelCapture;
+  _RouteCaptureWork? supersededBy;
 
-  Future<void> get done => completer.future;
+  Future<_RouteCaptureResult> get done => completer.future;
 
   void attachDeadlineCancellation(void Function() cancelDeadline) {
     if (cancelled) {
@@ -205,6 +223,70 @@ class _RouteCaptureWork {
     _cancelCapture = cancelCapture;
   }
 
+  void attachBarrierTimeoutCancellation(void Function() cancelTimeout) {
+    if (cancelled) {
+      cancelTimeout();
+      return;
+    }
+    _cancelBarrierTimeout = cancelTimeout;
+  }
+
+  /// Stops transition/capture work without choosing this barrier's terminal
+  /// outcome. The absolute barrier timeout uses this before completing as
+  /// [timedOut].
+  void cancelPendingWork() {
+    _cancelDeadline?.call();
+    _cancelDeadline = null;
+    _cancelCapture?.call();
+    _cancelCapture = null;
+  }
+
+  void cancel() {
+    cancelled = true;
+    cancelPendingWork();
+    _cancelBarrierTimeout?.call();
+    _cancelBarrierTimeout = null;
+    if (!completer.isCompleted) {
+      completer.complete(
+        const _RouteCaptureResult(_RouteCaptureOutcome.cancelled),
+      );
+    }
+  }
+
+  void complete(_RouteCaptureResult result) {
+    _cancelDeadline = null;
+    _cancelBarrierTimeout?.call();
+    _cancelBarrierTimeout = null;
+    _cancelCapture = null;
+    if (!completer.isCompleted) completer.complete(result);
+  }
+}
+
+class _TapSettleWork {
+  _TapSettleWork({required this.session});
+
+  final TugboatSession? session;
+  bool cancelled = false;
+  final Completer<void> completer = Completer<void>();
+  void Function()? _cancelDeadline;
+  void Function()? _cancelCapture;
+
+  void attachCaptureCancellation(void Function() cancel) {
+    if (cancelled) {
+      cancel();
+      return;
+    }
+    _cancelCapture = cancel;
+  }
+
+  void attachDeadlineCancellation(void Function() cancel) {
+    if (cancelled) {
+      cancel();
+      return;
+    }
+    _cancelDeadline = cancel;
+  }
+
   void cancel() {
     cancelled = true;
     _cancelDeadline?.call();
@@ -215,13 +297,16 @@ class _RouteCaptureWork {
   }
 
   void complete() {
-    _cancelDeadline = null;
-    _cancelCapture = null;
     if (!completer.isCompleted) completer.complete();
   }
 }
 
 class TugboatReplayController extends ChangeNotifier {
+  // A route capture must never hold replay settlement indefinitely when the
+  // platform readback callback is lost. This is deliberately private: #9 owns
+  // configurable fresh-paint/readback policy.
+  static const Duration _routeCaptureTimeout = Duration(seconds: 5);
+
   TugboatReplayController({
     required this.config,
     required GlobalKey boundaryKey,
@@ -269,11 +354,14 @@ class TugboatReplayController extends ChangeNotifier {
   bool _explorationFramesSuppressed = false;
   bool _captureInFlight = false;
   int _captureGeneration = 0;
+  int _captureFailureCount = 0;
   bool _capturePumpScheduled = false;
   bool _skipCapture = false;
-  bool _routeCapturePending = false;
+  bool _captureLifecycleActive = true;
+  int _captureLifecycleEpoch = 0;
   int _routeEpoch = 0;
   _RouteCaptureWork? _activeRouteCapture;
+  final Set<_TapSettleWork> _activeTapSettles = <_TapSettleWork>{};
   final Map<Element, _ScrollTracker> _scrollTrackers = {};
   final Map<int, _PointerGestureState> _activeGestures = {};
   String? _lastCapturedStateSignature;
@@ -353,13 +441,21 @@ class TugboatReplayController extends ChangeNotifier {
   int get debugRouteEpoch => _routeEpoch;
 
   @visibleForTesting
-  bool get debugRouteCapturePending => _routeCapturePending;
+  bool get debugRouteCapturePending => _activeRouteCapture != null;
 
   @visibleForTesting
   bool get debugCaptureInFlight => _captureInFlight;
 
   @visibleForTesting
-  Future<void> drainPointerQueue() => _queue;
+  int get debugActiveTapSettleCount => _activeTapSettles.length;
+
+  @visibleForTesting
+  Future<void> drainPointerQueue() async {
+    await _queue;
+    final settles = _activeTapSettles.toList(growable: false);
+    await Future.wait(settles.map((work) => work.completer.future));
+    await _queue;
+  }
 
   @visibleForTesting
   Future<void> debugEnqueueTask(String label, Future<void> Function() task) =>
@@ -436,12 +532,6 @@ class TugboatReplayController extends ChangeNotifier {
     return _queue;
   }
 
-  /// Enters the serialized queue at a deadline that has already elapsed.
-  ///
-  /// Starting an idle queue immediately matters for Navigator callbacks that
-  /// cross a real-time transition while a widget test is inside `runAsync`.
-  /// The task still owns [_queue] before it runs, so later controller work
-  /// remains serialized behind it.
   Future<void> _enqueueReady(String label, Future<void> Function() task) {
     if (_queuedTaskCount > 0) return _enqueue(label, task);
     _queuedTaskCount++;
@@ -612,7 +702,10 @@ class TugboatReplayController extends ChangeNotifier {
     if (active != null) return active;
     if (_session == null) return Future<void>.value();
 
+    _cancelActiveTapSettles();
     _cancelActiveRouteCapture();
+    _invalidateCaptureWork();
+    _captureLifecycleActive = false;
 
     _addEvent(
       TugboatEvent(
@@ -637,7 +730,10 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   void start(Size viewport, String platform) {
+    _cancelActiveTapSettles();
     _cancelActiveRouteCapture();
+    _captureLifecycleActive = true;
+    _captureLifecycleEpoch++;
     _endSessionFuture = null;
     _clock
       ..reset()
@@ -825,6 +921,7 @@ class TugboatReplayController extends ChangeNotifier {
         // A capture failure must not kill the pump loop or strand waiters:
         // stranded waiters would freeze the controller queue permanently.
         debugPrint('[tugboat] capture failed: $error\n$stackTrace');
+        _captureFailureCount++;
         frameId = _latestFrameId;
       }
       for (final waiter in scheduled.waiters) {
@@ -848,6 +945,12 @@ class TugboatReplayController extends ChangeNotifier {
     for (final waiter in scheduled.waiters) {
       if (!waiter.isCompleted) waiter.complete(_latestFrameId);
     }
+  }
+
+  void _invalidateCaptureWork() {
+    _captureGeneration++;
+    _captureLifecycleEpoch++;
+    _cancelScheduledCaptureWaiters();
   }
 
   Future<String?> _executeCapture({
@@ -1175,50 +1278,95 @@ class TugboatReplayController extends ChangeNotifier {
       return;
     }
 
-    _enqueue('tap_settled', () async {
-      if (_disposed) return;
-      final beforeState = pending.beforeState;
-      final beforeFrame = pending.beforeFrame;
-      final tapEventId = pending.eventId;
-      final tapTargetAnchor = pending.targetAnchor;
+    final work = _TapSettleWork(session: _session);
+    _activeTapSettles.add(work);
+    unawaited(_resolveTapSettle(work, pending, position, _activeRouteCapture));
+  }
 
+  Future<void> _resolveTapSettle(
+    _TapSettleWork work,
+    _PendingTap pending,
+    Offset position,
+    _RouteCaptureWork? routeCaptureAtPointerUp,
+  ) async {
+    try {
+      // Give a callback immediately after pointer-up the same settle boundary.
+      if (routeCaptureAtPointerUp == null &&
+          config.settleDelay > Duration.zero) {
+        final deadline = _scheduleDelay(config.settleDelay);
+        work.attachDeadlineCancellation(deadline.cancel);
+        await deadline.done;
+      }
+      if (!_isActiveTapSettle(work)) return;
+      final routeCapture = routeCaptureAtPointerUp ?? _activeRouteCapture;
       final String? afterFrame;
-      if (_routeCapturePending) {
-        afterFrame = _latestFrameId;
+      if (routeCapture != null) {
+        afterFrame = await _awaitRouteCaptureBarrier(routeCapture);
+        if (afterFrame == null || !_isActiveTapSettle(work)) return;
       } else {
         _refreshStateAnchor();
-        afterFrame = await _requestCapture(trigger: TugboatFrameTrigger.tap);
+        final capture = _requestCaptureCancellable(
+          trigger: TugboatFrameTrigger.tap,
+          settleDelay: Duration.zero,
+        );
+        work.attachCaptureCancellation(capture.cancel);
+        afterFrame = await capture.done;
+        if (!_isActiveTapSettle(work)) return;
       }
-      final afterState = _currentStateAnchor;
-      final result = _computeTapSettleResult(
-        beforeState: beforeState,
-        afterState: afterState,
-        beforeFrame: beforeFrame,
-        afterFrame: afterFrame,
-      );
-
-      _addEvent(
-        TugboatEvent(
-          id: _nextId('event'),
-          atMs: atMs,
-          type: 'tap_settled',
-          stateAnchor: afterState,
-          targetAnchor: tapTargetAnchor,
+      await _enqueue('tap_settled', () async {
+        if (!_isActiveTapSettle(work)) return;
+        final beforeState = pending.beforeState;
+        final beforeFrame = pending.beforeFrame;
+        final tapEventId = pending.eventId;
+        final tapTargetAnchor = pending.targetAnchor;
+        final afterState = _currentStateAnchor;
+        final result = _computeTapSettleResult(
+          beforeState: beforeState,
+          afterState: afterState,
           beforeFrame: beforeFrame,
           afterFrame: afterFrame,
-          result: result,
-          relatedEventId: tapEventId,
-          data: {'x': position.dx, 'y': position.dy},
-        ),
-      );
-      _maybeEmitStateChange(
-        beforeState: beforeState,
-        afterState: afterState,
-        beforeFrame: beforeFrame,
-        afterFrame: afterFrame,
-      );
-      if (!_disposed) notifyListeners();
-    });
+        );
+
+        _addEvent(
+          TugboatEvent(
+            id: _nextId('event'),
+            atMs: atMs,
+            type: 'tap_settled',
+            stateAnchor: afterState,
+            targetAnchor: tapTargetAnchor,
+            beforeFrame: beforeFrame,
+            afterFrame: afterFrame,
+            result: result,
+            relatedEventId: tapEventId,
+            data: {'x': position.dx, 'y': position.dy},
+          ),
+        );
+        _maybeEmitStateChange(
+          beforeState: beforeState,
+          afterState: afterState,
+          beforeFrame: beforeFrame,
+          afterFrame: afterFrame,
+        );
+        if (!_disposed) notifyListeners();
+      });
+    } finally {
+      _activeTapSettles.remove(work);
+      work.complete();
+    }
+  }
+
+  bool _isActiveTapSettle(_TapSettleWork work) =>
+      !work.cancelled &&
+      !_disposed &&
+      _captureLifecycleActive &&
+      _endSessionFuture == null &&
+      identical(_session, work.session);
+
+  void _cancelActiveTapSettles() {
+    for (final work in List<_TapSettleWork>.from(_activeTapSettles)) {
+      work.cancel();
+    }
+    _activeTapSettles.clear();
   }
 
   TugboatInteractionResult _computeTapSettleResult({
@@ -1482,12 +1630,20 @@ class TugboatReplayController extends ChangeNotifier {
     if (scrollableElement == null) return;
     final tracker = _scrollTrackers.remove(scrollableElement);
     if (tracker == null) return;
+    final captureSession = _session;
+    final captureLifecycleEpoch = _captureLifecycleEpoch;
 
     _enqueue('scroll_end', () async {
+      if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
+        return;
+      }
       final afterFrame = await _requestCapture(
         trigger: TugboatFrameTrigger.scroll,
         force: true,
       );
+      if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
+        return;
+      }
       if (_session != null && _session!.scrollSamples.isNotEmpty) {
         final last = _session!.scrollSamples.last;
         _session!.scrollSamples[_session!.scrollSamples.length -
@@ -1533,6 +1689,16 @@ class TugboatReplayController extends ChangeNotifier {
     });
   }
 
+  bool _isCaptureLifecycleCurrent(
+    TugboatSession? session,
+    int lifecycleEpoch,
+  ) =>
+      !_disposed &&
+      _captureLifecycleActive &&
+      _endSessionFuture == null &&
+      identical(_session, session) &&
+      _captureLifecycleEpoch == lifecycleEpoch;
+
   Future<void> route(String type, Route<dynamic>? route) {
     if (_disposed || _session == null || _endSessionFuture != null) {
       return Future<void>.value();
@@ -1543,6 +1709,7 @@ class TugboatReplayController extends ChangeNotifier {
 
     if (change.updatesRoute) _currentRoute = change.destinationRoute;
 
+    final prior = _activeRouteCapture;
     _cancelActiveRouteCapture();
     final work = _RouteCaptureWork(
       epoch: ++_routeEpoch,
@@ -1552,33 +1719,47 @@ class TugboatReplayController extends ChangeNotifier {
           (_shouldSuppressFrameCapture ? Duration.zero : config.settleDelay),
     );
     _activeRouteCapture = work;
-    _routeCapturePending = true;
+    prior?.supersededBy = work;
     _skipCapture = transition.transitionDuration > Duration.zero;
+    _startRouteBarrierTimeout(work);
     if (work.deadline <= Duration.zero) {
-      // There is no wait to move out of the queue. Keeping this path queued
-      // preserves the observer-backed zero-duration navigation contract while
-      // still allowing real transition waits to run independently.
-      unawaited(
-        _enqueue(
-          'route_change',
-          () => _finalizeRouteCapture(work),
-        ).then((_) => work.complete()),
-      );
+      unawaited(_enqueue('route_change', () => _finalizeRouteCapture(work)));
     } else {
       _startRouteDeadline(work);
     }
-    return work.done;
+    return work.done.then<void>((_) {});
   }
 
   bool _isActiveRouteCapture(_RouteCaptureWork work) =>
       !_disposed && !work.cancelled && identical(_activeRouteCapture, work);
+
+  /// Waits for a route epoch's single capture outcome. If that epoch is
+  /// superseded while a tap is waiting, join the replacement epoch instead of
+  /// letting the tap fall back to an opportunistic latest frame.
+  Future<String?> _awaitRouteCaptureBarrier(_RouteCaptureWork work) async {
+    var candidate = work;
+    while (true) {
+      final result = await candidate.done;
+      if (result.outcome == _RouteCaptureOutcome.captured) {
+        return result.frameId;
+      }
+      // Only explicit cancellation from a successor can transfer a waiter.
+      // In particular, a timed-out route must not attach a tap to a later,
+      // unrelated navigation.
+      if (result.outcome != _RouteCaptureOutcome.cancelled) return null;
+      final replacement = candidate.supersededBy;
+      if (replacement == null || identical(replacement, candidate)) {
+        return null;
+      }
+      candidate = replacement;
+    }
+  }
 
   void _cancelActiveRouteCapture() {
     final active = _activeRouteCapture;
     _activeRouteCapture = null;
     if (active != null) _captureGeneration++;
     active?.cancel();
-    _routeCapturePending = false;
     _skipCapture = false;
   }
 
@@ -1586,6 +1767,57 @@ class TugboatReplayController extends ChangeNotifier {
     final scheduled = _scheduleDelay(work.deadline);
     work.attachDeadlineCancellation(scheduled.cancel);
     unawaited(_awaitRouteDeadline(work, scheduled.done));
+  }
+
+  /// Arms one absolute deadline at route creation. It covers Navigator
+  /// transition settlement plus a bounded readback allowance, so waiting
+  /// route/tap futures cannot be held behind an unrelated controller task.
+  void _startRouteBarrierTimeout(_RouteCaptureWork work) {
+    final scheduled = _scheduleDelay(work.deadline + _routeCaptureTimeout);
+    work.attachBarrierTimeoutCancellation(scheduled.cancel);
+    unawaited(_awaitRouteBarrierTimeout(work, scheduled.done));
+  }
+
+  Future<void> _awaitRouteBarrierTimeout(
+    _RouteCaptureWork work,
+    Future<void> timeout,
+  ) async {
+    try {
+      await timeout;
+      _timeoutRouteCapture(work);
+    } catch (error, stackTrace) {
+      debugPrint('[tugboat] route barrier timeout failed: $error\n$stackTrace');
+    }
+  }
+
+  void _timeoutRouteCapture(_RouteCaptureWork work) {
+    if (!_isActiveRouteCapture(work)) return;
+    final change = work.change;
+    work.cancelPendingWork();
+    _captureGeneration++;
+    _activeRouteCapture = null;
+    _skipCapture = false;
+    work.complete(const _RouteCaptureResult(_RouteCaptureOutcome.timedOut));
+    _refreshStateAnchor();
+    // This must not enqueue behind the blocked task that caused the timeout.
+    // Dart's single isolate means the session mutation is still atomic with
+    // respect to the next event-loop turn.
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'route_change',
+        stateAnchor: _currentStateAnchor,
+        result: TugboatInteractionResult.unknown,
+        data: {
+          if (change.previousRoute != null) 'fromRoute': change.previousRoute,
+          if (change.destinationRoute != null) 'route': change.destinationRoute,
+          'navigation': change.navigation,
+          'captureOutcome': 'timed_out',
+        },
+      ),
+    );
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> _awaitRouteDeadline(
@@ -1599,17 +1831,18 @@ class TugboatReplayController extends ChangeNotifier {
       await _enqueueReady('route_change', () => _finalizeRouteCapture(work));
     } catch (error, stackTrace) {
       debugPrint('[tugboat] route deadline failed: $error\n$stackTrace');
-    } finally {
-      work.complete();
     }
   }
 
   Future<void> _finalizeRouteCapture(_RouteCaptureWork work) async {
+    String? afterFrame;
+    var outcome = _RouteCaptureOutcome.failed;
     try {
       if (!_isActiveRouteCapture(work)) return;
       final change = work.change;
       if (change.updatesRoute) _currentRoute = change.destinationRoute;
       _refreshStateAnchor();
+      final captureFailureCount = _captureFailureCount;
       final capture = _requestCaptureCancellable(
         trigger: TugboatFrameTrigger.route,
         force: true,
@@ -1619,7 +1852,36 @@ class TugboatReplayController extends ChangeNotifier {
         settleDelay: Duration.zero,
       );
       work.attachCaptureCancellation(capture.cancel);
-      final afterFrame = await capture.done;
+      final captureResult = await _awaitRouteReadback(work, capture.done);
+      if (captureResult.outcome == _RouteCaptureOutcome.failed) {
+        if (!_isActiveRouteCapture(work)) return;
+        outcome = _RouteCaptureOutcome.failed;
+        _addEvent(
+          TugboatEvent(
+            id: _nextId('event'),
+            atMs: atMs,
+            type: 'route_change',
+            stateAnchor: _currentStateAnchor,
+            result: TugboatInteractionResult.navigated,
+            data: {
+              if (change.previousRoute != null)
+                'fromRoute': change.previousRoute,
+              if (change.destinationRoute != null)
+                'route': change.destinationRoute,
+              'navigation': change.navigation,
+              'captureOutcome': 'failed',
+            },
+          ),
+        );
+        if (!_disposed) notifyListeners();
+        return;
+      }
+      if (captureResult.outcome != _RouteCaptureOutcome.captured) return;
+      afterFrame = captureResult.frameId;
+      if (_captureFailureCount != captureFailureCount) afterFrame = null;
+      outcome = afterFrame == null
+          ? _RouteCaptureOutcome.failed
+          : _RouteCaptureOutcome.captured;
       if (!_isActiveRouteCapture(work)) return;
       final previousRoute = change.previousRoute;
       final destinationRoute = change.destinationRoute;
@@ -1635,6 +1897,8 @@ class TugboatReplayController extends ChangeNotifier {
             if (previousRoute != null) 'fromRoute': previousRoute,
             if (destinationRoute != null) 'route': destinationRoute,
             'navigation': change.navigation,
+            if (outcome == _RouteCaptureOutcome.failed)
+              'captureOutcome': 'failed',
           },
         ),
       );
@@ -1643,10 +1907,32 @@ class TugboatReplayController extends ChangeNotifier {
     } finally {
       if (identical(_activeRouteCapture, work)) {
         _activeRouteCapture = null;
-        _routeCapturePending = false;
         _skipCapture = false;
       }
+      work.complete(_RouteCaptureResult(outcome, frameId: afterFrame));
     }
+  }
+
+  /// Joins readback to the route's absolute terminal barrier. A timeout or
+  /// cancellation wakes an already-admitted finalizer immediately instead of
+  /// leaving the serialized queue blocked on platform readback.
+  Future<_RouteCaptureResult> _awaitRouteReadback(
+    _RouteCaptureWork work,
+    Future<String?> capture,
+  ) async {
+    return Future.any<_RouteCaptureResult>([
+      capture.then(
+        (frameId) => _RouteCaptureResult(
+          frameId == null
+              ? _RouteCaptureOutcome.failed
+              : _RouteCaptureOutcome.captured,
+          frameId: frameId,
+        ),
+        onError: (_, __) =>
+            const _RouteCaptureResult(_RouteCaptureOutcome.failed),
+      ),
+      work.done,
+    ]);
   }
 
   void recordAppLifecycleState(AppLifecycleState state) {
@@ -1654,9 +1940,13 @@ class TugboatReplayController extends ChangeNotifier {
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
       case AppLifecycleState.detached:
+        _cancelActiveTapSettles();
         _cancelActiveRouteCapture();
+        _invalidateCaptureWork();
+        _captureLifecycleActive = false;
         break;
       case AppLifecycleState.resumed:
+        _captureLifecycleActive = true;
       case AppLifecycleState.inactive:
         break;
     }
