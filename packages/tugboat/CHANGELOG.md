@@ -2,6 +2,10 @@
 
 ### Added
 
+- **Replay coherence characterization harness** — deterministic, advanceable
+  scheduler/capture test seams (`debugNow`, `debugDelay`, `debugExecuteCapture`,
+  `debugSeedFrame`) plus reusable helpers that reproduce known navigation/frame
+  races without wall-clock sleeps. Tracks milestone issue #5.
 - **Pathless-tap snap** (2026-07-04) — when hit-testing resolves a tap to a target
   with a role but no canonical path (opaque `Texture`, decorated boxes outside the
   token map), the tap is re-anchored to the smallest *interactive* scene-inventory
