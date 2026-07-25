@@ -38,6 +38,10 @@
 
 ### Changed
 
+- **Route-capture barrier** — tap settlement now joins the matching route epoch
+  instead of reusing the previous route's latest frame. Supersession,
+  lifecycle cancellation, capture failure, and bounded timeout outcomes
+  complete deterministically without allowing late readbacks to publish.
 - **`ExplorationCaptureSink.recordFrame`** — forwards frame metadata and PNG bytes over the
   exploration WebSocket instead of dropping them. The CLI persists these under `frames/` when
   Flutter capture produces them (local capture may still be suppressed after the socket connects
