@@ -209,11 +209,13 @@ class ReplayCoherenceHarness {
   ReplayCoherenceHarness({
     this.settleDelay = Duration.zero,
     this.maxFrames = 300,
+    this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,
     GlobalKey? boundaryKey,
   }) : boundaryKey = boundaryKey ?? GlobalKey();
 
   final Duration settleDelay;
   final int maxFrames;
+  final TugboatScreenshotBudgetConfig screenshotBudget;
   final GlobalKey boundaryKey;
   final ControllableScheduler scheduler = ControllableScheduler();
   final Map<String, HarnessFrameProvenance> _frameProvenance =
@@ -259,6 +261,7 @@ class ReplayCoherenceHarness {
         maxFrames: maxFrames,
         enableGlobalPointerCapture: false,
         capturePixelRatio: 1.0,
+        screenshotBudget: screenshotBudget,
       ),
       boundaryKey: boundaryKey,
     );

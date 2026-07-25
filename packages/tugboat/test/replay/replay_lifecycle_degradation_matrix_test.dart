@@ -155,42 +155,98 @@ void main() {
     },
   );
 
-  test(
-    'budget degradation during navigation has no stale-frame fallback',
-    () async {
-      final harness = ReplayCoherenceHarness();
-      await harness.setUp();
-      addTearDown(harness.dispose);
-      final origin = harness.seedRouteState(
-        route: '/home',
-        signature: 'home',
-        frameContentHash: 'home-pixels',
+  testWidgets(
+    'degraded screenshot budget preserves a fresh critical route capture',
+    (tester) async {
+      final harness = ReplayCoherenceHarness(
+        // A zero-sized budget becomes degraded after the first real
+        // readback. Route captures are fresh-paint work and must remain
+        // eligible even while reusable work would be skipped.
+        screenshotBudget: const TugboatScreenshotBudgetConfig(budgetMicros: 0),
       );
-      final session = harness.controller.session!;
+      await harness.setUpWidgetBacked(tester);
+      try {
+        final origin = harness.seedRouteState(
+          route: '/home',
+          signature: 'home',
+          frameContentHash: 'home-pixels',
+        );
+        final session = harness.controller.session!;
 
-      // The bounded diagnostic taxonomy is the replay contract for a budget
-      // refusal. A route still advances, but it must not borrow /home's frame.
-      harness.controller.debugNextCaptureOutcome = 'screenshot_budget_skip';
-      harness.controller.debugNextCaptureFrameId = null;
-      final route = harness.controller.route(
-        'route_push',
-        harness.route('/details'),
-      );
-      await harness.flushScheduler();
-      await route;
+        // Exercise the real ScreenshotCapturer path. The harness's synthetic
+        // executor deliberately bypasses budget accounting, so remove it only
+        // after the widget boundary is mounted and the seeded origin is stable.
+        harness.controller.debugExecuteCapture = null;
+        final primingCapture = harness.controller.debugRequestCapture(
+          force: true,
+        );
+        var primingComplete = false;
+        primingCapture.resolution.then((_) => primingComplete = true);
+        await harness.pumpQueueWork();
+        // A real RepaintBoundary readback finishes outside FakeAsync. Drive
+        // the frame it subscribed to, yield the encoder a bounded turn, then
+        // commit its completion back through the widget test binding.
+        await tester.pump();
+        await tester.pump();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 300)),
+        );
+        await tester.pump();
+        expect(primingComplete, isTrue);
+        final primingResolution = await primingCapture.resolution;
+        expect(primingResolution['outcome'], 'fresh_accepted');
+        expect(
+          harness.controller.healthSnapshot().screenshots.degraded,
+          isTrue,
+        );
 
-      final change = session.ofType('route_change').single;
-      final diagnostic = _diagnostics(
-        session,
-      ).singleWhere((event) => event.data['trigger'] == 'route');
-      expect(diagnostic.data['outcome'], 'screenshot_budget_skip');
-      expect(diagnostic.afterFrame, isNull);
-      expect(change.data['route'], '/details');
-      expect(change.data['captureFailure'], 'screenshot_budget_skip');
-      expect(change.afterFrame, isNull);
-      expect(change.afterFrame, isNot(origin));
-      expect(diagnostic.data['routeEpoch'], harness.controller.debugRouteEpoch);
-      expect(diagnostic.data['captureSessionId'], session.id);
+        final route = harness.controller.route(
+          'route_push',
+          harness.route('/details'),
+        );
+        var routeComplete = false;
+        route.then((_) => routeComplete = true);
+        await harness.pumpQueueWork();
+        await tester.pump();
+        await tester.pump();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 300)),
+        );
+        await tester.pump();
+        expect(routeComplete, isTrue);
+        await route;
+
+        final change = session.ofType('route_change').single;
+        final diagnostic = _diagnostics(
+          session,
+        ).singleWhere((event) => event.data['trigger'] == 'route');
+        expect(diagnostic.data['outcome'], 'fresh_accepted');
+        expect(diagnostic.afterFrame, isNotNull);
+        expect(change.data['route'], '/details');
+        expect(change.afterFrame, diagnostic.afterFrame);
+        expect(change.afterFrame, isNot(origin));
+        expect(
+          diagnostic.data['routeEpoch'],
+          harness.controller.debugRouteEpoch,
+        );
+        expect(diagnostic.data['captureSessionId'], session.id);
+        expect(harness.provenanceFor(change.afterFrame)?.route, '/details');
+        expect(
+          harness.provenanceFor(change.afterFrame)?.routeEpoch,
+          harness.controller.debugRouteEpoch,
+        );
+        expect(
+          CoherenceInvariants.hasNoCrossRouteFrameSubstitution(
+            event: change,
+            originFrameId: origin,
+            destinationFrameId: change.afterFrame,
+            frameProvenanceFor: harness.provenanceFor,
+          ),
+          isTrue,
+        );
+      } finally {
+        await harness.tearDownWidgetBacked(tester);
+      }
     },
   );
 
