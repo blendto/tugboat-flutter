@@ -717,6 +717,18 @@ class TugboatReplayController extends ChangeNotifier {
   @visibleForTesting
   String? debugNextCaptureFrameId;
 
+  /// Deterministically degrades the rolling screenshot budget in tests
+  /// without relying on platform readback timing.
+  @visibleForTesting
+  void debugRecordScreenshotBudgetCost({int costMicros = 1}) {
+    _screenshotBudget.record(
+      queueWaitMicros: costMicros,
+      readbackMicros: 0,
+      encodeMicros: 0,
+      encodedBytes: 0,
+    );
+  }
+
   @visibleForTesting
   ({
     Future<Map<String, Object?>> resolution,
@@ -1717,17 +1729,48 @@ class TugboatReplayController extends ChangeNotifier {
             : null,
       );
     }
+    if (_disposed ||
+        _capturePaused ||
+        _skipCapture ||
+        _shouldSuppressFrameCapture ||
+        _captureInFlight) {
+      return _cancelledCaptureExecution(
+        _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
+      );
+    }
+    final session = captureSession;
+    final capturer = _capturer;
+    if (session == null || capturer == null) {
+      return const _CaptureExecution(outcome: _CaptureOutcome.noFrameAvailable);
+    }
+
+    final eligibleToSkip =
+        freshness == _CaptureFreshness.reusable &&
+        trigger != TugboatFrameTrigger.initial &&
+        trigger != TugboatFrameTrigger.lifecycle &&
+        config.screenshotBudget.skipEligibleWhenDegraded &&
+        _screenshotBudget.shouldSkipEligible;
+    final compatibleSkipFrame = eligibleToSkip
+        ? _compatibleFrameFor(context)
+        : null;
+    if (compatibleSkipFrame != null) {
+      _screenshotBudget.record(
+        queueWaitMicros: queueWaitMicros,
+        readbackMicros: 0,
+        encodeMicros: 0,
+        encodedBytes: 0,
+        dropReason: 'budget',
+      );
+      _refreshStateAnchor();
+      _maybeEmitSceneInventory();
+      return _CaptureExecution(
+        outcome: _CaptureOutcome.screenshotBudgetSkip,
+        frameId: compatibleSkipFrame,
+      );
+    }
+
     final captureOverride = debugExecuteCapture;
     if (captureOverride != null) {
-      if (_disposed ||
-          _capturePaused ||
-          _skipCapture ||
-          _shouldSuppressFrameCapture ||
-          _captureInFlight) {
-        return _cancelledCaptureExecution(
-          _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
-        );
-      }
       _beginCapture();
       try {
         // Match the production capture path: refresh state before capture and
@@ -1765,44 +1808,6 @@ class TugboatReplayController extends ChangeNotifier {
           _ensureCapturePumpScheduled();
         }
       }
-    }
-
-    if (_disposed ||
-        _capturePaused ||
-        _skipCapture ||
-        _shouldSuppressFrameCapture ||
-        _captureInFlight) {
-      return _cancelledCaptureExecution(
-        _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
-      );
-    }
-    final session = captureSession;
-    final capturer = _capturer;
-    if (session == null || capturer == null) {
-      return const _CaptureExecution(outcome: _CaptureOutcome.noFrameAvailable);
-    }
-
-    final eligibleToSkip =
-        freshness == _CaptureFreshness.reusable &&
-        trigger != TugboatFrameTrigger.initial &&
-        trigger != TugboatFrameTrigger.lifecycle &&
-        config.screenshotBudget.skipEligibleWhenDegraded &&
-        _screenshotBudget.shouldSkipEligible;
-    if (eligibleToSkip) {
-      _screenshotBudget.record(
-        queueWaitMicros: queueWaitMicros,
-        readbackMicros: 0,
-        encodeMicros: 0,
-        encodedBytes: 0,
-        dropReason: 'budget',
-      );
-      _refreshStateAnchor();
-      _maybeEmitSceneInventory();
-      final compatible = _compatibleFrameFor(context);
-      return _CaptureExecution(
-        outcome: _CaptureOutcome.screenshotBudgetSkip,
-        frameId: compatible,
-      );
     }
 
     _beginCapture();

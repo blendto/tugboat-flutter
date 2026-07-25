@@ -159,9 +159,9 @@ void main() {
     'degraded screenshot budget preserves a fresh critical route capture',
     (tester) async {
       final harness = ReplayCoherenceHarness(
-        // A zero-sized budget becomes degraded after the first real
-        // readback. Route captures are fresh-paint work and must remain
-        // eligible even while reusable work would be skipped.
+        // A zero-sized budget is deterministically degraded below. Route
+        // captures are fresh-paint work and must remain eligible even while
+        // reusable work is skipped.
         screenshotBudget: const TugboatScreenshotBudgetConfig(budgetMicros: 0),
       );
       await harness.setUpWidgetBacked(tester);
@@ -173,47 +173,23 @@ void main() {
         );
         final session = harness.controller.session!;
 
-        // Exercise the real ScreenshotCapturer path. The harness's synthetic
-        // executor deliberately bypasses budget accounting, so remove it only
-        // after the widget boundary is mounted and the seeded origin is stable.
-        harness.controller.debugExecuteCapture = null;
-        final primingCapture = harness.controller.debugRequestCapture(
-          force: true,
-        );
-        var primingComplete = false;
-        primingCapture.resolution.then((_) => primingComplete = true);
-        await harness.pumpQueueWork();
-        // A real RepaintBoundary readback finishes outside FakeAsync. Drive
-        // the frame it subscribed to, yield the encoder a bounded turn, then
-        // commit its completion back through the widget test binding.
-        await tester.pump();
-        await tester.pump();
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 300)),
-        );
-        await tester.pump();
-        expect(primingComplete, isTrue);
-        final primingResolution = await primingCapture.resolution;
-        expect(primingResolution['outcome'], 'fresh_accepted');
+        harness.controller.debugRecordScreenshotBudgetCost();
         expect(
           harness.controller.healthSnapshot().screenshots.degraded,
           isTrue,
         );
 
+        final reusableCapture = harness.controller.debugRequestCapture();
+        await harness.flushScheduler();
+        final reusableResolution = await reusableCapture.resolution;
+        expect(reusableResolution['outcome'], 'screenshot_budget_skip');
+        expect(reusableResolution['frameId'], origin);
+
         final route = harness.controller.route(
           'route_push',
           harness.route('/details'),
         );
-        var routeComplete = false;
-        route.then((_) => routeComplete = true);
-        await harness.pumpQueueWork();
-        await tester.pump();
-        await tester.pump();
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 300)),
-        );
-        await tester.pump();
-        expect(routeComplete, isTrue);
+        await harness.flushScheduler();
         await route;
 
         final change = session.ofType('route_change').single;
