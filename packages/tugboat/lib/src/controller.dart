@@ -783,8 +783,9 @@ class TugboatReplayController extends ChangeNotifier {
 
     final queueStarted = DateTime.now();
     await capturer.waitForFrameBudget();
-    final queueWaitMicros =
-        DateTime.now().difference(queueStarted).inMicroseconds;
+    final queueWaitMicros = DateTime.now()
+        .difference(queueStarted)
+        .inMicroseconds;
     if (_disposed || _capturePaused || _skipCapture) return _latestFrameId;
     _refreshStateAnchor();
     final signature = _currentStateAnchor?.signature ?? '';
