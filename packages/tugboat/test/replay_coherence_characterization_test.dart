@@ -1799,6 +1799,8 @@ void main() {
         'reason': 'capture_unavailable',
       });
       final observation = settles.single.data['settleObservation'] as Map;
+      expect(observation['captureOutcome'], 'failed');
+      expect(observation['captureFailure'], 'capture_unavailable');
       expect(observation['visual'], {
         'changed': null,
         'evidence': 'unavailable',

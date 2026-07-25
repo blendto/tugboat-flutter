@@ -287,12 +287,14 @@ class _RouteCaptureResult {
     this.frameId,
     this.stateAnchor,
     this.routeEventId,
+    this.captureFailure,
   });
 
   final _RouteCaptureOutcome outcome;
   final String? frameId;
   final TugboatStateAnchor? stateAnchor;
   final String? routeEventId;
+  final String? captureFailure;
 }
 
 /// One deferred route capture. Its deadline deliberately runs outside the
@@ -426,6 +428,7 @@ class _TapSettleObservation {
     required this.afterFrame,
     required this.navigationOutcome,
     required this.captureOutcome,
+    this.captureFailure,
     this.routeEventId,
   });
 
@@ -435,6 +438,7 @@ class _TapSettleObservation {
   final String? afterFrame;
   final String navigationOutcome;
   final String captureOutcome;
+  final String? captureFailure;
   final String? routeEventId;
 
   bool get isDegraded => afterFrame == null && captureOutcome != 'captured';
@@ -1758,8 +1762,9 @@ class TugboatReplayController extends ChangeNotifier {
                 : semanticAfterState,
             afterFrame: compatibleFrame ? afterFrame : null,
             navigationOutcome: 'same_route',
-            captureOutcome: compatibleFrame
-                ? 'captured'
+            captureOutcome: compatibleFrame ? 'captured' : 'failed',
+            captureFailure: compatibleFrame
+                ? null
                 : (_lastCaptureFailure?.name ?? 'capture_unavailable'),
           );
         }
@@ -1822,6 +1827,8 @@ class TugboatReplayController extends ChangeNotifier {
                 if (observation.route != null) 'route': observation.route,
                 'navigationOutcome': observation.navigationOutcome,
                 'captureOutcome': observation.captureOutcome,
+                if (observation.captureFailure != null)
+                  'captureFailure': observation.captureFailure,
                 if (observation.routeEventId != null)
                   'routeEventId': observation.routeEventId,
                 'semantic': {
@@ -1848,7 +1855,8 @@ class TugboatReplayController extends ChangeNotifier {
               if (afterFrame == null)
                 'frameAttachment': {
                   'after': 'unavailable',
-                  'reason': observation.captureOutcome,
+                  'reason':
+                      observation.captureFailure ?? observation.captureOutcome,
                 },
             },
           ),
@@ -1866,7 +1874,11 @@ class TugboatReplayController extends ChangeNotifier {
       // Publish that one degraded, frame-less observation immediately rather
       // than letting it be replaced by unrelated later route state.
       if (observation.isDegraded) {
-        await writeSettle();
+        try {
+          await writeSettle();
+        } catch (error, stackTrace) {
+          debugPrint('[tugboat] tap_settled failed: $error\n$stackTrace');
+        }
       } else {
         await _enqueue('tap_settled', writeSettle);
       }
@@ -1909,6 +1921,7 @@ class TugboatReplayController extends ChangeNotifier {
           : routeResult.outcome == _RouteCaptureOutcome.timedOut
           ? 'timed_out'
           : 'failed',
+      captureFailure: validFrame ? null : routeResult.captureFailure,
       routeEventId: routeResult.routeEventId,
     );
   }
@@ -1961,10 +1974,7 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   String? _frameContentHash(String frameId) {
-    for (final frame in _session?.frames ?? const <TugboatFrame>[]) {
-      if (frame.id == frameId) return frame.contentHash;
-    }
-    return null;
+    return _session?.frameById(frameId)?.contentHash;
   }
 
   void _linkScrollStartToActiveGestures(String scrollStartEventId) {
@@ -2441,6 +2451,7 @@ class TugboatReplayController extends ChangeNotifier {
     String? afterFrame;
     TugboatStateAnchor? observedState;
     String? routeEventId;
+    String? captureFailure;
     var outcome = _RouteCaptureOutcome.failed;
     try {
       if (!_isActiveRouteCapture(work)) return;
@@ -2461,6 +2472,7 @@ class TugboatReplayController extends ChangeNotifier {
       if (captureResult.outcome == _RouteCaptureOutcome.failed) {
         if (!_isActiveRouteCapture(work)) return;
         outcome = _RouteCaptureOutcome.failed;
+        captureFailure = _lastCaptureFailure?.name;
         observedState = _snapshotStateAnchor(_currentStateAnchor);
         routeEventId = _nextId('event');
         _addEvent(
@@ -2491,6 +2503,9 @@ class TugboatReplayController extends ChangeNotifier {
       outcome = afterFrame == null
           ? _RouteCaptureOutcome.failed
           : _RouteCaptureOutcome.captured;
+      if (outcome == _RouteCaptureOutcome.failed) {
+        captureFailure = _lastCaptureFailure?.name;
+      }
       if (!_isActiveRouteCapture(work)) return;
       final previousRoute = change.previousRoute;
       final destinationRoute = change.destinationRoute;
@@ -2530,6 +2545,7 @@ class TugboatReplayController extends ChangeNotifier {
           frameId: afterFrame,
           stateAnchor: observedState,
           routeEventId: routeEventId,
+          captureFailure: captureFailure,
         ),
       );
     }
