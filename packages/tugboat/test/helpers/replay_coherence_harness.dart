@@ -27,6 +27,7 @@ class ControllableScheduler {
 
   final DateTime _epoch;
   Duration _elapsed;
+  int _nextOrder = 0;
   final List<_ScheduledDelay> _delays = <_ScheduledDelay>[];
 
   DateTime now() => _epoch.add(_elapsed);
@@ -34,18 +35,43 @@ class ControllableScheduler {
   Duration get elapsed => _elapsed;
 
   Future<void> delay(Duration duration) {
+    return schedule(duration).done;
+  }
+
+  ({Future<void> done, void Function() cancel}) schedule(Duration duration) {
     if (duration <= Duration.zero) {
       // Mirror Future.delayed(Duration.zero): yield a turn to the event loop.
       final completer = Completer<void>();
-      scheduleMicrotask(completer.complete);
-      return completer.future;
+      var cancelled = false;
+      scheduleMicrotask(() {
+        if (!cancelled && !completer.isCompleted) completer.complete();
+      });
+      return (
+        done: completer.future,
+        cancel: () {
+          cancelled = true;
+          if (!completer.isCompleted) completer.complete();
+        },
+      );
     }
     final completer = Completer<void>();
-    _delays.add(
-      _ScheduledDelay(due: _elapsed + duration, completer: completer),
+    final scheduled = _ScheduledDelay(
+      due: _elapsed + duration,
+      order: _nextOrder++,
+      completer: completer,
     );
-    _delays.sort((a, b) => a.due.compareTo(b.due));
-    return completer.future;
+    _delays.add(scheduled);
+    _delays.sort((a, b) {
+      final dueOrder = a.due.compareTo(b.due);
+      return dueOrder != 0 ? dueOrder : a.order.compareTo(b.order);
+    });
+    return (
+      done: completer.future,
+      cancel: () {
+        _delays.remove(scheduled);
+        if (!completer.isCompleted) completer.complete();
+      },
+    );
   }
 
   /// Advances virtual time and completes every delay that is now due.
@@ -77,9 +103,14 @@ class ControllableScheduler {
 }
 
 class _ScheduledDelay {
-  _ScheduledDelay({required this.due, required this.completer});
+  _ScheduledDelay({
+    required this.due,
+    required this.order,
+    required this.completer,
+  });
 
   final Duration due;
+  final int order;
   final Completer<void> completer;
 }
 
@@ -239,6 +270,7 @@ class ReplayCoherenceHarness {
     };
     controller.debugNow = scheduler.now;
     controller.debugDelay = scheduler.delay;
+    controller.debugScheduleDelay = scheduler.schedule;
     controller.debugExecuteCapture = capturer.call;
     controller.debugFreezeStateAnchor = true;
     await controller.initialize();

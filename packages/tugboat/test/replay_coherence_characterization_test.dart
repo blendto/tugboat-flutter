@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui' show AppLifecycleState, Size;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 
@@ -589,6 +592,266 @@ void main() {
       expect(changes.last.data['route'], '/b');
       expect(harness.controller.debugRouteCapturePending, isFalse);
       expect(harness.scheduler.hasPendingDelays, isFalse);
+    },
+  );
+
+  test(
+    'route transition delay does not block later serialized controller work',
+    () async {
+      final harness = ReplayCoherenceHarness(
+        settleDelay: const Duration(milliseconds: 30),
+      );
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/', signature: 'sig-root');
+      unawaited(
+        harness.controller.route(
+          'route_push',
+          harness.route(
+            '/destination',
+            transitionDuration: const Duration(milliseconds: 200),
+          ),
+        ),
+      );
+
+      var laterTaskRan = false;
+      unawaited(
+        harness.controller.debugEnqueueTask('later_probe', () async {
+          laterTaskRan = true;
+        }),
+      );
+      await harness.pumpQueueWork();
+
+      expect(
+        laterTaskRan,
+        isTrue,
+        reason: 'the transition deadline must be outside the serialized queue',
+      );
+    },
+  );
+
+  test(
+    'ending a session cancels its pending route deadline and completes it',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final pending = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/destination',
+          transitionDuration: const Duration(milliseconds: 200),
+        ),
+      );
+      await harness.controller.endSession();
+      await pending;
+
+      expect(harness.controller.debugRouteCapturePending, isFalse);
+      expect(harness.scheduler.pendingDelayCount, 0);
+      await harness.flushScheduler();
+      expect(
+        harness.controller.session!.ofType('route_change'),
+        isEmpty,
+        reason: 'a completed session must not receive a deferred route event',
+      );
+    },
+  );
+
+  test(
+    'starting a replacement session cancels the prior route deadline',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final prior = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/stale',
+          transitionDuration: const Duration(milliseconds: 200),
+        ),
+      );
+      harness.controller.start(const Size(390, 844), 'test');
+      await prior;
+
+      expect(harness.controller.debugRouteCapturePending, isFalse);
+      expect(harness.scheduler.pendingDelayCount, 0);
+      await harness.flushScheduler();
+      expect(
+        harness.controller.session!.ofType('route_change'),
+        isEmpty,
+        reason: 'a deferred callback from the old session must be inert',
+      );
+    },
+  );
+
+  test(
+    'disposing completes a pending route waiter without advancing time',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+
+      final pending = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/destination',
+          transitionDuration: const Duration(milliseconds: 200),
+        ),
+      );
+      harness.dispose();
+      await pending;
+
+      expect(harness.controller.debugRouteCapturePending, isFalse);
+      expect(harness.scheduler.pendingDelayCount, 0);
+    },
+  );
+
+  test(
+    'backgrounding cancels pending route work without a late route event',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final pending = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/destination',
+          transitionDuration: const Duration(milliseconds: 200),
+        ),
+      );
+      harness.controller.recordAppLifecycleState(AppLifecycleState.paused);
+      await pending;
+
+      expect(harness.controller.debugRouteCapturePending, isFalse);
+      expect(harness.scheduler.pendingDelayCount, 0);
+      expect(harness.controller.session!.ofType('route_change'), isEmpty);
+    },
+  );
+
+  test(
+    'superseding a route during capture emits only the replacement',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.capturer.blockNext = true;
+      final stale = harness.controller.route(
+        'route_push',
+        harness.route('/stale'),
+      );
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+
+      final replacement = harness.controller.route(
+        'route_push',
+        harness.route('/replacement'),
+      );
+      await stale;
+      harness.capturer.completeBlocked();
+      await harness.flushScheduler();
+      await replacement;
+
+      final changes = harness.controller.session!.ofType('route_change');
+      expect(changes.map((event) => event.data['route']), ['/replacement']);
+      expect(harness.controller.debugRouteCapturePending, isFalse);
+    },
+  );
+
+  test(
+    'ending a session cancels an in-flight route capture without late output',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final frameCount = harness.controller.session!.frames.length;
+      harness.capturer.blockNext = true;
+      final pending = harness.controller.route(
+        'route_push',
+        harness.route('/destination'),
+      );
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+
+      await harness.controller.endSession();
+      await pending;
+      harness.capturer.completeBlocked('cancelled-route-frame');
+      await harness.pumpQueueWork();
+
+      expect(harness.controller.session!.frames.length, frameCount);
+      expect(harness.controller.session!.ofType('route_change'), isEmpty);
+      expect(harness.controller.latestFrameId, isNot('cancelled-route-frame'));
+    },
+  );
+
+  test(
+    'replacement session rejects a capture from the prior route epoch',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.capturer.blockNext = true;
+      final stale = harness.controller.route(
+        'route_push',
+        harness.route('/stale'),
+      );
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+
+      harness.controller.start(const Size(390, 844), 'replacement');
+      await stale;
+      harness.capturer.completeBlocked('stale-route-frame');
+      await harness.flushScheduler();
+
+      expect(harness.controller.session!.ofType('route_change'), isEmpty);
+      expect(harness.controller.latestFrameId, isNot('stale-route-frame'));
+      expect(
+        harness.controller.session!.frames
+            .map((frame) => frame.id)
+            .contains('stale-route-frame'),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'route capture failure completes the deadline and later route work',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.capturer.failNext = true;
+      final failedCapture = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/first',
+          transitionDuration: const Duration(milliseconds: 200),
+        ),
+      );
+      harness.scheduler.advance(const Duration(milliseconds: 700));
+      await harness.pumpQueueWork();
+      await failedCapture;
+
+      final recovery = harness.controller.route(
+        'route_replace',
+        harness.route('/recovered'),
+      );
+      await harness.flushScheduler();
+      await recovery;
+
+      final changes = harness.controller.session!.ofType('route_change');
+      expect(changes.map((event) => event.data['route']), [
+        '/first',
+        '/recovered',
+      ]);
+      expect(harness.controller.debugRouteCapturePending, isFalse);
+      expect(harness.scheduler.pendingDelayCount, 0);
     },
   );
 
