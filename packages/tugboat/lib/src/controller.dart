@@ -1947,6 +1947,7 @@ class TugboatReplayController extends ChangeNotifier {
         break;
       case AppLifecycleState.resumed:
         _captureLifecycleActive = true;
+        break;
       case AppLifecycleState.inactive:
         break;
     }

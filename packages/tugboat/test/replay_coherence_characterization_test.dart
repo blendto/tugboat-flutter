@@ -357,7 +357,6 @@ void main() {
   ) async {
     final harness = ReplayCoherenceHarness();
     await harness.setUp();
-    addTearDown(harness.dispose);
     await _mountScrollableHarness(tester, harness);
 
     final originFrame = harness.seedRouteState(
@@ -386,7 +385,6 @@ void main() {
   ) async {
     final harness = ReplayCoherenceHarness();
     await harness.setUp();
-    addTearDown(harness.dispose);
     await _mountScrollableHarness(tester, harness);
 
     final originFrame = harness.seedRouteState(
