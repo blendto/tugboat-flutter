@@ -20,6 +20,7 @@ void main() {
       signature: 'sig-home',
       frameContentHash: 'home-pixels',
     );
+    final routeEpoch = harness.controller.debugRouteEpoch;
 
     harness.controller.recordPointerDown(const Offset(12, 12));
     harness.controller.recordPointerUp(const Offset(12, 12));
@@ -38,6 +39,9 @@ void main() {
       CoherenceInvariants.tapSettleIsRouteCoherent(
         tap: tap,
         settle: settle,
+        expectedRoute: '/home',
+        expectedRouteEpoch: routeEpoch,
+        frameProvenanceFor: harness.provenanceFor,
         expectedRouteSignature: 'sig-home',
       ),
       isTrue,

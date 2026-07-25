@@ -362,17 +362,42 @@ extension SessionCoherence on TugboatSession {
 /// Desired post-fix invariants. Characterization tests use these to prove
 /// current production sequences violate coherence (the check returns false).
 class CoherenceInvariants {
-  /// Tap settle evidence belongs to one route epoch / frame family.
+  /// Tap settle evidence belongs to one route epoch.
+  ///
+  /// Proves [tap.beforeFrame], [settle.beforeFrame], and [settle.afterFrame]
+  /// all belong to [expectedRoute] + [expectedRouteEpoch], while allowing
+  /// distinct capture ids/content hashes within that provenance.
   static bool tapSettleIsRouteCoherent({
     required TugboatEvent tap,
     required TugboatEvent settle,
-    required String? expectedRouteSignature,
+    required String expectedRoute,
+    required int expectedRouteEpoch,
+    required HarnessFrameProvenance? Function(String? frameId)
+    frameProvenanceFor,
+    String? expectedRouteSignature,
   }) {
     if (settle.relatedEventId != tap.id) return false;
     if (settle.beforeFrame != tap.beforeFrame) return false;
     if (expectedRouteSignature != null &&
         settle.stateAnchor?.signature != expectedRouteSignature) {
       return false;
+    }
+    if (settle.afterFrame == null) return false;
+
+    final frameIds = <String>[
+      if (tap.beforeFrame != null) tap.beforeFrame!,
+      if (settle.beforeFrame != null) settle.beforeFrame!,
+      settle.afterFrame!,
+    ];
+    if (frameIds.length < 3) return false;
+
+    for (final frameId in frameIds) {
+      final provenance = frameProvenanceFor(frameId);
+      if (provenance == null) return false;
+      if (provenance.route != expectedRoute ||
+          provenance.routeEpoch != expectedRouteEpoch) {
+        return false;
+      }
     }
     return true;
   }
