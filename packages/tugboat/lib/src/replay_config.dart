@@ -49,15 +49,18 @@ TugboatViewportSemanticPolicy resolveViewportSemanticPolicy({
     return TugboatViewportSemanticPolicy.off;
   }
 
-  final emitEvents =
-      mode == TugboatViewportSemanticMode.full ||
-      mode == TugboatViewportSemanticMode.fullWithDebugLogs;
-  final debugLogs = mode == TugboatViewportSemanticMode.fullWithDebugLogs;
   final exploration = profile == TugboatCaptureProfile.exploration;
   final production = profile == TugboatCaptureProfile.productionLean;
   if (!exploration && !production) {
     return TugboatViewportSemanticPolicy.off;
   }
+
+  final verboseMode =
+      mode == TugboatViewportSemanticMode.full ||
+      mode == TugboatViewportSemanticMode.fullWithDebugLogs;
+  final emitEvents = exploration && verboseMode;
+  final debugLogs =
+      exploration && mode == TugboatViewportSemanticMode.fullWithDebugLogs;
 
   return TugboatViewportSemanticPolicy(
     engineEnabled: true,

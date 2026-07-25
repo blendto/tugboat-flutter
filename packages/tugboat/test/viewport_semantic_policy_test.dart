@@ -47,8 +47,18 @@ void main() {
       mode: TugboatViewportSemanticMode.full,
     );
     expect(productionFull.engineEnabled, isTrue);
-    expect(productionFull.emitEvents, isTrue);
+    expect(productionFull.emitEvents, isFalse);
+    expect(productionFull.debugLogs, isFalse);
     expect(productionFull.holdPersistentSemanticsHandle, isFalse);
+
+    final productionDebug = resolveViewportSemanticPolicy(
+      profile: TugboatCaptureProfile.productionLean,
+      mode: TugboatViewportSemanticMode.fullWithDebugLogs,
+    );
+    expect(productionDebug.engineEnabled, isTrue);
+    expect(productionDebug.emitEvents, isFalse);
+    expect(productionDebug.debugLogs, isFalse);
+    expect(productionDebug.holdPersistentSemanticsHandle, isFalse);
 
     final productionDefault = const TugboatReplayConfig(
       profile: TugboatCaptureProfile.productionLean,
