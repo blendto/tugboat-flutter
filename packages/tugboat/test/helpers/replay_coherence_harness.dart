@@ -217,8 +217,11 @@ class ReplayCoherenceHarness {
     capturer = ControllableCaptureExecutor(controller);
     capturer.registerFrame = (frameId, {route, routeEpoch}) {
       final currentRoute = controller.currentRoute;
-      final anchorRoute =
-          controller.currentStateAnchor?.signatureParts['route'] as String?;
+      final anchorRouteRaw =
+          controller.currentStateAnchor?.signatureParts['route'];
+      final anchorRoute = anchorRouteRaw is String && anchorRouteRaw.isNotEmpty
+          ? anchorRouteRaw
+          : null;
       final resolvedRoute =
           route ??
           (currentRoute != null && currentRoute.isNotEmpty
