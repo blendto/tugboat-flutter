@@ -763,4 +763,41 @@ void main() {
       expect(settle.relatedEventId, tap.id);
     },
   );
+
+  testWidgets(
+    'pointer-down swipe classification suppresses tap_settled with provenance',
+    (tester) async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUpWidgetBacked(tester);
+      addTearDown(harness.dispose);
+
+      final originFrame = harness.seedRouteState(
+        route: '/home',
+        signature: 'sig-home',
+        frameContentHash: 'home-pixels',
+      );
+
+      final start = harness.targetTapPosition(tester);
+      // Controller classification seam — not InputCapture slop detection.
+      await harness.recordClassifiedSwipe(start);
+
+      final session = harness.controller.session!;
+      final tap = session.ofType('tap').single;
+      final swipe = session.ofType('swipe').single;
+      final eventTypes = session.events.map((event) => event.type).toList();
+
+      expect(session.ofType('tap_settled'), isEmpty);
+      expect(eventTypes.indexOf('tap'), lessThan(eventTypes.indexOf('swipe')));
+      expect(swipe.relatedEventId, tap.id);
+      expect(swipe.beforeFrame, originFrame);
+      expect(swipe.stateAnchor?.signature, tap.stateAnchor?.signature);
+      expect(tap.targetAnchor, isNotNull);
+      expect(swipe.targetAnchor, isNotNull);
+      expect(swipe.targetAnchor!.fingerprint, tap.targetAnchor!.fingerprint);
+      expect(swipe.targetAnchor!.canonicalPath, tap.targetAnchor!.canonicalPath);
+      expect(swipe.data['startX'], closeTo(start.dx, 0.01));
+      expect(swipe.data['startY'], closeTo(start.dy, 0.01));
+      expect(swipe.data['scrolled'], isFalse);
+    },
+  );
 }

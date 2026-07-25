@@ -312,6 +312,20 @@ class ReplayCoherenceHarness {
 
   Offset targetTapPosition(WidgetTester tester) =>
       tester.getCenter(find.byKey(coherenceHarnessTargetKey));
+
+  /// Simulates pointer-down → slop swipe classification → pointer-up without
+  /// relying on [InputCapture], for deterministic characterization.
+  Future<void> recordClassifiedSwipe(
+    Offset start, {
+    Offset? end,
+    int pointer = 0,
+  }) async {
+    final finish = end ?? start.translate(0, -(kTouchSlop + 4));
+    controller.recordPointerDown(start, pointer: pointer);
+    controller.markPendingTapAsSwipe(pointer);
+    controller.recordPointerUp(finish, pointer: pointer);
+    await pumpMicrotasks();
+  }
 }
 
 /// Snapshot of coherence-relevant fields for one event.
