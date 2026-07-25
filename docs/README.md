@@ -10,6 +10,7 @@ verified in their own repositories.
 
 - [SDK README](../packages/tugboat/README.md) — install, public API, configuration, and limits
 - [Collector integration](integration/collector.md) — Flutter WebSocket and HTTP wire behavior
+- [Production replay acceptance](integration/production-replay-acceptance.md) — release, Blend canary, and manual production replay gate
 - [Example exploration brief](exploration/example-brief.md) — goals and constraints for the demo app
 
 ## Design
@@ -27,7 +28,7 @@ verified in their own repositories.
 
 ## Current compatibility
 
-- package version: `0.4.0`;
+- package version: `0.4.9`;
 - session JSON schema: `7`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;
