@@ -87,12 +87,15 @@ class _ScheduledCapture {
     required this.trigger,
     required this.force,
     required this.notBefore,
+    required this.context,
   });
 
   TugboatFrameTrigger trigger;
   bool force;
   DateTime notBefore;
+  final _CaptureRequestContext context;
   final List<Completer<String?>> waiters = [];
+  _ScheduledCapture? next;
 
   void absorb(_ScheduledCapture other) {
     if (_triggerPriority(other.trigger) >= _triggerPriority(trigger)) {
@@ -104,6 +107,9 @@ class _ScheduledCapture {
     }
     waiters.addAll(other.waiters);
   }
+
+  bool canAbsorb(_ScheduledCapture other) =>
+      context.compatibleWith(other.context);
 
   static int _triggerPriority(TugboatFrameTrigger trigger) {
     switch (trigger) {
@@ -121,6 +127,93 @@ class _ScheduledCapture {
         return 1;
     }
   }
+}
+
+/// Immutable evidence captured when screenshot work is requested.  A frame is
+/// attachable only to requests with the same capture session and route epoch;
+/// this prevents a destination tap from inheriting an origin screenshot.
+class _CaptureRequestContext {
+  const _CaptureRequestContext({
+    required this.captureSessionId,
+    required this.routeEpoch,
+    required this.route,
+    required this.trigger,
+    required this.requestedAtMs,
+    required this.stateAnchor,
+  });
+
+  final String? captureSessionId;
+  final int routeEpoch;
+  final String? route;
+  final TugboatFrameTrigger trigger;
+  final int requestedAtMs;
+  final TugboatStateAnchor? stateAnchor;
+
+  String? get stateSignature => stateAnchor?.signature;
+
+  bool compatibleWith(_CaptureRequestContext other) =>
+      captureSessionId == other.captureSessionId &&
+      routeEpoch == other.routeEpoch &&
+      route == other.route;
+
+  _CaptureRequestContext withTrigger(TugboatFrameTrigger value) =>
+      _CaptureRequestContext(
+        captureSessionId: captureSessionId,
+        routeEpoch: routeEpoch,
+        route: route,
+        trigger: value,
+        requestedAtMs: requestedAtMs,
+        stateAnchor: stateAnchor,
+      );
+}
+
+class _FrameProvenance {
+  const _FrameProvenance({
+    required this.context,
+    required this.completedAtMs,
+    required this.completionStateAnchor,
+    this.available = true,
+  });
+
+  final _CaptureRequestContext context;
+  final int completedAtMs;
+  final TugboatStateAnchor? completionStateAnchor;
+  final bool available;
+
+  _FrameProvenance unavailable() => _FrameProvenance(
+    context: context,
+    completedAtMs: completedAtMs,
+    completionStateAnchor: completionStateAnchor,
+    available: false,
+  );
+
+  Map<String, Object?> toJson() => {
+    'captureSessionId': context.captureSessionId,
+    'routeEpoch': context.routeEpoch,
+    'route': context.route,
+    'trigger': context.trigger.name,
+    'requestedAtMs': context.requestedAtMs,
+    'completedAtMs': completedAtMs,
+    'requestStateSignature': context.stateSignature,
+    'completionStateSignature': completionStateAnchor?.signature,
+    if (context.stateAnchor != null)
+      'requestStateAnchor': context.stateAnchor!.toJson(),
+    if (completionStateAnchor != null)
+      'completionStateAnchor': completionStateAnchor!.toJson(),
+    'available': available,
+  };
+}
+
+class _FrameReuseObservation {
+  const _FrameReuseObservation({
+    required this.reusedFromFrameId,
+    required this.reason,
+    required this.reusedAtMs,
+  });
+
+  final String reusedFromFrameId;
+  final String reason;
+  final int reusedAtMs;
 }
 
 /// Typed navigator semantics for [TugboatReplayController.route].
@@ -348,6 +441,8 @@ class TugboatReplayController extends ChangeNotifier {
   String? _latestFrameId;
   final Map<int, _PendingTap> _pendingTaps = {};
   final Map<String, String> _hashToFrameId = {};
+  final Map<String, _FrameProvenance> _frameProvenance = {};
+  final Map<String, _FrameReuseObservation> _frameReuseObservations = {};
 
   bool _disposed = false;
   bool _capturePaused = false;
@@ -401,6 +496,11 @@ class TugboatReplayController extends ChangeNotifier {
     _currentStateAnchor = anchor;
   }
 
+  @visibleForTesting
+  void debugSetCurrentRoute(String? route) {
+    _currentRoute = route;
+  }
+
   /// When true, [_refreshStateAnchor] keeps the last planted state instead of
   /// rebuilding from the widget tree. Characterization tests use this when
   /// driving the controller without a mounted scene.
@@ -450,6 +550,48 @@ class TugboatReplayController extends ChangeNotifier {
   int get debugActiveTapSettleCount => _activeTapSettles.length;
 
   @visibleForTesting
+  List<String?> get debugScheduledCaptureRoutes {
+    final routes = <String?>[];
+    var scheduled = _scheduledCapture;
+    while (scheduled != null) {
+      routes.add(scheduled.context.route);
+      scheduled = scheduled.next;
+    }
+    return routes;
+  }
+
+  @visibleForTesting
+  Map<String, Object?>? debugFrameProvenance(String frameId) {
+    final provenance = _frameProvenance[frameId];
+    if (provenance == null) return null;
+    final reuse = _frameReuseObservations[frameId];
+    return {
+      ...provenance.toJson(),
+      if (reuse != null) ...{
+        'reusedFromFrameId': reuse.reusedFromFrameId,
+        'reuseReason': reuse.reason,
+        'reusedAtMs': reuse.reusedAtMs,
+      },
+    };
+  }
+
+  @visibleForTesting
+  int get debugFrameProvenanceCount => _frameProvenance.length;
+
+  @visibleForTesting
+  int get debugFrameReuseObservationCount => _frameReuseObservations.length;
+
+  @visibleForTesting
+  String? debugReuseFrameForCurrentRoute(
+    String frameId, {
+    String reason = 'content_hash',
+  }) => _reuseCompatibleFrame(
+    frameId,
+    _captureContext(TugboatFrameTrigger.manual),
+    reason,
+  );
+
+  @visibleForTesting
   Future<void> drainPointerQueue() async {
     await _queue;
     final settles = _activeTapSettles.toList(growable: false);
@@ -490,6 +632,12 @@ class TugboatReplayController extends ChangeNotifier {
     session.frameBytes[frameId] = Uint8List(0);
     _hashToFrameId[hash] = frameId;
     _latestFrameId = frameId;
+    _frameProvenance[frameId] = _FrameProvenance(
+      context: _captureContext(trigger),
+      completedAtMs: atMs,
+      completionStateAnchor: _snapshotStateAnchor(_currentStateAnchor),
+    );
+    _trim();
     return frameId;
   }
 
@@ -580,7 +728,9 @@ class TugboatReplayController extends ChangeNotifier {
     return {
       'atMs': atMs,
       'route': _currentRoute,
-      'frameId': _latestFrameId,
+      'frameId': _compatibleFrameFor(
+        _captureContext(TugboatFrameTrigger.manual),
+      ),
       'stateAnchor': stateAnchor?.toJson(),
       if (tapPoint != null) 'tapPoint': {'x': tapPoint.dx, 'y': tapPoint.dy},
       if (targetAnchor != null) 'targetAnchor': targetAnchor.toJson(),
@@ -754,6 +904,8 @@ class TugboatReplayController extends ChangeNotifier {
     _scrollTrackers.clear();
     _activeGestures.clear();
     _hashToFrameId.clear();
+    _frameProvenance.clear();
+    _frameReuseObservations.clear();
     _lastCapturedStateSignature = null;
     _emittedInventories.clear();
     _viewportSemantics.clear();
@@ -841,18 +993,105 @@ class TugboatReplayController extends ChangeNotifier {
     ).done;
   }
 
+  _CaptureRequestContext _captureContext(TugboatFrameTrigger trigger) {
+    final anchor = _currentStateAnchor;
+    return _CaptureRequestContext(
+      captureSessionId: _session?.id,
+      routeEpoch: _routeEpoch,
+      // Characterization harnesses can plant a state anchor without a real
+      // Navigator callback. Its route remains valid evidence in that case.
+      route: _currentRoute ?? anchor?.signatureParts['route'],
+      trigger: trigger,
+      requestedAtMs: atMs,
+      stateAnchor: _snapshotStateAnchor(anchor),
+    );
+  }
+
+  TugboatStateAnchor? _snapshotStateAnchor(TugboatStateAnchor? anchor) {
+    if (anchor == null) return null;
+    return TugboatStateAnchor(
+      schemaVersion: anchor.schemaVersion,
+      actionableSummary: Map<String, int>.unmodifiable(
+        anchor.actionableSummary,
+      ),
+      keyboardOpen: anchor.keyboardOpen,
+      modalOpen: anchor.modalOpen,
+      subLabel: anchor.subLabel,
+      signature: anchor.signature,
+      signatureConfidence: anchor.signatureConfidence,
+      signatureParts: Map<String, String>.unmodifiable(anchor.signatureParts),
+    );
+  }
+
+  TugboatStateAnchor? _stateObservedWithFrame(String? frameId) =>
+      frameId == null ? null : _frameProvenance[frameId]?.completionStateAnchor;
+
+  String? _compatibleFrameFor(_CaptureRequestContext context) {
+    final latest = _latestFrameId;
+    if (latest == null) return null;
+    final provenance = _frameProvenance[latest];
+    if (provenance == null || !provenance.available) return null;
+    return provenance.context.compatibleWith(context) ? latest : null;
+  }
+
+  String? _unavailableAttachmentReason(_CaptureRequestContext context) {
+    if (_compatibleFrameFor(context) != null) return null;
+    return _latestFrameId == null
+        ? 'no_frame_available'
+        : 'no_compatible_frame';
+  }
+
+  bool _isFrameCompatible(String frameId, _CaptureRequestContext context) {
+    final provenance = _frameProvenance[frameId];
+    return provenance != null &&
+        provenance.available &&
+        provenance.context.compatibleWith(context);
+  }
+
+  String? _reuseCompatibleFrame(
+    String frameId,
+    _CaptureRequestContext context,
+    String reason,
+  ) {
+    if (!_isFrameCompatible(frameId, context)) return null;
+    _latestFrameId = frameId;
+    _frameReuseObservations[frameId] = _FrameReuseObservation(
+      reusedFromFrameId: frameId,
+      reason: reason,
+      reusedAtMs: atMs,
+    );
+    return frameId;
+  }
+
+  bool _captureContextStillCurrent(
+    _CaptureRequestContext context,
+    int generation,
+    TugboatSession? session,
+  ) =>
+      !_disposed &&
+      generation == _captureGeneration &&
+      identical(_session, session) &&
+      context.captureSessionId == session?.id &&
+      context.routeEpoch == _routeEpoch &&
+      context.route ==
+          (_currentRoute ?? _currentStateAnchor?.signatureParts['route']);
+
   ({Future<String?> done, void Function() cancel}) _requestCaptureCancellable({
     required TugboatFrameTrigger trigger,
     bool force = false,
     Duration? settleDelay,
   }) {
+    final context = _captureContext(trigger);
     if (_disposed ||
         _capturePaused ||
         _skipCapture ||
         _shouldSuppressFrameCapture) {
       _refreshStateAnchor();
       _maybeEmitSceneInventory();
-      return (done: Future<String?>.value(_latestFrameId), cancel: () {});
+      return (
+        done: Future<String?>.value(_compatibleFrameFor(context)),
+        cancel: () {},
+      );
     }
 
     final delay = settleDelay ?? config.settleDelay;
@@ -862,25 +1101,47 @@ class TugboatReplayController extends ChangeNotifier {
       trigger: trigger,
       force: force,
       notBefore: notBefore,
+      context: context,
     )..waiters.add(completer);
 
     final scheduled = _scheduledCapture;
     if (scheduled == null) {
       _scheduledCapture = incoming;
     } else {
-      scheduled.absorb(incoming);
+      var tail = scheduled;
+      while (tail.next != null) {
+        tail = tail.next!;
+      }
+      // Only adjacent compatible work can coalesce: preserving order prevents
+      // an incompatible route capture from being silently dropped.
+      if (tail.canAbsorb(incoming)) {
+        tail.absorb(incoming);
+      } else {
+        tail.next = incoming;
+      }
     }
 
     _ensureCapturePumpScheduled();
     return (
       done: completer.future,
       cancel: () {
-        final scheduled = _scheduledCapture;
-        scheduled?.waiters.remove(completer);
-        if (scheduled != null && scheduled.waiters.isEmpty) {
-          _scheduledCapture = null;
+        var scheduled = _scheduledCapture;
+        _ScheduledCapture? previous;
+        while (scheduled != null) {
+          scheduled.waiters.remove(completer);
+          final next = scheduled.next;
+          if (scheduled.waiters.isEmpty) {
+            if (previous == null) {
+              _scheduledCapture = next;
+            } else {
+              previous.next = next;
+            }
+          } else {
+            previous = scheduled;
+          }
+          scheduled = next;
         }
-        if (!completer.isCompleted) completer.complete(_latestFrameId);
+        if (!completer.isCompleted) completer.complete(null);
       },
     );
   }
@@ -910,19 +1171,21 @@ class TugboatReplayController extends ChangeNotifier {
         continue;
       }
 
-      _scheduledCapture = null;
+      _scheduledCapture = scheduled.next;
+      scheduled.next = null;
       String? frameId;
       try {
         frameId = await _executeCapture(
           trigger: scheduled.trigger,
           force: scheduled.force,
+          context: scheduled.context.withTrigger(scheduled.trigger),
         );
       } catch (error, stackTrace) {
         // A capture failure must not kill the pump loop or strand waiters:
         // stranded waiters would freeze the controller queue permanently.
         debugPrint('[tugboat] capture failed: $error\n$stackTrace');
         _captureFailureCount++;
-        frameId = _latestFrameId;
+        frameId = null;
       }
       for (final waiter in scheduled.waiters) {
         if (!waiter.isCompleted) {
@@ -939,11 +1202,13 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   void _cancelScheduledCaptureWaiters() {
-    final scheduled = _scheduledCapture;
+    var scheduled = _scheduledCapture;
     _scheduledCapture = null;
-    if (scheduled == null) return;
-    for (final waiter in scheduled.waiters) {
-      if (!waiter.isCompleted) waiter.complete(_latestFrameId);
+    while (scheduled != null) {
+      for (final waiter in scheduled.waiters) {
+        if (!waiter.isCompleted) waiter.complete(null);
+      }
+      scheduled = scheduled.next;
     }
   }
 
@@ -956,6 +1221,7 @@ class TugboatReplayController extends ChangeNotifier {
   Future<String?> _executeCapture({
     required TugboatFrameTrigger trigger,
     bool force = false,
+    required _CaptureRequestContext context,
   }) async {
     final captureGeneration = _captureGeneration;
     final captureSession = _session;
@@ -966,7 +1232,7 @@ class TugboatReplayController extends ChangeNotifier {
           _skipCapture ||
           _shouldSuppressFrameCapture ||
           _captureInFlight) {
-        return _latestFrameId;
+        return _compatibleFrameFor(context);
       }
       _captureInFlight = true;
       try {
@@ -975,15 +1241,20 @@ class TugboatReplayController extends ChangeNotifier {
         // stale relative to real screenshot execution.
         _refreshStateAnchor();
         final frameId = await captureOverride(trigger: trigger, force: force);
-        if (captureGeneration != _captureGeneration ||
-            !identical(_session, captureSession)) {
-          return _latestFrameId;
+        if (!_captureContextStillCurrent(
+          context,
+          captureGeneration,
+          captureSession,
+        )) {
+          return null;
         }
-        if (frameId != null) {
+        if (frameId != null && _frameProvenance.containsKey(frameId)) {
           _latestFrameId = frameId;
         }
         _maybeEmitSceneInventory();
-        return frameId ?? _latestFrameId;
+        return frameId != null && _isFrameCompatible(frameId, context)
+            ? frameId
+            : _compatibleFrameFor(context);
       } finally {
         _captureInFlight = false;
         if (_scheduledCapture != null) {
@@ -997,11 +1268,13 @@ class TugboatReplayController extends ChangeNotifier {
         _skipCapture ||
         _shouldSuppressFrameCapture ||
         _captureInFlight) {
-      return _latestFrameId;
+      return _compatibleFrameFor(context);
     }
     final session = captureSession;
     final capturer = _capturer;
-    if (session == null || capturer == null) return _latestFrameId;
+    if (session == null || capturer == null) {
+      return _compatibleFrameFor(context);
+    }
 
     final eligibleToSkip =
         !force &&
@@ -1019,7 +1292,7 @@ class TugboatReplayController extends ChangeNotifier {
       );
       _refreshStateAnchor();
       _maybeEmitSceneInventory();
-      return _latestFrameId;
+      return _compatibleFrameFor(context);
     }
 
     final queueStarted = DateTime.now();
@@ -1030,9 +1303,8 @@ class TugboatReplayController extends ChangeNotifier {
     if (_disposed ||
         _capturePaused ||
         _skipCapture ||
-        captureGeneration != _captureGeneration ||
-        !identical(_session, session)) {
-      return _latestFrameId;
+        !_captureContextStillCurrent(context, captureGeneration, session)) {
+      return null;
     }
     _refreshStateAnchor();
     final signature = _currentStateAnchor?.signature ?? '';
@@ -1040,7 +1312,7 @@ class TugboatReplayController extends ChangeNotifier {
         trigger != TugboatFrameTrigger.initial &&
         signature.isNotEmpty &&
         signature == _lastCapturedStateSignature) {
-      return _latestFrameId;
+      return _compatibleFrameFor(context);
     }
 
     _captureInFlight = true;
@@ -1052,11 +1324,11 @@ class TugboatReplayController extends ChangeNotifier {
       );
       if (result == null ||
           _disposed ||
-          captureGeneration != _captureGeneration ||
-          !identical(_session, session)) {
-        return _latestFrameId;
+          !_captureContextStillCurrent(context, captureGeneration, session)) {
+        return null;
       }
       final activeSession = session;
+      final completionStateAnchor = _snapshotStateAnchor(_refreshStateAnchor());
 
       _screenshotBudget.record(
         queueWaitMicros: queueWaitMicros,
@@ -1070,12 +1342,17 @@ class TugboatReplayController extends ChangeNotifier {
         if (result.dHash != null) {
           _lastDHash = result.dHash;
         }
-        return _latestFrameId;
+        final compatible = _compatibleFrameFor(context);
+        return compatible == null
+            ? null
+            : _reuseCompatibleFrame(compatible, context, 'dhash');
       }
 
       final existingId = _hashToFrameId[result.contentHash];
-      if (!force && existingId != null) {
-        _latestFrameId = existingId;
+      if (!force &&
+          existingId != null &&
+          _isFrameCompatible(existingId, context)) {
+        _reuseCompatibleFrame(existingId, context, 'content_hash');
         if (result.dHash != null) {
           _lastDHash = result.dHash;
         }
@@ -1103,6 +1380,11 @@ class TugboatReplayController extends ChangeNotifier {
       activeSession.frameBytes[frameId] = result.bytes;
       _hashToFrameId[result.contentHash] = frameId;
       _latestFrameId = frameId;
+      _frameProvenance[frameId] = _FrameProvenance(
+        context: context,
+        completedAtMs: atMs,
+        completionStateAnchor: completionStateAnchor,
+      );
       if (result.dHash != null) {
         _lastDHash = result.dHash;
       }
@@ -1160,14 +1442,21 @@ class TugboatReplayController extends ChangeNotifier {
       inventory: tapInventory,
     );
 
+    final attachmentContext = _captureContext(TugboatFrameTrigger.tap);
+    final beforeFrame = _compatibleFrameFor(attachmentContext);
+    final unavailableReason = _unavailableAttachmentReason(attachmentContext);
     final tapData = <String, Object?>{
       'x': position.dx,
       'y': position.dy,
+      if (unavailableReason != null)
+        'frameAttachment': {
+          'before': 'unavailable',
+          'reason': unavailableReason,
+        },
       if (viewportResolution != null)
         'viewportSemanticResolution': viewportResolution.toJson(),
     };
 
-    final beforeFrame = _latestFrameId;
     final beforeState = tapState;
     final eventId = _nextId('event');
     _pendingTaps[pointer] = _PendingTap(
@@ -1302,6 +1591,10 @@ class TugboatReplayController extends ChangeNotifier {
       final String? afterFrame;
       if (routeCapture != null) {
         afterFrame = await _awaitRouteCaptureBarrier(routeCapture);
+        // Failed/timed-out route work already emits a route_change event with
+        // an explicit captureOutcome. Keep suppressing the linked settle here
+        // so it cannot manufacture a second, cross-route observation; #10
+        // owns the eventual bounded degraded-settle contract.
         if (afterFrame == null || !_isActiveTapSettle(work)) return;
       } else {
         _refreshStateAnchor();
@@ -1313,16 +1606,24 @@ class TugboatReplayController extends ChangeNotifier {
         afterFrame = await capture.done;
         if (!_isActiveTapSettle(work)) return;
       }
+      final observedAfterState = _stateObservedWithFrame(afterFrame);
       await _enqueue('tap_settled', () async {
         if (!_isActiveTapSettle(work)) return;
         final beforeState = pending.beforeState;
         final beforeFrame = pending.beforeFrame;
         final tapEventId = pending.eventId;
         final tapTargetAnchor = pending.targetAnchor;
-        final afterState = _currentStateAnchor;
+        // Keep the state/signature paired with the same completed observation
+        // as afterFrame. Controller state may advance while this event waits
+        // for admission to the serialized mutation queue.
+        final afterState = observedAfterState ?? _currentStateAnchor;
+        // Preserve the existing interaction classification until #10
+        // introduces the coherent visual/semantic outcome model. This issue
+        // only fixes which state and frame are attached as evidence.
+        final classificationAfterState = _currentStateAnchor;
         final result = _computeTapSettleResult(
           beforeState: beforeState,
-          afterState: afterState,
+          afterState: classificationAfterState,
           beforeFrame: beforeFrame,
           afterFrame: afterFrame,
         );
@@ -1338,7 +1639,15 @@ class TugboatReplayController extends ChangeNotifier {
             afterFrame: afterFrame,
             result: result,
             relatedEventId: tapEventId,
-            data: {'x': position.dx, 'y': position.dy},
+            data: {
+              'x': position.dx,
+              'y': position.dy,
+              if (afterFrame == null)
+                'frameAttachment': {
+                  'after': 'unavailable',
+                  'reason': 'capture_unavailable',
+                },
+            },
           ),
         );
         _maybeEmitStateChange(
@@ -1501,7 +1810,9 @@ class TugboatReplayController extends ChangeNotifier {
     _refreshStateAnchor();
     final targetAnchor = _resolveScrollableAnchor(scrollableElement);
     final sectionLabel = _sectionLabelFor(scrollableElement);
-    final beforeFrame = _latestFrameId;
+    final attachmentContext = _captureContext(TugboatFrameTrigger.scroll);
+    final beforeFrame = _compatibleFrameFor(attachmentContext);
+    final unavailableReason = _unavailableAttachmentReason(attachmentContext);
     final startEventId = _nextId('event');
     final pageStart = metrics is PageMetrics ? metrics.page : null;
 
@@ -1545,11 +1856,14 @@ class TugboatReplayController extends ChangeNotifier {
         stateAnchor: _currentStateAnchor,
         targetAnchor: targetAnchor,
         beforeFrame: beforeFrame,
-        data: _scrollEventData(
-          metrics: metrics,
-          depth: depth,
-          tracker: tracker,
-        ),
+        data: {
+          ..._scrollEventData(metrics: metrics, depth: depth, tracker: tracker),
+          if (unavailableReason != null)
+            'frameAttachment': {
+              'before': 'unavailable',
+              'reason': unavailableReason,
+            },
+        },
       ),
     );
     _maybeEmitSceneInventory(
@@ -1670,7 +1984,8 @@ class TugboatReplayController extends ChangeNotifier {
           id: _nextId('event'),
           atMs: atMs,
           type: 'scroll_end',
-          stateAnchor: _refreshStateAnchor(),
+          stateAnchor:
+              _stateObservedWithFrame(afterFrame) ?? _refreshStateAnchor(),
           targetAnchor: tracker.targetAnchor,
           beforeFrame: tracker.beforeFrame,
           afterFrame: afterFrame,
@@ -1885,12 +2200,14 @@ class TugboatReplayController extends ChangeNotifier {
       if (!_isActiveRouteCapture(work)) return;
       final previousRoute = change.previousRoute;
       final destinationRoute = change.destinationRoute;
+      final observedState =
+          _stateObservedWithFrame(afterFrame) ?? _currentStateAnchor;
       _addEvent(
         TugboatEvent(
           id: _nextId('event'),
           atMs: atMs,
           type: 'route_change',
-          stateAnchor: _currentStateAnchor,
+          stateAnchor: observedState,
           afterFrame: afterFrame,
           result: TugboatInteractionResult.navigated,
           data: {
@@ -2187,9 +2504,53 @@ class TugboatReplayController extends ChangeNotifier {
     while (session.frames.length > config.maxFrames) {
       final removed = session.frames.removeAt(0);
       session.frameBytes.remove(removed.id);
-      _hashToFrameId.remove(removed.contentHash);
+      final provenance = _frameProvenance[removed.id];
+      if (provenance != null) {
+        _frameProvenance[removed.id] = provenance.unavailable();
+      }
+      // An older duplicate must not erase the mapping for a newer retained
+      // logical frame with the same pixels.
+      if (_hashToFrameId[removed.contentHash] == removed.id) {
+        final replacement = session.frames.lastWhere(
+          (frame) => frame.contentHash == removed.contentHash,
+          orElse: () => removed,
+        );
+        if (identical(replacement, removed)) {
+          _hashToFrameId.remove(removed.contentHash);
+        } else {
+          _hashToFrameId[removed.contentHash] = replacement.id;
+        }
+      }
+      if (_latestFrameId == removed.id) {
+        _latestFrameId = session.frames.isEmpty ? null : session.frames.last.id;
+      }
       session.truncated = true;
     }
+    _trimFrameMetadata(session);
+  }
+
+  void _trimFrameMetadata(TugboatSession session) {
+    final retainedFrameIds = session.frames.map((frame) => frame.id).toSet();
+    final referencedFrameIds = <String>{...retainedFrameIds};
+    for (final event in session.events) {
+      final beforeFrame = event.beforeFrame;
+      if (beforeFrame != null) referencedFrameIds.add(beforeFrame);
+      final afterFrame = event.afterFrame;
+      if (afterFrame != null) referencedFrameIds.add(afterFrame);
+    }
+    for (final sample in session.scrollSamples) {
+      final beforeFrame = sample.beforeFrame;
+      if (beforeFrame != null) referencedFrameIds.add(beforeFrame);
+      final afterFrame = sample.afterFrame;
+      if (afterFrame != null) referencedFrameIds.add(afterFrame);
+    }
+
+    _frameProvenance.removeWhere(
+      (frameId, _) => !referencedFrameIds.contains(frameId),
+    );
+    _frameReuseObservations.removeWhere(
+      (frameId, _) => !referencedFrameIds.contains(frameId),
+    );
   }
 
   void _trimScrollSamples() {
