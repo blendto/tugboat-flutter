@@ -576,6 +576,12 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   @visibleForTesting
+  int get debugFrameProvenanceCount => _frameProvenance.length;
+
+  @visibleForTesting
+  int get debugFrameReuseObservationCount => _frameReuseObservations.length;
+
+  @visibleForTesting
   String? debugReuseFrameForCurrentRoute(
     String frameId, {
     String reason = 'content_hash',
@@ -2515,8 +2521,36 @@ class TugboatReplayController extends ChangeNotifier {
           _hashToFrameId[removed.contentHash] = replacement.id;
         }
       }
+      if (_latestFrameId == removed.id) {
+        _latestFrameId = session.frames.isEmpty ? null : session.frames.last.id;
+      }
       session.truncated = true;
     }
+    _trimFrameMetadata(session);
+  }
+
+  void _trimFrameMetadata(TugboatSession session) {
+    final retainedFrameIds = session.frames.map((frame) => frame.id).toSet();
+    final referencedFrameIds = <String>{...retainedFrameIds};
+    for (final event in session.events) {
+      final beforeFrame = event.beforeFrame;
+      if (beforeFrame != null) referencedFrameIds.add(beforeFrame);
+      final afterFrame = event.afterFrame;
+      if (afterFrame != null) referencedFrameIds.add(afterFrame);
+    }
+    for (final sample in session.scrollSamples) {
+      final beforeFrame = sample.beforeFrame;
+      if (beforeFrame != null) referencedFrameIds.add(beforeFrame);
+      final afterFrame = sample.afterFrame;
+      if (afterFrame != null) referencedFrameIds.add(afterFrame);
+    }
+
+    _frameProvenance.removeWhere(
+      (frameId, _) => !referencedFrameIds.contains(frameId),
+    );
+    _frameReuseObservations.removeWhere(
+      (frameId, _) => !referencedFrameIds.contains(frameId),
+    );
   }
 
   void _trimScrollSamples() {

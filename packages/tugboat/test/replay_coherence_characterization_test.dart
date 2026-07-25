@@ -983,6 +983,46 @@ void main() {
     expect(latestTap.beforeFrame, second);
   });
 
+  test('unreferenced trimmed provenance is pruned', () async {
+    final harness = ReplayCoherenceHarness(maxFrames: 1);
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    final first = harness.seedRouteState(
+      route: '/home',
+      signature: 'sig-home',
+      frameContentHash: 'first-pixels',
+    );
+    final second = harness.controller.debugSeedFrame(
+      contentHash: 'second-pixels',
+    );
+
+    expect(harness.controller.session!.frames.map((frame) => frame.id), [
+      second,
+    ]);
+    expect(harness.controller.debugFrameProvenance(first), isNull);
+    expect(harness.controller.debugFrameProvenanceCount, 1);
+    expect(harness.controller.latestFrameId, second);
+  });
+
+  test('trimming every frame clears latest frame metadata', () async {
+    final harness = ReplayCoherenceHarness(maxFrames: 0);
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    final removed = harness.seedRouteState(
+      route: '/home',
+      signature: 'sig-home',
+      frameContentHash: 'pixels',
+    );
+
+    expect(harness.controller.session!.frames, isEmpty);
+    expect(harness.controller.latestFrameId, isNull);
+    expect(harness.controller.debugFrameProvenance(removed), isNull);
+    expect(harness.controller.debugFrameProvenanceCount, 0);
+    expect(harness.controller.debugFrameReuseObservationCount, 0);
+  });
+
   test(
     'actionFrameMatchesRoute rejects a third unrelated frame family',
     () async {
