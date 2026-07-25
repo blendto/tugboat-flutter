@@ -737,9 +737,6 @@ void main() {
   ) async {
     final harness = ReplayCoherenceHarness();
     await harness.setUpWidgetBacked(tester);
-    addTearDown(() async {
-      await harness.tearDownWidgetBacked(tester);
-    });
 
     harness.seedRouteState(route: '/home', signature: 'sig-home');
 
@@ -780,6 +777,8 @@ void main() {
       tap.targetAnchor!.canonicalPath,
     );
     expect(repeatTap.targetAnchor!.role, tap.targetAnchor!.role);
+
+    await harness.tearDownWidgetBacked(tester);
   });
 
   testWidgets('widget-backed pending-route tap keeps linked target anchor', (
@@ -789,9 +788,6 @@ void main() {
       settleDelay: const Duration(milliseconds: 40),
     );
     await harness.setUpWidgetBacked(tester);
-    addTearDown(() async {
-      await harness.tearDownWidgetBacked(tester);
-    });
 
     harness.seedRouteState(route: '/scan', signature: 'sig-scan');
 
@@ -832,6 +828,8 @@ void main() {
     expect(settle.targetAnchor!.canonicalPath, tap.targetAnchor!.canonicalPath);
     expect(settle.targetAnchor!.role, tap.targetAnchor!.role);
     expect(settle.relatedEventId, tap.id);
+
+    await harness.tearDownWidgetBacked(tester);
   });
 
   testWidgets(
@@ -839,9 +837,6 @@ void main() {
     (tester) async {
       final harness = ReplayCoherenceHarness();
       await harness.setUpWidgetBacked(tester);
-      addTearDown(() async {
-        await harness.tearDownWidgetBacked(tester);
-      });
 
       final originFrame = harness.seedRouteState(
         route: '/home',
@@ -873,6 +868,8 @@ void main() {
       expect(swipe.data['startX'], closeTo(start.dx, 0.01));
       expect(swipe.data['startY'], closeTo(start.dy, 0.01));
       expect(swipe.data['scrolled'], isFalse);
+
+      await harness.tearDownWidgetBacked(tester);
     },
   );
 
