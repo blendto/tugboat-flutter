@@ -10,10 +10,7 @@ const coherenceHarnessTargetKey = Key('coherence-harness-target');
 
 /// Harness-only route provenance for a seeded or captured frame.
 class HarnessFrameProvenance {
-  const HarnessFrameProvenance({
-    required this.route,
-    required this.routeEpoch,
-  });
+  const HarnessFrameProvenance({required this.route, required this.routeEpoch});
 
   final String route;
   final int routeEpoch;
@@ -102,7 +99,8 @@ class ControllableCaptureExecutor {
   /// waiters without calling [completeBlocked] manually.
   Duration? autoReleaseBlockedAfter;
 
-  void Function(String frameId, {String? route, int? routeEpoch})? registerFrame;
+  void Function(String frameId, {String? route, int? routeEpoch})?
+  registerFrame;
   String? Function(TugboatFrameTrigger trigger, bool force)? frameFactory;
 
   void _trackFrame(String? frameId, {String? route, int? routeEpoch}) {

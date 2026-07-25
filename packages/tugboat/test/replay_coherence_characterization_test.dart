@@ -10,43 +10,46 @@ import 'helpers/replay_coherence_harness.dart';
 /// also records that [CoherenceInvariants] currently fail against it. Follow-up
 /// issues (#6–#10) flip those invariants to true without rewriting the harness.
 void main() {
-  test('tap with no navigation keeps linked settle evidence on one route', () async {
-    final harness = ReplayCoherenceHarness();
-    await harness.setUp();
-    addTearDown(harness.dispose);
+  test(
+    'tap with no navigation keeps linked settle evidence on one route',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
 
-    final originFrame = harness.seedRouteState(
-      route: '/home',
-      signature: 'sig-home',
-      frameContentHash: 'home-pixels',
-    );
-    final routeEpoch = harness.controller.debugRouteEpoch;
+      final originFrame = harness.seedRouteState(
+        route: '/home',
+        signature: 'sig-home',
+        frameContentHash: 'home-pixels',
+      );
+      final routeEpoch = harness.controller.debugRouteEpoch;
 
-    harness.controller.recordPointerDown(const Offset(12, 12));
-    harness.controller.recordPointerUp(const Offset(12, 12));
-    await harness.flushScheduler();
+      harness.controller.recordPointerDown(const Offset(12, 12));
+      harness.controller.recordPointerUp(const Offset(12, 12));
+      await harness.flushScheduler();
 
-    final session = harness.controller.session!;
-    final tap = session.ofType('tap').single;
-    final settle = session.ofType('tap_settled').single;
+      final session = harness.controller.session!;
+      final tap = session.ofType('tap').single;
+      final settle = session.ofType('tap_settled').single;
 
-    expect(settle.relatedEventId, tap.id);
-    expect(tap.beforeFrame, originFrame);
-    expect(settle.beforeFrame, originFrame);
-    expect(settle.afterFrame, isNotNull);
-    expect(settle.stateAnchor?.signature, 'sig-home');
-    expect(
-      CoherenceInvariants.tapSettleIsRouteCoherent(
-        tap: tap,
-        settle: settle,
-        expectedRoute: '/home',
-        expectedRouteEpoch: routeEpoch,
-        frameProvenanceFor: harness.provenanceFor,
-        expectedRouteSignature: 'sig-home',
-      ),
-      isTrue,
-    );
-  });
+      expect(settle.relatedEventId, tap.id);
+      expect(tap.beforeFrame, originFrame);
+      expect(settle.beforeFrame, originFrame);
+      expect(settle.afterFrame, isNotNull);
+      expect(settle.stateAnchor?.signature, 'sig-home');
+      expect(
+        CoherenceInvariants.tapSettleIsRouteCoherent(
+          tap: tap,
+          settle: settle,
+          expectedRoute: '/home',
+          expectedRouteEpoch: routeEpoch,
+          frameProvenanceFor: harness.provenanceFor,
+          expectedRouteSignature: 'sig-home',
+        ),
+        isTrue,
+      );
+    },
+  );
 
   test(
     'tap that starts navigation currently emits noVisibleChange before route_change',
@@ -92,7 +95,8 @@ void main() {
       expect(
         settle.afterFrame,
         originFrame,
-        reason: 'tap_settled consumed _latestFrameId while route capture pending',
+        reason:
+            'tap_settled consumed _latestFrameId while route capture pending',
       );
       expect(
         midSession.ofType('route_change'),
@@ -154,61 +158,67 @@ void main() {
       );
     }
 
-    test('fails when route_change precedes tap_settled with noVisibleChange', () {
-      final events = [
-        syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
-        syntheticEvent(
-          id: 'route-1',
-          type: 'route_change',
-          atMs: 150,
-          data: {'route': '/home'},
-        ),
-        syntheticEvent(
-          id: 'settle-1',
-          type: 'tap_settled',
-          atMs: 200,
-          relatedEventId: 'tap-1',
-          result: TugboatInteractionResult.noVisibleChange,
-        ),
-      ];
-      expect(
-        CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
-          events: events,
-          tapEventId: 'tap-1',
-          expectedDestinationRoute: '/home',
-          expectedRouteEventId: 'route-1',
-        ),
-        isFalse,
-      );
-    });
+    test(
+      'fails when route_change precedes tap_settled with noVisibleChange',
+      () {
+        final events = [
+          syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
+          syntheticEvent(
+            id: 'route-1',
+            type: 'route_change',
+            atMs: 150,
+            data: {'route': '/home'},
+          ),
+          syntheticEvent(
+            id: 'settle-1',
+            type: 'tap_settled',
+            atMs: 200,
+            relatedEventId: 'tap-1',
+            result: TugboatInteractionResult.noVisibleChange,
+          ),
+        ];
+        expect(
+          CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
+            events: events,
+            tapEventId: 'tap-1',
+            expectedDestinationRoute: '/home',
+            expectedRouteEventId: 'route-1',
+          ),
+          isFalse,
+        );
+      },
+    );
 
-    test('fails when route_change follows tap_settled with noVisibleChange', () {
-      final events = [
-        syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
-        syntheticEvent(
-          id: 'settle-1',
-          type: 'tap_settled',
-          atMs: 150,
-          relatedEventId: 'tap-1',
-          result: TugboatInteractionResult.noVisibleChange,
-        ),
-        syntheticEvent(
-          id: 'route-1',
-          type: 'route_change',
-          atMs: 200,
-          data: {'route': '/home'},
-        ),
-      ];
-      expect(
-        CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
-          events: events,
-          tapEventId: 'tap-1',
-          expectedDestinationRoute: '/home',
-          expectedRouteEventId: 'route-1',
-        ),
-        isFalse,
-      );
-    });
+    test(
+      'fails when route_change follows tap_settled with noVisibleChange',
+      () {
+        final events = [
+          syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
+          syntheticEvent(
+            id: 'settle-1',
+            type: 'tap_settled',
+            atMs: 150,
+            relatedEventId: 'tap-1',
+            result: TugboatInteractionResult.noVisibleChange,
+          ),
+          syntheticEvent(
+            id: 'route-1',
+            type: 'route_change',
+            atMs: 200,
+            data: {'route': '/home'},
+          ),
+        ];
+        expect(
+          CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
+            events: events,
+            tapEventId: 'tap-1',
+            expectedDestinationRoute: '/home',
+            expectedRouteEventId: 'route-1',
+          ),
+          isFalse,
+        );
+      },
+    );
 
     test('fails when destination route_change is missing', () {
       final events = [
@@ -288,33 +298,36 @@ void main() {
       );
     });
 
-    test('passes when matching route exists and settle is not noVisibleChange', () {
-      final events = [
-        syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
-        syntheticEvent(
-          id: 'route-1',
-          type: 'route_change',
-          atMs: 120,
-          data: {'route': '/home'},
-        ),
-        syntheticEvent(
-          id: 'settle-1',
-          type: 'tap_settled',
-          atMs: 180,
-          relatedEventId: 'tap-1',
-          result: TugboatInteractionResult.changed,
-        ),
-      ];
-      expect(
-        CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
-          events: events,
-          tapEventId: 'tap-1',
-          expectedDestinationRoute: '/home',
-          expectedRouteEventId: 'route-1',
-        ),
-        isTrue,
-      );
-    });
+    test(
+      'passes when matching route exists and settle is not noVisibleChange',
+      () {
+        final events = [
+          syntheticEvent(id: 'tap-1', type: 'tap', atMs: 100),
+          syntheticEvent(
+            id: 'route-1',
+            type: 'route_change',
+            atMs: 120,
+            data: {'route': '/home'},
+          ),
+          syntheticEvent(
+            id: 'settle-1',
+            type: 'tap_settled',
+            atMs: 180,
+            relatedEventId: 'tap-1',
+            result: TugboatInteractionResult.changed,
+          ),
+        ];
+        expect(
+          CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
+            events: events,
+            tapEventId: 'tap-1',
+            expectedDestinationRoute: '/home',
+            expectedRouteEventId: 'route-1',
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 
   test(
@@ -529,58 +542,61 @@ void main() {
     },
   );
 
-  test('modal push/pop and replacement share the route ordering path', () async {
-    final harness = ReplayCoherenceHarness(
-      settleDelay: const Duration(milliseconds: 20),
-    );
-    await harness.setUp();
-    addTearDown(harness.dispose);
+  test(
+    'modal push/pop and replacement share the route ordering path',
+    () async {
+      final harness = ReplayCoherenceHarness(
+        settleDelay: const Duration(milliseconds: 20),
+      );
+      await harness.setUp();
+      addTearDown(harness.dispose);
 
-    harness.seedRouteState(route: '/home', signature: 'sig-home');
+      harness.seedRouteState(route: '/home', signature: 'sig-home');
 
-    final push = harness.controller.route(
-      'route_push',
-      harness.route(
-        '/modal',
-        transitionDuration: const Duration(milliseconds: 40),
-      ),
-    );
-    await harness.flushScheduler();
-    await push;
+      final push = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/modal',
+          transitionDuration: const Duration(milliseconds: 40),
+        ),
+      );
+      await harness.flushScheduler();
+      await push;
 
-    final pop = harness.controller.route(
-      'route_pop',
-      harness.route(
-        '/home',
-        transitionDuration: const Duration(milliseconds: 40),
-      ),
-    );
-    await harness.flushScheduler();
-    await pop;
+      final pop = harness.controller.route(
+        'route_pop',
+        harness.route(
+          '/home',
+          transitionDuration: const Duration(milliseconds: 40),
+        ),
+      );
+      await harness.flushScheduler();
+      await pop;
 
-    final replace = harness.controller.route(
-      'route_replace',
-      harness.route(
-        '/home2',
-        transitionDuration: const Duration(milliseconds: 40),
-      ),
-    );
-    await harness.flushScheduler();
-    await replace;
+      final replace = harness.controller.route(
+        'route_replace',
+        harness.route(
+          '/home2',
+          transitionDuration: const Duration(milliseconds: 40),
+        ),
+      );
+      await harness.flushScheduler();
+      await replace;
 
-    final navigations = harness.controller.session!
-        .ofType('route_change')
-        .map((event) => event.data['navigation'])
-        .toList();
-    expect(navigations, ['route_push', 'route_pop', 'route_replace']);
-    expect(harness.controller.currentRoute, '/home2');
-    expect(
-      harness.controller.session!
+      final navigations = harness.controller.session!
           .ofType('route_change')
-          .every((event) => event.afterFrame != null),
-      isTrue,
-    );
-  });
+          .map((event) => event.data['navigation'])
+          .toList();
+      expect(navigations, ['route_push', 'route_pop', 'route_replace']);
+      expect(harness.controller.currentRoute, '/home2');
+      expect(
+        harness.controller.session!
+            .ofType('route_change')
+            .every((event) => event.afterFrame != null),
+        isTrue,
+      );
+    },
+  );
 
   test(
     'signature-only change with unchanged frame currently reports changed',
@@ -714,59 +730,55 @@ void main() {
     expect(repeatTap.targetAnchor!.role, tap.targetAnchor!.role);
   });
 
-  testWidgets(
-    'widget-backed pending-route tap keeps linked target anchor',
-    (tester) async {
-      final harness = ReplayCoherenceHarness(
-        settleDelay: const Duration(milliseconds: 40),
-      );
-      await harness.setUpWidgetBacked(tester);
-      addTearDown(harness.dispose);
+  testWidgets('widget-backed pending-route tap keeps linked target anchor', (
+    tester,
+  ) async {
+    final harness = ReplayCoherenceHarness(
+      settleDelay: const Duration(milliseconds: 40),
+    );
+    await harness.setUpWidgetBacked(tester);
+    addTearDown(harness.dispose);
 
-      harness.seedRouteState(route: '/scan', signature: 'sig-scan');
+    harness.seedRouteState(route: '/scan', signature: 'sig-scan');
 
-      final routeFuture = harness.controller.route(
-        'route_push',
-        harness.route(
-          '/home',
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      );
-      expect(harness.controller.debugRouteCapturePending, isTrue);
+    final routeFuture = harness.controller.route(
+      'route_push',
+      harness.route(
+        '/home',
+        transitionDuration: const Duration(milliseconds: 150),
+      ),
+    );
+    expect(harness.controller.debugRouteCapturePending, isTrue);
 
-      final tapPoint = harness.targetTapPosition(tester);
-      harness.controller.recordPointerDown(tapPoint);
-      harness.controller.recordPointerUp(tapPoint);
-      await harness.pumpQueueWork();
+    final tapPoint = harness.targetTapPosition(tester);
+    harness.controller.recordPointerDown(tapPoint);
+    harness.controller.recordPointerUp(tapPoint);
+    await harness.pumpQueueWork();
 
-      final session = harness.controller.session!;
-      final tap = session.ofType('tap').single;
-      final inventory = session.ofType('scene_inventory').last;
-      final inventorySignature =
-          inventory.stateAnchor?.signature ??
-          inventory.data['stateSignature'] as String?;
+    final session = harness.controller.session!;
+    final tap = session.ofType('tap').single;
+    final inventory = session.ofType('scene_inventory').last;
+    final inventorySignature =
+        inventory.stateAnchor?.signature ??
+        inventory.data['stateSignature'] as String?;
 
-      expect(tap.targetAnchor, isNotNull);
-      expect(tap.targetAnchor!.fingerprint, isNotNull);
-      expect(tap.targetAnchor!.fingerprint, isNotEmpty);
-      expect(tap.targetAnchor!.canonicalPath, isNotEmpty);
-      expect(tap.targetAnchor!.role, 'button');
-      expect(tap.stateAnchor?.signature, inventorySignature);
+    expect(tap.targetAnchor, isNotNull);
+    expect(tap.targetAnchor!.fingerprint, isNotNull);
+    expect(tap.targetAnchor!.fingerprint, isNotEmpty);
+    expect(tap.targetAnchor!.canonicalPath, isNotEmpty);
+    expect(tap.targetAnchor!.role, 'button');
+    expect(tap.stateAnchor?.signature, inventorySignature);
 
-      await harness.flushScheduler();
-      await routeFuture;
+    await harness.flushScheduler();
+    await routeFuture;
 
-      final settle = session.ofType('tap_settled').single;
-      expect(settle.targetAnchor, isNotNull);
-      expect(settle.targetAnchor!.fingerprint, tap.targetAnchor!.fingerprint);
-      expect(
-        settle.targetAnchor!.canonicalPath,
-        tap.targetAnchor!.canonicalPath,
-      );
-      expect(settle.targetAnchor!.role, tap.targetAnchor!.role);
-      expect(settle.relatedEventId, tap.id);
-    },
-  );
+    final settle = session.ofType('tap_settled').single;
+    expect(settle.targetAnchor, isNotNull);
+    expect(settle.targetAnchor!.fingerprint, tap.targetAnchor!.fingerprint);
+    expect(settle.targetAnchor!.canonicalPath, tap.targetAnchor!.canonicalPath);
+    expect(settle.targetAnchor!.role, tap.targetAnchor!.role);
+    expect(settle.relatedEventId, tap.id);
+  });
 
   testWidgets(
     'pointer-down swipe classification suppresses tap_settled with provenance',
@@ -798,7 +810,10 @@ void main() {
       expect(tap.targetAnchor, isNotNull);
       expect(swipe.targetAnchor, isNotNull);
       expect(swipe.targetAnchor!.fingerprint, tap.targetAnchor!.fingerprint);
-      expect(swipe.targetAnchor!.canonicalPath, tap.targetAnchor!.canonicalPath);
+      expect(
+        swipe.targetAnchor!.canonicalPath,
+        tap.targetAnchor!.canonicalPath,
+      );
       expect(swipe.data['startX'], closeTo(start.dx, 0.01));
       expect(swipe.data['startY'], closeTo(start.dy, 0.01));
       expect(swipe.data['scrolled'], isFalse);
