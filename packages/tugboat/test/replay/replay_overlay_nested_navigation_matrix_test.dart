@@ -262,20 +262,26 @@ class _OverlayFixture {
     final routeIndex = events.indexOf(routeChange);
     final routeFrame = routeChange.afterFrame;
     final requestId = routeChange.data['captureRequestId'];
-    final diagnostic = events.firstWhere(
-      (event) =>
-          event.type == 'capture_diagnostic' &&
-          event.data['requestId'] == requestId,
-    );
+    final diagnostics = events
+        .where(
+          (event) =>
+              event.type == 'capture_diagnostic' &&
+              event.data['requestId'] == requestId,
+        )
+        .toList(growable: false);
+    expect(diagnostics, hasLength(1));
+    final diagnostic = diagnostics.single;
     final tap = events
         .sublist(after, routeIndex + 1)
         .lastWhere((event) => event.type == 'tap');
-    final settled = events
-        .skip(routeIndex)
-        .firstWhere(
+    final linkedSettles = events
+        .where(
           (event) =>
               event.type == 'tap_settled' && event.relatedEventId == tap.id,
-        );
+        )
+        .toList(growable: false);
+    expect(linkedSettles, hasLength(1));
+    final settled = linkedSettles.single;
 
     expect(routeChange.data['route'], destination);
     expect(requestId, isNotNull);
@@ -285,6 +291,16 @@ class _OverlayFixture {
     final diagnosticEpoch = diagnostic.data['routeEpoch'];
     expect(diagnosticEpoch, isA<int>());
     expect(settled.relatedEventId, tap.id);
+    expect(tap.targetAnchor, isNotNull);
+    expect(settled.targetAnchor?.fingerprint, tap.targetAnchor?.fingerprint);
+    expect(
+      settled.targetAnchor?.canonicalPath,
+      tap.targetAnchor?.canonicalPath,
+    );
+    expect(tap.stateAnchor?.signature, isNotNull);
+    expect(routeChange.stateAnchor?.signature, isNotNull);
+    expect(settled.stateAnchor?.signature, routeChange.stateAnchor?.signature);
+    expect(settled.stateAnchor?.signature, isNot(tap.stateAnchor?.signature));
     expect(settled.afterFrame, routeFrame);
     expect(events.indexOf(tap), lessThan(routeIndex));
     expect(routeIndex, lessThan(events.indexOf(settled)));
@@ -293,6 +309,13 @@ class _OverlayFixture {
     expect(provenance, isNotNull);
     expect(provenance!['route'], destination);
     expect(provenance['routeEpoch'], diagnosticEpoch);
+    final beforeProvenance = controller.debugFrameProvenance(tap.beforeFrame!);
+    expect(beforeProvenance, isNotNull);
+    expect(beforeProvenance!['route'], isNot(destination));
+    expect(
+      beforeProvenance['routeEpoch'] as int,
+      lessThan(diagnosticEpoch as int),
+    );
     expect(
       tap.beforeFrame,
       isNot(routeFrame),

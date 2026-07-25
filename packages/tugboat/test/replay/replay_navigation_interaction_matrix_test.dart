@@ -221,24 +221,37 @@ class _NavigationFixture {
     final tap = events
         .sublist(eventsAfter, routeIndex + 1)
         .lastWhere((event) => event.type == 'tap');
-    final settle = events
-        .skip(routeIndex)
-        .firstWhere(
+    final linkedSettles = events
+        .where(
           (event) =>
               event.type == 'tap_settled' && event.relatedEventId == tap.id,
-        );
+        )
+        .toList(growable: false);
+    expect(linkedSettles, hasLength(1));
+    final settle = linkedSettles.single;
     final routeFrame = routeChange.afterFrame;
-    final routeDiagnostic = events.firstWhere(
-      (event) =>
-          event.type == 'capture_diagnostic' &&
-          event.data['requestId'] == routeChange.data['captureRequestId'],
-    );
+    final routeDiagnostics = events
+        .where(
+          (event) =>
+              event.type == 'capture_diagnostic' &&
+              event.data['requestId'] == routeChange.data['captureRequestId'],
+        )
+        .toList(growable: false);
+    expect(routeDiagnostics, hasLength(1));
+    final routeDiagnostic = routeDiagnostics.single;
 
     expect(routeIndex, greaterThan(eventsAfter));
     expect(routeChange.data['route'], expectedRoute);
     expect(routeChange.data['navigation'], expectedNavigation);
     expect(tap.beforeFrame, isNotNull);
     expect(settle.relatedEventId, tap.id);
+    expect(tap.targetAnchor, isNotNull);
+    expect(settle.targetAnchor?.fingerprint, tap.targetAnchor?.fingerprint);
+    expect(settle.targetAnchor?.canonicalPath, tap.targetAnchor?.canonicalPath);
+    expect(tap.stateAnchor?.signature, isNotNull);
+    expect(routeChange.stateAnchor?.signature, isNotNull);
+    expect(settle.stateAnchor?.signature, routeChange.stateAnchor?.signature);
+    expect(settle.stateAnchor?.signature, isNot(tap.stateAnchor?.signature));
     expect(settle.afterFrame, routeFrame);
     expect(routeFrame, isNotNull);
     expect(routeDiagnostic.data['outcome'], 'fresh_accepted');
@@ -250,6 +263,13 @@ class _NavigationFixture {
     expect(provenance, isNotNull);
     expect(provenance!['routeEpoch'], diagnosticEpoch);
     expect(provenance['route'], expectedRoute);
+    final beforeProvenance = controller.debugFrameProvenance(tap.beforeFrame!);
+    expect(beforeProvenance, isNotNull);
+    expect(beforeProvenance!['route'], isNot(expectedRoute));
+    expect(
+      beforeProvenance['routeEpoch'] as int,
+      lessThan(diagnosticEpoch as int),
+    );
     expect(
       events.indexOf(tap),
       lessThan(routeIndex),
