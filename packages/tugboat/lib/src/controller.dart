@@ -58,6 +58,8 @@ class _ScrollTracker {
     required this.startEventId,
     required this.startedAtMs,
     required this.startOffset,
+    required this.routeEpoch,
+    required this.startState,
     required this.beforeFrame,
     required this.targetAnchor,
     required this.sectionLabel,
@@ -71,6 +73,8 @@ class _ScrollTracker {
   final String startEventId;
   final int startedAtMs;
   final double startOffset;
+  final int routeEpoch;
+  final TugboatStateAnchor? startState;
   final String? beforeFrame;
   final TugboatTargetAnchor? targetAnchor;
   final String? sectionLabel;
@@ -712,6 +716,18 @@ class TugboatReplayController extends ChangeNotifier {
   /// Optional compatible frame returned with [debugNextCaptureOutcome].
   @visibleForTesting
   String? debugNextCaptureFrameId;
+
+  /// Deterministically degrades the rolling screenshot budget in tests
+  /// without relying on platform readback timing.
+  @visibleForTesting
+  void debugRecordScreenshotBudgetCost({int costMicros = 1}) {
+    _screenshotBudget.record(
+      queueWaitMicros: costMicros,
+      readbackMicros: 0,
+      encodeMicros: 0,
+      encodedBytes: 0,
+    );
+  }
 
   @visibleForTesting
   ({
@@ -1713,17 +1729,48 @@ class TugboatReplayController extends ChangeNotifier {
             : null,
       );
     }
+    if (_disposed ||
+        _capturePaused ||
+        _skipCapture ||
+        _shouldSuppressFrameCapture ||
+        _captureInFlight) {
+      return _cancelledCaptureExecution(
+        _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
+      );
+    }
+    final session = captureSession;
+    final capturer = _capturer;
+    if (session == null || capturer == null) {
+      return const _CaptureExecution(outcome: _CaptureOutcome.noFrameAvailable);
+    }
+
+    final eligibleToSkip =
+        freshness == _CaptureFreshness.reusable &&
+        trigger != TugboatFrameTrigger.initial &&
+        trigger != TugboatFrameTrigger.lifecycle &&
+        config.screenshotBudget.skipEligibleWhenDegraded &&
+        _screenshotBudget.shouldSkipEligible;
+    final compatibleSkipFrame = eligibleToSkip
+        ? _compatibleFrameFor(context)
+        : null;
+    if (compatibleSkipFrame != null) {
+      _screenshotBudget.record(
+        queueWaitMicros: queueWaitMicros,
+        readbackMicros: 0,
+        encodeMicros: 0,
+        encodedBytes: 0,
+        dropReason: 'budget',
+      );
+      _refreshStateAnchor();
+      _maybeEmitSceneInventory();
+      return _CaptureExecution(
+        outcome: _CaptureOutcome.screenshotBudgetSkip,
+        frameId: compatibleSkipFrame,
+      );
+    }
+
     final captureOverride = debugExecuteCapture;
     if (captureOverride != null) {
-      if (_disposed ||
-          _capturePaused ||
-          _skipCapture ||
-          _shouldSuppressFrameCapture ||
-          _captureInFlight) {
-        return _cancelledCaptureExecution(
-          _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
-        );
-      }
       _beginCapture();
       try {
         // Match the production capture path: refresh state before capture and
@@ -1761,44 +1808,6 @@ class TugboatReplayController extends ChangeNotifier {
           _ensureCapturePumpScheduled();
         }
       }
-    }
-
-    if (_disposed ||
-        _capturePaused ||
-        _skipCapture ||
-        _shouldSuppressFrameCapture ||
-        _captureInFlight) {
-      return _cancelledCaptureExecution(
-        _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
-      );
-    }
-    final session = captureSession;
-    final capturer = _capturer;
-    if (session == null || capturer == null) {
-      return const _CaptureExecution(outcome: _CaptureOutcome.noFrameAvailable);
-    }
-
-    final eligibleToSkip =
-        freshness == _CaptureFreshness.reusable &&
-        trigger != TugboatFrameTrigger.initial &&
-        trigger != TugboatFrameTrigger.lifecycle &&
-        config.screenshotBudget.skipEligibleWhenDegraded &&
-        _screenshotBudget.shouldSkipEligible;
-    if (eligibleToSkip) {
-      _screenshotBudget.record(
-        queueWaitMicros: queueWaitMicros,
-        readbackMicros: 0,
-        encodeMicros: 0,
-        encodedBytes: 0,
-        dropReason: 'budget',
-      );
-      _refreshStateAnchor();
-      _maybeEmitSceneInventory();
-      final compatible = _compatibleFrameFor(context);
-      return _CaptureExecution(
-        outcome: _CaptureOutcome.screenshotBudgetSkip,
-        frameId: compatible,
-      );
     }
 
     _beginCapture();
@@ -2540,6 +2549,8 @@ class TugboatReplayController extends ChangeNotifier {
       startEventId: startEventId,
       startedAtMs: atMs,
       startOffset: metrics.pixels,
+      routeEpoch: _routeEpoch,
+      startState: _snapshotStateAnchor(_currentStateAnchor),
       beforeFrame: beforeFrame,
       targetAnchor: targetAnchor,
       sectionLabel: sectionLabel,
@@ -2668,6 +2679,40 @@ class TugboatReplayController extends ChangeNotifier {
 
     _enqueue('scroll_end', () async {
       if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
+        return;
+      }
+      if (tracker.routeEpoch != _routeEpoch) {
+        // A navigator transition won the race with pointer-up. Capturing now
+        // would attribute the destination's pixels to the completed scroll on
+        // the previous route, so retain the scroll boundary as explicitly
+        // degraded evidence instead of queuing a cross-route capture.
+        _addEvent(
+          TugboatEvent(
+            id: _nextId('event'),
+            atMs: atMs,
+            type: 'scroll_end',
+            stateAnchor: tracker.startState,
+            targetAnchor: tracker.targetAnchor,
+            beforeFrame: tracker.beforeFrame,
+            relatedEventId: tracker.startEventId,
+            data: {
+              ..._scrollEventData(
+                metrics: metrics,
+                depth: tracker.depth,
+                tracker: tracker,
+                endOffset: metrics.pixels,
+                durationMs: atMs - tracker.startedAtMs,
+                overscrollCount: tracker.overscrollCount,
+              ),
+              'captureOutcome': 'superseded_route_epoch',
+              'frameAttachment': {
+                'after': 'unavailable',
+                'reason': 'superseded_route_epoch',
+              },
+            },
+          ),
+        );
+        if (!_disposed) notifyListeners();
         return;
       }
       final afterCapture = _requestCaptureCancellable(

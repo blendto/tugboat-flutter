@@ -40,6 +40,21 @@ void main() {
       expect(settle.afterFrame, isNotNull);
       expect(settle.stateAnchor?.signature, 'sig-home');
       expect(
+        CoherenceInvariants.tapSettleIsLinked(
+          events: session.events,
+          tap: tap,
+          settle: settle,
+        ),
+        isTrue,
+      );
+      expect(
+        CoherenceInvariants.hasChronologicalChain(
+          events: session.events,
+          orderedEventIds: <String>[tap.id, settle.id],
+        ),
+        isTrue,
+      );
+      expect(
         CoherenceInvariants.tapSettleIsRouteCoherent(
           tap: tap,
           settle: settle,
@@ -99,9 +114,10 @@ void main() {
       await routeFuture;
 
       final session = harness.controller.session!;
+      final tap = session.ofType('tap').single;
       final routeChange = session.ofType('route_change').single;
       final settle = session.ofType('tap_settled').single;
-      expect(settle.relatedEventId, session.ofType('tap').single.id);
+      expect(settle.relatedEventId, tap.id);
       expect(settle.afterFrame, routeChange.afterFrame);
       expect(settle.afterFrame, isNot(originFrame));
       expect(settle.result, TugboatInteractionResult.navigated);
@@ -120,11 +136,26 @@ void main() {
       );
       expect(tapIndex, lessThan(settleIndex));
       expect(routeIndex, lessThan(settleIndex));
+      expect(
+        CoherenceInvariants.hasChronologicalChain(
+          events: session.events,
+          orderedEventIds: <String>[tap.id, routeChange.id, settle.id],
+        ),
+        isTrue,
+      );
+      expect(
+        CoherenceInvariants.tapSettleIsLinked(
+          events: session.events,
+          tap: tap,
+          settle: settle,
+        ),
+        isTrue,
+      );
 
       expect(
         CoherenceInvariants.navigationTapHasNoEarlyNoVisibleChange(
           events: session.events,
-          tapEventId: session.ofType('tap').single.id,
+          tapEventId: tap.id,
           expectedDestinationRoute: '/home',
           expectedRouteEventId: routeChange.id,
         ),
@@ -1277,6 +1308,7 @@ void main() {
       expect(changes.last.data['route'], '/b');
       expect(harness.controller.debugRouteCapturePending, isFalse);
       expect(harness.scheduler.hasPendingDelays, isFalse);
+      expect(CoherenceInvariants.hasNoStrandedCaptureWork(harness), isTrue);
     },
   );
 
