@@ -342,8 +342,6 @@ class ReplayCoherenceHarness {
 
   /// Simulates pointer-down → slop swipe classification → pointer-up without
   /// relying on [InputCapture], for deterministic characterization.
-  /// Simulates pointer-down → slop swipe classification → pointer-up without
-  /// relying on [InputCapture], for deterministic characterization.
   Future<void> recordClassifiedSwipe(
     Offset start, {
     Offset? end,

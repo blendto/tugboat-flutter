@@ -775,8 +775,6 @@ void main() {
       tap.targetAnchor!.canonicalPath,
     );
     expect(repeatTap.targetAnchor!.role, tap.targetAnchor!.role);
-
-    await harness.tearDownWidgetBacked(tester);
   });
 
   testWidgets('widget-backed pending-route tap keeps linked target anchor', (
@@ -829,8 +827,6 @@ void main() {
     expect(settle.targetAnchor!.canonicalPath, tap.targetAnchor!.canonicalPath);
     expect(settle.targetAnchor!.role, tap.targetAnchor!.role);
     expect(settle.relatedEventId, tap.id);
-
-    await harness.tearDownWidgetBacked(tester);
   });
 
   testWidgets(
@@ -872,8 +868,6 @@ void main() {
       expect(swipe.data['startX'], closeTo(start.dx, 0.01));
       expect(swipe.data['startY'], closeTo(start.dy, 0.01));
       expect(swipe.data['scrolled'], isFalse);
-
-      await harness.tearDownWidgetBacked(tester);
     },
   );
 
