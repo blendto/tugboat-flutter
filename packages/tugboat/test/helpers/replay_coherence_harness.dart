@@ -216,9 +216,14 @@ class ReplayCoherenceHarness {
     );
     capturer = ControllableCaptureExecutor(controller);
     capturer.registerFrame = (frameId, {route, routeEpoch}) {
+      final resolvedRoute =
+          route ??
+          controller.currentStateAnchor?.signatureParts['route'] as String? ??
+          controller.currentRoute ??
+          '';
       registerFrameProvenance(
         frameId,
-        route: route ?? controller.currentRoute ?? '',
+        route: resolvedRoute,
         routeEpoch: routeEpoch,
       );
     };
@@ -334,6 +339,8 @@ class ReplayCoherenceHarness {
 
   /// Simulates pointer-down → slop swipe classification → pointer-up without
   /// relying on [InputCapture], for deterministic characterization.
+  /// Simulates pointer-down → slop swipe classification → pointer-up without
+  /// relying on [InputCapture], for deterministic characterization.
   Future<void> recordClassifiedSwipe(
     Offset start, {
     Offset? end,
@@ -344,6 +351,12 @@ class ReplayCoherenceHarness {
     controller.markPendingTapAsSwipe(pointer);
     controller.recordPointerUp(finish, pointer: pointer);
     await pumpMicrotasks();
+  }
+
+  Future<void> tearDownWidgetBacked(WidgetTester tester) async {
+    dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   }
 }
 
