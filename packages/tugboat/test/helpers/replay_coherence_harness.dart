@@ -221,8 +221,12 @@ class ReplayCoherenceHarness {
           controller.currentStateAnchor?.signatureParts['route'] as String?;
       final resolvedRoute =
           route ??
-          (currentRoute != null && currentRoute.isNotEmpty ? currentRoute : null) ??
-          (anchorRoute != null && anchorRoute.isNotEmpty ? anchorRoute : null) ??
+          (currentRoute != null && currentRoute.isNotEmpty
+              ? currentRoute
+              : null) ??
+          (anchorRoute != null && anchorRoute.isNotEmpty
+              ? anchorRoute
+              : null) ??
           '';
       registerFrameProvenance(
         frameId,

@@ -522,15 +522,20 @@ void main() {
       expect(
         harness.controller.currentStateAnchor?.signatureParts['route'],
         '/scan',
-        reason: 'debugFreezeStateAnchor retains origin semantics during capture',
+        reason:
+            'debugFreezeStateAnchor retains origin semantics during capture',
       );
 
       await harness.flushScheduler();
       await routeFuture;
 
-      final routeChange = harness.controller.session!.ofType('route_change').single;
+      final routeChange = harness.controller.session!
+          .ofType('route_change')
+          .single;
       final destinationFrame = routeChange.afterFrame!;
-      final destinationEpoch = harness.provenanceFor(destinationFrame)!.routeEpoch;
+      final destinationEpoch = harness
+          .provenanceFor(destinationFrame)!
+          .routeEpoch;
 
       expect(harness.provenanceFor(originFrame)!.route, '/scan');
       expect(harness.provenanceFor(originFrame)!.routeEpoch, originEpoch);
