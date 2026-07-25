@@ -161,6 +161,7 @@ void main() {
     expect(session.frames.every((frame) => frame.captureMicros > 0), isTrue);
     expect(session.frames.every((frame) => frame.masked), isFalse);
 
+    final framesBeforeTap = session.frames.length;
     await tester.tap(find.text('Continue'));
     await _waitForCaptures(tester);
 
@@ -195,6 +196,8 @@ void main() {
       tapEvents.first.targetAnchor?.canonicalPath,
     );
     expect(settled.first.afterFrame, isNotNull);
+    expect(session.frames.length, greaterThan(framesBeforeTap));
+    expect(settled.first.afterFrame, isNot(tapEvents.first.beforeFrame));
   });
 
   testWidgets('captures route changes with destination screenshot', (
@@ -207,12 +210,16 @@ void main() {
             TugboatReplay.wrapApp(config: _testConfig, child: child!),
         home: Builder(
           builder: (context) => Scaffold(
+            backgroundColor: Colors.red,
             body: TextButton(
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute<void>(
                   settings: const RouteSettings(name: '/next'),
-                  builder: (_) => const Scaffold(body: Text('Next screen')),
+                  builder: (_) => const Scaffold(
+                    backgroundColor: Colors.blue,
+                    body: Text('Next screen'),
+                  ),
                 ),
               ),
               child: const Text('Next'),
@@ -251,6 +258,14 @@ void main() {
       isFalse,
     );
     expect(session.frames, isNotEmpty);
+    expect(routeChange.afterFrame, isNotNull);
+    final routeBytes = session.frameBytes[routeChange.afterFrame]!;
+    final routeImage = img.decodeJpg(routeBytes)!;
+    final routePixel = routeImage.getPixel(
+      routeImage.width ~/ 2,
+      routeImage.height ~/ 2,
+    );
+    expect(routePixel.b, greaterThan(routePixel.r));
 
     await tester.pump(const Duration(milliseconds: 400));
     await _waitForCaptures(tester);
@@ -1082,14 +1097,8 @@ void main() {
       TugboatReplay.controller!.config.profile,
       TugboatCaptureProfile.exploration,
     );
-    expect(
-      TugboatReplay.controller!.session!.activationRequestId,
-      'request-1',
-    );
-    expect(
-      TugboatReplay.controller!.session!.id,
-      isNot(equals('request-1')),
-    );
+    expect(TugboatReplay.controller!.session!.activationRequestId, 'request-1');
+    expect(TugboatReplay.controller!.session!.id, isNot(equals('request-1')));
   });
 
   testWidgets('activate-deactivate-activate ends each session once', (

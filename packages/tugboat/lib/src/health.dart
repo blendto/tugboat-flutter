@@ -81,8 +81,10 @@ class TugboatScreenshotBudgetHealth {
     this.coalesced = 0,
     this.lastDropReason,
     this.avgQueueWaitMicros = 0,
+    this.avgFrameWaitMicros = 0,
     this.avgEncodeMicros = 0,
     this.avgReadbackMicros = 0,
+    this.avgMaskMicros = 0,
   });
 
   final bool degraded;
@@ -90,8 +92,10 @@ class TugboatScreenshotBudgetHealth {
   final int coalesced;
   final String? lastDropReason;
   final int avgQueueWaitMicros;
+  final int avgFrameWaitMicros;
   final int avgEncodeMicros;
   final int avgReadbackMicros;
+  final int avgMaskMicros;
 
   Map<String, Object?> toJson() => {
     'degraded': degraded,
@@ -99,8 +103,10 @@ class TugboatScreenshotBudgetHealth {
     'coalesced': coalesced,
     if (lastDropReason != null) 'lastDropReason': lastDropReason,
     'avgQueueWaitMicros': avgQueueWaitMicros,
+    'avgFrameWaitMicros': avgFrameWaitMicros,
     'avgEncodeMicros': avgEncodeMicros,
     'avgReadbackMicros': avgReadbackMicros,
+    'avgMaskMicros': avgMaskMicros,
   };
 }
 
@@ -139,13 +145,17 @@ class TugboatScreenshotBudgetTracker {
   bool degraded = false;
 
   int _sumQueue = 0;
+  int _sumFrameWait = 0;
   int _sumEncode = 0;
   int _sumReadback = 0;
+  int _sumMask = 0;
   int _count = 0;
 
   void record({
     required int queueWaitMicros,
+    int frameWaitMicros = 0,
     required int readbackMicros,
+    int maskMicros = 0,
     required int encodeMicros,
     required int encodedBytes,
     String? dropReason,
@@ -153,11 +163,18 @@ class TugboatScreenshotBudgetTracker {
   }) {
     final now = DateTime.now();
     _prune(now);
-    final cost = queueWaitMicros + readbackMicros + encodeMicros;
+    final cost =
+        queueWaitMicros +
+        frameWaitMicros +
+        readbackMicros +
+        maskMicros +
+        encodeMicros;
     _samples.add(_Sample(now, cost));
     _sumQueue += queueWaitMicros;
+    _sumFrameWait += frameWaitMicros;
     _sumEncode += encodeMicros;
     _sumReadback += readbackMicros;
+    _sumMask += maskMicros;
     _count += 1;
     if (coalescedCapture) coalesced += 1;
     if (dropReason != null) {
@@ -177,8 +194,10 @@ class TugboatScreenshotBudgetTracker {
       coalesced: coalesced,
       lastDropReason: lastDropReason,
       avgQueueWaitMicros: _sumQueue ~/ n,
+      avgFrameWaitMicros: _sumFrameWait ~/ n,
       avgEncodeMicros: _sumEncode ~/ n,
       avgReadbackMicros: _sumReadback ~/ n,
+      avgMaskMicros: _sumMask ~/ n,
     );
   }
 
