@@ -42,21 +42,14 @@
   instead of reusing the previous route's latest frame. Supersession,
   lifecycle cancellation, capture failure, and bounded timeout outcomes
   complete deterministically without allowing late readbacks to publish.
+- **Production viewport semantics stay local** — production sessions can still
+  build viewport semantic maps for tap resolution, but `viewport_semantic_map`
+  and `scroll_semantic_snapshot` events are emitted only during exploration so
+  UI text from semantic nodes is not uploaded in lean production captures.
 - **`ExplorationCaptureSink.recordFrame`** — forwards frame metadata and PNG bytes over the
   exploration WebSocket instead of dropping them. The CLI persists these under `frames/` when
   Flutter capture produces them (local capture may still be suppressed after the socket connects
   for performance; see `collector-integration.md`).
-
-### Removed
-
-- **`control_inventory` SDK events** — the SDK no longer emits per-screen control
-  inventories over the exploration WebSocket. Possible actions should be derived
-  from screenshots (for example via a VLM) instead of SDK-side widget-tree scans.
-  State anchors still include `actionableSummary` role counts for fingerprinting
-  only; that field is not a substitute for control discovery.
-
-### Changed
-
 - **`actionableSummary` deduplication** — count only leaf canonical controls (one per
   `FilledButton`/`TextButton`, not nested ink-well chrome). Fixes over-counting in modal,
   visibility, and rebuild fingerprint tests.
@@ -77,6 +70,14 @@
   and epoch/capture semantics are unchanged; stack-cleanup removals from
   `pushNamedAndRemoveUntil` still never bump the route epoch or cancel the pending
   destination capture (now covered by a dedicated regression test).
+
+### Removed
+
+- **`control_inventory` SDK events** — the SDK no longer emits per-screen control
+  inventories over the exploration WebSocket. Possible actions should be derived
+  from screenshots (for example via a VLM) instead of SDK-side widget-tree scans.
+  State anchors still include `actionableSummary` role counts for fingerprinting
+  only; that field is not a substitute for control discovery.
 
 ## 0.1.0
 

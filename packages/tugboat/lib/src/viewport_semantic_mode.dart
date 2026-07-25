@@ -6,9 +6,10 @@ enum TugboatViewportSemanticMode {
   /// Build maps on-device for tap verdicts only; do not emit map events.
   tapResolutionOnly,
 
-  /// Build and emit full semantic map / scroll snapshot events.
+  /// Build and emit full semantic map / scroll snapshot events in exploration.
+  /// Production uses this as tap-resolution-only to avoid uploading maps.
   full,
 
-  /// Same as [full], plus debugPrint diagnostics.
+  /// Same as [full], plus debugPrint diagnostics in exploration.
   fullWithDebugLogs,
 }

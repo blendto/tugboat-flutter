@@ -391,48 +391,54 @@ void main() {
     expect(resolution.keys, isNot(contains('text')));
   });
 
-  testWidgets('production semantic map requires explicit test opt-in', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        builder: (context, child) => TugboatReplay.wrapApp(
-          config: const TugboatReplayConfig(
-            profile: TugboatCaptureProfile.productionLean,
-            settleDelay: Duration.zero,
-            enableGlobalPointerCapture: false,
-            capturePixelRatio: 1.0,
-            viewportSemanticMode: TugboatViewportSemanticMode.full,
-            viewportSemanticMapMaxNodes: 1,
+  testWidgets(
+    'production semantic map emission stays off even with full mode',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => TugboatReplay.wrapApp(
+            config: const TugboatReplayConfig(
+              profile: TugboatCaptureProfile.productionLean,
+              settleDelay: Duration.zero,
+              enableGlobalPointerCapture: false,
+              capturePixelRatio: 1.0,
+              viewportSemanticMode: TugboatViewportSemanticMode.full,
+              viewportSemanticMapMaxNodes: 1,
+            ),
+            child: child!,
           ),
-          child: child!,
-        ),
-        home: Scaffold(
-          body: Column(
-            children: [
-              FilledButton(onPressed: () {}, child: const Text('Go')),
-              FilledButton(onPressed: () {}, child: const Text('Next')),
-            ],
+          home: Scaffold(
+            body: Column(
+              children: [
+                FilledButton(onPressed: () {}, child: const Text('Go')),
+                FilledButton(onPressed: () {}, child: const Text('Next')),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pump();
-    await _waitForCaptures(tester);
+      );
+      await tester.pump();
+      await _waitForCaptures(tester);
 
-    final controller = TugboatReplay.controller!;
-    controller.recordPointerDown(tester.getCenter(find.text('Go')));
-    await tester.pump();
+      final controller = TugboatReplay.controller!;
+      controller.recordPointerDown(tester.getCenter(find.text('Go')));
+      await tester.pump();
 
-    final mapEvent = controller.session!.events
-        .where((event) => event.type == 'viewport_semantic_map')
-        .single;
-    final nodes = mapEvent.data['nodes'] as List;
-    final summary = mapEvent.data['summary'] as Map<Object?, Object?>;
-    expect(nodes.length, lessThanOrEqualTo(1));
-    expect(summary['truncatedCount'], isA<int>());
-    expect(summary['totalNodes'], nodes.length);
-  });
+      final mapEvents = controller.session!.events
+          .where(
+            (event) =>
+                event.type == 'viewport_semantic_map' ||
+                event.type == 'scroll_semantic_snapshot',
+          )
+          .toList();
+      expect(mapEvents, isEmpty);
+
+      final tapEvent = controller.session!.events
+          .where((event) => event.type == 'tap')
+          .last;
+      expect(tapEvent.data['viewportSemanticResolution'], isNotNull);
+    },
+  );
 
   testWidgets('production semantic map stays off with default mode', (
     tester,
@@ -576,7 +582,10 @@ void main() {
           .whereType<String>()
           .where((fingerprint) => fingerprint.isNotEmpty)
           .toSet();
-      expect(linkedFingerprints.intersection(inventoryFingerprints), isNotEmpty);
+      expect(
+        linkedFingerprints.intersection(inventoryFingerprints),
+        isNotEmpty,
+      );
 
       final inventoryIndex = events.indexWhere(
         (event) => event.type == 'scene_inventory',
