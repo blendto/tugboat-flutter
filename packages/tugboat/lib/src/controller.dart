@@ -58,6 +58,8 @@ class _ScrollTracker {
     required this.startEventId,
     required this.startedAtMs,
     required this.startOffset,
+    required this.routeEpoch,
+    required this.startState,
     required this.beforeFrame,
     required this.targetAnchor,
     required this.sectionLabel,
@@ -71,6 +73,8 @@ class _ScrollTracker {
   final String startEventId;
   final int startedAtMs;
   final double startOffset;
+  final int routeEpoch;
+  final TugboatStateAnchor? startState;
   final String? beforeFrame;
   final TugboatTargetAnchor? targetAnchor;
   final String? sectionLabel;
@@ -2540,6 +2544,8 @@ class TugboatReplayController extends ChangeNotifier {
       startEventId: startEventId,
       startedAtMs: atMs,
       startOffset: metrics.pixels,
+      routeEpoch: _routeEpoch,
+      startState: _snapshotStateAnchor(_currentStateAnchor),
       beforeFrame: beforeFrame,
       targetAnchor: targetAnchor,
       sectionLabel: sectionLabel,
@@ -2668,6 +2674,40 @@ class TugboatReplayController extends ChangeNotifier {
 
     _enqueue('scroll_end', () async {
       if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
+        return;
+      }
+      if (tracker.routeEpoch != _routeEpoch) {
+        // A navigator transition won the race with pointer-up. Capturing now
+        // would attribute the destination's pixels to the completed scroll on
+        // the previous route, so retain the scroll boundary as explicitly
+        // degraded evidence instead of queuing a cross-route capture.
+        _addEvent(
+          TugboatEvent(
+            id: _nextId('event'),
+            atMs: atMs,
+            type: 'scroll_end',
+            stateAnchor: tracker.startState,
+            targetAnchor: tracker.targetAnchor,
+            beforeFrame: tracker.beforeFrame,
+            relatedEventId: tracker.startEventId,
+            data: {
+              ..._scrollEventData(
+                metrics: metrics,
+                depth: tracker.depth,
+                tracker: tracker,
+                endOffset: metrics.pixels,
+                durationMs: atMs - tracker.startedAtMs,
+                overscrollCount: tracker.overscrollCount,
+              ),
+              'captureOutcome': 'superseded_route_epoch',
+              'frameAttachment': {
+                'after': 'unavailable',
+                'reason': 'superseded_route_epoch',
+              },
+            },
+          ),
+        );
+        if (!_disposed) notifyListeners();
         return;
       }
       final afterCapture = _requestCaptureCancellable(
