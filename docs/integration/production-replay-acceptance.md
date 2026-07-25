@@ -140,7 +140,7 @@ flows share a session, list the event IDs or timestamps that delimit each flow.
 
 Wait until the collector session has finalized and the replay is available in
 the production website. Filter to the recorded Blend build and SDK version
-`0.4.8` (or the version under test), then open every recorded session.
+`0.4.9` (or the version under test), then open every recorded session.
 
 For each interaction, inspect the actual replay UI and verify:
 
@@ -169,7 +169,7 @@ Use one row per production session:
 
 | Session ID | UTC range | Blend build | SDK version / SHA | Flows | Frame availability | Route/action coherence | Verdict | Follow-up |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `<collector-session-id>` | `<start> - <end>` | `<version+build>` | `0.4.8 / <sha>` | `<flows>` | pass/fail | pass/fail | accept/reject | `<issue or none>` |
+| `<collector-session-id>` | `<start> - <end>` | `<version+build>` | `0.4.9 / <sha>` | `<flows>` | pass/fail | pass/fail | accept/reject | `<issue or none>` |
 
 The cohort passes only when:
 
