@@ -282,10 +282,17 @@ class _VisibleRouteChange {
 enum _RouteCaptureOutcome { captured, failed, cancelled, timedOut }
 
 class _RouteCaptureResult {
-  const _RouteCaptureResult(this.outcome, {this.frameId});
+  const _RouteCaptureResult(
+    this.outcome, {
+    this.frameId,
+    this.stateAnchor,
+    this.routeEventId,
+  });
 
   final _RouteCaptureOutcome outcome;
   final String? frameId;
+  final TugboatStateAnchor? stateAnchor;
+  final String? routeEventId;
 }
 
 /// One deferred route capture. Its deadline deliberately runs outside the
@@ -404,6 +411,33 @@ class _TapSettleWork {
   void complete() {
     if (!completer.isCompleted) completer.complete();
   }
+}
+
+/// The one immutable observation used to write a `tap_settled` event.
+///
+/// A tap can outlive both a Navigator callback and another capture request.
+/// Do not derive event fields from controller state after this is constructed:
+/// that would pair an old frame with a later route/signature.
+class _TapSettleObservation {
+  const _TapSettleObservation({
+    required this.routeEpoch,
+    required this.route,
+    required this.afterState,
+    required this.afterFrame,
+    required this.navigationOutcome,
+    required this.captureOutcome,
+    this.routeEventId,
+  });
+
+  final int routeEpoch;
+  final String? route;
+  final TugboatStateAnchor? afterState;
+  final String? afterFrame;
+  final String navigationOutcome;
+  final String captureOutcome;
+  final String? routeEventId;
+
+  bool get isDegraded => afterFrame == null && captureOutcome != 'captured';
 }
 
 class TugboatReplayController extends ChangeNotifier {
@@ -1682,45 +1716,91 @@ class TugboatReplayController extends ChangeNotifier {
       }
       if (!_isActiveTapSettle(work)) return;
       final routeCapture = routeCaptureAtPointerUp ?? _activeRouteCapture;
-      final String? afterFrame;
+      _TapSettleObservation observation;
       if (routeCapture != null) {
-        afterFrame = await _awaitRouteCaptureBarrier(routeCapture);
-        // Failed/timed-out route work already emits a route_change event with
-        // an explicit captureOutcome. Keep suppressing the linked settle here
-        // so it cannot manufacture a second, cross-route observation; #10
-        // owns the eventual bounded degraded-settle contract.
-        if (afterFrame == null || !_isActiveTapSettle(work)) return;
+        final routeBarrier = await _awaitRouteCaptureBarrier(routeCapture);
+        if (!_isActiveTapSettle(work)) return;
+        observation = _tapObservationFromRouteBarrier(routeBarrier);
       } else {
-        _refreshStateAnchor();
+        final requestedRouteEpoch = _routeEpoch;
+        final requestedRoute = _currentRoute;
+        final semanticAfterState = _snapshotStateAnchor(_refreshStateAnchor());
         final capture = _requestCaptureCancellable(
           trigger: TugboatFrameTrigger.tap,
           settleDelay: Duration.zero,
         );
         work.attachCaptureCancellation(capture.cancel);
-        afterFrame = await capture.done;
+        final afterFrame = await capture.done;
         if (!_isActiveTapSettle(work)) return;
+        final provenance = afterFrame == null
+            ? null
+            : _frameProvenance[afterFrame];
+        final compatibleFrame =
+            afterFrame != null &&
+            provenance != null &&
+            provenance.context.routeEpoch == requestedRouteEpoch &&
+            provenance.context.route == requestedRoute;
+        final replacementRoute = _activeRouteCapture;
+        if (!compatibleFrame &&
+            replacementRoute != null &&
+            replacementRoute.epoch != requestedRouteEpoch) {
+          final routeBarrier = await _awaitRouteCaptureBarrier(
+            replacementRoute,
+          );
+          if (!_isActiveTapSettle(work)) return;
+          observation = _tapObservationFromRouteBarrier(routeBarrier);
+        } else {
+          observation = _TapSettleObservation(
+            routeEpoch: requestedRouteEpoch,
+            route: requestedRoute,
+            afterState: compatibleFrame
+                ? _stateObservedWithFrame(afterFrame)
+                : semanticAfterState,
+            afterFrame: compatibleFrame ? afterFrame : null,
+            navigationOutcome: 'same_route',
+            captureOutcome: compatibleFrame
+                ? 'captured'
+                : (_lastCaptureFailure?.name ?? 'capture_unavailable'),
+          );
+        }
       }
-      final observedAfterState = _stateObservedWithFrame(afterFrame);
-      await _enqueue('tap_settled', () async {
+      Future<void> writeSettle() async {
         if (!_isActiveTapSettle(work)) return;
         final beforeState = pending.beforeState;
         final beforeFrame = pending.beforeFrame;
         final tapEventId = pending.eventId;
         final tapTargetAnchor = pending.targetAnchor;
-        // Keep the state/signature paired with the same completed observation
-        // as afterFrame. Controller state may advance while this event waits
-        // for admission to the serialized mutation queue.
-        final afterState = observedAfterState ?? _currentStateAnchor;
-        // Preserve the existing interaction classification until #10
-        // introduces the coherent visual/semantic outcome model. This issue
-        // only fixes which state and frame are attached as evidence.
-        final classificationAfterState = _currentStateAnchor;
+        // Never read mutable controller state here: later route/capture work
+        // may have advanced while this task waited on the serialized queue.
+        final afterState = observation.afterState;
+        final afterFrame = observation.afterFrame;
         final result = _computeTapSettleResult(
           beforeState: beforeState,
-          afterState: classificationAfterState,
+          afterState: afterState,
           beforeFrame: beforeFrame,
           afterFrame: afterFrame,
+          navigationOutcome: observation.navigationOutcome,
+          degraded: observation.isDegraded,
         );
+        final beforeSignature = beforeState?.signature;
+        final afterSignature = afterState?.signature;
+        final semanticAvailable =
+            beforeSignature?.isNotEmpty == true &&
+            afterSignature?.isNotEmpty == true;
+        final semanticChanged = semanticAvailable
+            ? beforeSignature != afterSignature
+            : null;
+        final beforeContentHash = beforeFrame == null
+            ? null
+            : _frameContentHash(beforeFrame);
+        final afterContentHash = afterFrame == null
+            ? null
+            : _frameContentHash(afterFrame);
+        final visualAvailable =
+            beforeContentHash != null && afterContentHash != null;
+        final visualChanged = visualAvailable
+            ? beforeContentHash != afterContentHash
+            : null;
 
         _addEvent(
           TugboatEvent(
@@ -1736,10 +1816,39 @@ class TugboatReplayController extends ChangeNotifier {
             data: {
               'x': position.dx,
               'y': position.dy,
+              'settleObservation': {
+                'version': 1,
+                'routeEpoch': observation.routeEpoch,
+                if (observation.route != null) 'route': observation.route,
+                'navigationOutcome': observation.navigationOutcome,
+                'captureOutcome': observation.captureOutcome,
+                if (observation.routeEventId != null)
+                  'routeEventId': observation.routeEventId,
+                'semantic': {
+                  'changed': semanticChanged,
+                  'evidence': semanticAvailable
+                      ? 'state_signature'
+                      : 'unavailable',
+                  'reason': semanticChanged == null
+                      ? 'unavailable'
+                      : semanticChanged
+                      ? 'state_signature_changed'
+                      : 'same_signature',
+                },
+                'visual': {
+                  'changed': visualChanged,
+                  'evidence': visualAvailable ? 'content_hash' : 'unavailable',
+                  'reason': visualChanged == null
+                      ? 'unavailable'
+                      : visualChanged
+                      ? 'frame_changed'
+                      : 'same_frame',
+                },
+              },
               if (afterFrame == null)
                 'frameAttachment': {
                   'after': 'unavailable',
-                  'reason': _lastCaptureFailure?.name ?? 'capture_unavailable',
+                  'reason': observation.captureOutcome,
                 },
             },
           ),
@@ -1751,7 +1860,16 @@ class TugboatReplayController extends ChangeNotifier {
           afterFrame: afterFrame,
         );
         if (!_disposed) notifyListeners();
-      });
+      }
+
+      // Route barriers may time out while the ordinary event queue is blocked.
+      // Publish that one degraded, frame-less observation immediately rather
+      // than letting it be replaced by unrelated later route state.
+      if (observation.isDegraded) {
+        await writeSettle();
+      } else {
+        await _enqueue('tap_settled', writeSettle);
+      }
     } finally {
       _activeTapSettles.remove(work);
       work.complete();
@@ -1765,6 +1883,36 @@ class TugboatReplayController extends ChangeNotifier {
       _endSessionFuture == null &&
       identical(_session, work.session);
 
+  _TapSettleObservation _tapObservationFromRouteBarrier(
+    ({_RouteCaptureWork work, _RouteCaptureResult result}) routeBarrier,
+  ) {
+    final settledRoute = routeBarrier.work;
+    final routeResult = routeBarrier.result;
+    final frameId = routeResult.frameId;
+    final provenance = frameId == null ? null : _frameProvenance[frameId];
+    final validFrame =
+        frameId != null &&
+        provenance != null &&
+        provenance.context.captureSessionId == _session?.id &&
+        provenance.context.routeEpoch == settledRoute.epoch &&
+        provenance.context.route == settledRoute.change.destinationRoute;
+    return _TapSettleObservation(
+      routeEpoch: settledRoute.epoch,
+      route: settledRoute.change.destinationRoute,
+      afterState: validFrame
+          ? _stateObservedWithFrame(frameId)
+          : routeResult.stateAnchor,
+      afterFrame: validFrame ? frameId : null,
+      navigationOutcome: validFrame ? 'navigated' : 'navigation_unavailable',
+      captureOutcome: validFrame
+          ? 'captured'
+          : routeResult.outcome == _RouteCaptureOutcome.timedOut
+          ? 'timed_out'
+          : 'failed',
+      routeEventId: routeResult.routeEventId,
+    );
+  }
+
   void _cancelActiveTapSettles() {
     for (final work in List<_TapSettleWork>.from(_activeTapSettles)) {
       work.cancel();
@@ -1777,21 +1925,46 @@ class TugboatReplayController extends ChangeNotifier {
     required TugboatStateAnchor? afterState,
     required String? beforeFrame,
     required String? afterFrame,
+    String navigationOutcome = 'same_route',
+    bool degraded = false,
   }) {
+    if (degraded) return TugboatInteractionResult.unknown;
+    if (navigationOutcome == 'navigated') {
+      return TugboatInteractionResult.navigated;
+    }
     final beforeSig = beforeState?.signature ?? '';
     final afterSig = afterState?.signature ?? '';
     if (beforeSig.isNotEmpty && afterSig.isNotEmpty && beforeSig != afterSig) {
       return TugboatInteractionResult.changed;
     }
-    if (afterFrame != null &&
-        beforeFrame != null &&
-        afterFrame != beforeFrame) {
+    if (_framesVisuallyDifferent(beforeFrame, afterFrame)) {
       return TugboatInteractionResult.changed;
     }
-    if (beforeSig.isNotEmpty && afterSig.isNotEmpty) {
+    final beforeHash = beforeFrame == null
+        ? null
+        : _frameContentHash(beforeFrame);
+    final afterHash = afterFrame == null ? null : _frameContentHash(afterFrame);
+    if (beforeSig.isNotEmpty &&
+        afterSig.isNotEmpty &&
+        beforeHash != null &&
+        afterHash != null) {
       return TugboatInteractionResult.noVisibleChange;
     }
     return TugboatInteractionResult.unknown;
+  }
+
+  bool _framesVisuallyDifferent(String? beforeFrame, String? afterFrame) {
+    if (beforeFrame == null || afterFrame == null) return false;
+    final beforeHash = _frameContentHash(beforeFrame);
+    final afterHash = _frameContentHash(afterFrame);
+    return beforeHash != null && afterHash != null && beforeHash != afterHash;
+  }
+
+  String? _frameContentHash(String frameId) {
+    for (final frame in _session?.frames ?? const <TugboatFrame>[]) {
+      if (frame.id == frameId) return frame.contentHash;
+    }
+    return null;
   }
 
   void _linkScrollStartToActiveGestures(String scrollStartEventId) {
@@ -2156,20 +2329,23 @@ class TugboatReplayController extends ChangeNotifier {
   /// Waits for a route epoch's single capture outcome. If that epoch is
   /// superseded while a tap is waiting, join the replacement epoch instead of
   /// letting the tap fall back to an opportunistic latest frame.
-  Future<String?> _awaitRouteCaptureBarrier(_RouteCaptureWork work) async {
+  Future<({_RouteCaptureWork work, _RouteCaptureResult result})>
+  _awaitRouteCaptureBarrier(_RouteCaptureWork work) async {
     var candidate = work;
     while (true) {
       final result = await candidate.done;
       if (result.outcome == _RouteCaptureOutcome.captured) {
-        return result.frameId;
+        return (work: candidate, result: result);
       }
       // Only explicit cancellation from a successor can transfer a waiter.
       // In particular, a timed-out route must not attach a tap to a later,
       // unrelated navigation.
-      if (result.outcome != _RouteCaptureOutcome.cancelled) return null;
+      if (result.outcome != _RouteCaptureOutcome.cancelled) {
+        return (work: candidate, result: result);
+      }
       final replacement = candidate.supersededBy;
       if (replacement == null || identical(replacement, candidate)) {
-        return null;
+        return (work: candidate, result: result);
       }
       candidate = replacement;
     }
@@ -2217,17 +2393,17 @@ class TugboatReplayController extends ChangeNotifier {
     _advanceCaptureGeneration();
     _activeRouteCapture = null;
     _skipCapture = false;
-    work.complete(const _RouteCaptureResult(_RouteCaptureOutcome.timedOut));
-    _refreshStateAnchor();
+    final observedState = _snapshotStateAnchor(_refreshStateAnchor());
+    final routeEventId = _nextId('event');
     // This must not enqueue behind the blocked task that caused the timeout.
     // Dart's single isolate means the session mutation is still atomic with
     // respect to the next event-loop turn.
     _addEvent(
       TugboatEvent(
-        id: _nextId('event'),
+        id: routeEventId,
         atMs: atMs,
         type: 'route_change',
-        stateAnchor: _currentStateAnchor,
+        stateAnchor: observedState,
         result: TugboatInteractionResult.unknown,
         data: {
           if (change.previousRoute != null) 'fromRoute': change.previousRoute,
@@ -2235,6 +2411,13 @@ class TugboatReplayController extends ChangeNotifier {
           'navigation': change.navigation,
           'captureOutcome': 'timed_out',
         },
+      ),
+    );
+    work.complete(
+      _RouteCaptureResult(
+        _RouteCaptureOutcome.timedOut,
+        stateAnchor: observedState,
+        routeEventId: routeEventId,
       ),
     );
     if (!_disposed) notifyListeners();
@@ -2256,6 +2439,8 @@ class TugboatReplayController extends ChangeNotifier {
 
   Future<void> _finalizeRouteCapture(_RouteCaptureWork work) async {
     String? afterFrame;
+    TugboatStateAnchor? observedState;
+    String? routeEventId;
     var outcome = _RouteCaptureOutcome.failed;
     try {
       if (!_isActiveRouteCapture(work)) return;
@@ -2276,12 +2461,14 @@ class TugboatReplayController extends ChangeNotifier {
       if (captureResult.outcome == _RouteCaptureOutcome.failed) {
         if (!_isActiveRouteCapture(work)) return;
         outcome = _RouteCaptureOutcome.failed;
+        observedState = _snapshotStateAnchor(_currentStateAnchor);
+        routeEventId = _nextId('event');
         _addEvent(
           TugboatEvent(
-            id: _nextId('event'),
+            id: routeEventId,
             atMs: atMs,
             type: 'route_change',
-            stateAnchor: _currentStateAnchor,
+            stateAnchor: observedState,
             result: TugboatInteractionResult.navigated,
             data: {
               if (change.previousRoute != null)
@@ -2307,11 +2494,12 @@ class TugboatReplayController extends ChangeNotifier {
       if (!_isActiveRouteCapture(work)) return;
       final previousRoute = change.previousRoute;
       final destinationRoute = change.destinationRoute;
-      final observedState =
+      observedState =
           _stateObservedWithFrame(afterFrame) ?? _currentStateAnchor;
+      routeEventId = _nextId('event');
       _addEvent(
         TugboatEvent(
-          id: _nextId('event'),
+          id: routeEventId,
           atMs: atMs,
           type: 'route_change',
           stateAnchor: observedState,
@@ -2336,7 +2524,14 @@ class TugboatReplayController extends ChangeNotifier {
         _activeRouteCapture = null;
         _skipCapture = false;
       }
-      work.complete(_RouteCaptureResult(outcome, frameId: afterFrame));
+      work.complete(
+        _RouteCaptureResult(
+          outcome,
+          frameId: afterFrame,
+          stateAnchor: observedState,
+          routeEventId: routeEventId,
+        ),
+      );
     }
   }
 

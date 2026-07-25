@@ -309,22 +309,17 @@ void main() {
       'route_pop',
       'route_remove',
     ]);
-    expect(changes[0].data, {'route': '/a', 'navigation': 'route_push'});
-    expect(changes[1].data, {
-      'fromRoute': '/a',
-      'route': '/b',
-      'navigation': 'route_replace',
-    });
-    expect(changes[2].data, {
-      'fromRoute': '/b',
-      'route': '/a',
-      'navigation': 'route_pop',
-    });
-    expect(changes[3].data, {
-      'fromRoute': '/a',
-      'route': '/b',
-      'navigation': 'route_remove',
-    });
+    expect(changes[0].data, containsPair('route', '/a'));
+    expect(changes[0].data, containsPair('navigation', 'route_push'));
+    expect(changes[1].data, containsPair('fromRoute', '/a'));
+    expect(changes[1].data, containsPair('route', '/b'));
+    expect(changes[1].data, containsPair('navigation', 'route_replace'));
+    expect(changes[2].data, containsPair('fromRoute', '/b'));
+    expect(changes[2].data, containsPair('route', '/a'));
+    expect(changes[2].data, containsPair('navigation', 'route_pop'));
+    expect(changes[3].data, containsPair('fromRoute', '/a'));
+    expect(changes[3].data, containsPair('route', '/b'));
+    expect(changes[3].data, containsPair('navigation', 'route_remove'));
     for (final event in changes) {
       expect(event.toJson().containsKey('route'), isFalse);
       expect(event.toJson().containsKey('toRoute'), isFalse);
@@ -367,12 +362,11 @@ void main() {
       'route_push',
       'route_push',
     ]);
-    expect(changes[0].data, {'route': '/', 'navigation': 'route_push'});
-    expect(changes[1].data, {
-      'fromRoute': '/',
-      'route': '/intro',
-      'navigation': 'route_push',
-    });
+    expect(changes[0].data, containsPair('route', '/'));
+    expect(changes[0].data, containsPair('navigation', 'route_push'));
+    expect(changes[1].data, containsPair('fromRoute', '/'));
+    expect(changes[1].data, containsPair('route', '/intro'));
+    expect(changes[1].data, containsPair('navigation', 'route_push'));
     controller.dispose();
   });
 
@@ -424,11 +418,9 @@ void main() {
       'route_push',
       'route_push',
     ]);
-    expect(changes.last.data, {
-      'fromRoute': '/old',
-      'route': '/home',
-      'navigation': 'route_push',
-    });
+    expect(changes.last.data, containsPair('fromRoute', '/old'));
+    expect(changes.last.data, containsPair('route', '/home'));
+    expect(changes.last.data, containsPair('navigation', 'route_push'));
     expect(controller.currentRoute, '/home');
     controller.dispose();
   });
@@ -1284,6 +1276,23 @@ void main() {
       afterFrame: 'frame-1',
     );
     expect(result, TugboatInteractionResult.changed);
+    controller.dispose();
+  });
+
+  test('tap_settled does not claim a no-op without visual evidence', () {
+    final rootKey = GlobalKey();
+    final controller = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: rootKey,
+    );
+
+    final result = controller.debugComputeTapSettleResult(
+      beforeState: const TugboatStateAnchor(signature: 'same-sig'),
+      afterState: const TugboatStateAnchor(signature: 'same-sig'),
+      beforeFrame: null,
+      afterFrame: 'frame-without-evidence',
+    );
+    expect(result, TugboatInteractionResult.unknown);
     controller.dispose();
   });
 

@@ -104,7 +104,7 @@ void main() {
       expect(settle.relatedEventId, session.ofType('tap').single.id);
       expect(settle.afterFrame, routeChange.afterFrame);
       expect(settle.afterFrame, isNot(originFrame));
-      expect(settle.result, TugboatInteractionResult.changed);
+      expect(settle.result, TugboatInteractionResult.navigated);
       expect(routeChange.data['route'], '/home');
       expect(routeChange.afterFrame, isNot(originFrame));
       expect(
@@ -214,6 +214,44 @@ void main() {
     );
     expect(harness.capturer.triggers, isNot(contains(TugboatFrameTrigger.tap)));
   });
+
+  test(
+    'route starting during tap readback replaces the same-route observation',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/scan', signature: 'sig-scan');
+      harness.capturer.blockNext = true;
+      harness.controller.recordPointerDown(const Offset(10, 10));
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+
+      final routeFuture = harness.controller.route(
+        'route_push',
+        harness.route('/home'),
+      );
+      harness.capturer.completeBlocked('stale-tap-frame');
+      await harness.flushScheduler();
+      await routeFuture;
+
+      final session = harness.controller.session!;
+      final routeChange = session.ofType('route_change').single;
+      final settle = session.ofType('tap_settled').single;
+      expect(settle.afterFrame, routeChange.afterFrame);
+      expect(settle.stateAnchor, routeChange.stateAnchor);
+      expect(settle.result, TugboatInteractionResult.navigated);
+      expect(
+        settle.data['settleObservation'],
+        allOf(
+          containsPair('route', '/home'),
+          containsPair('routeEventId', routeChange.id),
+        ),
+      );
+    },
+  );
 
   test('successor chain resolves a waiting settle only to C', () async {
     final harness = ReplayCoherenceHarness();
@@ -858,6 +896,43 @@ void main() {
   });
 
   test(
+    'same-route no-op requires matching semantic and visual evidence',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final beforeFrame = harness.seedRouteState(
+        route: '/home',
+        signature: 'sig-home',
+        frameContentHash: 'same-pixels',
+      );
+      harness.capturer.frameFactory = (trigger, force) => harness.controller
+          .debugSeedFrame(contentHash: 'same-pixels', trigger: trigger);
+
+      harness.controller.recordPointerDown(const Offset(12, 12));
+      harness.controller.recordPointerUp(const Offset(12, 12));
+      await harness.flushScheduler();
+
+      final settle = harness.controller.session!.ofType('tap_settled').single;
+      expect(settle.beforeFrame, beforeFrame);
+      expect(settle.afterFrame, isNot(beforeFrame));
+      expect(settle.result, TugboatInteractionResult.noVisibleChange);
+      final observation = settle.data['settleObservation'] as Map;
+      expect(observation['semantic'], {
+        'changed': false,
+        'evidence': 'state_signature',
+        'reason': 'same_signature',
+      });
+      expect(observation['visual'], {
+        'changed': false,
+        'evidence': 'content_hash',
+        'reason': 'same_frame',
+      });
+    },
+  );
+
+  test(
     'same pixels on a new route receive distinct frame provenance',
     () async {
       final harness = ReplayCoherenceHarness(
@@ -1425,7 +1500,19 @@ void main() {
       expect(change.afterFrame, isNull);
       expect(change.result, TugboatInteractionResult.unknown);
       expect(change.data['captureOutcome'], 'timed_out');
-      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      final timedOutSettle = harness.controller.session!
+          .ofType('tap_settled')
+          .single;
+      expect(timedOutSettle.result, TugboatInteractionResult.unknown);
+      expect(timedOutSettle.afterFrame, isNull);
+      expect(timedOutSettle.stateAnchor, change.stateAnchor);
+      expect(
+        timedOutSettle.data['settleObservation'],
+        allOf(
+          containsPair('captureOutcome', 'timed_out'),
+          containsPair('routeEventId', change.id),
+        ),
+      );
       expect(harness.controller.latestFrameId, frameBeforeTimeout);
 
       harness.capturer.completeBlocked('late-route-frame');
@@ -1467,12 +1554,12 @@ void main() {
       final changes = harness.controller.session!.ofType('route_change');
       expect(changes, hasLength(1));
       expect(changes.single.data['captureOutcome'], 'timed_out');
-      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      expect(harness.controller.session!.ofType('tap_settled'), hasLength(1));
 
       predecessor.complete();
       await harness.flushScheduler();
       expect(harness.controller.session!.ofType('route_change'), hasLength(1));
-      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      expect(harness.controller.session!.ofType('tap_settled'), hasLength(1));
     },
   );
 
@@ -1499,7 +1586,14 @@ void main() {
         harness.route('/next'),
       );
       await harness.pumpQueueWork();
-      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      final timedOutSettle = harness.controller.session!
+          .ofType('tap_settled')
+          .single;
+      expect(timedOutSettle.afterFrame, isNull);
+      expect(
+        timedOutSettle.data['settleObservation'],
+        containsPair('route', '/timed-out'),
+      );
       // Releasing the stale platform readback lets the scheduler run B, but the
       // timed-out A waiter must remain terminal rather than joining B.
       harness.capturer.completeBlocked('late-a-frame');
@@ -1511,7 +1605,7 @@ void main() {
         '/timed-out',
         '/next',
       ]);
-      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      expect(harness.controller.session!.ofType('tap_settled'), hasLength(1));
     },
   );
 
@@ -1660,19 +1754,25 @@ void main() {
           signatureParts: {'route': '/home'},
         ),
       );
-      harness.capturer.frameFactory = (trigger, force) => frame;
+      harness.capturer.frameFactory = (trigger, force) => harness.controller
+          .debugSeedFrame(contentHash: 'same-pixels', trigger: trigger);
       harness.controller.recordPointerUp(const Offset(8, 8));
       await harness.flushScheduler();
 
       final settle = harness.controller.session!.ofType('tap_settled').single;
       expect(settle.beforeFrame, frame);
-      expect(settle.afterFrame, frame);
+      expect(settle.afterFrame, isNot(frame));
       expect(settle.result, TugboatInteractionResult.changed);
       expect(
         settle.stateAnchor?.signature,
-        'sig-before',
-        reason: 'the state evidence stays paired with the reused frame',
+        'sig-after',
+        reason: 'same-route semantic evidence is captured with the settle',
       );
+      expect((settle.data['settleObservation'] as Map)['visual'], {
+        'changed': false,
+        'evidence': 'content_hash',
+        'reason': 'same_frame',
+      });
     },
   );
 
@@ -1693,9 +1793,16 @@ void main() {
       final settles = harness.controller.session!.ofType('tap_settled');
       expect(settles, hasLength(1));
       expect(settles.single.afterFrame, isNull);
+      expect(settles.single.result, TugboatInteractionResult.unknown);
       expect(settles.single.data['frameAttachment'], {
         'after': 'unavailable',
         'reason': 'capture_unavailable',
+      });
+      final observation = settles.single.data['settleObservation'] as Map;
+      expect(observation['visual'], {
+        'changed': null,
+        'evidence': 'unavailable',
+        'reason': 'unavailable',
       });
       expect(harness.controller.debugCaptureInFlight, isFalse);
       expect(harness.controller.debugRouteCapturePending, isFalse);
