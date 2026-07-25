@@ -1,10 +1,19 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tugboat/src/controller.dart';
 import 'package:tugboat/tugboat.dart';
+
+/// Harness-only route provenance for a seeded or captured frame.
+class HarnessFrameProvenance {
+  const HarnessFrameProvenance({
+    required this.route,
+    required this.routeEpoch,
+  });
+
+  final String route;
+  final int routeEpoch;
+}
 
 /// Controllable clock + delay queue for deterministic controller tests.
 ///
@@ -83,7 +92,13 @@ class ControllableCaptureExecutor {
 
   bool failNext = false;
   bool blockNext = false;
+  void Function(String frameId, {String? route, int? routeEpoch})? registerFrame;
   String? Function(TugboatFrameTrigger trigger, bool force)? frameFactory;
+
+  void _trackFrame(String? frameId, {String? route, int? routeEpoch}) {
+    if (frameId == null) return;
+    registerFrame?.call(frameId, route: route, routeEpoch: routeEpoch);
+  }
 
   Future<String?> call({
     required TugboatFrameTrigger trigger,
@@ -101,12 +116,17 @@ class ControllableCaptureExecutor {
       return completer.future;
     }
     final custom = frameFactory?.call(trigger, force);
-    if (custom != null) return custom;
-    return controller.debugSeedFrame(
+    if (custom != null) {
+      _trackFrame(custom);
+      return custom;
+    }
+    final frameId = controller.debugSeedFrame(
       contentHash:
           'capture-${trigger.name}-${controller.session!.frames.length}',
       trigger: trigger,
     );
+    _trackFrame(frameId);
+    return frameId;
   }
 
   int get blockedCount => _blocked.length;
@@ -114,12 +134,13 @@ class ControllableCaptureExecutor {
   void completeBlocked([String? frameId]) {
     for (final completer in List<Completer<String?>>.from(_blocked)) {
       if (!completer.isCompleted) {
-        completer.complete(
-          frameId ??
-              controller.debugSeedFrame(
-                contentHash: 'unblocked-${controller.session!.frames.length}',
-              ),
-        );
+        final resolved =
+            frameId ??
+            controller.debugSeedFrame(
+              contentHash: 'unblocked-${controller.session!.frames.length}',
+            );
+        _trackFrame(resolved);
+        completer.complete(resolved);
       }
     }
     _blocked.clear();
@@ -139,9 +160,25 @@ class ReplayCoherenceHarness {
   final Duration settleDelay;
   final GlobalKey boundaryKey;
   final ControllableScheduler scheduler = ControllableScheduler();
+  final Map<String, HarnessFrameProvenance> _frameProvenance =
+      <String, HarnessFrameProvenance>{};
 
   late final TugboatReplayController controller;
   late final ControllableCaptureExecutor capturer;
+
+  HarnessFrameProvenance? provenanceFor(String? frameId) =>
+      frameId == null ? null : _frameProvenance[frameId];
+
+  void registerFrameProvenance(
+    String frameId, {
+    required String route,
+    int? routeEpoch,
+  }) {
+    _frameProvenance[frameId] = HarnessFrameProvenance(
+      route: route,
+      routeEpoch: routeEpoch ?? controller.debugRouteEpoch,
+    );
+  }
 
   Future<void> setUp() async {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -155,6 +192,13 @@ class ReplayCoherenceHarness {
       boundaryKey: boundaryKey,
     );
     capturer = ControllableCaptureExecutor(controller);
+    capturer.registerFrame = (frameId, {route, routeEpoch}) {
+      registerFrameProvenance(
+        frameId,
+        route: route ?? controller.currentRoute ?? '',
+        routeEpoch: routeEpoch,
+      );
+    };
     controller.debugNow = scheduler.now;
     controller.debugDelay = scheduler.delay;
     controller.debugExecuteCapture = capturer.call;
@@ -190,10 +234,12 @@ class ReplayCoherenceHarness {
         signatureParts: {'route': route},
       ),
     );
-    return controller.debugSeedFrame(
+    final frameId = controller.debugSeedFrame(
       contentHash: frameContentHash ?? 'frame-$route',
       trigger: TugboatFrameTrigger.route,
     );
+    registerFrameProvenance(frameId, route: route);
+    return frameId;
   }
 
   Future<void> pumpMicrotasks({int times = 8}) async {
@@ -282,20 +328,45 @@ class CoherenceInvariants {
     return true;
   }
 
-  /// Destination-route actions must not reuse an origin-route frame id.
+  /// Destination-route actions must carry destination-frame provenance.
+  ///
+  /// Every present action frame must belong to the destination route+epoch
+  /// identified by [destinationFrameId]. [originFrameId] is used to reject
+  /// origin-route frames even when content hashes collide.
   static bool actionFrameMatchesRoute({
     required TugboatEvent action,
     required String? originFrameId,
     required String? destinationFrameId,
+    required HarnessFrameProvenance? Function(String? frameId)
+    frameProvenanceFor,
   }) {
     if (destinationFrameId == null) return false;
-    if (action.beforeFrame == originFrameId &&
-        originFrameId != destinationFrameId) {
-      return false;
-    }
-    if (action.afterFrame == originFrameId &&
-        originFrameId != destinationFrameId) {
-      return false;
+    final destination = frameProvenanceFor(destinationFrameId);
+    if (destination == null) return false;
+
+    final origin = originFrameId == null
+        ? null
+        : frameProvenanceFor(originFrameId);
+    final frameIds = <String>[
+      if (action.beforeFrame != null) action.beforeFrame!,
+      if (action.afterFrame != null) action.afterFrame!,
+    ];
+    if (frameIds.isEmpty) return false;
+
+    for (final frameId in frameIds) {
+      final provenance = frameProvenanceFor(frameId);
+      if (provenance == null) return false;
+      if (provenance.route != destination.route ||
+          provenance.routeEpoch != destination.routeEpoch) {
+        return false;
+      }
+      if (origin != null &&
+          provenance.route == origin.route &&
+          provenance.routeEpoch == origin.routeEpoch &&
+          (destination.route != origin.route ||
+              destination.routeEpoch != origin.routeEpoch)) {
+        return false;
+      }
     }
     return true;
   }
@@ -318,6 +389,3 @@ class CoherenceInvariants {
     return settle.result != TugboatInteractionResult.noVisibleChange;
   }
 }
-
-/// Tiny opaque bytes used only when a real bytes map entry is required.
-Uint8List emptyPngBytes() => Uint8List(0);

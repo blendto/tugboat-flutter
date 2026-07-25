@@ -180,6 +180,7 @@ void main() {
           action: destinationTap,
           originFrameId: originFrame,
           destinationFrameId: 'destination-frame-not-captured-yet',
+          frameProvenanceFor: harness.provenanceFor,
         ),
         isFalse,
       );
@@ -188,14 +189,108 @@ void main() {
       await routeFuture;
 
       final routeChange = session.ofType('route_change').single;
-      expect(routeChange.afterFrame, isNot(originFrame));
+      final destinationFrame = routeChange.afterFrame!;
+      expect(destinationFrame, isNot(originFrame));
       expect(routeChange.data['route'], '/home');
+      expect(
+        CoherenceInvariants.actionFrameMatchesRoute(
+          action: destinationTap,
+          originFrameId: originFrame,
+          destinationFrameId: destinationFrame,
+          frameProvenanceFor: harness.provenanceFor,
+        ),
+        isFalse,
+        reason: 'tap still carries origin frame while destination frame exists',
+      );
 
       // After the blocking route wait finishes, settle may run with a newer
       // frame — the cross-route attribution already happened on the tap.
       final destinationSettle = session.ofType('tap_settled').single;
       expect(destinationSettle.relatedEventId, destinationTap.id);
       expect(destinationSettle.beforeFrame, originFrame);
+    },
+  );
+
+  test(
+    'actionFrameMatchesRoute rejects a third unrelated frame family',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final originFrame = harness.seedRouteState(
+        route: '/scan',
+        signature: 'sig-scan',
+        frameContentHash: 'scan-pixels',
+      );
+      final unrelatedFrame = harness.controller.debugSeedFrame(
+        contentHash: 'scan-pixels',
+      );
+      harness.registerFrameProvenance(
+        unrelatedFrame,
+        route: '/settings',
+        routeEpoch: 1,
+      );
+      final destinationFrame = harness.controller.debugSeedFrame(
+        contentHash: 'home-pixels',
+        trigger: TugboatFrameTrigger.route,
+      );
+      harness.registerFrameProvenance(
+        destinationFrame,
+        route: '/home',
+        routeEpoch: 2,
+      );
+
+      harness.controller.debugSetCurrentStateAnchor(
+        const TugboatStateAnchor(
+          signature: 'sig-home',
+          signatureParts: {'route': '/home'},
+        ),
+      );
+
+      harness.controller.recordPointerDown(const Offset(30, 30));
+      harness.controller.recordPointerUp(const Offset(30, 30));
+      await harness.flushScheduler();
+
+      final session = harness.controller.session!;
+      final tap = session.ofType('tap').single;
+      final tapWithUnrelatedFrame = TugboatEvent(
+        id: tap.id,
+        atMs: tap.atMs,
+        type: tap.type,
+        stateAnchor: tap.stateAnchor,
+        targetAnchor: tap.targetAnchor,
+        beforeFrame: unrelatedFrame,
+        data: tap.data,
+      );
+
+      expect(unrelatedFrame, isNot(originFrame));
+      expect(unrelatedFrame, isNot(destinationFrame));
+      expect(
+        CoherenceInvariants.actionFrameMatchesRoute(
+          action: tapWithUnrelatedFrame,
+          originFrameId: originFrame,
+          destinationFrameId: destinationFrame,
+          frameProvenanceFor: harness.provenanceFor,
+        ),
+        isFalse,
+        reason:
+            'unrelated frame must not pass merely by matching destination pixels',
+      );
+      expect(
+        CoherenceInvariants.actionFrameMatchesRoute(
+          action: TugboatEvent(
+            id: tap.id,
+            atMs: tap.atMs,
+            type: tap.type,
+            beforeFrame: destinationFrame,
+          ),
+          originFrameId: originFrame,
+          destinationFrameId: destinationFrame,
+          frameProvenanceFor: harness.provenanceFor,
+        ),
+        isTrue,
+      );
     },
   );
 
