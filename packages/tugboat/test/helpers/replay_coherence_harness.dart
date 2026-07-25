@@ -96,6 +96,12 @@ class ControllableCaptureExecutor {
 
   bool failNext = false;
   bool blockNext = false;
+
+  /// Harness-only cancellation/timeout seam for blocked captures. Production
+  /// timeout/cancel behavior remains follow-up #10; tests use this to release
+  /// waiters without calling [completeBlocked] manually.
+  Duration? autoReleaseBlockedAfter;
+
   void Function(String frameId, {String? route, int? routeEpoch})? registerFrame;
   String? Function(TugboatFrameTrigger trigger, bool force)? frameFactory;
 
@@ -117,6 +123,7 @@ class ControllableCaptureExecutor {
       blockNext = false;
       final completer = Completer<String?>();
       _blocked.add(completer);
+      _maybeScheduleAutoRelease(completer);
       return completer.future;
     }
     final custom = frameFactory?.call(trigger, force);
@@ -148,6 +155,20 @@ class ControllableCaptureExecutor {
       }
     }
     _blocked.clear();
+  }
+
+  void _maybeScheduleAutoRelease(Completer<String?> completer) {
+    final releaseAfter = autoReleaseBlockedAfter;
+    if (releaseAfter == null) return;
+    autoReleaseBlockedAfter = null;
+    final delay = controller.debugDelay;
+    if (delay == null) return;
+    unawaited(() async {
+      await delay(releaseAfter);
+      if (completer.isCompleted) return;
+      completer.complete(null);
+      _blocked.remove(completer);
+    }());
   }
 }
 

@@ -804,4 +804,45 @@ void main() {
       expect(swipe.data['scrolled'], isFalse);
     },
   );
+
+  test(
+    'harness timeout seam cancels blocked capture without seeding success',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/home', signature: 'sig-home');
+      harness.capturer.blockNext = true;
+      // Production has no capture timeout/cancel yet (#10); harness-only seam.
+      harness.capturer.autoReleaseBlockedAfter = const Duration(
+        milliseconds: 50,
+      );
+
+      final framesBefore = harness.controller.session!.frames.length;
+
+      harness.controller.recordPointerDown(const Offset(6, 6));
+      harness.controller.recordPointerUp(const Offset(6, 6));
+      await harness.pumpQueueWork();
+
+      expect(harness.capturer.blockedCount, 1);
+      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
+      expect(harness.controller.debugCaptureInFlight, isTrue);
+
+      await harness.tick(const Duration(milliseconds: 50));
+      await harness.flushScheduler();
+
+      final session = harness.controller.session!;
+      expect(session.ofType('tap_settled'), hasLength(1));
+      expect(harness.capturer.blockedCount, isZero);
+      expect(harness.controller.debugCaptureInFlight, isFalse);
+      expect(session.frames.length, framesBefore);
+      expect(
+        session.frames.any(
+          (frame) => frame.contentHash.startsWith('timeout-released'),
+        ),
+        isFalse,
+      );
+    },
+  );
 }
