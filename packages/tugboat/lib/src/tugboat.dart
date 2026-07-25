@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'capture_boundary.dart';
 import 'capture_profile.dart';
 import 'controller.dart';
 import 'health.dart';
@@ -32,8 +33,7 @@ class TugboatReplay {
   );
   static final TugboatNavigatorObserver navigatorObserver =
       TugboatNavigatorObserver();
-  static final TugboatLifecycleNotifier _lifecycle =
-      TugboatLifecycleNotifier();
+  static final TugboatLifecycleNotifier _lifecycle = TugboatLifecycleNotifier();
 
   static TugboatReplayController? get controller => _controller;
   static GlobalKey get boundaryKey => _boundaryKey;
@@ -405,7 +405,7 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
         }
         return false;
       },
-      child: RepaintBoundary(
+      child: TugboatCaptureBoundary(
         key: TugboatReplay._boundaryKey,
         child: widget.child,
       ),
