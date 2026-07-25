@@ -208,10 +208,12 @@ class ControllableCaptureExecutor {
 class ReplayCoherenceHarness {
   ReplayCoherenceHarness({
     this.settleDelay = Duration.zero,
+    this.maxFrames = 300,
     GlobalKey? boundaryKey,
   }) : boundaryKey = boundaryKey ?? GlobalKey();
 
   final Duration settleDelay;
+  final int maxFrames;
   final GlobalKey boundaryKey;
   final ControllableScheduler scheduler = ControllableScheduler();
   final Map<String, HarnessFrameProvenance> _frameProvenance =
@@ -220,8 +222,22 @@ class ReplayCoherenceHarness {
   late final TugboatReplayController controller;
   late final ControllableCaptureExecutor capturer;
 
-  HarnessFrameProvenance? provenanceFor(String? frameId) =>
-      frameId == null ? null : _frameProvenance[frameId];
+  HarnessFrameProvenance? provenanceFor(String? frameId) {
+    if (frameId == null) return null;
+    // Explicitly injected third-party evidence remains useful for invariant
+    // negative tests; ordinary seeded/captured frames come from the controller.
+    final injected = _frameProvenance[frameId];
+    if (injected != null && injected.routeEpoch != controller.debugRouteEpoch) {
+      return injected;
+    }
+    final provenance = controller.debugFrameProvenance(frameId);
+    final route = provenance?['route'];
+    final epoch = provenance?['routeEpoch'];
+    if (route is String && epoch is int) {
+      return HarnessFrameProvenance(route: route, routeEpoch: epoch);
+    }
+    return injected;
+  }
 
   void registerFrameProvenance(
     String frameId, {
@@ -240,6 +256,7 @@ class ReplayCoherenceHarness {
       config: TugboatReplayConfig(
         profile: TugboatCaptureProfile.exploration,
         settleDelay: settleDelay,
+        maxFrames: maxFrames,
         enableGlobalPointerCapture: false,
         capturePixelRatio: 1.0,
       ),
@@ -298,6 +315,7 @@ class ReplayCoherenceHarness {
     required String signature,
     String? frameContentHash,
   }) {
+    controller.debugSetCurrentRoute(route);
     controller.debugSetCurrentStateAnchor(
       TugboatStateAnchor(
         signature: signature,

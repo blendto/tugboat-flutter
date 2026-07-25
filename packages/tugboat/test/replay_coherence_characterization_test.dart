@@ -647,7 +647,7 @@ void main() {
   });
 
   test(
-    'destination tap while route capture pending carries previous route frame',
+    'destination tap while route capture pending leaves before frame unavailable',
     () async {
       final harness = ReplayCoherenceHarness(
         settleDelay: const Duration(milliseconds: 40),
@@ -684,12 +684,15 @@ void main() {
       harness.controller.recordPointerDown(const Offset(30, 30));
       harness.controller.recordPointerUp(const Offset(30, 30));
 
-      // The tap is recorded synchronously against the still-origin latest frame
-      // while the route capture remains pending. Settle itself is queued behind
-      // the blocking transition wait (see #6), so characterize the tap event.
+      // The origin frame is globally latest but belongs to a different route
+      // epoch, so it must not be attached to destination UI evidence.
       final session = harness.controller.session!;
       final destinationTap = session.ofType('tap').single;
-      expect(destinationTap.beforeFrame, originFrame);
+      expect(destinationTap.beforeFrame, isNull);
+      expect(destinationTap.data['frameAttachment'], {
+        'before': 'unavailable',
+        'reason': 'no_compatible_frame',
+      });
       expect(destinationTap.stateAnchor?.signature, 'sig-home');
       expect(harness.controller.debugRouteCapturePending, isTrue);
       expect(
@@ -717,16 +720,268 @@ void main() {
           frameProvenanceFor: harness.provenanceFor,
         ),
         isFalse,
-        reason: 'tap still carries origin frame while destination frame exists',
+        reason:
+            'tap has no compatible before frame while destination frame exists',
       );
 
       // After the blocking route wait finishes, settle may run with a newer
       // frame — the cross-route attribution already happened on the tap.
       final destinationSettle = session.ofType('tap_settled').single;
       expect(destinationSettle.relatedEventId, destinationTap.id);
-      expect(destinationSettle.beforeFrame, originFrame);
+      expect(destinationSettle.beforeFrame, isNull);
     },
   );
+
+  test('frame provenance is immutable across compatible reuse', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    final frame = harness.seedRouteState(
+      route: '/home',
+      signature: 'sig-home',
+      frameContentHash: 'same-pixels',
+    );
+    final beforeReuse = Map<String, Object?>.from(
+      harness.controller.debugFrameProvenance(frame)!,
+    );
+
+    expect(harness.controller.debugReuseFrameForCurrentRoute(frame), frame);
+    final afterReuse = harness.controller.debugFrameProvenance(frame)!;
+    expect(afterReuse['captureSessionId'], beforeReuse['captureSessionId']);
+    expect(afterReuse['routeEpoch'], beforeReuse['routeEpoch']);
+    expect(afterReuse['route'], beforeReuse['route']);
+    expect(afterReuse['requestedAtMs'], beforeReuse['requestedAtMs']);
+    expect(afterReuse['completedAtMs'], beforeReuse['completedAtMs']);
+    expect(afterReuse['reuseReason'], 'content_hash');
+    expect(afterReuse['reusedFromFrameId'], frame);
+  });
+
+  test('first interaction records explicit frame unavailability', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    // Start a replacement session and inspect the synchronous interaction
+    // before its initial capture pump can run.
+    harness.capturer.blockNext = true;
+    harness.controller.start(const Size(390, 844), 'test');
+    harness.controller.debugSetCurrentRoute('/home');
+    harness.controller.debugSetCurrentStateAnchor(
+      const TugboatStateAnchor(
+        signature: 'sig-home',
+        signatureParts: {'route': '/home'},
+      ),
+    );
+
+    harness.controller.recordPointerDown(const Offset(4, 4));
+    final tap = harness.controller.session!.ofType('tap').single;
+    expect(tap.beforeFrame, isNull);
+    expect(tap.data['frameAttachment'], {
+      'before': 'unavailable',
+      'reason': 'no_frame_available',
+    });
+
+    await harness.controller.endSession();
+  });
+
+  test('capture coalescing preserves incompatible request order', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    for (final (pointer, route) in [(1, '/a'), (2, '/b'), (3, '/a')]) {
+      harness.controller.debugSetCurrentRoute(route);
+      harness.controller.debugSetCurrentStateAnchor(
+        TugboatStateAnchor(
+          signature: 'sig-$route',
+          signatureParts: {'route': route},
+        ),
+      );
+      harness.controller.recordPointerDown(
+        Offset(pointer.toDouble(), pointer.toDouble()),
+        pointer: pointer,
+      );
+      harness.controller.recordPointerUp(
+        Offset(pointer.toDouble(), pointer.toDouble()),
+        pointer: pointer,
+      );
+    }
+
+    expect(harness.controller.debugScheduledCaptureRoutes, ['/a', '/b', '/a']);
+
+    await harness.controller.endSession();
+  });
+
+  test('tap settle keeps the state observed with its after frame', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    harness.seedRouteState(route: '/home', signature: 'sig-before');
+    harness.capturer.frameFactory = (trigger, force) {
+      harness.controller.debugSetCurrentStateAnchor(
+        const TugboatStateAnchor(
+          signature: 'sig-captured',
+          signatureParts: {'route': '/home'},
+        ),
+      );
+      final frame = harness.controller.debugSeedFrame(
+        contentHash: 'captured-pixels',
+        trigger: trigger,
+      );
+      // Simulate controller state advancing after readback but before the
+      // settle event is admitted to the serialized mutation queue.
+      harness.controller.debugSetCurrentStateAnchor(
+        const TugboatStateAnchor(
+          signature: 'sig-advanced',
+          signatureParts: {'route': '/home'},
+        ),
+      );
+      return frame;
+    };
+
+    harness.controller.recordPointerDown(const Offset(12, 12));
+    harness.controller.recordPointerUp(const Offset(12, 12));
+    await harness.flushScheduler();
+
+    final settle = harness.controller.session!.ofType('tap_settled').single;
+    expect(settle.afterFrame, isNotNull);
+    expect(settle.stateAnchor?.signature, 'sig-captured');
+    expect(harness.controller.currentStateAnchor?.signature, 'sig-advanced');
+    expect(
+      harness.controller.debugFrameProvenance(
+        settle.afterFrame!,
+      )!['completionStateSignature'],
+      'sig-captured',
+    );
+  });
+
+  test(
+    'same pixels on a new route receive distinct frame provenance',
+    () async {
+      final harness = ReplayCoherenceHarness(
+        settleDelay: const Duration(milliseconds: 20),
+      );
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final origin = harness.seedRouteState(
+        route: '/origin',
+        signature: 'sig-origin',
+        frameContentHash: 'same-pixels',
+      );
+      final route = harness.controller.route(
+        'route_push',
+        harness.route(
+          '/destination',
+          transitionDuration: const Duration(milliseconds: 20),
+        ),
+      );
+      harness.controller.debugSetCurrentStateAnchor(
+        const TugboatStateAnchor(
+          signature: 'sig-destination',
+          signatureParts: {'route': '/destination'},
+        ),
+      );
+      final destination = harness.controller.debugSeedFrame(
+        contentHash: 'same-pixels',
+        trigger: TugboatFrameTrigger.route,
+      );
+
+      expect(destination, isNot(origin));
+      expect(
+        harness.controller.debugFrameProvenance(origin),
+        containsPair('route', '/origin'),
+      );
+      expect(
+        harness.controller.debugFrameProvenance(destination),
+        allOf(
+          containsPair('route', '/destination'),
+          containsPair('routeEpoch', 1),
+        ),
+      );
+      expect(harness.controller.debugReuseFrameForCurrentRoute(origin), isNull);
+
+      await harness.controller.endSession();
+      await route;
+    },
+  );
+
+  test('push replace and pop never attach the prior route frame', () async {
+    for (final transition in [
+      ('route_push', '/pushed'),
+      ('route_replace', '/replacement'),
+      ('route_pop', '/revealed'),
+    ]) {
+      final harness = ReplayCoherenceHarness(
+        settleDelay: const Duration(milliseconds: 20),
+      );
+      await harness.setUp();
+      final origin = harness.seedRouteState(
+        route: '/origin',
+        signature: 'sig-origin',
+      );
+      final route = harness.controller.route(
+        transition.$1,
+        harness.route(
+          transition.$2,
+          transitionDuration: const Duration(milliseconds: 20),
+        ),
+      );
+      harness.controller.debugSetCurrentStateAnchor(
+        TugboatStateAnchor(
+          signature: 'sig-${transition.$2}',
+          signatureParts: {'route': transition.$2},
+        ),
+      );
+
+      harness.controller.recordPointerDown(const Offset(8, 8));
+      final tap = harness.controller.session!.ofType('tap').single;
+      expect(tap.beforeFrame, isNull, reason: transition.$1);
+      expect(tap.beforeFrame, isNot(origin), reason: transition.$1);
+      expect(tap.data['frameAttachment'], {
+        'before': 'unavailable',
+        'reason': 'no_compatible_frame',
+      });
+
+      await harness.controller.endSession();
+      await route;
+      harness.dispose();
+    }
+  });
+
+  test('trimmed provenance remains a tombstone and is never reused', () async {
+    final harness = ReplayCoherenceHarness(maxFrames: 1);
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    final first = harness.seedRouteState(
+      route: '/home',
+      signature: 'sig-home',
+      frameContentHash: 'first-pixels',
+    );
+    harness.controller.recordPointerDown(const Offset(1, 1), pointer: 1);
+    final retainedTap = harness.controller.session!.ofType('tap').single;
+    expect(retainedTap.beforeFrame, first);
+
+    final second = harness.controller.debugSeedFrame(
+      contentHash: 'second-pixels',
+    );
+    expect(harness.controller.session!.frames.map((frame) => frame.id), [
+      second,
+    ]);
+    expect(
+      harness.controller.debugFrameProvenance(first),
+      containsPair('available', false),
+    );
+    expect(retainedTap.beforeFrame, first);
+    expect(harness.controller.debugReuseFrameForCurrentRoute(first), isNull);
+
+    harness.controller.recordPointerDown(const Offset(2, 2), pointer: 2);
+    final latestTap = harness.controller.session!.ofType('tap').last;
+    expect(latestTap.beforeFrame, second);
+  });
 
   test(
     'actionFrameMatchesRoute rejects a third unrelated frame family',
@@ -1373,7 +1628,11 @@ void main() {
       expect(settle.beforeFrame, frame);
       expect(settle.afterFrame, frame);
       expect(settle.result, TugboatInteractionResult.changed);
-      expect(settle.stateAnchor?.signature, 'sig-after');
+      expect(
+        settle.stateAnchor?.signature,
+        'sig-before',
+        reason: 'the state evidence stays paired with the reused frame',
+      );
     },
   );
 
@@ -1393,6 +1652,11 @@ void main() {
 
       final settles = harness.controller.session!.ofType('tap_settled');
       expect(settles, hasLength(1));
+      expect(settles.single.afterFrame, isNull);
+      expect(settles.single.data['frameAttachment'], {
+        'after': 'unavailable',
+        'reason': 'capture_unavailable',
+      });
       expect(harness.controller.debugCaptureInFlight, isFalse);
       expect(harness.controller.debugRouteCapturePending, isFalse);
 
