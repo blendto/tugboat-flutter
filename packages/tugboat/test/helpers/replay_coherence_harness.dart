@@ -1,8 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
+
+/// Key on the interactive target used by widget-backed harness modes.
+const coherenceHarnessTargetKey = Key('coherence-harness-target');
 
 /// Harness-only route provenance for a seeded or captured frame.
 class HarnessFrameProvenance {
@@ -277,6 +281,37 @@ class ReplayCoherenceHarness {
     await controller.drainPointerQueue();
     await pumpMicrotasks();
   }
+
+  /// Mounts a minimal scene with a keyed interactive target under [boundaryKey].
+  Future<void> mountWidgetBackedScene(WidgetTester tester) async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: boundaryKey,
+          child: Scaffold(
+            body: Center(
+              child: FilledButton(
+                key: coherenceHarnessTargetKey,
+                onPressed: () {},
+                child: const Text('Coherence target'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+  }
+
+  /// Initializes the harness after [mountWidgetBackedScene].
+  Future<void> setUpWidgetBacked(WidgetTester tester) async {
+    await mountWidgetBackedScene(tester);
+    await setUp();
+  }
+
+  Offset targetTapPosition(WidgetTester tester) =>
+      tester.getCenter(find.byKey(coherenceHarnessTargetKey));
 }
 
 /// Snapshot of coherence-relevant fields for one event.
