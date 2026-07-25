@@ -452,6 +452,122 @@ extension SessionCoherence on TugboatSession {
 /// Desired post-fix invariants. Characterization tests use these to prove
 /// current production sequences violate coherence (the check returns false).
 class CoherenceInvariants {
+  /// Returns whether [events] are chronologically ordered and the requested
+  /// [orderedEventIds] appear in that same order.
+  ///
+  /// This deliberately checks event time *and* session order: events can share
+  /// a timestamp, but an emitted causal chain must never move backwards in the
+  /// append-only replay journal.
+  static bool hasChronologicalChain({
+    required List<TugboatEvent> events,
+    Iterable<String> orderedEventIds = const <String>[],
+  }) {
+    var previousAtMs = -1;
+    final indexesById = <String, int>{};
+    for (var index = 0; index < events.length; index++) {
+      final event = events[index];
+      if (event.atMs < previousAtMs) return false;
+      previousAtMs = event.atMs;
+      if (indexesById.putIfAbsent(event.id, () => index) != index) {
+        return false;
+      }
+    }
+
+    var previousIndex = -1;
+    for (final id in orderedEventIds) {
+      final index = indexesById[id];
+      if (index == null || index <= previousIndex) return false;
+      previousIndex = index;
+    }
+    return true;
+  }
+
+  /// Checks that every present frame on [event] belongs to one route epoch.
+  static bool eventFramesMatchRoute({
+    required TugboatEvent event,
+    required String expectedRoute,
+    required int expectedRouteEpoch,
+    required HarnessFrameProvenance? Function(String? frameId)
+    frameProvenanceFor,
+    bool requireFrame = true,
+  }) {
+    final frameIds = <String>[
+      if (event.beforeFrame != null) event.beforeFrame!,
+      if (event.afterFrame != null) event.afterFrame!,
+    ];
+    if (requireFrame && frameIds.isEmpty) return false;
+    return frameIds.every((frameId) {
+      final provenance = frameProvenanceFor(frameId);
+      return provenance?.route == expectedRoute &&
+          provenance?.routeEpoch == expectedRouteEpoch;
+    });
+  }
+
+  /// Checks the stable one-to-one relation between a tap and its settle event.
+  static bool tapSettleIsLinked({
+    required List<TugboatEvent> events,
+    required TugboatEvent tap,
+    required TugboatEvent settle,
+  }) {
+    if (tap.type != 'tap' || settle.type != 'tap_settled') return false;
+    if (settle.relatedEventId != tap.id) return false;
+    if (!hasChronologicalChain(
+      events: events,
+      orderedEventIds: <String>[tap.id, settle.id],
+    )) {
+      return false;
+    }
+    return events
+            .where(
+              (event) =>
+                  event.type == 'tap_settled' && event.relatedEventId == tap.id,
+            )
+            .length ==
+        1;
+  }
+
+  /// Rejects an action which substitutes an origin or unrelated frame for the
+  /// destination route epoch.
+  static bool hasNoCrossRouteFrameSubstitution({
+    required TugboatEvent event,
+    required String? originFrameId,
+    required String? destinationFrameId,
+    required HarnessFrameProvenance? Function(String? frameId)
+    frameProvenanceFor,
+  }) => actionFrameMatchesRoute(
+    action: event,
+    originFrameId: originFrameId,
+    destinationFrameId: destinationFrameId,
+    frameProvenanceFor: frameProvenanceFor,
+  );
+
+  /// A missing after-frame is valid only when the event says why, without
+  /// leaking an implementation error or pretending it captured evidence.
+  static bool hasExplicitDegradation(TugboatEvent event) {
+    if (event.afterFrame != null) return false;
+    final outcome = event.data['captureOutcome'];
+    if (outcome is! String || outcome.isEmpty || outcome == 'captured') {
+      return false;
+    }
+    if (event.type == 'tap_settled' &&
+        event.result != TugboatInteractionResult.unknown) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Ensures every controller-owned capture path has drained.
+  ///
+  /// [ControllableCaptureExecutor] is also included because a blocked test
+  /// executor otherwise masks a stranded controller waiter.
+  static bool hasNoStrandedCaptureWork(ReplayCoherenceHarness harness) =>
+      !harness.controller.debugCaptureInFlight &&
+      !harness.controller.debugRouteCapturePending &&
+      harness.controller.debugActiveTapSettleCount == 0 &&
+      harness.controller.debugScheduledCaptureRoutes.isEmpty &&
+      !harness.scheduler.hasPendingDelays &&
+      harness.capturer.blockedCount == 0;
+
   /// Tap settle evidence belongs to one route epoch.
   ///
   /// Proves [tap.beforeFrame], [settle.beforeFrame], and [settle.afterFrame]
@@ -466,6 +582,7 @@ class CoherenceInvariants {
     frameProvenanceFor,
     String? expectedRouteSignature,
   }) {
+    if (tap.type != 'tap' || settle.type != 'tap_settled') return false;
     if (settle.relatedEventId != tap.id) return false;
     if (settle.beforeFrame != tap.beforeFrame) return false;
     if (expectedRouteSignature != null &&
@@ -481,15 +598,18 @@ class CoherenceInvariants {
     ];
     if (frameIds.length < 3) return false;
 
-    for (final frameId in frameIds) {
-      final provenance = frameProvenanceFor(frameId);
-      if (provenance == null) return false;
-      if (provenance.route != expectedRoute ||
-          provenance.routeEpoch != expectedRouteEpoch) {
-        return false;
-      }
-    }
-    return true;
+    return eventFramesMatchRoute(
+          event: tap,
+          expectedRoute: expectedRoute,
+          expectedRouteEpoch: expectedRouteEpoch,
+          frameProvenanceFor: frameProvenanceFor,
+        ) &&
+        eventFramesMatchRoute(
+          event: settle,
+          expectedRoute: expectedRoute,
+          expectedRouteEpoch: expectedRouteEpoch,
+          frameProvenanceFor: frameProvenanceFor,
+        );
   }
 
   /// Destination-route actions must carry destination-frame provenance.
