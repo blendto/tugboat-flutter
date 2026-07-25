@@ -98,7 +98,7 @@ class _ScheduledCapture {
   DateTime notBefore;
   DateTime enqueuedAt;
   final _CaptureRequestContext context;
-  final List<Completer<String?>> waiters = [];
+  final List<_CaptureWaiter> waiters = [];
   _ScheduledCapture? next;
 
   void absorb(_ScheduledCapture other) {
@@ -114,6 +114,12 @@ class _ScheduledCapture {
     }
     if (other.enqueuedAt.isBefore(enqueuedAt)) {
       enqueuedAt = other.enqueuedAt;
+    }
+    for (final waiter in waiters) {
+      waiter.coalesced = true;
+    }
+    for (final waiter in other.waiters) {
+      waiter.coalesced = true;
     }
     waiters.addAll(other.waiters);
   }
@@ -137,6 +143,104 @@ class _ScheduledCapture {
         return 1;
     }
   }
+}
+
+/// The closed, privacy-safe capture result vocabulary.  These are deliberately
+/// not exception names: a replay must not expose app content or platform error
+/// strings just to explain why a frame was unavailable.
+enum _CaptureOutcome {
+  freshAccepted,
+  exactContentReused,
+  perceptualHashCoalesced,
+  stateSignatureShortCircuit,
+  screenshotBudgetSkip,
+  noFrameAvailable,
+  noCompatibleFrame,
+  paintReadinessTimeout,
+  boundaryUnavailable,
+  captureProcessingFailed,
+  cancelled,
+  supersededRoute,
+}
+
+extension on _CaptureOutcome {
+  String get wireName => switch (this) {
+    _CaptureOutcome.freshAccepted => 'fresh_accepted',
+    _CaptureOutcome.exactContentReused => 'exact_content_reused',
+    _CaptureOutcome.perceptualHashCoalesced => 'perceptual_hash_coalesced',
+    _CaptureOutcome.stateSignatureShortCircuit =>
+      'state_signature_short_circuit',
+    _CaptureOutcome.screenshotBudgetSkip => 'screenshot_budget_skip',
+    _CaptureOutcome.noFrameAvailable => 'no_frame_available',
+    _CaptureOutcome.noCompatibleFrame => 'no_compatible_frame',
+    _CaptureOutcome.paintReadinessTimeout => 'paint_readiness_timeout',
+    _CaptureOutcome.boundaryUnavailable => 'boundary_unavailable',
+    _CaptureOutcome.captureProcessingFailed => 'capture_processing_failed',
+    _CaptureOutcome.cancelled => 'cancelled',
+    _CaptureOutcome.supersededRoute => 'superseded_route_epoch',
+  };
+}
+
+/// Immutable terminal evidence for one logical request. A coalesced physical
+/// capture produces one of these per waiter, preserving each caller's route,
+/// trigger, correlation and cancellation reason.
+class _CaptureResolution {
+  const _CaptureResolution({
+    required this.requestId,
+    required this.executionId,
+    required this.context,
+    required this.outcome,
+    this.frameId,
+    this.failure,
+    this.cancellationReason,
+    this.reuseReason,
+    this.relatedEventId,
+    this.coalesced = false,
+  });
+
+  final String requestId;
+  final String executionId;
+  final _CaptureRequestContext context;
+  final _CaptureOutcome outcome;
+  final String? frameId;
+  final ScreenshotCaptureFailure? failure;
+  final String? cancellationReason;
+  final String? reuseReason;
+  final String? relatedEventId;
+  final bool coalesced;
+}
+
+class _CaptureWaiter {
+  _CaptureWaiter({
+    required this.requestId,
+    required this.context,
+    this.relatedEventId,
+  });
+
+  final String requestId;
+  final _CaptureRequestContext context;
+  final String? relatedEventId;
+  bool coalesced = false;
+  final Completer<_CaptureResolution> completer =
+      Completer<_CaptureResolution>();
+
+  bool get isCompleted => completer.isCompleted;
+}
+
+class _CaptureExecution {
+  const _CaptureExecution({
+    required this.outcome,
+    this.frameId,
+    this.failure,
+    this.cancellationReason,
+    this.reuseReason,
+  });
+
+  final _CaptureOutcome outcome;
+  final String? frameId;
+  final ScreenshotCaptureFailure? failure;
+  final String? cancellationReason;
+  final String? reuseReason;
 }
 
 enum _CaptureFreshness { reusable, freshPaint }
@@ -288,6 +392,7 @@ class _RouteCaptureResult {
     this.stateAnchor,
     this.routeEventId,
     this.captureFailure,
+    this.captureRequestId,
   });
 
   final _RouteCaptureOutcome outcome;
@@ -295,6 +400,7 @@ class _RouteCaptureResult {
   final TugboatStateAnchor? stateAnchor;
   final String? routeEventId;
   final String? captureFailure;
+  final String? captureRequestId;
 }
 
 /// One deferred route capture. Its deadline deliberately runs outside the
@@ -316,7 +422,7 @@ class _RouteCaptureWork {
   bool cancelled = false;
   void Function()? _cancelDeadline;
   void Function()? _cancelBarrierTimeout;
-  void Function()? _cancelCapture;
+  void Function(String reason)? _cancelCapture;
   _RouteCaptureWork? supersededBy;
 
   Future<_RouteCaptureResult> get done => completer.future;
@@ -329,9 +435,9 @@ class _RouteCaptureWork {
     _cancelDeadline = cancelDeadline;
   }
 
-  void attachCaptureCancellation(void Function() cancelCapture) {
+  void attachCaptureCancellation(void Function(String reason) cancelCapture) {
     if (cancelled) {
-      cancelCapture();
+      cancelCapture('manual');
       return;
     }
     _cancelCapture = cancelCapture;
@@ -348,16 +454,16 @@ class _RouteCaptureWork {
   /// Stops transition/capture work without choosing this barrier's terminal
   /// outcome. The absolute barrier timeout uses this before completing as
   /// [timedOut].
-  void cancelPendingWork() {
+  void cancelPendingWork([String reason = 'manual']) {
     _cancelDeadline?.call();
     _cancelDeadline = null;
-    _cancelCapture?.call();
+    _cancelCapture?.call(reason);
     _cancelCapture = null;
   }
 
-  void cancel() {
+  void cancel([String reason = 'manual']) {
     cancelled = true;
-    cancelPendingWork();
+    cancelPendingWork(reason);
     _cancelBarrierTimeout?.call();
     _cancelBarrierTimeout = null;
     if (!completer.isCompleted) {
@@ -383,11 +489,11 @@ class _TapSettleWork {
   bool cancelled = false;
   final Completer<void> completer = Completer<void>();
   void Function()? _cancelDeadline;
-  void Function()? _cancelCapture;
+  void Function(String reason)? _cancelCapture;
 
-  void attachCaptureCancellation(void Function() cancel) {
+  void attachCaptureCancellation(void Function(String reason) cancel) {
     if (cancelled) {
-      cancel();
+      cancel('manual');
       return;
     }
     _cancelCapture = cancel;
@@ -401,11 +507,11 @@ class _TapSettleWork {
     _cancelDeadline = cancel;
   }
 
-  void cancel() {
+  void cancel([String reason = 'manual']) {
     cancelled = true;
     _cancelDeadline?.call();
     _cancelDeadline = null;
-    _cancelCapture?.call();
+    _cancelCapture?.call(reason);
     _cancelCapture = null;
     if (!completer.isCompleted) completer.complete();
   }
@@ -430,6 +536,7 @@ class _TapSettleObservation {
     required this.captureOutcome,
     this.captureFailure,
     this.routeEventId,
+    this.captureRequestId,
   });
 
   final int routeEpoch;
@@ -440,6 +547,7 @@ class _TapSettleObservation {
   final String captureOutcome;
   final String? captureFailure;
   final String? routeEventId;
+  final String? captureRequestId;
 
   bool get isDegraded => afterFrame == null && captureOutcome != 'captured';
 }
@@ -501,8 +609,12 @@ class TugboatReplayController extends ChangeNotifier {
   Completer<void> _captureIdle = Completer<void>()..complete();
   int _captureGeneration = 0;
   Completer<void> _captureCancellation = Completer<void>();
-  int _captureFailureCount = 0;
   ScreenshotCaptureFailure? _lastCaptureFailure;
+  static const int _maxCaptureDiagnosticOutcomes = 16;
+  static const int _maxCaptureDiagnosticCount = 10000;
+  final Map<String, int> _captureDiagnosticOutcomes = <String, int>{};
+  int _captureDiagnosticTotal = 0;
+  String? _lastCaptureDiagnosticOutcome;
   bool _capturePumpScheduled = false;
   bool _skipCapture = false;
   bool _captureLifecycleActive = true;
@@ -525,6 +637,7 @@ class TugboatReplayController extends ChangeNotifier {
       );
 
   _ScheduledCapture? _scheduledCapture;
+  _ScheduledCapture? _activeScheduledCapture;
 
   BuildContext? navigatorContext;
 
@@ -589,6 +702,50 @@ class TugboatReplayController extends ChangeNotifier {
     required bool force,
   })?
   debugExecuteCapture;
+
+  /// Test-only terminal outcome override for the next physical capture.
+  ///
+  /// The value must be one of the bounded `capture_diagnostic` outcome names.
+  @visibleForTesting
+  String? debugNextCaptureOutcome;
+
+  /// Optional compatible frame returned with [debugNextCaptureOutcome].
+  @visibleForTesting
+  String? debugNextCaptureFrameId;
+
+  @visibleForTesting
+  ({
+    Future<Map<String, Object?>> resolution,
+    void Function([String reason]) cancel,
+  })
+  debugRequestCapture({
+    TugboatFrameTrigger trigger = TugboatFrameTrigger.manual,
+    bool force = false,
+    Duration settleDelay = Duration.zero,
+    String? relatedEventId,
+  }) {
+    final request = _requestCaptureCancellable(
+      trigger: trigger,
+      force: force,
+      settleDelay: settleDelay,
+      relatedEventId: relatedEventId,
+    );
+    return (
+      resolution: request.resolution.then(
+        (value) => <String, Object?>{
+          'requestId': value.requestId,
+          'executionId': value.executionId,
+          'outcome': value.outcome.wireName,
+          'frameId': value.frameId,
+          'cancellationReason': value.cancellationReason,
+          'reuseReason': value.reuseReason,
+          'relatedEventId': value.relatedEventId,
+          'coalesced': value.coalesced,
+        },
+      ),
+      cancel: request.cancel,
+    );
+  }
 
   @visibleForTesting
   int get debugRouteEpoch => _routeEpoch;
@@ -878,6 +1035,11 @@ class TugboatReplayController extends ChangeNotifier {
               quarantined: outbox.quarantineReasons.length,
             ),
       screenshots: _screenshotBudget.snapshot(),
+      captureDiagnostics: TugboatCaptureDiagnosticHealth(
+        total: _captureDiagnosticTotal,
+        lastOutcome: _lastCaptureDiagnosticOutcome,
+        outcomes: Map.unmodifiable(_captureDiagnosticOutcomes),
+      ),
       truncated: _session?.truncated ?? false,
       recentFailures: List.unmodifiable(_recentFailures),
     );
@@ -887,13 +1049,13 @@ class TugboatReplayController extends ChangeNotifier {
   void dispose() {
     if (_disposed) return;
     final hub = _sinkHub;
-    final ending = endSession();
+    final ending = _endSession('dispose');
     _disposed = true;
     _semanticsHandle?.dispose();
     _semanticsHandle = null;
     _sinkHub = null;
     _session = null;
-    _cancelScheduledCaptureWaiters();
+    _cancelScheduledCaptureWaiters('dispose');
     if (hub != null) {
       unawaited(ending.whenComplete(hub.dispose));
     }
@@ -904,13 +1066,17 @@ class TugboatReplayController extends ChangeNotifier {
 
   /// Emits the final timeline event and flushes lifecycle output once.
   Future<void> endSession() {
+    return _endSession('session_end');
+  }
+
+  Future<void> _endSession(String cancellationReason) {
     final active = _endSessionFuture;
     if (active != null) return active;
     if (_session == null) return Future<void>.value();
 
-    _cancelActiveTapSettles();
-    _cancelActiveRouteCapture();
-    _invalidateCaptureWork();
+    _cancelActiveTapSettles(cancellationReason);
+    _cancelActiveRouteCapture(cancellationReason);
+    _invalidateCaptureWork(cancellationReason);
     _captureLifecycleActive = false;
 
     _addEvent(
@@ -936,9 +1102,9 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   void start(Size viewport, String platform) {
-    _cancelActiveTapSettles();
-    _cancelActiveRouteCapture();
-    _invalidateCaptureWork();
+    _cancelActiveTapSettles('session_replacement');
+    _cancelActiveRouteCapture('session_replacement');
+    _invalidateCaptureWork('session_replacement');
     _captureLifecycleActive = true;
     _captureLifecycleEpoch++;
     _endSessionFuture = null;
@@ -968,6 +1134,9 @@ class TugboatReplayController extends ChangeNotifier {
     _emittedInventories.clear();
     _viewportSemantics.clear();
     _lastDHash = null;
+    _captureDiagnosticOutcomes.clear();
+    _captureDiagnosticTotal = 0;
+    _lastCaptureDiagnosticOutcome = null;
     if (!_disposed) notifyListeners();
 
     final context = TugboatSinkSessionContext(
@@ -1134,6 +1303,112 @@ class TugboatReplayController extends ChangeNotifier {
     return frameId;
   }
 
+  /// Emits exactly one bounded, sanitized resolution record for a logical
+  /// request. This deliberately records a taxonomy value rather than the
+  /// underlying exception so replay telemetry never contains app data.
+  void _recordCaptureDiagnostic(_CaptureResolution resolution) {
+    final outcome = resolution.outcome.wireName;
+    _captureDiagnosticTotal = (_captureDiagnosticTotal + 1).clamp(
+      0,
+      _maxCaptureDiagnosticCount,
+    );
+    _lastCaptureDiagnosticOutcome = outcome;
+    if (_captureDiagnosticOutcomes.containsKey(outcome) ||
+        _captureDiagnosticOutcomes.length < _maxCaptureDiagnosticOutcomes) {
+      _captureDiagnosticOutcomes[outcome] =
+          ((_captureDiagnosticOutcomes[outcome] ?? 0) + 1).clamp(
+            0,
+            _maxCaptureDiagnosticCount,
+          );
+    }
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'capture_diagnostic',
+        afterFrame: resolution.frameId,
+        data: <String, Object?>{
+          'version': 1,
+          'outcome': outcome,
+          'requestId': resolution.requestId,
+          'executionId': resolution.executionId,
+          'captureSessionId': resolution.context.captureSessionId,
+          'routeEpoch': resolution.context.routeEpoch,
+          'trigger': resolution.context.trigger.name,
+          'visualEvidence': resolution.frameId == null
+              ? 'unavailable'
+              : resolution.outcome == _CaptureOutcome.freshAccepted
+              ? 'fresh'
+              : 'reused',
+          'interactionEvidence': resolution.relatedEventId == null
+              ? 'not_applicable'
+              : 'linked',
+          if (resolution.relatedEventId != null)
+            'relatedEventId': resolution.relatedEventId,
+          if (resolution.cancellationReason != null)
+            'cancellationReason': resolution.cancellationReason,
+          if (resolution.reuseReason != null)
+            'reuseReason': resolution.reuseReason,
+          if (resolution.coalesced) 'coalesced': true,
+        },
+      ),
+    );
+  }
+
+  _CaptureOutcome _diagnosticOutcomeForFailure(
+    ScreenshotCaptureFailure? failure,
+  ) {
+    switch (failure) {
+      case ScreenshotCaptureFailure.paintTimedOut:
+      case ScreenshotCaptureFailure.paintNotAdvanced:
+        return _CaptureOutcome.paintReadinessTimeout;
+      case ScreenshotCaptureFailure.boundaryDetached:
+      case ScreenshotCaptureFailure.boundaryUnavailable:
+      case ScreenshotCaptureFailure.boundaryReplaced:
+      case ScreenshotCaptureFailure.layoutUnavailable:
+        return _CaptureOutcome.boundaryUnavailable;
+      case ScreenshotCaptureFailure.readbackFailed:
+      case ScreenshotCaptureFailure.maskFailed:
+      case ScreenshotCaptureFailure.encodingFailed:
+        return _CaptureOutcome.captureProcessingFailed;
+      case ScreenshotCaptureFailure.cancelled:
+        return _CaptureOutcome.cancelled;
+      case null:
+        return _CaptureOutcome.noFrameAvailable;
+    }
+  }
+
+  _CaptureExecution _cancelledCaptureExecution(String reason) {
+    const allowedReasons = <String>{
+      'manual',
+      'dispose',
+      'session_end',
+      'session_replacement',
+      'lifecycle_deactivate',
+      'superseded_route',
+      'route_timeout',
+      'capture_paused',
+      'route_transition',
+      'capture_suppressed',
+      'capture_in_flight',
+      'debug',
+    };
+    final sanitizedReason = allowedReasons.contains(reason) ? reason : 'manual';
+    return _CaptureExecution(
+      outcome: sanitizedReason == 'superseded_route'
+          ? _CaptureOutcome.supersededRoute
+          : _CaptureOutcome.cancelled,
+      cancellationReason: sanitizedReason,
+    );
+  }
+
+  String _captureSuppressionReason() {
+    if (_disposed) return 'dispose';
+    if (_capturePaused) return 'capture_paused';
+    if (_skipCapture) return 'route_transition';
+    return 'capture_suppressed';
+  }
+
   bool _captureContextStillCurrent(
     _CaptureRequestContext context,
     int generation,
@@ -1147,12 +1422,23 @@ class TugboatReplayController extends ChangeNotifier {
       context.route ==
           (_currentRoute ?? _currentStateAnchor?.signatureParts['route']);
 
-  ({Future<String?> done, void Function() cancel}) _requestCaptureCancellable({
+  ({
+    Future<String?> done,
+    Future<_CaptureResolution> resolution,
+    void Function([String reason]) cancel,
+  })
+  _requestCaptureCancellable({
     required TugboatFrameTrigger trigger,
     bool force = false,
     Duration? settleDelay,
+    String? relatedEventId,
   }) {
     final context = _captureContext(trigger);
+    final waiter = _CaptureWaiter(
+      requestId: _nextId('capture_request'),
+      context: context,
+      relatedEventId: relatedEventId,
+    );
     final freshness = _captureFreshnessFor(trigger, force);
     if (_disposed ||
         _capturePaused ||
@@ -1160,20 +1446,21 @@ class TugboatReplayController extends ChangeNotifier {
         _shouldSuppressFrameCapture) {
       _refreshStateAnchor();
       _maybeEmitSceneInventory();
+      _completeCaptureWaiter(
+        waiter,
+        executionId: _nextId('capture_execution'),
+        execution: _cancelledCaptureExecution(_captureSuppressionReason()),
+      );
       return (
-        done: Future<String?>.value(
-          freshness == _CaptureFreshness.freshPaint
-              ? null
-              : _compatibleFrameFor(context),
-        ),
-        cancel: () {},
+        done: waiter.completer.future.then((value) => value.frameId),
+        resolution: waiter.completer.future,
+        cancel: ([String reason = 'manual']) {},
       );
     }
 
     final now = _now();
     final delay = settleDelay ?? config.settleDelay;
     final notBefore = now.add(delay);
-    final completer = Completer<String?>();
     final incoming = _ScheduledCapture(
       trigger: trigger,
       force: force,
@@ -1181,7 +1468,7 @@ class TugboatReplayController extends ChangeNotifier {
       notBefore: notBefore,
       enqueuedAt: now,
       context: context,
-    )..waiters.add(completer);
+    )..waiters.add(waiter);
 
     final scheduled = _scheduledCapture;
     if (scheduled == null) {
@@ -1202,12 +1489,13 @@ class TugboatReplayController extends ChangeNotifier {
 
     _ensureCapturePumpScheduled();
     return (
-      done: completer.future,
-      cancel: () {
+      done: waiter.completer.future.then((value) => value.frameId),
+      resolution: waiter.completer.future,
+      cancel: ([String reason = 'manual']) {
         var scheduled = _scheduledCapture;
         _ScheduledCapture? previous;
         while (scheduled != null) {
-          scheduled.waiters.remove(completer);
+          scheduled.waiters.remove(waiter);
           final next = scheduled.next;
           if (scheduled.waiters.isEmpty) {
             if (previous == null) {
@@ -1220,9 +1508,36 @@ class TugboatReplayController extends ChangeNotifier {
           }
           scheduled = next;
         }
-        if (!completer.isCompleted) completer.complete(null);
+        _activeScheduledCapture?.waiters.remove(waiter);
+        _completeCaptureWaiter(
+          waiter,
+          executionId: _nextId('capture_execution'),
+          execution: _cancelledCaptureExecution(reason),
+        );
       },
     );
+  }
+
+  void _completeCaptureWaiter(
+    _CaptureWaiter waiter, {
+    required String executionId,
+    required _CaptureExecution execution,
+  }) {
+    if (waiter.isCompleted) return;
+    final resolution = _CaptureResolution(
+      requestId: waiter.requestId,
+      executionId: executionId,
+      context: waiter.context,
+      outcome: execution.outcome,
+      frameId: execution.frameId,
+      failure: execution.failure,
+      cancellationReason: execution.cancellationReason,
+      reuseReason: execution.reuseReason,
+      relatedEventId: waiter.relatedEventId,
+      coalesced: waiter.coalesced,
+    );
+    waiter.completer.complete(resolution);
+    _recordCaptureDiagnostic(resolution);
   }
 
   void _ensureCapturePumpScheduled() {
@@ -1255,9 +1570,13 @@ class TugboatReplayController extends ChangeNotifier {
           .inMicroseconds;
       _scheduledCapture = scheduled.next;
       scheduled.next = null;
-      String? frameId;
+      _activeScheduledCapture = scheduled;
+      _CaptureExecution execution = const _CaptureExecution(
+        outcome: _CaptureOutcome.captureProcessingFailed,
+      );
+      final executionId = _nextId('capture_execution');
       try {
-        frameId = await _executeCapture(
+        execution = await _executeCapture(
           trigger: scheduled.trigger,
           force: scheduled.force,
           freshness: scheduled.freshness,
@@ -1268,13 +1587,35 @@ class TugboatReplayController extends ChangeNotifier {
         // A capture failure must not kill the pump loop or strand waiters:
         // stranded waiters would freeze the controller queue permanently.
         debugPrint('[tugboat] capture failed: $error\n$stackTrace');
-        _captureFailureCount++;
-        frameId = null;
+        execution = const _CaptureExecution(
+          outcome: _CaptureOutcome.captureProcessingFailed,
+        );
       }
       for (final waiter in scheduled.waiters) {
-        if (!waiter.isCompleted) {
-          waiter.complete(frameId);
-        }
+        final frameId = execution.frameId;
+        final compatible =
+            frameId != null && _isFrameCompatible(frameId, waiter.context);
+        _completeCaptureWaiter(
+          waiter,
+          executionId: executionId,
+          execution: _CaptureExecution(
+            outcome: compatible
+                ? execution.outcome
+                : (execution.frameId == null
+                      ? execution.outcome
+                      : (_unavailableAttachmentReason(waiter.context) ==
+                                'no_frame_available'
+                            ? _CaptureOutcome.noFrameAvailable
+                            : _CaptureOutcome.noCompatibleFrame)),
+            frameId: compatible ? frameId : null,
+            failure: execution.failure,
+            cancellationReason: execution.cancellationReason,
+            reuseReason: execution.reuseReason,
+          ),
+        );
+      }
+      if (identical(_activeScheduledCapture, scheduled)) {
+        _activeScheduledCapture = null;
       }
     }
   }
@@ -1293,21 +1634,36 @@ class TugboatReplayController extends ChangeNotifier {
     if (!_captureIdle.isCompleted) _captureIdle.complete();
   }
 
-  void _cancelScheduledCaptureWaiters() {
+  void _cancelScheduledCaptureWaiters([String reason = 'session_replacement']) {
     var scheduled = _scheduledCapture;
     _scheduledCapture = null;
+    final active = _activeScheduledCapture;
+    if (active != null) {
+      for (final waiter in active.waiters.toList(growable: false)) {
+        _completeCaptureWaiter(
+          waiter,
+          executionId: _nextId('capture_execution'),
+          execution: _cancelledCaptureExecution(reason),
+        );
+      }
+      active.waiters.clear();
+    }
     while (scheduled != null) {
       for (final waiter in scheduled.waiters) {
-        if (!waiter.isCompleted) waiter.complete(null);
+        _completeCaptureWaiter(
+          waiter,
+          executionId: _nextId('capture_execution'),
+          execution: _cancelledCaptureExecution(reason),
+        );
       }
       scheduled = scheduled.next;
     }
   }
 
-  void _invalidateCaptureWork() {
+  void _invalidateCaptureWork([String reason = 'session_replacement']) {
     _advanceCaptureGeneration();
     _captureLifecycleEpoch++;
-    _cancelScheduledCaptureWaiters();
+    _cancelScheduledCaptureWaiters(reason);
   }
 
   void _advanceCaptureGeneration() {
@@ -1318,7 +1674,7 @@ class TugboatReplayController extends ChangeNotifier {
     _captureCancellation = Completer<void>();
   }
 
-  Future<String?> _executeCapture({
+  Future<_CaptureExecution> _executeCapture({
     required TugboatFrameTrigger trigger,
     bool force = false,
     required _CaptureFreshness freshness,
@@ -1329,6 +1685,34 @@ class TugboatReplayController extends ChangeNotifier {
     final captureCancellation = _captureCancellation.future;
     final captureSession = _session;
     final requiresFreshPaint = freshness == _CaptureFreshness.freshPaint;
+    final debugOutcome = debugNextCaptureOutcome;
+    if (debugOutcome != null) {
+      debugNextCaptureOutcome = null;
+      final debugFrameId = debugNextCaptureFrameId;
+      debugNextCaptureFrameId = null;
+      final outcome = _CaptureOutcome.values.firstWhere(
+        (candidate) => candidate.wireName == debugOutcome,
+        orElse: () => throw ArgumentError.value(
+          debugOutcome,
+          'debugNextCaptureOutcome',
+          'unsupported capture outcome',
+        ),
+      );
+      return _CaptureExecution(
+        outcome: outcome,
+        frameId: debugFrameId,
+        cancellationReason: outcome == _CaptureOutcome.cancelled
+            ? 'debug'
+            : null,
+        reuseReason: outcome == _CaptureOutcome.exactContentReused
+            ? 'content_hash'
+            : outcome == _CaptureOutcome.perceptualHashCoalesced
+            ? 'dhash'
+            : outcome == _CaptureOutcome.stateSignatureShortCircuit
+            ? 'state_signature'
+            : null,
+      );
+    }
     final captureOverride = debugExecuteCapture;
     if (captureOverride != null) {
       if (_disposed ||
@@ -1336,7 +1720,9 @@ class TugboatReplayController extends ChangeNotifier {
           _skipCapture ||
           _shouldSuppressFrameCapture ||
           _captureInFlight) {
-        return requiresFreshPaint ? null : _compatibleFrameFor(context);
+        return _cancelledCaptureExecution(
+          _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
+        );
       }
       _beginCapture();
       try {
@@ -1350,15 +1736,25 @@ class TugboatReplayController extends ChangeNotifier {
           captureGeneration,
           captureSession,
         )) {
-          return null;
+          return const _CaptureExecution(
+            outcome: _CaptureOutcome.supersededRoute,
+          );
         }
         if (frameId != null && _frameProvenance.containsKey(frameId)) {
           _latestFrameId = frameId;
         }
         _maybeEmitSceneInventory();
-        return frameId != null && _isFrameCompatible(frameId, context)
+        final resolved = frameId != null && _isFrameCompatible(frameId, context)
             ? frameId
             : (requiresFreshPaint ? null : _compatibleFrameFor(context));
+        return _CaptureExecution(
+          outcome: resolved == null
+              ? (_unavailableAttachmentReason(context) == 'no_frame_available'
+                    ? _CaptureOutcome.noFrameAvailable
+                    : _CaptureOutcome.noCompatibleFrame)
+              : _CaptureOutcome.freshAccepted,
+          frameId: resolved,
+        );
       } finally {
         _endCapture();
         if (_scheduledCapture != null) {
@@ -1372,12 +1768,14 @@ class TugboatReplayController extends ChangeNotifier {
         _skipCapture ||
         _shouldSuppressFrameCapture ||
         _captureInFlight) {
-      return requiresFreshPaint ? null : _compatibleFrameFor(context);
+      return _cancelledCaptureExecution(
+        _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
+      );
     }
     final session = captureSession;
     final capturer = _capturer;
     if (session == null || capturer == null) {
-      return requiresFreshPaint ? null : _compatibleFrameFor(context);
+      return const _CaptureExecution(outcome: _CaptureOutcome.noFrameAvailable);
     }
 
     final eligibleToSkip =
@@ -1396,7 +1794,11 @@ class TugboatReplayController extends ChangeNotifier {
       );
       _refreshStateAnchor();
       _maybeEmitSceneInventory();
-      return _compatibleFrameFor(context);
+      final compatible = _compatibleFrameFor(context);
+      return _CaptureExecution(
+        outcome: _CaptureOutcome.screenshotBudgetSkip,
+        frameId: compatible,
+      );
     }
 
     _beginCapture();
@@ -1430,7 +1832,6 @@ class TugboatReplayController extends ChangeNotifier {
               captureGeneration,
               captureSession,
             )) {
-          _captureFailureCount++;
           _screenshotBudget.record(
             queueWaitMicros: queueWaitMicros,
             frameWaitMicros: attempt.frameWaitMicros,
@@ -1440,7 +1841,21 @@ class TugboatReplayController extends ChangeNotifier {
             dropReason: attempt.failure?.name ?? 'capture_failed',
           );
         }
-        return null;
+        return _CaptureExecution(
+          outcome:
+              !_captureContextStillCurrent(
+                context,
+                captureGeneration,
+                captureSession,
+              )
+              ? _CaptureOutcome.supersededRoute
+              : _diagnosticOutcomeForFailure(attempt.failure),
+          failure: attempt.failure,
+          cancellationReason:
+              attempt.failure == ScreenshotCaptureFailure.cancelled
+              ? 'superseded_route'
+              : null,
+        );
       }
       _lastCaptureFailure = null;
       _refreshStateAnchor();
@@ -1450,7 +1865,14 @@ class TugboatReplayController extends ChangeNotifier {
           trigger != TugboatFrameTrigger.initial &&
           signature.isNotEmpty &&
           signature == _lastCapturedStateSignature) {
-        return _compatibleFrameFor(context);
+        final compatible = _compatibleFrameFor(context);
+        return _CaptureExecution(
+          outcome: compatible == null
+              ? _CaptureOutcome.noCompatibleFrame
+              : _CaptureOutcome.stateSignatureShortCircuit,
+          frameId: compatible,
+          reuseReason: compatible == null ? null : 'state_signature',
+        );
       }
       final activeSession = session;
       final completionStateAnchor = _snapshotStateAnchor(_refreshStateAnchor());
@@ -1470,9 +1892,16 @@ class TugboatReplayController extends ChangeNotifier {
           _lastDHash = result.dHash;
         }
         final compatible = _compatibleFrameFor(context);
-        return compatible == null
+        final reused = compatible == null
             ? null
             : _reuseCompatibleFrame(compatible, context, 'dhash');
+        return _CaptureExecution(
+          outcome: reused == null
+              ? _CaptureOutcome.noCompatibleFrame
+              : _CaptureOutcome.perceptualHashCoalesced,
+          frameId: reused,
+          reuseReason: reused == null ? null : 'dhash',
+        );
       }
 
       final existingId = _hashToFrameId[result.contentHash];
@@ -1488,7 +1917,11 @@ class TugboatReplayController extends ChangeNotifier {
           _lastCapturedStateSignature = signature;
         }
         _maybeEmitSceneInventory();
-        return existingId;
+        return _CaptureExecution(
+          outcome: _CaptureOutcome.exactContentReused,
+          frameId: existingId,
+          reuseReason: 'content_hash',
+        );
       }
 
       final frameId = _nextId('frame');
@@ -1532,7 +1965,10 @@ class TugboatReplayController extends ChangeNotifier {
       );
       _trim();
       if (!_disposed) notifyListeners();
-      return frameId;
+      return _CaptureExecution(
+        outcome: _CaptureOutcome.freshAccepted,
+        frameId: frameId,
+      );
     } finally {
       _endCapture();
       if (_scheduledCapture != null) {
@@ -1732,9 +2168,11 @@ class TugboatReplayController extends ChangeNotifier {
         final capture = _requestCaptureCancellable(
           trigger: TugboatFrameTrigger.tap,
           settleDelay: Duration.zero,
+          relatedEventId: pending.eventId,
         );
-        work.attachCaptureCancellation(capture.cancel);
-        final afterFrame = await capture.done;
+        work.attachCaptureCancellation((reason) => capture.cancel(reason));
+        final captureResolution = await capture.resolution;
+        final afterFrame = captureResolution.frameId;
         if (!_isActiveTapSettle(work)) return;
         final provenance = afterFrame == null
             ? null
@@ -1765,7 +2203,8 @@ class TugboatReplayController extends ChangeNotifier {
             captureOutcome: compatibleFrame ? 'captured' : 'failed',
             captureFailure: compatibleFrame
                 ? null
-                : (_lastCaptureFailure?.name ?? 'capture_unavailable'),
+                : captureResolution.outcome.wireName,
+            captureRequestId: captureResolution.requestId,
           );
         }
       }
@@ -1831,6 +2270,8 @@ class TugboatReplayController extends ChangeNotifier {
                   'captureFailure': observation.captureFailure,
                 if (observation.routeEventId != null)
                   'routeEventId': observation.routeEventId,
+                if (observation.captureRequestId != null)
+                  'captureRequestId': observation.captureRequestId,
                 'semantic': {
                   'changed': semanticChanged,
                   'evidence': semanticAvailable
@@ -1923,12 +2364,13 @@ class TugboatReplayController extends ChangeNotifier {
           : 'failed',
       captureFailure: validFrame ? null : routeResult.captureFailure,
       routeEventId: routeResult.routeEventId,
+      captureRequestId: routeResult.captureRequestId,
     );
   }
 
-  void _cancelActiveTapSettles() {
+  void _cancelActiveTapSettles([String reason = 'manual']) {
     for (final work in List<_TapSettleWork>.from(_activeTapSettles)) {
-      work.cancel();
+      work.cancel(reason);
     }
     _activeTapSettles.clear();
   }
@@ -2228,10 +2670,13 @@ class TugboatReplayController extends ChangeNotifier {
       if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
         return;
       }
-      final afterFrame = await _requestCapture(
+      final afterCapture = _requestCaptureCancellable(
         trigger: TugboatFrameTrigger.scroll,
         force: true,
+        relatedEventId: tracker.startEventId,
       );
+      final afterResolution = await afterCapture.resolution;
+      final afterFrame = afterResolution.frameId;
       if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
         return;
       }
@@ -2276,10 +2721,12 @@ class TugboatReplayController extends ChangeNotifier {
               durationMs: atMs - tracker.startedAtMs,
               overscrollCount: tracker.overscrollCount,
             ),
+            'captureRequestId': afterResolution.requestId,
+            'captureOutcome': afterResolution.outcome.wireName,
             if (afterFrame == null)
               'frameAttachment': {
                 'after': 'unavailable',
-                'reason': _lastCaptureFailure?.name ?? 'capture_unavailable',
+                'reason': afterResolution.outcome.wireName,
               },
           },
         ),
@@ -2309,7 +2756,8 @@ class TugboatReplayController extends ChangeNotifier {
     if (change.updatesRoute) _currentRoute = change.destinationRoute;
 
     final prior = _activeRouteCapture;
-    _cancelActiveRouteCapture();
+    _cancelActiveRouteCapture('superseded_route');
+    _cancelScheduledCaptureWaiters('superseded_route');
     if (prior == null) {
       // A new visible route must also wake any unrelated in-flight frame wait.
       _advanceCaptureGeneration();
@@ -2361,11 +2809,11 @@ class TugboatReplayController extends ChangeNotifier {
     }
   }
 
-  void _cancelActiveRouteCapture() {
+  void _cancelActiveRouteCapture([String reason = 'manual']) {
     final active = _activeRouteCapture;
     _activeRouteCapture = null;
     if (active != null) _advanceCaptureGeneration();
-    active?.cancel();
+    active?.cancel(reason);
     _skipCapture = false;
   }
 
@@ -2399,7 +2847,7 @@ class TugboatReplayController extends ChangeNotifier {
   void _timeoutRouteCapture(_RouteCaptureWork work) {
     if (!_isActiveRouteCapture(work)) return;
     final change = work.change;
-    work.cancelPendingWork();
+    work.cancelPendingWork('route_timeout');
     _advanceCaptureGeneration();
     _activeRouteCapture = null;
     _skipCapture = false;
@@ -2452,13 +2900,13 @@ class TugboatReplayController extends ChangeNotifier {
     TugboatStateAnchor? observedState;
     String? routeEventId;
     String? captureFailure;
+    String? captureRequestId;
     var outcome = _RouteCaptureOutcome.failed;
     try {
       if (!_isActiveRouteCapture(work)) return;
       final change = work.change;
       if (change.updatesRoute) _currentRoute = change.destinationRoute;
       _refreshStateAnchor();
-      final captureFailureCount = _captureFailureCount;
       final capture = _requestCaptureCancellable(
         trigger: TugboatFrameTrigger.route,
         force: true,
@@ -2467,8 +2915,9 @@ class TugboatReplayController extends ChangeNotifier {
         // strand widget-backed callers waiting for route completion.
         settleDelay: Duration.zero,
       );
-      work.attachCaptureCancellation(capture.cancel);
-      final captureResult = await _awaitRouteReadback(work, capture.done);
+      work.attachCaptureCancellation((reason) => capture.cancel(reason));
+      final captureResult = await _awaitRouteReadback(work, capture.resolution);
+      captureRequestId = captureResult.captureRequestId;
       if (captureResult.outcome == _RouteCaptureOutcome.failed) {
         if (!_isActiveRouteCapture(work)) return;
         outcome = _RouteCaptureOutcome.failed;
@@ -2489,8 +2938,10 @@ class TugboatReplayController extends ChangeNotifier {
                 'route': change.destinationRoute,
               'navigation': change.navigation,
               'captureOutcome': 'failed',
-              if (_lastCaptureFailure != null)
-                'captureFailure': _lastCaptureFailure!.name,
+              if (captureResult.captureFailure != null)
+                'captureFailure': captureResult.captureFailure,
+              if (captureRequestId != null)
+                'captureRequestId': captureRequestId,
             },
           ),
         );
@@ -2499,7 +2950,6 @@ class TugboatReplayController extends ChangeNotifier {
       }
       if (captureResult.outcome != _RouteCaptureOutcome.captured) return;
       afterFrame = captureResult.frameId;
-      if (_captureFailureCount != captureFailureCount) afterFrame = null;
       outcome = afterFrame == null
           ? _RouteCaptureOutcome.failed
           : _RouteCaptureOutcome.captured;
@@ -2524,11 +2974,12 @@ class TugboatReplayController extends ChangeNotifier {
             if (previousRoute != null) 'fromRoute': previousRoute,
             if (destinationRoute != null) 'route': destinationRoute,
             'navigation': change.navigation,
+            if (captureRequestId != null) 'captureRequestId': captureRequestId,
             if (outcome == _RouteCaptureOutcome.failed)
               'captureOutcome': 'failed',
             if (outcome == _RouteCaptureOutcome.failed &&
-                _lastCaptureFailure != null)
-              'captureFailure': _lastCaptureFailure!.name,
+                captureResult.captureFailure != null)
+              'captureFailure': captureResult.captureFailure,
           },
         ),
       );
@@ -2546,6 +2997,7 @@ class TugboatReplayController extends ChangeNotifier {
           stateAnchor: observedState,
           routeEventId: routeEventId,
           captureFailure: captureFailure,
+          captureRequestId: captureRequestId,
         ),
       );
     }
@@ -2556,15 +3008,17 @@ class TugboatReplayController extends ChangeNotifier {
   /// leaving the serialized queue blocked on platform readback.
   Future<_RouteCaptureResult> _awaitRouteReadback(
     _RouteCaptureWork work,
-    Future<String?> capture,
+    Future<_CaptureResolution> capture,
   ) async {
     return Future.any<_RouteCaptureResult>([
       capture.then(
-        (frameId) => _RouteCaptureResult(
-          frameId == null
+        (resolution) => _RouteCaptureResult(
+          resolution.frameId == null
               ? _RouteCaptureOutcome.failed
               : _RouteCaptureOutcome.captured,
-          frameId: frameId,
+          frameId: resolution.frameId,
+          captureFailure: resolution.outcome.wireName,
+          captureRequestId: resolution.requestId,
         ),
         onError: (_, __) =>
             const _RouteCaptureResult(_RouteCaptureOutcome.failed),
@@ -2578,9 +3032,9 @@ class TugboatReplayController extends ChangeNotifier {
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
       case AppLifecycleState.detached:
-        _cancelActiveTapSettles();
-        _cancelActiveRouteCapture();
-        _invalidateCaptureWork();
+        _cancelActiveTapSettles('lifecycle_deactivate');
+        _cancelActiveRouteCapture('lifecycle_deactivate');
+        _invalidateCaptureWork('lifecycle_deactivate');
         _captureLifecycleActive = false;
         break;
       case AppLifecycleState.resumed:

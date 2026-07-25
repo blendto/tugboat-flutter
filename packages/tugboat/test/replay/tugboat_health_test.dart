@@ -62,5 +62,23 @@ void main() {
     expect(json['activationRequestId'], 'req-1');
     expect(json['captureSessionId'], 'cap-1');
     expect((json['recentFailures'] as List).single['code'], 'sink_timeout');
+    expect(json['captureDiagnostics'], {
+      'total': 0,
+      'outcomes': <String, int>{},
+    });
+  });
+
+  test('capture diagnostic health is bounded and sanitized', () {
+    const diagnostics = TugboatCaptureDiagnosticHealth(
+      total: 3,
+      lastOutcome: 'paint_readiness_timeout',
+      outcomes: {'fresh_accepted': 2, 'paint_readiness_timeout': 1},
+    );
+
+    final json = diagnostics.toJson();
+    expect(json['total'], 3);
+    expect(json['lastOutcome'], 'paint_readiness_timeout');
+    expect(json.toString(), isNot(contains('stack')));
+    expect(json.toString(), isNot(contains('pixel')));
   });
 }

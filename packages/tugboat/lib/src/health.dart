@@ -8,6 +8,7 @@ class TugboatSdkHealth {
     this.sinks = const TugboatSinkHealth(),
     this.outbox,
     this.screenshots = const TugboatScreenshotBudgetHealth(),
+    this.captureDiagnostics = const TugboatCaptureDiagnosticHealth(),
     this.truncated = false,
     this.recentFailures = const [],
   });
@@ -19,6 +20,10 @@ class TugboatSdkHealth {
   final TugboatSinkHealth sinks;
   final TugboatOutboxHealth? outbox;
   final TugboatScreenshotBudgetHealth screenshots;
+
+  /// Bounded, privacy-safe capture outcome counts. Additive to screenshot
+  /// budget health so existing consumers remain compatible.
+  final TugboatCaptureDiagnosticHealth captureDiagnostics;
   final bool truncated;
   final List<TugboatSanitizedFailure> recentFailures;
 
@@ -30,8 +35,30 @@ class TugboatSdkHealth {
     'sinks': sinks.toJson(),
     if (outbox != null) 'outbox': outbox!.toJson(),
     'screenshots': screenshots.toJson(),
+    'captureDiagnostics': captureDiagnostics.toJson(),
     'truncated': truncated,
     'recentFailures': recentFailures.map((f) => f.toJson()).toList(),
+  };
+}
+
+/// Rolling capture-resolution evidence. Outcome names are a closed,
+/// non-sensitive taxonomy; no errors, pixels, labels, or stack traces appear
+/// here.
+class TugboatCaptureDiagnosticHealth {
+  const TugboatCaptureDiagnosticHealth({
+    this.total = 0,
+    this.lastOutcome,
+    this.outcomes = const {},
+  });
+
+  final int total;
+  final String? lastOutcome;
+  final Map<String, int> outcomes;
+
+  Map<String, Object?> toJson() => {
+    'total': total,
+    if (lastOutcome != null) 'lastOutcome': lastOutcome,
+    'outcomes': Map<String, int>.unmodifiable(outcomes),
   };
 }
 
