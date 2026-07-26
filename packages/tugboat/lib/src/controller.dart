@@ -8,6 +8,7 @@ import 'anchors.dart';
 import 'capture_profile.dart';
 import 'capture_sink.dart';
 import 'collector_http_sink.dart';
+import 'coordinate_space.dart';
 import 'debug_logging.dart';
 import 'exploration_sink.dart';
 import 'health.dart';
@@ -2223,9 +2224,14 @@ class TugboatReplayController extends ChangeNotifier {
     final attachmentContext = _captureContext(TugboatFrameTrigger.tap);
     final beforeFrame = _compatibleFrameFor(attachmentContext);
     final unavailableReason = _unavailableAttachmentReason(attachmentContext);
+    final captureCoordinate = _sampleCaptureCoordinate(
+      position: position,
+      frameId: beforeFrame,
+    );
     final tapData = <String, Object?>{
       'x': position.dx,
       'y': position.dy,
+      'captureCoordinate': captureCoordinate.toJson(),
       if (unavailableReason != null)
         'frameAttachment': {
           'before': 'unavailable',
@@ -2282,6 +2288,34 @@ class TugboatReplayController extends ChangeNotifier {
       tugboatLogViewportSemanticTapResolution(position, viewportResolution);
     }
     if (!_disposed) notifyListeners();
+  }
+
+  TugboatCaptureCoordinate _sampleCaptureCoordinate({
+    required Offset position,
+    required String? frameId,
+  }) {
+    final context = _boundaryKey.currentContext;
+    final renderObject = context?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) {
+      return const TugboatCaptureCoordinate.unavailable(
+        unavailableReason: 'boundary_unavailable',
+      );
+    }
+    final origin = renderObject.localToGlobal(Offset.zero);
+    final size = renderObject.size;
+    final frame = frameId == null ? null : _session?.frameById(frameId);
+    return buildCaptureCoordinate(
+      globalX: position.dx,
+      globalY: position.dy,
+      boundaryOriginX: origin.dx,
+      boundaryOriginY: origin.dy,
+      boundaryWidth: size.width,
+      boundaryHeight: size.height,
+      framePixelWidth: frame?.width ?? 0,
+      framePixelHeight: frame?.height ?? 0,
+      frameId: frameId,
+      boundaryTransformGeneration: _visualObservationGeneration,
+    );
   }
 
   void recordPointerCancel(Offset position, {int pointer = 0}) {
