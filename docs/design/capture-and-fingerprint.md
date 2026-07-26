@@ -1,6 +1,6 @@
 # Capture and fingerprint architecture
 
-Status: current implementation audit (2026-07-16)
+Status: current implementation audit (2026-07-26)
 Scope: `packages/tugboat` in this repository
 
 This document describes what the Flutter SDK implements today. It deliberately
@@ -106,6 +106,52 @@ Events may carry `beforeFrame`, `afterFrame`, `stateAnchor`, `targetAnchor`,
 `relatedEventId`, `explorationRunId`, `actionId`, an interaction result, and
 type-specific `data`. Route transition values live in `route_change.data`, not
 in a session-level route dictionary.
+
+### Capture lifecycle and attribution
+
+`wrapApp` starts a session only after its repaint boundary has a non-zero
+viewport. The session begins with `session_start` and an initial capture
+request. Pointer-down records `tap` plus a compatible pre-interaction frame,
+then pointer-up either records a swipe or creates one `tap_settled` outcome.
+The settled event refers to the initial tap through `relatedEventId` and is
+intended to attach an after-frame only when that frame's provenance matches the
+observed route epoch. A capture that is unavailable, cancelled, superseded, or
+timed out is represented by bounded capture/attachment diagnostics instead of
+borrowing the latest frame from another screen.
+
+Frame requests are serialized, may coalesce, and use fresh-paint/readback
+checks before publishing. Their provenance records the capture context and
+completion state, so exact-content and perceptual deduplication reuse frames
+only within a compatible context. `paused` and `hidden` request a delivery
+flush after 500 ms; `resumed` cancels that pending flush; `detached`, wrapper
+disposal, and deactivation end the session once and initiate sink shutdown.
+
+Input event coordinates (`x`, `y`, and swipe start/delta values) originate as
+Flutter global logical-pixel coordinates. The resolver converts a global point
+to capture-boundary local coordinates only to hit-test and normalize it against
+the viewport; stored coordinates are not capture-boundary-normalized for replay
+playback, are neither device pixels nor widget-local, and can therefore produce
+fractional overlay drift.
+
+### Navigator and modal routes
+
+Installing `TugboatReplay.navigatorObserver` is intended to record the standard
+Navigator push, pop, replace, and remove callbacks automatically. No
+per-navigation SDK call is required. Dialogs and `showModalBottomSheet`
+instances can participate when their routes use that observed Navigator. Nested
+navigators require their own observer integration; native/system overlays
+remain outside the Flutter Navigator and repaint-boundary surface.
+
+Every visible navigation change advances a route epoch and has a single route
+capture barrier after transition settlement. A later visible navigation
+supersedes stale work. This is the implemented intended invariant: a delayed
+destination capture or tap-settle operation should not attach the prior route's
+frame, and an unavailable compatible frame should remain explicitly degraded.
+
+It is not yet a production-accepted guarantee. Production acceptance #13/#14
+remains open: rapid/nested modal chains and programmatic/automatic navigation
+can still be absent or degraded. Treat those observations as SDK capture gaps,
+not as coherent replay evidence.
 
 Pointer work and post-interaction capture are serialized through a controller
 queue. An error in one queued task is caught and logged so later taps, scrolls,
@@ -229,11 +275,13 @@ frames captured before connection are still sent.
 | --- | --- | --- | --- |
 | `off` | no | no | no |
 | `tapResolutionOnly` | yes for active profiles | no | no |
-| `full` | yes | yes | no |
-| `fullWithDebugLogs` | yes | yes | yes |
+| `full` | yes | exploration only | no |
+| `fullWithDebugLogs` | yes | exploration only | exploration only |
 
 Exploration holds a persistent Flutter `SemanticsHandle` when semantics are
-enabled. Production uses transient semantics. Emitted maps are bounded by
+enabled. Production uses transient semantics and never emits semantic-map
+events, even in `full` modes; it can still build maps locally for tap
+resolution. Emitted exploration maps are bounded by
 `viewportSemanticMapMaxNodes` (default `120`) and
 `viewportSemanticMapMaxBytes` (default `48000`).
 

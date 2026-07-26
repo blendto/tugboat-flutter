@@ -10,6 +10,17 @@ The procedure is intentionally strict about build identity. Do not mix sessions
 from different SDK revisions, infer the SDK revision from capture time, or use
 database receipt alone as proof that a replay is correct.
 
+## Current acceptance status
+
+Production acceptance #13/#14 remains open. The SDK's route-epoch and frame
+provenance behavior is an intended invariant, but rapid/nested modal chains and
+programmatic/automatic navigation can still be absent or degraded in a
+production replay. Record those observations as SDK capture gaps; do not infer
+route/action coherence from the intended contract or repair the evidence in the
+dashboard. Stored tap coordinates are global logical pixels and are not
+capture-boundary-normalized for playback, so fractional overlay drift is also a
+known limitation.
+
 ## Roles and evidence
 
 Record these people before starting:
@@ -140,7 +151,7 @@ flows share a session, list the event IDs or timestamps that delimit each flow.
 
 Wait until the collector session has finalized and the replay is available in
 the production website. Filter to the recorded Blend build and SDK version
-`0.4.9` (or the version under test), then open every recorded session.
+`0.4.10` (or the version under test), then open every recorded session.
 
 For each interaction, inspect the actual replay UI and verify:
 
@@ -169,7 +180,7 @@ Use one row per production session:
 
 | Session ID | UTC range | Blend build | SDK version / SHA | Flows | Frame availability | Route/action coherence | Verdict | Follow-up |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `<collector-session-id>` | `<start> - <end>` | `<version+build>` | `0.4.9 / <sha>` | `<flows>` | pass/fail | pass/fail | accept/reject | `<issue or none>` |
+| `<collector-session-id>` | `<start> - <end>` | `<version+build>` | `0.4.10 / <sha>` | `<flows>` | pass/fail | pass/fail | accept/reject | `<issue or none>` |
 
 The cohort passes only when:
 

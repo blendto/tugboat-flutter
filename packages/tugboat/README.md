@@ -5,7 +5,7 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.4.9`. Session JSON uses schema version `7`
+The current package version is `0.4.10`. Session JSON uses schema version `7`
 (readers still accept `6`), and structural fingerprints use fingerprint schema
 version `6`.
 
@@ -42,6 +42,27 @@ Without `TugboatReplay.navigatorObserver`, pointer and scroll capture still
 work, but route-change events and route-backed anchors are incomplete. Without
 `wrapApp`, no capture controller, repaint boundary, or input/scroll listener is
 installed.
+
+### Navigation and overlays
+
+The supplied observer is intended to record standard Navigator `push`, `pop`,
+`replace`, and `remove` callbacks without application code calling the replay
+controller for each navigation. Dialog and modal-bottom-sheet routes can
+participate when they use that observed Navigator. Nested navigators need their
+own observer wiring, and native/system overlays are outside the Flutter
+Navigator/repaint-boundary contract.
+
+Each visible route change creates a route epoch and waits for the transition
+plus the configured settle delay before taking the destination capture. A newer
+visible route supersedes an older pending capture. Consequently, a route event
+and a related `tap_settled` event are intended to reference a frame compatible
+with that route epoch, or report bounded degraded/capture diagnostics rather
+than attach an origin-route frame merely because it was the latest frame.
+
+This is an implemented SDK invariant, not a production-accepted guarantee.
+Production acceptance for #13/#14 remains open: rapid or nested modal chains
+and programmatic/automatic navigation can still be absent or degraded. Treat
+those cases as an SDK capture gap, not as coherent replay evidence.
 
 ## Capture profiles and runtime state
 
@@ -176,6 +197,23 @@ or explicit controller calls. Capture requests are serialized and coalesced.
 The SDK first skips repeated state signatures, then uses a small dHash to avoid
 PNG encoding for visually unchanged content, and finally deduplicates encoded
 frames by content hash.
+
+Pointer coordinates in event data (`x`, `y`, and swipe `startX`/`startY`) are
+Flutter global logical-pixel coordinates from the pointer event. The SDK
+converts a copy into its capture boundary's local space only for hit-testing and
+normalizing target/viewport-semantic bounds; stored event coordinates are not
+capture-boundary-normalized for replay playback. Do not interpret them as
+physical pixels or as coordinates relative to an individual widget. Fractional
+overlay drift is therefore still possible.
+
+For a tap, `beforeFrame` is selected at pointer-down only if its provenance is
+compatible with the tap's route epoch. At pointer-up, a single `tap_settled`
+event links back to the `tap` via `relatedEventId` and is intended to contain
+an `afterFrame` only when the settled capture is compatible with the observed
+route. A missing attachment is explicit in `frameAttachment`/settle diagnostics
+rather than a fallback to an unrelated frame. Acceptance remains open for the
+navigation cases above, so consumers must still treat absence and degradation
+as a capture gap.
 
 During local WebSocket exploration, connecting without an HTTP collector
 suppresses new Flutter screenshot capture for UI-thread performance. Events,
