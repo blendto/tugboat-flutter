@@ -80,14 +80,14 @@ void main() {
       harness.controller.recordPointerDown(const Offset(8, 8));
       final tap = harness.controller.session!.ofType('tap').single;
       harness.controller.recordPointerUp(const Offset(8, 8));
+      await harness.pumpMicrotasks();
 
-      // The pointer is already up, so this navigation must remain automatic.
-      // It starts before the tap's settle delay completes.
+      // The pointer event turn has ended, so this navigation must remain
+      // automatic even though the tap's settle delay is still active.
       final automaticRoute = harness.controller.route(
         'route_push',
         harness.route('/redirect'),
       );
-      await harness.pumpMicrotasks();
       harness.scheduler.advance(const Duration(milliseconds: 100));
       await harness.pumpQueueWork();
       await automaticRoute;

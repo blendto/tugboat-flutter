@@ -820,6 +820,7 @@ class TugboatReplayController extends ChangeNotifier {
   TugboatStateAnchor? _currentStateAnchor;
   String? _latestFrameId;
   final Map<int, _PendingTap> _pendingTaps = {};
+  final Map<int, _PendingInteractionClaim> _releasedInteractionClaims = {};
   final Map<String, String> _hashToFrameId = {};
   final Map<String, _FrameProvenance> _frameProvenance = {};
   final Map<String, _FrameReuseObservation> _frameReuseObservations = {};
@@ -1377,6 +1378,7 @@ class TugboatReplayController extends ChangeNotifier {
     _currentStateAnchor = null;
     _latestFrameId = null;
     _pendingTaps.clear();
+    _releasedInteractionClaims.clear();
     _scrollTrackers.clear();
     _activeGestures.clear();
     _hashToFrameId.clear();
@@ -2278,6 +2280,7 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   void recordPointerDown(Offset position, {int pointer = 0}) {
+    _releasedInteractionClaims.remove(pointer)?.cancelled = true;
     final resolver = _anchorResolver;
     TugboatTargetAnchor? target;
     TugboatStateAnchor? tapState = _currentStateAnchor;
@@ -2430,6 +2433,7 @@ class TugboatReplayController extends ChangeNotifier {
   void recordPointerCancel(Offset position, {int pointer = 0}) {
     final pending = _pendingTaps.remove(pointer);
     pending?.claim.cancelled = true;
+    _releasedInteractionClaims.remove(pointer)?.cancelled = true;
     _activeGestures.remove(pointer);
     _addEvent(
       TugboatEvent(
@@ -2499,6 +2503,17 @@ class TugboatReplayController extends ChangeNotifier {
       return;
     }
 
+    // Gesture callbacks such as onTap run after the raw pointer-up listener
+    // within the same event-loop turn. Keep the single-use claim alive only
+    // through that turn so Navigator observers can attribute the transition
+    // without allowing later automatic navigation to borrow the tap.
+    _releasedInteractionClaims[pointer] = pending.claim;
+    scheduleMicrotask(() {
+      if (identical(_releasedInteractionClaims[pointer], pending.claim)) {
+        _releasedInteractionClaims.remove(pointer);
+      }
+    });
+
     final work = _TapSettleWork(session: _session);
     _activeTapSettles.add(work);
     unawaited(_resolveTapSettle(work, pending, position, _activeRouteCapture));
@@ -2528,11 +2543,11 @@ class TugboatReplayController extends ChangeNotifier {
       // it would incorrectly copy its destination frame and route event ID
       // onto the tap.
       final currentRouteCapture = _activeRouteCapture;
-      final routeCapture = initialRouteCapture != null
-          ? initialRouteCapture
-          : currentRouteCapture?.change.causeEventId == pending.eventId
-          ? currentRouteCapture
-          : null;
+      final routeCapture =
+          initialRouteCapture ??
+          (currentRouteCapture?.change.causeEventId == pending.eventId
+              ? currentRouteCapture
+              : null);
       _TapSettleObservation observation;
       if (routeCapture != null) {
         final routeBarrier = await _awaitRouteCaptureBarrier(
@@ -3677,6 +3692,11 @@ class TugboatReplayController extends ChangeNotifier {
     for (final pending in _pendingTaps.values) {
       if (pending.suppressSettle) continue;
       final claim = pending.claim;
+      if (!claim.isEligible) continue;
+      if (claim.captureSessionId != _session?.id) continue;
+      eligible.add(claim);
+    }
+    for (final claim in _releasedInteractionClaims.values) {
       if (!claim.isEligible) continue;
       if (claim.captureSessionId != _session?.id) continue;
       eligible.add(claim);
