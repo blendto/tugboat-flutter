@@ -59,6 +59,10 @@
   capture boundary's logical rect and transform generation. Resizes, rotations,
   and inset changes invalidate stale before-frame attachment and emit
   `generation_mismatch` instead of projecting a current tap onto older pixels.
+- **Replay capture contract documentation** — documents the implemented route/frame
+  attribution invariant separately from the still-open production acceptance
+  gaps for rapid modal chains, automatic navigation, and playback tap-coordinate
+  alignment.
 - **Route-capture barrier** — tap settlement now joins the matching route epoch
   instead of reusing the previous route's latest frame. Supersession,
   lifecycle cancellation, capture failure, and bounded timeout outcomes
