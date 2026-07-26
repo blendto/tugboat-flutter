@@ -50,6 +50,15 @@
 
 ### Changed
 
+- **Tap/navigation causality fence** — tap settlement joins a route-capture
+  barrier only when that route explicitly claimed the same tap event.
+  Automatic redirects that overlap settlement, including successors of a
+  tap-caused route, remain independent and cannot donate their frame or route
+  event ID to the tap.
+- **Frame-owned coordinate geometry** — frame provenance now retains the
+  capture boundary's logical rect and transform generation. Resizes, rotations,
+  and inset changes invalidate stale before-frame attachment and emit
+  `generation_mismatch` instead of projecting a current tap onto older pixels.
 - **Route-capture barrier** — tap settlement now joins the matching route epoch
   instead of reusing the previous route's latest frame. Supersession,
   lifecycle cancellation, capture failure, and bounded timeout outcomes
