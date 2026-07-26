@@ -39,8 +39,17 @@ MaterialApp(
 ```
 
 Without `TugboatReplay.navigatorObserver`, pointer and scroll capture still
-work, but route-change events and route-backed anchors are incomplete. Without
-`wrapApp`, no capture controller, repaint boundary, or input/scroll listener is
+work, but route-change events and route-backed anchors are incomplete. Nested
+Navigators that must be attributed need their own observer instance:
+
+```dart
+Navigator(
+  observers: [TugboatReplay.createNavigatorObserver()],
+  // ...
+);
+```
+
+Without `wrapApp`, no capture controller, repaint boundary, or input/scroll listener is
 installed.
 
 ## Capture profiles and runtime state

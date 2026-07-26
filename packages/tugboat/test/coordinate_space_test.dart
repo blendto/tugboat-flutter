@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tugboat/src/coordinate_space.dart';
 import 'package:tugboat/tugboat.dart';
 
 void main() {

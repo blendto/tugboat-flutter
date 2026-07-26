@@ -1,7 +1,19 @@
-## Unreleased
+## 0.4.11
 
 ### Added
 
+- **Navigator and route-instance ownership** — every observed Navigator gets a
+  session-local opaque `navigatorId`; every pushed route gets a
+  `routeInstanceId`. Stacked anonymous modals stay distinguishable.
+  Install nested observers with `TugboatReplay.createNavigatorObserver()`.
+- **Navigation origin contract** — `route_change` events carry
+  `navigationOrigin` (`interaction` | `automatic_or_unknown`) and optional
+  `causeEventId`. Only observer-time single-use pending-interaction claims can
+  bind a tap; timer/auth redirects never fabricate causality.
+- **Versioned `captureCoordinate`** — taps retain legacy global `x`/`y` and add
+  a boundary-local / normalized / raster transform bound to the before-frame.
+  Outside-boundary and generation-mismatch cases emit an unavailable reason
+  instead of clamping.
 - **Replay coherence characterization harness** — deterministic, advanceable
   scheduler/capture test seams (`debugNow`, `debugDelay`, `debugExecuteCapture`,
   `debugSeedFrame`) plus reusable helpers that reproduce known navigation/frame
