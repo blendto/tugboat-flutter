@@ -2511,9 +2511,12 @@ class TugboatReplayController extends ChangeNotifier {
     _RouteCaptureWork? routeCaptureAtPointerUp,
   ) async {
     try {
+      final initialRouteCapture =
+          routeCaptureAtPointerUp?.change.causeEventId == pending.eventId
+          ? routeCaptureAtPointerUp
+          : null;
       // Give a callback immediately after pointer-up the same settle boundary.
-      if (routeCaptureAtPointerUp == null &&
-          config.settleDelay > Duration.zero) {
+      if (initialRouteCapture == null && config.settleDelay > Duration.zero) {
         final deadline = _scheduleDelay(config.settleDelay);
         work.attachDeadlineCancellation(deadline.cancel);
         await deadline.done;
@@ -2525,9 +2528,8 @@ class TugboatReplayController extends ChangeNotifier {
       // it would incorrectly copy its destination frame and route event ID
       // onto the tap.
       final currentRouteCapture = _activeRouteCapture;
-      final routeCapture =
-          routeCaptureAtPointerUp?.change.causeEventId == pending.eventId
-          ? routeCaptureAtPointerUp
+      final routeCapture = initialRouteCapture != null
+          ? initialRouteCapture
           : currentRouteCapture?.change.causeEventId == pending.eventId
           ? currentRouteCapture
           : null;
