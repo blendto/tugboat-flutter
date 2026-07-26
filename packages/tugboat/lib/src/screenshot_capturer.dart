@@ -87,6 +87,7 @@ class ScreenshotCaptureResult {
     this.dHash,
     required this.width,
     required this.height,
+    required this.boundaryLogicalRect,
     required this.masked,
     required this.captureMicros,
     required this.encodeMicros,
@@ -99,6 +100,7 @@ class ScreenshotCaptureResult {
   final String? dHash;
   final int width;
   final int height;
+  final Rect boundaryLogicalRect;
   final bool masked;
   final int captureMicros;
   final int encodeMicros;
@@ -354,6 +356,8 @@ class ScreenshotCapturer {
     required bool force,
   }) async {
     final rootRender = boundary;
+    final boundaryOrigin = boundary.localToGlobal(Offset.zero);
+    final boundaryLogicalRect = boundaryOrigin & boundary.size;
 
     final List<MaskRect> maskRects;
     final maskClock = Stopwatch()..start();
@@ -437,6 +441,7 @@ class ScreenshotCapturer {
               dHash: quickDHash,
               width: scaledWidth,
               height: scaledHeight,
+              boundaryLogicalRect: boundaryLogicalRect,
               masked: maskRects.isNotEmpty,
               captureMicros: readbackClock.elapsedMicroseconds,
               encodeMicros: encodeClock.elapsedMicroseconds,
@@ -471,6 +476,7 @@ class ScreenshotCapturer {
             dHash: quickDHash,
             width: scaledWidth,
             height: scaledHeight,
+            boundaryLogicalRect: boundaryLogicalRect,
             masked: maskRects.isNotEmpty,
             captureMicros: readbackClock.elapsedMicroseconds,
             encodeMicros: encodeClock.elapsedMicroseconds,

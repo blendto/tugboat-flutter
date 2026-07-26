@@ -127,4 +127,33 @@ void main() {
     expect((backX - coord.normalizedX).abs(), lessThan(0.02));
     expect((backY - coord.normalizedY).abs(), lessThan(0.02));
   });
+
+  testWidgets('resized boundary suppresses coordinates for the older frame', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final controller = await mount(tester);
+    final priorFrame = controller.session!.frames.last.id;
+
+    tester.view.physicalSize = const Size(900, 600);
+    await tester.pump();
+
+    final center = tester.getCenter(find.byKey(const Key('target')));
+    controller.recordPointerDown(center);
+    final tap = controller.session!.events.where((e) => e.type == 'tap').last;
+    final coord = TugboatCaptureCoordinate.fromJson(
+      Map<String, Object?>.from(tap.data['captureCoordinate']! as Map),
+    );
+
+    expect(tap.beforeFrame, isNull);
+    expect(coord.isAvailable, isFalse);
+    expect(coord.unavailableReason, 'generation_mismatch');
+    expect(coord.frameId, priorFrame);
+    expect(coord.framePixelWidth, greaterThan(0));
+    expect(coord.framePixelHeight, greaterThan(0));
+  });
 }

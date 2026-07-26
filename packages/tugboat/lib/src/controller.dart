@@ -289,6 +289,8 @@ class _CaptureRequestContext {
     this.navigatorId,
     this.routeInstanceId,
     this.visualObservationGeneration,
+    this.boundaryLogicalRect,
+    this.boundaryTransformGeneration = 0,
   });
 
   final String? captureSessionId;
@@ -300,10 +302,20 @@ class _CaptureRequestContext {
   final String? navigatorId;
   final String? routeInstanceId;
   final int? visualObservationGeneration;
+  final Rect? boundaryLogicalRect;
+  final int boundaryTransformGeneration;
 
   String? get stateSignature => stateAnchor?.signature;
 
   bool compatibleWith(_CaptureRequestContext other) =>
+      captureSessionId == other.captureSessionId &&
+      routeEpoch == other.routeEpoch &&
+      route == other.route &&
+      navigatorId == other.navigatorId &&
+      routeInstanceId == other.routeInstanceId &&
+      boundaryTransformGeneration == other.boundaryTransformGeneration;
+
+  bool surfaceCompatibleWith(_CaptureRequestContext other) =>
       captureSessionId == other.captureSessionId &&
       routeEpoch == other.routeEpoch &&
       route == other.route &&
@@ -321,7 +333,26 @@ class _CaptureRequestContext {
         navigatorId: navigatorId,
         routeInstanceId: routeInstanceId,
         visualObservationGeneration: visualObservationGeneration,
+        boundaryLogicalRect: boundaryLogicalRect,
+        boundaryTransformGeneration: boundaryTransformGeneration,
       );
+
+  _CaptureRequestContext withBoundaryTransform({
+    required Rect logicalRect,
+    required int generation,
+  }) => _CaptureRequestContext(
+    captureSessionId: captureSessionId,
+    routeEpoch: routeEpoch,
+    route: route,
+    trigger: trigger,
+    requestedAtMs: requestedAtMs,
+    stateAnchor: stateAnchor,
+    navigatorId: navigatorId,
+    routeInstanceId: routeInstanceId,
+    visualObservationGeneration: visualObservationGeneration,
+    boundaryLogicalRect: logicalRect,
+    boundaryTransformGeneration: generation,
+  );
 }
 
 class _FrameProvenance {
@@ -353,6 +384,13 @@ class _FrameProvenance {
       'routeInstanceId': context.routeInstanceId,
     if (context.visualObservationGeneration != null)
       'visualObservationGeneration': context.visualObservationGeneration,
+    if (context.boundaryLogicalRect != null) ...{
+      'boundaryOriginX': context.boundaryLogicalRect!.left,
+      'boundaryOriginY': context.boundaryLogicalRect!.top,
+      'boundaryWidth': context.boundaryLogicalRect!.width,
+      'boundaryHeight': context.boundaryLogicalRect!.height,
+    },
+    'boundaryTransformGeneration': context.boundaryTransformGeneration,
     'trigger': context.trigger.name,
     'requestedAtMs': context.requestedAtMs,
     'completedAtMs': completedAtMs,
@@ -775,6 +813,8 @@ class TugboatReplayController extends ChangeNotifier {
   String? _currentNavigatorId;
   String? _currentRouteInstanceId;
   int _visualObservationGeneration = 0;
+  int _boundaryTransformGeneration = 0;
+  Rect? _lastObservedBoundaryRect;
   int _pointerGeneration = 0;
   final _NavigatorSurfaceRegistry _surfaces = _NavigatorSurfaceRegistry();
   TugboatStateAnchor? _currentStateAnchor;
@@ -1330,6 +1370,8 @@ class TugboatReplayController extends ChangeNotifier {
     _currentNavigatorId = null;
     _currentRouteInstanceId = null;
     _visualObservationGeneration = 0;
+    _boundaryTransformGeneration = 0;
+    _lastObservedBoundaryRect = null;
     _pointerGeneration = 0;
     _surfaces.clear();
     _currentStateAnchor = null;
@@ -1446,6 +1488,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   _CaptureRequestContext _captureContext(TugboatFrameTrigger trigger) {
     final anchor = _currentStateAnchor;
+    final boundary = _observeCurrentBoundaryTransform();
     return _CaptureRequestContext(
       captureSessionId: _session?.id,
       routeEpoch: _routeEpoch,
@@ -1458,7 +1501,37 @@ class TugboatReplayController extends ChangeNotifier {
       navigatorId: _currentNavigatorId,
       routeInstanceId: _currentRouteInstanceId,
       visualObservationGeneration: _visualObservationGeneration,
+      boundaryLogicalRect: boundary.rect,
+      boundaryTransformGeneration: boundary.generation,
     );
+  }
+
+  ({Rect? rect, int generation}) _observeCurrentBoundaryTransform() {
+    final renderObject = _boundaryKey.currentContext?.findRenderObject();
+    Rect? rect;
+    if (renderObject is RenderBox && renderObject.hasSize) {
+      rect = renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    }
+    return _observeBoundaryTransform(rect);
+  }
+
+  ({Rect? rect, int generation}) _observeBoundaryTransform(Rect? rect) {
+    if (rect != null && !_sameBoundaryRect(_lastObservedBoundaryRect, rect)) {
+      if (_lastObservedBoundaryRect != null) {
+        _boundaryTransformGeneration++;
+      }
+      _lastObservedBoundaryRect = rect;
+    }
+    return (rect: rect, generation: _boundaryTransformGeneration);
+  }
+
+  bool _sameBoundaryRect(Rect? left, Rect right) {
+    if (left == null) return false;
+    const epsilon = 0.01;
+    return (left.left - right.left).abs() <= epsilon &&
+        (left.top - right.top).abs() <= epsilon &&
+        (left.width - right.width).abs() <= epsilon &&
+        (left.height - right.height).abs() <= epsilon;
   }
 
   TugboatStateAnchor? _snapshotStateAnchor(TugboatStateAnchor? anchor) {
@@ -1486,6 +1559,14 @@ class TugboatReplayController extends ChangeNotifier {
     final provenance = _frameProvenance[latest];
     if (provenance == null || !provenance.available) return null;
     return provenance.context.compatibleWith(context) ? latest : null;
+  }
+
+  String? _surfaceCompatibleFrameFor(_CaptureRequestContext context) {
+    final latest = _latestFrameId;
+    if (latest == null) return null;
+    final provenance = _frameProvenance[latest];
+    if (provenance == null || !provenance.available) return null;
+    return provenance.context.surfaceCompatibleWith(context) ? latest : null;
   }
 
   String? _unavailableAttachmentReason(_CaptureRequestContext context) {
@@ -1631,14 +1712,17 @@ class TugboatReplayController extends ChangeNotifier {
     _CaptureRequestContext context,
     int generation,
     TugboatSession? session,
-  ) =>
-      !_disposed &&
-      generation == _captureGeneration &&
-      identical(_session, session) &&
-      context.captureSessionId == session?.id &&
-      context.routeEpoch == _routeEpoch &&
-      context.route ==
-          (_currentRoute ?? _currentStateAnchor?.signatureParts['route']);
+  ) {
+    final boundary = _observeCurrentBoundaryTransform();
+    return !_disposed &&
+        generation == _captureGeneration &&
+        identical(_session, session) &&
+        context.captureSessionId == session?.id &&
+        context.routeEpoch == _routeEpoch &&
+        context.route ==
+            (_currentRoute ?? _currentStateAnchor?.signatureParts['route']) &&
+        context.boundaryTransformGeneration == boundary.generation;
+  }
 
   ({
     Future<String?> done,
@@ -2156,8 +2240,13 @@ class TugboatReplayController extends ChangeNotifier {
       activeSession.frameBytes[frameId] = result.bytes;
       _hashToFrameId[result.contentHash] = frameId;
       _latestFrameId = frameId;
+      final boundary = _observeBoundaryTransform(result.boundaryLogicalRect);
+      final frameContext = context.withBoundaryTransform(
+        logicalRect: result.boundaryLogicalRect,
+        generation: boundary.generation,
+      );
       _frameProvenance[frameId] = _FrameProvenance(
-        context: context,
+        context: frameContext,
         completedAtMs: atMs,
         completionStateAnchor: completionStateAnchor,
       );
@@ -2223,10 +2312,13 @@ class TugboatReplayController extends ChangeNotifier {
 
     final attachmentContext = _captureContext(TugboatFrameTrigger.tap);
     final beforeFrame = _compatibleFrameFor(attachmentContext);
+    final coordinateFrame =
+        beforeFrame ?? _surfaceCompatibleFrameFor(attachmentContext);
     final unavailableReason = _unavailableAttachmentReason(attachmentContext);
     final captureCoordinate = _sampleCaptureCoordinate(
       position: position,
-      frameId: beforeFrame,
+      frameId: coordinateFrame,
+      context: attachmentContext,
     );
     final tapData = <String, Object?>{
       'x': position.dx,
@@ -2293,28 +2385,45 @@ class TugboatReplayController extends ChangeNotifier {
   TugboatCaptureCoordinate _sampleCaptureCoordinate({
     required Offset position,
     required String? frameId,
+    required _CaptureRequestContext context,
   }) {
-    final context = _boundaryKey.currentContext;
-    final renderObject = context?.findRenderObject();
-    if (renderObject is! RenderBox || !renderObject.hasSize) {
+    final boundaryRect = context.boundaryLogicalRect;
+    if (boundaryRect == null) {
       return const TugboatCaptureCoordinate.unavailable(
         unavailableReason: 'boundary_unavailable',
       );
     }
-    final origin = renderObject.localToGlobal(Offset.zero);
-    final size = renderObject.size;
     final frame = frameId == null ? null : _session?.frameById(frameId);
+    final provenance = frameId == null ? null : _frameProvenance[frameId];
+    if (frame != null &&
+        provenance != null &&
+        provenance.context.boundaryTransformGeneration !=
+            context.boundaryTransformGeneration) {
+      return TugboatCaptureCoordinate.unavailable(
+        unavailableReason: 'generation_mismatch',
+        boundaryOriginX: boundaryRect.left,
+        boundaryOriginY: boundaryRect.top,
+        boundaryWidth: boundaryRect.width,
+        boundaryHeight: boundaryRect.height,
+        framePixelWidth: frame.width,
+        framePixelHeight: frame.height,
+        frameId: frameId,
+        boundaryTransformGeneration: context.boundaryTransformGeneration,
+      );
+    }
+    final frameBoundaryRect =
+        provenance?.context.boundaryLogicalRect ?? boundaryRect;
     return buildCaptureCoordinate(
       globalX: position.dx,
       globalY: position.dy,
-      boundaryOriginX: origin.dx,
-      boundaryOriginY: origin.dy,
-      boundaryWidth: size.width,
-      boundaryHeight: size.height,
+      boundaryOriginX: frameBoundaryRect.left,
+      boundaryOriginY: frameBoundaryRect.top,
+      boundaryWidth: frameBoundaryRect.width,
+      boundaryHeight: frameBoundaryRect.height,
       framePixelWidth: frame?.width ?? 0,
       framePixelHeight: frame?.height ?? 0,
       frameId: frameId,
-      boundaryTransformGeneration: _visualObservationGeneration,
+      boundaryTransformGeneration: context.boundaryTransformGeneration,
     );
   }
 
@@ -2410,10 +2519,24 @@ class TugboatReplayController extends ChangeNotifier {
         await deadline.done;
       }
       if (!_isActiveTapSettle(work)) return;
-      final routeCapture = routeCaptureAtPointerUp ?? _activeRouteCapture;
+      // A tap may only inherit a route barrier that was causally claimed by
+      // that exact tap. In particular, an automatic navigation that starts
+      // while this tap is waiting to settle is independent evidence: joining
+      // it would incorrectly copy its destination frame and route event ID
+      // onto the tap.
+      final currentRouteCapture = _activeRouteCapture;
+      final routeCapture =
+          routeCaptureAtPointerUp?.change.causeEventId == pending.eventId
+          ? routeCaptureAtPointerUp
+          : currentRouteCapture?.change.causeEventId == pending.eventId
+          ? currentRouteCapture
+          : null;
       _TapSettleObservation observation;
       if (routeCapture != null) {
-        final routeBarrier = await _awaitRouteCaptureBarrier(routeCapture);
+        final routeBarrier = await _awaitRouteCaptureBarrier(
+          routeCapture,
+          expectedCauseEventId: pending.eventId,
+        );
         if (!_isActiveTapSettle(work)) return;
         observation = _tapObservationFromRouteBarrier(routeBarrier);
       } else {
@@ -2440,9 +2563,11 @@ class TugboatReplayController extends ChangeNotifier {
         final replacementRoute = _activeRouteCapture;
         if (!compatibleFrame &&
             replacementRoute != null &&
-            replacementRoute.epoch != requestedRouteEpoch) {
+            replacementRoute.epoch != requestedRouteEpoch &&
+            replacementRoute.change.causeEventId == pending.eventId) {
           final routeBarrier = await _awaitRouteCaptureBarrier(
             replacementRoute,
+            expectedCauseEventId: pending.eventId,
           );
           if (!_isActiveTapSettle(work)) return;
           observation = _tapObservationFromRouteBarrier(routeBarrier);
@@ -3103,11 +3228,13 @@ class TugboatReplayController extends ChangeNotifier {
         identical(_activeRouteCaptures[key], work);
   }
 
-  /// Waits for a route epoch's single capture outcome. If that epoch is
-  /// superseded while a tap is waiting, join the replacement epoch instead of
-  /// letting the tap fall back to an opportunistic latest frame.
+  /// Waits for a route epoch's single capture outcome. A causally attributed
+  /// tap may follow only successors carrying the same claimed event ID.
   Future<({_RouteCaptureWork work, _RouteCaptureResult result})>
-  _awaitRouteCaptureBarrier(_RouteCaptureWork work) async {
+  _awaitRouteCaptureBarrier(
+    _RouteCaptureWork work, {
+    String? expectedCauseEventId,
+  }) async {
     var candidate = work;
     while (true) {
       final result = await candidate.done;
@@ -3122,6 +3249,10 @@ class TugboatReplayController extends ChangeNotifier {
       }
       final replacement = candidate.supersededBy;
       if (replacement == null || identical(replacement, candidate)) {
+        return (work: candidate, result: result);
+      }
+      if (expectedCauseEventId != null &&
+          replacement.change.causeEventId != expectedCauseEventId) {
         return (work: candidate, result: result);
       }
       candidate = replacement;
