@@ -38,6 +38,10 @@
 
 ### Changed
 
+- **Replay capture contract documentation** — documents the implemented route/frame
+  attribution invariant separately from the still-open production acceptance
+  gaps for rapid modal chains, automatic navigation, and playback tap-coordinate
+  alignment.
 - **Route-capture barrier** — tap settlement now joins the matching route epoch
   instead of reusing the previous route's latest frame. Supersession,
   lifecycle cancellation, capture failure, and bounded timeout outcomes
