@@ -86,12 +86,7 @@ class OutboxBackedCaptureSink implements TugboatCaptureSink {
         ),
       );
     }
-    _inner.recordFrame(
-      frame,
-      bytes,
-      sessionId: sessionId,
-      actionId: actionId,
-    );
+    _inner.recordFrame(frame, bytes, sessionId: sessionId, actionId: actionId);
   }
 
   @override
