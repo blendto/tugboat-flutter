@@ -34,6 +34,7 @@ class _PendingTap {
     required this.beforeFrame,
     required this.startPosition,
     required this.startedAtMs,
+    required this.claim,
   });
 
   final String eventId;
@@ -42,7 +43,31 @@ class _PendingTap {
   final String? beforeFrame;
   final Offset startPosition;
   final int startedAtMs;
+  final _PendingInteractionClaim claim;
   bool suppressSettle = false;
+}
+
+/// Immutable, single-use proof that a route observation may cite a tap cause.
+class _PendingInteractionClaim {
+  _PendingInteractionClaim({
+    required this.tapEventId,
+    required this.pointerId,
+    required this.captureSessionId,
+    required this.navigatorId,
+    required this.routeInstanceId,
+    required this.pointerGeneration,
+  });
+
+  final String tapEventId;
+  final int pointerId;
+  final String? captureSessionId;
+  final String? navigatorId;
+  final String? routeInstanceId;
+  final int pointerGeneration;
+  bool claimed = false;
+  bool cancelled = false;
+
+  bool get isEligible => !claimed && !cancelled;
 }
 
 class _PointerGestureState {
@@ -400,6 +425,8 @@ class _VisibleRouteChange {
     this.stackRevision = 0,
     this.overlayKind = 'page',
     this.visualObservationGeneration = 0,
+    this.navigationOrigin = 'automatic_or_unknown',
+    this.causeEventId,
   });
 
   final String? previousRoute;
@@ -413,6 +440,8 @@ class _VisibleRouteChange {
   final int stackRevision;
   final String overlayKind;
   final int visualObservationGeneration;
+  final String navigationOrigin;
+  final String? causeEventId;
 
   Map<String, Object?> ownershipData() => {
     if (navigatorId != null) 'navigatorId': navigatorId,
@@ -422,6 +451,8 @@ class _VisibleRouteChange {
     'stackRevision': stackRevision,
     'overlayKind': overlayKind,
     'visualObservationGeneration': visualObservationGeneration,
+    'navigationOrigin': navigationOrigin,
+    if (causeEventId != null) 'causeEventId': causeEventId,
   };
 }
 
@@ -743,6 +774,7 @@ class TugboatReplayController extends ChangeNotifier {
   String? _currentNavigatorId;
   String? _currentRouteInstanceId;
   int _visualObservationGeneration = 0;
+  int _pointerGeneration = 0;
   final _NavigatorSurfaceRegistry _surfaces = _NavigatorSurfaceRegistry();
   TugboatStateAnchor? _currentStateAnchor;
   String? _latestFrameId;
@@ -1297,6 +1329,7 @@ class TugboatReplayController extends ChangeNotifier {
     _currentNavigatorId = null;
     _currentRouteInstanceId = null;
     _visualObservationGeneration = 0;
+    _pointerGeneration = 0;
     _surfaces.clear();
     _currentStateAnchor = null;
     _latestFrameId = null;
@@ -2204,6 +2237,14 @@ class TugboatReplayController extends ChangeNotifier {
 
     final beforeState = tapState;
     final eventId = _nextId('event');
+    final claim = _PendingInteractionClaim(
+      tapEventId: eventId,
+      pointerId: pointer,
+      captureSessionId: _session?.id,
+      navigatorId: _currentNavigatorId,
+      routeInstanceId: _currentRouteInstanceId,
+      pointerGeneration: ++_pointerGeneration,
+    );
     _pendingTaps[pointer] = _PendingTap(
       eventId: eventId,
       targetAnchor: target,
@@ -2211,6 +2252,7 @@ class TugboatReplayController extends ChangeNotifier {
       beforeFrame: beforeFrame,
       startPosition: position,
       startedAtMs: atMs,
+      claim: claim,
     );
     _activeGestures[pointer] = _PointerGestureState(tapEventId: eventId);
     if (target == null) {
@@ -2243,7 +2285,8 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   void recordPointerCancel(Offset position, {int pointer = 0}) {
-    _pendingTaps.remove(pointer);
+    final pending = _pendingTaps.remove(pointer);
+    pending?.claim.cancelled = true;
     _activeGestures.remove(pointer);
     _addEvent(
       TugboatEvent(
@@ -2261,6 +2304,7 @@ class TugboatReplayController extends ChangeNotifier {
     final pending = _pendingTaps[pointer];
     if (pending != null) {
       pending.suppressSettle = true;
+      pending.claim.cancelled = true;
     }
   }
 
@@ -3437,6 +3481,9 @@ class TugboatReplayController extends ChangeNotifier {
     }
 
     _visualObservationGeneration++;
+    final causeEventId = _tryClaimInteractionCause(
+      navigatorId: navigatorId ?? _currentNavigatorId,
+    );
     return _VisibleRouteChange(
       previousRoute: _currentRoute,
       destinationRoute: updatesRoute ? routeName : _currentRoute,
@@ -3449,7 +3496,33 @@ class TugboatReplayController extends ChangeNotifier {
       stackRevision: stackRevision,
       overlayKind: transition.overlayKind,
       visualObservationGeneration: _visualObservationGeneration,
+      navigationOrigin: causeEventId == null
+          ? 'automatic_or_unknown'
+          : 'interaction',
+      causeEventId: causeEventId,
     );
+  }
+
+  /// Observer-time single-use claim. Returns the tap event ID only when exactly
+  /// one unambiguous active pointer is eligible for this navigator/session.
+  String? _tryClaimInteractionCause({String? navigatorId}) {
+    final eligible = <_PendingInteractionClaim>[];
+    for (final pending in _pendingTaps.values) {
+      if (pending.suppressSettle) continue;
+      final claim = pending.claim;
+      if (!claim.isEligible) continue;
+      if (claim.captureSessionId != _session?.id) continue;
+      eligible.add(claim);
+    }
+    if (eligible.length != 1) return null;
+    final claim = eligible.single;
+    if (navigatorId != null &&
+        claim.navigatorId != null &&
+        claim.navigatorId != navigatorId) {
+      return null;
+    }
+    claim.claimed = true;
+    return claim.tapEventId;
   }
 
   void _maybeEmitStateChange({
