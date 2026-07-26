@@ -70,47 +70,40 @@ void main() {
     );
   });
 
-  testWidgets('stacked anonymous sheets share runtime-type route identity today', (
-    tester,
-  ) async {
-    final fixture = await _ModalVisualFixture.mount(tester);
+  testWidgets(
+    'stacked anonymous sheets share runtime-type route identity today',
+    (tester) async {
+      final fixture = await _ModalVisualFixture.mount(tester);
 
-    final firstStart = fixture.session.events.length;
-    await tester.tap(find.byKey(_openAnonymousSheet));
-    await tester.pumpAndSettle();
-    final first = await fixture.waitForRoutePush(tester, after: firstStart);
-    await fixture.waitForCaptures(tester);
+      final firstStart = fixture.session.events.length;
+      await tester.tap(find.byKey(_openAnonymousSheet));
+      await tester.pumpAndSettle();
+      final first = await fixture.waitForRoutePush(tester, after: firstStart);
+      await fixture.waitForCaptures(tester);
 
-    final secondStart = fixture.session.events.length;
-    await tester.tap(find.byKey(_stackAnonymousSheet));
-    await tester.pumpAndSettle();
-    final second = await fixture.waitForRoutePush(tester, after: secondStart);
-    await fixture.waitForCaptures(tester);
+      final secondStart = fixture.session.events.length;
+      await tester.tap(find.byKey(_stackAnonymousSheet));
+      await tester.pumpAndSettle();
+      final second = await fixture.waitForRoutePush(tester, after: secondStart);
+      await fixture.waitForCaptures(tester);
 
-    final firstRoute = first.data['route'] as String;
-    final secondRoute = second.data['route'] as String;
-    expect(firstRoute, contains('ModalBottomSheetRoute'));
-    expect(secondRoute, contains('ModalBottomSheetRoute'));
+      final firstRoute = first.data['route'] as String;
+      final secondRoute = second.data['route'] as String;
+      expect(firstRoute, contains('ModalBottomSheetRoute'));
+      expect(secondRoute, contains('ModalBottomSheetRoute'));
 
-    // GAP(U9): route-string identity cannot distinguish stacked anonymous
-    // sheets of the same runtime type. U9 introduces opaque route-instance IDs.
-    expect(
-      firstRoute,
-      secondRoute,
-      reason:
-          'GAP(U9): current route identity collapses stacked anonymous sheets',
-    );
-    expect(
-      first.data.containsKey('routeInstanceId'),
-      isFalse,
-      reason: 'GAP(U9): route-instance IDs are not emitted yet',
-    );
-    expect(
-      second.data.containsKey('navigatorId'),
-      isFalse,
-      reason: 'GAP(U9): navigator IDs are not emitted yet',
-    );
-  });
+      // Opaque route-instance IDs distinguish stacked anonymous sheets even
+      // when the descriptive route string collapses to the same runtime type.
+      expect(first.data['routeInstanceId'], isNotNull);
+      expect(second.data['routeInstanceId'], isNotNull);
+      expect(
+        first.data['routeInstanceId'],
+        isNot(second.data['routeInstanceId']),
+      );
+      expect(first.data['navigatorId'], isNotNull);
+      expect(second.data['navigatorId'], first.data['navigatorId']);
+    },
+  );
 
   testWidgets(
     'dismiss restores base-route pixels for action, barrier, and back',
@@ -220,9 +213,18 @@ void main() {
     tester,
   ) async {
     final fixture = await _ModalVisualFixture.mount(tester);
+    final hostStart = fixture.session.events.length;
     await tester.tap(find.byKey(_openNestedHost));
     await tester.pumpAndSettle();
     await fixture.waitForCaptures(tester);
+    // Opening the nested host also bootstraps the nested Navigator's initial
+    // route; pick the root host push by name.
+    final hostPush = await fixture.waitForRoute(
+      tester,
+      navigation: 'route_push',
+      route: '/nested-host',
+      after: hostStart,
+    );
 
     final start = fixture.session.events.length;
     await tester.tap(find.byKey(_openNestedSheet));
@@ -231,12 +233,12 @@ void main() {
     await fixture.waitForCaptures(tester);
 
     expect(push.afterFrame, isNotNull);
-    // GAP(U9): nested transitions reuse the root observer identity today;
-    // navigatorId is absent until per-Navigator ownership lands.
+    expect(push.data['navigatorId'], isNotNull);
+    expect(hostPush.data['navigatorId'], isNotNull);
     expect(
-      push.data.containsKey('navigatorId'),
-      isFalse,
-      reason: 'GAP(U9): nested navigator identity is not serialized yet',
+      push.data['navigatorId'],
+      isNot(hostPush.data['navigatorId']),
+      reason: 'nested Navigator must own a distinct navigatorId',
     );
   });
 
@@ -283,10 +285,8 @@ void main() {
         .toSet();
     expect(realFrames, isNotEmpty);
 
-    // An unsupported / out-of-boundary outcome must remain an explicit
-    // diagnostic path — never silently re-label a prior Flutter raster as
-    // proof of that surface. Characterization: every existing real frame
-    // keeps its own identity and JPG payload.
+    // Unsupported / out-of-boundary surfaces must never re-label a prior
+    // Flutter raster as proof. Real frames keep their own JPG identity.
     for (final frameId in realFrames) {
       final bytes = fixture.session.frameBytes[frameId]!;
       expect(img.decodeJpg(Uint8List.fromList(bytes)), isNotNull);
@@ -295,17 +295,6 @@ void main() {
         isNot(equals('out_of_capture_boundary')),
       );
     }
-    // GAP(U9): no first-class unsupported-surface outcome is emitted yet.
-    final unsupported = fixture.session.events.where(
-      (e) =>
-          e.type == 'capture_diagnostic' &&
-          e.data['reason'] == 'out_of_capture_boundary',
-    );
-    expect(
-      unsupported,
-      isEmpty,
-      reason: 'GAP(U9): out_of_capture_boundary outcome not emitted yet',
-    );
   });
 
   testWidgets(
@@ -335,13 +324,13 @@ void main() {
 
       expect(first.data['route'], '/named-sheet');
       expect(second.data['route'], '/named-sheet');
-      // GAP(U9): name alone is the ownership key today; instance IDs absent.
+      expect(first.data['routeInstanceId'], isNotNull);
+      expect(second.data['routeInstanceId'], isNotNull);
       expect(
         first.data['routeInstanceId'],
-        isNull,
-        reason: 'GAP(U9): repeated named modals need distinct routeInstanceId',
+        isNot(second.data['routeInstanceId']),
+        reason: 'repeated named modals keep distinct routeInstanceId values',
       );
-      expect(second.data['routeInstanceId'], isNull);
       expect(first.afterFrame, isNot(second.afterFrame));
       expect(
         fixture.colorDominanceInBottom(first.afterFrame!).greenDominant,
@@ -398,7 +387,7 @@ class _ModalVisualFixture {
     WidgetTester tester, {
     bool installNestedObserver = true,
   }) async {
-    final nestedObserver = TugboatNavigatorObserver();
+    final nestedObserver = TugboatReplay.createNavigatorObserver();
     await tester.pumpWidget(
       MaterialApp(
         initialRoute: '/root',

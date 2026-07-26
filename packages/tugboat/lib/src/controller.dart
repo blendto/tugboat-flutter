@@ -260,6 +260,9 @@ class _CaptureRequestContext {
     required this.trigger,
     required this.requestedAtMs,
     required this.stateAnchor,
+    this.navigatorId,
+    this.routeInstanceId,
+    this.visualObservationGeneration,
   });
 
   final String? captureSessionId;
@@ -268,13 +271,18 @@ class _CaptureRequestContext {
   final TugboatFrameTrigger trigger;
   final int requestedAtMs;
   final TugboatStateAnchor? stateAnchor;
+  final String? navigatorId;
+  final String? routeInstanceId;
+  final int? visualObservationGeneration;
 
   String? get stateSignature => stateAnchor?.signature;
 
   bool compatibleWith(_CaptureRequestContext other) =>
       captureSessionId == other.captureSessionId &&
       routeEpoch == other.routeEpoch &&
-      route == other.route;
+      route == other.route &&
+      navigatorId == other.navigatorId &&
+      routeInstanceId == other.routeInstanceId;
 
   _CaptureRequestContext withTrigger(TugboatFrameTrigger value) =>
       _CaptureRequestContext(
@@ -284,6 +292,9 @@ class _CaptureRequestContext {
         trigger: value,
         requestedAtMs: requestedAtMs,
         stateAnchor: stateAnchor,
+        navigatorId: navigatorId,
+        routeInstanceId: routeInstanceId,
+        visualObservationGeneration: visualObservationGeneration,
       );
 }
 
@@ -311,6 +322,11 @@ class _FrameProvenance {
     'captureSessionId': context.captureSessionId,
     'routeEpoch': context.routeEpoch,
     'route': context.route,
+    if (context.navigatorId != null) 'navigatorId': context.navigatorId,
+    if (context.routeInstanceId != null)
+      'routeInstanceId': context.routeInstanceId,
+    if (context.visualObservationGeneration != null)
+      'visualObservationGeneration': context.visualObservationGeneration,
     'trigger': context.trigger.name,
     'requestedAtMs': context.requestedAtMs,
     'completedAtMs': completedAtMs,
@@ -360,11 +376,13 @@ class _RouteTransition {
     required this.kind,
     required this.routeName,
     required this.transitionDuration,
+    this.overlayKind = 'page',
   });
 
   final _RouteNavigationKind kind;
   final String? routeName;
   final Duration transitionDuration;
+  final String overlayKind;
 }
 
 /// A resolved, visible navigation: what to record and how to update
@@ -375,12 +393,135 @@ class _VisibleRouteChange {
     required this.destinationRoute,
     required this.navigation,
     required this.updatesRoute,
+    this.navigatorId,
+    this.parentNavigatorId,
+    this.routeInstanceId,
+    this.fromRouteInstanceId,
+    this.stackRevision = 0,
+    this.overlayKind = 'page',
+    this.visualObservationGeneration = 0,
   });
 
   final String? previousRoute;
   final String? destinationRoute;
   final String navigation;
   final bool updatesRoute;
+  final String? navigatorId;
+  final String? parentNavigatorId;
+  final String? routeInstanceId;
+  final String? fromRouteInstanceId;
+  final int stackRevision;
+  final String overlayKind;
+  final int visualObservationGeneration;
+
+  Map<String, Object?> ownershipData() => {
+    if (navigatorId != null) 'navigatorId': navigatorId,
+    if (parentNavigatorId != null) 'parentNavigatorId': parentNavigatorId,
+    if (routeInstanceId != null) 'routeInstanceId': routeInstanceId,
+    if (fromRouteInstanceId != null) 'fromRouteInstanceId': fromRouteInstanceId,
+    'stackRevision': stackRevision,
+    'overlayKind': overlayKind,
+    'visualObservationGeneration': visualObservationGeneration,
+  };
+}
+
+/// Session-local opaque navigator and route-instance ownership.
+class _NavigatorSurfaceRegistry {
+  final Expando<String> _routeInstanceIds = Expando<String>(
+    'tugboat-route-instance',
+  );
+  final Map<NavigatorState, String> _navigatorIds = <NavigatorState, String>{};
+  final Map<String, List<String>> _stacks = <String, List<String>>{};
+  final Map<String, String?> _parentByNavigator = <String, String?>{};
+  int _navigatorSeq = 0;
+  int _routeSeq = 0;
+
+  void clear() {
+    _navigatorIds.clear();
+    _stacks.clear();
+    _parentByNavigator.clear();
+    _navigatorSeq = 0;
+    _routeSeq = 0;
+  }
+
+  String idForNavigator(NavigatorState navigator) {
+    return _navigatorIds.putIfAbsent(navigator, () {
+      final id = 'nav-$_navigatorSeq';
+      _navigatorSeq++;
+      _stacks.putIfAbsent(id, () => <String>[]);
+      final parentState = _findParentNavigator(navigator);
+      _parentByNavigator[id] = parentState == null
+          ? null
+          : idForNavigator(parentState);
+      return id;
+    });
+  }
+
+  String? parentOf(String navigatorId) => _parentByNavigator[navigatorId];
+
+  String idForRoute(Route<dynamic> route) {
+    final existing = _routeInstanceIds[route];
+    if (existing != null) return existing;
+    final id = 'route-$_routeSeq';
+    _routeSeq++;
+    _routeInstanceIds[route] = id;
+    return id;
+  }
+
+  String? peekRouteId(Route<dynamic>? route) =>
+      route == null ? null : _routeInstanceIds[route];
+
+  List<String> stackFor(String navigatorId) =>
+      _stacks.putIfAbsent(navigatorId, () => <String>[]);
+
+  int push(String navigatorId, String routeInstanceId) {
+    final stack = stackFor(navigatorId);
+    stack.add(routeInstanceId);
+    return stack.length;
+  }
+
+  int replaceTop(String navigatorId, String routeInstanceId) {
+    final stack = stackFor(navigatorId);
+    if (stack.isEmpty) {
+      stack.add(routeInstanceId);
+    } else {
+      stack[stack.length - 1] = routeInstanceId;
+    }
+    return stack.length;
+  }
+
+  int pop(String navigatorId, {String? departingInstanceId}) {
+    final stack = stackFor(navigatorId);
+    if (departingInstanceId != null) {
+      final index = stack.lastIndexOf(departingInstanceId);
+      if (index >= 0) {
+        stack.removeAt(index);
+        return stack.length;
+      }
+    }
+    if (stack.isNotEmpty) stack.removeLast();
+    return stack.length;
+  }
+
+  String? top(String navigatorId) {
+    final stack = stackFor(navigatorId);
+    return stack.isEmpty ? null : stack.last;
+  }
+
+  static NavigatorState? _findParentNavigator(NavigatorState navigator) {
+    NavigatorState? parent;
+    navigator.context.visitAncestorElements((element) {
+      if (element is StatefulElement && element.state is NavigatorState) {
+        final state = element.state as NavigatorState;
+        if (!identical(state, navigator)) {
+          parent = state;
+          return false;
+        }
+      }
+      return true;
+    });
+    return parent;
+  }
 }
 
 /// The terminal state of a private route-capture barrier.
@@ -599,6 +740,10 @@ class TugboatReplayController extends ChangeNotifier {
 
   int _id = 0;
   String? _currentRoute;
+  String? _currentNavigatorId;
+  String? _currentRouteInstanceId;
+  int _visualObservationGeneration = 0;
+  final _NavigatorSurfaceRegistry _surfaces = _NavigatorSurfaceRegistry();
   TugboatStateAnchor? _currentStateAnchor;
   String? _latestFrameId;
   final Map<int, _PendingTap> _pendingTaps = {};
@@ -624,8 +769,20 @@ class TugboatReplayController extends ChangeNotifier {
   bool _captureLifecycleActive = true;
   int _captureLifecycleEpoch = 0;
   int _routeEpoch = 0;
-  _RouteCaptureWork? _activeRouteCapture;
+  final Map<String, _RouteCaptureWork> _activeRouteCaptures =
+      <String, _RouteCaptureWork>{};
+  String? _latestRouteCaptureKey;
   final Set<_TapSettleWork> _activeTapSettles = <_TapSettleWork>{};
+
+  /// Most recently started route-capture work (any Navigator).
+  _RouteCaptureWork? get _activeRouteCapture {
+    final key = _latestRouteCaptureKey;
+    if (key == null) return null;
+    return _activeRouteCaptures[key];
+  }
+
+  static String _routeCaptureKey(String? navigatorId) => navigatorId ?? '';
+
   final Map<Element, _ScrollTracker> _scrollTrackers = {};
   final Map<int, _PointerGestureState> _activeGestures = {};
   String? _lastCapturedStateSignature;
@@ -767,7 +924,7 @@ class TugboatReplayController extends ChangeNotifier {
   int get debugRouteEpoch => _routeEpoch;
 
   @visibleForTesting
-  bool get debugRouteCapturePending => _activeRouteCapture != null;
+  bool get debugRouteCapturePending => _activeRouteCaptures.isNotEmpty;
 
   @visibleForTesting
   bool get debugCaptureInFlight => _captureInFlight;
@@ -1137,6 +1294,10 @@ class TugboatReplayController extends ChangeNotifier {
       explorationRunId: config.explorationRunId,
     );
     _currentRoute = null;
+    _currentNavigatorId = null;
+    _currentRouteInstanceId = null;
+    _visualObservationGeneration = 0;
+    _surfaces.clear();
     _currentStateAnchor = null;
     _latestFrameId = null;
     _pendingTaps.clear();
@@ -1260,6 +1421,9 @@ class TugboatReplayController extends ChangeNotifier {
       trigger: trigger,
       requestedAtMs: atMs,
       stateAnchor: _snapshotStateAnchor(anchor),
+      navigatorId: _currentNavigatorId,
+      routeInstanceId: _currentRouteInstanceId,
+      visualObservationGeneration: _visualObservationGeneration,
     );
   }
 
@@ -1350,6 +1514,10 @@ class TugboatReplayController extends ChangeNotifier {
           'executionId': resolution.executionId,
           'captureSessionId': resolution.context.captureSessionId,
           'routeEpoch': resolution.context.routeEpoch,
+          if (resolution.context.navigatorId != null)
+            'navigatorId': resolution.context.navigatorId,
+          if (resolution.context.routeInstanceId != null)
+            'routeInstanceId': resolution.context.routeInstanceId,
           'trigger': resolution.context.trigger.name,
           'visualEvidence': resolution.frameId == null
               ? 'unavailable'
@@ -2790,20 +2958,43 @@ class TugboatReplayController extends ChangeNotifier {
       identical(_session, session) &&
       _captureLifecycleEpoch == lifecycleEpoch;
 
-  Future<void> route(String type, Route<dynamic>? route) {
+  Future<void> route(
+    String type,
+    Route<dynamic>? route, {
+    NavigatorState? navigatorState,
+    Route<dynamic>? departingRoute,
+  }) {
     if (_disposed || _session == null || _endSessionFuture != null) {
       return Future<void>.value();
     }
     final transition = _parseRouteTransition(type, route);
-    final change = _resolveVisibleRouteChange(transition);
+    final change = _resolveVisibleRouteChange(
+      transition,
+      destinationRoute: route,
+      departingRoute: departingRoute,
+      navigatorState: navigatorState,
+    );
     if (change == null) return Future<void>.value();
 
-    if (change.updatesRoute) _currentRoute = change.destinationRoute;
+    if (change.updatesRoute) {
+      _currentRoute = change.destinationRoute;
+      _currentNavigatorId = change.navigatorId;
+      _currentRouteInstanceId = change.routeInstanceId;
+    }
 
-    final prior = _activeRouteCapture;
-    _cancelActiveRouteCapture('superseded_route');
-    _cancelScheduledCaptureWaiters('superseded_route');
-    if (prior == null) {
+    final captureKey = _routeCaptureKey(change.navigatorId);
+    final prior = _activeRouteCaptures[captureKey];
+    if (prior != null) {
+      _activeRouteCaptures.remove(captureKey);
+      if (_latestRouteCaptureKey == captureKey) {
+        _latestRouteCaptureKey = _activeRouteCaptures.keys.isEmpty
+            ? null
+            : _activeRouteCaptures.keys.last;
+      }
+      prior.cancel('superseded_route');
+      _cancelScheduledCaptureWaiters('superseded_route');
+      _advanceCaptureGeneration();
+    } else if (_activeRouteCaptures.isEmpty) {
       // A new visible route must also wake any unrelated in-flight frame wait.
       _advanceCaptureGeneration();
     }
@@ -2814,7 +3005,8 @@ class TugboatReplayController extends ChangeNotifier {
           transition.transitionDuration +
           (_shouldSuppressFrameCapture ? Duration.zero : config.settleDelay),
     );
-    _activeRouteCapture = work;
+    _activeRouteCaptures[captureKey] = work;
+    _latestRouteCaptureKey = captureKey;
     prior?.supersededBy = work;
     _skipCapture = transition.transitionDuration > Duration.zero;
     _startRouteBarrierTimeout(work);
@@ -2826,8 +3018,12 @@ class TugboatReplayController extends ChangeNotifier {
     return work.done.then<void>((_) {});
   }
 
-  bool _isActiveRouteCapture(_RouteCaptureWork work) =>
-      !_disposed && !work.cancelled && identical(_activeRouteCapture, work);
+  bool _isActiveRouteCapture(_RouteCaptureWork work) {
+    final key = _routeCaptureKey(work.change.navigatorId);
+    return !_disposed &&
+        !work.cancelled &&
+        identical(_activeRouteCaptures[key], work);
+  }
 
   /// Waits for a route epoch's single capture outcome. If that epoch is
   /// superseded while a tap is waiting, join the replacement epoch instead of
@@ -2855,10 +3051,17 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   void _cancelActiveRouteCapture([String reason = 'manual']) {
-    final active = _activeRouteCapture;
-    _activeRouteCapture = null;
-    if (active != null) _advanceCaptureGeneration();
-    active?.cancel(reason);
+    if (_activeRouteCaptures.isEmpty) {
+      _skipCapture = false;
+      return;
+    }
+    final active = List<_RouteCaptureWork>.from(_activeRouteCaptures.values);
+    _activeRouteCaptures.clear();
+    _latestRouteCaptureKey = null;
+    _advanceCaptureGeneration();
+    for (final work in active) {
+      work.cancel(reason);
+    }
     _skipCapture = false;
   }
 
@@ -2894,7 +3097,15 @@ class TugboatReplayController extends ChangeNotifier {
     final change = work.change;
     work.cancelPendingWork('route_timeout');
     _advanceCaptureGeneration();
-    _activeRouteCapture = null;
+    final key = _routeCaptureKey(work.change.navigatorId);
+    if (identical(_activeRouteCaptures[key], work)) {
+      _activeRouteCaptures.remove(key);
+      if (_latestRouteCaptureKey == key) {
+        _latestRouteCaptureKey = _activeRouteCaptures.keys.isEmpty
+            ? null
+            : _activeRouteCaptures.keys.last;
+      }
+    }
     _skipCapture = false;
     final observedState = _snapshotStateAnchor(_refreshStateAnchor());
     final routeEventId = _nextId('event');
@@ -2913,6 +3124,7 @@ class TugboatReplayController extends ChangeNotifier {
           if (change.destinationRoute != null) 'route': change.destinationRoute,
           'navigation': change.navigation,
           'captureOutcome': 'timed_out',
+          ...change.ownershipData(),
         },
       ),
     );
@@ -2950,7 +3162,11 @@ class TugboatReplayController extends ChangeNotifier {
     try {
       if (!_isActiveRouteCapture(work)) return;
       final change = work.change;
-      if (change.updatesRoute) _currentRoute = change.destinationRoute;
+      if (change.updatesRoute) {
+        _currentRoute = change.destinationRoute;
+        _currentNavigatorId = change.navigatorId;
+        _currentRouteInstanceId = change.routeInstanceId;
+      }
       _refreshStateAnchor();
       final capture = _requestCaptureCancellable(
         trigger: TugboatFrameTrigger.route,
@@ -2987,6 +3203,7 @@ class TugboatReplayController extends ChangeNotifier {
                 'captureFailure': captureResult.captureFailure,
               if (captureRequestId != null)
                 'captureRequestId': captureRequestId,
+              ...change.ownershipData(),
             },
           ),
         );
@@ -3025,14 +3242,21 @@ class TugboatReplayController extends ChangeNotifier {
             if (outcome == _RouteCaptureOutcome.failed &&
                 captureResult.captureFailure != null)
               'captureFailure': captureResult.captureFailure,
+            ...change.ownershipData(),
           },
         ),
       );
       _maybeEmitSceneInventory();
       if (!_disposed) notifyListeners();
     } finally {
-      if (identical(_activeRouteCapture, work)) {
-        _activeRouteCapture = null;
+      final key = _routeCaptureKey(work.change.navigatorId);
+      if (identical(_activeRouteCaptures[key], work)) {
+        _activeRouteCaptures.remove(key);
+        if (_latestRouteCaptureKey == key) {
+          _latestRouteCaptureKey = _activeRouteCaptures.keys.isEmpty
+              ? null
+              : _activeRouteCaptures.keys.last;
+        }
         _skipCapture = false;
       }
       work.complete(
@@ -3126,7 +3350,21 @@ class TugboatReplayController extends ChangeNotifier {
       transitionDuration: route is TransitionRoute<dynamic>
           ? route.transitionDuration
           : Duration.zero,
+      overlayKind: _overlayKindFor(route),
     );
+  }
+
+  static String _overlayKindFor(Route<dynamic>? route) {
+    if (route == null) return 'page';
+    final typeName = route.runtimeType.toString();
+    if (route is PopupRoute) {
+      if (typeName.contains('ModalBottomSheet')) return 'modal';
+      if (typeName.contains('Dialog')) return 'dialog';
+      return 'popup';
+    }
+    if (typeName.contains('ModalBottomSheet')) return 'modal';
+    if (typeName.contains('Dialog')) return 'dialog';
+    return 'page';
   }
 
   /// Resolves [transition] against [_currentRoute], or returns null when it
@@ -3137,7 +3375,12 @@ class TugboatReplayController extends ChangeNotifier {
   /// doing so cancels the pending capture scheduled by the preceding push,
   /// dropping both the route_change event and its screenshot for the
   /// destination route.
-  _VisibleRouteChange? _resolveVisibleRouteChange(_RouteTransition transition) {
+  _VisibleRouteChange? _resolveVisibleRouteChange(
+    _RouteTransition transition, {
+    Route<dynamic>? destinationRoute,
+    Route<dynamic>? departingRoute,
+    NavigatorState? navigatorState,
+  }) {
     final routeName = transition.routeName;
     if (transition.kind == _RouteNavigationKind.remove &&
         (routeName == null || routeName == _currentRoute)) {
@@ -3149,11 +3392,63 @@ class TugboatReplayController extends ChangeNotifier {
         transition.kind == _RouteNavigationKind.push ||
         transition.kind == _RouteNavigationKind.replace ||
         routeName != null;
+
+    String? navigatorId;
+    String? parentNavigatorId;
+    String? routeInstanceId;
+    String? fromRouteInstanceId;
+    var stackRevision = 0;
+    if (navigatorState != null) {
+      navigatorId = _surfaces.idForNavigator(navigatorState);
+      parentNavigatorId = _surfaces.parentOf(navigatorId);
+      switch (transition.kind) {
+        case _RouteNavigationKind.push:
+          if (destinationRoute != null) {
+            routeInstanceId = _surfaces.idForRoute(destinationRoute);
+            stackRevision = _surfaces.push(navigatorId, routeInstanceId);
+          }
+          fromRouteInstanceId = _currentRouteInstanceId;
+        case _RouteNavigationKind.replace:
+          if (destinationRoute != null) {
+            routeInstanceId = _surfaces.idForRoute(destinationRoute);
+            stackRevision = _surfaces.replaceTop(navigatorId, routeInstanceId);
+          }
+          fromRouteInstanceId =
+              _surfaces.peekRouteId(departingRoute) ?? _currentRouteInstanceId;
+        case _RouteNavigationKind.pop:
+        case _RouteNavigationKind.remove:
+          fromRouteInstanceId =
+              _surfaces.peekRouteId(departingRoute) ?? _currentRouteInstanceId;
+          stackRevision = _surfaces.pop(
+            navigatorId,
+            departingInstanceId: fromRouteInstanceId,
+          );
+          if (destinationRoute != null) {
+            routeInstanceId = _surfaces.idForRoute(destinationRoute);
+          } else {
+            routeInstanceId = _surfaces.top(navigatorId);
+          }
+      }
+    } else if (destinationRoute != null) {
+      // Test harness / direct controller.route calls without a NavigatorState.
+      routeInstanceId = _surfaces.idForRoute(destinationRoute);
+      fromRouteInstanceId = _currentRouteInstanceId;
+      stackRevision = (_currentRouteInstanceId == null ? 1 : 2);
+    }
+
+    _visualObservationGeneration++;
     return _VisibleRouteChange(
       previousRoute: _currentRoute,
       destinationRoute: updatesRoute ? routeName : _currentRoute,
       navigation: transition.kind.wireName,
       updatesRoute: updatesRoute,
+      navigatorId: navigatorId ?? _currentNavigatorId,
+      parentNavigatorId: parentNavigatorId,
+      routeInstanceId: routeInstanceId ?? _currentRouteInstanceId,
+      fromRouteInstanceId: fromRouteInstanceId,
+      stackRevision: stackRevision,
+      overlayKind: transition.overlayKind,
+      visualObservationGeneration: _visualObservationGeneration,
     );
   }
 
