@@ -240,21 +240,25 @@ valued controls (checkbox, switch, radio, slider, dropdown / menu item, chip)
 and for hit targets that expose Flutter semantic annotations:
 
 - bools and numbers are emitted literally;
-- numeric strings from semantics (for example `"15"`) are parsed as numbers;
-- enums and short developer-token strings are emitted as tokens;
-- free-text option / semantic label strings are hashed (`str:<hash>`) with
-  length only.
+- enums are emitted as tokens;
+- arbitrary strings, including numeric strings and single-word values, are
+  hashed with a session-scoped secret (`str:<hash>`) and omit raw length;
+- semantics identifiers are hashed by default. Apps may retain an explicitly
+  developer-authored short token by prefixing it with `tugboat:`; the prefix is
+  removed from the emitted value.
 
-`tap` includes the value sampled at pointer-down. `tap_settled` includes
-`before` / `after` snapshots so toggle flips and post-callback radio/dropdown
-selections are visible. Slider drags that become `swipe` events also carry the
-value sampled at pointer-up.
+`tap` includes a `controlValue` snapshot sampled at pointer-down.
+`tap_settled` uses the distinct `controlValueTransition` contract with
+`before` / `after` snapshots. Its post-callback sample stays bound to the
+original hit element, so later taps, route changes, or dismissed overlays
+cannot donate unrelated control state. Slider drags that become `swipe` events
+carry a `controlValue` snapshot sampled at pointer-up.
 
 When a typed widget value is unavailable (custom GestureDetector rows, bottom
 sheets, etc.), the SDK still samples `SemanticsProperties` / live semantics
 nodes under the pointer and records `semanticValue` / `semanticLabel` with the
-same encoding rules. Standard controls may include both widget state and
-semantic annotations under `sources: ["semantics","widget"]`.
+same untrusted-string encoding rules. Standard controls may include both widget
+state and semantic annotations under `sources: ["semantics","widget"]`.
 
 Independently, every interaction event (`tap`, `tap_settled`, `swipe`,
 `scroll_start`, `scroll_end`) may carry a top-level `semanticAnnotation`

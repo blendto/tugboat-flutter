@@ -3,27 +3,45 @@ part of 'anchors.dart';
 /// Schema version for privacy-safe control value payloads.
 const int tugboatControlValueSchemaVersion = 2;
 
+/// Schema version for `tap_settled.controlValueTransition`.
+const int tugboatControlValueTransitionSchemaVersion = 1;
+
 /// Schema version for per-interaction semantic annotations.
 const int tugboatSemanticAnnotationSchemaVersion = 1;
 
 final RegExp _developerTokenPattern = RegExp(r'^[A-Za-z0-9_./:-]{1,64}$');
+const String _developerTokenPrefix = 'tugboat:';
+const Symbol _controlValueHashKeyZoneKey = #tugboatControlValueHashKey;
+final List<int> _defaultControlValueHashKey = _newControlValueHashKey();
+
+List<int> _newControlValueHashKey() {
+  final random = Random.secure();
+  return List<int>.generate(32, (_) => random.nextInt(256), growable: false);
+}
+
+T _withControlValueHashKey<T>(List<int> key, T Function() body) {
+  return runZoned(body, zoneValues: {_controlValueHashKeyZoneKey: key});
+}
+
+String _controlValueHash(String value) {
+  final key =
+      Zone.current[_controlValueHashKeyZoneKey] as List<int>? ??
+      _defaultControlValueHashKey;
+  return Hmac(
+    sha256,
+    key,
+  ).convert(utf8.encode(value)).toString().substring(0, 16);
+}
 
 /// Encodes a single control scalar without retaining free-text labels.
 class TugboatEncodedControlScalar {
-  const TugboatEncodedControlScalar._({
-    required this.kind,
-    this.value,
-    this.length,
-  });
+  const TugboatEncodedControlScalar._({required this.kind, this.value});
 
   /// `null`, `bool`, `number`, or `token`.
   final String kind;
 
   /// Literal bool/num, or a privacy-safe token string.
   final Object? value;
-
-  /// Original string length when [kind] is `token` derived from a String.
-  final int? length;
 
   factory TugboatEncodedControlScalar.encode(Object? raw) {
     if (raw == null) {
@@ -32,8 +50,15 @@ class TugboatEncodedControlScalar {
     if (raw is bool) {
       return TugboatEncodedControlScalar._(kind: 'bool', value: raw);
     }
-    if (raw is num) {
+    if (raw is num && raw.isFinite) {
       return TugboatEncodedControlScalar._(kind: 'number', value: raw);
+    }
+    if (raw is num) {
+      final text = raw.toString();
+      return TugboatEncodedControlScalar._(
+        kind: 'token',
+        value: 'num:${_controlValueHash(text)}',
+      );
     }
     if (raw is Enum) {
       return TugboatEncodedControlScalar._(
@@ -46,42 +71,43 @@ class TugboatEncodedControlScalar {
       if (trimmed.isEmpty) {
         return const TugboatEncodedControlScalar._(kind: 'null');
       }
-      final asNum = num.tryParse(trimmed);
-      if (asNum != null) {
-        return TugboatEncodedControlScalar._(kind: 'number', value: asNum);
-      }
-      if (_developerTokenPattern.hasMatch(trimmed)) {
-        return TugboatEncodedControlScalar._(kind: 'token', value: trimmed);
-      }
       return TugboatEncodedControlScalar._(
         kind: 'token',
-        value: 'str:${tugboatLabelHash(trimmed)}',
-        length: trimmed.length,
+        value: 'str:${_controlValueHash(trimmed)}',
       );
     }
     final text = raw.toString();
     return TugboatEncodedControlScalar._(
       kind: 'token',
-      value: '${raw.runtimeType}:${tugboatLabelHash(text)}',
-      length: text.length,
+      value: '${raw.runtimeType}:${_controlValueHash(text)}',
     );
+  }
+
+  /// Retains only identifiers explicitly prefixed with `tugboat:`.
+  static TugboatEncodedControlScalar encodeDeveloperToken(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.startsWith(_developerTokenPrefix)) {
+      final token = trimmed.substring(_developerTokenPrefix.length);
+      if (_developerTokenPattern.hasMatch(token)) {
+        return TugboatEncodedControlScalar._(kind: 'token', value: token);
+      }
+    }
+    return TugboatEncodedControlScalar.encode(trimmed);
   }
 
   Map<String, Object?> toJson() => {
     'kind': kind,
     if (kind != 'null') 'value': value,
-    if (length != null) 'length': length,
   };
 
   @override
   bool operator ==(Object other) =>
       other is TugboatEncodedControlScalar &&
       kind == other.kind &&
-      value == other.value &&
-      length == other.length;
+      value == other.value;
 
   @override
-  int get hashCode => Object.hash(kind, value, length);
+  int get hashCode => Object.hash(kind, value);
 }
 
 /// Privacy-safe semantic annotation for any interaction target.
@@ -175,7 +201,7 @@ TugboatSemanticAnnotation? tugboatSemanticAnnotationFromProperties(
 
   final identifier =
       (identifierText != null && identifierText.trim().isNotEmpty)
-      ? TugboatEncodedControlScalar.encode(identifierText)
+      ? TugboatEncodedControlScalar.encodeDeveloperToken(identifierText)
       : null;
   final label = (labelText != null && labelText.trim().isNotEmpty)
       ? TugboatEncodedControlScalar.encode(labelText)
@@ -226,7 +252,7 @@ TugboatSemanticAnnotation? tugboatSemanticAnnotationFromNode(
   final selected = semanticsSelectedFromFlags(flags);
 
   final identifier = data.identifier.trim().isNotEmpty
-      ? TugboatEncodedControlScalar.encode(data.identifier)
+      ? TugboatEncodedControlScalar.encodeDeveloperToken(data.identifier)
       : null;
   final label = data.label.trim().isNotEmpty
       ? TugboatEncodedControlScalar.encode(data.label)
@@ -324,8 +350,9 @@ TugboatSemanticAnnotation? tugboatSemanticAnnotationForElement(
 /// are attached as well so custom rows (e.g. GestureDetector lists) can still
 /// report developer-authored semantic tokens.
 ///
-/// Free-text strings are hashed. Bools, numbers, enums, numeric strings, and
-/// short developer-token strings are retained.
+/// Bools, finite numbers, and enums are retained. Every ordinary string,
+/// including numeric and short token-shaped strings, is hashed. Only explicit
+/// developer identifiers use [TugboatEncodedControlScalar.encodeDeveloperToken].
 class TugboatControlValue {
   const TugboatControlValue({
     required this.role,

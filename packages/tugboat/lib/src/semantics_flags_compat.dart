@@ -24,13 +24,13 @@ bool? semanticsCheckedFromFlags(SemanticsFlags flags) {
     return null;
   }
   // Flutter 3.36+: CheckedState enum (none / isTrue / isFalse / mixed).
-  try {
-    if (checked.toString().endsWith('.none')) return null;
-    if (checked.toString().endsWith('.mixed')) return null;
-    return checked == CheckedState.isTrue;
-  } catch (_) {
-    return null;
-  }
+  final name = checked.toString().split('.').last;
+  return switch (name) {
+    'isTrue' => true,
+    'isFalse' => false,
+    'none' || 'mixed' => null,
+    _ => null,
+  };
 }
 
 /// Reads toggled state across Flutter SDK versions.

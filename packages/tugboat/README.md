@@ -5,7 +5,7 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.4.15`. Session JSON uses schema version `8`
+The current package version is `0.4.16`. Session JSON uses schema version `8`
 (readers still accept `6`), and structural fingerprints use fingerprint schema
 version `6`.
 

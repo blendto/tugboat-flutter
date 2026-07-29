@@ -1,3 +1,18 @@
+## 0.4.16
+
+### Added
+
+- **Privacy-safe interaction metadata** — valued controls and semantic
+  annotations can enrich tap, settle, swipe, and scroll events without
+  retaining arbitrary semantic text.
+
+### Changed
+
+- **Causal control-value transitions** — settled control values are captured
+  from the original interaction target and use a distinct transition payload.
+- **Cross-SDK semantics flags** — checked-state capture compiles on the
+  package's declared Flutter 3.35 minimum and newer enum-based SDKs.
+
 ## 0.4.15
 
 ### Added

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
-import 'control_value.dart';
 import 'coordinate_space.dart';
 import 'models.dart';
 
@@ -136,10 +135,17 @@ enum InteractionRejectionReason {
 
 /// Bounded in-memory transaction for one pointer gesture.
 class InteractionTransaction {
-  InteractionTransaction({required this.origin, required this.pointerId});
+  InteractionTransaction({
+    required this.origin,
+    required this.pointerId,
+    this.metadata,
+    TugboatInteractionMetadata? resampleTarget,
+  }) : _resampleTarget = resampleTarget;
 
   final InteractionOrigin origin;
   final int pointerId;
+  final TugboatInteractionMetadata? metadata;
+  TugboatInteractionMetadata? _resampleTarget;
 
   InteractionGesture gesture = InteractionGesture.tap;
   bool claimed = false;
@@ -202,6 +208,12 @@ class InteractionTransaction {
 
   void markSwipe() {
     gesture = InteractionGesture.swipe;
+  }
+
+  TugboatInteractionMetadata? takeResampleTarget() {
+    final target = _resampleTarget;
+    _resampleTarget = null;
+    return target;
   }
 
   Map<String, Object?> resultToJson() => {

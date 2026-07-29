@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:typed_data';
 
 import 'package:flutter/semantics.dart';
@@ -27,6 +28,20 @@ export 'replay_config.dart'
         TugboatViewportSemanticMode,
         TugboatViewportSemanticPolicy,
         resolveViewportSemanticPolicy;
+
+class _PostCallbackMetadataCapture {
+  TugboatInteractionMetadata? value;
+  bool _ambiguous = false;
+
+  void markAmbiguous() {
+    _ambiguous = true;
+    value = null;
+  }
+
+  void complete(TugboatInteractionMetadata? metadata) {
+    if (!_ambiguous) value = metadata;
+  }
+}
 
 class _ScrollTracker {
   _ScrollTracker({
@@ -808,6 +823,8 @@ class TugboatReplayController extends ChangeNotifier {
       <String, _RouteCaptureWork>{};
   String? _latestRouteCaptureKey;
   final Set<_TapSettleWork> _activeTapSettles = <_TapSettleWork>{};
+  final Map<Object, _PostCallbackMetadataCapture> _pendingPostCallbackMetadata =
+      HashMap.identity();
 
   /// Most recently started route-capture work (any Navigator).
   _RouteCaptureWork? get _activeRouteCapture {
@@ -1323,6 +1340,7 @@ class TugboatReplayController extends ChangeNotifier {
     _clock
       ..reset()
       ..start();
+    _anchorResolver?.rotateControlValueHashKey();
     _session = TugboatSession(
       id: 'session-${DateTime.now().microsecondsSinceEpoch}',
       startedAt: DateTime.now(),
@@ -1344,6 +1362,7 @@ class TugboatReplayController extends ChangeNotifier {
     _latestFrameId = null;
     _clearReleasedInteractions();
     _interactions.clearAll();
+    _pendingPostCallbackMetadata.clear();
     _scrollTrackers.clear();
     _hashToFrameId.clear();
     _frameProvenance.clear();
@@ -2268,6 +2287,7 @@ class TugboatReplayController extends ChangeNotifier {
     TugboatTargetAnchor? target;
     TugboatStateAnchor? tapState = _currentStateAnchor;
     TugboatSceneInventory? tapInventory;
+    TugboatInteractionMetadata? metadata;
     TugboatControlValue? controlValue;
     TugboatSemanticAnnotation? semantic;
 
@@ -2280,8 +2300,9 @@ class TugboatReplayController extends ChangeNotifier {
       );
       target = tapContext.target;
       tapInventory = tapContext.inventory;
-      controlValue = resolver.controlValueAt(position);
-      semantic = resolver.semanticAnnotationAt(position);
+      metadata = tapContext.metadata;
+      controlValue = metadata?.controlValue;
+      semantic = metadata?.semanticAnnotation;
       if (tapInventory != null) {
         _currentStateAnchor = tapInventory.stateAnchor;
         tapState = tapInventory.stateAnchor;
@@ -2289,8 +2310,9 @@ class TugboatReplayController extends ChangeNotifier {
       }
     } else {
       target = resolver?.targetAt(position, route: _currentRoute);
-      controlValue = resolver?.controlValueAt(position);
-      semantic = resolver?.semanticAnnotationAt(position);
+      metadata = resolver?.interactionMetadataAt(position);
+      controlValue = metadata?.controlValue;
+      semantic = metadata?.semanticAnnotation;
     }
 
     // Resolve after the tap context so a stale settled map can be refreshed
@@ -2346,7 +2368,12 @@ class TugboatReplayController extends ChangeNotifier {
       controlValue: controlValue,
       semantic: semantic,
     );
-    final tx = InteractionTransaction(origin: origin, pointerId: pointer);
+    final tx = InteractionTransaction(
+      origin: origin,
+      pointerId: pointer,
+      metadata: metadata?.detached(),
+      resampleTarget: metadata,
+    );
     final legacyStream = config.legacyGestureStream;
     tx.bufferedOutside = target == null
         ? TugboatEvent(
@@ -2754,6 +2781,7 @@ class TugboatReplayController extends ChangeNotifier {
     if (!_acceptsPointerInput) return;
     final pending = _interactions.removePending(pointer);
     if (pending == null) return;
+    final resampleTarget = pending.takeResampleTarget();
 
     if (pending.isSwipeOrScroll) {
       if (pending.claimed) {
@@ -2776,12 +2804,13 @@ class TugboatReplayController extends ChangeNotifier {
           : null;
       final scrolled = scrollStartEventId != null;
       final tapWasEmitted = pending.tapEmitted;
+      final metadata = resampleTarget == null
+          ? null
+          : _anchorResolver?.resampleInteractionMetadata(resampleTarget);
       final controlValue =
-          _anchorResolver?.controlValueAt(position) ??
-          pending.origin.controlValue;
+          metadata?.controlValue ?? pending.metadata?.controlValue;
       final semantic =
-          _anchorResolver?.semanticAnnotationAt(position) ??
-          pending.origin.semantic;
+          metadata?.semanticAnnotation ?? pending.metadata?.semanticAnnotation;
       pending.gesture = scrolled
           ? InteractionGesture.scroll
           : InteractionGesture.swipe;
@@ -2851,7 +2880,38 @@ class TugboatReplayController extends ChangeNotifier {
 
     final work = _TapSettleWork(session: _session);
     _activeTapSettles.add(work);
-    unawaited(_resolveTapSettle(work, pending, position, _activeRouteCapture));
+    final postCallbackMetadata = _capturePostCallbackMetadata(resampleTarget);
+    unawaited(
+      _resolveTapSettle(
+        work,
+        pending,
+        position,
+        _activeRouteCapture,
+        postCallbackMetadata,
+      ),
+    );
+  }
+
+  _PostCallbackMetadataCapture _capturePostCallbackMetadata(
+    TugboatInteractionMetadata? before,
+  ) {
+    final capture = _PostCallbackMetadataCapture();
+    final targetIdentity = before?.resampleTargetIdentity;
+    if (before == null || targetIdentity == null) return capture;
+    final overlapping = _pendingPostCallbackMetadata[targetIdentity];
+    if (overlapping != null) {
+      overlapping.markAmbiguous();
+      capture.markAmbiguous();
+    }
+    _pendingPostCallbackMetadata[targetIdentity] = capture;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (identical(_pendingPostCallbackMetadata[targetIdentity], capture)) {
+        _pendingPostCallbackMetadata.remove(targetIdentity);
+      }
+      if (_disposed) return;
+      capture.complete(_anchorResolver?.resampleInteractionMetadata(before));
+    });
+    return capture;
   }
 
   Future<void> _resolveTapSettle(
@@ -2859,6 +2919,7 @@ class TugboatReplayController extends ChangeNotifier {
     InteractionTransaction pending,
     Offset position,
     _RouteCaptureWork? routeCaptureAtPointerUp,
+    _PostCallbackMetadataCapture postCallbackMetadata,
   ) async {
     try {
       final initialRouteCapture =
@@ -3002,19 +3063,17 @@ class TugboatReplayController extends ChangeNotifier {
         final visualChanged = visualAvailable
             ? beforeContentHash != afterContentHash
             : null;
-        // Sample after the host onChanged callback has run. Prefer the live
-        // control under the pointer; fall back to the tap-time snapshot for
-        // ephemeral menu items that disappear when the overlay closes.
-        final afterControlValue =
-            _anchorResolver?.controlValueAt(position) ??
-            pending.origin.controlValue;
-        final controlValuePayload = _controlValueSettlePayload(
-          before: pending.origin.controlValue,
-          after: afterControlValue,
+        // The first post-callback frame samples the pointer-down target.
+        // Publication can happen much later without borrowing another
+        // interaction's state. If no frame ran, omit the after value.
+        final afterMetadata = postCallbackMetadata.value;
+        final controlValueTransition = _controlValueTransitionPayload(
+          before: pending.metadata?.controlValue,
+          after: afterMetadata?.controlValue,
         );
         final semanticAnnotation =
-            _anchorResolver?.semanticAnnotationAt(position) ??
-            pending.origin.semantic;
+            afterMetadata?.semanticAnnotation ??
+            pending.metadata?.semanticAnnotation;
 
         if (config.emitLegacyInteractionProjection) {
           _addEvent(
@@ -3075,8 +3134,8 @@ class TugboatReplayController extends ChangeNotifier {
                         observation.captureFailure ??
                         observation.captureOutcome,
                   },
-                if (controlValuePayload != null)
-                  'controlValue': controlValuePayload,
+                if (controlValueTransition != null)
+                  'controlValueTransition': controlValueTransition,
                 if (semanticAnnotation != null)
                   'semanticAnnotation': semanticAnnotation.toJson(),
               },
@@ -3176,8 +3235,8 @@ class TugboatReplayController extends ChangeNotifier {
     _activeTapSettles.clear();
   }
 
-  /// Builds a before/after control-value payload for `tap_settled`.
-  Map<String, Object?>? _controlValueSettlePayload({
+  /// Builds a before/after control-value transition for `tap_settled`.
+  Map<String, Object?>? _controlValueTransitionPayload({
     required TugboatControlValue? before,
     required TugboatControlValue? after,
   }) {
@@ -3185,7 +3244,7 @@ class TugboatReplayController extends ChangeNotifier {
     final role = after?.role ?? before!.role;
     final widgetType = after?.widgetType ?? before?.widgetType;
     return {
-      'schemaVersion': tugboatControlValueSchemaVersion,
+      'schemaVersion': tugboatControlValueTransitionSchemaVersion,
       'role': role,
       if (widgetType != null && widgetType.isNotEmpty) 'widgetType': widgetType,
       if (before != null) 'before': before.toJson(),

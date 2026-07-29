@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 
@@ -10,6 +10,59 @@ const _testConfig = TugboatReplayConfig(
   enableGlobalPointerCapture: false,
   capturePixelRatio: 1.0,
 );
+
+class _SemanticsOnlyControl extends LeafRenderObjectWidget {
+  const _SemanticsOnlyControl({super.key, required this.value});
+
+  final String value;
+
+  @override
+  _SemanticsOnlyRenderBox createRenderObject(BuildContext context) =>
+      _SemanticsOnlyRenderBox(value);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _SemanticsOnlyRenderBox renderObject,
+  ) {
+    renderObject.value = value;
+  }
+}
+
+class _SemanticsOnlyRenderBox extends RenderBox {
+  _SemanticsOnlyRenderBox(this._value);
+
+  String _value;
+
+  set value(String next) {
+    if (_value == next) return;
+    _value = next;
+    markNeedsSemanticsUpdate();
+  }
+
+  @override
+  bool get sizedByParent => true;
+
+  @override
+  void performResize() {
+    size = constraints.constrain(const Size(120, 48));
+  }
+
+  @override
+  bool hitTestSelf(Offset position) => true;
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    config
+      ..isSemanticBoundary = true
+      ..isButton = true
+      ..textDirection = TextDirection.ltr
+      ..label = 'Semantics only control'
+      ..value = _value
+      ..onTap = () {};
+  }
+}
 
 Future<void> _waitForCaptures(WidgetTester tester) async {
   await tester.pump();
@@ -21,6 +74,13 @@ Future<void> _waitForCaptures(WidgetTester tester) async {
 
 Map<String, Object?>? _controlValueFrom(TugboatEvent event) {
   final raw = event.data['controlValue'];
+  if (raw is Map<String, Object?>) return raw;
+  if (raw is Map) return Map<String, Object?>.from(raw);
+  return null;
+}
+
+Map<String, Object?>? _controlValueTransitionFrom(TugboatEvent event) {
+  final raw = event.data['controlValueTransition'];
   if (raw is Map<String, Object?>) return raw;
   if (raw is Map) return Map<String, Object?>.from(raw);
   return null;
@@ -54,16 +114,42 @@ void main() {
       expect(slider?.value?.value, 0.4);
     });
 
-    test('hashes free-text option strings and keeps developer tokens', () {
+    test('hashes every untrusted string scalar', () {
       final freeText = TugboatEncodedControlScalar.encode('Secret Option Name');
       expect(freeText.kind, 'token');
       expect(freeText.value, startsWith('str:'));
       expect(freeText.value, isNot(contains('Secret')));
-      expect(freeText.length, 'Secret Option Name'.length);
 
-      final token = TugboatEncodedControlScalar.encode('usd');
-      expect(token.kind, 'token');
-      expect(token.value, 'usd');
+      final oneWordName = TugboatEncodedControlScalar.encode('Alice');
+      expect(oneWordName.value, startsWith('str:'));
+      expect(oneWordName.value, isNot('Alice'));
+      expect(oneWordName.value, isNot('str:${tugboatLabelHash('Alice')}'));
+
+      final numericPii = TugboatEncodedControlScalar.encode('123456');
+      expect(numericPii.value, startsWith('str:'));
+      expect(numericPii.value, isNot(123456));
+
+      final implicitIdentifier =
+          TugboatEncodedControlScalar.encodeDeveloperToken('123456');
+      expect(implicitIdentifier.value, startsWith('str:'));
+
+      final explicitIdentifier =
+          TugboatEncodedControlScalar.encodeDeveloperToken(
+            'tugboat:duration-30',
+          );
+      expect(explicitIdentifier.value, 'duration-30');
+    });
+
+    test('keeps encoded numbers JSON-safe', () {
+      for (final value in [
+        double.nan,
+        double.infinity,
+        double.negativeInfinity,
+      ]) {
+        final encoded = TugboatEncodedControlScalar.encode(value);
+        expect(encoded.kind, isNot('number'));
+        expect(() => encoded.toJson(), returnsNormally);
+      }
     });
 
     test('reads radio option identity and group selection', () {
@@ -82,6 +168,121 @@ void main() {
       expect(radio?.groupValue?.value, 1);
       expect(radio?.selected, isFalse);
     });
+  });
+
+  testWidgets('rotates untrusted string hashes for each capture session', (
+    tester,
+  ) async {
+    Future<Object?> captureHash() async {
+      final targetKey = UniqueKey();
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              TugboatReplay.wrapApp(config: _testConfig, child: child!),
+          home: Scaffold(
+            body: Center(
+              child: Semantics(
+                value: 'Alice',
+                child: ElevatedButton(
+                  key: targetKey,
+                  onPressed: () {},
+                  child: const Text('Capture'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await _waitForCaptures(tester);
+      await tester.tap(find.byKey(targetKey));
+      await _waitForCaptures(tester);
+      final tap = TugboatReplay.controller!.session!.events.firstWhere(
+        (event) => event.type == 'tap',
+      );
+      return ((_semanticAnnotationFrom(tap)!['value'] as Map)['value']);
+    }
+
+    final first = await captureHash();
+    await tester.pumpWidget(const SizedBox());
+    TugboatReplay.resetForTest();
+    final second = await captureHash();
+
+    expect(first, isNot(second));
+  });
+
+  testWidgets('controller hash keys stay isolated across concurrent sessions', (
+    tester,
+  ) async {
+    final firstKey = GlobalKey();
+    final secondKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Row(
+          children: [
+            Expanded(
+              child: RepaintBoundary(
+                key: firstKey,
+                child: Semantics(
+                  button: true,
+                  value: 'Alice',
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+            Expanded(
+              child: RepaintBoundary(
+                key: secondKey,
+                child: Semantics(
+                  button: true,
+                  value: 'Alice',
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final firstController = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: firstKey,
+    );
+    final secondController = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: secondKey,
+    );
+    await firstController.initialize();
+    await secondController.initialize();
+
+    firstController.start(const Size(400, 600), 'test');
+    await tester.pump();
+    firstController.recordPointerDown(
+      tester.getCenter(find.byKey(firstKey)),
+      pointer: 1,
+    );
+    final firstTap = firstController.session!.events.lastWhere(
+      (event) => event.type == 'tap',
+    );
+    final firstHash =
+        ((_semanticAnnotationFrom(firstTap)!['value'] as Map)['value']);
+
+    secondController.start(const Size(400, 600), 'test');
+    await tester.pump();
+    firstController.recordPointerDown(
+      tester.getCenter(find.byKey(firstKey)),
+      pointer: 2,
+    );
+    final secondTap = firstController.session!.events.lastWhere(
+      (event) => event.type == 'tap',
+    );
+    final secondHash =
+        ((_semanticAnnotationFrom(secondTap)!['value'] as Map)['value']);
+
+    expect(firstHash, secondHash);
+    firstController.dispose();
+    secondController.dispose();
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('switch tap emits before/after control values', (tester) async {
@@ -116,9 +317,22 @@ void main() {
     expect(tapValue?['role'], 'switch');
     expect((tapValue?['value'] as Map)['value'], isFalse);
 
-    final settledValue = _controlValueFrom(settled);
+    final settledValue = _controlValueTransitionFrom(settled);
     expect(settledValue?['role'], 'switch');
+    expect(
+      settledValue?['schemaVersion'],
+      tugboatControlValueTransitionSchemaVersion,
+    );
+    expect(settled.data, isNot(contains('controlValue')));
     expect((settledValue?['before'] as Map)['value'], isA<Map>());
+    expect(
+      (settledValue?['before'] as Map)['schemaVersion'],
+      tugboatControlValueSchemaVersion,
+    );
+    expect(
+      (settledValue?['after'] as Map)['schemaVersion'],
+      tugboatControlValueSchemaVersion,
+    );
     expect(
       ((settledValue?['before'] as Map)['value'] as Map)['value'],
       isFalse,
@@ -180,7 +394,7 @@ void main() {
     expect(tapValue['index'], 1);
 
     final settled = session.events.firstWhere((e) => e.type == 'tap_settled');
-    final settledValue = _controlValueFrom(settled)!;
+    final settledValue = _controlValueTransitionFrom(settled)!;
     expect(((settledValue['after'] as Map)['value'] as Map)['value'], 2);
     expect(((settledValue['after'] as Map)['groupValue'] as Map)['value'], 2);
     expect((settledValue['after'] as Map)['selected'], isTrue);
@@ -342,7 +556,7 @@ void main() {
     expect(json, contains('str:'));
   });
 
-  test('semantic properties encode value and label tokens', () {
+  test('semantic properties hash arbitrary value and label strings', () {
     final snapshot = tugboatControlValueFromSemanticsProperties(
       const SemanticsProperties(
         button: true,
@@ -353,9 +567,9 @@ void main() {
     );
     expect(snapshot?.role, 'button');
     expect(snapshot?.sources, ['semantics']);
-    expect(snapshot?.value?.kind, 'number');
-    expect(snapshot?.value?.value, 15);
-    expect(snapshot?.semanticValue?.value, 15);
+    expect(snapshot?.value?.kind, 'token');
+    expect(snapshot?.value?.value, startsWith('str:'));
+    expect(snapshot?.semanticValue?.value, startsWith('str:'));
     expect(snapshot?.semanticLabel?.value, startsWith('str:'));
     expect(snapshot?.selected, isTrue);
   });
@@ -375,7 +589,7 @@ void main() {
                 children: [
                   Semantics(
                     button: true,
-                    identifier: 'duration-15',
+                    identifier: 'tugboat:duration-15',
                     value: '15',
                     label: 'Duration 15 seconds',
                     selected: selected == '15',
@@ -387,7 +601,7 @@ void main() {
                   ),
                   Semantics(
                     button: true,
-                    identifier: 'duration-30',
+                    identifier: 'tugboat:duration-30',
                     value: '30',
                     label: 'Duration 30 seconds',
                     selected: selected == '30',
@@ -413,15 +627,15 @@ void main() {
     final tap = session.events.firstWhere((e) => e.type == 'tap');
     final tapValue = _controlValueFrom(tap)!;
     expect(tapValue['sources'], contains('semantics'));
-    expect((tapValue['semanticValue'] as Map)['value'], 30);
-    expect((tapValue['value'] as Map)['value'], 30);
+    expect((tapValue['semanticValue'] as Map)['value'], startsWith('str:'));
+    expect((tapValue['value'] as Map)['value'], startsWith('str:'));
     expect((tapValue['semanticLabel'] as Map)['value'], startsWith('str:'));
     expect(tapValue.toString(), isNot(contains('Duration 30 seconds')));
 
     final annotation = _semanticAnnotationFrom(tap)!;
     expect(annotation['role'], 'button');
     expect((annotation['identifier'] as Map)['value'], 'duration-30');
-    expect((annotation['value'] as Map)['value'], 30);
+    expect((annotation['value'] as Map)['value'], startsWith('str:'));
     expect((annotation['label'] as Map)['value'], startsWith('str:'));
     expect(selected, '30');
   });
@@ -453,9 +667,210 @@ void main() {
 
     expect(tapSemantic, isNotNull);
     expect(tapSemantic?['role'], 'button');
-    expect((tapSemantic?['label'] as Map)['value'], 'Generate');
+    expect((tapSemantic?['label'] as Map)['value'], startsWith('str:'));
     expect(settledSemantic, isNotNull);
-    expect((settledSemantic?['label'] as Map)['value'], 'Generate');
+    expect((settledSemantic?['label'] as Map)['value'], startsWith('str:'));
+  });
+
+  testWidgets('rapid taps retain per-interaction after values', (tester) async {
+    var enabled = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: const TugboatReplayConfig(
+            profile: TugboatCaptureProfile.exploration,
+            settleDelay: Duration(milliseconds: 120),
+            enableGlobalPointerCapture: false,
+            capturePixelRatio: 1.0,
+          ),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              return Switch(
+                key: const Key('rapid-switch'),
+                value: enabled,
+                onChanged: (next) => setState(() => enabled = next),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.tap(find.byKey(const Key('rapid-switch')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('rapid-switch')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 150));
+    for (var i = 0; i < 3; i += 1) {
+      await _waitForCaptures(tester);
+    }
+
+    final session = TugboatReplay.controller!.session!;
+    final taps = session.events.where((event) => event.type == 'tap').toList();
+    final settles = session.events
+        .where((event) => event.type == 'tap_settled')
+        .toList();
+    expect(taps, hasLength(2));
+    expect(settles, hasLength(2));
+
+    final first = _controlValueTransitionFrom(
+      settles.firstWhere((event) => event.relatedEventId == taps[0].id),
+    )!;
+    final second = _controlValueTransitionFrom(
+      settles.firstWhere((event) => event.relatedEventId == taps[1].id),
+    )!;
+
+    expect(((first['before'] as Map)['value'] as Map)['value'], isFalse);
+    expect(((first['after'] as Map)['value'] as Map)['value'], isTrue);
+    expect(((second['before'] as Map)['value'] as Map)['value'], isTrue);
+    expect(((second['after'] as Map)['value'] as Map)['value'], isFalse);
+  });
+
+  testWidgets('same-frame taps omit ambiguous after values', (tester) async {
+    var enabled = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              return Switch(
+                key: const Key('same-frame-switch'),
+                value: enabled,
+                onChanged: (next) => setState(() => enabled = next),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.tap(find.byKey(const Key('same-frame-switch')));
+    await tester.tap(find.byKey(const Key('same-frame-switch')));
+    await tester.pump();
+    for (var i = 0; i < 3; i += 1) {
+      await _waitForCaptures(tester);
+    }
+
+    final session = TugboatReplay.controller!.session!;
+    final settles = session.events
+        .where((event) => event.type == 'tap_settled')
+        .toList();
+    expect(settles, hasLength(2));
+    for (final settled in settles) {
+      final transition = _controlValueTransitionFrom(settled)!;
+      expect(transition, contains('before'));
+      expect(transition, isNot(contains('after')));
+    }
+  });
+
+  testWidgets('semantics-only controls are resampled without accessibility', (
+    tester,
+  ) async {
+    const renderKey = GlobalObjectKey('semantics-only-control');
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: const TugboatReplayConfig(
+            profile: TugboatCaptureProfile.productionLean,
+            settleDelay: Duration.zero,
+            enableGlobalPointerCapture: false,
+            capturePixelRatio: 1.0,
+          ),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: GestureDetector(
+            onTap: () {
+              final renderObject = renderKey.currentContext!.findRenderObject();
+              (renderObject! as _SemanticsOnlyRenderBox).value = 'on';
+            },
+            child: const _SemanticsOnlyControl(key: renderKey, value: 'off'),
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.tap(find.byKey(renderKey));
+    await _waitForCaptures(tester);
+
+    final settled = TugboatReplay.controller!.session!.events.firstWhere(
+      (event) => event.type == 'tap_settled',
+    );
+    final transition = _controlValueTransitionFrom(settled)!;
+    expect(
+      ((transition['before'] as Map)['value'] as Map)['value'],
+      startsWith('str:'),
+    );
+    expect(
+      ((transition['after'] as Map)['value'] as Map)['value'],
+      startsWith('str:'),
+    );
+    expect(
+      ((transition['after'] as Map)['value'] as Map)['value'],
+      isNot(((transition['before'] as Map)['value'] as Map)['value']),
+    );
+  });
+
+  testWidgets('settle never borrows a replacement at the old coordinate', (
+    tester,
+  ) async {
+    var showOriginal = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              if (showOriginal) {
+                return Semantics(
+                  identifier: 'tugboat:original-switch',
+                  child: Switch(
+                    key: const Key('original-switch'),
+                    value: false,
+                    onChanged: (_) => setState(() => showOriginal = false),
+                  ),
+                );
+              }
+              return Semantics(
+                identifier: 'tugboat:replacement-switch',
+                child: const Switch(
+                  key: Key('replacement-switch'),
+                  value: true,
+                  onChanged: null,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.tap(find.byKey(const Key('original-switch')));
+    await _waitForCaptures(tester);
+
+    final settled = TugboatReplay.controller!.session!.events.firstWhere(
+      (event) => event.type == 'tap_settled',
+    );
+    final transition = _controlValueTransitionFrom(settled)!;
+    final annotation = _semanticAnnotationFrom(settled)!;
+
+    expect(((transition['before'] as Map)['value'] as Map)['value'], isFalse);
+    expect(transition, isNot(contains('after')));
+    expect((annotation['identifier'] as Map)['value'], 'original-switch');
+    expect(
+      (annotation['identifier'] as Map)['value'],
+      isNot('replacement-switch'),
+    );
   });
 
   testWidgets('scroll events carry semanticAnnotation when present', (
@@ -467,7 +882,7 @@ void main() {
             TugboatReplay.wrapApp(config: _testConfig, child: child!),
         home: Scaffold(
           body: Semantics(
-            identifier: 'preset-list',
+            identifier: 'tugboat:preset-list',
             label: 'Preset options',
             child: ListView(
               key: const Key('preset-list'),
@@ -491,18 +906,14 @@ void main() {
     final scrollEvents = session.events
         .where((e) => e.type == 'scroll_start' || e.type == 'scroll_end')
         .toList();
-    expect(scrollEvents, isNotEmpty);
-    final annotated = scrollEvents
-        .map(_semanticAnnotationFrom)
-        .whereType<Map<String, Object?>>()
-        .toList();
-    expect(annotated, isNotEmpty);
-    expect(
-      annotated.any((annotation) {
-        final identifier = annotation['identifier'];
-        return identifier is Map && identifier['value'] == 'preset-list';
-      }),
-      isTrue,
+    final start = scrollEvents.firstWhere(
+      (event) => event.type == 'scroll_start',
     );
+    final end = scrollEvents.firstWhere((event) => event.type == 'scroll_end');
+    for (final event in [start, end]) {
+      final annotation = _semanticAnnotationFrom(event);
+      expect(annotation, isNotNull);
+      expect((annotation?['identifier'] as Map)['value'], 'preset-list');
+    }
   });
 }

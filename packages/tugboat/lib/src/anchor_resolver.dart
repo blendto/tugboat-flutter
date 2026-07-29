@@ -54,12 +54,38 @@ class _VisitAcc {
   final bool hasTokenizedActionableDescendant;
 }
 
+/// Metadata sampled from one interaction target.
+///
+/// The resolver retains the concrete hit element privately so a post-callback
+/// sample can stay bound to the original target instead of re-hit-testing a
+/// coordinate that may now belong to another route or overlay.
+class TugboatInteractionMetadata {
+  const TugboatInteractionMetadata._({
+    required Element? element,
+    this.controlValue,
+    this.semanticAnnotation,
+  }) : _element = element;
+
+  final Element? _element;
+  final TugboatControlValue? controlValue;
+  final TugboatSemanticAnnotation? semanticAnnotation;
+
+  Object? get resampleTargetIdentity => _element;
+
+  TugboatInteractionMetadata detached() => TugboatInteractionMetadata._(
+    element: null,
+    controlValue: controlValue,
+    semanticAnnotation: semanticAnnotation,
+  );
+}
+
 /// Builds target anchors from hit-test results.
 class AnchorResolver {
   AnchorResolver({required this.rootKey, this.widgetNames = const {}});
 
   final GlobalKey rootKey;
   final Map<Type, String> widgetNames;
+  List<int> _controlValueHashKey = _newControlValueHashKey();
 
   _TokenMap? _cachedTokenMap;
   int? _cachedFrameId;
@@ -68,6 +94,10 @@ class AnchorResolver {
   int debugTokenMapBuildCount = 0;
   int _frameEpoch = 0;
   bool _frameCallbackScheduled = false;
+
+  void rotateControlValueHashKey() {
+    _controlValueHashKey = _newControlValueHashKey();
+  }
 
   void invalidateTokenMapCache() {
     _cachedTokenMap = null;
@@ -169,13 +199,12 @@ class AnchorResolver {
     );
   }
 
-  /// Privacy-safe control value under [globalPosition], if any.
+  /// Samples control and semantic metadata with one hit test and semantics
+  /// session.
   ///
-  /// Samples standard Material/Cupertino control state and, when present,
-  /// Flutter semantic value/label annotations on the hit target. Free-text
-  /// strings are hashed; bools, numbers, enums, numeric strings, and short
-  /// developer tokens are retained.
-  TugboatControlValue? controlValueAt(Offset globalPosition) {
+  /// The returned sample can be passed to [resampleInteractionMetadata] after
+  /// the host callback runs to read updated state from the same target.
+  TugboatInteractionMetadata? interactionMetadataAt(Offset globalPosition) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
     if (rootRender is! RenderBox || rootContext is! Element) return null;
@@ -183,60 +212,92 @@ class AnchorResolver {
     final tokenMap = _tokenMapFor(rootContext, rootRender);
     if (tokenMap == null) return null;
 
-    return _withSemanticsEnabled(rootRender, () {
-      final result = BoxHitTestResult();
-      final localPosition = rootRender.globalToLocal(globalPosition);
-      rootRender.hitTest(result, position: localPosition);
-
-      for (final entry in result.path) {
-        if (entry.target is! RenderObject) continue;
-        final element = tokenMap.renderElements[entry.target as RenderObject];
-        if (element == null || tugboatIsCaptureChrome(element.widget)) continue;
-        final value = tugboatControlValueForElement(element);
-        if (value != null) return value;
-      }
-
-      // Fall back to the semantics tree for custom hit targets that only
-      // expose value/label through accessibility annotations.
-      return _controlValueFromSemanticsHit(
-        globalPosition: globalPosition,
-        rootContext: rootContext,
-        rootRender: rootRender,
-      );
-    });
+    return _withControlValueHashKey(
+      _controlValueHashKey,
+      () => _withSemanticsEnabled(rootRender, () {
+        final result = BoxHitTestResult();
+        final localPosition = rootRender.globalToLocal(globalPosition);
+        rootRender.hitTest(result, position: localPosition);
+        return _interactionMetadataFromHitTest(
+          globalPosition: globalPosition,
+          result: result,
+          tokenMap: tokenMap,
+          rootContext: rootContext,
+          rootRender: rootRender,
+        );
+      }),
+    );
   }
 
-  /// Privacy-safe semantic annotation under [globalPosition], if any.
-  ///
-  /// Used for all interactions (buttons, custom rows, scrolls) so enrichment
-  /// can see identifier/label/value whenever Flutter semantics expose them.
-  TugboatSemanticAnnotation? semanticAnnotationAt(Offset globalPosition) {
-    final rootContext = rootKey.currentContext;
-    final rootRender = rootContext?.findRenderObject();
-    if (rootRender is! RenderBox || rootContext is! Element) return null;
-
-    final tokenMap = _tokenMapFor(rootContext, rootRender);
-    if (tokenMap == null) return null;
-
-    return _withSemanticsEnabled(rootRender, () {
-      final result = BoxHitTestResult();
-      final localPosition = rootRender.globalToLocal(globalPosition);
-      rootRender.hitTest(result, position: localPosition);
-
-      for (final entry in result.path) {
-        if (entry.target is! RenderObject) continue;
-        final element = tokenMap.renderElements[entry.target as RenderObject];
-        if (element == null || tugboatIsCaptureChrome(element.widget)) continue;
-        final annotation = tugboatSemanticAnnotationForElement(element);
-        if (annotation != null) return annotation;
+  TugboatInteractionMetadata _interactionMetadataFromHitTest({
+    required Offset globalPosition,
+    required BoxHitTestResult result,
+    required _TokenMap tokenMap,
+    required Element rootContext,
+    required RenderBox rootRender,
+  }) {
+    Element? sampledElement;
+    TugboatControlValue? controlValue;
+    TugboatSemanticAnnotation? semanticAnnotation;
+    for (final entry in result.path) {
+      if (entry.target is! RenderObject) continue;
+      final element = tokenMap.renderElements[entry.target as RenderObject];
+      if (element == null || tugboatIsCaptureChrome(element.widget)) continue;
+      final nextControl = controlValue == null
+          ? tugboatControlValueForElement(element)
+          : null;
+      final nextSemantic = semanticAnnotation == null
+          ? tugboatSemanticAnnotationForElement(element)
+          : null;
+      if (nextControl != null || nextSemantic != null) {
+        sampledElement ??= element;
+        controlValue ??= nextControl;
+        semanticAnnotation ??= nextSemantic;
       }
+      if (controlValue != null && semanticAnnotation != null) break;
+    }
 
-      return _semanticAnnotationFromSemanticsHit(
+    if (controlValue == null || semanticAnnotation == null) {
+      final hits = _semanticsNodesAt(
         globalPosition: globalPosition,
         rootContext: rootContext,
         rootRender: rootRender,
       );
-    });
+      if (controlValue == null && hits.isNotEmpty) {
+        controlValue = tugboatControlValueFromSemanticsNode(hits.last);
+      }
+      semanticAnnotation ??= _semanticAnnotationFromHits(hits);
+    }
+
+    return TugboatInteractionMetadata._(
+      element: sampledElement,
+      controlValue: controlValue,
+      semanticAnnotation: semanticAnnotation,
+    );
+  }
+
+  /// Re-samples state from the exact element captured by
+  /// [interactionMetadataAt].
+  TugboatInteractionMetadata? resampleInteractionMetadata(
+    TugboatInteractionMetadata sample,
+  ) {
+    final element = sample._element;
+    if (element == null || !element.mounted) return null;
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+
+    TugboatInteractionMetadata readElement() => TugboatInteractionMetadata._(
+      element: null,
+      controlValue: tugboatControlValueForElement(element),
+      semanticAnnotation: tugboatSemanticAnnotationForElement(element),
+    );
+
+    return _withControlValueHashKey(
+      _controlValueHashKey,
+      () => rootRender is RenderBox
+          ? _withSemanticsEnabled(rootRender, readElement)
+          : readElement(),
+    );
   }
 
   /// Privacy-safe semantic annotation for an [element] already in the tree.
@@ -246,9 +307,12 @@ class AnchorResolver {
     if (rootRender is! RenderBox) {
       return tugboatSemanticAnnotationForElement(element);
     }
-    return _withSemanticsEnabled(
-      rootRender,
-      () => tugboatSemanticAnnotationForElement(element),
+    return _withControlValueHashKey(
+      _controlValueHashKey,
+      () => _withSemanticsEnabled(
+        rootRender,
+        () => tugboatSemanticAnnotationForElement(element),
+      ),
     );
   }
 
@@ -271,30 +335,9 @@ class AnchorResolver {
     }
   }
 
-  TugboatControlValue? _controlValueFromSemanticsHit({
-    required Offset globalPosition,
-    required Element rootContext,
-    required RenderBox rootRender,
-  }) {
-    final node = _deepestSemanticsNodeAt(
-      globalPosition: globalPosition,
-      rootContext: rootContext,
-      rootRender: rootRender,
-    );
-    if (node == null) return null;
-    return tugboatControlValueFromSemanticsNode(node);
-  }
-
-  TugboatSemanticAnnotation? _semanticAnnotationFromSemanticsHit({
-    required Offset globalPosition,
-    required Element rootContext,
-    required RenderBox rootRender,
-  }) {
-    final hits = _semanticsNodesAt(
-      globalPosition: globalPosition,
-      rootContext: rootContext,
-      rootRender: rootRender,
-    );
+  TugboatSemanticAnnotation? _semanticAnnotationFromHits(
+    List<SemanticsNode> hits,
+  ) {
     TugboatSemanticAnnotation? merged;
     // hits are root→leaf; reverse so deeper nodes win, ancestors fill gaps.
     for (final node in hits.reversed) {
@@ -305,19 +348,6 @@ class AnchorResolver {
           : tugboatMergeSemanticAnnotations(merged, next);
     }
     return merged;
-  }
-
-  SemanticsNode? _deepestSemanticsNodeAt({
-    required Offset globalPosition,
-    required Element rootContext,
-    required RenderBox rootRender,
-  }) {
-    final hits = _semanticsNodesAt(
-      globalPosition: globalPosition,
-      rootContext: rootContext,
-      rootRender: rootRender,
-    );
-    return hits.isEmpty ? null : hits.last;
   }
 
   List<SemanticsNode> _semanticsNodesAt({
@@ -366,7 +396,11 @@ class AnchorResolver {
   }
 
   /// Builds inventory and resolves a tap target from one token-map walk.
-  ({TugboatSceneInventory? inventory, TugboatTargetAnchor? target})
+  ({
+    TugboatSceneInventory? inventory,
+    TugboatTargetAnchor? target,
+    TugboatInteractionMetadata? metadata,
+  })
   buildTapContext({
     required Offset tapPosition,
     required String? route,
@@ -376,11 +410,31 @@ class AnchorResolver {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
     if (rootRender is! RenderBox || rootContext is! Element) {
-      return (inventory: null, target: null);
+      return (inventory: null, target: null, metadata: null);
     }
 
     final tokenMap = _tokenMapFor(rootContext, rootRender);
-    if (tokenMap == null) return (inventory: null, target: null);
+    if (tokenMap == null) {
+      return (inventory: null, target: null, metadata: null);
+    }
+    final hitTest = BoxHitTestResult();
+    rootRender.hitTest(
+      hitTest,
+      position: rootRender.globalToLocal(tapPosition),
+    );
+    final metadata = _withControlValueHashKey(
+      _controlValueHashKey,
+      () => _withSemanticsEnabled(
+        rootRender,
+        () => _interactionMetadataFromHitTest(
+          globalPosition: tapPosition,
+          result: hitTest,
+          tokenMap: tokenMap,
+          rootContext: rootContext,
+          rootRender: rootRender,
+        ),
+      ),
+    );
     final stateAnchor = _stateAnchorFromTokenMap(
       tokenMap: tokenMap,
       route: route,
@@ -388,7 +442,7 @@ class AnchorResolver {
       modalOpen: modalOpen,
     );
     if (stateAnchor.signature.isEmpty) {
-      return (inventory: null, target: null);
+      return (inventory: null, target: null, metadata: metadata);
     }
 
     var target = _targetAtWithTokenMap(
@@ -396,6 +450,7 @@ class AnchorResolver {
       route: route,
       tokenMap: tokenMap,
       rootRender: rootRender,
+      hitTest: hitTest,
     );
     var inventory = _buildSceneInventoryFromTokenMap(
       tokenMap: tokenMap,
@@ -418,7 +473,7 @@ class AnchorResolver {
       tokenMap: tokenMap,
       rootRender: rootRender,
     );
-    return (inventory: inventory, target: target);
+    return (inventory: inventory, target: target, metadata: metadata);
   }
 
   /// Resolves a [TugboatTargetAnchor] for the [Scrollable] element that emitted
@@ -465,11 +520,14 @@ class AnchorResolver {
     required String? route,
     required _TokenMap tokenMap,
     required RenderBox rootRender,
+    BoxHitTestResult? hitTest,
   }) {
     final viewport = rootRender.size;
-    final result = BoxHitTestResult();
-    final localPosition = rootRender.globalToLocal(globalPosition);
-    rootRender.hitTest(result, position: localPosition);
+    final result = hitTest ?? BoxHitTestResult();
+    if (hitTest == null) {
+      final localPosition = rootRender.globalToLocal(globalPosition);
+      rootRender.hitTest(result, position: localPosition);
+    }
 
     TugboatTargetAnchor? roleOnly;
     TugboatTargetAnchor? fallback;
