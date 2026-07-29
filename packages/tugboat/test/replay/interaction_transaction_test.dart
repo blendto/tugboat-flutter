@@ -118,6 +118,32 @@ void main() {
             .semanticOfType('interaction')
             .where((e) => e.data['gesture'] == 'cancelled');
         expect(cancelled, isNotEmpty);
+        final attribution = Map<String, Object?>.from(
+          cancelled.last.data['attribution']! as Map,
+        );
+        expect(attribution['rejectionReason'], 'lifecycle');
+      },
+    );
+
+    test(
+      'canonical-only mode does not emit legacy promotion evidence',
+      () async {
+        final harness = ReplayCoherenceHarness(
+          interactionPublishMode: TugboatInteractionPublishMode.canonicalOnly,
+        );
+        await harness.setUp();
+        addTearDown(harness.dispose);
+
+        harness.controller.recordPointerDown(const Offset(12, 34));
+        await harness.controller.route('route_push', harness.route('/dest'));
+        await harness.flushScheduler();
+        harness.controller.recordPointerUp(const Offset(12, 34));
+        await harness.flushScheduler();
+
+        expect(
+          harness.controller.session!.ofType('tap_gesture_resolved'),
+          isEmpty,
+        );
       },
     );
   });

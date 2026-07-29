@@ -2464,6 +2464,7 @@ class TugboatReplayController extends ChangeNotifier {
   /// as a real tap. Patches the in-memory session (and sibling `tap_outside_tree`)
   /// and emits `tap_gesture_resolved` so already-flushed sinks can promote too.
   void _promoteCausalTapToInteraction(String tapEventId) {
+    if (!config.emitLegacyInteractionProjection) return;
     const promotion = <String, Object?>{
       'gestureFinal': 'tap',
       'replayRole': 'interaction',
@@ -2597,15 +2598,14 @@ class TugboatReplayController extends ChangeNotifier {
     }
   }
 
-  void _clearReleasedInteractions() {
+  void _clearReleasedInteractions({
+    InteractionRejectionReason reason = InteractionRejectionReason.sessionEnd,
+  }) {
     _reconciliationSweepCancel?.call();
     _reconciliationSweepCancel = null;
     _reconciliationSweepScheduled = false;
     for (final tx in _interactions.takeAllReleased()) {
-      _finalizeAbandonedTransaction(
-        tx,
-        reason: InteractionRejectionReason.sessionEnd,
-      );
+      _finalizeAbandonedTransaction(tx, reason: reason);
       if (!tx.tapEmitted) {
         tx.bufferedTap = null;
         tx.bufferedOutside = null;
@@ -2662,11 +2662,14 @@ class TugboatReplayController extends ChangeNotifier {
     _finalizeAbandonedTransaction(pending, reason: reason);
   }
 
-  void _abandonAllPendingPointers({bool publishClaimedTap = true}) {
+  void _abandonAllPendingPointers({
+    bool publishClaimedTap = true,
+    String gestureFinal = 'session_end',
+  }) {
     for (final pointer in _interactions.takePendingPointers()) {
       _abandonPendingPointer(
         pointer,
-        gestureFinal: 'session_end',
+        gestureFinal: gestureFinal,
         publishClaimedTap: publishClaimedTap,
       );
     }
@@ -3202,7 +3205,8 @@ class TugboatReplayController extends ChangeNotifier {
         targetAnchor: tx.origin.targetAnchor,
         beforeFrame: tx.origin.beforeFrame,
         afterFrame: tx.afterFrame,
-        result: tx.resultStatus?.asEventResult ?? TugboatInteractionResult.unknown,
+        result:
+            tx.resultStatus?.asEventResult ?? TugboatInteractionResult.unknown,
         data: {
           'interactionId': tx.id,
           'interactionSchema': tugboatInteractionSchemaVersion,
@@ -3940,8 +3944,13 @@ class TugboatReplayController extends ChangeNotifier {
         _invalidateCaptureWork('lifecycle_deactivate');
         // Drop in-flight pointer claims so a later resume/navigation cannot
         // attribute itself to a pre-background gesture.
-        _abandonAllPendingPointers(publishClaimedTap: false);
-        _clearReleasedInteractions();
+        _abandonAllPendingPointers(
+          publishClaimedTap: false,
+          gestureFinal: 'lifecycle',
+        );
+        _clearReleasedInteractions(
+          reason: InteractionRejectionReason.lifecycle,
+        );
         _captureLifecycleActive = false;
         break;
       case AppLifecycleState.resumed:

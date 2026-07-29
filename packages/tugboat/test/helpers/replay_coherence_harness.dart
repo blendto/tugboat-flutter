@@ -214,6 +214,7 @@ class ReplayCoherenceHarness {
     /// reconciliation — pass that window explicitly when testing delayed
     /// attribution.
     this.interactionClaimWindow = Duration.zero,
+    this.interactionPublishMode = TugboatInteractionPublishMode.dualWrite,
     this.maxFrames = 300,
     this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,
     GlobalKey? boundaryKey,
@@ -221,6 +222,7 @@ class ReplayCoherenceHarness {
 
   final Duration settleDelay;
   final Duration interactionClaimWindow;
+  final TugboatInteractionPublishMode interactionPublishMode;
   final int maxFrames;
   final TugboatScreenshotBudgetConfig screenshotBudget;
   final GlobalKey boundaryKey;
@@ -266,6 +268,7 @@ class ReplayCoherenceHarness {
         profile: TugboatCaptureProfile.exploration,
         settleDelay: settleDelay,
         interactionClaimWindow: interactionClaimWindow,
+        interactionPublishMode: interactionPublishMode,
         maxFrames: maxFrames,
         enableGlobalPointerCapture: false,
         capturePixelRatio: 1.0,
