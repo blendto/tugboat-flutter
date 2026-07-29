@@ -208,12 +208,19 @@ class ControllableCaptureExecutor {
 class ReplayCoherenceHarness {
   ReplayCoherenceHarness({
     this.settleDelay = Duration.zero,
+
+    /// Characterization defaults to microtask-only claims so automatic routes
+    /// during settle stay independent. Production defaults to 1,250 ms delayed
+    /// reconciliation — pass that window explicitly when testing delayed
+    /// attribution.
+    this.interactionClaimWindow = Duration.zero,
     this.maxFrames = 300,
     this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,
     GlobalKey? boundaryKey,
   }) : boundaryKey = boundaryKey ?? GlobalKey();
 
   final Duration settleDelay;
+  final Duration interactionClaimWindow;
   final int maxFrames;
   final TugboatScreenshotBudgetConfig screenshotBudget;
   final GlobalKey boundaryKey;
@@ -258,6 +265,7 @@ class ReplayCoherenceHarness {
       config: TugboatReplayConfig(
         profile: TugboatCaptureProfile.exploration,
         settleDelay: settleDelay,
+        interactionClaimWindow: interactionClaimWindow,
         maxFrames: maxFrames,
         enableGlobalPointerCapture: false,
         capturePixelRatio: 1.0,

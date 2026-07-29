@@ -78,8 +78,9 @@ void main() {
 
       harness.seedRouteState(route: '/source', signature: 'source');
       harness.controller.recordPointerDown(const Offset(8, 8));
-      final tap = harness.controller.session!.ofType('tap').single;
       harness.controller.recordPointerUp(const Offset(8, 8));
+      final tap = harness.controller.session!.ofType('tap').single;
+
       await harness.pumpMicrotasks();
 
       // The pointer event turn has ended, so this navigation must remain
@@ -123,12 +124,12 @@ void main() {
       addTearDown(harness.dispose);
 
       harness.controller.recordPointerDown(const Offset(8, 8));
-      final tap = harness.controller.session!.ofType('tap').single;
       final tappedRoute = harness.controller.route(
         'route_push',
         harness.route('/tapped'),
       );
       harness.controller.recordPointerUp(const Offset(8, 8));
+      final tap = harness.controller.session!.ofType('tap').single;
 
       // Supersede the causally claimed route before its terminal frame is
       // available. The redirect has no pointer cause and must not become the
@@ -166,9 +167,13 @@ void main() {
     addTearDown(harness.dispose);
 
     harness.controller.recordPointerDown(const Offset(3, 3));
-    final tap = harness.controller.session!.ofType('tap').single;
-    await harness.controller.route('route_push', harness.route('/tapped'));
+    final tappedRoute = harness.controller.route(
+      'route_push',
+      harness.route('/tapped'),
+    );
     harness.controller.recordPointerUp(const Offset(3, 3));
+    final tap = harness.controller.session!.ofType('tap').single;
+    await tappedRoute;
     await harness.pumpQueueWork();
 
     await harness.controller.route('route_push', harness.route('/redirect'));

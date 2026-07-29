@@ -14,6 +14,7 @@ import 'helpers/json_roundtrip.dart';
 const _testConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
   settleDelay: Duration.zero,
+  interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
   scrollCaptureInterval: Duration(milliseconds: 50),
   captureScrollSamples: true,
@@ -384,6 +385,7 @@ void main() {
       config: const TugboatReplayConfig(
         profile: TugboatCaptureProfile.exploration,
         settleDelay: Duration(milliseconds: 50),
+        interactionClaimWindow: Duration.zero,
         enableGlobalPointerCapture: false,
         capturePixelRatio: 1.0,
       ),
@@ -439,6 +441,7 @@ void main() {
       config: const TugboatReplayConfig(
         profile: TugboatCaptureProfile.exploration,
         settleDelay: Duration(milliseconds: 50),
+        interactionClaimWindow: Duration.zero,
         enableGlobalPointerCapture: false,
         capturePixelRatio: 1.0,
       ),
@@ -864,7 +867,7 @@ void main() {
     );
 
     final json = jsonDecode(session.toPrettyJson()) as Map<String, dynamic>;
-    expect(json['schemaVersion'], 7);
+    expect(json['schemaVersion'], 8);
     expect(json.containsKey('routes'), isFalse);
     expect(json['events'], [isNot(contains('route'))]);
     expect(json['frames'], [containsPair('captureMicros', 12345)]);

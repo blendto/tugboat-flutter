@@ -184,6 +184,7 @@ void main() {
       const config = TugboatReplayConfig(
         profile: TugboatCaptureProfile.exploration,
         settleDelay: Duration.zero,
+        interactionClaimWindow: Duration.zero,
         enableGlobalPointerCapture: false,
         capturePixelRatio: 1.0,
       );
@@ -204,6 +205,7 @@ void main() {
       final controller = TugboatReplay.controller!;
       final tapCenter = tester.getCenter(find.text('Go'));
       controller.recordPointerDown(tapCenter);
+      controller.recordPointerUp(tapCenter);
       await tester.pump();
 
       final tapEvents = controller.session!.events
@@ -246,6 +248,7 @@ void main() {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,
       settleDelay: Duration.zero,
+      interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
       capturePixelRatio: 1.0,
     );
@@ -269,6 +272,7 @@ void main() {
     final controller = TugboatReplay.controller!;
     final tapPoint = const Offset(20, 20);
     controller.recordPointerDown(tapPoint);
+    controller.recordPointerUp(tapPoint);
     await tester.pump();
 
     final tapEvent = controller.session!.events
@@ -302,6 +306,7 @@ void main() {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,
       settleDelay: Duration.zero,
+      interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
       capturePixelRatio: 1.0,
     );
@@ -322,6 +327,7 @@ void main() {
     final controller = TugboatReplay.controller!;
     final tapCenter = tester.getCenter(find.text('Go'));
     controller.recordPointerDown(tapCenter);
+    controller.recordPointerUp(tapCenter);
     await tester.pump();
 
     final afterFirstTap = controller.session!.events
@@ -329,6 +335,7 @@ void main() {
         .length;
 
     controller.recordPointerDown(tapCenter);
+    controller.recordPointerUp(tapCenter);
     await tester.pump();
 
     final afterSecondTap = controller.session!.events
@@ -343,6 +350,7 @@ void main() {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.productionLean,
       settleDelay: Duration.zero,
+      interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
       capturePixelRatio: 1.0,
     );
@@ -363,6 +371,7 @@ void main() {
     final controller = TugboatReplay.controller!;
     final tapCenter = tester.getCenter(find.text('Go'));
     controller.recordPointerDown(tapCenter);
+    controller.recordPointerUp(tapCenter);
     await tester.pump();
 
     final eventTypes = controller.session!.events.map((event) => event.type);
@@ -374,6 +383,7 @@ void main() {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,
       settleDelay: Duration.zero,
+      interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
       capturePixelRatio: 1.0,
     );

@@ -28,7 +28,7 @@ verified in their own repositories.
 
 ## Current compatibility
 
-- package version: `0.4.12`;
+- package version: `0.4.13`;
 - session JSON schema: `7`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;

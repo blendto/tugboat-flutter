@@ -6,6 +6,7 @@ import 'package:tugboat/src/anchors.dart';
 const _semanticMapConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
   settleDelay: Duration.zero,
+  interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
   capturePixelRatio: 1.0,
   viewportSemanticMode: TugboatViewportSemanticMode.full,
@@ -14,6 +15,7 @@ const _semanticMapConfig = TugboatReplayConfig(
 const _semanticMapConfigWithLogs = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
   settleDelay: Duration.zero,
+  interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
   capturePixelRatio: 1.0,
   viewportSemanticMode: TugboatViewportSemanticMode.fullWithDebugLogs,
@@ -22,6 +24,7 @@ const _semanticMapConfigWithLogs = TugboatReplayConfig(
 const _scrollSemanticMapConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
   settleDelay: Duration.zero,
+  interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
   scrollCaptureInterval: Duration.zero,
   captureScrollSamples: true,
@@ -136,6 +139,7 @@ void main() {
     final controller = TugboatReplay.controller!;
     final tapCenter = tester.getCenter(find.text('Go'));
     controller.recordPointerDown(tapCenter);
+    controller.recordPointerUp(tapCenter);
     await tester.pump();
 
     final tapEvent = controller.session!.events
@@ -184,16 +188,16 @@ void main() {
     final textNode = nodes.singleWhere((node) => node['role'] == 'text');
     final bounds = textNode['boundsNorm'] as Map<Object?, Object?>;
     final scaffoldSize = tester.getSize(find.byType(Scaffold));
-    controller.recordPointerDown(
-      Offset(
-        ((bounds['left'] as num).toDouble() +
-                (bounds['width'] as num).toDouble() / 2) *
-            scaffoldSize.width,
-        ((bounds['top'] as num).toDouble() +
-                (bounds['height'] as num).toDouble() / 2) *
-            scaffoldSize.height,
-      ),
+    final tapPoint = Offset(
+      ((bounds['left'] as num).toDouble() +
+              (bounds['width'] as num).toDouble() / 2) *
+          scaffoldSize.width,
+      ((bounds['top'] as num).toDouble() +
+              (bounds['height'] as num).toDouble() / 2) *
+          scaffoldSize.height,
     );
+    controller.recordPointerDown(tapPoint);
+    controller.recordPointerUp(tapPoint);
     await tester.pump();
 
     final tapEvent = controller.session!.events
@@ -224,6 +228,7 @@ void main() {
     final controller = TugboatReplay.controller!;
     final bottomRight = tester.getBottomRight(find.byType(Scaffold));
     controller.recordPointerDown(bottomRight - const Offset(2, 2));
+    controller.recordPointerUp(bottomRight - const Offset(2, 2));
     await tester.pump();
 
     final tapEvent = controller.session!.events
@@ -286,6 +291,7 @@ void main() {
       find.byKey(const ValueKey('custom-cta')),
     );
     controller.recordPointerDown(ctaCenter);
+    controller.recordPointerUp(ctaCenter);
     await tester.pump();
 
     final tapEvent = controller.session!.events
@@ -307,6 +313,7 @@ void main() {
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.dormant,
             settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
             capturePixelRatio: 1.0,
           ),
@@ -334,6 +341,7 @@ void main() {
 
     final tapCenter = tester.getCenter(find.text('Go'));
     controller.recordPointerDown(tapCenter);
+    controller.recordPointerUp(tapCenter);
     await tester.pump();
 
     final tapEvent = controller.session!.events
@@ -351,6 +359,7 @@ void main() {
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.productionLean,
             settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
             capturePixelRatio: 1.0,
           ),
@@ -368,6 +377,7 @@ void main() {
 
     final tapCenter = tester.getCenter(find.text('Go'));
     controller.recordPointerDown(tapCenter);
+    controller.recordPointerUp(tapCenter);
     await tester.pump();
 
     final mapEvents = controller.session!.events
@@ -400,6 +410,7 @@ void main() {
             config: const TugboatReplayConfig(
               profile: TugboatCaptureProfile.productionLean,
               settleDelay: Duration.zero,
+              interactionClaimWindow: Duration.zero,
               enableGlobalPointerCapture: false,
               capturePixelRatio: 1.0,
               viewportSemanticMode: TugboatViewportSemanticMode.full,
@@ -422,6 +433,7 @@ void main() {
 
       final controller = TugboatReplay.controller!;
       controller.recordPointerDown(tester.getCenter(find.text('Go')));
+      controller.recordPointerUp(tester.getCenter(find.text('Go')));
       await tester.pump();
 
       final mapEvents = controller.session!.events
@@ -449,6 +461,7 @@ void main() {
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.productionLean,
             settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
             capturePixelRatio: 1.0,
           ),
@@ -469,6 +482,7 @@ void main() {
 
     final controller = TugboatReplay.controller!;
     controller.recordPointerDown(tester.getCenter(find.text('Go')));
+    controller.recordPointerUp(tester.getCenter(find.text('Go')));
     await tester.pump();
 
     final mapEvents = controller.session!.events
@@ -626,6 +640,7 @@ void main() {
 
       final tapCenter = tester.getCenter(find.text('Go'));
       controller.recordPointerDown(tapCenter);
+      controller.recordPointerUp(tapCenter);
       await tester.pump();
 
       final afterInventoryCount = controller.session!.events

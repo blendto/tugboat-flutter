@@ -24,6 +24,7 @@ void main() {
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.exploration,
             settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
           ),
           child: child!,
@@ -75,6 +76,7 @@ void main() {
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.exploration,
             settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
           ),
           child: child!,
@@ -113,7 +115,7 @@ void main() {
   });
 
   test('v6 session JSON remains readable alongside v7 writers', () {
-    expect(tugboatSessionSchemaVersion, 7);
+    expect(tugboatSessionSchemaVersion, 8);
   });
 
   test(
@@ -133,6 +135,7 @@ void main() {
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.dormant,
             settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
           ),
           child: child!,
@@ -180,6 +183,7 @@ void main() {
             config: const TugboatReplayConfig(
               profile: TugboatCaptureProfile.exploration,
               settleDelay: Duration.zero,
+              interactionClaimWindow: Duration.zero,
               enableGlobalPointerCapture: true,
               capturePixelRatio: 1,
               screenshotMaskLevel: TugboatScreenshotMaskLevel.allTextAndMedia,

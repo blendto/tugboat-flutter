@@ -197,12 +197,37 @@ TugboatCaptureCoordinate buildCaptureCoordinate({
     );
   }
   if (framePixelWidth <= 0 || framePixelHeight <= 0 || frameId == null) {
+    final localX = globalX - boundaryOriginX;
+    final localY = globalY - boundaryOriginY;
+    if (localX < 0 ||
+        localY < 0 ||
+        localX > boundaryWidth ||
+        localY > boundaryHeight) {
+      return TugboatCaptureCoordinate.unavailable(
+        unavailableReason: 'outside_boundary',
+        sourceSpace: TugboatCoordinateSourceSpace.boundaryLocalLogical,
+        boundaryOriginX: boundaryOriginX,
+        boundaryOriginY: boundaryOriginY,
+        boundaryWidth: boundaryWidth,
+        boundaryHeight: boundaryHeight,
+        localX: localX,
+        localY: localY,
+        boundaryTransformGeneration: boundaryTransformGeneration,
+      );
+    }
+    final normalizedX = (localX / boundaryWidth).clamp(0.0, 1.0);
+    final normalizedY = (localY / boundaryHeight).clamp(0.0, 1.0);
     return TugboatCaptureCoordinate.unavailable(
       unavailableReason: 'missing_frame',
+      sourceSpace: TugboatCoordinateSourceSpace.boundaryLocalLogical,
       boundaryOriginX: boundaryOriginX,
       boundaryOriginY: boundaryOriginY,
       boundaryWidth: boundaryWidth,
       boundaryHeight: boundaryHeight,
+      localX: localX,
+      localY: localY,
+      normalizedX: normalizedX,
+      normalizedY: normalizedY,
       boundaryTransformGeneration: boundaryTransformGeneration,
     );
   }

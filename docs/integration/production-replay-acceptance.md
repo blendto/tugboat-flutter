@@ -12,14 +12,19 @@ database receipt alone as proof that a replay is correct.
 
 ## Current acceptance status
 
-Production acceptance #13/#14 remains open. The SDK's route-epoch and frame
-provenance behavior is an intended invariant, but rapid/nested modal chains and
-programmatic/automatic navigation can still be absent or degraded in a
-production replay. Record those observations as SDK capture gaps; do not infer
-route/action coherence from the intended contract or repair the evidence in the
-dashboard. Stored tap coordinates are global logical pixels and are not
-capture-boundary-normalized for playback, so fractional overlay drift is also a
-known limitation.
+Interaction consolidation shipped in SDK **0.4.15** (canonical `interaction`
+events, 1,250 ms delayed claim window, diagnostic stream isolation). Use
+[`production-replay-acceptance-0.4.15.md`](./production-replay-acceptance-0.4.15.md)
+for the Blend scoring gates. Collector/Context Graph migration onto
+`stream: semantic` interactions remains a follow-up before legacy
+`tap`/`tap_settled` projection can be removed.
+
+Production acceptance #13/#14 remains open for rapid/nested modal chains and
+programmatic/automatic navigation gaps. Record those observations as SDK
+capture gaps; do not infer route/action coherence from the intended contract or
+repair the evidence in the dashboard. Stored tap coordinates are global logical
+pixels and are not capture-boundary-normalized for playback, so fractional
+overlay drift is also a known limitation.
 
 ## Roles and evidence
 

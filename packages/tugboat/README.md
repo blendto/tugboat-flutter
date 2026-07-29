@@ -5,7 +5,7 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.4.12`. Session JSON uses schema version `7`
+The current package version is `0.4.13`. Session JSON uses schema version `7`
 (readers still accept `6`), and structural fingerprints use fingerprint schema
 version `6`.
 
@@ -73,6 +73,31 @@ Production acceptance for #13/#14 remains open: rapid or nested modal chains
 and programmatic/automatic navigation can still be absent or degraded. Treat
 those cases as an SDK capture gap, not as coherent replay evidence.
 
+### Deferred taps and interaction claims
+
+`tap` is sampled at pointer-down but emitted only after gesture classification
+(or when a claimed `route_change` must publish a cause). Consumers must read:
+
+| Field | Meaning |
+| --- | --- |
+| `data.replayRole` | `interaction` (real user tap) or `causal_only` (cause id for a route; not a replayable action) |
+| `data.gestureFinal` | `tap`, `swipe`, `cancelled`, `superseded`, `session_end`, or `unresolved` |
+| `data.sampledAtMs` | Pointer-down sample time when the event was published later |
+| `data.captureCoordinate` | Boundary-local / normalized / raster transform for the before-frame |
+| `route_change.data.navigationOrigin` | `interaction` or `automatic_or_unknown` |
+| `route_change.data.causeEventId` | Claimed tap id when origin is `interaction` |
+| `route_change.data.interactionAttribution` | Always `same_turn` when claimed |
+| `swipe`/`pointer_cancel.data.invalidatesRelatedTap` | Boolean `true` when a related causal tap should be ignored for playback |
+| `tap_gesture_resolved` | Promotes `relatedEventId` from `causal_only` → interaction (`promotesRelatedTap`) |
+
+Released pointer-up claims attribute a route only through the pointer-up turn
+(sync `onTap` → `Navigator.push`). Timer/auth redirects after that turn stay
+`automatic_or_unknown`. Backgrounding and `session_end` drop pending claims
+without minting orphan `causal_only` taps for cancelled routes.
+
+**Downstream contract:** Context Graph and PMKit CLI must not treat
+`replayRole: causal_only` taps as real actions or step openers.
+
 ## Capture profiles and runtime state
 
 `TugboatReplayConfig.profile` controls whether the wrapper installs capture
@@ -130,6 +155,8 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | --- | --- | --- |
 | `profile` | `dormant` | capture cost and exploration-only behavior |
 | `settleDelay` | 1 second | delay before post-interaction and post-route capture |
+| `interactionClaimWindow` | 1,250 ms | released-tap window for delayed route/modal attribution; `Duration.zero` keeps microtask-only same-turn claims |
+| `interactionPublishMode` | `dualWrite` | how finalized gestures are published: `legacyOnly`, `dualWrite` (canonical + legacy peers on `stream: legacy_projection`), or `canonicalOnly` |
 | `maxFrames` | 500 | in-memory frame bound |
 | `maxEvents` | 5000 | in-memory event bound |
 | `scrollCaptureInterval` | 2 seconds | interval for scroll checkpoint capture |
@@ -146,6 +173,24 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | `viewportSemanticMode` | `tapResolutionOnly` | semantic engine and emission mode |
 | `viewportSemanticMapMaxNodes` | 120 | emitted map node budget |
 | `viewportSemanticMapMaxBytes` | 48000 | emitted map byte budget |
+| `sinkFactories` | empty | extra `TugboatCaptureSinkFactory` adapters |
+| `outbox` | disabled | durable HTTP outbox configuration |
+| `screenshotBudget` | defaults | degraded-capture skip window / budget |
+
+### Resolver and exploration events
+
+When exploration is active, the controller may emit:
+
+| Event | Role |
+| --- | --- |
+| `scene_inventory` | Deduped actionable/image inventory for the settled state |
+| `viewport_semantic_map` | Bounded semantic node map (mode-dependent) |
+| `scroll_semantic_snapshot` | Semantic snapshot tied to scroll checkpoints |
+| `action_window_set` / `action_window_cleared` | CLI exploration action-window fencing |
+| `tap_outside_tree` | Pointer resolved no target; carries the same `replayRole` / `gestureFinal` as the paired tap when deferred |
+| `tap_gesture_resolved` | Promotes a prior `causal_only` tap (`promotesRelatedTap: true`, `relatedEventId`) after the gesture finalizes as a real tap |
+
+Consumers that filter `replayRole: causal_only` must honor `tap_gesture_resolved` (or the patched in-memory tap) before suppressing genuine navigations.
 
 ## Privacy and payload boundary
 
@@ -191,15 +236,26 @@ session is bounded by `maxFrames` and `maxEvents`; trimming marks it
 
 Emitted event types currently include:
 
+- canonical: `interaction` (`stream: semantic`) — one finalized gesture with
+  immutable `origin`, `result`, `attribution`, and `evidenceEventIds`;
+- legacy gesture peers (`stream: legacy_projection` when canonical is on):
+  `tap`, `tap_settled`, `swipe`, `tap_outside_tree`, `tap_gesture_resolved`;
 - lifecycle: `session_start`, `session_end`;
-- input: `tap`, `tap_settled`, `swipe`, `pointer_cancel`,
-  `tap_outside_tree`;
-- state/navigation: `state_change`, `route_change`;
-- scrolling: `scroll_start`, `scroll_end`;
+- input: `pointer_cancel` (`stream: evidence`);
+- state/navigation evidence (`stream: evidence`): `state_change`, `route_change`
+  (claimed routes also carry `causedByInteractionId`);
+- scrolling evidence (`stream: evidence`): `scroll_start`, `scroll_end`;
+- diagnostics: `capture_diagnostic` (`stream: diagnostic`);
 - exploration: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
 - semantic-map modes: `viewport_semantic_map`,
   `scroll_semantic_snapshot`.
+
+Default enrichment and insight selection should use `stream: semantic`
+`interaction` records (`enrichmentCandidate: true` on collector payloads).
+Rage-tap style insights must count finalized `gesture=tap` interactions with
+no successful `navigated`/`changed` result; exclude scrolls, swipes,
+cancellations, evidence, legacy projections, and diagnostics.
 
 Frames can be triggered by initial startup, taps, scrolls, routes, lifecycle,
 or explicit controller calls. Capture requests are serialized and coalesced.
@@ -215,14 +271,16 @@ capture-boundary-normalized for replay playback. Do not interpret them as
 physical pixels or as coordinates relative to an individual widget. Fractional
 overlay drift is therefore still possible.
 
-For a tap, `beforeFrame` is selected at pointer-down only if its provenance is
-compatible with the tap's route epoch. At pointer-up, a single `tap_settled`
-event links back to the `tap` via `relatedEventId` and is intended to contain
-an `afterFrame` only when the settled capture is compatible with the observed
-route. A missing attachment is explicit in `frameAttachment`/settle diagnostics
-rather than a fallback to an unrelated frame. Acceptance remains open for the
-navigation cases above, so consumers must still treat absence and degradation
-as a capture gap.
+For a tap, origin context (`stateAnchor`, target, `beforeFrame`,
+`captureCoordinate`, route/navigator identity) is frozen at pointer-down into
+an `InteractionTransaction`. After pointer-up, settlement waits for either the
+first eligible visible successor inside `interactionClaimWindow` (default
+1,250 ms) or the deadline. The canonical `interaction` event retains that
+frozen origin and attaches destination/result fields when a successor claims.
+Legacy `tap` + `tap_settled` remain dual-written for migration; `tap_settled`
+links via `relatedEventId` / `interactionId`. A missing attachment is explicit
+in `frameAttachment`/settle diagnostics rather than a fallback to an unrelated
+frame.
 
 During local WebSocket exploration, connecting without an HTTP collector
 suppresses new Flutter screenshot capture for UI-thread performance. Events,
