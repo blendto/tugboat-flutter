@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 
@@ -307,10 +308,7 @@ void main() {
               return DropdownButton<String>(
                 value: selected,
                 items: const [
-                  DropdownMenuItem(
-                    value: 'alpha-code',
-                    child: Text('Alpha'),
-                  ),
+                  DropdownMenuItem(value: 'alpha-code', child: Text('Alpha')),
                   DropdownMenuItem(
                     value: 'Visible Secret City Name',
                     child: Text('Beta'),
@@ -335,5 +333,81 @@ void main() {
     final json = TugboatReplay.controller!.session!.toJson().toString();
     expect(json, isNot(contains('Visible Secret City Name')));
     expect(json, contains('str:'));
+  });
+
+  test('semantic properties encode value and label tokens', () {
+    final snapshot = tugboatControlValueFromSemanticsProperties(
+      const SemanticsProperties(
+        button: true,
+        value: '15',
+        label: 'Duration fifteen seconds',
+        selected: true,
+      ),
+    );
+    expect(snapshot?.role, 'button');
+    expect(snapshot?.sources, ['semantics']);
+    expect(snapshot?.value?.kind, 'number');
+    expect(snapshot?.value?.value, 15);
+    expect(snapshot?.semanticValue?.value, 15);
+    expect(snapshot?.semanticLabel?.value, startsWith('str:'));
+    expect(snapshot?.selected, isTrue);
+  });
+
+  testWidgets('custom gesture detector list captures semantic value/label', (
+    tester,
+  ) async {
+    String? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                children: [
+                  Semantics(
+                    button: true,
+                    value: '15',
+                    label: 'Duration 15 seconds',
+                    selected: selected == '15',
+                    child: GestureDetector(
+                      key: const Key('duration-15'),
+                      onTap: () => setState(() => selected = '15'),
+                      child: const Text('15 seconds'),
+                    ),
+                  ),
+                  Semantics(
+                    button: true,
+                    value: '30',
+                    label: 'Duration 30 seconds',
+                    selected: selected == '30',
+                    child: GestureDetector(
+                      key: const Key('duration-30'),
+                      onTap: () => setState(() => selected = '30'),
+                      child: const Text('30 seconds'),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.tap(find.byKey(const Key('duration-30')));
+    await _waitForCaptures(tester);
+
+    final session = TugboatReplay.controller!.session!;
+    final tap = session.events.firstWhere((e) => e.type == 'tap');
+    final tapValue = _controlValueFrom(tap)!;
+    expect(tapValue['sources'], contains('semantics'));
+    expect((tapValue['semanticValue'] as Map)['value'], 30);
+    expect((tapValue['value'] as Map)['value'], 30);
+    expect((tapValue['semanticLabel'] as Map)['value'], startsWith('str:'));
+    expect(tapValue.toString(), isNot(contains('Duration 30 seconds')));
+    expect(selected, '30');
   });
 }

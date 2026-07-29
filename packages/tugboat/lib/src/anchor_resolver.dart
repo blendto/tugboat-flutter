@@ -171,9 +171,10 @@ class AnchorResolver {
 
   /// Privacy-safe control value under [globalPosition], if any.
   ///
-  /// Samples toggle/radio/dropdown/slider widget state at hit time. Free-text
-  /// option labels are hashed; bools, numbers, enums, and short developer
-  /// tokens are retained.
+  /// Samples standard Material/Cupertino control state and, when present,
+  /// Flutter semantic value/label annotations on the hit target. Free-text
+  /// strings are hashed; bools, numbers, enums, numeric strings, and short
+  /// developer tokens are retained.
   TugboatControlValue? controlValueAt(Offset globalPosition) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
@@ -182,18 +183,90 @@ class AnchorResolver {
     final tokenMap = _tokenMapFor(rootContext, rootRender);
     if (tokenMap == null) return null;
 
-    final result = BoxHitTestResult();
-    final localPosition = rootRender.globalToLocal(globalPosition);
-    rootRender.hitTest(result, position: localPosition);
+    final pipelineOwner =
+        rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
+    final semanticsAlreadyEnabled =
+        pipelineOwner.semanticsOwner != null ||
+        RendererBinding.instance.rootPipelineOwner.semanticsOwner != null;
+    final semanticsHandle = semanticsAlreadyEnabled
+        ? null
+        : SemanticsBinding.instance.ensureSemantics();
+    try {
+      if (!semanticsAlreadyEnabled) {
+        pipelineOwner.flushSemantics();
+      }
 
-    for (final entry in result.path) {
-      if (entry.target is! RenderObject) continue;
-      final element = tokenMap.renderElements[entry.target as RenderObject];
-      if (element == null || tugboatIsCaptureChrome(element.widget)) continue;
-      final value = tugboatControlValueForElement(element);
+      final result = BoxHitTestResult();
+      final localPosition = rootRender.globalToLocal(globalPosition);
+      rootRender.hitTest(result, position: localPosition);
+
+      for (final entry in result.path) {
+        if (entry.target is! RenderObject) continue;
+        final element = tokenMap.renderElements[entry.target as RenderObject];
+        if (element == null || tugboatIsCaptureChrome(element.widget)) continue;
+        final value = tugboatControlValueForElement(element);
+        if (value != null) return value;
+      }
+
+      // Fall back to the semantics tree for custom hit targets that only
+      // expose value/label through accessibility annotations.
+      return _controlValueFromSemanticsHit(
+        globalPosition: globalPosition,
+        rootContext: rootContext,
+        rootRender: rootRender,
+      );
+    } finally {
+      semanticsHandle?.dispose();
+    }
+  }
+
+  TugboatControlValue? _controlValueFromSemanticsHit({
+    required Offset globalPosition,
+    required Element rootContext,
+    required RenderBox rootRender,
+  }) {
+    final pipelineOwner =
+        rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
+    final semanticsOwner =
+        pipelineOwner.semanticsOwner ??
+        RendererBinding.instance.rootPipelineOwner.semanticsOwner;
+    if (semanticsOwner == null) return null;
+    pipelineOwner.flushSemantics();
+    final rootNode = semanticsOwner.rootSemanticsNode;
+    if (rootNode == null) return null;
+
+    final devicePixelRatio = View.maybeOf(rootContext)?.devicePixelRatio ?? 1.0;
+    final physical = globalPosition * devicePixelRatio;
+    final hits = <SemanticsNode>[];
+    _collectSemanticsHits(rootNode, physical, hits, Matrix4.identity());
+    for (final node in hits.reversed) {
+      final value = tugboatControlValueFromSemanticsNode(node);
       if (value != null) return value;
     }
     return null;
+  }
+
+  void _collectSemanticsHits(
+    SemanticsNode node,
+    Offset physicalGlobal,
+    List<SemanticsNode> hits,
+    Matrix4 transformToRoot,
+  ) {
+    final transform = node.transform;
+    final nextTransform = transform == null
+        ? transformToRoot
+        : (transformToRoot.clone()..multiply(transform));
+    final inverted = Matrix4.tryInvert(nextTransform);
+    if (inverted != null) {
+      final local = MatrixUtils.transformPoint(inverted, physicalGlobal);
+      if (node.rect.contains(local)) {
+        hits.add(node);
+      }
+    }
+    node.visitChildren((child) {
+      _collectSemanticsHits(child, physicalGlobal, hits, nextTransform);
+      return true;
+    });
   }
 
   /// Builds inventory and resolves a tap target from one token-map walk.

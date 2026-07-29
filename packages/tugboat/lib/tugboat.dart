@@ -9,6 +9,9 @@ export 'src/anchors.dart'
         TugboatControlValue,
         tugboatControlValueSchemaVersion,
         tugboatControlValueForWidget,
+        tugboatControlValueFromSemanticsProperties,
+        tugboatControlValueFromSemanticsNode,
+        tugboatMergeControlValues,
         tugboatIconLabel,
         tugboatIconHash,
         tugboatLabelHash;

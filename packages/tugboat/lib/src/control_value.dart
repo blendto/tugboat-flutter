@@ -1,7 +1,7 @@
 part of 'anchors.dart';
 
 /// Schema version for privacy-safe control value payloads.
-const int tugboatControlValueSchemaVersion = 1;
+const int tugboatControlValueSchemaVersion = 2;
 
 final RegExp _developerTokenPattern = RegExp(r'^[A-Za-z0-9_./:-]{1,64}$');
 
@@ -39,13 +39,21 @@ class TugboatEncodedControlScalar {
       );
     }
     if (raw is String) {
-      if (_developerTokenPattern.hasMatch(raw)) {
-        return TugboatEncodedControlScalar._(kind: 'token', value: raw);
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) {
+        return const TugboatEncodedControlScalar._(kind: 'null');
+      }
+      final asNum = num.tryParse(trimmed);
+      if (asNum != null) {
+        return TugboatEncodedControlScalar._(kind: 'number', value: asNum);
+      }
+      if (_developerTokenPattern.hasMatch(trimmed)) {
+        return TugboatEncodedControlScalar._(kind: 'token', value: trimmed);
       }
       return TugboatEncodedControlScalar._(
         kind: 'token',
-        value: 'str:${tugboatLabelHash(raw)}',
-        length: raw.length,
+        value: 'str:${tugboatLabelHash(trimmed)}',
+        length: trimmed.length,
       );
     }
     final text = raw.toString();
@@ -75,36 +83,47 @@ class TugboatEncodedControlScalar {
 
 /// Privacy-safe snapshot of an interactive control's value at sample time.
 ///
-/// Free-text option labels are hashed. Bools, numbers, enums, and short
-/// developer-token strings are retained so taps on radios, dropdowns,
-/// toggles, and sliders remain interpretable without storing arbitrary UI copy.
+/// Prefer typed widget state for standard Material/Cupertino controls. When
+/// the hit target exposes Flutter semantics, [semanticValue] / [semanticLabel]
+/// are attached as well so custom rows (e.g. GestureDetector lists) can still
+/// report developer-authored semantic tokens.
+///
+/// Free-text strings are hashed. Bools, numbers, enums, numeric strings, and
+/// short developer-token strings are retained.
 class TugboatControlValue {
   const TugboatControlValue({
     required this.role,
     this.widgetType,
+    this.sources = const ['widget'],
     this.value,
     this.groupValue,
     this.selected,
     this.index,
     this.start,
     this.end,
+    this.semanticValue,
+    this.semanticLabel,
     this.schemaVersion = tugboatControlValueSchemaVersion,
   });
 
   final int schemaVersion;
 
   /// Control role (`checkbox`, `switch`, `radio`, `slider`, `dropdown`,
-  /// `dropdownItem`, `menuItem`, `chip`).
+  /// `dropdownItem`, `menuItem`, `chip`, `button`, `semantic`, …).
   final String role;
   final String? widgetType;
 
-  /// Primary sampled value (option identity, toggle state, slider position).
+  /// Provenance markers such as `widget` and/or `semantics`.
+  final List<String> sources;
+
+  /// Primary sampled value (option identity, toggle state, slider position,
+  /// or best-effort semantic value when no typed widget value exists).
   final TugboatEncodedControlScalar? value;
 
   /// Current group selection for radio controls.
   final TugboatEncodedControlScalar? groupValue;
 
-  /// Whether this option is the active selection (radios/chips).
+  /// Whether this option is the active selection (radios/chips/semantics).
   final bool? selected;
 
   /// Zero-based index among sibling options when known.
@@ -116,16 +135,63 @@ class TugboatControlValue {
   /// Range slider end (inclusive).
   final TugboatEncodedControlScalar? end;
 
+  /// Encoded [SemanticsData.value] / [SemanticsProperties.value] when present.
+  final TugboatEncodedControlScalar? semanticValue;
+
+  /// Encoded [SemanticsData.label] / [SemanticsProperties.label] when present.
+  final TugboatEncodedControlScalar? semanticLabel;
+
+  bool get hasPayload =>
+      value != null ||
+      groupValue != null ||
+      selected != null ||
+      start != null ||
+      end != null ||
+      semanticValue != null ||
+      semanticLabel != null;
+
+  TugboatControlValue copyWith({
+    String? role,
+    String? widgetType,
+    List<String>? sources,
+    TugboatEncodedControlScalar? value,
+    TugboatEncodedControlScalar? groupValue,
+    bool? selected,
+    int? index,
+    TugboatEncodedControlScalar? start,
+    TugboatEncodedControlScalar? end,
+    TugboatEncodedControlScalar? semanticValue,
+    TugboatEncodedControlScalar? semanticLabel,
+  }) {
+    return TugboatControlValue(
+      schemaVersion: schemaVersion,
+      role: role ?? this.role,
+      widgetType: widgetType ?? this.widgetType,
+      sources: sources ?? this.sources,
+      value: value ?? this.value,
+      groupValue: groupValue ?? this.groupValue,
+      selected: selected ?? this.selected,
+      index: index ?? this.index,
+      start: start ?? this.start,
+      end: end ?? this.end,
+      semanticValue: semanticValue ?? this.semanticValue,
+      semanticLabel: semanticLabel ?? this.semanticLabel,
+    );
+  }
+
   Map<String, Object?> toJson() => {
     'schemaVersion': schemaVersion,
     'role': role,
     if (widgetType != null && widgetType!.isNotEmpty) 'widgetType': widgetType,
+    if (sources.isNotEmpty) 'sources': sources,
     if (value != null) 'value': value!.toJson(),
     if (groupValue != null) 'groupValue': groupValue!.toJson(),
     if (selected != null) 'selected': selected,
     if (index != null) 'index': index,
     if (start != null) 'start': start!.toJson(),
     if (end != null) 'end': end!.toJson(),
+    if (semanticValue != null) 'semanticValue': semanticValue!.toJson(),
+    if (semanticLabel != null) 'semanticLabel': semanticLabel!.toJson(),
   };
 
   @override
@@ -134,24 +200,30 @@ class TugboatControlValue {
       schemaVersion == other.schemaVersion &&
       role == other.role &&
       widgetType == other.widgetType &&
+      _listEquals(sources, other.sources) &&
       value == other.value &&
       groupValue == other.groupValue &&
       selected == other.selected &&
       index == other.index &&
       start == other.start &&
-      end == other.end;
+      end == other.end &&
+      semanticValue == other.semanticValue &&
+      semanticLabel == other.semanticLabel;
 
   @override
   int get hashCode => Object.hash(
     schemaVersion,
     role,
     widgetType,
+    Object.hashAll(sources),
     value,
     groupValue,
     selected,
     index,
     start,
     end,
+    semanticValue,
+    semanticLabel,
   );
 }
 
@@ -292,22 +364,184 @@ TugboatControlValue? tugboatControlValueForWidget(Widget widget, {int? index}) {
   return null;
 }
 
-/// Walks [hitElement] and its ancestors for the deepest valued control.
+/// Builds a control-value snapshot from explicit [SemanticsProperties].
+TugboatControlValue? tugboatControlValueFromSemanticsProperties(
+  SemanticsProperties properties, {
+  String? widgetType,
+  int? index,
+  String? roleHint,
+}) {
+  final label = properties.label;
+  final valueText = properties.value;
+  final selected = properties.selected;
+  final checked = properties.checked;
+  final toggled = properties.toggled;
+
+  final semanticValue = (valueText != null && valueText.trim().isNotEmpty)
+      ? TugboatEncodedControlScalar.encode(valueText)
+      : null;
+  final semanticLabel = (label != null && label.trim().isNotEmpty)
+      ? TugboatEncodedControlScalar.encode(label)
+      : null;
+
+  if (semanticValue == null &&
+      semanticLabel == null &&
+      selected == null &&
+      checked == null &&
+      toggled == null) {
+    return null;
+  }
+
+  final role =
+      roleHint ??
+      (properties.slider == true
+          ? 'slider'
+          : properties.button == true
+          ? 'button'
+          : checked != null
+          ? 'checkbox'
+          : toggled != null
+          ? 'switch'
+          : 'semantic');
+
+  return TugboatControlValue(
+    role: role,
+    widgetType: widgetType,
+    sources: const ['semantics'],
+    value:
+        semanticValue ??
+        (checked != null
+            ? TugboatEncodedControlScalar.encode(checked)
+            : toggled != null
+            ? TugboatEncodedControlScalar.encode(toggled)
+            : selected != null
+            ? TugboatEncodedControlScalar.encode(selected)
+            : null),
+    selected: selected ?? checked ?? toggled,
+    index: index,
+    semanticValue: semanticValue,
+    semanticLabel: semanticLabel,
+  );
+}
+
+/// Builds a control-value snapshot from a live [SemanticsNode].
+TugboatControlValue? tugboatControlValueFromSemanticsNode(
+  SemanticsNode node, {
+  String? roleHint,
+}) {
+  final data = node.getSemanticsData();
+  final flags = data.flagsCollection;
+  final checked = semanticsCheckedFromFlags(flags);
+  final toggled = semanticsToggledFromFlags(flags);
+  final selected = semanticsSelectedFromFlags(flags);
+
+  final semanticValue = data.value.trim().isNotEmpty
+      ? TugboatEncodedControlScalar.encode(data.value)
+      : null;
+  final semanticLabel = data.label.trim().isNotEmpty
+      ? TugboatEncodedControlScalar.encode(data.label)
+      : null;
+
+  if (semanticValue == null &&
+      semanticLabel == null &&
+      checked == null &&
+      toggled == null &&
+      selected == null) {
+    return null;
+  }
+
+  final role =
+      roleHint ??
+      (flags.isButton
+          ? 'button'
+          : checked != null
+          ? 'checkbox'
+          : toggled != null
+          ? 'switch'
+          : data.role != SemanticsRole.none
+          ? data.role.name
+          : 'semantic');
+
+  return TugboatControlValue(
+    role: role,
+    sources: const ['semantics'],
+    value:
+        semanticValue ??
+        (checked != null
+            ? TugboatEncodedControlScalar.encode(checked)
+            : toggled != null
+            ? TugboatEncodedControlScalar.encode(toggled)
+            : selected != null
+            ? TugboatEncodedControlScalar.encode(selected)
+            : null),
+    selected: selected ?? checked ?? toggled,
+    semanticValue: semanticValue,
+    semanticLabel: semanticLabel,
+  );
+}
+
+/// Merges typed widget state with semantic annotations.
+TugboatControlValue? tugboatMergeControlValues(
+  TugboatControlValue? widgetValue,
+  TugboatControlValue? semanticsValue,
+) {
+  if (widgetValue == null) return semanticsValue;
+  if (semanticsValue == null) {
+    return widgetValue.sources.contains('widget')
+        ? widgetValue
+        : widgetValue.copyWith(sources: const ['widget']);
+  }
+
+  final sources = <String>{
+    ...widgetValue.sources,
+    ...semanticsValue.sources,
+    'widget',
+    'semantics',
+  }.toList()..sort();
+
+  return widgetValue.copyWith(
+    sources: sources,
+    value: widgetValue.value ?? semanticsValue.value,
+    selected: widgetValue.selected ?? semanticsValue.selected,
+    semanticValue: semanticsValue.semanticValue ?? widgetValue.semanticValue,
+    semanticLabel: semanticsValue.semanticLabel ?? widgetValue.semanticLabel,
+  );
+}
+
+/// Walks [hitElement] and its ancestors for widget + semantic control values.
 TugboatControlValue? tugboatControlValueForElement(Element hitElement) {
-  TugboatControlValue? found;
+  TugboatControlValue? widgetValue;
+  TugboatControlValue? semanticsValue;
 
   void consider(Element element) {
-    if (found != null) return;
-    final index = _optionIndexAmongSiblings(element);
-    found = tugboatControlValueForWidget(element.widget, index: index);
+    final index = widgetValue == null
+        ? _optionIndexAmongSiblings(element)
+        : null;
+    widgetValue ??= tugboatControlValueForWidget(element.widget, index: index);
+    // Explicit Semantics widgets are preferred over live nodes for labels.
+    if (semanticsValue == null && element.widget is Semantics) {
+      semanticsValue = tugboatControlValueFromSemanticsProperties(
+        (element.widget as Semantics).properties,
+        widgetType: element.widget.runtimeType.toString(),
+      );
+    }
+    if (semanticsValue == null) {
+      final node = element.renderObject?.debugSemantics;
+      if (node != null) {
+        semanticsValue = tugboatControlValueFromSemanticsNode(node);
+      }
+    }
   }
 
   consider(hitElement);
   hitElement.visitAncestorElements((ancestor) {
     consider(ancestor);
-    return found == null;
+    return widgetValue == null || semanticsValue == null;
   });
-  return found;
+
+  final merged = tugboatMergeControlValues(widgetValue, semanticsValue);
+  if (merged == null || !merged.hasPayload) return null;
+  return merged;
 }
 
 int? _optionIndexAmongSiblings(Element element) {
