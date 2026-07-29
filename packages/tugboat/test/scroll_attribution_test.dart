@@ -5,6 +5,7 @@ import 'package:tugboat/tugboat.dart';
 const _scrollTestConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
   settleDelay: Duration.zero,
+  interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
   scrollCaptureInterval: Duration(milliseconds: 50),
   captureScrollSamples: true,
@@ -104,7 +105,8 @@ void main() {
     expect(swipes, isNotEmpty);
     expect(swipes.first.data['scrolled'], isFalse);
     expect(swipes.first.result, TugboatInteractionResult.noVisibleChange);
-    expect(swipes.first.relatedEventId, isNotNull);
+    expect(swipes.first.relatedEventId, isNull);
+    expect(swipes.first.data['startCaptureCoordinate'], isA<Map>());
     expect(settled, isEmpty);
     expect(scrollStarts, isEmpty);
   });

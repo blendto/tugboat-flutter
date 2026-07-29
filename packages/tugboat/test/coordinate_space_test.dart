@@ -84,9 +84,37 @@ void main() {
     expect(coord.projectToRaster(), isNull);
   });
 
-  test('missing frame yields unavailable transform', () {
+  test('missing frame yields positioned unavailable transform', () {
     final coord = buildCaptureCoordinate(
-      globalX: 10,
+      globalX: 40,
+      globalY: 60,
+      boundaryOriginX: 0,
+      boundaryOriginY: 0,
+      boundaryWidth: 100,
+      boundaryHeight: 200,
+      framePixelWidth: 0,
+      framePixelHeight: 0,
+      frameId: null,
+      boundaryTransformGeneration: 1,
+    );
+    expect(coord.unavailableReason, 'missing_frame');
+    expect(coord.isAvailable, isFalse);
+    expect(
+      coord.sourceSpace,
+      TugboatCoordinateSourceSpace.boundaryLocalLogical,
+    );
+    expect(coord.localX, 40);
+    expect(coord.localY, 60);
+    expect(coord.normalizedX, 0.4);
+    expect(coord.normalizedY, 0.3);
+    expect(coord.boundaryWidth, 100);
+    expect(coord.boundaryHeight, 200);
+    expect(coord.projectToRaster(), isNull);
+  });
+
+  test('missing frame outside boundary prefers outside_boundary', () {
+    final coord = buildCaptureCoordinate(
+      globalX: -5,
       globalY: 10,
       boundaryOriginX: 0,
       boundaryOriginY: 0,
@@ -97,7 +125,9 @@ void main() {
       frameId: null,
       boundaryTransformGeneration: 1,
     );
-    expect(coord.unavailableReason, 'missing_frame');
+    expect(coord.unavailableReason, 'outside_boundary');
+    expect(coord.localX, -5);
+    expect(coord.localY, 10);
   });
 
   test('golden fixture freezes the consumer contract', () {

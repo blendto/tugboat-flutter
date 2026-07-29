@@ -18,6 +18,7 @@ void main() {
           config: TugboatReplayConfig(
             profile: TugboatCaptureProfile.exploration,
             settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: true,
             capturePixelRatio: capturePixelRatio,
             screenshotMaskLevel: TugboatScreenshotMaskLevel.explicitOnly,
@@ -67,6 +68,7 @@ void main() {
     );
     final center = tester.getCenter(find.byKey(const Key('target')));
     controller.recordPointerDown(center);
+    controller.recordPointerUp(center);
     final tap = controller.session!.events.where((e) => e.type == 'tap').last;
     expect(tap.data['x'], center.dx);
     expect(tap.data['y'], center.dy);
@@ -92,6 +94,7 @@ void main() {
     final controller = await mount(tester);
     // Far outside the capture boundary / screen.
     controller.recordPointerDown(const Offset(-80, -80));
+    controller.recordPointerUp(const Offset(-80, -80));
     final tap = controller.session!.events.where((e) => e.type == 'tap').last;
     final coord = Map<String, Object?>.from(
       tap.data['captureCoordinate']! as Map,
@@ -112,6 +115,7 @@ void main() {
     await tester.pump();
     final center = tester.getCenter(find.byKey(const Key('target')));
     controller.recordPointerDown(center);
+    controller.recordPointerUp(center);
     final tap = controller.session!.events.where((e) => e.type == 'tap').last;
     final coord = TugboatCaptureCoordinate.fromJson(
       Map<String, Object?>.from(tap.data['captureCoordinate']! as Map),
@@ -144,6 +148,7 @@ void main() {
 
     final center = tester.getCenter(find.byKey(const Key('target')));
     controller.recordPointerDown(center);
+    controller.recordPointerUp(center);
     final tap = controller.session!.events.where((e) => e.type == 'tap').last;
     final coord = TugboatCaptureCoordinate.fromJson(
       Map<String, Object?>.from(tap.data['captureCoordinate']! as Map),

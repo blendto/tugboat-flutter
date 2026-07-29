@@ -13,6 +13,7 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
 
   final payload = <String, Object?>{
     ...event.data,
+    'stream': event.stream.wireName,
     if (event.relatedEventId != null) 'relatedEventId': event.relatedEventId,
     if (event.explorationRunId != null)
       'explorationRunId': event.explorationRunId,
@@ -26,6 +27,8 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
     if (sessionId != null) 'sessionId': sessionId,
     'userId': userId,
     'eventType': event.type,
+    'stream': event.stream.wireName,
+    'enrichmentCandidate': tugboatEventIsEnrichmentCandidate(event),
     if (event.explorationRunId != null)
       'explorationRunId': event.explorationRunId,
     if (event.actionId != null) 'actionId': event.actionId,

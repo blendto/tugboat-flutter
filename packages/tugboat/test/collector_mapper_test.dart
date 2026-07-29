@@ -72,6 +72,9 @@ void main() {
     expect(mapped['sessionId'], 'sess_123');
     expect(mapped['userId'], 'user_1');
     expect(mapped['eventType'], 'tap');
+    expect(mapped['stream'], tugboatEventStreamSemantic);
+    // Compat path: semantic tap without canonical dual-write remains eligible.
+    expect(mapped['enrichmentCandidate'], isTrue);
     expect(mapped['beforeFrame'], 'frame-3');
     expect((mapped['stateAnchor'] as Map)['signature'], '23f17a629520d522');
     expect((mapped['targetAnchor'] as Map)['fingerprint'], '9eadb7c56ae836bc');
@@ -87,6 +90,44 @@ void main() {
       'buildNumber': '1',
       'fingerprintSchemaVersion': tugboatFingerprintSchemaVersion,
     });
+  });
+
+  test('marks legacy projection and evidence as non-enrichment candidates', () {
+    final sessionStartedAt = DateTime.utc(2026, 6, 19);
+    final legacy = mapTugboatEventToCollectorEvent(
+      event: const TugboatEvent(
+        id: 'event-legacy',
+        atMs: 1,
+        type: 'tap_settled',
+        stream: TugboatEventStream.legacyProjection,
+      ),
+      sessionStartedAt: sessionStartedAt,
+      collectorConfig: collectorConfig,
+    );
+    final evidence = mapTugboatEventToCollectorEvent(
+      event: const TugboatEvent(
+        id: 'event-route',
+        atMs: 2,
+        type: 'route_change',
+        stream: TugboatEventStream.evidence,
+      ),
+      sessionStartedAt: sessionStartedAt,
+      collectorConfig: collectorConfig,
+    );
+    final interaction = mapTugboatEventToCollectorEvent(
+      event: const TugboatEvent(
+        id: 'event-interaction',
+        atMs: 3,
+        type: 'interaction',
+        stream: TugboatEventStream.semantic,
+      ),
+      sessionStartedAt: sessionStartedAt,
+      collectorConfig: collectorConfig,
+    );
+
+    expect(legacy['enrichmentCandidate'], isFalse);
+    expect(evidence['enrichmentCandidate'], isFalse);
+    expect(interaction['enrichmentCandidate'], isTrue);
   });
 
   test('omits sessionId when not provided so the sink can stamp at send', () {

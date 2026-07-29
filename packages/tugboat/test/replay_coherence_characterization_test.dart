@@ -258,38 +258,41 @@ void main() {
     );
   });
 
-  test('automatic route during tap readback stays independent', () async {
-    final harness = ReplayCoherenceHarness();
-    await harness.setUp();
-    addTearDown(harness.dispose);
+  test(
+    'automatic route during tap readback supplies visual successor',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
 
-    harness.seedRouteState(route: '/scan', signature: 'sig-scan');
-    harness.capturer.blockNext = true;
-    harness.controller.recordPointerDown(const Offset(10, 10));
-    harness.controller.recordPointerUp(const Offset(10, 10));
-    await harness.pumpQueueWork();
-    expect(harness.capturer.blockedCount, 1);
+      harness.seedRouteState(route: '/scan', signature: 'sig-scan');
+      harness.capturer.blockNext = true;
+      harness.controller.recordPointerDown(const Offset(10, 10));
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
 
-    final routeFuture = harness.controller.route(
-      'route_push',
-      harness.route('/home'),
-    );
-    harness.capturer.completeBlocked('stale-tap-frame');
-    await harness.flushScheduler();
-    await routeFuture;
+      final routeFuture = harness.controller.route(
+        'route_push',
+        harness.route('/home'),
+      );
+      harness.capturer.completeBlocked('stale-tap-frame');
+      await harness.flushScheduler();
+      await routeFuture;
 
-    final session = harness.controller.session!;
-    final routeChange = session.ofType('route_change').single;
-    final settle = session.ofType('tap_settled').single;
-    final observation = Map<String, Object?>.from(
-      settle.data['settleObservation']! as Map,
-    );
-    expect(settle.afterFrame, isNull);
-    expect(settle.result, isNot(TugboatInteractionResult.navigated));
-    expect(observation['navigationOutcome'], 'same_route');
-    expect(observation['routeEventId'], isNull);
-    expect(routeChange.afterFrame, isNotNull);
-  });
+      final session = harness.controller.session!;
+      final routeChange = session.ofType('route_change').single;
+      final settle = session.ofType('tap_settled').single;
+      final observation = Map<String, Object?>.from(
+        settle.data['settleObservation']! as Map,
+      );
+      expect(settle.afterFrame, routeChange.afterFrame);
+      expect(settle.result, isNot(TugboatInteractionResult.navigated));
+      expect(observation['navigationOutcome'], 'visual_successor');
+      expect(observation['routeEventId'], routeChange.id);
+      expect(routeChange.afterFrame, isNotNull);
+    },
+  );
 
   test(
     'automatic successors cannot replace a tap-caused route barrier',
@@ -857,6 +860,7 @@ void main() {
     );
 
     harness.controller.recordPointerDown(const Offset(4, 4));
+    harness.controller.recordPointerUp(const Offset(4, 4));
     final tap = harness.controller.session!.ofType('tap').single;
     expect(tap.beforeFrame, isNull);
     expect(tap.data['frameAttachment'], {
@@ -1056,6 +1060,7 @@ void main() {
       );
 
       harness.controller.recordPointerDown(const Offset(8, 8));
+      harness.controller.recordPointerUp(const Offset(8, 8));
       final tap = harness.controller.session!.ofType('tap').single;
       expect(tap.beforeFrame, isNull, reason: transition.$1);
       expect(tap.beforeFrame, isNot(origin), reason: transition.$1);
@@ -1079,6 +1084,7 @@ void main() {
       contentHash: 'first-pixels',
     );
     harness.controller.recordPointerDown(const Offset(1, 1), pointer: 1);
+    harness.controller.recordPointerUp(const Offset(1, 1), pointer: 1);
     final retainedTap = harness.controller.session!.ofType('tap').single;
     expect(retainedTap.beforeFrame, first);
 
@@ -1096,6 +1102,7 @@ void main() {
     expect(harness.controller.debugReuseFrameForCurrentRoute(first), isNull);
 
     harness.controller.recordPointerDown(const Offset(2, 2), pointer: 2);
+    harness.controller.recordPointerUp(const Offset(2, 2), pointer: 2);
     final latestTap = harness.controller.session!.ofType('tap').last;
     expect(latestTap.beforeFrame, second);
   });
@@ -2006,22 +2013,16 @@ void main() {
       await harness.recordClassifiedSwipe(start);
 
       final session = harness.controller.session!;
-      final tap = session.ofType('tap').single;
+      expect(session.ofType('tap'), isEmpty);
       final swipe = session.ofType('swipe').single;
       final eventTypes = session.events.map((event) => event.type).toList();
 
       expect(session.ofType('tap_settled'), isEmpty);
-      expect(eventTypes.indexOf('tap'), lessThan(eventTypes.indexOf('swipe')));
-      expect(swipe.relatedEventId, tap.id);
+      expect(eventTypes, contains('swipe'));
+      expect(swipe.relatedEventId, isNull);
       expect(swipe.beforeFrame, originFrame);
-      expect(swipe.stateAnchor?.signature, tap.stateAnchor?.signature);
-      expect(tap.targetAnchor, isNotNull);
       expect(swipe.targetAnchor, isNotNull);
-      expect(swipe.targetAnchor!.fingerprint, tap.targetAnchor!.fingerprint);
-      expect(
-        swipe.targetAnchor!.canonicalPath,
-        tap.targetAnchor!.canonicalPath,
-      );
+      expect(swipe.data['startCaptureCoordinate'], isA<Map>());
       expect(swipe.data['startX'], closeTo(start.dx, 0.01));
       expect(swipe.data['startY'], closeTo(start.dy, 0.01));
       expect(swipe.data['scrolled'], isFalse);
