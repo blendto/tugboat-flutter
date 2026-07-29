@@ -235,17 +235,17 @@ Developer-authored identity strings can still be emitted:
 - widget type names or configured `widgetNames` replacements;
 - canonical structural paths.
 
-Interaction events may also carry a privacy-safe `controlValue` payload for
+Interaction events may also carry a `controlValue` payload (schema version 4) for
 valued controls (checkbox, switch, radio, slider, dropdown / menu item, chip)
 and for hit targets that expose Flutter semantic annotations:
 
 - bools and numbers are emitted literally;
-- enums are emitted as tokens;
+- enums and developer identifiers are emitted literally;
 - arbitrary strings, including numeric strings and single-word values, are
-  hashed with a session-scoped secret (`str:<hash>`) and omit raw length;
-- semantics identifiers are hashed by default. Apps may retain an explicitly
-  developer-authored short token by prefixing it with `tugboat:`; the prefix is
-  removed from the emitted value.
+  emitted literally;
+- explicit custom-control values can be supplied with
+  `TugboatControlValueScope`, including a stable `controlKey`, optional unit,
+  and numeric `min`, `max`, and `step` metadata.
 
 `tap` includes a `controlValue` snapshot sampled at pointer-down.
 `tap_settled` uses the distinct `controlValueTransition` contract with
@@ -256,13 +256,13 @@ carry a `controlValue` snapshot sampled at pointer-up.
 
 When a typed widget value is unavailable (custom GestureDetector rows, bottom
 sheets, etc.), the SDK still samples `SemanticsProperties` / live semantics
-nodes under the pointer and records `semanticValue` / `semanticLabel` with the
-same untrusted-string encoding rules. Standard controls may include both widget
+nodes under the pointer and records raw `semanticValue` / `semanticLabel`.
+Standard controls may include both widget
 state and semantic annotations under `sources: ["semantics","widget"]`.
 
 Independently, every interaction event (`tap`, `tap_settled`, `swipe`,
 `scroll_start`, `scroll_end`) may carry a top-level `semanticAnnotation`
-payload whenever Flutter semantics expose an identifier, label, value, or
+payload (schema version 2) whenever Flutter semantics expose an identifier, label, value, or
 selection flag on the target. This covers ordinary buttons and scrollables as
 well as valued controls. The field is named `semanticAnnotation` to avoid
 colliding with `tap_settled.data.settleObservation.semantic` (state-signature

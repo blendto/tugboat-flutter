@@ -300,7 +300,7 @@ class AnchorResolver {
     );
   }
 
-  /// Privacy-safe semantic annotation for an [element] already in the tree.
+  /// Semantic annotation for an [element] already in the tree.
   TugboatSemanticAnnotation? semanticAnnotationForElement(Element element) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();

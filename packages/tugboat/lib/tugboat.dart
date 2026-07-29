@@ -6,6 +6,8 @@ export 'src/anchors.dart'
         TugboatStateAnchor,
         TugboatTargetAnchor,
         TugboatEncodedControlScalar,
+        TugboatVisibleControlValue,
+        TugboatControlValueScope,
         TugboatControlValue,
         TugboatSemanticAnnotation,
         tugboatControlValueSchemaVersion,
@@ -44,7 +46,8 @@ export 'src/health.dart'
         TugboatSanitizedFailure;
 export 'src/lifecycle.dart'
     show TugboatLifecycleState, TugboatLifecycleNotifier;
-export 'src/interaction_transaction.dart' show tugboatDefaultReconciliationWindow;
+export 'src/interaction_transaction.dart'
+    show tugboatDefaultReconciliationWindow;
 export 'src/models.dart';
 export 'src/coordinate_space.dart'
     show

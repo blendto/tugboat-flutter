@@ -124,24 +124,25 @@ void main() {
       expect(slider?.value?.value, 0.4);
     });
 
-    test('hashes every untrusted string scalar', () {
+    test('keeps raw string scalars visible', () {
       final freeText = TugboatEncodedControlScalar.encode('Secret Option Name');
-      expect(freeText.kind, 'token');
-      expect(freeText.value, startsWith('str:'));
-      expect(freeText.value, isNot(contains('Secret')));
+      expect(freeText.kind, 'string');
+      expect(freeText.value, 'Secret Option Name');
 
       final oneWordName = TugboatEncodedControlScalar.encode('Alice');
-      expect(oneWordName.value, startsWith('str:'));
-      expect(oneWordName.value, isNot('Alice'));
-      expect(oneWordName.value, isNot('str:${tugboatLabelHash('Alice')}'));
+      expect(oneWordName.value, 'Alice');
 
       final numericPii = TugboatEncodedControlScalar.encode('123456');
-      expect(numericPii.value, startsWith('str:'));
-      expect(numericPii.value, isNot(123456));
+      expect(numericPii.value, '123456');
+
+      final whitespace = TugboatEncodedControlScalar.encode('  value  ');
+      expect(whitespace.value, '  value  ');
+      final empty = TugboatEncodedControlScalar.encode('');
+      expect(empty.toJson(), {'kind': 'string', 'value': ''});
 
       final implicitIdentifier =
           TugboatEncodedControlScalar.encodeDeveloperToken('123456');
-      expect(implicitIdentifier.value, startsWith('str:'));
+      expect(implicitIdentifier.value, '123456');
 
       final explicitIdentifier =
           TugboatEncodedControlScalar.encodeDeveloperToken(
@@ -178,9 +179,107 @@ void main() {
       expect(radio?.groupValue?.value, 1);
       expect(radio?.selected, isFalse);
     });
+
+    test('keeps explicitly declared safe values visible', () {
+      final duration = TugboatVisibleControlValue.duration(
+        const Duration(seconds: 15),
+      );
+      final template = TugboatVisibleControlValue.enumId('modern-minimal');
+
+      expect(duration.toJson(), {'kind': 'duration_ms', 'value': 15000});
+      expect(template.toJson(), {'kind': 'enum', 'value': 'modern-minimal'});
+    });
   });
 
-  testWidgets('rotates untrusted string hashes for each capture session', (
+  testWidgets('developer value scope preserves an explicit slider value', (
+    tester,
+  ) async {
+    var value = 0.25;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => TugboatControlValueScope(
+              controlKey: 'text_curve',
+              value: TugboatVisibleControlValue.number(value),
+              role: 'slider',
+              unit: 'ratio',
+              min: 0,
+              max: 1,
+              step: 0.01,
+              child: Slider(
+                key: const Key('visible-slider'),
+                value: value,
+                onChanged: (next) => setState(() => value = next),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const Key('visible-slider'))) +
+          const Offset(70, 0),
+    );
+    await _waitForCaptures(tester);
+
+    final settled = TugboatReplay.controller!.session!.events.firstWhere(
+      (event) => event.type == 'tap_settled',
+    );
+    final transition = _controlValueTransitionFrom(settled)!;
+    final before = transition['before'] as Map;
+    final after = transition['after'] as Map;
+
+    expect(before['controlKey'], 'text_curve');
+    expect(before['unit'], 'ratio');
+    expect((before['min'] as Map)['value'], 0);
+    expect((before['max'] as Map)['value'], 1);
+    expect((before['step'] as Map)['value'], 0.01);
+    expect((before['value'] as Map)['kind'], 'number');
+    expect((before['value'] as Map)['value'], 0.25);
+    expect((after['value'] as Map)['kind'], 'number');
+    expect((after['value'] as Map)['value'], isNot(0.25));
+  });
+
+  testWidgets('invalid developer range metadata is not emitted', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: Scaffold(
+          body: TugboatControlValueScope(
+            controlKey: 'text_curve',
+            value: TugboatVisibleControlValue.number(0.5),
+            min: 1,
+            max: 0,
+            step: 0,
+            child: Slider(
+              key: const Key('invalid-range-slider'),
+              value: 0.5,
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.tap(find.byKey(const Key('invalid-range-slider')));
+    await _waitForCaptures(tester);
+
+    final tap = TugboatReplay.controller!.session!.events.firstWhere(
+      (event) => event.type == 'tap',
+    );
+    final controlValue = _controlValueFrom(tap)!;
+    expect(controlValue, isNot(contains('controlKey')));
+    expect(controlValue, isNot(contains('min')));
+  });
+
+  testWidgets('retains raw semantic values across capture sessions', (
     tester,
   ) async {
     Future<Object?> captureHash() async {
@@ -217,10 +316,11 @@ void main() {
     TugboatReplay.resetForTest();
     final second = await captureHash();
 
-    expect(first, isNot(second));
+    expect(first, 'Alice');
+    expect(second, 'Alice');
   });
 
-  testWidgets('controller hash keys stay isolated across concurrent sessions', (
+  testWidgets('controllers retain equivalent raw semantic values', (
     tester,
   ) async {
     final firstKey = GlobalKey();
@@ -621,7 +721,7 @@ void main() {
     expect((tapValue?['value'] as Map)['value'], isTrue);
   });
 
-  testWidgets('free-text dropdown values stay hashed in session json', (
+  testWidgets('free-text dropdown values stay visible in session json', (
     tester,
   ) async {
     var selected = 'alpha-code';
@@ -658,11 +758,11 @@ void main() {
     await _waitForCaptures(tester);
 
     final json = TugboatReplay.controller!.session!.toJson().toString();
-    expect(json, isNot(contains('Visible Secret City Name')));
-    expect(json, contains('str:'));
+    expect(json, contains('Visible Secret City Name'));
+    expect(json, contains('alpha-code'));
   });
 
-  test('semantic properties hash arbitrary value and label strings', () {
+  test('semantic properties retain raw value and label strings', () {
     final snapshot = tugboatControlValueFromSemanticsProperties(
       const SemanticsProperties(
         button: true,
@@ -673,10 +773,11 @@ void main() {
     );
     expect(snapshot?.role, 'button');
     expect(snapshot?.sources, ['semantics']);
-    expect(snapshot?.value?.kind, 'token');
-    expect(snapshot?.value?.value, startsWith('str:'));
-    expect(snapshot?.semanticValue?.value, startsWith('str:'));
-    expect(snapshot?.semanticLabel?.value, startsWith('str:'));
+    expect(snapshot?.value?.kind, 'string');
+    expect(snapshot?.value?.value, '15');
+    expect(snapshot?.semanticValue?.kind, 'string');
+    expect(snapshot?.semanticValue?.value, '15');
+    expect(snapshot?.semanticLabel?.value, 'Duration fifteen seconds');
     expect(snapshot?.selected, isTrue);
   });
 
@@ -733,16 +834,20 @@ void main() {
     final tap = session.events.firstWhere((e) => e.type == 'tap');
     final tapValue = _controlValueFrom(tap)!;
     expect(tapValue['sources'], contains('semantics'));
-    expect((tapValue['semanticValue'] as Map)['value'], startsWith('str:'));
-    expect((tapValue['value'] as Map)['value'], startsWith('str:'));
-    expect((tapValue['semanticLabel'] as Map)['value'], startsWith('str:'));
-    expect(tapValue.toString(), isNot(contains('Duration 30 seconds')));
+    expect((tapValue['semanticValue'] as Map)['value'], '30');
+    expect((tapValue['value'] as Map)['value'], '30');
+    expect((tapValue['semanticLabel'] as Map)['value'], 'Duration 30 seconds');
+    expect(tapValue.toString(), contains('Duration 30 seconds'));
 
     final annotation = _semanticAnnotationFrom(tap)!;
+    expect(
+      annotation['schemaVersion'],
+      tugboatSemanticAnnotationSchemaVersion,
+    );
     expect(annotation['role'], 'button');
     expect((annotation['identifier'] as Map)['value'], 'duration-30');
-    expect((annotation['value'] as Map)['value'], startsWith('str:'));
-    expect((annotation['label'] as Map)['value'], startsWith('str:'));
+    expect((annotation['value'] as Map)['value'], '30');
+    expect((annotation['label'] as Map)['value'], 'Duration 30 seconds');
     expect(selected, '30');
   });
 
@@ -773,9 +878,9 @@ void main() {
 
     expect(tapSemantic, isNotNull);
     expect(tapSemantic?['role'], 'button');
-    expect((tapSemantic?['label'] as Map)['value'], startsWith('str:'));
+    expect((tapSemantic?['label'] as Map)['value'], 'Generate');
     expect(settledSemantic, isNotNull);
-    expect((settledSemantic?['label'] as Map)['value'], startsWith('str:'));
+    expect((settledSemantic?['label'] as Map)['value'], 'Generate');
   });
 
   testWidgets('rapid taps retain per-interaction after values', (tester) async {
@@ -913,14 +1018,8 @@ void main() {
       (event) => event.type == 'tap_settled',
     );
     final transition = _controlValueTransitionFrom(settled)!;
-    expect(
-      ((transition['before'] as Map)['value'] as Map)['value'],
-      startsWith('str:'),
-    );
-    expect(
-      ((transition['after'] as Map)['value'] as Map)['value'],
-      startsWith('str:'),
-    );
+    expect(((transition['before'] as Map)['value'] as Map)['value'], 'off');
+    expect(((transition['after'] as Map)['value'] as Map)['value'], 'on');
     expect(
       ((transition['after'] as Map)['value'] as Map)['value'],
       isNot(((transition['before'] as Map)['value'] as Map)['value']),

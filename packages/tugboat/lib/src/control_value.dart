@@ -1,18 +1,19 @@
 part of 'anchors.dart';
 
-/// Schema version for privacy-safe control value payloads.
-const int tugboatControlValueSchemaVersion = 2;
+/// Schema version for raw control value payloads.
+const int tugboatControlValueSchemaVersion = 4;
 
 /// Schema version for `tap_settled.controlValueTransition`.
 const int tugboatControlValueTransitionSchemaVersion = 1;
 
 /// Schema version for per-interaction semantic annotations.
-const int tugboatSemanticAnnotationSchemaVersion = 1;
+const int tugboatSemanticAnnotationSchemaVersion = 2;
 
 final RegExp _developerTokenPattern = RegExp(r'^[A-Za-z0-9_./:-]{1,64}$');
 const String _developerTokenPrefix = 'tugboat:';
+// AnchorResolver owns a per-controller key and still uses this zone to isolate
+// its capture work. Raw control values no longer depend on the key.
 const Symbol _controlValueHashKeyZoneKey = #tugboatControlValueHashKey;
-final List<int> _defaultControlValueHashKey = _newControlValueHashKey();
 
 List<int> _newControlValueHashKey() {
   final random = Random.secure();
@@ -23,24 +24,14 @@ T _withControlValueHashKey<T>(List<int> key, T Function() body) {
   return runZoned(body, zoneValues: {_controlValueHashKeyZoneKey: key});
 }
 
-String _controlValueHash(String value) {
-  final key =
-      Zone.current[_controlValueHashKeyZoneKey] as List<int>? ??
-      _defaultControlValueHashKey;
-  return Hmac(
-    sha256,
-    key,
-  ).convert(utf8.encode(value)).toString().substring(0, 16);
-}
-
-/// Encodes a single control scalar without retaining free-text labels.
+/// Encodes a single control scalar for analytics payloads.
 class TugboatEncodedControlScalar {
   const TugboatEncodedControlScalar._({required this.kind, this.value});
 
-  /// `null`, `bool`, `number`, or `token`.
+  /// `null`, `bool`, `number`, `string`, `enum`, or a typed explicit value.
   final String kind;
 
-  /// Literal bool/num, or a privacy-safe token string.
+  /// Raw scalar value.
   final Object? value;
 
   factory TugboatEncodedControlScalar.encode(Object? raw) {
@@ -54,45 +45,32 @@ class TugboatEncodedControlScalar {
       return TugboatEncodedControlScalar._(kind: 'number', value: raw);
     }
     if (raw is num) {
-      final text = raw.toString();
       return TugboatEncodedControlScalar._(
-        kind: 'token',
-        value: 'num:${_controlValueHash(text)}',
+        kind: 'string',
+        value: raw.toString(),
       );
     }
     if (raw is Enum) {
       return TugboatEncodedControlScalar._(
-        kind: 'token',
+        kind: 'enum',
         value: '${raw.runtimeType}.${raw.name}',
       );
     }
     if (raw is String) {
-      final trimmed = raw.trim();
-      if (trimmed.isEmpty) {
-        return const TugboatEncodedControlScalar._(kind: 'null');
-      }
-      return TugboatEncodedControlScalar._(
-        kind: 'token',
-        value: 'str:${_controlValueHash(trimmed)}',
-      );
+      return TugboatEncodedControlScalar._(kind: 'string', value: raw);
     }
-    final text = raw.toString();
-    return TugboatEncodedControlScalar._(
-      kind: 'token',
-      value: '${raw.runtimeType}:${_controlValueHash(text)}',
-    );
+    return TugboatEncodedControlScalar._(kind: 'string', value: raw.toString());
   }
 
-  /// Retains only identifiers explicitly prefixed with `tugboat:`.
+  /// Retains developer identifiers without the `tugboat:` namespace prefix.
   static TugboatEncodedControlScalar encodeDeveloperToken(String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.startsWith(_developerTokenPrefix)) {
-      final token = trimmed.substring(_developerTokenPrefix.length);
+    if (raw.startsWith(_developerTokenPrefix)) {
+      final token = raw.substring(_developerTokenPrefix.length);
       if (_developerTokenPattern.hasMatch(token)) {
-        return TugboatEncodedControlScalar._(kind: 'token', value: token);
+        return TugboatEncodedControlScalar._(kind: 'enum', value: token);
       }
     }
-    return TugboatEncodedControlScalar.encode(trimmed);
+    return TugboatEncodedControlScalar.encode(raw);
   }
 
   Map<String, Object?> toJson() => {
@@ -110,7 +88,144 @@ class TugboatEncodedControlScalar {
   int get hashCode => Object.hash(kind, value);
 }
 
-/// Privacy-safe semantic annotation for any interaction target.
+/// A developer-declared typed control value.
+class TugboatVisibleControlValue {
+  const TugboatVisibleControlValue._(this._encoded);
+
+  final TugboatEncodedControlScalar _encoded;
+
+  /// A finite numeric value, such as a slider position or percentage.
+  factory TugboatVisibleControlValue.number(num value) {
+    if (!value.isFinite) {
+      throw ArgumentError.value(value, 'value', 'must be finite');
+    }
+    return TugboatVisibleControlValue._(
+      TugboatEncodedControlScalar._(kind: 'number', value: value),
+    );
+  }
+
+  /// A boolean control state.
+  TugboatVisibleControlValue.boolean(bool value)
+    : _encoded = TugboatEncodedControlScalar._(kind: 'bool', value: value);
+
+  /// A duration represented as an exact non-negative number of milliseconds.
+  factory TugboatVisibleControlValue.duration(Duration value) {
+    if (value.isNegative) {
+      throw ArgumentError.value(value, 'value', 'must not be negative');
+    }
+    return TugboatVisibleControlValue._(
+      TugboatEncodedControlScalar._(
+        kind: 'duration_ms',
+        value: value.inMilliseconds,
+      ),
+    );
+  }
+
+  /// A stable, developer-authored enum or template identifier.
+  factory TugboatVisibleControlValue.enumId(String value) {
+    final trimmed = value.trim();
+    if (!_developerTokenPattern.hasMatch(trimmed)) {
+      throw ArgumentError.value(
+        value,
+        'value',
+        'must be 1-64 ASCII identifier characters',
+      );
+    }
+    return TugboatVisibleControlValue._(
+      TugboatEncodedControlScalar._(kind: 'enum', value: trimmed),
+    );
+  }
+
+  Map<String, Object?> toJson() => _encoded.toJson();
+}
+
+/// Declares a typed analytics value for a custom interactive control.
+///
+/// Wrap controls whose actual state is not available from a standard Flutter
+/// widget. [controlKey] should be a stable developer-owned identifier, for
+/// example `video_duration`, `text_curve`, or `template`.
+class TugboatControlValueScope extends StatelessWidget {
+  const TugboatControlValueScope({
+    super.key,
+    required this.controlKey,
+    required this.value,
+    required this.child,
+    this.role,
+    this.unit,
+    this.min,
+    this.max,
+    this.step,
+  });
+
+  final String controlKey;
+  final TugboatVisibleControlValue value;
+  final Widget child;
+
+  /// Optional role override, such as `slider`, `dropdown`, or `chip`.
+  final String? role;
+
+  /// Optional stable unit, such as `ratio`, `percent`, or `milliseconds`.
+  final String? unit;
+
+  /// Optional inclusive lower bound for [value].
+  final num? min;
+
+  /// Optional inclusive upper bound for [value].
+  final num? max;
+
+  /// Optional increment for [value].
+  final num? step;
+
+  @override
+  Widget build(BuildContext context) => child;
+
+  TugboatControlValue? _toControlValue({required String fallbackRole}) {
+    if (!_hasValidNumericMetadata()) return null;
+    final normalizedKey = controlKey.trim();
+    if (!_developerTokenPattern.hasMatch(normalizedKey)) return null;
+    final normalizedRole = role?.trim();
+    final normalizedUnit = unit?.trim();
+    return TugboatControlValue(
+      role: normalizedRole != null && normalizedRole.isNotEmpty
+          ? normalizedRole
+          : fallbackRole,
+      sources: const ['developer'],
+      controlKey: normalizedKey,
+      unit:
+          normalizedUnit != null &&
+              _developerTokenPattern.hasMatch(normalizedUnit)
+          ? normalizedUnit
+          : null,
+      value: value._encoded,
+      min: _finiteNumber(min),
+      max: _finiteNumber(max),
+      step: _finiteNumber(step),
+    );
+  }
+
+  TugboatEncodedControlScalar? _finiteNumber(num? value) {
+    if (value == null || !value.isFinite) return null;
+    return TugboatEncodedControlScalar.encode(value);
+  }
+
+  bool _hasValidNumericMetadata() {
+    if ((min != null && !min!.isFinite) ||
+        (max != null && !max!.isFinite) ||
+        (step != null && !step!.isFinite) ||
+        (min != null && max != null && min! > max!) ||
+        (step != null && step! <= 0)) {
+      return false;
+    }
+    if (min == null && max == null && step == null) return true;
+    final encoded = value._encoded;
+    if (encoded.kind != 'number' && encoded.kind != 'duration_ms') return false;
+    final numericValue = encoded.value as num;
+    return (min == null || numericValue >= min!) &&
+        (max == null || numericValue <= max!);
+  }
+}
+
+/// Semantic annotation for any interaction target.
 ///
 /// Attached to taps, settles, swipes, and scrolls whenever Flutter semantics
 /// expose an identifier, label, value, or selection flag under the target.
@@ -132,10 +247,10 @@ class TugboatSemanticAnnotation {
   /// Developer-authored semantics identifier when set.
   final TugboatEncodedControlScalar? identifier;
 
-  /// Encoded semantics label (hashed when free-text).
+  /// Raw semantics label when present.
   final TugboatEncodedControlScalar? label;
 
-  /// Encoded semantics value (numbers/tokens retained).
+  /// Raw semantics value when present.
   final TugboatEncodedControlScalar? value;
 
   final bool? selected;
@@ -348,16 +463,19 @@ TugboatSemanticAnnotation? tugboatSemanticAnnotationForElement(
 /// Prefer typed widget state for standard Material/Cupertino controls. When
 /// the hit target exposes Flutter semantics, [semanticValue] / [semanticLabel]
 /// are attached as well so custom rows (e.g. GestureDetector lists) can still
-/// report developer-authored semantic tokens.
+/// report developer-authored semantic values.
 ///
-/// Bools, finite numbers, and enums are retained. Every ordinary string,
-/// including numeric and short token-shaped strings, is hashed. Only explicit
-/// developer identifiers use [TugboatEncodedControlScalar.encodeDeveloperToken].
+/// Bools, finite numbers, enums, and strings are retained as raw values.
 class TugboatControlValue {
   const TugboatControlValue({
     required this.role,
     this.widgetType,
     this.sources = const ['widget'],
+    this.controlKey,
+    this.unit,
+    this.min,
+    this.max,
+    this.step,
     this.value,
     this.groupValue,
     this.selected,
@@ -378,6 +496,21 @@ class TugboatControlValue {
 
   /// Provenance markers such as `widget` and/or `semantics`.
   final List<String> sources;
+
+  /// Stable developer-owned key for an explicitly visible custom value.
+  final String? controlKey;
+
+  /// Optional unit for [value], such as `ratio` or `milliseconds`.
+  final String? unit;
+
+  /// Optional inclusive lower bound for an explicitly declared value.
+  final TugboatEncodedControlScalar? min;
+
+  /// Optional inclusive upper bound for an explicitly declared value.
+  final TugboatEncodedControlScalar? max;
+
+  /// Optional increment for an explicitly declared value.
+  final TugboatEncodedControlScalar? step;
 
   /// Primary sampled value (option identity, toggle state, slider position,
   /// or best-effort semantic value when no typed widget value exists).
@@ -417,6 +550,11 @@ class TugboatControlValue {
     String? role,
     String? widgetType,
     List<String>? sources,
+    String? controlKey,
+    String? unit,
+    TugboatEncodedControlScalar? min,
+    TugboatEncodedControlScalar? max,
+    TugboatEncodedControlScalar? step,
     TugboatEncodedControlScalar? value,
     TugboatEncodedControlScalar? groupValue,
     bool? selected,
@@ -431,6 +569,11 @@ class TugboatControlValue {
       role: role ?? this.role,
       widgetType: widgetType ?? this.widgetType,
       sources: sources ?? this.sources,
+      controlKey: controlKey ?? this.controlKey,
+      unit: unit ?? this.unit,
+      min: min ?? this.min,
+      max: max ?? this.max,
+      step: step ?? this.step,
       value: value ?? this.value,
       groupValue: groupValue ?? this.groupValue,
       selected: selected ?? this.selected,
@@ -447,6 +590,11 @@ class TugboatControlValue {
     'role': role,
     if (widgetType != null && widgetType!.isNotEmpty) 'widgetType': widgetType,
     if (sources.isNotEmpty) 'sources': sources,
+    if (controlKey != null && controlKey!.isNotEmpty) 'controlKey': controlKey,
+    if (unit != null && unit!.isNotEmpty) 'unit': unit,
+    if (min != null) 'min': min!.toJson(),
+    if (max != null) 'max': max!.toJson(),
+    if (step != null) 'step': step!.toJson(),
     if (value != null) 'value': value!.toJson(),
     if (groupValue != null) 'groupValue': groupValue!.toJson(),
     if (selected != null) 'selected': selected,
@@ -464,6 +612,11 @@ class TugboatControlValue {
       role == other.role &&
       widgetType == other.widgetType &&
       _listEquals(sources, other.sources) &&
+      controlKey == other.controlKey &&
+      unit == other.unit &&
+      min == other.min &&
+      max == other.max &&
+      step == other.step &&
       value == other.value &&
       groupValue == other.groupValue &&
       selected == other.selected &&
@@ -479,6 +632,11 @@ class TugboatControlValue {
     role,
     widgetType,
     Object.hashAll(sources),
+    controlKey,
+    unit,
+    min,
+    max,
+    step,
     value,
     groupValue,
     selected,
@@ -490,7 +648,7 @@ class TugboatControlValue {
   );
 }
 
-/// Reads a privacy-safe control value from [widget], or null when unsupported.
+/// Reads a control value from [widget], or null when unsupported.
 TugboatControlValue? tugboatControlValueForWidget(Widget widget, {int? index}) {
   final widgetType = widget.runtimeType.toString();
 
@@ -667,18 +825,18 @@ TugboatControlValue? tugboatControlValueFromSemanticsProperties(
           ? 'switch'
           : 'semantic');
 
+  final semanticState = role == 'checkbox' || role == 'switch'
+      ? (checked ?? toggled ?? selected)
+      : null;
+
   return TugboatControlValue(
     role: role,
     widgetType: widgetType,
     sources: const ['semantics'],
     value:
         semanticValue ??
-        (checked != null
-            ? TugboatEncodedControlScalar.encode(checked)
-            : toggled != null
-            ? TugboatEncodedControlScalar.encode(toggled)
-            : selected != null
-            ? TugboatEncodedControlScalar.encode(selected)
+        (semanticState != null
+            ? TugboatEncodedControlScalar.encode(semanticState)
             : null),
     selected: selected ?? checked ?? toggled,
     index: index,
@@ -725,17 +883,17 @@ TugboatControlValue? tugboatControlValueFromSemanticsNode(
           ? data.role.name
           : 'semantic');
 
+  final semanticState = role == 'checkbox' || role == 'switch'
+      ? (checked ?? toggled ?? selected)
+      : null;
+
   return TugboatControlValue(
     role: role,
     sources: const ['semantics'],
     value:
         semanticValue ??
-        (checked != null
-            ? TugboatEncodedControlScalar.encode(checked)
-            : toggled != null
-            ? TugboatEncodedControlScalar.encode(toggled)
-            : selected != null
-            ? TugboatEncodedControlScalar.encode(selected)
+        (semanticState != null
+            ? TugboatEncodedControlScalar.encode(semanticState)
             : null),
     selected: selected ?? checked ?? toggled,
     semanticValue: semanticValue,
@@ -749,21 +907,17 @@ TugboatControlValue? tugboatMergeControlValues(
   TugboatControlValue? semanticsValue,
 ) {
   if (widgetValue == null) return semanticsValue;
-  if (semanticsValue == null) {
-    return widgetValue.sources.contains('widget')
-        ? widgetValue
-        : widgetValue.copyWith(sources: const ['widget']);
-  }
+  if (semanticsValue == null) return widgetValue;
 
   final sources = <String>{
     ...widgetValue.sources,
     ...semanticsValue.sources,
-    'widget',
-    'semantics',
   }.toList()..sort();
 
   return widgetValue.copyWith(
     sources: sources,
+    controlKey: widgetValue.controlKey ?? semanticsValue.controlKey,
+    unit: widgetValue.unit ?? semanticsValue.unit,
     value: widgetValue.value ?? semanticsValue.value,
     selected: widgetValue.selected ?? semanticsValue.selected,
     semanticValue: semanticsValue.semanticValue ?? widgetValue.semanticValue,
@@ -775,8 +929,12 @@ TugboatControlValue? tugboatMergeControlValues(
 TugboatControlValue? tugboatControlValueForElement(Element hitElement) {
   TugboatControlValue? widgetValue;
   TugboatControlValue? semanticsValue;
+  TugboatControlValueScope? developerScope;
 
   void consider(Element element) {
+    developerScope ??= element.widget is TugboatControlValueScope
+        ? element.widget as TugboatControlValueScope
+        : null;
     final index = widgetValue == null
         ? _optionIndexAmongSiblings(element)
         : null;
@@ -799,12 +957,16 @@ TugboatControlValue? tugboatControlValueForElement(Element hitElement) {
   consider(hitElement);
   hitElement.visitAncestorElements((ancestor) {
     consider(ancestor);
-    return widgetValue == null || semanticsValue == null;
+    return true;
   });
 
   final merged = tugboatMergeControlValues(widgetValue, semanticsValue);
-  if (merged == null || !merged.hasPayload) return null;
-  return merged;
+  final developerValue = developerScope?._toControlValue(
+    fallbackRole: merged?.role ?? 'semantic',
+  );
+  final value = tugboatMergeControlValues(developerValue, merged);
+  if (value == null || !value.hasPayload) return null;
+  return value;
 }
 
 int? _optionIndexAmongSiblings(Element element) {

@@ -1,3 +1,16 @@
+## 0.4.17
+
+### Changed
+
+- **Raw control and semantic values** — control values, semantic values, and
+  semantic labels are now sent verbatim instead of being tokenized. This makes
+  slider positions, durations, and template identifiers available for session
+  summaries and aggregate analysis.
+- **Explicit custom-control values** — `TugboatControlValueScope` exposes a
+  stable `controlKey`, typed number/duration/enum value, optional unit, and
+  numeric range metadata for controls whose value is not readable from a
+  standard Flutter widget.
+
 ## 0.4.16
 
 ### Added
