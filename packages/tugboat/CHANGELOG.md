@@ -1,3 +1,20 @@
+## 0.4.16
+
+### Changed
+
+- **Interaction lifecycle extraction** — claim, reconciliation, terminalization,
+  and legacy/canonical publish policy live in `InteractionLifecycle` instead of
+  growing `TugboatReplayController`. Transactions use an explicit
+  `InteractionPhase` and a single `terminate` path.
+- **Legacy publish gate** — dual-write peers go through `emitLegacy` so stream
+  selection is centralized rather than branched at every call site.
+
+### Fixed
+
+- **Session replacement** — `start()` terminalizes pending/released gestures
+  against the current session before installing a new one, so claims are not
+  stranded and cancelled interactions do not land on the replacement session.
+
 ## 0.4.15
 
 ### Added

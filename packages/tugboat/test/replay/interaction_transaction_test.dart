@@ -100,6 +100,43 @@ void main() {
     });
 
     test(
+      'session replacement terminalizes pending against the old session',
+      () async {
+        final harness = ReplayCoherenceHarness();
+        await harness.setUp();
+        addTearDown(harness.dispose);
+
+        final firstSessionId = harness.controller.session!.id;
+        harness.controller.recordPointerDown(const Offset(9, 9));
+        // Replace the session while a pointer is still pending.
+        harness.controller.start(const Size(390, 844), 'ios');
+        await harness.flushScheduler();
+
+        expect(harness.controller.session!.id, isNot(firstSessionId));
+        // Bug regression: cancelled terminalization must not land on the new
+        // session, and the superseded gesture must not remain claimable.
+        expect(
+          harness.controller.session!.semanticOfType('interaction'),
+          isEmpty,
+        );
+        await harness.controller.route('route_push', harness.route('/auto'));
+        await harness.flushScheduler();
+        final change = harness.controller.session!.ofType('route_change').last;
+        expect(change.data['navigationOrigin'], 'automatic_or_unknown');
+        expect(change.data['causeEventId'], isNull);
+
+        harness.controller.recordPointerDown(const Offset(3, 3));
+        harness.controller.recordPointerUp(const Offset(3, 3));
+        await harness.flushScheduler();
+        final interactions = harness.controller.session!.semanticOfType(
+          'interaction',
+        );
+        expect(interactions, hasLength(1));
+        expect(interactions.single.data['gesture'], 'tap');
+      },
+    );
+
+    test(
       'lifecycle clear of released claim publishes cancelled interaction',
       () async {
         final harness = ReplayCoherenceHarness(

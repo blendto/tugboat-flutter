@@ -67,6 +67,10 @@ const String tugboatEventStreamLegacyProjection = 'legacy_projection';
 const int tugboatInteractionSchemaVersion = 1;
 
 /// Whether [event] is a default enrichment / insight candidate.
+///
+/// Canonical path: only `type: interaction` on the semantic stream.
+/// Temporary exception: when [TugboatInteractionPublishMode.legacyOnly] still
+/// places gestures on semantic, those remain eligible until consumers migrate.
 bool tugboatEventIsEnrichmentCandidate(TugboatEvent event) {
   switch (event.stream) {
     case TugboatEventStream.diagnostic:
@@ -75,6 +79,8 @@ bool tugboatEventIsEnrichmentCandidate(TugboatEvent event) {
       return false;
     case TugboatEventStream.semantic:
       if (event.type == 'interaction') return true;
+      // legacyOnly compat — dualWrite puts these on legacy_projection instead.
+      if (event.data['replayRole'] == 'causal_only') return false;
       return event.type == 'tap' ||
           event.type == 'tap_settled' ||
           event.type == 'swipe';

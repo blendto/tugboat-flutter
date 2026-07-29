@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/widgets.dart';
 
@@ -62,6 +63,10 @@ class InteractionOrigin {
 
 enum InteractionGesture { tap, swipe, scroll, cancelled }
 
+/// Wire `interaction.result.status` vocabulary.
+///
+/// Maps onto [TugboatInteractionResult] only at event emission; cancelled has
+/// no event-level peer and becomes [TugboatInteractionResult.unknown].
 enum InteractionResultStatus {
   navigated,
   changed,
@@ -108,11 +113,14 @@ enum InteractionAttribution {
     InteractionAttribution.none => 'none',
   };
 
-  /// Route_change compatibility string (`same_turn` | `delayed_likely`).
-  String get claimWireName => switch (this) {
+  /// Route_change compatibility string when a claim succeeds.
+  ///
+  /// Returns null for [none] — callers must not write attribution on
+  /// unclaimed routes.
+  String? get claimWireName => switch (this) {
     InteractionAttribution.direct => 'same_turn',
     InteractionAttribution.delayedLikely => 'delayed_likely',
-    InteractionAttribution.none => 'same_turn',
+    InteractionAttribution.none => null,
   };
 }
 
@@ -127,6 +135,18 @@ enum InteractionRejectionReason {
   sessionEnd,
 }
 
+/// Lifecycle phase for one gesture transaction.
+enum InteractionPhase {
+  /// Pointer is down; buffers held, not yet released.
+  pending,
+
+  /// Pointer up; eligible for delayed route/modal claim.
+  released,
+
+  /// Terminal — canonical interaction published (or intentionally suppressed).
+  published,
+}
+
 /// Bounded in-memory transaction for one pointer gesture.
 class InteractionTransaction {
   InteractionTransaction({required this.origin, required this.pointerId});
@@ -134,11 +154,11 @@ class InteractionTransaction {
   final InteractionOrigin origin;
   final int pointerId;
 
+  InteractionPhase phase = InteractionPhase.pending;
   InteractionGesture gesture = InteractionGesture.tap;
   bool claimed = false;
   bool cancelled = false;
   bool tapEmitted = false;
-  bool semanticPublished = false;
   bool sameTurnEligible = true;
 
   int? releasedAtMs;
@@ -164,9 +184,13 @@ class InteractionTransaction {
   String get id => origin.interactionId;
 
   bool get isSwipeOrScroll =>
-      gesture == InteractionGesture.swipe || gesture == InteractionGesture.scroll;
+      gesture == InteractionGesture.swipe ||
+      gesture == InteractionGesture.scroll;
 
-  bool get isEligible => !claimed && !cancelled && !semanticPublished;
+  bool get isPublished => phase == InteractionPhase.published;
+
+  bool get isEligible =>
+      !claimed && !cancelled && !isPublished && !isSwipeOrScroll;
 
   bool isWithinReconciliationWindow(int nowMs) {
     if (!sameTurnEligible) return false;
@@ -212,68 +236,99 @@ class InteractionTransaction {
   };
 }
 
-/// Single index for pending/released interaction transactions.
+/// Index for pending/released interaction transactions.
+///
+/// Primary key is interaction id. Pointer maps are secondary indexes; released
+/// order is an explicit FIFO queue for eviction.
 class InteractionRegistry {
-  final Map<int, InteractionTransaction> _pending = {};
-  final Map<int, InteractionTransaction> _released = {};
   final Map<String, InteractionTransaction> _byId = {};
+  final Map<int, InteractionTransaction> _pendingByPointer = {};
+  final Map<int, InteractionTransaction> _releasedByPointer = {};
+  final ListQueue<InteractionTransaction> _releasedOrder =
+      ListQueue<InteractionTransaction>();
 
-  Iterable<InteractionTransaction> get pending => _pending.values;
-  Iterable<InteractionTransaction> get released => _released.values;
-  bool get hasPending => _pending.isNotEmpty;
-  bool get hasReleased => _released.isNotEmpty;
-  int get releasedCount => _released.length;
+  Iterable<InteractionTransaction> get pending => _pendingByPointer.values;
+  Iterable<InteractionTransaction> get released =>
+      List<InteractionTransaction>.unmodifiable(_releasedOrder);
+  bool get hasPending => _pendingByPointer.isNotEmpty;
+  bool get hasReleased => _releasedOrder.isNotEmpty;
+  int get releasedCount => _releasedOrder.length;
 
   InteractionTransaction? byPointer(int pointer) =>
-      _pending[pointer] ?? _released[pointer];
+      _pendingByPointer[pointer] ?? _releasedByPointer[pointer];
 
-  InteractionTransaction? pendingAt(int pointer) => _pending[pointer];
+  InteractionTransaction? pendingAt(int pointer) => _pendingByPointer[pointer];
 
   InteractionTransaction? byId(String id) => _byId[id];
 
   void register(InteractionTransaction tx) {
     _byId[tx.id] = tx;
-    _pending[tx.pointerId] = tx;
+    _pendingByPointer[tx.pointerId] = tx;
   }
 
-  InteractionTransaction? removePending(int pointer) => _pending.remove(pointer);
+  InteractionTransaction? removePending(int pointer) {
+    final tx = _pendingByPointer.remove(pointer);
+    return tx;
+  }
 
   void release(InteractionTransaction tx) {
-    _pending.remove(tx.pointerId);
-    _released[tx.pointerId] = tx;
+    _pendingByPointer.remove(tx.pointerId);
+    final previous = _releasedByPointer[tx.pointerId];
+    if (previous != null && !identical(previous, tx)) {
+      _releasedOrder.remove(previous);
+    }
+    _releasedByPointer[tx.pointerId] = tx;
+    if (!_releasedOrder.contains(tx)) {
+      _releasedOrder.addLast(tx);
+    }
+    tx.phase = InteractionPhase.released;
   }
 
-  InteractionTransaction? removeReleased(int pointer) =>
-      _released.remove(pointer);
+  InteractionTransaction? removeReleased(int pointer) {
+    final tx = _releasedByPointer.remove(pointer);
+    if (tx != null) _releasedOrder.remove(tx);
+    return tx;
+  }
 
+  /// Drop id lookup when the cause id no longer needs to resolve.
   void forgetId(String id) => _byId.remove(id);
 
   void clearAll() {
-    _pending.clear();
-    _released.clear();
+    _pendingByPointer.clear();
+    _releasedByPointer.clear();
+    _releasedOrder.clear();
     _byId.clear();
   }
 
   List<InteractionTransaction> takeAllReleased() {
-    final values = List<InteractionTransaction>.from(_released.values);
-    _released.clear();
+    final values = List<InteractionTransaction>.from(_releasedOrder);
+    _releasedByPointer.clear();
+    _releasedOrder.clear();
     return values;
   }
 
-  List<int> takePendingPointers() => List<int>.from(_pending.keys);
+  List<int> takePendingPointers() => List<int>.from(_pendingByPointer.keys);
+
+  List<InteractionTransaction> takeAllPending() {
+    final values = List<InteractionTransaction>.from(_pendingByPointer.values);
+    _pendingByPointer.clear();
+    return values;
+  }
+
+  InteractionTransaction? oldestReleased() =>
+      _releasedOrder.isEmpty ? null : _releasedOrder.first;
 
   List<InteractionTransaction> eligibleForClaim({
     required int nowMs,
     required String? sessionId,
   }) {
     final eligible = <InteractionTransaction>[];
-    for (final tx in _pending.values) {
-      if (tx.isSwipeOrScroll) continue;
+    for (final tx in _pendingByPointer.values) {
       if (!tx.isEligible) continue;
       if (tx.origin.captureSessionId != sessionId) continue;
       eligible.add(tx);
     }
-    for (final tx in _released.values) {
+    for (final tx in _releasedOrder) {
       if (!tx.isEligible) continue;
       if (!tx.isWithinReconciliationWindow(nowMs)) continue;
       if (tx.origin.captureSessionId != sessionId) continue;
@@ -284,7 +339,7 @@ class InteractionRegistry {
 
   int? earliestReleasedDeadlineMs() {
     int? earliest;
-    for (final tx in _released.values) {
+    for (final tx in _releasedOrder) {
       final deadline = tx.reconciliationDeadlineMs;
       if (deadline == null) continue;
       if (earliest == null || deadline < earliest) earliest = deadline;
