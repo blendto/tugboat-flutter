@@ -183,19 +183,7 @@ class AnchorResolver {
     final tokenMap = _tokenMapFor(rootContext, rootRender);
     if (tokenMap == null) return null;
 
-    final pipelineOwner =
-        rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
-    final semanticsAlreadyEnabled =
-        pipelineOwner.semanticsOwner != null ||
-        RendererBinding.instance.rootPipelineOwner.semanticsOwner != null;
-    final semanticsHandle = semanticsAlreadyEnabled
-        ? null
-        : SemanticsBinding.instance.ensureSemantics();
-    try {
-      if (!semanticsAlreadyEnabled) {
-        pipelineOwner.flushSemantics();
-      }
-
+    return _withSemanticsEnabled(rootRender, () {
       final result = BoxHitTestResult();
       final localPosition = rootRender.globalToLocal(globalPosition);
       rootRender.hitTest(result, position: localPosition);
@@ -215,6 +203,69 @@ class AnchorResolver {
         rootContext: rootContext,
         rootRender: rootRender,
       );
+    });
+  }
+
+  /// Privacy-safe semantic annotation under [globalPosition], if any.
+  ///
+  /// Used for all interactions (buttons, custom rows, scrolls) so enrichment
+  /// can see identifier/label/value whenever Flutter semantics expose them.
+  TugboatSemanticAnnotation? semanticAnnotationAt(Offset globalPosition) {
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+    if (rootRender is! RenderBox || rootContext is! Element) return null;
+
+    final tokenMap = _tokenMapFor(rootContext, rootRender);
+    if (tokenMap == null) return null;
+
+    return _withSemanticsEnabled(rootRender, () {
+      final result = BoxHitTestResult();
+      final localPosition = rootRender.globalToLocal(globalPosition);
+      rootRender.hitTest(result, position: localPosition);
+
+      for (final entry in result.path) {
+        if (entry.target is! RenderObject) continue;
+        final element = tokenMap.renderElements[entry.target as RenderObject];
+        if (element == null || tugboatIsCaptureChrome(element.widget)) continue;
+        final annotation = tugboatSemanticAnnotationForElement(element);
+        if (annotation != null) return annotation;
+      }
+
+      return _semanticAnnotationFromSemanticsHit(
+        globalPosition: globalPosition,
+        rootContext: rootContext,
+        rootRender: rootRender,
+      );
+    });
+  }
+
+  /// Privacy-safe semantic annotation for an [element] already in the tree.
+  TugboatSemanticAnnotation? semanticAnnotationForElement(Element element) {
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+    if (rootRender is! RenderBox) {
+      return tugboatSemanticAnnotationForElement(element);
+    }
+    return _withSemanticsEnabled(
+      rootRender,
+      () => tugboatSemanticAnnotationForElement(element),
+    );
+  }
+
+  T _withSemanticsEnabled<T>(RenderBox rootRender, T Function() body) {
+    final pipelineOwner =
+        rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
+    final semanticsAlreadyEnabled =
+        pipelineOwner.semanticsOwner != null ||
+        RendererBinding.instance.rootPipelineOwner.semanticsOwner != null;
+    final semanticsHandle = semanticsAlreadyEnabled
+        ? null
+        : SemanticsBinding.instance.ensureSemantics();
+    try {
+      if (!semanticsAlreadyEnabled) {
+        pipelineOwner.flushSemantics();
+      }
+      return body();
     } finally {
       semanticsHandle?.dispose();
     }
@@ -225,25 +276,70 @@ class AnchorResolver {
     required Element rootContext,
     required RenderBox rootRender,
   }) {
+    final node = _deepestSemanticsNodeAt(
+      globalPosition: globalPosition,
+      rootContext: rootContext,
+      rootRender: rootRender,
+    );
+    if (node == null) return null;
+    return tugboatControlValueFromSemanticsNode(node);
+  }
+
+  TugboatSemanticAnnotation? _semanticAnnotationFromSemanticsHit({
+    required Offset globalPosition,
+    required Element rootContext,
+    required RenderBox rootRender,
+  }) {
+    final hits = _semanticsNodesAt(
+      globalPosition: globalPosition,
+      rootContext: rootContext,
+      rootRender: rootRender,
+    );
+    TugboatSemanticAnnotation? merged;
+    // hits are root→leaf; reverse so deeper nodes win, ancestors fill gaps.
+    for (final node in hits.reversed) {
+      final next = tugboatSemanticAnnotationFromNode(node);
+      if (next == null) continue;
+      merged = merged == null
+          ? next
+          : tugboatMergeSemanticAnnotations(merged, next);
+    }
+    return merged;
+  }
+
+  SemanticsNode? _deepestSemanticsNodeAt({
+    required Offset globalPosition,
+    required Element rootContext,
+    required RenderBox rootRender,
+  }) {
+    final hits = _semanticsNodesAt(
+      globalPosition: globalPosition,
+      rootContext: rootContext,
+      rootRender: rootRender,
+    );
+    return hits.isEmpty ? null : hits.last;
+  }
+
+  List<SemanticsNode> _semanticsNodesAt({
+    required Offset globalPosition,
+    required Element rootContext,
+    required RenderBox rootRender,
+  }) {
     final pipelineOwner =
         rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
     final semanticsOwner =
         pipelineOwner.semanticsOwner ??
         RendererBinding.instance.rootPipelineOwner.semanticsOwner;
-    if (semanticsOwner == null) return null;
+    if (semanticsOwner == null) return const [];
     pipelineOwner.flushSemantics();
     final rootNode = semanticsOwner.rootSemanticsNode;
-    if (rootNode == null) return null;
+    if (rootNode == null) return const [];
 
     final devicePixelRatio = View.maybeOf(rootContext)?.devicePixelRatio ?? 1.0;
     final physical = globalPosition * devicePixelRatio;
     final hits = <SemanticsNode>[];
     _collectSemanticsHits(rootNode, physical, hits, Matrix4.identity());
-    for (final node in hits.reversed) {
-      final value = tugboatControlValueFromSemanticsNode(node);
-      if (value != null) return value;
-    }
-    return null;
+    return hits;
   }
 
   void _collectSemanticsHits(

@@ -256,6 +256,14 @@ nodes under the pointer and records `semanticValue` / `semanticLabel` with the
 same encoding rules. Standard controls may include both widget state and
 semantic annotations under `sources: ["semantics","widget"]`.
 
+Independently, every interaction event (`tap`, `tap_settled`, `swipe`,
+`scroll_start`, `scroll_end`) may carry a top-level `semanticAnnotation`
+payload whenever Flutter semantics expose an identifier, label, value, or
+selection flag on the target. This covers ordinary buttons and scrollables as
+well as valued controls. The field is named `semanticAnnotation` to avoid
+colliding with `tap_settled.data.settleObservation.semantic` (state-signature
+change evidence).
+
 Bounds, pointer coordinates, scroll metrics, and masked screenshot pixels are
 also capture data. Apps must treat tags, route names, subview labels, and
 semantic value/label tokens as telemetry and avoid putting raw user PII in

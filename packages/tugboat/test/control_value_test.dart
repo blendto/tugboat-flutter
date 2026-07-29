@@ -26,6 +26,13 @@ Map<String, Object?>? _controlValueFrom(TugboatEvent event) {
   return null;
 }
 
+Map<String, Object?>? _semanticAnnotationFrom(TugboatEvent event) {
+  final raw = event.data['semanticAnnotation'];
+  if (raw is Map<String, Object?>) return raw;
+  if (raw is Map) return Map<String, Object?>.from(raw);
+  return null;
+}
+
 void main() {
   setUp(TugboatReplay.resetForTest);
   tearDown(TugboatReplay.resetForTest);
@@ -368,6 +375,7 @@ void main() {
                 children: [
                   Semantics(
                     button: true,
+                    identifier: 'duration-15',
                     value: '15',
                     label: 'Duration 15 seconds',
                     selected: selected == '15',
@@ -379,6 +387,7 @@ void main() {
                   ),
                   Semantics(
                     button: true,
+                    identifier: 'duration-30',
                     value: '30',
                     label: 'Duration 30 seconds',
                     selected: selected == '30',
@@ -408,6 +417,92 @@ void main() {
     expect((tapValue['value'] as Map)['value'], 30);
     expect((tapValue['semanticLabel'] as Map)['value'], startsWith('str:'));
     expect(tapValue.toString(), isNot(contains('Duration 30 seconds')));
+
+    final annotation = _semanticAnnotationFrom(tap)!;
+    expect(annotation['role'], 'button');
+    expect((annotation['identifier'] as Map)['value'], 'duration-30');
+    expect((annotation['value'] as Map)['value'], 30);
+    expect((annotation['label'] as Map)['value'], startsWith('str:'));
     expect(selected, '30');
+  });
+
+  testWidgets('button taps emit semanticAnnotation labels', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: Scaffold(
+          body: FilledButton(
+            key: const Key('generate-cta'),
+            onPressed: () {},
+            child: const Text('Generate'),
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.tap(find.byKey(const Key('generate-cta')));
+    await _waitForCaptures(tester);
+
+    final session = TugboatReplay.controller!.session!;
+    final tap = session.events.firstWhere((e) => e.type == 'tap');
+    final settled = session.events.firstWhere((e) => e.type == 'tap_settled');
+    final tapSemantic = _semanticAnnotationFrom(tap);
+    final settledSemantic = _semanticAnnotationFrom(settled);
+
+    expect(tapSemantic, isNotNull);
+    expect(tapSemantic?['role'], 'button');
+    expect((tapSemantic?['label'] as Map)['value'], 'Generate');
+    expect(settledSemantic, isNotNull);
+    expect((settledSemantic?['label'] as Map)['value'], 'Generate');
+  });
+
+  testWidgets('scroll events carry semanticAnnotation when present', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: Scaffold(
+          body: Semantics(
+            identifier: 'preset-list',
+            label: 'Preset options',
+            child: ListView(
+              key: const Key('preset-list'),
+              children: [
+                for (var i = 0; i < 30; i++) ListTile(title: Text('Preset $i')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.drag(
+      find.byKey(const Key('preset-list')),
+      const Offset(0, -200),
+    );
+    await _waitForCaptures(tester);
+
+    final session = TugboatReplay.controller!.session!;
+    final scrollEvents = session.events
+        .where((e) => e.type == 'scroll_start' || e.type == 'scroll_end')
+        .toList();
+    expect(scrollEvents, isNotEmpty);
+    final annotated = scrollEvents
+        .map(_semanticAnnotationFrom)
+        .whereType<Map<String, Object?>>()
+        .toList();
+    expect(annotated, isNotEmpty);
+    expect(
+      annotated.any((annotation) {
+        final identifier = annotation['identifier'];
+        return identifier is Map && identifier['value'] == 'preset-list';
+      }),
+      isTrue,
+    );
   });
 }

@@ -31,6 +31,7 @@ class InteractionOrigin {
     required this.pointerGeneration,
     required this.captureSessionId,
     this.controlValue,
+    this.semantic,
   });
 
   final String interactionId;
@@ -46,6 +47,7 @@ class InteractionOrigin {
   final int pointerGeneration;
   final String? captureSessionId;
   final TugboatControlValue? controlValue;
+  final TugboatSemanticAnnotation? semantic;
 
   Map<String, Object?> toJson() => {
     'interactionId': interactionId,
@@ -61,6 +63,7 @@ class InteractionOrigin {
     'pointerGeneration': pointerGeneration,
     if (captureSessionId != null) 'captureSessionId': captureSessionId,
     if (controlValue != null) 'controlValue': controlValue!.toJson(),
+    if (semantic != null) 'semanticAnnotation': semantic!.toJson(),
   };
 }
 

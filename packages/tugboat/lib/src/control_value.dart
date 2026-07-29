@@ -3,6 +3,9 @@ part of 'anchors.dart';
 /// Schema version for privacy-safe control value payloads.
 const int tugboatControlValueSchemaVersion = 2;
 
+/// Schema version for per-interaction semantic annotations.
+const int tugboatSemanticAnnotationSchemaVersion = 1;
+
 final RegExp _developerTokenPattern = RegExp(r'^[A-Za-z0-9_./:-]{1,64}$');
 
 /// Encodes a single control scalar without retaining free-text labels.
@@ -79,6 +82,239 @@ class TugboatEncodedControlScalar {
 
   @override
   int get hashCode => Object.hash(kind, value, length);
+}
+
+/// Privacy-safe semantic annotation for any interaction target.
+///
+/// Attached to taps, settles, swipes, and scrolls whenever Flutter semantics
+/// expose an identifier, label, value, or selection flag under the target.
+class TugboatSemanticAnnotation {
+  const TugboatSemanticAnnotation({
+    this.role,
+    this.identifier,
+    this.label,
+    this.value,
+    this.selected,
+    this.checked,
+    this.toggled,
+    this.schemaVersion = tugboatSemanticAnnotationSchemaVersion,
+  });
+
+  final int schemaVersion;
+  final String? role;
+
+  /// Developer-authored semantics identifier when set.
+  final TugboatEncodedControlScalar? identifier;
+
+  /// Encoded semantics label (hashed when free-text).
+  final TugboatEncodedControlScalar? label;
+
+  /// Encoded semantics value (numbers/tokens retained).
+  final TugboatEncodedControlScalar? value;
+
+  final bool? selected;
+  final bool? checked;
+  final bool? toggled;
+
+  bool get hasPayload =>
+      (role != null && role!.isNotEmpty) ||
+      identifier != null ||
+      label != null ||
+      value != null ||
+      selected != null ||
+      checked != null ||
+      toggled != null;
+
+  Map<String, Object?> toJson() => {
+    'schemaVersion': schemaVersion,
+    if (role != null && role!.isNotEmpty) 'role': role,
+    if (identifier != null) 'identifier': identifier!.toJson(),
+    if (label != null) 'label': label!.toJson(),
+    if (value != null) 'value': value!.toJson(),
+    if (selected != null) 'selected': selected,
+    if (checked != null) 'checked': checked,
+    if (toggled != null) 'toggled': toggled,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is TugboatSemanticAnnotation &&
+      schemaVersion == other.schemaVersion &&
+      role == other.role &&
+      identifier == other.identifier &&
+      label == other.label &&
+      value == other.value &&
+      selected == other.selected &&
+      checked == other.checked &&
+      toggled == other.toggled;
+
+  @override
+  int get hashCode => Object.hash(
+    schemaVersion,
+    role,
+    identifier,
+    label,
+    value,
+    selected,
+    checked,
+    toggled,
+  );
+}
+
+/// Builds a semantic annotation from explicit [SemanticsProperties].
+TugboatSemanticAnnotation? tugboatSemanticAnnotationFromProperties(
+  SemanticsProperties properties, {
+  String? roleHint,
+}) {
+  final identifierText = properties.identifier;
+  final labelText = properties.label;
+  final valueText = properties.value;
+  final selected = properties.selected;
+  final checked = properties.checked;
+  final toggled = properties.toggled;
+
+  final identifier =
+      (identifierText != null && identifierText.trim().isNotEmpty)
+      ? TugboatEncodedControlScalar.encode(identifierText)
+      : null;
+  final label = (labelText != null && labelText.trim().isNotEmpty)
+      ? TugboatEncodedControlScalar.encode(labelText)
+      : null;
+  final value = (valueText != null && valueText.trim().isNotEmpty)
+      ? TugboatEncodedControlScalar.encode(valueText)
+      : null;
+
+  final role =
+      roleHint ??
+      (properties.slider == true
+          ? 'slider'
+          : properties.button == true
+          ? 'button'
+          : properties.link == true
+          ? 'link'
+          : properties.textField == true
+          ? 'textField'
+          : properties.header == true
+          ? 'header'
+          : checked != null
+          ? 'checkbox'
+          : toggled != null
+          ? 'switch'
+          : null);
+
+  final annotation = TugboatSemanticAnnotation(
+    role: role,
+    identifier: identifier,
+    label: label,
+    value: value,
+    selected: selected,
+    checked: checked,
+    toggled: toggled,
+  );
+  return annotation.hasPayload ? annotation : null;
+}
+
+/// Builds a semantic annotation from a live [SemanticsNode].
+TugboatSemanticAnnotation? tugboatSemanticAnnotationFromNode(
+  SemanticsNode node, {
+  String? roleHint,
+}) {
+  final data = node.getSemanticsData();
+  final flags = data.flagsCollection;
+  final checked = semanticsCheckedFromFlags(flags);
+  final toggled = semanticsToggledFromFlags(flags);
+  final selected = semanticsSelectedFromFlags(flags);
+
+  final identifier = data.identifier.trim().isNotEmpty
+      ? TugboatEncodedControlScalar.encode(data.identifier)
+      : null;
+  final label = data.label.trim().isNotEmpty
+      ? TugboatEncodedControlScalar.encode(data.label)
+      : null;
+  final value = data.value.trim().isNotEmpty
+      ? TugboatEncodedControlScalar.encode(data.value)
+      : null;
+
+  final role =
+      roleHint ??
+      (flags.isButton
+          ? 'button'
+          : flags.isLink
+          ? 'link'
+          : flags.isTextField
+          ? 'textField'
+          : flags.isHeader
+          ? 'header'
+          : checked != null
+          ? 'checkbox'
+          : toggled != null
+          ? 'switch'
+          : data.role != SemanticsRole.none
+          ? data.role.name
+          : null);
+
+  final annotation = TugboatSemanticAnnotation(
+    role: role,
+    identifier: identifier,
+    label: label,
+    value: value,
+    selected: selected,
+    checked: checked,
+    toggled: toggled,
+  );
+  return annotation.hasPayload ? annotation : null;
+}
+
+/// Merges two annotations, preferring [primary] fields and filling gaps.
+TugboatSemanticAnnotation tugboatMergeSemanticAnnotations(
+  TugboatSemanticAnnotation primary,
+  TugboatSemanticAnnotation fallback,
+) {
+  return TugboatSemanticAnnotation(
+    role: (primary.role != null && primary.role!.isNotEmpty)
+        ? primary.role
+        : fallback.role,
+    identifier: primary.identifier ?? fallback.identifier,
+    label: primary.label ?? fallback.label,
+    value: primary.value ?? fallback.value,
+    selected: primary.selected ?? fallback.selected,
+    checked: primary.checked ?? fallback.checked,
+    toggled: primary.toggled ?? fallback.toggled,
+  );
+}
+
+/// Walks [hitElement] and ancestors, merging semantic fields.
+///
+/// Child/deeper nodes win for concrete fields; ancestors fill gaps so a
+/// Material button role can combine with a child Text label.
+TugboatSemanticAnnotation? tugboatSemanticAnnotationForElement(
+  Element hitElement,
+) {
+  TugboatSemanticAnnotation? merged;
+
+  void consider(Element element) {
+    TugboatSemanticAnnotation? next;
+    if (element.widget is Semantics) {
+      next = tugboatSemanticAnnotationFromProperties(
+        (element.widget as Semantics).properties,
+      );
+    }
+    next ??= () {
+      final node = element.renderObject?.debugSemantics;
+      return node == null ? null : tugboatSemanticAnnotationFromNode(node);
+    }();
+    if (next == null) return;
+    merged = merged == null
+        ? next
+        : tugboatMergeSemanticAnnotations(merged!, next);
+  }
+
+  consider(hitElement);
+  hitElement.visitAncestorElements((ancestor) {
+    consider(ancestor);
+    return true;
+  });
+  return merged;
 }
 
 /// Privacy-safe snapshot of an interactive control's value at sample time.
