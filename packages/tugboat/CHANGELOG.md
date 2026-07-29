@@ -1,7 +1,19 @@
-## Unreleased
+## 0.4.12
 
 ### Added
 
+- **Navigator and route-instance ownership** — every observed Navigator gets a
+  session-local opaque `navigatorId`; every pushed route gets a
+  `routeInstanceId`. Stacked anonymous modals stay distinguishable.
+  Install nested observers with `TugboatReplay.createNavigatorObserver()`.
+- **Navigation origin contract** — `route_change` events carry
+  `navigationOrigin` (`interaction` | `automatic_or_unknown`) and optional
+  `causeEventId`. Only observer-time single-use pending-interaction claims can
+  bind a tap; timer/auth redirects never fabricate causality.
+- **Versioned `captureCoordinate`** — taps retain legacy global `x`/`y` and add
+  a boundary-local / normalized / raster transform bound to the before-frame.
+  Outside-boundary and generation-mismatch cases emit an unavailable reason
+  instead of clamping.
 - **Replay coherence characterization harness** — deterministic, advanceable
   scheduler/capture test seams (`debugNow`, `debugDelay`, `debugExecuteCapture`,
   `debugSeedFrame`) plus reusable helpers that reproduce known navigation/frame
@@ -38,6 +50,15 @@
 
 ### Changed
 
+- **Tap/navigation causality fence** — tap settlement joins a route-capture
+  barrier only when that route explicitly claimed the same tap event.
+  Automatic redirects that overlap settlement, including successors of a
+  tap-caused route, remain independent and cannot donate their frame or route
+  event ID to the tap.
+- **Frame-owned coordinate geometry** — frame provenance now retains the
+  capture boundary's logical rect and transform generation. Resizes, rotations,
+  and inset changes invalidate stale before-frame attachment and emit
+  `generation_mismatch` instead of projecting a current tap onto older pixels.
 - **Replay capture contract documentation** — documents the implemented route/frame
   attribution invariant separately from the still-open production acceptance
   gaps for rapid modal chains, automatic navigation, and playback tap-coordinate

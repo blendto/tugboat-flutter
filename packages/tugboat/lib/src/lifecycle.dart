@@ -3,12 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'capture_profile.dart';
 
 /// Explicit capture lifecycle states owned by the SDK gate.
-enum TugboatLifecycleState {
-  dormant,
-  starting,
-  active,
-  stopping,
-}
+enum TugboatLifecycleState { dormant, starting, active, stopping }
 
 /// Monotonic lifecycle requests observed by the always-mounted activation gate.
 class TugboatLifecycleNotifier extends ChangeNotifier {

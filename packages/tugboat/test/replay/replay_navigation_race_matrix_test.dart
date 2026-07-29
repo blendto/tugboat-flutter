@@ -121,7 +121,7 @@ Future<void> _tearDownObservedApp(WidgetTester tester) async {
 
 void main() {
   testWidgets(
-    'rapid Navigator successors retain evidence only for visible epoch',
+    'automatic Navigator successor stays independent of the claimed tap',
     (tester) async {
       final navigatorKey = GlobalKey<NavigatorState>();
       final controller = await _mountObservedApp(
@@ -162,14 +162,12 @@ void main() {
       final settle = _ofType(session, 'tap_settled').single;
       expect(changes.map((event) => event.data['route']), <String>['/b']);
       expect(settle.relatedEventId, tap.id);
-      expect(settle.afterFrame, changes.single.afterFrame);
-      expect(
-        CoherenceInvariants.hasChronologicalChain(
-          events: session.events,
-          orderedEventIds: <String>[tap.id, changes.single.id, settle.id],
-        ),
-        isTrue,
+      final observation = Map<String, Object?>.from(
+        settle.data['settleObservation']! as Map,
       );
+      expect(settle.afterFrame, isNull);
+      expect(observation['navigationOutcome'], 'same_route');
+      expect(observation['routeEventId'], isNull);
       final routeFrame = changes.single.afterFrame;
       expect(
         routeFrame,
@@ -250,14 +248,13 @@ void main() {
     expect(change.data['route'], '/home');
     expect(settle.relatedEventId, tap.id);
     expect(settle.beforeFrame, isNull);
-    expect(settle.afterFrame, change.afterFrame);
-    expect(
-      CoherenceInvariants.hasChronologicalChain(
-        events: session.events,
-        orderedEventIds: <String>[tap.id, change.id, settle.id],
-      ),
-      isTrue,
+    expect(settle.afterFrame, isNull);
+    final observation = Map<String, Object?>.from(
+      settle.data['settleObservation']! as Map,
     );
+    expect(observation['navigationOutcome'], 'same_route');
+    expect(observation['routeEventId'], isNull);
+    expect(change.afterFrame, isNotNull);
     _expectEveryDiagnosticRequestIsResolvedOnce(session);
     expect(CoherenceInvariants.hasNoStrandedCaptureWork(harness), isTrue);
     await harness.tearDownWidgetBacked(tester);

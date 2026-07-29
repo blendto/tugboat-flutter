@@ -91,11 +91,7 @@ void main() {
 
   test('entry bounds are enforced', () async {
     final store = TugboatOutboxStore(
-      config: TugboatOutboxConfig(
-        enabled: true,
-        directory: dir,
-        maxEntries: 2,
-      ),
+      config: TugboatOutboxConfig(enabled: true, directory: dir, maxEntries: 2),
     );
     for (var i = 0; i < 4; i++) {
       await store.append(

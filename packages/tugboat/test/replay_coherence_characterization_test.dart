@@ -83,12 +83,9 @@ void main() {
         frameContentHash: 'scan-pixels',
       );
 
-      // Pointer-up enqueues tap_settled first.
+      // The observer callback runs while the pointer claim is active, proving
+      // that this route was caused by the tap.
       harness.controller.recordPointerDown(const Offset(20, 20));
-      harness.controller.recordPointerUp(const Offset(20, 20));
-
-      // Navigation callback arrives while settle is queued. The settle must
-      // join this route epoch's capture instead of consuming the old frame.
       final routeFuture = harness.controller.route(
         'route_push',
         harness.route(
@@ -96,6 +93,7 @@ void main() {
           transitionDuration: const Duration(milliseconds: 200),
         ),
       );
+      harness.controller.recordPointerUp(const Offset(20, 20));
 
       // Pump queue work without advancing the route deadline: settle is now
       // waiting on the route barrier, not publishing stale evidence.
@@ -165,7 +163,7 @@ void main() {
   );
 
   test(
-    'navigation before pointer-up shares one route capture across settles',
+    'automatic route active before taps stays independent of both settles',
     () async {
       final harness = ReplayCoherenceHarness(
         settleDelay: const Duration(milliseconds: 20),
@@ -200,10 +198,13 @@ void main() {
       final routeFrame = session.ofType('route_change').single.afterFrame;
       final settles = session.ofType('tap_settled');
       expect(settles, hasLength(2));
-      expect(
-        settles.map((event) => event.afterFrame),
-        everyElement(routeFrame),
-      );
+      for (final settle in settles) {
+        final observation = Map<String, Object?>.from(
+          settle.data['settleObservation']! as Map,
+        );
+        expect(observation['navigationOutcome'], 'same_route');
+        expect(observation['routeEventId'], isNull);
+      }
       expect(
         harness.capturer.triggers.where(
           (trigger) => trigger == TugboatFrameTrigger.route,
@@ -214,7 +215,7 @@ void main() {
     },
   );
 
-  test('route just before tap settle boundary wins the capture slot', () async {
+  test('automatic route before tap settle stays independent', () async {
     final harness = ReplayCoherenceHarness(
       settleDelay: const Duration(milliseconds: 20),
     );
@@ -236,73 +237,85 @@ void main() {
 
     final session = harness.controller.session!;
     final routeFrame = session.ofType('route_change').single.afterFrame;
-    expect(session.ofType('tap_settled').single.afterFrame, routeFrame);
+    final settle = session.ofType('tap_settled').single;
+    final observation = Map<String, Object?>.from(
+      settle.data['settleObservation']! as Map,
+    );
+    expect(settle.afterFrame, isNot(routeFrame));
+    expect(observation['navigationOutcome'], 'same_route');
+    expect(observation['routeEventId'], isNull);
     expect(
       harness.capturer.triggers.where(
         (trigger) => trigger == TugboatFrameTrigger.route,
       ),
       hasLength(1),
     );
-    expect(harness.capturer.triggers, isNot(contains(TugboatFrameTrigger.tap)));
+    expect(
+      harness.capturer.triggers.where(
+        (trigger) => trigger == TugboatFrameTrigger.tap,
+      ),
+      hasLength(1),
+    );
+  });
+
+  test('automatic route during tap readback stays independent', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    harness.seedRouteState(route: '/scan', signature: 'sig-scan');
+    harness.capturer.blockNext = true;
+    harness.controller.recordPointerDown(const Offset(10, 10));
+    harness.controller.recordPointerUp(const Offset(10, 10));
+    await harness.pumpQueueWork();
+    expect(harness.capturer.blockedCount, 1);
+
+    final routeFuture = harness.controller.route(
+      'route_push',
+      harness.route('/home'),
+    );
+    harness.capturer.completeBlocked('stale-tap-frame');
+    await harness.flushScheduler();
+    await routeFuture;
+
+    final session = harness.controller.session!;
+    final routeChange = session.ofType('route_change').single;
+    final settle = session.ofType('tap_settled').single;
+    final observation = Map<String, Object?>.from(
+      settle.data['settleObservation']! as Map,
+    );
+    expect(settle.afterFrame, isNull);
+    expect(settle.result, isNot(TugboatInteractionResult.navigated));
+    expect(observation['navigationOutcome'], 'same_route');
+    expect(observation['routeEventId'], isNull);
+    expect(routeChange.afterFrame, isNotNull);
   });
 
   test(
-    'route starting during tap readback replaces the same-route observation',
+    'automatic successors cannot replace a tap-caused route barrier',
     () async {
       final harness = ReplayCoherenceHarness();
       await harness.setUp();
       addTearDown(harness.dispose);
-
-      harness.seedRouteState(route: '/scan', signature: 'sig-scan');
-      harness.capturer.blockNext = true;
-      harness.controller.recordPointerDown(const Offset(10, 10));
-      harness.controller.recordPointerUp(const Offset(10, 10));
-      await harness.pumpQueueWork();
-      expect(harness.capturer.blockedCount, 1);
-
-      final routeFuture = harness.controller.route(
-        'route_push',
-        harness.route('/home'),
-      );
-      harness.capturer.completeBlocked('stale-tap-frame');
+      harness.seedRouteState(route: '/root', signature: 'root');
+      harness.controller.recordPointerDown(const Offset(1, 1));
+      final a = harness.controller.route('route_push', harness.route('/a'));
+      harness.controller.recordPointerUp(const Offset(1, 1));
+      final b = harness.controller.route('route_push', harness.route('/b'));
+      final c = harness.controller.route('route_push', harness.route('/c'));
       await harness.flushScheduler();
-      await routeFuture;
-
-      final session = harness.controller.session!;
-      final routeChange = session.ofType('route_change').single;
-      final settle = session.ofType('tap_settled').single;
-      expect(settle.afterFrame, routeChange.afterFrame);
-      expect(settle.stateAnchor, routeChange.stateAnchor);
-      expect(settle.result, TugboatInteractionResult.navigated);
-      expect(
-        settle.data['settleObservation'],
-        allOf(
-          containsPair('route', '/home'),
-          containsPair('routeEventId', routeChange.id),
-        ),
+      await Future.wait([a, b, c]);
+      final changes = harness.controller.session!.ofType('route_change');
+      expect(changes.map((event) => event.data['route']), ['/c']);
+      final settle = harness.controller.session!.ofType('tap_settled').single;
+      final observation = Map<String, Object?>.from(
+        settle.data['settleObservation']! as Map,
       );
+      expect(settle.afterFrame, isNull);
+      expect(observation['navigationOutcome'], 'navigation_unavailable');
+      expect(observation['routeEventId'], isNull);
     },
   );
-
-  test('successor chain resolves a waiting settle only to C', () async {
-    final harness = ReplayCoherenceHarness();
-    await harness.setUp();
-    addTearDown(harness.dispose);
-    harness.seedRouteState(route: '/root', signature: 'root');
-    harness.controller.recordPointerDown(const Offset(1, 1));
-    final a = harness.controller.route('route_push', harness.route('/a'));
-    harness.controller.recordPointerUp(const Offset(1, 1));
-    final b = harness.controller.route('route_push', harness.route('/b'));
-    final c = harness.controller.route('route_push', harness.route('/c'));
-    await harness.flushScheduler();
-    await Future.wait([a, b, c]);
-    final changes = harness.controller.session!.ofType('route_change');
-    expect(changes.map((event) => event.data['route']), ['/c']);
-    expect(
-      harness.controller.session!.ofType('tap_settled').single.afterFrame,
-      changes.single.afterFrame,
-    );
-  });
 
   test('cancelling a settle deadline removes its scheduler entry', () async {
     final harness = ReplayCoherenceHarness(

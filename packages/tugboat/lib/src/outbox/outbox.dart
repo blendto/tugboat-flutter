@@ -99,8 +99,7 @@ class TugboatOutboxStore {
   bool _loaded = false;
 
   int get entryCount => _entries.length;
-  int get byteSize =>
-      _entries.fold<int>(0, (sum, e) => sum + e.estimatedBytes);
+  int get byteSize => _entries.fold<int>(0, (sum, e) => sum + e.estimatedBytes);
   List<String> get quarantineReasons =>
       List<String>.unmodifiable(_quarantineReasons);
 
@@ -196,9 +195,7 @@ class TugboatOutboxStore {
 
   Future<void> _enforceBounds() async {
     final now = DateTime.now().toUtc();
-    _entries.removeWhere(
-      (e) => now.difference(e.createdAt) > config.maxAge,
-    );
+    _entries.removeWhere((e) => now.difference(e.createdAt) > config.maxAge);
     while (_entries.length > config.maxEntries || byteSize > config.maxBytes) {
       if (_entries.isEmpty) break;
       _entries.removeAt(0);

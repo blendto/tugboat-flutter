@@ -40,7 +40,9 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
 }
 
 /// Immutable build identity required for Context Graph matching.
-Map<String, Object?> collectorEventBuildIdentity(TugboatCollectorConfig config) {
+Map<String, Object?> collectorEventBuildIdentity(
+  TugboatCollectorConfig config,
+) {
   return {
     'appId': config.appInfo.appId,
     'platform': config.deviceInfo.platform,

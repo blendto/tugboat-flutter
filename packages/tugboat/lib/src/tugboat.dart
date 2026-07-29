@@ -34,7 +34,17 @@ class TugboatReplay {
   static final GlobalKey _boundaryKey = GlobalKey(
     debugLabel: 'tugboat-capture-boundary',
   );
+
+  /// Convenience root [NavigatorObserver]. Prefer this for the app's primary
+  /// Navigator.
   static final TugboatNavigatorObserver navigatorObserver =
+      TugboatNavigatorObserver();
+
+  /// Creates a dedicated observer for a nested [Navigator].
+  ///
+  /// Flutter does not safely auto-discover nested Navigators; install one
+  /// observer instance per Navigator whose transitions must be attributed.
+  static TugboatNavigatorObserver createNavigatorObserver() =>
       TugboatNavigatorObserver();
   static final TugboatLifecycleNotifier _lifecycle = TugboatLifecycleNotifier();
 
@@ -134,38 +144,55 @@ class TugboatReplay {
   }
 }
 
+/// Observes one [Navigator] and reports transitions to the active controller.
+///
+/// Install the root convenience instance via [TugboatReplay.navigatorObserver].
+/// For nested Navigators that must be attributed, create a dedicated observer
+/// with [TugboatReplay.createNavigatorObserver] (or `TugboatNavigatorObserver()`)
+/// and install it on that Navigator — one observer instance per Navigator.
 class TugboatNavigatorObserver extends NavigatorObserver {
   void _syncContext() {
     if (TugboatReplay.disabled) return;
-    TugboatReplay.controller?.navigatorContext = navigator?.context;
+    // Prefer the root navigator for pointer/anchor context; nested observers
+    // still report their own NavigatorState into route ownership.
+    if (identical(this, TugboatReplay.navigatorObserver)) {
+      TugboatReplay.controller?.navigatorContext = navigator?.context;
+    }
+  }
+
+  void _emit(
+    String type,
+    Route<dynamic>? destination, {
+    Route<dynamic>? departing,
+  }) {
+    if (TugboatReplay.disabled) return;
+    _syncContext();
+    TugboatReplay.controller?.route(
+      type,
+      destination,
+      navigatorState: navigator,
+      departingRoute: departing,
+    );
   }
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (TugboatReplay.disabled) return;
-    _syncContext();
-    TugboatReplay.controller?.route('route_push', route);
+    _emit('route_push', route);
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (TugboatReplay.disabled) return;
-    _syncContext();
-    TugboatReplay.controller?.route('route_pop', previousRoute);
+    _emit('route_pop', previousRoute, departing: route);
   }
 
   @override
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
-    if (TugboatReplay.disabled) return;
-    _syncContext();
-    TugboatReplay.controller?.route('route_replace', newRoute);
+    _emit('route_replace', newRoute, departing: oldRoute);
   }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (TugboatReplay.disabled) return;
-    _syncContext();
-    TugboatReplay.controller?.route('route_remove', previousRoute);
+    _emit('route_remove', previousRoute, departing: route);
   }
 }
 

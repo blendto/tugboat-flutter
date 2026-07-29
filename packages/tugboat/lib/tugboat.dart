@@ -29,8 +29,15 @@ export 'src/health.dart'
         TugboatOutboxHealth,
         TugboatScreenshotBudgetHealth,
         TugboatSanitizedFailure;
-export 'src/lifecycle.dart' show TugboatLifecycleState, TugboatLifecycleNotifier;
+export 'src/lifecycle.dart'
+    show TugboatLifecycleState, TugboatLifecycleNotifier;
 export 'src/models.dart';
+export 'src/coordinate_space.dart'
+    show
+        tugboatCaptureCoordinateVersion,
+        TugboatCoordinateSourceSpace,
+        TugboatCaptureCoordinate,
+        buildCaptureCoordinate;
 export 'src/outbox/outbox.dart'
     show TugboatOutboxConfig, TugboatOutboxEnvelope, TugboatOutboxStore;
 export 'src/replay_config.dart'

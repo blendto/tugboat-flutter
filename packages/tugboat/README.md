@@ -5,7 +5,7 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.4.11`. Session JSON uses schema version `7`
+The current package version is `0.4.12`. Session JSON uses schema version `7`
 (readers still accept `6`), and structural fingerprints use fingerprint schema
 version `6`.
 
@@ -39,8 +39,17 @@ MaterialApp(
 ```
 
 Without `TugboatReplay.navigatorObserver`, pointer and scroll capture still
-work, but route-change events and route-backed anchors are incomplete. Without
-`wrapApp`, no capture controller, repaint boundary, or input/scroll listener is
+work, but route-change events and route-backed anchors are incomplete. Nested
+Navigators that must be attributed need their own observer instance:
+
+```dart
+Navigator(
+  observers: [TugboatReplay.createNavigatorObserver()],
+  // ...
+);
+```
+
+Without `wrapApp`, no capture controller, repaint boundary, or input/scroll listener is
 installed.
 
 ### Navigation and overlays

@@ -47,6 +47,10 @@ Do not start the production cohort until every item is true:
 
 - all behavioral replay-correctness PRs are merged to `main`;
 - the navigation and interaction race matrix passes on the merged commit;
+- the modal visual matrix, programmatic navigation matrix, navigation-origin
+  contract, and tap coordinate transform suites pass;
+- the production dashboard deployment consumes `captureCoordinate` (canonical
+  marker projection) before Blend canary sessions rely on it;
 - `flutter analyze` and the complete `packages/tugboat` test suite pass;
 - `packages/tugboat/pubspec.yaml` and
   `packages/tugboat/lib/src/sdk_version.dart` contain the same new version;
