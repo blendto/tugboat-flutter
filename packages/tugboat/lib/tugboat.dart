@@ -5,6 +5,10 @@ export 'src/anchors.dart'
         TugboatNormalizedBounds,
         TugboatStateAnchor,
         TugboatTargetAnchor,
+        TugboatEncodedControlScalar,
+        TugboatControlValue,
+        tugboatControlValueSchemaVersion,
+        tugboatControlValueForWidget,
         tugboatIconLabel,
         tugboatIconHash,
         tugboatLabelHash;

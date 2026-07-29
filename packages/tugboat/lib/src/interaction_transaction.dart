@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
+import 'control_value.dart';
 import 'coordinate_space.dart';
 import 'models.dart';
 
@@ -29,6 +30,7 @@ class InteractionOrigin {
     required this.startPosition,
     required this.pointerGeneration,
     required this.captureSessionId,
+    this.controlValue,
   });
 
   final String interactionId;
@@ -43,6 +45,7 @@ class InteractionOrigin {
   final Offset startPosition;
   final int pointerGeneration;
   final String? captureSessionId;
+  final TugboatControlValue? controlValue;
 
   Map<String, Object?> toJson() => {
     'interactionId': interactionId,
@@ -57,6 +60,7 @@ class InteractionOrigin {
     'startPosition': {'x': startPosition.dx, 'y': startPosition.dy},
     'pointerGeneration': pointerGeneration,
     if (captureSessionId != null) 'captureSessionId': captureSessionId,
+    if (controlValue != null) 'controlValue': controlValue!.toJson(),
   };
 }
 
@@ -164,7 +168,8 @@ class InteractionTransaction {
   String get id => origin.interactionId;
 
   bool get isSwipeOrScroll =>
-      gesture == InteractionGesture.swipe || gesture == InteractionGesture.scroll;
+      gesture == InteractionGesture.swipe ||
+      gesture == InteractionGesture.scroll;
 
   bool get isEligible => !claimed && !cancelled && !semanticPublished;
 
@@ -236,7 +241,8 @@ class InteractionRegistry {
     _pending[tx.pointerId] = tx;
   }
 
-  InteractionTransaction? removePending(int pointer) => _pending.remove(pointer);
+  InteractionTransaction? removePending(int pointer) =>
+      _pending.remove(pointer);
 
   void release(InteractionTransaction tx) {
     _pending.remove(tx.pointerId);

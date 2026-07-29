@@ -2266,6 +2266,7 @@ class TugboatReplayController extends ChangeNotifier {
     TugboatTargetAnchor? target;
     TugboatStateAnchor? tapState = _currentStateAnchor;
     TugboatSceneInventory? tapInventory;
+    TugboatControlValue? controlValue;
 
     if (resolver != null && config.profile != TugboatCaptureProfile.dormant) {
       final tapContext = resolver.buildTapContext(
@@ -2276,6 +2277,7 @@ class TugboatReplayController extends ChangeNotifier {
       );
       target = tapContext.target;
       tapInventory = tapContext.inventory;
+      controlValue = resolver.controlValueAt(position);
       if (tapInventory != null) {
         _currentStateAnchor = tapInventory.stateAnchor;
         tapState = tapInventory.stateAnchor;
@@ -2283,6 +2285,7 @@ class TugboatReplayController extends ChangeNotifier {
       }
     } else {
       target = resolver?.targetAt(position, route: _currentRoute);
+      controlValue = resolver?.controlValueAt(position);
     }
 
     // Resolve after the tap context so a stale settled map can be refreshed
@@ -2315,6 +2318,7 @@ class TugboatReplayController extends ChangeNotifier {
         },
       if (viewportResolution != null)
         'viewportSemanticResolution': viewportResolution.toJson(),
+      if (controlValue != null) 'controlValue': controlValue.toJson(),
     };
 
     final beforeState = tapState;
@@ -2333,6 +2337,7 @@ class TugboatReplayController extends ChangeNotifier {
       startPosition: position,
       pointerGeneration: ++_pointerGeneration,
       captureSessionId: _session?.id,
+      controlValue: controlValue,
     );
     final tx = InteractionTransaction(origin: origin, pointerId: pointer);
     final legacyStream = config.legacyGestureStream;
@@ -2764,6 +2769,9 @@ class TugboatReplayController extends ChangeNotifier {
           : null;
       final scrolled = scrollStartEventId != null;
       final tapWasEmitted = pending.tapEmitted;
+      final controlValue =
+          _anchorResolver?.controlValueAt(position) ??
+          pending.origin.controlValue;
       pending.gesture = scrolled
           ? InteractionGesture.scroll
           : InteractionGesture.swipe;
@@ -2803,6 +2811,7 @@ class TugboatReplayController extends ChangeNotifier {
               if (tapWasEmitted) 'invalidatesRelatedTap': true,
               if (scrollStartEventId != null)
                 'scrollStartEventId': scrollStartEventId,
+              if (controlValue != null) 'controlValue': controlValue.toJson(),
               'interactionId': pending.id,
             },
           ),
@@ -2982,6 +2991,16 @@ class TugboatReplayController extends ChangeNotifier {
         final visualChanged = visualAvailable
             ? beforeContentHash != afterContentHash
             : null;
+        // Sample after the host onChanged callback has run. Prefer the live
+        // control under the pointer; fall back to the tap-time snapshot for
+        // ephemeral menu items that disappear when the overlay closes.
+        final afterControlValue =
+            _anchorResolver?.controlValueAt(position) ??
+            pending.origin.controlValue;
+        final controlValuePayload = _controlValueSettlePayload(
+          before: pending.origin.controlValue,
+          after: afterControlValue,
+        );
 
         if (config.emitLegacyInteractionProjection) {
           _addEvent(
@@ -3042,6 +3061,8 @@ class TugboatReplayController extends ChangeNotifier {
                         observation.captureFailure ??
                         observation.captureOutcome,
                   },
+                if (controlValuePayload != null)
+                  'controlValue': controlValuePayload,
               },
             ),
           );
@@ -3137,6 +3158,23 @@ class TugboatReplayController extends ChangeNotifier {
       work.cancel(reason);
     }
     _activeTapSettles.clear();
+  }
+
+  /// Builds a before/after control-value payload for `tap_settled`.
+  Map<String, Object?>? _controlValueSettlePayload({
+    required TugboatControlValue? before,
+    required TugboatControlValue? after,
+  }) {
+    if (before == null && after == null) return null;
+    final role = after?.role ?? before!.role;
+    final widgetType = after?.widgetType ?? before?.widgetType;
+    return {
+      'schemaVersion': tugboatControlValueSchemaVersion,
+      'role': role,
+      if (widgetType != null && widgetType.isNotEmpty) 'widgetType': widgetType,
+      if (before != null) 'before': before.toJson(),
+      if (after != null) 'after': after.toJson(),
+    };
   }
 
   TugboatInteractionResult _computeTapSettleResult({

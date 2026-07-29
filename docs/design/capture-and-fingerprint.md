@@ -235,6 +235,18 @@ Developer-authored identity strings can still be emitted:
 - widget type names or configured `widgetNames` replacements;
 - canonical structural paths.
 
+Interaction events may also carry a privacy-safe `controlValue` payload for
+valued controls (checkbox, switch, radio, slider, dropdown / menu item, chip):
+
+- bools and numbers are emitted literally;
+- enums and short developer-token strings are emitted as tokens;
+- free-text option strings are hashed (`str:<hash>`) with length only.
+
+`tap` includes the value sampled at pointer-down. `tap_settled` includes
+`before` / `after` snapshots so toggle flips and post-callback radio/dropdown
+selections are visible. Slider drags that become `swipe` events also carry the
+value sampled at pointer-up.
+
 Bounds, pointer coordinates, scroll metrics, and masked screenshot pixels are
 also capture data. Apps must treat tags, route names, and subview labels as
 telemetry and avoid putting user data in them.

@@ -169,6 +169,33 @@ class AnchorResolver {
     );
   }
 
+  /// Privacy-safe control value under [globalPosition], if any.
+  ///
+  /// Samples toggle/radio/dropdown/slider widget state at hit time. Free-text
+  /// option labels are hashed; bools, numbers, enums, and short developer
+  /// tokens are retained.
+  TugboatControlValue? controlValueAt(Offset globalPosition) {
+    final rootContext = rootKey.currentContext;
+    final rootRender = rootContext?.findRenderObject();
+    if (rootRender is! RenderBox || rootContext is! Element) return null;
+
+    final tokenMap = _tokenMapFor(rootContext, rootRender);
+    if (tokenMap == null) return null;
+
+    final result = BoxHitTestResult();
+    final localPosition = rootRender.globalToLocal(globalPosition);
+    rootRender.hitTest(result, position: localPosition);
+
+    for (final entry in result.path) {
+      if (entry.target is! RenderObject) continue;
+      final element = tokenMap.renderElements[entry.target as RenderObject];
+      if (element == null || tugboatIsCaptureChrome(element.widget)) continue;
+      final value = tugboatControlValueForElement(element);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
   /// Builds inventory and resolves a tap target from one token-map walk.
   ({TugboatSceneInventory? inventory, TugboatTargetAnchor? target})
   buildTapContext({
