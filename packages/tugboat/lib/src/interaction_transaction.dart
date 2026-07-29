@@ -171,6 +171,9 @@ class InteractionTransaction {
   String? afterFrame;
   int? resultObservedAtMs;
   TugboatStateAnchor? resultStateAnchor;
+  TugboatControlValue? resultControlValue;
+  Map<String, Object?>? controlValueTransition;
+  TugboatSemanticAnnotation? resultSemanticAnnotation;
 
   Completer<void>? _successorSignal;
 
@@ -223,6 +226,12 @@ class InteractionTransaction {
     if (resultStateAnchor != null) 'stateAnchor': resultStateAnchor!.toJson(),
     if (afterFrame != null) 'afterFrame': afterFrame,
     if (resultObservedAtMs != null) 'observedAtMs': resultObservedAtMs,
+    if (resultControlValue != null)
+      'controlValue': resultControlValue!.toJson(),
+    if (controlValueTransition != null)
+      'controlValueTransition': controlValueTransition,
+    if (resultSemanticAnnotation != null)
+      'semanticAnnotation': resultSemanticAnnotation!.toJson(),
   };
 
   Map<String, Object?> attributionToJson({int? windowMs}) => {

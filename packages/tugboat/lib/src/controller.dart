@@ -2818,6 +2818,8 @@ class TugboatReplayController extends ChangeNotifier {
           ? InteractionResultStatus.changed
           : InteractionResultStatus.unchanged;
       pending.resultObservedAtMs = atMs;
+      pending.resultControlValue = controlValue;
+      pending.resultSemanticAnnotation = semantic;
       if (scrollStartEventId != null) pending.addEvidence(scrollStartEventId);
       if (config.emitLegacyInteractionProjection) {
         _addEvent(
@@ -3160,6 +3162,8 @@ class TugboatReplayController extends ChangeNotifier {
         pending.resultStateAnchor = afterState;
         pending.resultRoute = observation.route;
         pending.resultObservedAtMs = atMs;
+        pending.controlValueTransition = controlValueTransition;
+        pending.resultSemanticAnnotation = semanticAnnotation;
         if (observation.routeEventId != null) {
           pending.addEvidence(observation.routeEventId!);
         }

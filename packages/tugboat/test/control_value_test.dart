@@ -7,6 +7,16 @@ import 'package:tugboat/tugboat.dart';
 const _testConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
   settleDelay: Duration.zero,
+  interactionClaimWindow: Duration.zero,
+  enableGlobalPointerCapture: false,
+  capturePixelRatio: 1.0,
+);
+
+const _canonicalTestConfig = TugboatReplayConfig(
+  profile: TugboatCaptureProfile.exploration,
+  settleDelay: Duration.zero,
+  interactionClaimWindow: Duration.zero,
+  interactionPublishMode: TugboatInteractionPublishMode.canonicalOnly,
   enableGlobalPointerCapture: false,
   capturePixelRatio: 1.0,
 );
@@ -261,6 +271,10 @@ void main() {
       tester.getCenter(find.byKey(firstKey)),
       pointer: 1,
     );
+    firstController.recordPointerUp(
+      tester.getCenter(find.byKey(firstKey)),
+      pointer: 1,
+    );
     final firstTap = firstController.session!.events.lastWhere(
       (event) => event.type == 'tap',
     );
@@ -270,6 +284,10 @@ void main() {
     secondController.start(const Size(400, 600), 'test');
     await tester.pump();
     firstController.recordPointerDown(
+      tester.getCenter(find.byKey(firstKey)),
+      pointer: 2,
+    );
+    firstController.recordPointerUp(
       tester.getCenter(find.byKey(firstKey)),
       pointer: 2,
     );
@@ -339,6 +357,94 @@ void main() {
     );
     expect(((settledValue?['after'] as Map)['value'] as Map)['value'], isTrue);
     expect(enabled, isTrue);
+  });
+
+  testWidgets('canonical-only tap retains the control transition', (
+    tester,
+  ) async {
+    var enabled = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _canonicalTestConfig, child: child!),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => Switch(
+              key: const Key('canonical-switch'),
+              value: enabled,
+              onChanged: (next) => setState(() => enabled = next),
+            ),
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.tap(find.byKey(const Key('canonical-switch')));
+    await _waitForCaptures(tester);
+
+    final session = TugboatReplay.controller!.session!;
+    expect(
+      session.events.where((event) => event.type == 'tap_settled'),
+      isEmpty,
+    );
+    final interaction = session.events.firstWhere(
+      (event) => event.type == 'interaction',
+    );
+    final result = Map<String, Object?>.from(
+      interaction.data['result']! as Map,
+    );
+    final transition = Map<String, Object?>.from(
+      result['controlValueTransition']! as Map,
+    );
+    expect(transition['role'], 'switch');
+    expect(((transition['before'] as Map)['value'] as Map)['value'], isFalse);
+    expect(((transition['after'] as Map)['value'] as Map)['value'], isTrue);
+  });
+
+  testWidgets('canonical-only swipe retains final control metadata', (
+    tester,
+  ) async {
+    var value = 0.0;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _canonicalTestConfig, child: child!),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => Slider(
+              key: const Key('canonical-slider'),
+              value: value,
+              onChanged: (next) => setState(() => value = next),
+            ),
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    await tester.drag(
+      find.byKey(const Key('canonical-slider')),
+      const Offset(80, 0),
+    );
+    await _waitForCaptures(tester);
+
+    final session = TugboatReplay.controller!.session!;
+    expect(session.events.where((event) => event.type == 'swipe'), isEmpty);
+    final interaction = session.events.firstWhere(
+      (event) =>
+          event.type == 'interaction' &&
+          (event.data['gesture'] == 'swipe' ||
+              event.data['gesture'] == 'scroll'),
+    );
+    final result = Map<String, Object?>.from(
+      interaction.data['result']! as Map,
+    );
+    final controlValue = Map<String, Object?>.from(
+      result['controlValue']! as Map,
+    );
+    expect(controlValue['role'], 'slider');
+    expect((controlValue['value'] as Map)['value'], isA<num>());
   });
 
   testWidgets('radio tap records which option was selected', (tester) async {
@@ -680,6 +786,7 @@ void main() {
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.exploration,
             settleDelay: Duration(milliseconds: 120),
+            interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
             capturePixelRatio: 1.0,
           ),
@@ -780,6 +887,7 @@ void main() {
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.productionLean,
             settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
             capturePixelRatio: 1.0,
           ),
