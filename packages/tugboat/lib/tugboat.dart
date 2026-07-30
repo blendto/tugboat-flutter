@@ -5,6 +5,21 @@ export 'src/anchors.dart'
         TugboatNormalizedBounds,
         TugboatStateAnchor,
         TugboatTargetAnchor,
+        TugboatEncodedControlScalar,
+        TugboatVisibleControlValue,
+        TugboatControlValueScope,
+        TugboatControlValue,
+        TugboatSemanticAnnotation,
+        tugboatControlValueSchemaVersion,
+        tugboatControlValueTransitionSchemaVersion,
+        tugboatSemanticAnnotationSchemaVersion,
+        tugboatControlValueForWidget,
+        tugboatControlValueFromSemanticsProperties,
+        tugboatControlValueFromSemanticsNode,
+        tugboatSemanticAnnotationFromProperties,
+        tugboatSemanticAnnotationFromNode,
+        tugboatMergeSemanticAnnotations,
+        tugboatMergeControlValues,
         tugboatIconLabel,
         tugboatIconHash,
         tugboatLabelHash;
@@ -31,7 +46,8 @@ export 'src/health.dart'
         TugboatSanitizedFailure;
 export 'src/lifecycle.dart'
     show TugboatLifecycleState, TugboatLifecycleNotifier;
-export 'src/interaction_transaction.dart' show tugboatDefaultReconciliationWindow;
+export 'src/interaction_transaction.dart'
+    show tugboatDefaultReconciliationWindow;
 export 'src/models.dart';
 export 'src/coordinate_space.dart'
     show

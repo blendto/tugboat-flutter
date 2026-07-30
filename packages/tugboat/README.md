@@ -5,7 +5,7 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.4.15`. Session JSON uses schema version `8`
+The current package version is `0.4.17`. Session JSON uses schema version `8`
 (readers still accept `6`), and structural fingerprints use fingerprint schema
 version `6`.
 
@@ -209,10 +209,11 @@ Available mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
 stay visible; other custom-painted or decorated image surfaces are not
 classified by this mode, so wrap them in `TugboatSensitive` when needed).
 
-The structural telemetry does not retain arbitrary `Text`, accessibility,
-tooltip, or icon label strings. Dynamic list discriminators are hashed before
-they enter canonical paths. Telemetry does include developer-authored routing
-and identity strings where applicable:
+Control values and semantic strings are retained verbatim so session summaries
+and aggregate analysis can use values such as slider positions, video duration,
+and selected templates. Dynamic list discriminators remain hashed before they
+enter canonical paths. Telemetry also includes developer-authored routing and
+identity strings where applicable:
 
 - route names in `route_change.data` and anchor `routeKey` fields;
 - `TugboatSubView.label` in state/scroll context;
@@ -222,10 +223,35 @@ and identity strings where applicable:
 - normalized bounds, pointer coordinates, scroll metrics, and screenshot
   pixels after the configured masking policy is applied.
 
-Screenshots are the only captured surface that can contain rendered user
-content. Choose an explicit production masking policy and test custom widgets,
-platform views, and overlays in the target app before enabling production
-capture.
+Screenshots and telemetry can contain rendered or semantic user content. Choose
+an explicit production masking policy and test custom widgets, platform views,
+overlays, and semantic labels before enabling production capture.
+
+### Explicit custom-control values
+
+Standard Flutter controls expose their typed state automatically. Wrap custom
+controls when the app knows a more useful stable key, unit, or range:
+
+```dart
+TugboatControlValueScope(
+  controlKey: 'video_duration',
+  role: 'slider',
+  unit: 'milliseconds',
+  min: 1_000,
+  max: 60_000,
+  step: 1_000,
+  value: TugboatVisibleControlValue.duration(
+    const Duration(seconds: 15),
+  ),
+  child: MyDurationSlider(),
+)
+```
+
+For template or preset selection, use a stable enum identifier:
+
+```dart
+value: TugboatVisibleControlValue.enumId('modern_minimal'),
+```
 
 ## Event and frame model
 
