@@ -1,3 +1,34 @@
+## 0.4.17
+
+### Changed
+
+- **Raw control and semantic values** — control values, semantic values, and
+  semantic labels are now sent verbatim instead of being tokenized. This makes
+  slider positions, durations, and template identifiers available for session
+  summaries and aggregate analysis.
+- **Explicit custom-control values** — `TugboatControlValueScope` exposes a
+  stable `controlKey`, typed number/duration/enum value, optional unit, and
+  numeric range metadata for controls whose value is not readable from a
+  standard Flutter widget.
+
+## 0.4.16
+
+### Added
+
+- **Privacy-safe interaction metadata** — valued controls and semantic
+  annotations can enrich tap, settle, swipe, and scroll events without
+  retaining arbitrary semantic text.
+
+### Changed
+
+- **Causal control-value transitions** — settled control values are captured
+  from the original interaction target and use a distinct transition payload.
+- **Canonical interaction parity** — canonical-only tap and swipe results retain
+  their post-interaction control and semantic metadata without relying on
+  legacy projection events.
+- **Cross-SDK semantics flags** — checked-state capture compiles on the
+  package's declared Flutter 3.35 minimum and newer enum-based SDKs.
+
 ## 0.4.15
 
 ### Added

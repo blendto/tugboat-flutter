@@ -29,6 +29,8 @@ class InteractionOrigin {
     required this.startPosition,
     required this.pointerGeneration,
     required this.captureSessionId,
+    this.controlValue,
+    this.semantic,
   });
 
   final String interactionId;
@@ -43,6 +45,8 @@ class InteractionOrigin {
   final Offset startPosition;
   final int pointerGeneration;
   final String? captureSessionId;
+  final TugboatControlValue? controlValue;
+  final TugboatSemanticAnnotation? semantic;
 
   Map<String, Object?> toJson() => {
     'interactionId': interactionId,
@@ -57,6 +61,8 @@ class InteractionOrigin {
     'startPosition': {'x': startPosition.dx, 'y': startPosition.dy},
     'pointerGeneration': pointerGeneration,
     if (captureSessionId != null) 'captureSessionId': captureSessionId,
+    if (controlValue != null) 'controlValue': controlValue!.toJson(),
+    if (semantic != null) 'semanticAnnotation': semantic!.toJson(),
   };
 }
 
@@ -129,10 +135,17 @@ enum InteractionRejectionReason {
 
 /// Bounded in-memory transaction for one pointer gesture.
 class InteractionTransaction {
-  InteractionTransaction({required this.origin, required this.pointerId});
+  InteractionTransaction({
+    required this.origin,
+    required this.pointerId,
+    this.metadata,
+    TugboatInteractionMetadata? resampleTarget,
+  }) : _resampleTarget = resampleTarget;
 
   final InteractionOrigin origin;
   final int pointerId;
+  final TugboatInteractionMetadata? metadata;
+  TugboatInteractionMetadata? _resampleTarget;
 
   InteractionGesture gesture = InteractionGesture.tap;
   bool claimed = false;
@@ -158,13 +171,17 @@ class InteractionTransaction {
   String? afterFrame;
   int? resultObservedAtMs;
   TugboatStateAnchor? resultStateAnchor;
+  TugboatControlValue? resultControlValue;
+  Map<String, Object?>? controlValueTransition;
+  TugboatSemanticAnnotation? resultSemanticAnnotation;
 
   Completer<void>? _successorSignal;
 
   String get id => origin.interactionId;
 
   bool get isSwipeOrScroll =>
-      gesture == InteractionGesture.swipe || gesture == InteractionGesture.scroll;
+      gesture == InteractionGesture.swipe ||
+      gesture == InteractionGesture.scroll;
 
   bool get isEligible => !claimed && !cancelled && !semanticPublished;
 
@@ -196,6 +213,12 @@ class InteractionTransaction {
     gesture = InteractionGesture.swipe;
   }
 
+  TugboatInteractionMetadata? takeResampleTarget() {
+    final target = _resampleTarget;
+    _resampleTarget = null;
+    return target;
+  }
+
   Map<String, Object?> resultToJson() => {
     'status': (resultStatus ?? InteractionResultStatus.unknown).name,
     if (resultRoute != null) 'route': resultRoute,
@@ -203,6 +226,12 @@ class InteractionTransaction {
     if (resultStateAnchor != null) 'stateAnchor': resultStateAnchor!.toJson(),
     if (afterFrame != null) 'afterFrame': afterFrame,
     if (resultObservedAtMs != null) 'observedAtMs': resultObservedAtMs,
+    if (resultControlValue != null)
+      'controlValue': resultControlValue!.toJson(),
+    if (controlValueTransition != null)
+      'controlValueTransition': controlValueTransition,
+    if (resultSemanticAnnotation != null)
+      'semanticAnnotation': resultSemanticAnnotation!.toJson(),
   };
 
   Map<String, Object?> attributionToJson({int? windowMs}) => {
@@ -236,7 +265,8 @@ class InteractionRegistry {
     _pending[tx.pointerId] = tx;
   }
 
-  InteractionTransaction? removePending(int pointer) => _pending.remove(pointer);
+  InteractionTransaction? removePending(int pointer) =>
+      _pending.remove(pointer);
 
   void release(InteractionTransaction tx) {
     _pending.remove(tx.pointerId);
