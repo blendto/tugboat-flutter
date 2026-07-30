@@ -245,7 +245,9 @@ void main() {
     expect((after['value'] as Map)['value'], isNot(0.25));
   });
 
-  testWidgets('invalid developer range metadata is not emitted', (tester) async {
+  testWidgets('invalid developer range metadata is not emitted', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
@@ -840,10 +842,7 @@ void main() {
     expect(tapValue.toString(), contains('Duration 30 seconds'));
 
     final annotation = _semanticAnnotationFrom(tap)!;
-    expect(
-      annotation['schemaVersion'],
-      tugboatSemanticAnnotationSchemaVersion,
-    );
+    expect(annotation['schemaVersion'], tugboatSemanticAnnotationSchemaVersion);
     expect(annotation['role'], 'button');
     expect((annotation['identifier'] as Map)['value'], 'duration-30');
     expect((annotation['value'] as Map)['value'], '30');
