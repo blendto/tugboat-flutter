@@ -9,6 +9,7 @@ void main() {
   const config = TugboatReplayConfig(
     profile: TugboatCaptureProfile.exploration,
     settleDelay: Duration.zero,
+    interactionClaimWindow: Duration.zero,
     enableGlobalPointerCapture: false,
     scrollCaptureInterval: Duration(milliseconds: 50),
     captureScrollSamples: true,

@@ -137,6 +137,7 @@ class _NavigationFixture {
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.exploration,
             settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: true,
             capturePixelRatio: 1,
           ),

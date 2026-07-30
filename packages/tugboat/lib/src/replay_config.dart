@@ -1,5 +1,7 @@
 import 'capture_profile.dart';
 import 'collector_config.dart';
+import 'interaction_transaction.dart' show tugboatDefaultReconciliationWindow;
+import 'models.dart';
 import 'outbox/outbox.dart';
 import 'screenshot_mask_level.dart';
 import 'sinks/capture_sink.dart' show TugboatCaptureSinkFactory;
@@ -24,20 +26,12 @@ class TugboatViewportSemanticPolicy {
     holdPersistentSemanticsHandle: false,
   );
 
-  /// Whether maps are built (for tap resolution and/or emission).
   final bool engineEnabled;
-
-  /// Whether `viewport_semantic_map` / `scroll_semantic_snapshot` events emit.
   final bool emitEvents;
-
-  /// Whether diagnostic prints are enabled.
   final bool debugLogs;
-
-  /// Hold Flutter [SemanticsHandle] for the whole session (exploration only).
   final bool holdPersistentSemanticsHandle;
 }
 
-/// Derives [TugboatViewportSemanticPolicy] from profile + mode.
 TugboatViewportSemanticPolicy resolveViewportSemanticPolicy({
   required TugboatCaptureProfile profile,
   required TugboatViewportSemanticMode mode,
@@ -70,7 +64,6 @@ TugboatViewportSemanticPolicy resolveViewportSemanticPolicy({
   );
 }
 
-/// Rolling screenshot budget policy.
 class TugboatScreenshotBudgetConfig {
   const TugboatScreenshotBudgetConfig({
     this.window = const Duration(seconds: 5),
@@ -90,6 +83,8 @@ class TugboatReplayConfig {
   const TugboatReplayConfig({
     this.profile = TugboatCaptureProfile.dormant,
     this.settleDelay = const Duration(seconds: 1),
+    this.interactionClaimWindow = tugboatDefaultReconciliationWindow,
+    this.interactionPublishMode = TugboatInteractionPublishMode.dualWrite,
     this.maxFrames = 500,
     this.maxEvents = 5000,
     this.scrollCaptureInterval = const Duration(seconds: 2),
@@ -113,6 +108,27 @@ class TugboatReplayConfig {
 
   final TugboatCaptureProfile profile;
   final Duration settleDelay;
+
+  /// Released-tap window for delayed route/modal attribution.
+  ///
+  /// Default is [tugboatDefaultReconciliationWindow] (1,250 ms). Set to
+  /// [Duration.zero] for microtask-only same-turn claims.
+  final Duration interactionClaimWindow;
+
+  /// Canonical vs legacy gesture publication policy.
+  final TugboatInteractionPublishMode interactionPublishMode;
+
+  bool get emitCanonicalInteractions =>
+      interactionPublishMode != TugboatInteractionPublishMode.legacyOnly;
+
+  bool get emitLegacyInteractionProjection =>
+      interactionPublishMode != TugboatInteractionPublishMode.canonicalOnly;
+
+  TugboatEventStream get legacyGestureStream =>
+      interactionPublishMode == TugboatInteractionPublishMode.dualWrite
+      ? TugboatEventStream.legacyProjection
+      : TugboatEventStream.semantic;
+
   final int maxFrames;
   final int maxEvents;
   final Duration scrollCaptureInterval;
@@ -151,6 +167,8 @@ class TugboatReplayConfig {
   TugboatReplayConfig copyWith({
     TugboatCaptureProfile? profile,
     Duration? settleDelay,
+    Duration? interactionClaimWindow,
+    TugboatInteractionPublishMode? interactionPublishMode,
     int? maxFrames,
     int? maxEvents,
     Duration? scrollCaptureInterval,
@@ -174,6 +192,10 @@ class TugboatReplayConfig {
     return TugboatReplayConfig(
       profile: profile ?? this.profile,
       settleDelay: settleDelay ?? this.settleDelay,
+      interactionClaimWindow:
+          interactionClaimWindow ?? this.interactionClaimWindow,
+      interactionPublishMode:
+          interactionPublishMode ?? this.interactionPublishMode,
       maxFrames: maxFrames ?? this.maxFrames,
       maxEvents: maxEvents ?? this.maxEvents,
       scrollCaptureInterval:

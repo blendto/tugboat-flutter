@@ -1,3 +1,112 @@
+## 0.4.17
+
+### Changed
+
+- **Raw control and semantic values** — control values, semantic values, and
+  semantic labels are now sent verbatim instead of being tokenized. This makes
+  slider positions, durations, and template identifiers available for session
+  summaries and aggregate analysis.
+- **Explicit custom-control values** — `TugboatControlValueScope` exposes a
+  stable `controlKey`, typed number/duration/enum value, optional unit, and
+  numeric range metadata for controls whose value is not readable from a
+  standard Flutter widget.
+
+## 0.4.16
+
+### Added
+
+- **Privacy-safe interaction metadata** — valued controls and semantic
+  annotations can enrich tap, settle, swipe, and scroll events without
+  retaining arbitrary semantic text.
+
+### Changed
+
+- **Causal control-value transitions** — settled control values are captured
+  from the original interaction target and use a distinct transition payload.
+- **Canonical interaction parity** — canonical-only tap and swipe results retain
+  their post-interaction control and semantic metadata without relying on
+  legacy projection events.
+- **Cross-SDK semantics flags** — checked-state capture compiles on the
+  package's declared Flutter 3.35 minimum and newer enum-based SDKs.
+
+## 0.4.15
+
+### Added
+
+- **Canonical `interaction` events** — each finalized gesture emits one
+  `stream: semantic` record with immutable `origin`, `result`, `attribution`,
+  and `evidenceEventIds` (`interactionSchema: 1`). Legacy `tap` / `tap_settled`
+  / `swipe` continue as dual-write peers on `stream: legacy_projection`.
+- **Evidence stream** — `route_change`, `state_change`, `scroll_start`,
+  `scroll_end`, and `pointer_cancel` emit on `stream: evidence` so default
+  semantic enrichment selects only canonical interactions.
+- **`enrichmentCandidate`** on collector-mapped events — false for evidence,
+  diagnostic, and legacy-projection records; true for canonical `interaction`
+  (and compat semantic tap/tap_settled/swipe when canonical emission is off).
+- **Delayed reconciliation window** — `interactionClaimWindow` defaults to
+  1,250 ms. A released tap can claim the first eligible visible route/modal
+  successor in that window (`interactionAttribution: delayed_likely`). Set the
+  window to `Duration.zero` to retain microtask-only same-turn claims.
+- **Diagnostic stream isolation** — `capture_diagnostic` events carry
+  `stream: diagnostic` so enrichment/insight queries can ignore them by
+  default. Session health still aggregates outcome counts.
+- **`causedByInteractionId`** on claimed `route_change` / `state_change`
+  (alongside existing `causeEventId`).
+
+### Fixed
+
+- **Swipe origin freeze** — swipe events retain the pointer-down state anchor
+  rather than refreshing live controller state at pointer-up.
+- **Settle waits for delayed successors** — when the claim window is active,
+  tap settlement holds until a successor claims or the deadline expires instead
+  of finalizing `unknown` immediately.
+- **Terminal cancelled interactions** — abandoning a pending/released
+  transaction (lifecycle, session end, supersede, post-up cancel) publishes a
+  canonical `gesture=cancelled` interaction instead of silently dropping it.
+
+## 0.4.14
+
+### Fixed
+
+- **Automatic-navigation visual continuity** — when a route transition
+  supersedes an in-flight tap capture, `tap_settled` now waits for and attaches
+  the route's fresh frame as a non-causal `visual_successor`. A pointer-generation
+  fence prevents later user interactions from being attached to the earlier tap.
+
+## 0.4.13
+
+### Fixed
+
+- **Deferred tap emission** — `tap` is sampled at pointer-down but only emitted
+  after gesture classification at pointer-up. Flick-scrolls no longer mint
+  phantom taps; swipes carry `startCaptureCoordinate` instead of
+  `relatedEventId` to a never-settled tap.
+- **Same-turn interaction claims** — released pointer-up claims attribute
+  `route_change` only through the pointer-up turn (`same_turn`). A wall-clock
+  claim window incorrectly bound automatic redirects to taps; `interactionClaimWindow`
+  defaults to zero and no longer extends attribution. Pre-up claims still work
+  while the pointer is down (long-press → navigate).
+- **Pre-up claim + swipe/cancel** — routes that claim before pointer-up no longer
+  force a normal interaction tap; the buffered tap publishes as `causal_only`
+  when the gesture finalizes as swipe/cancel (or at `route_change` publish).
+- **Lifecycle claim fence** — backgrounding drops pending/released pointer claims
+  so resume/navigation cannot attribute a pre-background gesture.
+- **Session-end claim fence** — pending pointers are abandoned without emitting
+  orphan `causal_only` taps when the claimed route was cancelled before publish;
+  further pointer-down/up/cancel is ignored.
+- **Duplicate pointer-down** — a second down on the same pointer abandons the
+  prior pending claim instead of silently overwriting it.
+- **Claim map hygiene** — `_claimsByTapEventId` entries are removed when a claim
+  emits, drops, or expires; `invalidatesRelatedTap` is always a boolean.
+- **Monotonic deferred publish** — buffered taps / `tap_outside_tree` publish at
+  emission `atMs` with `sampledAtMs` preserving pointer-down time.
+- **Gesture promotion** — `tap_gesture_resolved` (`promotesRelatedTap`) plus an
+  in-memory `replayRole` patch promote genuine taps that were first published as
+  `causal_only` for a pre-up route claim.
+- **Missing-frame coordinates** — `unavailableReason: missing_frame` now keeps
+  boundary-local / normalized geometry when the boundary rect is known, instead
+  of zeroing local/normalized fields.
+
 ## 0.4.12
 
 ### Added

@@ -188,13 +188,9 @@ WidgetRole? tugboatRoleForWidget(Widget widget) {
     );
   }
   if (widget is Radio || widget is RadioListTile) {
-    final enabled = switch (widget) {
-      // ignore: deprecated_member_use
-      Radio w => w.onChanged != null,
-      // ignore: deprecated_member_use
-      RadioListTile w => w.onChanged != null,
-      _ => false,
-    };
+    // Same generic-callback cast hazard as DropdownButton: reading onChanged
+    // through RadioListTile<dynamic> / Radio<dynamic> can throw at runtime.
+    final enabled = (widget as dynamic).onChanged != null;
     return WidgetRole(
       'radio',
       enabled,

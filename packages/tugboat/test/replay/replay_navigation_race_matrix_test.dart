@@ -9,6 +9,7 @@ import '../helpers/replay_coherence_harness.dart';
 const _config = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
   settleDelay: Duration.zero,
+  interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: true,
   capturePixelRatio: 1,
 );
@@ -303,6 +304,59 @@ void main() {
     expect(CoherenceInvariants.hasNoStrandedCaptureWork(harness), isTrue);
   });
 
+  test(
+    'automatic route superseding a tap capture supplies visual successor',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+      harness.seedRouteState(route: '/home', signature: 'home');
+      harness.capturer.blockNext = true;
+
+      harness.controller.recordPointerDown(const Offset(12, 12));
+      harness.controller.recordPointerUp(const Offset(12, 12));
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+
+      // The tap claim has expired, so this route remains automatic rather than
+      // borrowing causal attribution from the preceding interaction.
+      await harness.pumpMicrotasks();
+      final route = harness.controller.route(
+        'route_push',
+        harness.route('/automatic'),
+      );
+      harness.controller.debugSetCurrentStateAnchor(
+        const TugboatStateAnchor(
+          signature: 'automatic',
+          signatureParts: <String, String>{'route': '/automatic'},
+        ),
+      );
+
+      harness.capturer.completeBlocked();
+      await harness.flushScheduler();
+      await route;
+
+      final session = harness.controller.session!;
+      final tap = _ofType(session, 'tap').single;
+      final settle = _ofType(session, 'tap_settled').single;
+      final change = _ofType(session, 'route_change').single;
+      final observation = Map<String, Object?>.from(
+        settle.data['settleObservation']! as Map,
+      );
+
+      expect(change.data['navigationOrigin'], 'automatic_or_unknown');
+      expect(change.data['causeEventId'], isNull);
+      expect(change.afterFrame, isNotNull);
+      expect(settle.relatedEventId, tap.id);
+      expect(settle.afterFrame, change.afterFrame);
+      expect(observation['navigationOutcome'], 'visual_successor');
+      expect(observation['captureOutcome'], 'captured');
+      expect(observation['routeEventId'], change.id);
+      _expectEveryDiagnosticRequestIsResolvedOnce(session);
+      expect(CoherenceInvariants.hasNoStrandedCaptureWork(harness), isTrue);
+    },
+  );
+
   testWidgets('real swipe input overlapping Navigator push stays swipe-only', (
     tester,
   ) async {
@@ -333,13 +387,14 @@ void main() {
     await _drain(tester);
 
     final session = controller.session!;
-    final tap = _ofType(session, 'tap').single;
+    expect(_ofType(session, 'tap'), isEmpty);
     final scrollStart = _ofType(session, 'scroll_start').single;
     final swipe = _ofType(session, 'swipe').single;
     final scrollEnd = _ofType(session, 'scroll_end').single;
     final change = _ofType(session, 'route_change').single;
     expect(_ofType(session, 'tap_settled'), isEmpty);
-    expect(swipe.relatedEventId, tap.id);
+    expect(swipe.relatedEventId, isNull);
+    expect(swipe.data['startCaptureCoordinate'], isA<Map>());
     expect(swipe.data['scrolled'], isTrue);
     expect(scrollEnd.relatedEventId, scrollStart.id);
     expect(scrollEnd.afterFrame, isNull);
@@ -353,7 +408,6 @@ void main() {
       CoherenceInvariants.hasChronologicalChain(
         events: session.events,
         orderedEventIds: <String>[
-          tap.id,
           scrollStart.id,
           swipe.id,
           scrollEnd.id,

@@ -357,6 +357,7 @@ const _openNestedSheet = Key('modal-open-nested-sheet');
 const _config = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
   settleDelay: Duration.zero,
+  interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: true,
   capturePixelRatio: 1,
   screenshotMaskLevel: TugboatScreenshotMaskLevel.explicitOnly,
