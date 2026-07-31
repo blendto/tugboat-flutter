@@ -49,6 +49,53 @@ bool _containsLabelTelemetry(Object? value) {
 }
 
 void main() {
+  testWidgets('popup option emits its semantic parameter pair', (tester) async {
+    addTearDown(TugboatReplay.resetForTest);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: FilledButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  content: Semantics(
+                    container: true,
+                    excludeSemantics: true,
+                    label: 'Image quality',
+                    value: '2K',
+                    button: true,
+                    onTap: () => Navigator.pop(dialogContext),
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('2K • Advanced'),
+                    ),
+                  ),
+                ),
+              ),
+              child: const Text('Choose quality'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Choose quality'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2K • Advanced'));
+    await tester.pump();
+
+    final tap = TugboatReplay.controller!.session!.events
+        .where((event) => event.type == 'tap')
+        .last;
+    final semantic = tap.data['semanticAnnotation'] as Map<String, Object?>;
+    expect(semantic['label'], {'kind': 'string', 'value': 'Image quality'});
+    expect(semantic['value'], {'kind': 'string', 'value': '2K'});
+  });
+
   testWidgets('detached lifecycle emits session_end once', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

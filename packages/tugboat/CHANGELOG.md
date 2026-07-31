@@ -1,3 +1,11 @@
+## 0.4.18
+
+### Fixed
+
+- **Semantic parameter pairs in overlays** — interactions in dialogs and
+  popovers now retain the accessibility label and raw value supplied by the
+  visible control, rather than metadata from an obscured control beneath it.
+
 ## 0.4.17
 
 ### Changed

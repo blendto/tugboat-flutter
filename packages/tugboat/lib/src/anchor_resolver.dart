@@ -257,16 +257,30 @@ class AnchorResolver {
       if (controlValue != null && semanticAnnotation != null) break;
     }
 
-    if (controlValue == null || semanticAnnotation == null) {
-      final hits = _semanticsNodesAt(
-        globalPosition: globalPosition,
-        rootContext: rootContext,
-        rootRender: rootRender,
-      );
-      if (controlValue == null && hits.isNotEmpty) {
-        controlValue = tugboatControlValueFromSemanticsNode(hits.last);
-      }
-      semanticAnnotation ??= _semanticAnnotationFromHits(hits);
+    // An overlay can sit outside this capture boundary while the global
+    // semantics tree still contains the actual control at the tap point. Use
+    // a complete semantic parameter pair from that tree in preference to
+    // metadata from an obscured control underneath the overlay.
+    final hits = _semanticsNodesAt(
+      globalPosition: globalPosition,
+      rootContext: rootContext,
+      rootRender: rootRender,
+    );
+    final semanticFromHits = _semanticAnnotationFromHits(hits);
+    final semanticPair =
+        semanticFromHits?.label != null && semanticFromHits?.value != null;
+    final localSemanticPair =
+        semanticAnnotation?.label != null && semanticAnnotation?.value != null;
+    if (semanticAnnotation == null || (!localSemanticPair && semanticPair)) {
+      semanticAnnotation = semanticFromHits ?? semanticAnnotation;
+    }
+
+    final controlFromHits = _controlValueFromSemanticsHits(hits);
+    if (controlValue == null ||
+        (!localSemanticPair &&
+            semanticPair &&
+            controlValue.sources.contains('semantics'))) {
+      controlValue = controlFromHits ?? controlValue;
     }
 
     return TugboatInteractionMetadata._(
@@ -348,6 +362,22 @@ class AnchorResolver {
           : tugboatMergeSemanticAnnotations(merged, next);
     }
     return merged;
+  }
+
+  TugboatControlValue? _controlValueFromSemanticsHits(
+    List<SemanticsNode> hits,
+  ) {
+    TugboatControlValue? fallback;
+    for (final node in hits.reversed) {
+      final value = tugboatControlValueFromSemanticsNode(node);
+      if (value == null) continue;
+      fallback ??= value;
+      final annotation = tugboatSemanticAnnotationFromNode(node);
+      if (annotation?.label != null && annotation?.value != null) {
+        return value;
+      }
+    }
+    return fallback;
   }
 
   List<SemanticsNode> _semanticsNodesAt({
