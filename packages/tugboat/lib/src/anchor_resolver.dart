@@ -257,30 +257,32 @@ class AnchorResolver {
       if (controlValue != null && semanticAnnotation != null) break;
     }
 
-    // An overlay can sit outside this capture boundary while the global
-    // semantics tree still contains the actual control at the tap point. Use
-    // a complete semantic parameter pair from that tree in preference to
-    // metadata from an obscured control underneath the overlay.
-    final hits = _semanticsNodesAt(
-      globalPosition: globalPosition,
-      rootContext: rootContext,
-      rootRender: rootRender,
-    );
-    final semanticFromHits = _semanticAnnotationFromHits(hits);
-    final semanticPair =
-        semanticFromHits?.label != null && semanticFromHits?.value != null;
     final localSemanticPair =
         semanticAnnotation?.label != null && semanticAnnotation?.value != null;
-    if (semanticAnnotation == null || (!localSemanticPair && semanticPair)) {
-      semanticAnnotation = semanticFromHits ?? semanticAnnotation;
-    }
+    if (controlValue == null || !localSemanticPair) {
+      // An overlay can sit outside this capture boundary while the global
+      // semantics tree still contains the actual control at the tap point.
+      // Only inspect that tree when local hit-test metadata is incomplete:
+      // flushing and walking it is comparatively expensive for every tap.
+      final hits = _semanticsNodesAt(
+        globalPosition: globalPosition,
+        rootContext: rootContext,
+        rootRender: rootRender,
+      );
+      final semanticFromHits = _semanticAnnotationFromHits(hits);
+      final semanticPair =
+          semanticFromHits?.label != null && semanticFromHits?.value != null;
+      if (semanticAnnotation == null || (!localSemanticPair && semanticPair)) {
+        semanticAnnotation = semanticFromHits ?? semanticAnnotation;
+      }
 
-    final controlFromHits = _controlValueFromSemanticsHits(hits);
-    if (controlValue == null ||
-        (!localSemanticPair &&
-            semanticPair &&
-            controlValue.sources.contains('semantics'))) {
-      controlValue = controlFromHits ?? controlValue;
+      final controlFromHits = _controlValueFromSemanticsHits(hits);
+      if (controlValue == null ||
+          (!localSemanticPair &&
+              semanticPair &&
+              controlValue.sources.contains('semantics'))) {
+        controlValue = controlFromHits ?? controlValue;
+      }
     }
 
     return TugboatInteractionMetadata._(

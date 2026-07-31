@@ -91,7 +91,9 @@ void main() {
     final tap = TugboatReplay.controller!.session!.events
         .where((event) => event.type == 'tap')
         .last;
-    final semantic = tap.data['semanticAnnotation'] as Map<String, Object?>;
+    final semantic = Map<String, Object?>.from(
+      tap.data['semanticAnnotation'] as Map,
+    );
     expect(semantic['label'], {'kind': 'string', 'value': 'Image quality'});
     expect(semantic['value'], {'kind': 'string', 'value': '2K'});
   });
