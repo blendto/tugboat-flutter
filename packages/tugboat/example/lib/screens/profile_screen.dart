@@ -16,6 +16,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _darkMode = false;
   double _notificationVolume = 0.6;
   String _language = 'English';
+  int _generationCount = 1;
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +141,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
                 onChanged: (value) =>
                     setState(() => _language = value ?? 'English'),
+              ),
+            ],
+          ),
+          DemoSection(
+            title: 'Generation settings',
+            children: [
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final count in [1, 2, 3, 4])
+                    Semantics(
+                      label: 'Number of generations',
+                      value: count.toString(),
+                      selected: _generationCount == count,
+                      child: FilledButton(
+                        key: Key('generation-count-$count'),
+                        onPressed: () =>
+                            setState(() => _generationCount = count),
+                        child: Text(count.toString()),
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
