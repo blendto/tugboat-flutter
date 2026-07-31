@@ -407,16 +407,24 @@ TugboatSemanticAnnotation? tugboatSemanticAnnotationFromNode(
 }
 
 /// Merges two annotations, preferring [primary] fields and filling gaps.
+///
+/// An ancestor that supplies both a label and a value semantically describes a
+/// parameter/value pair. Keep that label as the parameter identity instead of
+/// replacing it with the descendant button's visible value text.
 TugboatSemanticAnnotation tugboatMergeSemanticAnnotations(
   TugboatSemanticAnnotation primary,
   TugboatSemanticAnnotation fallback,
 ) {
+  final fallbackDescribesParameter =
+      fallback.label != null && fallback.value != null;
   return TugboatSemanticAnnotation(
     role: (primary.role != null && primary.role!.isNotEmpty)
         ? primary.role
         : fallback.role,
     identifier: primary.identifier ?? fallback.identifier,
-    label: primary.label ?? fallback.label,
+    label: fallbackDescribesParameter
+        ? fallback.label
+        : primary.label ?? fallback.label,
     value: primary.value ?? fallback.value,
     selected: primary.selected ?? fallback.selected,
     checked: primary.checked ?? fallback.checked,
