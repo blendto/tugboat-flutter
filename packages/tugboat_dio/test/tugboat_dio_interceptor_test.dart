@@ -25,6 +25,15 @@ Future<void> _pumpCapture(WidgetTester tester) async {
   await tester.pump();
 }
 
+Future<T> _runAsync<T>(WidgetTester tester, Future<T> Function() body) {
+  return tester.runAsync(body).then((value) {
+    if (value is! T) {
+      throw StateError('runAsync returned null');
+    }
+    return value;
+  });
+}
+
 class _ScriptedAdapter implements HttpClientAdapter {
   _ScriptedAdapter(this._handler);
 
@@ -48,14 +57,20 @@ void main() {
     await _pumpCapture(tester);
     final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
     dio.httpClientAdapter = _ScriptedAdapter(
-      (_) async => ResponseBody.fromString('{"ok":true}', 200),
+      (_) async => ResponseBody.fromString(
+        '{"ok":true}',
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
     );
-    TugboatDioInterceptor.install(
-      dio,
-      routeResolver: (_) => '/blend/:blendId',
-    );
+    TugboatDioInterceptor.install(dio, routeResolver: (_) => '/blend/:blendId');
 
-    await dio.get<dynamic>('/blend/raw-id-should-not-appear?x=1');
+    await _runAsync(
+      tester,
+      () => dio.get<dynamic>('/blend/raw-id-should-not-appear?x=1'),
+    );
 
     final events = TugboatReplay.controller!.session!.events
         .where((e) => e.type == 'network_call')
@@ -79,12 +94,15 @@ void main() {
       (_) async => ResponseBody.fromString('secret-body', 503),
     );
     dio.options.validateStatus = (status) => false;
-    TugboatDioInterceptor.install(
-      dio,
-      routeResolver: (_) => '/health',
-    );
+    TugboatDioInterceptor.install(dio, routeResolver: (_) => '/health');
 
-    await expectLater(dio.get<dynamic>('/health'), throwsA(isA<DioException>()));
+    await _runAsync(
+      tester,
+      () => expectLater(
+        dio.get<dynamic>('/health'),
+        throwsA(isA<DioException>()),
+      ),
+    );
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (e) => e.type == 'network_call',
@@ -104,12 +122,13 @@ void main() {
         message: 'socket failed with user token abc',
       );
     });
-    TugboatDioInterceptor.install(
-      dio,
-      routeResolver: (_) => '/sync',
-    );
+    TugboatDioInterceptor.install(dio, routeResolver: (_) => '/sync');
 
-    await expectLater(dio.get<dynamic>('/sync'), throwsA(isA<DioException>()));
+    await _runAsync(
+      tester,
+      () =>
+          expectLater(dio.get<dynamic>('/sync'), throwsA(isA<DioException>())),
+    );
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (e) => e.type == 'network_call',
@@ -129,12 +148,13 @@ void main() {
         type: DioExceptionType.cancel,
       );
     });
-    TugboatDioInterceptor.install(
-      dio,
-      routeResolver: (_) => '/long',
-    );
+    TugboatDioInterceptor.install(dio, routeResolver: (_) => '/long');
 
-    await expectLater(dio.get<dynamic>('/long'), throwsA(isA<DioException>()));
+    await _runAsync(
+      tester,
+      () =>
+          expectLater(dio.get<dynamic>('/long'), throwsA(isA<DioException>())),
+    );
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (e) => e.type == 'network_call',
@@ -154,18 +174,13 @@ void main() {
       return ResponseBody.fromString('ok', 200);
     });
 
-    // Tugboat first (index 0), auth after — auth handles 401 before Tugboat
-    // finishes on the error path.
-    TugboatDioInterceptor.install(
-      dio,
-      routeResolver: (_) => '/secure',
-    );
+    // Auth/retry first; Tugboat last so Dio's FIFO error handlers let auth
+    // recover before observation finishes.
     dio.interceptors.add(
-      InterceptorsWrapper(
+      QueuedInterceptorsWrapper(
         onError: (err, handler) async {
           if (err.response?.statusCode == 401) {
-            final opts = err.requestOptions;
-            final response = await dio.fetch<dynamic>(opts);
+            final response = await dio.fetch<dynamic>(err.requestOptions);
             handler.resolve(response);
             return;
           }
@@ -173,8 +188,9 @@ void main() {
         },
       ),
     );
+    TugboatDioInterceptor.install(dio, routeResolver: (_) => '/secure');
 
-    final response = await dio.get<dynamic>('/secure');
+    final response = await _runAsync(tester, () => dio.get<dynamic>('/secure'));
     expect(response.statusCode, 200);
     expect(attempts, 2);
 
@@ -195,7 +211,7 @@ void main() {
     );
     TugboatDioInterceptor.install(dio, routeResolver: (_) => null);
 
-    await dio.get<dynamic>('/mystery/id-123');
+    await _runAsync(tester, () => dio.get<dynamic>('/mystery/id-123'));
     expect(
       TugboatReplay.controller!.session!.events.where(
         (e) => e.type == 'network_call',
@@ -229,12 +245,9 @@ void main() {
     dio.httpClientAdapter = _ScriptedAdapter(
       (_) async => ResponseBody.fromString('ok', 200),
     );
-    TugboatDioInterceptor.install(
-      dio,
-      routeResolver: (_) => '/x',
-    );
+    TugboatDioInterceptor.install(dio, routeResolver: (_) => '/x');
 
-    final response = await dio.get<dynamic>('/x');
+    final response = await _runAsync(tester, () => dio.get<dynamic>('/x'));
     expect(response.statusCode, 200);
     expect(TugboatReplay.controller, isNull);
   });
@@ -244,25 +257,30 @@ void main() {
   ) async {
     await _pumpCapture(tester);
     final dio = Dio();
-    TugboatDioInterceptor.install(
-      dio,
-      routeResolver: (_) => '/cached',
-    );
-    dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          handler.resolve(
-            Response<dynamic>(
-              requestOptions: options,
-              statusCode: 200,
-              data: {'cached': true},
-            ),
-          );
-        },
-      ),
-    );
+    // Short-circuit after Tugboat's onRequest, and call following response
+    // interceptors so the observation can finish.
+    TugboatDioInterceptor.install(dio, routeResolver: (_) => '/cached');
+    // Move Tugboat before the cache short-circuit by rebuilding order:
+    final tugboat = dio.interceptors.whereType<TugboatDioInterceptor>().single;
+    dio.interceptors
+      ..clear()
+      ..add(tugboat)
+      ..add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.resolve(
+              Response<dynamic>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {'cached': true},
+              ),
+              true, // call following response interceptors
+            );
+          },
+        ),
+      );
 
-    final response = await dio.get<dynamic>('/cached');
+    final response = await _runAsync(tester, () => dio.get<dynamic>('/cached'));
     expect(response.statusCode, 200);
     final events = TugboatReplay.controller!.session!.events
         .where((e) => e.type == 'network_call')

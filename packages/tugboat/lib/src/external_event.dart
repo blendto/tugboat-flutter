@@ -23,7 +23,7 @@ class TugboatParameterPolicy {
   const TugboatParameterPolicy._({
     required this.captureValues,
     this.allowedKeys,
-    this.transform,
+    this.valueTransform,
   });
 
   /// Record event name plus bounded parameter keys only. Default production
@@ -45,7 +45,7 @@ class TugboatParameterPolicy {
     Object? Function(String key, Object? value) transform,
   ) => TugboatParameterPolicy._(
     captureValues: TugboatParameterCaptureValues.transform,
-    transform: transform,
+    valueTransform: transform,
   );
 
   /// Exploration-only escape hatch that retains all JSON-safe values within
@@ -60,7 +60,7 @@ class TugboatParameterPolicy {
 
   final String captureValues;
   final Set<String>? allowedKeys;
-  final Object? Function(String key, Object? value)? transform;
+  final Object? Function(String key, Object? value)? valueTransform;
 }
 
 /// Hard limits applied when snapshotting external-event parameters.
@@ -149,7 +149,7 @@ TugboatParameterSnapshot snapshotExternalParameters({
 
     Object? candidate = entry.value;
     if (policy.captureValues == TugboatParameterCaptureValues.transform) {
-      final transform = policy.transform;
+      final transform = policy.valueTransform;
       if (transform == null) {
         dropped += 1;
         continue;
@@ -223,6 +223,10 @@ Object? _copyJsonSafe(
   required void Function(int count) dropped,
   required bool Function() onCollectionItem,
 }) {
+  if (depth > TugboatParameterLimits.maxDepth) {
+    dropped(1);
+    return _unsupported;
+  }
   if (value == null || value is bool) return value;
   if (value is num) {
     if (value.isFinite) return value;
@@ -231,10 +235,6 @@ Object? _copyJsonSafe(
   }
   if (value is String) {
     if (value.length <= TugboatParameterLimits.maxStringLength) return value;
-    dropped(1);
-    return _unsupported;
-  }
-  if (depth > TugboatParameterLimits.maxDepth) {
     dropped(1);
     return _unsupported;
   }

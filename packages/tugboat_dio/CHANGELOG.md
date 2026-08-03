@@ -4,5 +4,5 @@
 
 - Initial `TugboatDioInterceptor` that maps Dio request lifecycle callbacks to
   the core Tugboat network observation token.
-- `TugboatDioInterceptor.install` inserts at the start of the interceptor chain
-  and rejects duplicate installation on the same `Dio` instance.
+- `TugboatDioInterceptor.install` appends to the interceptor chain (after
+  auth/retry) and rejects duplicate installation on the same `Dio` instance.

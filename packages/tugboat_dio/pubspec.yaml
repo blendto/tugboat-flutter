@@ -18,8 +18,7 @@ dependencies:
   dio: ^5.4.0
   flutter:
     sdk: flutter
-  tugboat:
-    path: ../tugboat
+  tugboat: ^0.6.0
 
 dev_dependencies:
   flutter_lints: ^5.0.0

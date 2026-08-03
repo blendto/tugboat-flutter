@@ -4391,7 +4391,8 @@ class TugboatReplayController extends ChangeNotifier {
         if (statusCode != null) 'statusCode': statusCode,
         'outcome': outcome.wireName,
         'durationMs': durationMs,
-        if (attemptCount != null && attemptCount > 0) 'attemptCount': attemptCount,
+        if (attemptCount != null && attemptCount > 0)
+          'attemptCount': attemptCount,
       };
       _appendEvidenceEvent(
         TugboatEvent(

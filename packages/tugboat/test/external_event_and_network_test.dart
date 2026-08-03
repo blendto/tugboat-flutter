@@ -131,10 +131,7 @@ void main() {
     );
 
     expect(
-      () => hook.record(
-        'EVT',
-        parameters: {'ok': 1, 'boom': 'x', 'skip': 'y'},
-      ),
+      () => hook.record('EVT', parameters: {'ok': 1, 'boom': 'x', 'skip': 'y'}),
       returnsNormally,
     );
 

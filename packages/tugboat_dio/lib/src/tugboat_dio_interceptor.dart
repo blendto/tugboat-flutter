@@ -9,9 +9,10 @@ typedef TugboatDioRouteResolver = String? Function(RequestOptions request);
 
 /// Records one logical Dio request as Tugboat `network_call` evidence.
 ///
-/// Install **before** auth/retry interceptors so interceptor-level retries
-/// resolve before this adapter emits. Prefer [install], which inserts at index
-/// `0` and rejects duplicate installation on the same [Dio] instance.
+/// Install **after** auth/retry interceptors. Dio runs error interceptors in
+/// FIFO order, so retry handlers must run first and recover before this adapter
+/// finishes the token. Prefer [install], which appends and rejects duplicate
+/// installation on the same [Dio] instance.
 ///
 /// Never inspects request/response bodies, headers, cookies, query parameters,
 /// or raw error text.
@@ -23,7 +24,7 @@ class TugboatDioInterceptor extends Interceptor {
 
   final TugboatDioRouteResolver routeResolver;
 
-  /// Installs a single interceptor at the start of [dio]'s chain.
+  /// Installs a single interceptor at the end of [dio]'s chain.
   ///
   /// Returns `false` when a [TugboatDioInterceptor] is already present.
   static bool install(
@@ -33,10 +34,7 @@ class TugboatDioInterceptor extends Interceptor {
     if (dio.interceptors.any((i) => i is TugboatDioInterceptor)) {
       return false;
     }
-    dio.interceptors.insert(
-      0,
-      TugboatDioInterceptor(routeResolver: routeResolver),
-    );
+    dio.interceptors.add(TugboatDioInterceptor(routeResolver: routeResolver));
     return true;
   }
 

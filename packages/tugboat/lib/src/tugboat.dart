@@ -145,10 +145,7 @@ class TugboatReplay {
     String? source,
     TugboatParameterPolicy parameterPolicy = TugboatParameterPolicy.namesOnly,
   }) {
-    return _TugboatEventHook(
-      source: source,
-      parameterPolicy: parameterPolicy,
-    );
+    return _TugboatEventHook(source: source, parameterPolicy: parameterPolicy);
   }
 
   /// Begins observation of one logical network call.
@@ -181,10 +178,7 @@ class TugboatReplay {
 }
 
 class _TugboatEventHook implements TugboatEventHook {
-  _TugboatEventHook({
-    required this.source,
-    required this.parameterPolicy,
-  });
+  _TugboatEventHook({required this.source, required this.parameterPolicy});
 
   final String? source;
   final TugboatParameterPolicy parameterPolicy;

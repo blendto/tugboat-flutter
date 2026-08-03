@@ -24,8 +24,9 @@ import 'package:tugboat_dio/tugboat_dio.dart';
 
 final dio = Dio();
 
-// Install at the start of the interceptor chain, before auth/retry handlers,
-// so interceptor-level retries resolve before Tugboat emits.
+// Configure auth/retry/cache interceptors first, then install Tugboat last.
+// Dio runs error interceptors in FIFO order, so retry handlers must recover
+// before Tugboat finishes the observation token.
 TugboatDioInterceptor.install(
   dio,
   routeResolver: (request) => apiRouteTemplate(request.path),
@@ -39,12 +40,18 @@ a raw path containing entity IDs. Return `null` or `''` to drop the call.
 
 | Position | Why |
 | --- | --- |
-| Before auth/retry | Auth can recover a 401 and resolve the final response before Tugboat finishes the token |
-| Before/independent of cache | Cached or interceptor-resolved responses still emit one logical observation |
+| After auth/retry | Dio error handlers run FIFO; auth must recover a 401 before Tugboat emits |
+| After short-circuiting cache | Requests resolved before Tugboat's `onRequest` are not observed |
 | Compatible with Sentry | Follow Sentry's required init order; keep one Tugboat interceptor per `Dio` |
 
-`install` inserts at index `0` and is a no-op when a `TugboatDioInterceptor`
-is already present.
+`install` appends to the interceptor list and is a no-op when a
+`TugboatDioInterceptor` is already present. Namespaced `RequestOptions.extra`
+state prevents duplicate tokens when a retry calls `dio.fetch` with the same
+options.
+
+Cached/interceptor-resolved responses are recorded when they pass through this
+interceptor's response path (for example `handler.resolve(response, true)` so
+following response interceptors run).
 
 ## Privacy
 
