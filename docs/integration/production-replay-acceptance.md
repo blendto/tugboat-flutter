@@ -12,12 +12,16 @@ database receipt alone as proof that a replay is correct.
 
 ## Current acceptance status
 
-Interaction consolidation shipped in SDK **0.4.15** (canonical `interaction`
-events, 1,250 ms delayed claim window, diagnostic stream isolation). Use
+The current SDK release candidate is **0.5.0**, which writes session schema
+**v9**. It preserves structural interaction replay while no longer emitting
+`controlValue`, `controlValueTransition`, or `semanticAnnotation` in event
+data. Treat the absence of those fields as the expected privacy boundary, not
+as missing capture evidence.
+
 [`production-replay-acceptance-0.4.15.md`](./production-replay-acceptance-0.4.15.md)
-for the Blend scoring gates. Collector/Context Graph migration onto
-`stream: semantic` interactions remains a follow-up before legacy
-`tap`/`tap_settled` projection can be removed.
+remains a historical acceptance record for interaction consolidation. Do not
+use its SDK version, legacy-projection assumptions, or scoring baseline as the
+current release contract.
 
 Production acceptance #13/#14 remains open for rapid/nested modal chains and
 programmatic/automatic navigation gaps. Record those observations as SDK
@@ -160,7 +164,7 @@ flows share a session, list the event IDs or timestamps that delimit each flow.
 
 Wait until the collector session has finalized and the replay is available in
 the production website. Filter to the recorded Blend build and SDK version
-`0.4.10` (or the version under test), then open every recorded session.
+under test (`0.5.0` for this release), then open every recorded session.
 
 For each interaction, inspect the actual replay UI and verify:
 
@@ -189,7 +193,7 @@ Use one row per production session:
 
 | Session ID | UTC range | Blend build | SDK version / SHA | Flows | Frame availability | Route/action coherence | Verdict | Follow-up |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `<collector-session-id>` | `<start> - <end>` | `<version+build>` | `0.4.10 / <sha>` | `<flows>` | pass/fail | pass/fail | accept/reject | `<issue or none>` |
+| `<collector-session-id>` | `<start> - <end>` | `<version+build>` | `<sdk-version> / <sha>` | `<flows>` | pass/fail | pass/fail | accept/reject | `<issue or none>` |
 
 The cohort passes only when:
 
