@@ -66,6 +66,13 @@ void main() {
       'total': 0,
       'outcomes': <String, int>{},
     });
+    expect(json['evidence'], {
+      'externalAccepted': 0,
+      'externalDropped': 0,
+      'networkAccepted': 0,
+      'networkDropped': 0,
+      'networkDuplicateFinishes': 0,
+    });
   });
 
   test('capture diagnostic health is bounded and sanitized', () {

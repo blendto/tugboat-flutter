@@ -9,6 +9,7 @@ class TugboatSdkHealth {
     this.outbox,
     this.screenshots = const TugboatScreenshotBudgetHealth(),
     this.captureDiagnostics = const TugboatCaptureDiagnosticHealth(),
+    this.evidence = const TugboatEvidenceHealth(),
     this.truncated = false,
     this.recentFailures = const [],
   });
@@ -24,6 +25,9 @@ class TugboatSdkHealth {
   /// Bounded, privacy-safe capture outcome counts. Additive to screenshot
   /// budget health so existing consumers remain compatible.
   final TugboatCaptureDiagnosticHealth captureDiagnostics;
+
+  /// Bounded counters for external app-event and network evidence.
+  final TugboatEvidenceHealth evidence;
   final bool truncated;
   final List<TugboatSanitizedFailure> recentFailures;
 
@@ -36,8 +40,38 @@ class TugboatSdkHealth {
     if (outbox != null) 'outbox': outbox!.toJson(),
     'screenshots': screenshots.toJson(),
     'captureDiagnostics': captureDiagnostics.toJson(),
+    'evidence': evidence.toJson(),
     'truncated': truncated,
     'recentFailures': recentFailures.map((f) => f.toJson()).toList(),
+  };
+}
+
+/// Bounded counters for opt-in external and network evidence. Drop reasons use
+/// a closed vocabulary and never retain rejected raw values or paths.
+class TugboatEvidenceHealth {
+  const TugboatEvidenceHealth({
+    this.externalAccepted = 0,
+    this.externalDropped = 0,
+    this.networkAccepted = 0,
+    this.networkDropped = 0,
+    this.networkDuplicateFinishes = 0,
+    this.lastDropReason,
+  });
+
+  final int externalAccepted;
+  final int externalDropped;
+  final int networkAccepted;
+  final int networkDropped;
+  final int networkDuplicateFinishes;
+  final String? lastDropReason;
+
+  Map<String, Object?> toJson() => {
+    'externalAccepted': externalAccepted,
+    'externalDropped': externalDropped,
+    'networkAccepted': networkAccepted,
+    'networkDropped': networkDropped,
+    'networkDuplicateFinishes': networkDuplicateFinishes,
+    if (lastDropReason != null) 'lastDropReason': lastDropReason,
   };
 }
 

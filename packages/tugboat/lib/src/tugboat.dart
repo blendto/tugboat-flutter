@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 import 'capture_boundary.dart';
 import 'capture_profile.dart';
 import 'controller.dart';
+import 'external_event.dart';
 import 'health.dart';
 import 'input_capture.dart';
 import 'lifecycle.dart';
+import 'network_observer.dart';
 
 export 'capture_profile.dart' show TugboatCaptureProfile;
 export 'lifecycle.dart' show TugboatLifecycleState;
@@ -134,6 +136,40 @@ class TugboatReplay {
     await _controller?.clearDurableOutbox();
   }
 
+  /// Returns a provider-neutral hook that records logical app/analytics events.
+  ///
+  /// The hook resolves the active controller at [TugboatEventHook.record] time
+  /// so it never retains a stale session reference. Calls made while capture is
+  /// dormant, disabled, or ended are safe no-ops.
+  static TugboatEventHook eventHook({
+    String? source,
+    TugboatParameterPolicy parameterPolicy = TugboatParameterPolicy.namesOnly,
+  }) {
+    return _TugboatEventHook(
+      source: source,
+      parameterPolicy: parameterPolicy,
+    );
+  }
+
+  /// Begins observation of one logical network call.
+  ///
+  /// [route] must already be a safe host-supplied template such as
+  /// `/blend/:blendId`. Raw paths are never accepted as a fallback. Returns a
+  /// no-op token when Tugboat is dormant/disabled or [route] is empty.
+  static TugboatNetworkCall beginNetworkCall({
+    required String method,
+    required String route,
+  }) {
+    try {
+      if (disabled) return const TugboatNoOpNetworkCall();
+      final controller = _controller;
+      if (controller == null) return const TugboatNoOpNetworkCall();
+      return controller.beginNetworkCall(method: method, route: route);
+    } catch (_) {
+      return const TugboatNoOpNetworkCall();
+    }
+  }
+
   /// Resets lifecycle state between tests.
   @visibleForTesting
   static void resetForTest() {
@@ -141,6 +177,33 @@ class TugboatReplay {
     _controller = null;
     debugConfigureControllerForTest = null;
     _lifecycle.resetForTest();
+  }
+}
+
+class _TugboatEventHook implements TugboatEventHook {
+  _TugboatEventHook({
+    required this.source,
+    required this.parameterPolicy,
+  });
+
+  final String? source;
+  final TugboatParameterPolicy parameterPolicy;
+
+  @override
+  void record(String name, {Map<String, Object?>? parameters}) {
+    try {
+      if (TugboatReplay.disabled) return;
+      final controller = TugboatReplay.controller;
+      if (controller == null) return;
+      controller.recordExternalEvent(
+        name: name,
+        source: source,
+        parameters: parameters,
+        parameterPolicy: parameterPolicy,
+      );
+    } catch (_) {
+      // Host analytics must never fail because of Tugboat.
+    }
   }
 }
 

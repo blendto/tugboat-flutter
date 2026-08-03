@@ -1,3 +1,26 @@
+## 0.6.0
+
+### Added
+
+- **Provider-neutral app-event hook** — `TugboatReplay.eventHook` records one
+  logical `external_event` on the evidence stream with a bounded parameter
+  policy (`namesOnly`, `allowList`, `transform`, or exploration-only
+  `allowAll`). Values are deep-copied at hook time; dormant/disabled calls are
+  safe no-ops.
+- **Generic network observation** — `TugboatReplay.beginNetworkCall` exposes an
+  exactly-once token for method, safe route template, status, outcome, and
+  duration. No headers, queries, bodies, raw errors, or stack traces are
+  retained.
+- **Evidence isolation** — external and network evidence stamp session identity
+  only and never inherit active exploration `actionId`, `relatedEventId`, or
+  target/state anchors.
+- **Evidence health counters** — `TugboatSdkHealth.evidence` exposes bounded
+  accepted/dropped/duplicate-finish counts without retaining rejected raw
+  values.
+- **`tugboat_dio` companion package** — Dio interceptor that maps request
+  lifecycle callbacks onto the core network token without importing Dio into
+  core.
+
 ## 0.5.0
 
 ### Breaking changes

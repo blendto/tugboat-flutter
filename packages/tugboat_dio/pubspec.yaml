@@ -1,6 +1,7 @@
-name: tugboat
+name: tugboat_dio
 description: >-
-  Screenshot-based session replay with compact interaction anchors for Tugboat.
+  Dio interceptor that records safe, bounded network evidence into an active
+  Tugboat capture session.
 version: 0.6.0
 repository: https://github.com/blendto/tugboat-flutter
 issue_tracker: https://github.com/blendto/tugboat-flutter/issues
@@ -14,20 +15,13 @@ environment:
 resolution: workspace
 
 dependencies:
-  crypto: ^3.0.6
-  device_info_plus: ^10.1.1
+  dio: ^5.4.0
   flutter:
     sdk: flutter
-  http: ^1.4.0
-  image: ^4.5.4
-  package_info_plus: ^8.0.1
-  http_parser: ^4.1.2
+  tugboat:
+    path: ../tugboat
 
 dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_test:
     sdk: flutter
-
-flutter:
-  assets:
-    - test/assets/red_square.png

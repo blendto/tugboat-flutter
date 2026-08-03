@@ -5,7 +5,7 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.5.0`. Session JSON writers emit schema
+The current package version is `0.6.0`. Session JSON writers emit schema
 version `9`; compatibility readers should accept versions `6` through
 `9`. Structural fingerprints use fingerprint schema version `6`.
 
@@ -18,6 +18,38 @@ import 'package:tugboat/tugboat.dart';
 ```
 
 The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
+
+### Optional Dio network evidence
+
+```yaml
+dependencies:
+  tugboat_dio: ^0.6.0
+```
+
+See `packages/tugboat_dio/README.md`.
+
+## App events and network observation
+
+Opt-in evidence hooks append to the active session without coupling to Amplitude,
+Firebase, or a specific HTTP client:
+
+```dart
+final appEvents = TugboatReplay.eventHook(
+  source: 'analytics',
+  parameterPolicy: TugboatParameterPolicy.allowList({'method', 'result'}),
+);
+appEvents.record('USER_LOGIN', parameters: {'method': 'email'});
+
+final call = TugboatReplay.beginNetworkCall(
+  method: 'GET',
+  route: '/blend/:blendId', // host-supplied template only
+);
+call.complete(statusCode: 200);
+```
+
+Both emit on `stream: evidence` and never inherit exploration `actionId` or UI
+anchors. Parameter values are omitted unless an explicit policy allows them.
+`allowAll` is an exploration escape hatch, not a production default.
 
 ## Migrating to 0.5.0
 
