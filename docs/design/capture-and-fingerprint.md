@@ -63,7 +63,7 @@ current controller and keeps future calls to `wrapApp` inert. Runtime
 requiring a host rebuild. `deactivate()` tears capture down through the same
 gate. Pause/hidden flush pending delivery; detach ends the session once.
 
-Identity fields (session schema **v7**; readers accept v6):
+Identity fields (session schema **v9**; compatibility readers accept v6–v9):
 
 - `activationRequestId` — host request correlation
 - `captureSessionId` — SDK-emitted session (`session.id`)
@@ -76,7 +76,10 @@ emits exact build and fingerprint-schema provenance only.
 ## Session and event model
 
 The controller owns one bounded, in-memory `TugboatSession`. Serialized session
-JSON is schema version `7`. Readers accept schema versions `6` and `7`.
+JSON is schema version `9`. Compatibility readers accept schema versions
+`6` through `9`. Schema v9 does not write `controlValue`,
+`controlValueTransition`, or `semanticAnnotation` in event `data`;
+those fields are optional historic data in older sessions only.
 
 The session stores:
 
@@ -235,43 +238,9 @@ Developer-authored identity strings can still be emitted:
 - widget type names or configured `widgetNames` replacements;
 - canonical structural paths.
 
-Interaction events may also carry a `controlValue` payload (schema version 4) for
-valued controls (checkbox, switch, radio, slider, dropdown / menu item, chip)
-and for hit targets that expose Flutter semantic annotations:
-
-- bools and numbers are emitted literally;
-- enums and developer identifiers are emitted literally;
-- arbitrary strings, including numeric strings and single-word values, are
-  emitted literally;
-- explicit custom-control values can be supplied with
-  `TugboatControlValueScope`, including a stable `controlKey`, optional unit,
-  and numeric `min`, `max`, and `step` metadata.
-
-`tap` includes a `controlValue` snapshot sampled at pointer-down.
-`tap_settled` uses the distinct `controlValueTransition` contract with
-`before` / `after` snapshots. Its post-callback sample stays bound to the
-original hit element, so later taps, route changes, or dismissed overlays
-cannot donate unrelated control state. Slider drags that become `swipe` events
-carry a `controlValue` snapshot sampled at pointer-up.
-
-When a typed widget value is unavailable (custom GestureDetector rows, bottom
-sheets, etc.), the SDK still samples `SemanticsProperties` / live semantics
-nodes under the pointer and records raw `semanticValue` / `semanticLabel`.
-Standard controls may include both widget
-state and semantic annotations under `sources: ["semantics","widget"]`.
-
-Independently, every interaction event (`tap`, `tap_settled`, `swipe`,
-`scroll_start`, `scroll_end`) may carry a top-level `semanticAnnotation`
-payload (schema version 2) whenever Flutter semantics expose an identifier, label, value, or
-selection flag on the target. This covers ordinary buttons and scrollables as
-well as valued controls. The field is named `semanticAnnotation` to avoid
-colliding with `tap_settled.data.settleObservation.semantic` (state-signature
-change evidence).
-
 Bounds, pointer coordinates, scroll metrics, and masked screenshot pixels are
-also capture data. Apps must treat tags, route names, subview labels, and
-semantic value/label tokens as telemetry and avoid putting raw user PII in
-them.
+also capture data. Apps must treat tags, route names, and subview labels as
+telemetry and avoid putting user data in them.
 
 ## Screenshot pipeline
 

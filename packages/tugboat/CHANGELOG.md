@@ -1,3 +1,28 @@
+## 0.5.0
+
+### Breaking changes
+
+- **Control-value and semantic-annotation telemetry** — session JSON writers
+  now emit schema version 9 and no longer write `controlValue`,
+  `controlValueTransition`, or `semanticAnnotation` in event `data`.
+  Readers that support historic schemas should continue to tolerate versions
+  6–8, where those fields may be present.
+- **Removed public barrel exports** —
+  `TugboatEncodedControlScalar`, `TugboatVisibleControlValue`,
+  `TugboatControlValueScope`, `TugboatControlValue`, and
+  `TugboatSemanticAnnotation`.
+- **Removed public schema constants** —
+  `tugboatControlValueSchemaVersion`,
+  `tugboatControlValueTransitionSchemaVersion`, and
+  `tugboatSemanticAnnotationSchemaVersion`.
+- **Removed public extraction and merge helpers** —
+  `tugboatControlValueForWidget`,
+  `tugboatControlValueFromSemanticsProperties`,
+  `tugboatControlValueFromSemanticsNode`,
+  `tugboatSemanticAnnotationFromProperties`,
+  `tugboatSemanticAnnotationFromNode`,
+  `tugboatMergeSemanticAnnotations`, and `tugboatMergeControlValues`.
+
 ## 0.4.18
 
 ### Fixed

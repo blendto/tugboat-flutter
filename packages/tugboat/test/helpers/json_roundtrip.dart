@@ -113,7 +113,7 @@ extension TugboatEventTestJson on TugboatEvent {
 extension TugboatSessionTestJson on TugboatSession {
   static TugboatSession fromJson(Map<String, dynamic> json) {
     final version = json['schemaVersion'] as int?;
-    if (version != 6 && version != 7 && version != 8) {
+    if (version != 6 && version != 7 && version != 8 && version != 9) {
       throw const FormatException(
         'Unsupported Tugboat session schema version.',
       );

@@ -188,8 +188,10 @@ WidgetRole? tugboatRoleForWidget(Widget widget) {
     );
   }
   if (widget is Radio || widget is RadioListTile) {
-    // Same generic-callback cast hazard as DropdownButton: reading onChanged
-    // through RadioListTile<dynamic> / Radio<dynamic> can throw at runtime.
+    // Reading a generic Radio or RadioListTile callback through the promoted
+    // `<dynamic>` view can cast a typed callback to `void Function(dynamic)`,
+    // which is not a valid runtime cast. Keep this inspection dynamic so role
+    // detection works for typed radio controls.
     final enabled = (widget as dynamic).onChanged != null;
     return WidgetRole(
       'radio',

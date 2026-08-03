@@ -49,55 +49,6 @@ bool _containsLabelTelemetry(Object? value) {
 }
 
 void main() {
-  testWidgets('popup option emits its semantic parameter pair', (tester) async {
-    addTearDown(TugboatReplay.resetForTest);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        builder: (context, child) =>
-            TugboatReplay.wrapApp(config: _testConfig, child: child!),
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: FilledButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (dialogContext) => AlertDialog(
-                  content: Semantics(
-                    container: true,
-                    excludeSemantics: true,
-                    label: 'Image quality',
-                    value: '2K',
-                    button: true,
-                    onTap: () => Navigator.pop(dialogContext),
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      child: const Text('2K • Advanced'),
-                    ),
-                  ),
-                ),
-              ),
-              child: const Text('Choose quality'),
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.tap(find.text('Choose quality'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('2K • Advanced'));
-    await tester.pump();
-
-    final tap = TugboatReplay.controller!.session!.events
-        .where((event) => event.type == 'tap')
-        .last;
-    final semantic = Map<String, Object?>.from(
-      tap.data['semanticAnnotation'] as Map,
-    );
-    expect(semantic['label'], {'kind': 'string', 'value': 'Image quality'});
-    expect(semantic['value'], {'kind': 'string', 'value': '2K'});
-  });
-
   testWidgets('detached lifecycle emits session_end once', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -884,6 +835,48 @@ void main() {
     expect(_containsLabelTelemetry(anchor.toJson()), isFalse);
   });
 
+  testWidgets('does not emit control or semantic value telemetry', (
+    tester,
+  ) async {
+    var enabled = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => Switch(
+              value: enabled,
+              onChanged: (next) => setState(() => enabled = next),
+            ),
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+    await tester.tap(find.byType(Switch));
+    await _waitForCaptures(tester);
+
+    final session = TugboatReplay.controller!.session!;
+    final tap = session.events.firstWhere((event) => event.type == 'tap');
+    final settled = session.events.firstWhere(
+      (event) => event.type == 'tap_settled' && event.relatedEventId == tap.id,
+    );
+    expect(enabled, isTrue);
+    expect(tap.targetAnchor, isNotNull);
+    expect(settled.targetAnchor, isNotNull);
+    for (final event in [tap, settled]) {
+      expect(event.data.containsKey('controlValue'), isFalse);
+      expect(event.data.containsKey('controlValueTransition'), isFalse);
+      expect(event.data.containsKey('semanticAnnotation'), isFalse);
+    }
+
+    final sessionJson = jsonEncode(session.toJson());
+    expect(sessionJson, isNot(contains('"controlValue"')));
+    expect(sessionJson, isNot(contains('"controlValueTransition"')));
+    expect(sessionJson, isNot(contains('"semanticAnnotation"')));
+  });
+
   test('session round-trips through JSON', () {
     const appInfo = TugboatCollectorAppInfo(
       name: 'Example App',
@@ -916,7 +909,7 @@ void main() {
     );
 
     final json = jsonDecode(session.toPrettyJson()) as Map<String, dynamic>;
-    expect(json['schemaVersion'], 8);
+    expect(json['schemaVersion'], 9);
     expect(json.containsKey('routes'), isFalse);
     expect(json['events'], [isNot(contains('route'))]);
     expect(json['frames'], [containsPair('captureMicros', 12345)]);
