@@ -608,6 +608,85 @@ void main() {
     selected.dispose();
   });
 
+  testWidgets('typed radio callbacks resolve roles and anchors', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    final selected = ValueNotifier<int>(1);
+    const radioKey = ValueKey<String>('typed-radio');
+    const radioTileKey = ValueKey<String>('typed-radio-tile');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: Column(
+              children: [
+                Radio<int>(
+                  key: radioKey,
+                  value: 1,
+                  // ignore: deprecated_member_use
+                  groupValue: 1,
+                  // ignore: deprecated_member_use
+                  onChanged: (next) async {
+                    if (next != null) selected.value = next;
+                  },
+                ),
+                RadioListTile<int>(
+                  key: radioTileKey,
+                  value: 2,
+                  // ignore: deprecated_member_use
+                  groupValue: 1,
+                  title: const Text('Second option'),
+                  // ignore: deprecated_member_use
+                  onChanged: (next) async {
+                    if (next != null) selected.value = next;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final radioFinder = find.byKey(radioKey);
+    final radioTileFinder = find.byKey(radioTileKey);
+    final resolver = AnchorResolver(rootKey: rootKey);
+
+    final radioRole = tugboatRoleForWidget(
+      tester.widget<Radio<int>>(radioFinder),
+    );
+    final radioTileRole = tugboatRoleForWidget(
+      tester.widget<RadioListTile<int>>(radioTileFinder),
+    );
+    final radioAnchor = resolver.targetAt(
+      tester.getCenter(radioFinder),
+      route: '/radios',
+    );
+    final radioTileAnchor = resolver.targetAt(
+      tester.getCenter(radioTileFinder),
+      route: '/radios',
+    );
+
+    expect(radioRole?.name, 'radio');
+    expect(radioRole?.enabled, isTrue);
+    expect(radioTileRole?.name, 'radio');
+    expect(radioTileRole?.enabled, isTrue);
+    // Radio controls are painted through InkResponse, so hit testing preserves
+    // the existing inner-button target role. The direct role checks above
+    // verify Radio classification; these assertions cover anchor resolution.
+    expect(radioAnchor, isNotNull);
+    expect(radioAnchor?.enabled, isTrue);
+    expect(radioAnchor?.actions, contains('tap'));
+    expect(radioTileAnchor, isNotNull);
+    expect(radioTileAnchor?.enabled, isTrue);
+    expect(radioTileAnchor?.actions, contains('tap'));
+    selected.dispose();
+  });
+
   testWidgets('InkWell-based button yields non-empty canonical path', (
     tester,
   ) async {

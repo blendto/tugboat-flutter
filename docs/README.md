@@ -28,8 +28,8 @@ verified in their own repositories.
 
 ## Current compatibility
 
-- package version: `0.4.17`;
-- session JSON schema: `8`;
+- package version: `0.5.0`;
+- session JSON schema: `9`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;
 - minimum Flutter SDK: `3.35.0`.
