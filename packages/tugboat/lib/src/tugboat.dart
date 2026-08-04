@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'capture_boundary.dart';
@@ -89,10 +90,12 @@ class TugboatReplay {
   /// Registers a full user-traits snapshot with the collector.
   ///
   /// Sends `POST /v1/sessions` with `eventType: traits_updated` when a capture
-  /// session is active. The collector returns a `traitsId` that is cached and
-  /// stamped onto subsequent events. Always sends the full bag (no server-side
-  /// merge). Does not call `/v1/identify`.
+  /// session is active and the bag changed. The collector returns a `traitsId`
+  /// that is cached and stamped onto subsequent events. Always sends the full
+  /// bag (no server-side merge). No-ops when [traits] deep-equals the pending
+  /// bag. Does not call `/v1/identify`.
   static Future<void> setTraits(Map<String, dynamic> traits) async {
+    if (mapEquals(_pendingTraits, traits)) return;
     _pendingTraits = Map<String, dynamic>.from(traits);
     final controller = _controller;
     if (controller == null) return;

@@ -772,6 +772,88 @@ void main() {
     sink.dispose();
   });
 
+  test('setTraits before startSession lands on session_start', () async {
+    sessionResponseTraitsId = 'trt_pre';
+    final sink = CollectorHttpSink(config: configForServer());
+    await sink.setTraits({'plan': 'starter'});
+    expect(sessionPosts, isEmpty);
+
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(sessionPosts, hasLength(1));
+    expect(sessionPosts.single['eventType'], 'session_start');
+    expect(sessionPosts.single['traits'], {'plan': 'starter'});
+    expect(
+      sessionPosts.where((post) => post['eventType'] == 'traits_updated'),
+      isEmpty,
+    );
+    sink.dispose();
+  });
+
+  test(
+    'setTraits while session_start pending updates start payload only',
+    () async {
+      sessionStatus = 503;
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Failed attempts are still recorded by the test server.
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'session_start'),
+        isNotEmpty,
+      );
+
+      await sink.setTraits({'plan': 'pro'});
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'traits_updated'),
+        isEmpty,
+      );
+
+      sessionStatus = 202;
+      sessionResponseTraitsId = 'trt_pending';
+      await sink.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final starts = sessionPosts
+          .where((post) => post['eventType'] == 'session_start')
+          .toList();
+      expect(starts.last['traits'], {'plan': 'pro'});
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'traits_updated'),
+        isEmpty,
+      );
+      sink.dispose();
+    },
+  );
+
+  test(
+    'new session_start includes traits bag after mid-session setTraits',
+    () async {
+      sessionResponseTraitsId = 'trt_mid';
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession(id: 'session-a'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(sessionPosts, hasLength(1));
+
+      await sink.setTraits({'plan': 'pro'});
+      expect(sessionPosts, hasLength(2));
+      expect(sessionPosts.last['eventType'], 'traits_updated');
+      expect(sessionPosts.last['traits'], {'plan': 'pro'});
+
+      await sink.endSession();
+      sessionPosts.clear();
+
+      sink.startSession(createSession(id: 'session-b'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(sessionPosts.first['eventType'], 'session_start');
+      expect(sessionPosts.first['traits'], {'plan': 'pro'});
+      expect(sessionPosts.first.containsKey('traitsId'), isFalse);
+      sink.dispose();
+    },
+  );
+
   test('session lifecycle without traits bag sends cached traitsId', () async {
     final sink = CollectorHttpSink(
       config: configForServer(),
@@ -834,6 +916,28 @@ void main() {
 
     await sink.setUserId(null);
     expect(sessionPosts, hasLength(2));
+    sink.dispose();
+  });
+
+  test('setTraits no-ops when traits bag is unchanged', () async {
+    sessionResponseTraitsId = 'trt_skip';
+    final sink = CollectorHttpSink(config: configForServer());
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts, hasLength(1));
+
+    await sink.setTraits({'plan': 'pro'});
+    expect(sessionPosts, hasLength(2));
+    expect(sessionPosts.last['eventType'], 'traits_updated');
+    expect(sessionPosts.last['traits'], {'plan': 'pro'});
+
+    await sink.setTraits({'plan': 'pro'});
+    expect(sessionPosts, hasLength(2));
+
+    await sink.setTraits({'plan': 'enterprise'});
+    expect(sessionPosts, hasLength(3));
+    expect(sessionPosts.last['eventType'], 'traits_updated');
+    expect(sessionPosts.last['traits'], {'plan': 'enterprise'});
     sink.dispose();
   });
 }

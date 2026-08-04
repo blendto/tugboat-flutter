@@ -757,10 +757,10 @@ class TugboatReplayController extends ChangeNotifier {
   /// Monotonic gate epoch fencing evidence to this capture mount.
   final int sessionEpoch;
 
-  final Map<String, dynamic>? _initialTraits;
+  Map<String, dynamic>? _initialTraits;
   final String? _initialTraitsId;
-  final String? _initialUserId;
-  final bool _initialUserIdOverride;
+  String? _initialUserId;
+  bool _initialUserIdOverride;
 
   final Stopwatch _clock = Stopwatch();
   Future<void> _queue = Future.value();
@@ -1203,6 +1203,8 @@ class TugboatReplayController extends ChangeNotifier {
     }
     final collectorConfig = config.collector;
     if (collectorConfig != null) {
+      // [_initialTraits] / [_initialUserId] may have been updated by
+      // setTraits/setUserId after construction but before initialize.
       final userId = _initialUserIdOverride
           ? _initialUserId
           : collectorConfig.withUserId(config.userId).userId;
@@ -1242,12 +1244,21 @@ class TugboatReplayController extends ChangeNotifier {
 
   /// See [TugboatReplay.setTraits].
   Future<void> setTraits(Map<String, dynamic> traits) {
-    return _collectorHttpSink?.setTraits(traits) ?? Future<void>.value();
+    final sink = _collectorHttpSink;
+    if (sink != null) return sink.setTraits(traits);
+    // Capture can call identify after the controller mounts but before
+    // [initialize] builds the HTTP sink — retain for session_start.
+    _initialTraits = Map<String, dynamic>.from(traits);
+    return Future<void>.value();
   }
 
   /// See [TugboatReplay.setUserId].
   Future<void> setUserId(String? userId) {
-    return _collectorHttpSink?.setUserId(userId) ?? Future<void>.value();
+    final sink = _collectorHttpSink;
+    if (sink != null) return sink.setUserId(userId);
+    _initialUserId = userId;
+    _initialUserIdOverride = true;
+    return Future<void>.value();
   }
 
   /// Collector traits id cached on the HTTP sink, if any.

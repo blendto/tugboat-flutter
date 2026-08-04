@@ -180,13 +180,23 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   /// Registers a full traits snapshot with the collector via `traits_updated`.
   ///
-  /// Always caches [traits] locally. When a capture session is active, posts
+  /// No-ops when [traits] deep-equals the cached bag (no `traits_updated`
+  /// post). When a capture session is active and the bag changes, posts
   /// `POST /v1/sessions` with `eventType: traits_updated` and updates
-  /// [traitsId] from an accepted response. Does not call `/v1/identify`.
+  /// [traitsId] from an accepted response. If a `session_start` is still
+  /// pending, skips `traits_updated` — that start payload reads the latest
+  /// bag at send time. Does not call `/v1/identify`.
   Future<void> setTraits(Map<String, dynamic> traits) async {
     if (_disposed) return;
+    if (mapEquals(_traits, traits)) return;
     _traits = Map<String, dynamic>.from(traits);
     if (_session == null) return;
+    final startPending = _pendingLifecycle.any(
+      (p) =>
+          p.eventType ==
+          TugboatCollectorSessionEventType.sessionStart.wireValue,
+    );
+    if (startPending) return;
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.traitsUpdated.wireValue,
       DateTime.now(),
