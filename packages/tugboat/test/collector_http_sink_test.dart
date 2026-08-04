@@ -1152,9 +1152,7 @@ void main() {
         isTrue,
       );
       expect(
-        triggeredAt.isBefore(
-          afterTraits.add(const Duration(milliseconds: 50)),
-        ),
+        triggeredAt.isBefore(afterTraits.add(const Duration(milliseconds: 50))),
         isTrue,
       );
       sink.dispose();
