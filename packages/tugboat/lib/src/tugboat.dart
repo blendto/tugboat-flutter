@@ -89,11 +89,10 @@ class TugboatReplay {
 
   /// Registers a full user-traits snapshot with the collector.
   ///
-  /// Sends `POST /v1/sessions` with `eventType: traits_updated` when a capture
-  /// session is active and the bag changed. The collector returns a `traitsId`
-  /// that is cached and stamped onto subsequent events. Always sends the full
-  /// bag (no server-side merge). No-ops when [traits] deep-equals the pending
-  /// bag. Does not call `/v1/identify`.
+  /// When a capture session is active and the bag changes, debounces lifecycle
+  /// posts (3s). Combined with a pending user change, posts
+  /// `session_identify`; otherwise `traits_updated`. While `session_start` is
+  /// still pending, updates memory only (folded into start at send time).
   static Future<void> setTraits(Map<String, dynamic> traits) async {
     if (mapEquals(_pendingTraits, traits)) return;
     _pendingTraits = Map<String, dynamic>.from(traits);
@@ -105,11 +104,10 @@ class TugboatReplay {
 
   /// Updates the runtime user id used on collector sessions and events.
   ///
-  /// No-ops when [userId] equals the current runtime id. When a capture
-  /// session is active and the id changes, sends `POST /v1/sessions` with
-  /// `eventType: user_changed` and includes the cached traits bag when set.
-  /// If a `session_start` is still pending, skips `user_changed` so the start
-  /// payload carries the latest id.
+  /// No-ops when [userId] equals the current runtime id. When a capture session
+  /// is active and the id changes, debounces lifecycle posts (3s). Combined
+  /// with a pending traits change, posts `session_identify`; otherwise
+  /// `user_changed`. While `session_start` is still pending, updates memory only.
   static Future<void> setUserId(String? userId) async {
     _pendingUserId = userId;
     _pendingUserIdSet = true;

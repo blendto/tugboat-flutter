@@ -173,16 +173,16 @@ await TugboatReplay.setTraits({
 await TugboatReplay.setUserId(currentUserId);
 ```
 
-- `setTraits` sends `eventType: traits_updated` with the full bag when a capture
-  session is active, caches the response `traitsId`, and stamps that id onto
-  subsequent event batches. Skips `traits_updated` while a `session_start` is
-  still pending (the start payload reads the latest bag at send time).
-- `setUserId` sends `eventType: user_changed` (with the cached traits bag when
-  set) and updates the runtime user id on later sessions/events. Calls with the
-  same id as the current runtime user are ignored (no `user_changed` post).
-  Skips `user_changed` while a `session_start` is still pending.
+- `setTraits` debounces `traits_updated` (3s) after start acceptance, or
+  `session_identify` when combined with a pending user change. Caches
+  `traitsId` and stamps it on event batches. While `session_start` is pending,
+  updates memory only (folded into start at send time).
+- `setUserId` debounces `user_changed` (3s) after start acceptance, or
+  `session_identify` when combined with a pending traits change. Unchanged ids
+  are ignored. While `session_start` is pending, updates memory only.
 - Pre-activate calls are retained in memory and included on the next
-  `session_start`. There is no `/v1/identify` route.
+  `session_start` when present. Pending debounced updates flush on `session_end`.
+  There is no `/v1/identify` route.
 
 Optional durable HTTP delivery (Collector only, default off):
 
@@ -289,7 +289,7 @@ Emitted event types currently include:
   immutable `origin`, `result`, `attribution`, and `evidenceEventIds`;
 - legacy gesture peers (`stream: legacy_projection` when canonical is on):
   `tap`, `tap_settled`, `swipe`, `tap_outside_tree`, `tap_gesture_resolved`;
-- lifecycle: `session_start`, `session_end`;
+- lifecycle: `session_start`, `session_identify`, `session_end`;
 - input: `pointer_cancel` (`stream: evidence`);
 - state/navigation evidence (`stream: evidence`): `state_change`, `route_change`
   (claimed routes also carry `causedByInteractionId`);

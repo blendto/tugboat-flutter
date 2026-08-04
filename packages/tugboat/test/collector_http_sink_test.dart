@@ -205,6 +205,10 @@ void main() {
     expect(headers['X-Sdk-Version'], tugboatSdkVersion);
   }
 
+  Future<void> awaitIdentityDebounce() async {
+    await Future<void>.delayed(const Duration(milliseconds: 3100));
+  }
+
   test('collector defaults flush low-volume events every 3 seconds', () {
     expect(
       TugboatCollectorConfig(
@@ -799,6 +803,7 @@ void main() {
       expect(sessionPosts, hasLength(1));
 
       await sink.setTraits({'plan': 'pro', 'seatCount': 3});
+      await awaitIdentityDebounce();
       expect(sessionPosts, hasLength(2));
       final traitsPost = sessionPosts.last;
       expect(traitsPost['eventType'], 'traits_updated');
@@ -899,6 +904,7 @@ void main() {
       expect(sessionPosts, hasLength(1));
 
       await sink.setTraits({'plan': 'pro'});
+      await awaitIdentityDebounce();
       expect(sessionPosts, hasLength(2));
       expect(sessionPosts.last['eventType'], 'traits_updated');
       expect(sessionPosts.last['traits'], {'plan': 'pro'});
@@ -947,6 +953,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     await sink.setUserId('user_b');
+    await awaitIdentityDebounce();
     expect(sink.userId, 'user_b');
     final changed = sessionPosts.last;
     expect(changed['eventType'], 'user_changed');
@@ -1025,6 +1032,7 @@ void main() {
     expect(sessionPosts, hasLength(1));
 
     await sink.setUserId(null);
+    await awaitIdentityDebounce();
     expect(sink.userId, isNull);
     expect(sessionPosts, hasLength(2));
     expect(sessionPosts.last['eventType'], 'user_changed');
@@ -1043,6 +1051,7 @@ void main() {
     expect(sessionPosts, hasLength(1));
 
     await sink.setTraits({'plan': 'pro'});
+    await awaitIdentityDebounce();
     expect(sessionPosts, hasLength(2));
     expect(sessionPosts.last['eventType'], 'traits_updated');
     expect(sessionPosts.last['traits'], {'plan': 'pro'});
@@ -1051,9 +1060,57 @@ void main() {
     expect(sessionPosts, hasLength(2));
 
     await sink.setTraits({'plan': 'enterprise'});
+    await awaitIdentityDebounce();
     expect(sessionPosts, hasLength(3));
     expect(sessionPosts.last['eventType'], 'traits_updated');
     expect(sessionPosts.last['traits'], {'plan': 'enterprise'});
+    sink.dispose();
+  });
+
+  test(
+    'setUserId then setTraits within debounce posts session_identify once',
+    () async {
+      sessionResponseTraitsId = 'trt_both';
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(sessionPosts, hasLength(1));
+
+      await sink.setUserId('user_coalesce');
+      await sink.setTraits({'plan': 'pro', 'seatCount': 2});
+      await awaitIdentityDebounce();
+
+      expect(sessionPosts, hasLength(2));
+      expect(sessionPosts.last['eventType'], 'session_identify');
+      expect(sessionPosts.last['userId'], 'user_coalesce');
+      expect(sessionPosts.last['traits'], {'plan': 'pro', 'seatCount': 2});
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'user_changed'),
+        isEmpty,
+      );
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'traits_updated'),
+        isEmpty,
+      );
+      sink.dispose();
+    },
+  );
+
+  test('endSession flushes debounced identity before session_end', () async {
+    sessionResponseTraitsId = 'trt_end';
+    final sink = CollectorHttpSink(config: configForServer());
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    await sink.setTraits({'plan': 'pro'});
+    expect(sessionPosts, hasLength(1));
+
+    await sink.endSession();
+    expect(sessionPosts.map((post) => post['eventType']), [
+      'session_start',
+      'traits_updated',
+      'session_end',
+    ]);
     sink.dispose();
   });
 }

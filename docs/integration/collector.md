@@ -159,7 +159,7 @@ The SDK calls:
 
 | Request | Purpose |
 | --- | --- |
-| `POST /v1/sessions` | Session lifecycle and identity: `session_start`, `session_end`, `traits_updated`, `user_changed` |
+| `POST /v1/sessions` | Session lifecycle and identity: `session_start`, `session_identify`, `session_end`, `traits_updated`, `user_changed` |
 | `POST /v1/events/batch` | JSON event batches |
 | `POST /v1/frames` | multipart PNG frame upload |
 
@@ -176,8 +176,8 @@ not uploaded before this handshake completes.
 Session payloads may include:
 
 - `traits` — full traits snapshot when the host has set a bag (`session_start`,
-  `traits_updated`, `user_changed`); the collector stores the bag as-is (no
-  server-side partial merge);
+  `session_identify`, `traits_updated`, `user_changed`); the collector stores
+  the bag as-is (no server-side partial merge);
 - `traitsId` — pass-through of a prior collector-issued id when no new bag is
   sent (for example `session_end`, or `session_start` after only an id is
   cached). Ignored by the collector when `traits` is present.
@@ -185,9 +185,11 @@ Session payloads may include:
 Accepted session responses (`202`) may return `traitsId`. The SDK caches that
 value in process memory and stamps it onto subsequent event batches. Host apps
 register traits with `TugboatReplay.setTraits` and change the runtime user with
-`TugboatReplay.setUserId`. While a `session_start` is still pending, both APIs
-update in-memory identity only and skip `traits_updated` / `user_changed` so
-boot identity lands on a single start POST. The SDK does **not** call
+`TugboatReplay.setUserId`. While `session_start` is still pending, both APIs
+update in-memory identity only (folded into start at send time). After start,
+changes within 3s coalesce into one lifecycle POST: `session_identify` when
+both user and traits change, otherwise `user_changed` or `traits_updated`.
+Debounced updates are flushed before `session_end`. The SDK does **not** call
 `/v1/identify` or `/v1/events/identify`.
 
 Event payloads contain:

@@ -1,3 +1,17 @@
+## 0.5.3
+
+### Added
+
+- **Debounced identity coalesce** — after `session_start`, `setUserId` and
+  `setTraits` within 3s consolidate into one `session_identify` POST when
+  both change; otherwise `user_changed` or `traits_updated`. Pending updates are
+  flushed before `session_end`.
+
+### Changed
+
+- Pre-start identity still folds into a single `session_start` when values are
+  staged before or while start is pending.
+
 ## 0.5.2
 
 ### Changed

@@ -60,6 +60,18 @@ class CollectorHttpSink implements TugboatCaptureSink {
   /// Collector-issued traits dictionary id.
   String? _traitsId;
 
+  /// How long to wait after the last identity change before posting.
+  ///
+  /// Boot flows often resolve userId and traits in separate calls (auth restore,
+  /// billing, feature flags). Debouncing merges those into one lifecycle POST
+  /// (`session_identify` when both change) instead of back-to-back
+  /// `user_changed` / `traits_updated`.
+  static const _identityDebounceDuration = Duration(seconds: 3);
+
+  Timer? _identityDebounceTimer;
+  bool _userDirty = false;
+  bool _traitsDirty = false;
+
   Uri get _baseUri => Uri.parse(_config.baseUrl.replaceAll(RegExp(r'/+$'), ''));
 
   bool get _hasCollectorSessionId =>
@@ -88,6 +100,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _retryBatches.clear();
     _pendingLifecycle.clear();
     _framesNeedRetry = false;
+    _cancelIdentityDebounce();
+    _userDirty = false;
+    _traitsDirty = false;
     _scheduleFlushTimer();
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionStart.wireValue,
@@ -178,61 +193,85 @@ class CollectorHttpSink implements TugboatCaptureSink {
     await flush();
   }
 
-  /// Registers a full traits snapshot with the collector via `traits_updated`.
+  /// Registers a full traits snapshot with the collector.
   ///
-  /// No-ops when [traits] deep-equals the cached bag (no `traits_updated`
-  /// post). When a capture session is active and the bag changes, posts
-  /// `POST /v1/sessions` with `eventType: traits_updated` and updates
-  /// [traitsId] from an accepted response. If a `session_start` is still
-  /// pending, skips `traits_updated` — that start payload reads the latest
-  /// bag at send time. Does not call `/v1/identify`.
+  /// No-ops when [traits] deep-equals the cached bag. While `session_start` is
+  /// still pending, updates memory only (folded into start at send time).
+  /// Otherwise debounces `traits_updated` or `session_identify` when combined
+  /// with a pending user change within [_identityDebounceDuration].
   Future<void> setTraits(Map<String, dynamic> traits) async {
     if (_disposed) return;
     if (mapEquals(_traits, traits)) return;
     _traits = Map<String, dynamic>.from(traits);
     if (_session == null) return;
-    final startPending = _pendingLifecycle.any(
-      (p) =>
-          p.eventType ==
-          TugboatCollectorSessionEventType.sessionStart.wireValue,
-    );
-    if (startPending) return;
-    _enqueueSessionLifecycle(
-      TugboatCollectorSessionEventType.traitsUpdated.wireValue,
-      DateTime.now(),
-    );
-    await _drainLifecyclePosts();
+    if (_isSessionStartPending()) return;
+    _traitsDirty = true;
+    _scheduleIdentityDebounce();
   }
 
-  /// Updates the runtime user id and notifies the collector via `user_changed`.
+  /// Updates the runtime user id and notifies the collector.
   ///
-  /// No-ops when [userId] equals the current runtime id (no `user_changed`
-  /// post). When a capture session is active and the id changes, posts
-  /// `POST /v1/sessions` with `eventType: user_changed` and includes the
-  /// cached traits bag when set. If a `session_start` is still pending,
-  /// skips `user_changed` — that start payload reads the latest id at send
-  /// time.
+  /// No-ops when [userId] equals the current runtime id. While `session_start`
+  /// is still pending, updates memory only (folded into start at send time).
+  /// Otherwise debounces `user_changed` or `session_identify` when combined
+  /// with a pending traits change within [_identityDebounceDuration].
   Future<void> setUserId(String? userId) async {
     if (_disposed) return;
     if (userId == _userId) return;
     _userId = userId;
     if (_session == null) return;
-    final startPending = _pendingLifecycle.any(
-      (p) =>
-          p.eventType ==
-          TugboatCollectorSessionEventType.sessionStart.wireValue,
-    );
-    if (startPending) return;
-    _enqueueSessionLifecycle(
-      TugboatCollectorSessionEventType.userChanged.wireValue,
-      DateTime.now(),
-    );
+    if (_isSessionStartPending()) return;
+    _userDirty = true;
+    _scheduleIdentityDebounce();
+  }
+
+  bool _isSessionStartPending() => _pendingLifecycle.any(
+    (p) =>
+        p.eventType == TugboatCollectorSessionEventType.sessionStart.wireValue,
+  );
+
+  void _scheduleIdentityDebounce() {
+    _identityDebounceTimer?.cancel();
+    _identityDebounceTimer = Timer(_identityDebounceDuration, () {
+      _identityDebounceTimer = null;
+      if (_disposed) return;
+      _enqueueCoalescedIdentityUpdate();
+      unawaited(_drainLifecyclePosts());
+    });
+  }
+
+  void _cancelIdentityDebounce() {
+    _identityDebounceTimer?.cancel();
+    _identityDebounceTimer = null;
+  }
+
+  /// Flushes any debounced identity update immediately (no-op when clean).
+  Future<void> _flushIdentityDebounce() async {
+    _cancelIdentityDebounce();
+    if (!_userDirty && !_traitsDirty) return;
+    _enqueueCoalescedIdentityUpdate();
     await _drainLifecyclePosts();
+  }
+
+  void _enqueueCoalescedIdentityUpdate() {
+    if (_disposed || _session == null) return;
+    if (!_userDirty && !_traitsDirty) return;
+
+    final eventType = _userDirty && _traitsDirty
+        ? TugboatCollectorSessionEventType.sessionIdentify.wireValue
+        : _userDirty
+        ? TugboatCollectorSessionEventType.userChanged.wireValue
+        : TugboatCollectorSessionEventType.traitsUpdated.wireValue;
+
+    _userDirty = false;
+    _traitsDirty = false;
+    _enqueueSessionLifecycle(eventType, DateTime.now());
   }
 
   @override
   Future<void> endSession() async {
     if (_disposed || _session == null) return;
+    await _flushIdentityDebounce();
     await flush();
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionEnd.wireValue,
@@ -246,6 +285,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
   void dispose() {
     _disposed = true;
     _cancelFlushTimer();
+    _cancelIdentityDebounce();
+    _userDirty = false;
+    _traitsDirty = false;
     _client.close();
     _pendingEvents.clear();
     _pendingFrames.clear();
@@ -324,6 +366,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final includeFullTraits =
         _traits != null &&
         (eventType == TugboatCollectorSessionEventType.sessionStart.wireValue ||
+            eventType ==
+                TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
             eventType ==
                 TugboatCollectorSessionEventType.traitsUpdated.wireValue ||
             eventType ==

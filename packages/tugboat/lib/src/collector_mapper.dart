@@ -5,6 +5,7 @@ import 'models.dart';
 /// Wire values for `POST /v1/sessions` `eventType`.
 enum TugboatCollectorSessionEventType {
   sessionStart('session_start'),
+  sessionIdentify('session_identify'),
   sessionEnd('session_end'),
   traitsUpdated('traits_updated'),
   userChanged('user_changed');

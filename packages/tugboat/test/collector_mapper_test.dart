@@ -204,6 +204,10 @@ void main() {
 
   test('session event type wire values match collector contract', () {
     expect(
+      TugboatCollectorSessionEventType.sessionIdentify.wireValue,
+      'session_identify',
+    );
+    expect(
       TugboatCollectorSessionEventType.sessionStart.wireValue,
       'session_start',
     );
