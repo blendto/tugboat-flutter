@@ -205,6 +205,66 @@ void main() {
     expect((event.data['capture'] as Map)['droppedCount'], 2);
   });
 
+  testWidgets('transform cannot append after synchronously ending session', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    final controller = TugboatReplay.controller!;
+    final session = controller.session!;
+    final hook = TugboatReplay.eventHook(
+      parameterPolicy: TugboatParameterPolicy.transform((key, value) {
+        controller.endSession();
+        return value;
+      }),
+    );
+
+    hook.record('AFTER_END', parameters: {'trigger': true});
+
+    expect(
+      session.events.where((event) => event.type == 'external_event'),
+      isEmpty,
+    );
+    expect(
+      session.events.where((event) => event.type == 'session_end'),
+      hasLength(1),
+    );
+    expect(TugboatReplay.health.evidence.externalAccepted, 0);
+    expect(TugboatReplay.health.evidence.externalDropped, 1);
+    expect(TugboatReplay.health.evidence.lastDropReason, 'no_active_session');
+  });
+
+  testWidgets('transform cannot append into a replacement session', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    final controller = TugboatReplay.controller!;
+    final originalSession = controller.session!;
+    final hook = TugboatReplay.eventHook(
+      parameterPolicy: TugboatParameterPolicy.transform((key, value) {
+        controller.clear();
+        return value;
+      }),
+    );
+
+    hook.record('AFTER_CLEAR', parameters: {'trigger': true});
+
+    final replacementSession = controller.session!;
+    expect(replacementSession.id, isNot(originalSession.id));
+    expect(
+      originalSession.events.where((event) => event.type == 'external_event'),
+      isEmpty,
+    );
+    expect(
+      replacementSession.events.where(
+        (event) => event.type == 'external_event',
+      ),
+      isEmpty,
+    );
+    expect(TugboatReplay.health.evidence.externalAccepted, 0);
+    expect(TugboatReplay.health.evidence.externalDropped, 1);
+    expect(TugboatReplay.health.evidence.lastDropReason, 'stale_session');
+  });
+
   testWidgets('network token finishes exactly once', (tester) async {
     await _pumpCapture(tester);
     final call = TugboatReplay.beginNetworkCall(

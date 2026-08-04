@@ -73,6 +73,11 @@ class TugboatEvidenceRecorder {
         _noteDrop(_EvidenceKind.external, 'no_active_session');
         return;
       }
+      final admittedSessionId = _session?.id;
+      if (admittedSessionId == null) {
+        _noteDrop(_EvidenceKind.external, 'no_active_session');
+        return;
+      }
       final boundedName = boundExternalLabel(
         name,
         TugboatParameterLimits.maxNameLength,
@@ -90,6 +95,14 @@ class TugboatEvidenceRecorder {
         policy: effectivePolicy,
         parameters: parameters,
       );
+      if (!accepting) {
+        _noteDrop(_EvidenceKind.external, 'no_active_session');
+        return;
+      }
+      if (_session?.id != admittedSessionId) {
+        _noteDrop(_EvidenceKind.external, 'stale_session');
+        return;
+      }
       appendEvidence(
         TugboatEvent(
           id: nextEventId('event'),

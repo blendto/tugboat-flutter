@@ -405,6 +405,48 @@ void main() {
     );
   });
 
+  testWidgets('session replacement inside resolver does not cross sessions', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    final controller = TugboatReplay.controller!;
+    final originalSession = controller.session!;
+    RequestOptions? observedRequest;
+    final dio = Dio();
+    dio.httpClientAdapter = _ScriptedAdapter((options) async {
+      observedRequest = options;
+      return ResponseBody.fromString('ok', 200);
+    });
+    TugboatDioInterceptor.install(
+      dio,
+      routeResolver: (_) {
+        controller.clear();
+        return '/x';
+      },
+    );
+
+    final response = await _runAsync(
+      tester,
+      () => dio.get<dynamic>(
+        '/x',
+        options: Options(extra: {'host.keep': 'value'}),
+      ),
+    );
+
+    final replacementSession = controller.session!;
+    expect(response.statusCode, 200);
+    expect(identical(replacementSession, originalSession), isFalse);
+    expect(observedRequest!.extra, {'host.keep': 'value'});
+    expect(
+      originalSession.events.where((event) => event.type == 'network_call'),
+      isEmpty,
+    );
+    expect(
+      replacementSession.events.where((event) => event.type == 'network_call'),
+      isEmpty,
+    );
+  });
+
   testWidgets('deactivate synchronously fences event and network evidence', (
     tester,
   ) async {

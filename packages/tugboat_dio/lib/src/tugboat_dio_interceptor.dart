@@ -115,13 +115,21 @@ class TugboatDioInterceptor extends Interceptor {
       return;
     }
 
+    final controller = TugboatReplay.controller;
+    final session = controller?.session;
+    if (controller == null || session == null) return;
+
     String? route;
     try {
       route = routeResolver(options);
     } catch (_) {
       route = null;
     }
-    if (!TugboatReplay.isAcceptingEvidence) return;
+    if (!TugboatReplay.isAcceptingEvidence ||
+        !identical(TugboatReplay.controller, controller) ||
+        !identical(controller.session, session)) {
+      return;
+    }
 
     final trimmed = route?.trim();
     options.extra[_extraCallKey] = _TugboatDioCallState(
