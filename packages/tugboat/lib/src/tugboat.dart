@@ -108,6 +108,8 @@ class TugboatReplay {
   /// No-ops when [userId] equals the current runtime id. When a capture
   /// session is active and the id changes, sends `POST /v1/sessions` with
   /// `eventType: user_changed` and includes the cached traits bag when set.
+  /// If a `session_start` is still pending, skips `user_changed` so the start
+  /// payload carries the latest id.
   static Future<void> setUserId(String? userId) async {
     _pendingUserId = userId;
     _pendingUserIdSet = true;

@@ -956,6 +956,60 @@ void main() {
     sink.dispose();
   });
 
+  test('setUserId before startSession lands on session_start', () async {
+    final sink = CollectorHttpSink(config: configForServer());
+    await sink.setUserId('user_pre');
+    expect(sessionPosts, isEmpty);
+    expect(sink.userId, 'user_pre');
+
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(sessionPosts, hasLength(1));
+    expect(sessionPosts.single['eventType'], 'session_start');
+    expect(sessionPosts.single['userId'], 'user_pre');
+    expect(
+      sessionPosts.where((post) => post['eventType'] == 'user_changed'),
+      isEmpty,
+    );
+    sink.dispose();
+  });
+
+  test(
+    'setUserId while session_start pending updates start payload only',
+    () async {
+      sessionStatus = 503;
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'session_start'),
+        isNotEmpty,
+      );
+
+      await sink.setUserId('user_pending');
+      expect(sink.userId, 'user_pending');
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'user_changed'),
+        isEmpty,
+      );
+
+      sessionStatus = 202;
+      await sink.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final starts = sessionPosts
+          .where((post) => post['eventType'] == 'session_start')
+          .toList();
+      expect(starts.last['userId'], 'user_pending');
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'user_changed'),
+        isEmpty,
+      );
+      sink.dispose();
+    },
+  );
+
   test('setUserId no-ops when user id is unchanged', () async {
     final sink = CollectorHttpSink(
       config: configForServer(),

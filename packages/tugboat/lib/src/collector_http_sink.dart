@@ -209,12 +209,20 @@ class CollectorHttpSink implements TugboatCaptureSink {
   /// No-ops when [userId] equals the current runtime id (no `user_changed`
   /// post). When a capture session is active and the id changes, posts
   /// `POST /v1/sessions` with `eventType: user_changed` and includes the
-  /// cached traits bag when set.
+  /// cached traits bag when set. If a `session_start` is still pending,
+  /// skips `user_changed` — that start payload reads the latest id at send
+  /// time.
   Future<void> setUserId(String? userId) async {
     if (_disposed) return;
     if (userId == _userId) return;
     _userId = userId;
     if (_session == null) return;
+    final startPending = _pendingLifecycle.any(
+      (p) =>
+          p.eventType ==
+          TugboatCollectorSessionEventType.sessionStart.wireValue,
+    );
+    if (startPending) return;
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.userChanged.wireValue,
       DateTime.now(),

@@ -185,8 +185,10 @@ Session payloads may include:
 Accepted session responses (`202`) may return `traitsId`. The SDK caches that
 value in process memory and stamps it onto subsequent event batches. Host apps
 register traits with `TugboatReplay.setTraits` and change the runtime user with
-`TugboatReplay.setUserId`. The SDK does **not** call `/v1/identify` or
-`/v1/events/identify`.
+`TugboatReplay.setUserId`. While a `session_start` is still pending, both APIs
+update in-memory identity only and skip `traits_updated` / `user_changed` so
+boot identity lands on a single start POST. The SDK does **not** call
+`/v1/identify` or `/v1/events/identify`.
 
 Event payloads contain:
 

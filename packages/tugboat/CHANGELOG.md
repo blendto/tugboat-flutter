@@ -1,3 +1,12 @@
+## 0.5.2
+
+### Changed
+
+- **`setUserId` folds into pending `session_start`** — when a `session_start`
+  is still pending, `CollectorHttpSink.setUserId` updates the runtime id only
+  and skips `user_changed` (same coalesce already used by `setTraits`). Boot
+  identity can land on a single `session_start` POST.
+
 ## 0.5.1
 
 ### Added
