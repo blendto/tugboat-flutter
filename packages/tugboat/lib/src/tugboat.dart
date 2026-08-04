@@ -84,6 +84,16 @@ class TugboatReplay {
   /// Whether capture machinery is allowed to run ([disabled] is `false`).
   static bool get isEnabled => !_lifecycle.disabled;
 
+  /// Whether the current session can accept app and network evidence now.
+  ///
+  /// Companion adapters should check this before invoking host callbacks or
+  /// attaching observation metadata. The core APIs remain safe no-ops if the
+  /// lifecycle changes before an observation reaches them.
+  static bool get isAcceptingEvidence =>
+      !disabled &&
+      _lifecycle.state != TugboatLifecycleState.stopping &&
+      (_controller?.acceptingEvidence ?? false);
+
   /// Enables capture machinery for dormant builds at runtime.
   ///
   /// Prefer [activationRequestId]; [sessionId] is retained for compatibility.
@@ -104,6 +114,9 @@ class TugboatReplay {
   /// Returns the SDK to dormant mode without tearing down the host app.
   static void deactivate() {
     _lifecycle.deactivate();
+    // Widget teardown happens on the next build. End now so same-turn calls
+    // cannot append evidence after deactivation was requested.
+    unawaited(_controller?.endSession());
   }
 
   /// Current sanitized health snapshot (empty when no controller).
@@ -152,13 +165,13 @@ class TugboatReplay {
   ///
   /// [route] must already be a safe host-supplied template such as
   /// `/blend/:blendId`. Raw paths are never accepted as a fallback. Returns a
-  /// no-op token when Tugboat is dormant/disabled or [route] is empty.
+  /// no-op token when Tugboat is dormant/disabled or [route] is null/invalid.
   static TugboatNetworkCall beginNetworkCall({
     required String method,
-    required String route,
+    String? route,
   }) {
     try {
-      if (disabled) return const TugboatNoOpNetworkCall();
+      if (!isAcceptingEvidence) return const TugboatNoOpNetworkCall();
       final controller = _controller;
       if (controller == null) return const TugboatNoOpNetworkCall();
       return controller.beginNetworkCall(method: method, route: route);
@@ -186,7 +199,7 @@ class _TugboatEventHook implements TugboatEventHook {
   @override
   void record(String name, {Map<String, Object?>? parameters}) {
     try {
-      if (TugboatReplay.disabled) return;
+      if (!TugboatReplay.isAcceptingEvidence) return;
       final controller = TugboatReplay.controller;
       if (controller == null) return;
       controller.recordExternalEvent(

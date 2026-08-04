@@ -11,6 +11,17 @@ enum TugboatNetworkOutcome {
   };
 }
 
+/// Failure reasons accepted by [TugboatNetworkCall.fail].
+enum TugboatNetworkFailure {
+  networkError,
+  cancelled;
+
+  TugboatNetworkOutcome get outcome => switch (this) {
+    TugboatNetworkFailure.networkError => TugboatNetworkOutcome.networkError,
+    TugboatNetworkFailure.cancelled => TugboatNetworkOutcome.cancelled,
+  };
+}
+
 /// Hard limits for host-supplied network observation fields.
 abstract final class TugboatNetworkLimits {
   static const maxMethodLength = 16;
@@ -25,7 +36,7 @@ abstract interface class TugboatNetworkCall {
   void complete({int? statusCode, int? attemptCount});
 
   void fail({
-    required TugboatNetworkOutcome outcome,
+    required TugboatNetworkFailure failure,
     int? statusCode,
     int? attemptCount,
   });
@@ -40,7 +51,7 @@ class TugboatNoOpNetworkCall implements TugboatNetworkCall {
 
   @override
   void fail({
-    required TugboatNetworkOutcome outcome,
+    required TugboatNetworkFailure failure,
     int? statusCode,
     int? attemptCount,
   }) {}
@@ -57,6 +68,22 @@ String? normalizeNetworkRoute(String? route) {
   if (route == null) return null;
   final trimmed = route.trim();
   if (trimmed.isEmpty) return null;
+  if (trimmed != route) return null;
   if (trimmed.length > TugboatNetworkLimits.maxRouteLength) return null;
+  // Routes are host-supplied templates, never arbitrary URLs. Requiring an
+  // absolute path and rejecting URI delimiters, encoded delimiters, backslash,
+  // and whitespace keeps accidental raw request URLs out of evidence. Dynamic
+  // IDs still need to be removed by the host's route resolver.
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//')) return null;
+  if (trimmed.contains('://')) return null;
+  if (trimmed.runes.any(_isForbiddenRouteRune)) return null;
   return trimmed;
+}
+
+bool _isForbiddenRouteRune(int rune) {
+  if (rune <= 0x20 || rune == 0x7f) return true;
+  return rune == '%'.codeUnitAt(0) ||
+      rune == '#'.codeUnitAt(0) ||
+      rune == '?'.codeUnitAt(0) ||
+      rune == r'\'.codeUnitAt(0);
 }

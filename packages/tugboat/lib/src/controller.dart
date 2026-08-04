@@ -11,6 +11,7 @@ import 'collector_http_sink.dart';
 import 'coordinate_space.dart';
 import 'debug_logging.dart';
 import 'exploration_sink.dart';
+import 'evidence_recorder.dart';
 import 'external_event.dart';
 import 'health.dart';
 import 'interaction_transaction.dart';
@@ -738,10 +739,18 @@ class TugboatReplayController extends ChangeNotifier {
     required GlobalKey boundaryKey,
     this.activationRequestId,
     this.sessionEpoch = 0,
-  }) : _boundaryKey = boundaryKey;
+  }) : _boundaryKey = boundaryKey {
+    _evidence = TugboatEvidenceRecorder(
+      appendEvidence: _appendEvidenceEvent,
+      nextEventId: _nextId,
+      nowMs: () => atMs,
+      profile: () => config.profile,
+    );
+  }
 
   final TugboatReplayConfig config;
   final GlobalKey _boundaryKey;
+  late final TugboatEvidenceRecorder _evidence;
 
   /// Host-supplied activation / request correlation ID (distinct from capture).
   final String? activationRequestId;
@@ -753,6 +762,7 @@ class TugboatReplayController extends ChangeNotifier {
   Future<void> _queue = Future.value();
   int _queuedTaskCount = 0;
   Future<void>? _endSessionFuture;
+  bool _endingSession = false;
 
   TugboatSession? _session;
   ScreenshotCapturer? _capturer;
@@ -799,13 +809,6 @@ class TugboatReplayController extends ChangeNotifier {
   final Map<String, int> _captureDiagnosticOutcomes = <String, int>{};
   int _captureDiagnosticTotal = 0;
   String? _lastCaptureDiagnosticOutcome;
-  static const int _maxEvidenceCount = 10000;
-  int _externalAccepted = 0;
-  int _externalDropped = 0;
-  int _networkAccepted = 0;
-  int _networkDropped = 0;
-  int _networkDuplicateFinishes = 0;
-  String? _lastEvidenceDropReason;
   bool _capturePumpScheduled = false;
   bool _skipCapture = false;
   bool _captureLifecycleActive = true;
@@ -845,6 +848,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   TugboatSession? get session => _session;
   bool get recording => _session != null;
+  bool get acceptingEvidence => !_disposed && _evidence.accepting;
   bool get scrolling => _scrollTrackers.isNotEmpty;
   bool get capturePaused => _capturePaused;
   int get atMs => _clock.elapsedMilliseconds;
@@ -1254,14 +1258,7 @@ class TugboatReplayController extends ChangeNotifier {
         lastOutcome: _lastCaptureDiagnosticOutcome,
         outcomes: Map.unmodifiable(_captureDiagnosticOutcomes),
       ),
-      evidence: TugboatEvidenceHealth(
-        externalAccepted: _externalAccepted,
-        externalDropped: _externalDropped,
-        networkAccepted: _networkAccepted,
-        networkDropped: _networkDropped,
-        networkDuplicateFinishes: _networkDuplicateFinishes,
-        lastDropReason: _lastEvidenceDropReason,
-      ),
+      evidence: _evidence.healthSnapshot(),
       truncated: _session?.truncated ?? false,
       recentFailures: List.unmodifiable(_recentFailures),
     );
@@ -1295,7 +1292,13 @@ class TugboatReplayController extends ChangeNotifier {
   Future<void> _endSession(String cancellationReason) {
     final active = _endSessionFuture;
     if (active != null) return active;
+    if (_endingSession) return Future<void>.value();
     if (_session == null) return Future<void>.value();
+
+    // Sink delivery is synchronous and may re-enter the controller. Fence
+    // evidence before publishing the terminal event.
+    _endingSession = true;
+    _evidence.close();
 
     _cancelActiveTapSettles(cancellationReason);
     _cancelActiveRouteCapture(cancellationReason);
@@ -1334,6 +1337,7 @@ class TugboatReplayController extends ChangeNotifier {
     _invalidateCaptureWork('session_replacement');
     _captureLifecycleActive = true;
     _captureLifecycleEpoch++;
+    _endingSession = false;
     _endSessionFuture = null;
     _clock
       ..reset()
@@ -1371,12 +1375,7 @@ class TugboatReplayController extends ChangeNotifier {
     _captureDiagnosticOutcomes.clear();
     _captureDiagnosticTotal = 0;
     _lastCaptureDiagnosticOutcome = null;
-    _externalAccepted = 0;
-    _externalDropped = 0;
-    _networkAccepted = 0;
-    _networkDropped = 0;
-    _networkDuplicateFinishes = 0;
-    _lastEvidenceDropReason = null;
+    _evidence.bindSession(_session!);
     if (!_disposed) notifyListeners();
 
     final context = TugboatSinkSessionContext(
@@ -2269,6 +2268,7 @@ class TugboatReplayController extends ChangeNotifier {
       !_disposed &&
       _session != null &&
       _captureLifecycleActive &&
+      !_endingSession &&
       _endSessionFuture == null;
 
   void recordPointerDown(Offset position, {int pointer = 0}) {
@@ -4254,16 +4254,23 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   void _addEvent(TugboatEvent event) {
-    _appendEvent(event, inheritActionContext: true);
+    final session = _session;
+    if (session == null) return;
+    final enriched = event.withExplorationContext(
+      sessionId: session.id,
+      captureSessionId: session.id,
+      activationRequestId: session.activationRequestId ?? activationRequestId,
+      explorationRunId: _activeExplorationRunId ?? config.explorationRunId,
+      actionId: _activeActionId,
+    );
+    session.events.add(enriched);
+    _sinkHub?.recordEvent(enriched);
+    _trim();
   }
 
   /// Session-stamped evidence that must never inherit action/interaction
   /// context (active [actionId], related interaction, or anchors).
   void _appendEvidenceEvent(TugboatEvent event) {
-    _appendEvent(event, inheritActionContext: false);
-  }
-
-  void _appendEvent(TugboatEvent event, {required bool inheritActionContext}) {
     final session = _session;
     if (session == null) return;
     final enriched = event.copyWith(
@@ -4273,14 +4280,7 @@ class TugboatReplayController extends ChangeNotifier {
           event.activationRequestId ??
           session.activationRequestId ??
           activationRequestId,
-      explorationRunId: inheritActionContext
-          ? (event.explorationRunId ??
-                _activeExplorationRunId ??
-                config.explorationRunId)
-          : (event.explorationRunId ?? session.explorationRunId),
-      actionId: inheritActionContext
-          ? (event.actionId ?? _activeActionId)
-          : event.actionId,
+      explorationRunId: event.explorationRunId ?? session.explorationRunId,
     );
     session.events.add(enriched);
     _sinkHub?.recordEvent(enriched);
@@ -4288,144 +4288,24 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   /// Records one logical host app/analytics event onto the evidence stream.
-  ///
-  /// Safe no-op when capture is dormant. Never inherits action/interaction
-  /// context. Host failures inside policy transforms are swallowed.
   void recordExternalEvent({
     required String name,
     String? source,
     Map<String, Object?>? parameters,
     TugboatParameterPolicy parameterPolicy = TugboatParameterPolicy.namesOnly,
   }) {
-    try {
-      if (_disposed || _session == null || _endSessionFuture != null) {
-        _noteEvidenceDrop(external: true, reason: 'no_active_session');
-        return;
-      }
-      final boundedName = boundExternalLabel(
-        name,
-        TugboatParameterLimits.maxNameLength,
-      );
-      if (boundedName == null) {
-        _noteEvidenceDrop(external: true, reason: 'invalid_name');
-        return;
-      }
-      final boundedSource = boundExternalLabel(
-        source,
-        TugboatParameterLimits.maxSourceLength,
-      );
-      final snapshot = snapshotExternalParameters(
-        policy: parameterPolicy,
-        parameters: parameters,
-      );
-      final data = <String, Object?>{
-        if (boundedSource != null) 'source': boundedSource,
-        'name': boundedName,
-        'parameterKeys': snapshot.parameterKeys,
-        if (snapshot.parameters != null) 'parameters': snapshot.parameters,
-        'capture': snapshot.toCaptureMetadata(),
-      };
-      _appendEvidenceEvent(
-        TugboatEvent(
-          id: _nextId('event'),
-          atMs: atMs,
-          type: 'external_event',
-          stream: TugboatEventStream.evidence,
-          data: data,
-        ),
-      );
-      _externalAccepted = _clampEvidenceCount(_externalAccepted + 1);
-    } catch (_) {
-      _noteEvidenceDrop(external: true, reason: 'record_failed');
-    }
-  }
-
-  /// Begins observation of one logical network call.
-  ///
-  /// Returns a no-op token when dormant/disabled or when [route] is empty.
-  /// The recorded route must already be a safe host-supplied template.
-  TugboatNetworkCall beginNetworkCall({
-    required String method,
-    required String route,
-  }) {
-    try {
-      if (_disposed || _session == null || _endSessionFuture != null) {
-        _noteEvidenceDrop(external: false, reason: 'no_active_session');
-        return const TugboatNoOpNetworkCall();
-      }
-      final normalizedMethod = normalizeNetworkMethod(method);
-      final normalizedRoute = normalizeNetworkRoute(route);
-      if (normalizedMethod == null || normalizedRoute == null) {
-        _noteEvidenceDrop(external: false, reason: 'invalid_route');
-        return const TugboatNoOpNetworkCall();
-      }
-      return _ActiveNetworkCall(
-        controller: this,
-        method: normalizedMethod,
-        route: normalizedRoute,
-        startedAtMs: atMs,
-      );
-    } catch (_) {
-      _noteEvidenceDrop(external: false, reason: 'begin_failed');
-      return const TugboatNoOpNetworkCall();
-    }
-  }
-
-  void _finishNetworkCall({
-    required String method,
-    required String route,
-    required int startedAtMs,
-    required TugboatNetworkOutcome outcome,
-    int? statusCode,
-    int? attemptCount,
-  }) {
-    try {
-      if (_disposed || _session == null || _endSessionFuture != null) {
-        _noteEvidenceDrop(external: false, reason: 'no_active_session');
-        return;
-      }
-      final durationMs = (atMs - startedAtMs).clamp(0, 24 * 60 * 60 * 1000);
-      final data = <String, Object?>{
-        'method': method,
-        'route': route,
-        if (statusCode != null) 'statusCode': statusCode,
-        'outcome': outcome.wireName,
-        'durationMs': durationMs,
-        if (attemptCount != null && attemptCount > 0)
-          'attemptCount': attemptCount,
-      };
-      _appendEvidenceEvent(
-        TugboatEvent(
-          id: _nextId('event'),
-          atMs: atMs,
-          type: 'network_call',
-          stream: TugboatEventStream.evidence,
-          data: data,
-        ),
-      );
-      _networkAccepted = _clampEvidenceCount(_networkAccepted + 1);
-    } catch (_) {
-      _noteEvidenceDrop(external: false, reason: 'finish_failed');
-    }
-  }
-
-  void _noteNetworkDuplicateFinish() {
-    _networkDuplicateFinishes = _clampEvidenceCount(
-      _networkDuplicateFinishes + 1,
+    _evidence.recordExternalEvent(
+      name: name,
+      source: source,
+      parameters: parameters,
+      parameterPolicy: parameterPolicy,
     );
   }
 
-  void _noteEvidenceDrop({required bool external, required String reason}) {
-    if (external) {
-      _externalDropped = _clampEvidenceCount(_externalDropped + 1);
-    } else {
-      _networkDropped = _clampEvidenceCount(_networkDropped + 1);
-    }
-    _lastEvidenceDropReason = reason;
+  /// Begins observation of one logical network call.
+  TugboatNetworkCall beginNetworkCall({required String method, String? route}) {
+    return _evidence.beginNetworkCall(method: method, route: route);
   }
-
-  int _clampEvidenceCount(int value) =>
-      value > _maxEvidenceCount ? _maxEvidenceCount : value;
 
   void setExplorationActionWindow({
     required String explorationRunId,
@@ -4570,63 +4450,6 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   String _nextId(String prefix) => '$prefix-${_id++}';
-}
-
-class _ActiveNetworkCall implements TugboatNetworkCall {
-  _ActiveNetworkCall({
-    required TugboatReplayController controller,
-    required this.method,
-    required this.route,
-    required this.startedAtMs,
-  }) : _controller = controller;
-
-  final TugboatReplayController _controller;
-  final String method;
-  final String route;
-  final int startedAtMs;
-  bool _finished = false;
-
-  @override
-  void complete({int? statusCode, int? attemptCount}) {
-    _finish(
-      outcome: TugboatNetworkOutcome.response,
-      statusCode: statusCode,
-      attemptCount: attemptCount,
-    );
-  }
-
-  @override
-  void fail({
-    required TugboatNetworkOutcome outcome,
-    int? statusCode,
-    int? attemptCount,
-  }) {
-    _finish(
-      outcome: outcome,
-      statusCode: statusCode,
-      attemptCount: attemptCount,
-    );
-  }
-
-  void _finish({
-    required TugboatNetworkOutcome outcome,
-    int? statusCode,
-    int? attemptCount,
-  }) {
-    if (_finished) {
-      _controller._noteNetworkDuplicateFinish();
-      return;
-    }
-    _finished = true;
-    _controller._finishNetworkCall(
-      method: method,
-      route: route,
-      startedAtMs: startedAtMs,
-      outcome: outcome,
-      statusCode: statusCode,
-      attemptCount: attemptCount,
-    );
-  }
 }
 
 /// Adapts a session-owned factory sink to the legacy hub interface.

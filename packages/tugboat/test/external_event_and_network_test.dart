@@ -11,15 +11,52 @@ const _testConfig = TugboatReplayConfig(
   capturePixelRatio: 1.0,
 );
 
-Future<void> _pumpCapture(WidgetTester tester) async {
+Future<void> _pumpCapture(
+  WidgetTester tester, {
+  TugboatReplayConfig config = _testConfig,
+}) async {
   await tester.pumpWidget(
     MaterialApp(
       builder: (context, child) =>
-          TugboatReplay.wrapApp(config: _testConfig, child: child!),
+          TugboatReplay.wrapApp(config: config, child: child!),
       home: const SizedBox.expand(),
     ),
   );
   await tester.pump();
+}
+
+class _CallbackSinkFactory implements TugboatCaptureSinkFactory {
+  _CallbackSinkFactory(this.onEvent);
+
+  final void Function(TugboatEvent event) onEvent;
+
+  @override
+  TugboatSessionCaptureSink create(TugboatSinkSessionContext context) =>
+      _CallbackSink(onEvent);
+}
+
+class _CallbackSink implements TugboatSessionCaptureSink {
+  _CallbackSink(this.onEvent);
+
+  final void Function(TugboatEvent event) onEvent;
+
+  @override
+  void accept(TugboatCaptureEnvelope envelope) {
+    final event = envelope.event;
+    if (event != null) onEvent(event);
+  }
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> finish() async {}
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> start(TugboatSinkSessionContext context) async {}
 }
 
 void main() {
@@ -67,6 +104,32 @@ void main() {
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (e) => e.type == 'external_event',
+    );
+    expect(event.data['parameterKeys'], ['query']);
+    expect(event.data.containsKey('parameters'), isFalse);
+    expect(event.data['capture'], {
+      'values': 'names_only',
+      'truncated': false,
+      'droppedCount': 0,
+    });
+  });
+
+  testWidgets('production capture downgrades allow-all to names-only', (
+    tester,
+  ) async {
+    await _pumpCapture(
+      tester,
+      config: _testConfig.copyWith(
+        profile: TugboatCaptureProfile.productionLean,
+      ),
+    );
+
+    TugboatReplay.eventHook(
+      parameterPolicy: TugboatParameterPolicy.allowAll,
+    ).record('SEARCH', parameters: {'query': 'private search'});
+
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'external_event',
     );
     expect(event.data['parameterKeys'], ['query']);
     expect(event.data.containsKey('parameters'), isFalse);
@@ -149,7 +212,7 @@ void main() {
       route: '/cart/:cartId',
     );
     call.complete(statusCode: 201);
-    call.fail(outcome: TugboatNetworkOutcome.networkError);
+    call.fail(failure: TugboatNetworkFailure.networkError);
     call.complete(statusCode: 500);
 
     final events = TugboatReplay.controller!.session!.events
@@ -167,6 +230,88 @@ void main() {
     );
   });
 
+  testWidgets('network token cannot finish into a replacement session', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    final controller = TugboatReplay.controller!;
+    final staleCall = TugboatReplay.beginNetworkCall(
+      method: 'GET',
+      route: '/stale',
+    );
+
+    controller.start(const Size(320, 640), 'replacement');
+    staleCall.complete(statusCode: 200);
+    staleCall.complete(statusCode: 500);
+
+    expect(
+      controller.session!.events.where((e) => e.type == 'network_call'),
+      isEmpty,
+    );
+    expect(TugboatReplay.health.evidence.networkAccepted, 0);
+    expect(TugboatReplay.health.evidence.networkDropped, 1);
+    expect(TugboatReplay.health.evidence.networkDuplicateFinishes, 0);
+    expect(TugboatReplay.health.evidence.lastDropReason, 'stale_session');
+
+    TugboatReplay.beginNetworkCall(
+      method: 'GET',
+      route: '/current',
+    ).complete(statusCode: 204);
+    final current = controller.session!.events.singleWhere(
+      (e) => e.type == 'network_call',
+    );
+    expect(current.data['route'], '/current');
+    expect(current.data['statusCode'], 204);
+  });
+
+  testWidgets('clear fences in-flight network tokens', (tester) async {
+    await _pumpCapture(tester);
+    final controller = TugboatReplay.controller!;
+    final staleCall = TugboatReplay.beginNetworkCall(
+      method: 'POST',
+      route: '/before-clear',
+    );
+
+    controller.clear();
+    staleCall.fail(failure: TugboatNetworkFailure.networkError);
+
+    expect(
+      controller.session!.events.where((e) => e.type == 'network_call'),
+      isEmpty,
+    );
+    expect(TugboatReplay.health.evidence.networkAccepted, 0);
+    expect(TugboatReplay.health.evidence.networkDropped, 1);
+    expect(TugboatReplay.health.evidence.lastDropReason, 'stale_session');
+  });
+
+  testWidgets('session end rejects evidence during sink reentrancy', (
+    tester,
+  ) async {
+    TugboatReplayController? activeController;
+    final factory = _CallbackSinkFactory((event) {
+      if (event.type != 'session_end') return;
+      final controller = activeController!;
+      controller.recordExternalEvent(name: 'AFTER_SESSION_END');
+      controller
+          .beginNetworkCall(method: 'GET', route: '/after-end')
+          .complete(statusCode: 200);
+    });
+    await _pumpCapture(
+      tester,
+      config: _testConfig.copyWith(sinkFactories: [factory]),
+    );
+    final controller = TugboatReplay.controller!;
+    activeController = controller;
+
+    await controller.endSession();
+
+    final eventTypes = controller.session!.events.map((event) => event.type);
+    expect(eventTypes.where((type) => type == 'session_end'), hasLength(1));
+    expect(eventTypes, isNot(contains('external_event')));
+    expect(eventTypes, isNot(contains('network_call')));
+    expect(controller.acceptingEvidence, isFalse);
+  });
+
   testWidgets('empty route returns no-op without event', (tester) async {
     await _pumpCapture(tester);
     final call = TugboatReplay.beginNetworkCall(method: 'GET', route: '  ');
@@ -178,6 +323,37 @@ void main() {
       isEmpty,
     );
     expect(TugboatReplay.health.evidence.networkDropped, greaterThan(0));
+  });
+
+  testWidgets('unsafe route forms return no-op without retaining URL data', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    for (final route in [
+      'https://example.test/users/42?token=secret',
+      '/users/42?token=secret',
+      '/users/42#fragment',
+      '/users/42%3Ftoken%3Dsecret',
+      'users/42',
+      '//example.test/users/42',
+      ' /users/42',
+      '/users/42 ',
+      '/users/42\\details',
+    ]) {
+      TugboatReplay.beginNetworkCall(
+        method: 'GET',
+        route: route,
+      ).complete(statusCode: 200);
+    }
+
+    expect(
+      TugboatReplay.controller!.session!.events.where(
+        (e) => e.type == 'network_call',
+      ),
+      isEmpty,
+    );
+    expect(TugboatReplay.health.evidence.networkDropped, 9);
+    expect(TugboatReplay.health.toJson().toString().contains('secret'), false);
   });
 
   test('parameter snapshot deep-copies and bounds nested values', () {
@@ -202,5 +378,31 @@ void main() {
     final encoded = snapshot.parameters.toString();
     expect(encoded.contains('too-deep'), isFalse);
     expect(encoded.contains('Object'), isFalse);
+  });
+
+  test('unsupported top-level value counts as one drop', () {
+    final snapshot = snapshotExternalParameters(
+      policy: TugboatParameterPolicy.allowAll,
+      parameters: {'unsupported': Object()},
+    );
+
+    expect(snapshot.parameters, isNull);
+    expect(snapshot.truncated, isTrue);
+    expect(snapshot.droppedCount, 1);
+  });
+
+  test('aggregate byte budget drops all values but retains keys', () {
+    final parameters = <String, Object?>{
+      for (var i = 0; i < 17; i++) 'key$i': 'x' * 1024,
+    };
+    final snapshot = snapshotExternalParameters(
+      policy: TugboatParameterPolicy.allowAll,
+      parameters: parameters,
+    );
+
+    expect(snapshot.parameterKeys, parameters.keys);
+    expect(snapshot.parameters, isNull);
+    expect(snapshot.truncated, isTrue);
+    expect(snapshot.droppedCount, parameters.length);
   });
 }

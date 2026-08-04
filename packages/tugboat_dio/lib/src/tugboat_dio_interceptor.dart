@@ -19,8 +19,7 @@ typedef TugboatDioRouteResolver = String? Function(RequestOptions request);
 class TugboatDioInterceptor extends Interceptor {
   TugboatDioInterceptor({required this.routeResolver});
 
-  static const extraCallKey = 'tugboat.network_call';
-  static const extraAttemptCountKey = 'tugboat.network_attempt_count';
+  static const _extraCallKey = 'tugboat.network_call';
 
   final TugboatDioRouteResolver routeResolver;
 
@@ -53,26 +52,33 @@ class TugboatDioInterceptor extends Interceptor {
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) {
+    final options = response.requestOptions;
+    TugboatNetworkCall? call;
     try {
-      final call = _tokenOf(response.requestOptions);
+      call = _tokenOf(options);
       call?.complete(
         statusCode: response.statusCode,
-        attemptCount: _attemptCount(response.requestOptions),
+        attemptCount: _attemptCount(options),
       );
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      if (call != null) _clearToken(options);
+    }
     handler.next(response);
   }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    final options = err.requestOptions;
+    TugboatNetworkCall? call;
     try {
-      final call = _tokenOf(err.requestOptions);
+      call = _tokenOf(options);
       if (call != null) {
         final statusCode = err.response?.statusCode;
-        final attempts = _attemptCount(err.requestOptions);
+        final attempts = _attemptCount(options);
         if (err.type == DioExceptionType.cancel) {
           call.fail(
-            outcome: TugboatNetworkOutcome.cancelled,
+            failure: TugboatNetworkFailure.cancelled,
             statusCode: statusCode,
             attemptCount: attempts,
           );
@@ -82,22 +88,30 @@ class TugboatDioInterceptor extends Interceptor {
           call.complete(statusCode: statusCode, attemptCount: attempts);
         } else {
           call.fail(
-            outcome: TugboatNetworkOutcome.networkError,
+            failure: TugboatNetworkFailure.networkError,
             statusCode: statusCode,
             attemptCount: attempts,
           );
         }
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      if (call != null) _clearToken(options);
+    }
     handler.next(err);
   }
 
   void _ensureToken(RequestOptions options) {
-    final existing = options.extra[extraCallKey];
-    if (existing is TugboatNetworkCall) {
-      final attempts = options.extra[extraAttemptCountKey];
-      final current = attempts is int ? attempts : 1;
-      options.extra[extraAttemptCountKey] = current + 1;
+    if (!TugboatReplay.isAcceptingEvidence) return;
+
+    final existing = options.extra[_extraCallKey];
+    if (existing is _TugboatDioCallState) {
+      existing.attemptCount += 1;
+      return;
+    }
+    if (options.extra.containsKey(_extraCallKey)) {
+      // A host owns this key. Fail open without invoking its resolver or
+      // changing metadata that does not belong to this interceptor.
       return;
     }
 
@@ -107,31 +121,41 @@ class TugboatDioInterceptor extends Interceptor {
     } catch (_) {
       route = null;
     }
-    final normalized = _normalizeRoute(route);
-    final call = TugboatReplay.beginNetworkCall(
-      method: options.method,
-      // Empty route forces a bounded drop when the resolver rejected the call.
-      route: normalized ?? '',
+    if (!TugboatReplay.isAcceptingEvidence) return;
+
+    final trimmed = route?.trim();
+    options.extra[_extraCallKey] = _TugboatDioCallState(
+      TugboatReplay.beginNetworkCall(
+        method: options.method,
+        route: (trimmed == null || trimmed.isEmpty) ? null : trimmed,
+      ),
     );
-    options.extra[extraCallKey] = call;
-    options.extra[extraAttemptCountKey] = 1;
   }
 
   TugboatNetworkCall? _tokenOf(RequestOptions options) {
-    final value = options.extra[extraCallKey];
-    return value is TugboatNetworkCall ? value : null;
+    final value = options.extra[_extraCallKey];
+    return value is _TugboatDioCallState ? value.call : null;
   }
 
   int? _attemptCount(RequestOptions options) {
-    final value = options.extra[extraAttemptCountKey];
-    return value is int ? value : null;
+    final value = options.extra[_extraCallKey];
+    return value is _TugboatDioCallState ? value.attemptCount : null;
   }
 
-  static String? _normalizeRoute(String? route) {
-    if (route == null) return null;
-    final trimmed = route.trim();
-    if (trimmed.isEmpty) return null;
-    if (trimmed.length > TugboatNetworkLimits.maxRouteLength) return null;
-    return trimmed;
+  void _clearToken(RequestOptions options) {
+    try {
+      if (options.extra[_extraCallKey] is _TugboatDioCallState) {
+        options.extra.remove(_extraCallKey);
+      }
+    } catch (_) {
+      // Cleanup must never affect host networking.
+    }
   }
+}
+
+class _TugboatDioCallState {
+  _TugboatDioCallState(this.call);
+
+  final TugboatNetworkCall call;
+  int attemptCount = 1;
 }

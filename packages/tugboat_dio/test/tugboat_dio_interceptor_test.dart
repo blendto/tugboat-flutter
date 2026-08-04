@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -67,10 +68,14 @@ void main() {
     );
     TugboatDioInterceptor.install(dio, routeResolver: (_) => '/blend/:blendId');
 
-    await _runAsync(
+    final response = await _runAsync(
       tester,
-      () => dio.get<dynamic>('/blend/raw-id-should-not-appear?x=1'),
+      () => dio.get<dynamic>(
+        '/blend/raw-id-should-not-appear?x=1',
+        options: Options(extra: {'host.keep': 'value'}),
+      ),
     );
+    expect(response.requestOptions.extra, {'host.keep': 'value'});
 
     final events = TugboatReplay.controller!.session!.events
         .where((e) => e.type == 'network_call')
@@ -114,8 +119,10 @@ void main() {
 
   testWidgets('transport error emits network_error', (tester) async {
     await _pumpCapture(tester);
+    RequestOptions? observedRequest;
     final dio = Dio();
     dio.httpClientAdapter = _ScriptedAdapter((options) async {
+      observedRequest = options;
       throw DioException(
         requestOptions: options,
         type: DioExceptionType.connectionError,
@@ -126,9 +133,15 @@ void main() {
 
     await _runAsync(
       tester,
-      () =>
-          expectLater(dio.get<dynamic>('/sync'), throwsA(isA<DioException>())),
+      () => expectLater(
+        dio.get<dynamic>(
+          '/sync',
+          options: Options(extra: {'host.keep': 'value'}),
+        ),
+        throwsA(isA<DioException>()),
+      ),
     );
+    expect(observedRequest!.extra, {'host.keep': 'value'});
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (e) => e.type == 'network_call',
@@ -225,6 +238,30 @@ void main() {
     );
   });
 
+  testWidgets('unsafe resolver output drops without retaining URL data', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    final dio = Dio();
+    dio.httpClientAdapter = _ScriptedAdapter(
+      (_) async => ResponseBody.fromString('ok', 200),
+    );
+    TugboatDioInterceptor.install(
+      dio,
+      routeResolver: (_) => 'https://example.test/users/42?token=secret',
+    );
+
+    await _runAsync(tester, () => dio.get<dynamic>('/users/42?token=secret'));
+    expect(
+      TugboatReplay.controller!.session!.events.where(
+        (e) => e.type == 'network_call',
+      ),
+      isEmpty,
+    );
+    expect(TugboatReplay.health.evidence.networkDropped, greaterThan(0));
+    expect(TugboatReplay.health.toJson().toString().contains('secret'), false);
+  });
+
   testWidgets('duplicate install is rejected', (tester) async {
     final dio = Dio();
     final first = TugboatDioInterceptor.install(
@@ -241,15 +278,251 @@ void main() {
   });
 
   testWidgets('dormant tugboat leaves networking unchanged', (tester) async {
+    var resolverCalls = 0;
+    RequestOptions? observedRequest;
+    final dio = Dio();
+    dio.httpClientAdapter = _ScriptedAdapter((options) async {
+      observedRequest = options;
+      return ResponseBody.fromString('ok', 200);
+    });
+    TugboatDioInterceptor.install(
+      dio,
+      routeResolver: (_) {
+        resolverCalls += 1;
+        return '/x';
+      },
+    );
+
+    final response = await _runAsync(
+      tester,
+      () => dio.get<dynamic>(
+        '/x',
+        options: Options(extra: {'host.keep': 'value'}),
+      ),
+    );
+    expect(response.statusCode, 200);
+    expect(TugboatReplay.controller, isNull);
+    expect(resolverCalls, 0);
+    expect(observedRequest!.extra, {'host.keep': 'value'});
+  });
+
+  testWidgets('disabled tugboat leaves request extras untouched', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    TugboatReplay.disabled = true;
+    var resolverCalls = 0;
+    RequestOptions? observedRequest;
+    final dio = Dio();
+    dio.httpClientAdapter = _ScriptedAdapter((options) async {
+      observedRequest = options;
+      return ResponseBody.fromString('ok', 200);
+    });
+    TugboatDioInterceptor.install(
+      dio,
+      routeResolver: (_) {
+        resolverCalls += 1;
+        return '/x';
+      },
+    );
+
+    final response = await _runAsync(
+      tester,
+      () => dio.get<dynamic>(
+        '/x',
+        options: Options(extra: {'host.keep': 'value'}),
+      ),
+    );
+
+    expect(response.statusCode, 200);
+    expect(resolverCalls, 0);
+    expect(observedRequest!.extra, {'host.keep': 'value'});
+  });
+
+  testWidgets('ended session leaves request extras untouched', (tester) async {
+    await _pumpCapture(tester);
+    await TugboatReplay.controller!.endSession();
+    var resolverCalls = 0;
+    RequestOptions? observedRequest;
+    final dio = Dio();
+    dio.httpClientAdapter = _ScriptedAdapter((options) async {
+      observedRequest = options;
+      return ResponseBody.fromString('ok', 200);
+    });
+    TugboatDioInterceptor.install(
+      dio,
+      routeResolver: (_) {
+        resolverCalls += 1;
+        return '/x';
+      },
+    );
+
+    final response = await _runAsync(
+      tester,
+      () => dio.get<dynamic>(
+        '/x',
+        options: Options(extra: {'host.keep': 'value'}),
+      ),
+    );
+
+    expect(response.statusCode, 200);
+    expect(resolverCalls, 0);
+    expect(observedRequest!.extra, {'host.keep': 'value'});
+  });
+
+  testWidgets('lifecycle change inside resolver does not attach metadata', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    final controller = TugboatReplay.controller!;
+    RequestOptions? observedRequest;
+    final dio = Dio();
+    dio.httpClientAdapter = _ScriptedAdapter((options) async {
+      observedRequest = options;
+      return ResponseBody.fromString('ok', 200);
+    });
+    TugboatDioInterceptor.install(
+      dio,
+      routeResolver: (_) {
+        unawaited(controller.endSession());
+        return '/x';
+      },
+    );
+
+    final response = await _runAsync(
+      tester,
+      () => dio.get<dynamic>(
+        '/x',
+        options: Options(extra: {'host.keep': 'value'}),
+      ),
+    );
+
+    expect(response.statusCode, 200);
+    expect(observedRequest!.extra, {'host.keep': 'value'});
+    expect(
+      controller.session!.events.where((e) => e.type == 'network_call'),
+      isEmpty,
+    );
+  });
+
+  testWidgets('deactivate synchronously fences event and network evidence', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    final controller = TugboatReplay.controller!;
+    var resolverCalls = 0;
+    RequestOptions? observedRequest;
+    final dio = Dio();
+    dio.httpClientAdapter = _ScriptedAdapter((options) async {
+      observedRequest = options;
+      return ResponseBody.fromString('ok', 200);
+    });
+    TugboatDioInterceptor.install(
+      dio,
+      routeResolver: (_) {
+        resolverCalls += 1;
+        return '/after-deactivate';
+      },
+    );
+
+    TugboatReplay.deactivate();
+    TugboatReplay.eventHook().record('AFTER_DEACTIVATE');
+    final response = await _runAsync(
+      tester,
+      () => dio.get<dynamic>(
+        '/after-deactivate',
+        options: Options(extra: {'host.keep': 'value'}),
+      ),
+    );
+
+    expect(response.statusCode, 200);
+    expect(TugboatReplay.isAcceptingEvidence, isFalse);
+    expect(resolverCalls, 0);
+    expect(observedRequest!.extra, {'host.keep': 'value'});
+    expect(
+      controller.session!.events.where(
+        (event) =>
+            event.type == 'external_event' || event.type == 'network_call',
+      ),
+      isEmpty,
+    );
+  });
+
+  testWidgets('reserved extras survive a successful request', (tester) async {
+    await _pumpCapture(tester);
+    var resolverCalls = 0;
     final dio = Dio();
     dio.httpClientAdapter = _ScriptedAdapter(
       (_) async => ResponseBody.fromString('ok', 200),
     );
-    TugboatDioInterceptor.install(dio, routeResolver: (_) => '/x');
+    TugboatDioInterceptor.install(
+      dio,
+      routeResolver: (_) {
+        resolverCalls += 1;
+        return '/collision';
+      },
+    );
+    final hostExtras = <String, Object?>{
+      'tugboat.network_call': 'host-call',
+      'tugboat.network_attempt_count': 'host-attempts',
+    };
 
-    final response = await _runAsync(tester, () => dio.get<dynamic>('/x'));
+    final response = await _runAsync(
+      tester,
+      () => dio.get<dynamic>('/collision', options: Options(extra: hostExtras)),
+    );
+
     expect(response.statusCode, 200);
-    expect(TugboatReplay.controller, isNull);
+    expect(response.requestOptions.extra, hostExtras);
+    expect(resolverCalls, 0);
+    expect(
+      TugboatReplay.controller!.session!.events.where(
+        (event) => event.type == 'network_call',
+      ),
+      isEmpty,
+    );
+  });
+
+  testWidgets('reserved extras survive a failed request', (tester) async {
+    await _pumpCapture(tester);
+    var resolverCalls = 0;
+    RequestOptions? observedRequest;
+    final dio = Dio();
+    dio.httpClientAdapter = _ScriptedAdapter((options) async {
+      observedRequest = options;
+      throw DioException(
+        requestOptions: options,
+        type: DioExceptionType.connectionError,
+      );
+    });
+    TugboatDioInterceptor.install(
+      dio,
+      routeResolver: (_) {
+        resolverCalls += 1;
+        return '/collision';
+      },
+    );
+    final hostExtras = <String, Object?>{
+      'tugboat.network_call': 'host-call',
+      'tugboat.network_attempt_count': 'host-attempts',
+    };
+
+    await _runAsync(
+      tester,
+      () => expectLater(
+        dio.get<dynamic>('/collision', options: Options(extra: hostExtras)),
+        throwsA(isA<DioException>()),
+      ),
+    );
+
+    expect(observedRequest!.extra, hostExtras);
+    expect(resolverCalls, 0);
+    expect(
+      TugboatReplay.controller!.session!.events.where(
+        (event) => event.type == 'network_call',
+      ),
+      isEmpty,
+    );
   });
 
   testWidgets('cached interceptor resolve emits one logical response', (

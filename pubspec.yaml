@@ -21,11 +21,11 @@ melos:
       run: dart analyze .
       description: Analyze every package in the workspace.
     test:
-      run: flutter test packages/tugboat packages/tugboat_dio
-      description: Run all package tests.
+      run: cd packages/tugboat && flutter test -j 1 . && cd ../tugboat_dio && flutter test -j 1 .
+      description: Run all package tests with each package's asset bundle.
     test:sdk:
-      run: flutter test packages/tugboat
+      run: cd packages/tugboat && flutter test -j 1 .
       description: Run the Flutter SDK tests.
     test:dio:
-      run: flutter test packages/tugboat_dio
+      run: cd packages/tugboat_dio && flutter test -j 1 .
       description: Run the Dio adapter tests.

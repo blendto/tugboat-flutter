@@ -39,16 +39,15 @@ export 'src/external_event.dart'
     show
         TugboatEventHook,
         TugboatParameterPolicy,
-        TugboatParameterCaptureValues,
+        TugboatParameterCaptureMode,
         TugboatParameterLimits,
-        TugboatParameterSnapshot,
         TugboatParameterDrop;
 export 'src/network_observer.dart'
     show
         TugboatNetworkCall,
         TugboatNetworkOutcome,
-        TugboatNetworkLimits,
-        TugboatNoOpNetworkCall;
+        TugboatNetworkFailure,
+        TugboatNetworkLimits;
 export 'src/coordinate_space.dart'
     show
         tugboatCaptureCoordinateVersion,

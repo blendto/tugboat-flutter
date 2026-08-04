@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/semantics_flags_compat.dart';
 
@@ -11,22 +12,30 @@ void main() {
     },
   );
 
-  test('semanticsEnabledFromFlags reads explicit enabled state', () {
-    expect(semanticsEnabledFromFlags(_flagsWithEnabled(true)), isTrue);
-    expect(semanticsEnabledFromFlags(_flagsWithEnabled(false)), isFalse);
-  });
-}
+  testWidgets('semanticsEnabledFromFlags reads explicit enabled state', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(
+        Semantics(container: true, enabled: true, child: SizedBox.shrink()),
+      );
+      final enabledFlags = tester
+          .getSemantics(find.byType(Semantics))
+          .getSemanticsData()
+          .flagsCollection;
+      expect(semanticsEnabledFromFlags(enabledFlags), isTrue);
 
-/// Builds enabled-state flags across Flutter 3.35 bool pairs and 3.36+ Tristate.
-SemanticsFlags _flagsWithEnabled(bool enabled) {
-  final dynamic none = SemanticsFlags.none;
-  try {
-    final dynamic tristate = enabled
-        ? (Tristate.isTrue as dynamic)
-        : (Tristate.isFalse as dynamic);
-    return none.copyWith(isEnabled: tristate) as SemanticsFlags;
-  } catch (_) {
-    return none.copyWith(hasEnabledState: true, isEnabled: enabled)
-        as SemanticsFlags;
-  }
+      await tester.pumpWidget(
+        Semantics(container: true, enabled: false, child: SizedBox.shrink()),
+      );
+      final disabledFlags = tester
+          .getSemantics(find.byType(Semantics))
+          .getSemanticsData()
+          .flagsCollection;
+      expect(semanticsEnabledFromFlags(disabledFlags), isFalse);
+    } finally {
+      semanticsHandle.dispose();
+    }
+  });
 }

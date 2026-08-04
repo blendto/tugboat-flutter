@@ -1,11 +1,20 @@
 import 'dart:convert';
 
+import 'capture_profile.dart';
+
 /// Closed vocabulary for how external-event parameter values were retained.
-abstract final class TugboatParameterCaptureValues {
-  static const namesOnly = 'names_only';
-  static const allowList = 'allow_list';
-  static const transform = 'transform';
-  static const allowAll = 'allow_all';
+enum TugboatParameterCaptureMode {
+  namesOnly,
+  allowList,
+  transform,
+  allowAll;
+
+  String get wireName => switch (this) {
+    TugboatParameterCaptureMode.namesOnly => 'names_only',
+    TugboatParameterCaptureMode.allowList => 'allow_list',
+    TugboatParameterCaptureMode.transform => 'transform',
+    TugboatParameterCaptureMode.allowAll => 'allow_all',
+  };
 }
 
 /// Sentinel returned from a [TugboatParameterPolicy.transform] callback to omit
@@ -21,7 +30,7 @@ class TugboatParameterDrop {
 /// exploration escape hatch.
 class TugboatParameterPolicy {
   const TugboatParameterPolicy._({
-    required this.captureValues,
+    required this.mode,
     this.allowedKeys,
     this.valueTransform,
   });
@@ -29,13 +38,13 @@ class TugboatParameterPolicy {
   /// Record event name plus bounded parameter keys only. Default production
   /// policy.
   static const namesOnly = TugboatParameterPolicy._(
-    captureValues: TugboatParameterCaptureValues.namesOnly,
+    mode: TugboatParameterCaptureMode.namesOnly,
   );
 
   /// Preserve JSON-safe values only for the named keys.
   static TugboatParameterPolicy allowList(Set<String> keys) =>
       TugboatParameterPolicy._(
-        captureValues: TugboatParameterCaptureValues.allowList,
+        mode: TugboatParameterCaptureMode.allowList,
         allowedKeys: Set<String>.unmodifiable(keys),
       );
 
@@ -44,23 +53,38 @@ class TugboatParameterPolicy {
   static TugboatParameterPolicy transform(
     Object? Function(String key, Object? value) transform,
   ) => TugboatParameterPolicy._(
-    captureValues: TugboatParameterCaptureValues.transform,
+    mode: TugboatParameterCaptureMode.transform,
     valueTransform: transform,
   );
 
   /// Exploration-only escape hatch that retains all JSON-safe values within
   /// hard limits. Can capture feedback text, search terms, IDs, and other user
   /// content. Do not use as the default production example.
+  ///
+  /// Outside [TugboatCaptureProfile.exploration], [effectiveFor] downgrades
+  /// this to [namesOnly].
   static const allowAll = TugboatParameterPolicy._(
-    captureValues: TugboatParameterCaptureValues.allowAll,
+    mode: TugboatParameterCaptureMode.allowAll,
   );
 
   /// Sentinel for transform callbacks.
   static const drop = TugboatParameterDrop._();
 
-  final String captureValues;
+  final TugboatParameterCaptureMode mode;
   final Set<String>? allowedKeys;
   final Object? Function(String key, Object? value)? valueTransform;
+
+  /// Wire label for capture metadata (`names_only`, `allow_list`, …).
+  String get captureValues => mode.wireName;
+
+  /// Resolves exploration-only escape hatches against the active profile.
+  TugboatParameterPolicy effectiveFor(TugboatCaptureProfile profile) {
+    if (mode == TugboatParameterCaptureMode.allowAll &&
+        profile != TugboatCaptureProfile.exploration) {
+      return namesOnly;
+    }
+    return this;
+  }
 }
 
 /// Hard limits applied when snapshotting external-event parameters.
@@ -135,35 +159,21 @@ TugboatParameterSnapshot snapshotExternalParameters({
     }
     keys.add(key);
 
-    if (policy.captureValues == TugboatParameterCaptureValues.namesOnly) {
+    final candidate = switch (policy.mode) {
+      TugboatParameterCaptureMode.namesOnly => _skipValue,
+      TugboatParameterCaptureMode.allowList =>
+        (policy.allowedKeys?.contains(key) ?? false) ? entry.value : _dropValue,
+      TugboatParameterCaptureMode.transform => _applyTransform(
+        policy,
+        key,
+        entry.value,
+      ),
+      TugboatParameterCaptureMode.allowAll => entry.value,
+    };
+    if (identical(candidate, _skipValue)) continue;
+    if (identical(candidate, _dropValue)) {
+      dropped += 1;
       continue;
-    }
-
-    if (policy.captureValues == TugboatParameterCaptureValues.allowList) {
-      final allowed = policy.allowedKeys;
-      if (allowed == null || !allowed.contains(key)) {
-        dropped += 1;
-        continue;
-      }
-    }
-
-    Object? candidate = entry.value;
-    if (policy.captureValues == TugboatParameterCaptureValues.transform) {
-      final transform = policy.valueTransform;
-      if (transform == null) {
-        dropped += 1;
-        continue;
-      }
-      try {
-        candidate = transform(key, entry.value);
-      } catch (_) {
-        dropped += 1;
-        continue;
-      }
-      if (identical(candidate, TugboatParameterPolicy.drop)) {
-        dropped += 1;
-        continue;
-      }
     }
 
     final copied = _copyJsonSafe(
@@ -183,15 +193,12 @@ TugboatParameterSnapshot snapshotExternalParameters({
         return true;
       },
     );
-    if (copied == _unsupported) {
-      dropped += 1;
-      continue;
-    }
+    if (identical(copied, _unsupported)) continue;
     retained[key] = copied;
   }
 
   Map<String, Object?>? parametersOut;
-  if (policy.captureValues != TugboatParameterCaptureValues.namesOnly &&
+  if (policy.mode != TugboatParameterCaptureMode.namesOnly &&
       retained.isNotEmpty) {
     parametersOut = Map<String, Object?>.unmodifiable(retained);
     final encodedLength = utf8.encode(jsonEncode(parametersOut)).length;
@@ -214,7 +221,30 @@ TugboatParameterSnapshot snapshotExternalParameters({
   );
 }
 
-const Object _unsupported = Object();
+const _Sentinel _unsupported = _Sentinel('unsupported');
+const _Sentinel _skipValue = _Sentinel('skip');
+const _Sentinel _dropValue = _Sentinel('drop');
+
+class _Sentinel {
+  const _Sentinel(this.label);
+  final String label;
+}
+
+Object? _applyTransform(
+  TugboatParameterPolicy policy,
+  String key,
+  Object? value,
+) {
+  final transform = policy.valueTransform;
+  if (transform == null) return _dropValue;
+  try {
+    final candidate = transform(key, value);
+    if (identical(candidate, TugboatParameterPolicy.drop)) return _dropValue;
+    return candidate;
+  } catch (_) {
+    return _dropValue;
+  }
+}
 
 Object? _copyJsonSafe(
   Object? value, {
