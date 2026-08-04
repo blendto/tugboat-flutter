@@ -23,6 +23,11 @@ void main() {
   var frameResponseDelay = Duration.zero;
   String? sessionResponseTraitsId;
 
+  /// When non-null, written verbatim as the `/v1/sessions` response body
+  /// (including `''` for empty). When null, the default JSON acceptance map
+  /// is used.
+  String? sessionResponseBody;
+
   final collectorConfig = TugboatCollectorConfig(
     baseUrl: 'http://127.0.0.1:0',
     apiKey: 'pmk_test',
@@ -59,6 +64,7 @@ void main() {
     eventResponseDelay = Duration.zero;
     frameResponseDelay = Duration.zero;
     sessionResponseTraitsId = null;
+    sessionResponseBody = null;
 
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     baseUri = Uri.parse('http://127.0.0.1:${server.port}');
@@ -81,9 +87,14 @@ void main() {
                 return 503;
               })()
             : sessionStatus;
-        request.response
-          ..statusCode = status
-          ..write(
+        request.response.statusCode = status;
+        final overrideBody = sessionResponseBody;
+        if (overrideBody != null) {
+          if (overrideBody.isNotEmpty) {
+            request.response.write(overrideBody);
+          }
+        } else {
+          request.response.write(
             jsonEncode({
               'accepted': true,
               'sessionId': 'sess_server',
@@ -91,6 +102,7 @@ void main() {
                 'traitsId': sessionResponseTraitsId,
             }),
           );
+        }
       } else if (path == '/v1/events/batch') {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         final events = (body['events'] as List)
@@ -562,6 +574,56 @@ void main() {
       'session_start',
       'session_end',
     ]);
+    sink.dispose();
+  });
+
+  test('accepts empty 202 lifecycle body without retrying', () async {
+    sessionResponseBody = '';
+    final sink = CollectorHttpSink(config: configForServer());
+    final session = createSession();
+    sink.startSession(session);
+
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts.map((post) => post['eventType']), ['session_start']);
+
+    // Empty session_start body falls back to local session id for uploads.
+    for (var i = 0; i < 10; i++) {
+      sink.recordEvent(createEvent(i));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(batchPosts, hasLength(1));
+    expect(batchPosts.first.first['sessionId'], session.id);
+
+    await sink.endSession();
+    expect(sessionPosts.map((post) => post['eventType']), [
+      'session_start',
+      'session_end',
+    ]);
+
+    final postsAfterEnd = sessionPosts.length;
+    await sink.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts, hasLength(postsAfterEnd));
+    sink.dispose();
+  });
+
+  test('accepts non-JSON 202 lifecycle body without retrying', () async {
+    sessionResponseBody = 'not-json';
+    final sink = CollectorHttpSink(config: configForServer());
+    sink.startSession(createSession());
+
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts, hasLength(1));
+
+    await sink.endSession();
+    expect(sessionPosts.map((post) => post['eventType']), [
+      'session_start',
+      'session_end',
+    ]);
+
+    final postsAfterEnd = sessionPosts.length;
+    await sink.flush();
+    expect(sessionPosts, hasLength(postsAfterEnd));
     sink.dispose();
   });
 

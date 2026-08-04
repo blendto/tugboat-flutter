@@ -315,8 +315,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
     final includeFullTraits =
         _traits != null &&
-        (eventType ==
-                TugboatCollectorSessionEventType.sessionStart.wireValue ||
+        (eventType == TugboatCollectorSessionEventType.sessionStart.wireValue ||
             eventType ==
                 TugboatCollectorSessionEventType.traitsUpdated.wireValue ||
             eventType ==
@@ -340,19 +339,34 @@ class CollectorHttpSink implements TugboatCaptureSink {
       );
 
       final result = _classifyResponse(response.statusCode);
-      if (result == _SendResult.accepted) {
-        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-        if (_isCurrentEpoch(epoch)) {
+      // Status alone decides acceptance (same as events/frames). Body is
+      // optional enrichment; empty or non-JSON must not turn 202 into retry.
+      if (result == _SendResult.accepted && _isCurrentEpoch(epoch)) {
+        final raw = response.body.trim();
+        if (raw.isEmpty) {
           if (eventType ==
               TugboatCollectorSessionEventType.sessionStart.wireValue) {
-            final serverId = decoded['sessionId'] as String?;
-            _collectorSessionId = (serverId != null && serverId.isNotEmpty)
-                ? serverId
-                : session.id;
+            _collectorSessionId ??= session.id;
           }
-          final responseTraitsId = decoded['traitsId'] as String?;
-          if (responseTraitsId != null && responseTraitsId.isNotEmpty) {
-            _traitsId = responseTraitsId;
+        } else {
+          try {
+            final decoded = jsonDecode(raw) as Map<String, dynamic>;
+            if (eventType ==
+                TugboatCollectorSessionEventType.sessionStart.wireValue) {
+              final serverId = decoded['sessionId'] as String?;
+              _collectorSessionId = (serverId != null && serverId.isNotEmpty)
+                  ? serverId
+                  : session.id;
+            }
+            final responseTraitsId = decoded['traitsId'] as String?;
+            if (responseTraitsId != null && responseTraitsId.isNotEmpty) {
+              _traitsId = responseTraitsId;
+            }
+          } on Object {
+            if (eventType ==
+                TugboatCollectorSessionEventType.sessionStart.wireValue) {
+              _collectorSessionId ??= session.id;
+            }
           }
         }
       }

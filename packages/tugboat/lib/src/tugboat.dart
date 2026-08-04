@@ -142,9 +142,11 @@ class TugboatReplay {
     if (traitsId != null && traitsId.isNotEmpty) {
       _pendingTraitsId = traitsId;
     }
-    if (_pendingUserIdSet || controller.collectorUserId != null) {
+    // Only refresh when the host explicitly called setUserId. Config-applied
+    // collectorUserId must not promote hasPendingUserIdOverride, or remounts
+    // ignore updated TugboatReplayConfig.userId.
+    if (_pendingUserIdSet) {
       _pendingUserId = controller.collectorUserId;
-      _pendingUserIdSet = true;
     }
   }
 
