@@ -71,6 +71,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Timer? _identityDebounceTimer;
   bool _userDirty = false;
   bool _traitsDirty = false;
+  DateTime? _userTriggeredAt;
+  DateTime? _traitsTriggeredAt;
 
   Uri get _baseUri => Uri.parse(_config.baseUrl.replaceAll(RegExp(r'/+$'), ''));
 
@@ -103,6 +105,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _cancelIdentityDebounce();
     _userDirty = false;
     _traitsDirty = false;
+    _userTriggeredAt = null;
+    _traitsTriggeredAt = null;
     _scheduleFlushTimer();
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionStart.wireValue,
@@ -206,6 +210,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_session == null) return;
     if (_isSessionStartPending()) return;
     _traitsDirty = true;
+    _traitsTriggeredAt = DateTime.now();
     _scheduleIdentityDebounce();
   }
 
@@ -222,6 +227,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_session == null) return;
     if (_isSessionStartPending()) return;
     _userDirty = true;
+    _userTriggeredAt = DateTime.now();
     _scheduleIdentityDebounce();
   }
 
@@ -253,6 +259,19 @@ class CollectorHttpSink implements TugboatCaptureSink {
     await _drainLifecyclePosts();
   }
 
+  DateTime _coalescedIdentityTriggeredAt() {
+    if (_userDirty && _traitsDirty) {
+      final userAt = _userTriggeredAt;
+      final traitsAt = _traitsTriggeredAt;
+      if (userAt != null && traitsAt != null) {
+        return userAt.isAfter(traitsAt) ? userAt : traitsAt;
+      }
+      return userAt ?? traitsAt ?? DateTime.now();
+    }
+    if (_userDirty) return _userTriggeredAt ?? DateTime.now();
+    return _traitsTriggeredAt ?? DateTime.now();
+  }
+
   void _enqueueCoalescedIdentityUpdate() {
     if (_disposed || _session == null) return;
     if (!_userDirty && !_traitsDirty) return;
@@ -265,7 +284,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
     _userDirty = false;
     _traitsDirty = false;
-    _enqueueSessionLifecycle(eventType, DateTime.now());
+    _enqueueSessionLifecycle(eventType, _coalescedIdentityTriggeredAt());
+    _userTriggeredAt = null;
+    _traitsTriggeredAt = null;
   }
 
   @override
@@ -288,6 +309,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _cancelIdentityDebounce();
     _userDirty = false;
     _traitsDirty = false;
+    _userTriggeredAt = null;
+    _traitsTriggeredAt = null;
     _client.close();
     _pendingEvents.clear();
     _pendingFrames.clear();

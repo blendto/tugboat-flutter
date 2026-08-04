@@ -1096,6 +1096,71 @@ void main() {
     },
   );
 
+  test('debounced identity uses first dirty time as triggeredAt', () async {
+    final sink = CollectorHttpSink(config: configForServer());
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final before = DateTime.now();
+    await sink.setTraits({'plan': 'pro'});
+    final afterCall = DateTime.now();
+    await awaitIdentityDebounce();
+    final afterDebounce = DateTime.now();
+
+    expect(sessionPosts, hasLength(2));
+    expect(sessionPosts.last['eventType'], 'traits_updated');
+    final triggeredAt = DateTime.parse(
+      sessionPosts.last['triggeredAt'] as String,
+    );
+    expect(
+      triggeredAt.isAfter(before.subtract(const Duration(milliseconds: 50))),
+      isTrue,
+    );
+    expect(
+      triggeredAt.isBefore(afterCall.add(const Duration(milliseconds: 50))),
+      isTrue,
+    );
+    expect(
+      triggeredAt.isBefore(afterDebounce.subtract(const Duration(seconds: 2))),
+      isTrue,
+    );
+    sink.dispose();
+  });
+
+  test(
+    'coalesced identity triggeredAt reflects latest dirty mark when both change',
+    () async {
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      await sink.setUserId('user_at');
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      final beforeTraits = DateTime.now();
+      await sink.setTraits({'plan': 'pro'});
+      final afterTraits = DateTime.now();
+      await awaitIdentityDebounce();
+
+      expect(sessionPosts.last['eventType'], 'session_identify');
+      final triggeredAt = DateTime.parse(
+        sessionPosts.last['triggeredAt'] as String,
+      );
+      expect(
+        triggeredAt.isAfter(
+          beforeTraits.subtract(const Duration(milliseconds: 50)),
+        ),
+        isTrue,
+      );
+      expect(
+        triggeredAt.isBefore(
+          afterTraits.add(const Duration(milliseconds: 50)),
+        ),
+        isTrue,
+      );
+      sink.dispose();
+    },
+  );
+
   test('endSession flushes debounced identity before session_end', () async {
     sessionResponseTraitsId = 'trt_end';
     final sink = CollectorHttpSink(config: configForServer());
