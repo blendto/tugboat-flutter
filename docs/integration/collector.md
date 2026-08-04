@@ -159,7 +159,7 @@ The SDK calls:
 
 | Request | Purpose |
 | --- | --- |
-| `POST /v1/sessions` | `session_start` and `session_end` lifecycle payloads |
+| `POST /v1/sessions` | Session lifecycle and identity: `session_start`, `session_end`, `traits_updated`, `user_changed` |
 | `POST /v1/events/batch` | JSON event batches |
 | `POST /v1/frames` | multipart PNG frame upload |
 
@@ -173,10 +173,26 @@ an accepted start response and reads its `sessionId`; events, frames, and the
 end lifecycle request then use that collector-issued ID. Events and frames are
 not uploaded before this handshake completes.
 
+Session payloads may include:
+
+- `traits` — full traits snapshot when the host has set a bag (`session_start`,
+  `traits_updated`, `user_changed`); the collector stores the bag as-is (no
+  server-side partial merge);
+- `traitsId` — pass-through of a prior collector-issued id when no new bag is
+  sent (for example `session_end`, or `session_start` after only an id is
+  cached). Ignored by the collector when `traits` is present.
+
+Accepted session responses (`202`) may return `traitsId`. The SDK caches that
+value in process memory and stamps it onto subsequent event batches. Host apps
+register traits with `TugboatReplay.setTraits` and change the runtime user with
+`TugboatReplay.setUserId`. The SDK does **not** call `/v1/identify` or
+`/v1/events/identify`.
+
 Event payloads contain:
 
 - event ID, type, `atMs`, and absolute UTC `triggeredAt`;
 - optional user/session/run/action IDs;
+- optional `traitsId` (pass-through only; does not upsert the traits dictionary);
 - optional before/after frame references, related-event ID, and result;
 - serialized state and target anchors;
 - event-specific data under `payload`;

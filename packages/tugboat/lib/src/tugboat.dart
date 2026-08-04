@@ -35,6 +35,12 @@ class TugboatReplay {
     debugLabel: 'tugboat-capture-boundary',
   );
 
+  /// Process-local identity retained across controller mount/unmount.
+  static Map<String, dynamic>? _pendingTraits;
+  static String? _pendingTraitsId;
+  static String? _pendingUserId;
+  static bool _pendingUserIdSet = false;
+
   /// Convenience root [NavigatorObserver]. Prefer this for the app's primary
   /// Navigator.
   static final TugboatNavigatorObserver navigatorObserver =
@@ -74,8 +80,67 @@ class TugboatReplay {
   static set disabled(bool value) {
     _lifecycle.setDisabled(value);
     if (value) {
+      _syncIdentityFromController();
       _controller?.dispose();
       _controller = null;
+    }
+  }
+
+  /// Registers a full user-traits snapshot with the collector.
+  ///
+  /// Sends `POST /v1/sessions` with `eventType: traits_updated` when a capture
+  /// session is active. The collector returns a `traitsId` that is cached and
+  /// stamped onto subsequent events. Always sends the full bag (no server-side
+  /// merge). Does not call `/v1/identify`.
+  static Future<void> setTraits(Map<String, dynamic> traits) async {
+    _pendingTraits = Map<String, dynamic>.from(traits);
+    final controller = _controller;
+    if (controller == null) return;
+    await controller.setTraits(traits);
+    _pendingTraitsId = controller.collectorTraitsId ?? _pendingTraitsId;
+  }
+
+  /// Updates the runtime user id used on collector sessions and events.
+  ///
+  /// When a capture session is active, sends `POST /v1/sessions` with
+  /// `eventType: user_changed` and includes the cached traits bag when set.
+  static Future<void> setUserId(String? userId) async {
+    _pendingUserId = userId;
+    _pendingUserIdSet = true;
+    final controller = _controller;
+    if (controller == null) return;
+    await controller.setUserId(userId);
+    _pendingTraitsId = controller.collectorTraitsId ?? _pendingTraitsId;
+  }
+
+  /// Pending traits bag applied when the next [CollectorHttpSink] is created.
+  static Map<String, dynamic>? get pendingTraits => _pendingTraits == null
+      ? null
+      : Map<String, dynamic>.unmodifiable(_pendingTraits!);
+
+  /// Pending collector traits id applied when the next sink is created.
+  static String? get pendingTraitsId => _pendingTraitsId;
+
+  /// Whether [setUserId] has been called (including with `null`).
+  static bool get hasPendingUserIdOverride => _pendingUserIdSet;
+
+  /// Pending user id from [setUserId], when [hasPendingUserIdOverride] is true.
+  static String? get pendingUserId => _pendingUserId;
+
+  static void _syncIdentityFromController() {
+    final controller = _controller;
+    if (controller == null) return;
+    final traits = controller.collectorTraits;
+    if (traits != null) {
+      _pendingTraits = Map<String, dynamic>.from(traits);
+    }
+    final traitsId = controller.collectorTraitsId;
+    if (traitsId != null && traitsId.isNotEmpty) {
+      _pendingTraitsId = traitsId;
+    }
+    if (_pendingUserIdSet || controller.collectorUserId != null) {
+      _pendingUserId = controller.collectorUserId;
+      _pendingUserIdSet = true;
     }
   }
 
@@ -137,10 +202,15 @@ class TugboatReplay {
   /// Resets lifecycle state between tests.
   @visibleForTesting
   static void resetForTest() {
+    _syncIdentityFromController();
     _controller?.dispose();
     _controller = null;
     debugConfigureControllerForTest = null;
     _lifecycle.resetForTest();
+    _pendingTraits = null;
+    _pendingTraitsId = null;
+    _pendingUserId = null;
+    _pendingUserIdSet = false;
   }
 }
 
@@ -325,6 +395,10 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
       boundaryKey: TugboatReplay._boundaryKey,
       activationRequestId: widget.activationRequestId,
       sessionEpoch: widget.sessionEpoch,
+      initialTraits: TugboatReplay.pendingTraits,
+      initialTraitsId: TugboatReplay.pendingTraitsId,
+      initialUserId: TugboatReplay.pendingUserId,
+      initialUserIdOverride: TugboatReplay.hasPendingUserIdOverride,
     );
     TugboatReplay._controller = controller;
     TugboatReplay.debugConfigureControllerForTest?.call(controller);
@@ -410,6 +484,7 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
     WidgetsBinding.instance.removeObserver(this);
     inputCapture?.dispose();
     if (identical(TugboatReplay._controller, controller)) {
+      TugboatReplay._syncIdentityFromController();
       TugboatReplay._controller = null;
     }
     controller.dispose();

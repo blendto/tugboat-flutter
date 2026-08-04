@@ -1,3 +1,14 @@
+## Unreleased
+
+### Added
+
+- **User traits via collector sessions** — `TugboatReplay.setTraits` posts
+  `eventType: traits_updated` on `POST /v1/sessions` with a full traits bag,
+  caches the response `traitsId`, and stamps it on event batches.
+  `TugboatReplay.setUserId` posts `user_changed` and updates the runtime user
+  id. Pre-set traits are included on the next `session_start`. No
+  `/v1/identify` route.
+
 ## 0.5.0
 
 ### Breaking changes

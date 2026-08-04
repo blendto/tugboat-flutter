@@ -153,10 +153,33 @@ Identity contract:
 - `captureSessionId` (`session.id`) — SDK-generated emitted evidence session
 - `collectorSessionId` — stamped after HTTP `session_start` acceptance
 - `explorationRunId` — exploration control-plane ID from config
+- `traitsId` — collector-issued traits dictionary id after `setTraits` / session responses
 
 `TugboatReplay.activeSessionId` remains as a deprecated alias for
 `activationRequestId`. Inspect `TugboatReplay.health` for sink/outbox/screenshot
 budget pressure without reading protected content.
+
+### User traits and user id
+
+When an HTTP collector is configured, register a full traits snapshot (not a
+partial merge) via `POST /v1/sessions`:
+
+```dart
+await TugboatReplay.setTraits({
+  'plan': 'pro',
+  'seatCount': 3,
+});
+
+await TugboatReplay.setUserId(currentUserId);
+```
+
+- `setTraits` sends `eventType: traits_updated` with the full bag when a capture
+  session is active, caches the response `traitsId`, and stamps that id onto
+  subsequent event batches.
+- `setUserId` sends `eventType: user_changed` (with the cached traits bag when
+  set) and updates the runtime user id on later sessions/events.
+- Pre-activate calls are retained in memory and included on the next
+  `session_start`. There is no `/v1/identify` route.
 
 Optional durable HTTP delivery (Collector only, default off):
 
@@ -380,11 +403,12 @@ so it is suitable for health polling and cannot grow with session duration.
 
 ## Public surface
 
-The supported import exports `TugboatReplay`, `TugboatNavigatorObserver`,
-`TugboatReplayConfig`, capture/semantic/masking enums and policies, collector
-configuration and host helpers, markers (`TugboatSensitive`, `TugboatTag`,
-`TugboatSubView`, `TugboatInternal`), anchor and session models, the controller,
-and `TugboatExplorationTransport`.
+The supported import exports `TugboatReplay` (including `setTraits` /
+`setUserId`), `TugboatNavigatorObserver`, `TugboatReplayConfig`,
+capture/semantic/masking enums and policies, collector configuration and host
+helpers, markers (`TugboatSensitive`, `TugboatTag`, `TugboatSubView`,
+`TugboatInternal`), anchor and session models, the controller, and
+`TugboatExplorationTransport`.
 
 `TugboatCaptureSink` and the built-in sink implementations are internal today;
 config supports only the WebSocket and HTTP destinations above. A stable custom

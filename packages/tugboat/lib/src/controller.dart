@@ -736,7 +736,17 @@ class TugboatReplayController extends ChangeNotifier {
     required GlobalKey boundaryKey,
     this.activationRequestId,
     this.sessionEpoch = 0,
-  }) : _boundaryKey = boundaryKey;
+    Map<String, dynamic>? initialTraits,
+    String? initialTraitsId,
+    String? initialUserId,
+    bool initialUserIdOverride = false,
+  }) : _boundaryKey = boundaryKey,
+       _initialTraits = initialTraits == null
+           ? null
+           : Map<String, dynamic>.from(initialTraits),
+       _initialTraitsId = initialTraitsId,
+       _initialUserId = initialUserId,
+       _initialUserIdOverride = initialUserIdOverride;
 
   final TugboatReplayConfig config;
   final GlobalKey _boundaryKey;
@@ -746,6 +756,11 @@ class TugboatReplayController extends ChangeNotifier {
 
   /// Monotonic gate epoch fencing evidence to this capture mount.
   final int sessionEpoch;
+
+  final Map<String, dynamic>? _initialTraits;
+  final String? _initialTraitsId;
+  final String? _initialUserId;
+  final bool _initialUserIdOverride;
 
   final Stopwatch _clock = Stopwatch();
   Future<void> _queue = Future.value();
@@ -1188,8 +1203,14 @@ class TugboatReplayController extends ChangeNotifier {
     }
     final collectorConfig = config.collector;
     if (collectorConfig != null) {
+      final userId = _initialUserIdOverride
+          ? _initialUserId
+          : collectorConfig.withUserId(config.userId).userId;
       _collectorHttpSink = CollectorHttpSink(
-        config: collectorConfig.withUserId(config.userId),
+        config: collectorConfig.withUserId(userId),
+        initialTraits: _initialTraits,
+        initialTraitsId: _initialTraitsId,
+        initialUserId: userId,
       );
       TugboatCaptureSink httpSink = _collectorHttpSink!;
       if (config.outbox.enabled) {
@@ -1218,6 +1239,25 @@ class TugboatReplayController extends ChangeNotifier {
   Future<void> clearDurableOutbox() async {
     await _outboxStore?.clear();
   }
+
+  /// See [TugboatReplay.setTraits].
+  Future<void> setTraits(Map<String, dynamic> traits) {
+    return _collectorHttpSink?.setTraits(traits) ?? Future<void>.value();
+  }
+
+  /// See [TugboatReplay.setUserId].
+  Future<void> setUserId(String? userId) {
+    return _collectorHttpSink?.setUserId(userId) ?? Future<void>.value();
+  }
+
+  /// Collector traits id cached on the HTTP sink, if any.
+  String? get collectorTraitsId => _collectorHttpSink?.traitsId;
+
+  /// Collector traits bag cached on the HTTP sink, if any.
+  Map<String, dynamic>? get collectorTraits => _collectorHttpSink?.traits;
+
+  /// Runtime user id on the HTTP sink, if any.
+  String? get collectorUserId => _collectorHttpSink?.userId;
 
   TugboatSdkHealth healthSnapshot() {
     final outbox = _outboxStore;

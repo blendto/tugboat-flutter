@@ -2,12 +2,25 @@ import 'anchors.dart';
 import 'collector_config.dart';
 import 'models.dart';
 
+/// Wire values for `POST /v1/sessions` `eventType`.
+enum TugboatCollectorSessionEventType {
+  sessionStart('session_start'),
+  sessionEnd('session_end'),
+  traitsUpdated('traits_updated'),
+  userChanged('user_changed');
+
+  const TugboatCollectorSessionEventType(this.wireValue);
+
+  final String wireValue;
+}
+
 Map<String, Object?> mapTugboatEventToCollectorEvent({
   required TugboatEvent event,
   required DateTime sessionStartedAt,
   required TugboatCollectorConfig collectorConfig,
   String? sessionId,
   String? userId,
+  String? traitsId,
 }) {
   final triggeredAt = sessionStartedAt.add(Duration(milliseconds: event.atMs));
 
@@ -34,6 +47,7 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
     if (event.actionId != null) 'actionId': event.actionId,
     if (event.beforeFrame != null) 'beforeFrame': event.beforeFrame,
     if (event.afterFrame != null) 'afterFrame': event.afterFrame,
+    if (traitsId != null) 'traitsId': traitsId,
     'stateAnchor': event.stateAnchor?.toJson() ?? <String, Object?>{},
     'targetAnchor': event.targetAnchor?.toJson() ?? <String, Object?>{},
     if (event.result != null) 'result': event.result!.name,
@@ -61,6 +75,8 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   required DateTime triggeredAt,
   required TugboatCollectorConfig config,
   String? userId,
+  Map<String, dynamic>? traits,
+  String? traitsId,
 }) {
   return {
     'sessionId': sessionId,
@@ -73,6 +89,9 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
     'device': config.deviceInfo.toJson(),
     'ipInfo': config.ipInfo.toJson(),
     'locale': config.locale.toJson(),
+    // Full traits bag wins over traitsId pass-through.
+    if (traits != null) 'traits': traits,
+    if (traits == null && traitsId != null) 'traitsId': traitsId,
   };
 }
 

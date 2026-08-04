@@ -21,6 +21,7 @@ void main() {
   var sessionFailuresRemaining = 0;
   var eventResponseDelay = Duration.zero;
   var frameResponseDelay = Duration.zero;
+  String? sessionResponseTraitsId;
 
   final collectorConfig = TugboatCollectorConfig(
     baseUrl: 'http://127.0.0.1:0',
@@ -57,6 +58,7 @@ void main() {
     sessionFailuresRemaining = 0;
     eventResponseDelay = Duration.zero;
     frameResponseDelay = Duration.zero;
+    sessionResponseTraitsId = null;
 
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     baseUri = Uri.parse('http://127.0.0.1:${server.port}');
@@ -81,7 +83,14 @@ void main() {
             : sessionStatus;
         request.response
           ..statusCode = status
-          ..write(jsonEncode({'accepted': true, 'sessionId': 'sess_server'}));
+          ..write(
+            jsonEncode({
+              'accepted': true,
+              'sessionId': 'sess_server',
+              if (sessionResponseTraitsId != null)
+                'traitsId': sessionResponseTraitsId,
+            }),
+          );
       } else if (path == '/v1/events/batch') {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         final events = (body['events'] as List)
@@ -714,6 +723,92 @@ void main() {
 
     expect(framePosts, hasLength(1));
     expect(framePosts.single['frameNos'], ['2', '3', '4']);
+    sink.dispose();
+  });
+
+  test(
+    'setTraits posts traits_updated, caches traitsId, stamps next events',
+    () async {
+      sessionResponseTraitsId = 'trt_abc';
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(sessionPosts, hasLength(1));
+
+      await sink.setTraits({'plan': 'pro', 'seatCount': 3});
+      expect(sessionPosts, hasLength(2));
+      final traitsPost = sessionPosts.last;
+      expect(traitsPost['eventType'], 'traits_updated');
+      expect(traitsPost['traits'], {'plan': 'pro', 'seatCount': 3});
+      expect(traitsPost.containsKey('traitsId'), isFalse);
+      expect(traitsPost['sessionId'], 'sess_server');
+      expect(sink.traitsId, 'trt_abc');
+
+      sink.recordEvent(createEvent(0));
+      await sink.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(batchPosts, isNotEmpty);
+      expect(batchPosts.last.first['traitsId'], 'trt_abc');
+      sink.dispose();
+    },
+  );
+
+  test('session_start includes pre-set traits bag', () async {
+    sessionResponseTraitsId = 'trt_from_start';
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      initialTraits: {'plan': 'free'},
+    );
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(sessionPosts, hasLength(1));
+    expect(sessionPosts.first['eventType'], 'session_start');
+    expect(sessionPosts.first['traits'], {'plan': 'free'});
+    expect(sessionPosts.first.containsKey('traitsId'), isFalse);
+    expect(sink.traitsId, 'trt_from_start');
+    sink.dispose();
+  });
+
+  test('session lifecycle without traits bag sends cached traitsId', () async {
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      initialTraitsId: 'trt_cached',
+    );
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(sessionPosts.first['eventType'], 'session_start');
+    expect(sessionPosts.first['traitsId'], 'trt_cached');
+    expect(sessionPosts.first.containsKey('traits'), isFalse);
+
+    await sink.endSession();
+    final endPost = sessionPosts.last;
+    expect(endPost['eventType'], 'session_end');
+    expect(endPost['traitsId'], 'trt_cached');
+    expect(endPost.containsKey('traits'), isFalse);
+    sink.dispose();
+  });
+
+  test('setUserId posts user_changed with cached traits', () async {
+    sessionResponseTraitsId = 'trt_user';
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      initialTraits: {'plan': 'pro'},
+      initialUserId: 'user_a',
+    );
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    await sink.setUserId('user_b');
+    expect(sink.userId, 'user_b');
+    final changed = sessionPosts.last;
+    expect(changed['eventType'], 'user_changed');
+    expect(changed['userId'], 'user_b');
+    expect(changed['traits'], {'plan': 'pro'});
+    expect(changed.containsKey('traitsId'), isFalse);
     sink.dispose();
   });
 }
