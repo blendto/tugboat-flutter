@@ -35,6 +35,10 @@ TugboatDioInterceptor.install(
 
 `apiRouteTemplate` must return a safe template such as `/blend/:blendId`, never
 a raw path containing entity IDs. Return `null` or `''` to drop the call.
+The adapter also drops resolver output that is not an absolute path or that
+contains a scheme, query, fragment, percent-encoded data, a network-path
+prefix, backslash, or whitespace/control character. A resolver is still
+responsible for replacing dynamic path segments with placeholders.
 
 ## Interceptor ordering
 
@@ -47,15 +51,25 @@ a raw path containing entity IDs. Return `null` or `''` to drop the call.
 `install` appends to the interceptor list and is a no-op when a
 `TugboatDioInterceptor` is already present. Namespaced `RequestOptions.extra`
 state prevents duplicate tokens when a retry calls `dio.fetch` with the same
-options.
+options. The state is owned by a private typed envelope and is removed after a
+terminal response or error. If the host already owns the reserved
+`tugboat.network_call` key, observation is skipped and that value is preserved.
 
 Cached/interceptor-resolved responses are recorded when they pass through this
 interceptor's response path (for example `handler.resolve(response, true)` so
 following response interceptors run).
 
+Before invoking the route resolver or attaching request state, the adapter
+checks whether the SDK is accepting evidence. Dormant, disabled, deactivating,
+not-yet-started, and ended sessions therefore leave networking and
+`RequestOptions.extra` unchanged. A lifecycle change inside the resolver is
+checked again before any state is attached.
+
 ## Privacy
 
 - Route templates only — no scheme, host, port, query, or fragment
+- Invalid route outputs are dropped before a call is started
 - No request/response bodies, headers, or cookies
 - No raw `DioException` messages or stack traces
-- Dormant/disabled Tugboat → networking unchanged, no events
+- Dormant/disabled/deactivating/ended Tugboat → resolver not called, networking
+  unchanged, no events

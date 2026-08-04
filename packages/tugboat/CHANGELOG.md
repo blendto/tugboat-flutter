@@ -21,6 +21,15 @@
   lifecycle callbacks onto the core network token without importing Dio into
   core.
 
+### Fixed
+
+- **Session-bound evidence completion** — in-flight network tokens can no
+  longer finish into a replacement session, and session end fences reentrant
+  evidence before publishing its terminal event.
+- **Production parameter policy** — exploration-only `allowAll` is downgraded
+  to names-only outside exploration, and unsupported values contribute one
+  drop to bounded diagnostics.
+
 ## 0.5.0
 
 ### Breaking changes

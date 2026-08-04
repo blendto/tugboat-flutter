@@ -49,7 +49,18 @@ call.complete(statusCode: 200);
 
 Both emit on `stream: evidence` and never inherit exploration `actionId` or UI
 anchors. Parameter values are omitted unless an explicit policy allows them.
-`allowAll` is an exploration escape hatch, not a production default.
+`allowAll` is an exploration escape hatch; outside exploration profiles the SDK
+downgrades it to names-only at record time. Network routes must be absolute path
+templates. The SDK drops resolver output containing a scheme, query, fragment,
+percent-encoded data, a network-path prefix, backslash, or whitespace/control
+characters; host resolvers must still replace dynamic IDs with placeholders.
+
+Hooks resolve the active controller when `record` is called, rather than keeping
+a session reference. Network tokens are bound to the capture session in which
+they were created. Finishing a token after `clear`, session replacement,
+deactivation, or session end is a bounded no-op and cannot append evidence to a
+newer session. Calls made while Tugboat is dormant, disabled, deactivating, not
+yet started, or already ended are also safe no-ops.
 
 ## Migrating to 0.5.0
 

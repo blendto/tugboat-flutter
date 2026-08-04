@@ -6,3 +6,10 @@
   the core Tugboat network observation token.
 - `TugboatDioInterceptor.install` appends to the interceptor chain (after
   auth/retry) and rejects duplicate installation on the same `Dio` instance.
+
+### Fixed
+
+- Inactive or ended capture no longer invokes the host route resolver or
+  mutates `RequestOptions.extra`.
+- Adapter-owned request state is cleaned up after terminal callbacks without
+  deleting colliding host metadata.
