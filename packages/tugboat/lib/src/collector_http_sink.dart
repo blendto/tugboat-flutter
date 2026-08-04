@@ -196,10 +196,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   /// Updates the runtime user id and notifies the collector via `user_changed`.
   ///
-  /// When a capture session is active, posts `POST /v1/sessions` with
-  /// `eventType: user_changed` and includes the cached traits bag when set.
+  /// No-ops when [userId] equals the current runtime id (no `user_changed`
+  /// post). When a capture session is active and the id changes, posts
+  /// `POST /v1/sessions` with `eventType: user_changed` and includes the
+  /// cached traits bag when set.
   Future<void> setUserId(String? userId) async {
     if (_disposed) return;
+    if (userId == _userId) return;
     _userId = userId;
     if (_session == null) return;
     _enqueueSessionLifecycle(

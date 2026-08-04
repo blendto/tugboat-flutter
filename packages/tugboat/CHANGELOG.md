@@ -9,6 +9,12 @@
   id. Pre-set traits are included on the next `session_start`. No
   `/v1/identify` route.
 
+### Changed
+
+- **`setUserId` skips unchanged ids** — calling `TugboatReplay.setUserId` /
+  `CollectorHttpSink.setUserId` with the same value as the current runtime
+  user id does not post `user_changed`.
+
 ## 0.5.0
 
 ### Breaking changes

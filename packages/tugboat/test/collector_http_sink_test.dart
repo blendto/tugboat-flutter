@@ -811,4 +811,29 @@ void main() {
     expect(changed.containsKey('traitsId'), isFalse);
     sink.dispose();
   });
+
+  test('setUserId no-ops when user id is unchanged', () async {
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      initialUserId: 'user_a',
+    );
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts, hasLength(1));
+    expect(sessionPosts.single['eventType'], 'session_start');
+
+    await sink.setUserId('user_a');
+    expect(sink.userId, 'user_a');
+    expect(sessionPosts, hasLength(1));
+
+    await sink.setUserId(null);
+    expect(sink.userId, isNull);
+    expect(sessionPosts, hasLength(2));
+    expect(sessionPosts.last['eventType'], 'user_changed');
+    expect(sessionPosts.last['userId'], isNull);
+
+    await sink.setUserId(null);
+    expect(sessionPosts, hasLength(2));
+    sink.dispose();
+  });
 }

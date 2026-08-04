@@ -177,7 +177,8 @@ await TugboatReplay.setUserId(currentUserId);
   session is active, caches the response `traitsId`, and stamps that id onto
   subsequent event batches.
 - `setUserId` sends `eventType: user_changed` (with the cached traits bag when
-  set) and updates the runtime user id on later sessions/events.
+  set) and updates the runtime user id on later sessions/events. Calls with the
+  same id as the current runtime user are ignored (no `user_changed` post).
 - Pre-activate calls are retained in memory and included on the next
   `session_start`. There is no `/v1/identify` route.
 

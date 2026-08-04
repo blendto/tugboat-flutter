@@ -102,7 +102,8 @@ class TugboatReplay {
 
   /// Updates the runtime user id used on collector sessions and events.
   ///
-  /// When a capture session is active, sends `POST /v1/sessions` with
+  /// No-ops when [userId] equals the current runtime id. When a capture
+  /// session is active and the id changes, sends `POST /v1/sessions` with
   /// `eventType: user_changed` and includes the cached traits bag when set.
   static Future<void> setUserId(String? userId) async {
     _pendingUserId = userId;
