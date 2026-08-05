@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -1174,6 +1175,177 @@ void main() {
     final secondId = TugboatReplay.controller!.session!.id;
     expect(secondId, isNot(equals(firstId)));
     expect(TugboatReplay.activationRequestId, 'req-b');
+  });
+
+  testWidgets(
+    'config userId applies on remount when setUserId was never called',
+    (tester) async {
+      addTearDown(TugboatReplay.resetForTest);
+
+      late HttpServer server;
+      await tester.runAsync(() async {
+        server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        server.listen((request) async {
+          request.response
+            ..statusCode = 202
+            ..write(jsonEncode({'accepted': true, 'sessionId': 'sess_server'}));
+          await request.response.close();
+        });
+      });
+      addTearDown(() async {
+        await server.close(force: true);
+      });
+
+      TugboatCollectorConfig collectorConfig() => TugboatCollectorConfig(
+        baseUrl: 'http://127.0.0.1:${server.port}',
+        apiKey: 'pmk_test',
+        eventFlushInterval: const Duration(hours: 1),
+        appInfo: const TugboatCollectorAppInfo(
+          name: 'Example App',
+          version: '1.0.0',
+          buildNumber: '1',
+          installationId: 'inst_1',
+          appId: 'com.example.app',
+        ),
+        deviceInfo: const TugboatCollectorDeviceInfo(
+          id: 'device_client',
+          platform: 'ios',
+          screenSize: TugboatCollectorScreenSize(width: 390, height: 844),
+          screenDensity: 3,
+          screenDpi: 460,
+          screenPixelDensity: 3,
+        ),
+        ipInfo: const TugboatCollectorIpInfo(ip: '127.0.0.1'),
+        locale: const TugboatCollectorLocaleInfo(language: 'en'),
+      );
+
+      Future<void> pumpWithUserId(String userId) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => TugboatReplay.wrapApp(
+              config: _testConfig.copyWith(
+                profile: TugboatCaptureProfile.dormant,
+                userId: userId,
+                collector: collectorConfig(),
+              ),
+              child: child!,
+            ),
+            home: const Scaffold(body: Text('Identity')),
+          ),
+        );
+        await tester.pump();
+      }
+
+      await pumpWithUserId('user_a');
+      TugboatReplay.activate(
+        activationRequestId: 'req-user-a',
+        profile: TugboatCaptureProfile.exploration,
+      );
+      await _waitForCaptures(tester);
+      expect(TugboatReplay.controller!.collectorUserId, 'user_a');
+      expect(TugboatReplay.hasPendingUserIdOverride, isFalse);
+
+      TugboatReplay.deactivate();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(TugboatReplay.controller, isNull);
+      expect(TugboatReplay.hasPendingUserIdOverride, isFalse);
+
+      await pumpWithUserId('user_b');
+      TugboatReplay.activate(
+        activationRequestId: 'req-user-b',
+        profile: TugboatCaptureProfile.exploration,
+      );
+      await _waitForCaptures(tester);
+      expect(TugboatReplay.controller!.collectorUserId, 'user_b');
+      expect(TugboatReplay.hasPendingUserIdOverride, isFalse);
+    },
+  );
+
+  testWidgets('setUserId override survives remount over config userId', (
+    tester,
+  ) async {
+    addTearDown(TugboatReplay.resetForTest);
+
+    late HttpServer server;
+    await tester.runAsync(() async {
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        request.response
+          ..statusCode = 202
+          ..write(jsonEncode({'accepted': true, 'sessionId': 'sess_server'}));
+        await request.response.close();
+      });
+    });
+    addTearDown(() async {
+      await server.close(force: true);
+    });
+
+    TugboatCollectorConfig collectorConfig() => TugboatCollectorConfig(
+      baseUrl: 'http://127.0.0.1:${server.port}',
+      apiKey: 'pmk_test',
+      eventFlushInterval: const Duration(hours: 1),
+      appInfo: const TugboatCollectorAppInfo(
+        name: 'Example App',
+        version: '1.0.0',
+        buildNumber: '1',
+        installationId: 'inst_1',
+        appId: 'com.example.app',
+      ),
+      deviceInfo: const TugboatCollectorDeviceInfo(
+        id: 'device_client',
+        platform: 'ios',
+        screenSize: TugboatCollectorScreenSize(width: 390, height: 844),
+        screenDensity: 3,
+        screenDpi: 460,
+        screenPixelDensity: 3,
+      ),
+      ipInfo: const TugboatCollectorIpInfo(ip: '127.0.0.1'),
+      locale: const TugboatCollectorLocaleInfo(language: 'en'),
+    );
+
+    Future<void> pumpWithUserId(String userId) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => TugboatReplay.wrapApp(
+            config: _testConfig.copyWith(
+              profile: TugboatCaptureProfile.dormant,
+              userId: userId,
+              collector: collectorConfig(),
+            ),
+            child: child!,
+          ),
+          home: const Scaffold(body: Text('Override')),
+        ),
+      );
+      await tester.pump();
+    }
+
+    await pumpWithUserId('user_a');
+    TugboatReplay.activate(
+      activationRequestId: 'req-override-a',
+      profile: TugboatCaptureProfile.exploration,
+    );
+    await _waitForCaptures(tester);
+    await tester.runAsync(() => TugboatReplay.setUserId('runtime'));
+    expect(TugboatReplay.controller!.collectorUserId, 'runtime');
+    expect(TugboatReplay.hasPendingUserIdOverride, isTrue);
+
+    TugboatReplay.deactivate();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(TugboatReplay.controller, isNull);
+    expect(TugboatReplay.hasPendingUserIdOverride, isTrue);
+    expect(TugboatReplay.pendingUserId, 'runtime');
+
+    await pumpWithUserId('user_b');
+    TugboatReplay.activate(
+      activationRequestId: 'req-override-b',
+      profile: TugboatCaptureProfile.exploration,
+    );
+    await _waitForCaptures(tester);
+    expect(TugboatReplay.controller!.collectorUserId, 'runtime');
+    expect(TugboatReplay.hasPendingUserIdOverride, isTrue);
   });
 
   testWidgets('identical activate request is idempotent', (tester) async {
