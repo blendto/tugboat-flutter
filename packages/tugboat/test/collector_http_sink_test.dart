@@ -205,8 +205,27 @@ void main() {
     expect(headers['X-Sdk-Version'], tugboatSdkVersion);
   }
 
+  /// Short debounce so identity tests avoid ~3s wall-clock sleeps.
+  const testIdentityDebounce = Duration(milliseconds: 40);
+
+  CollectorHttpSink createIdentitySink({
+    Map<String, dynamic>? initialTraits,
+    String? initialTraitsId,
+    String? initialUserId,
+  }) {
+    return CollectorHttpSink(
+      config: configForServer(),
+      initialTraits: initialTraits,
+      initialTraitsId: initialTraitsId,
+      initialUserId: initialUserId,
+      identityDebounceDuration: testIdentityDebounce,
+    );
+  }
+
   Future<void> awaitIdentityDebounce() async {
-    await Future<void>.delayed(const Duration(milliseconds: 3100));
+    await Future<void>.delayed(
+      testIdentityDebounce + const Duration(milliseconds: 40),
+    );
   }
 
   test('collector defaults flush low-volume events every 3 seconds', () {
@@ -796,7 +815,7 @@ void main() {
     'setTraits posts traits_updated, caches traitsId, stamps next events',
     () async {
       sessionResponseTraitsId = 'trt_abc';
-      final sink = CollectorHttpSink(config: configForServer());
+      final sink = createIdentitySink();
       final session = createSession();
       sink.startSession(session);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -898,7 +917,7 @@ void main() {
     'new session_start includes traits bag after mid-session setTraits',
     () async {
       sessionResponseTraitsId = 'trt_mid';
-      final sink = CollectorHttpSink(config: configForServer());
+      final sink = createIdentitySink();
       sink.startSession(createSession(id: 'session-a'));
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(sessionPosts, hasLength(1));
@@ -944,8 +963,7 @@ void main() {
 
   test('setUserId posts user_changed with cached traits', () async {
     sessionResponseTraitsId = 'trt_user';
-    final sink = CollectorHttpSink(
-      config: configForServer(),
+    final sink = createIdentitySink(
       initialTraits: {'plan': 'pro'},
       initialUserId: 'user_a',
     );
@@ -1018,10 +1036,7 @@ void main() {
   );
 
   test('setUserId no-ops when user id is unchanged', () async {
-    final sink = CollectorHttpSink(
-      config: configForServer(),
-      initialUserId: 'user_a',
-    );
+    final sink = createIdentitySink(initialUserId: 'user_a');
     sink.startSession(createSession());
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(sessionPosts, hasLength(1));
@@ -1045,7 +1060,7 @@ void main() {
 
   test('setTraits no-ops when traits bag is unchanged', () async {
     sessionResponseTraitsId = 'trt_skip';
-    final sink = CollectorHttpSink(config: configForServer());
+    final sink = createIdentitySink();
     sink.startSession(createSession());
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(sessionPosts, hasLength(1));
@@ -1071,7 +1086,7 @@ void main() {
     'setUserId then setTraits within debounce posts session_identify once',
     () async {
       sessionResponseTraitsId = 'trt_both';
-      final sink = CollectorHttpSink(config: configForServer());
+      final sink = createIdentitySink();
       sink.startSession(createSession());
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(sessionPosts, hasLength(1));
@@ -1097,7 +1112,7 @@ void main() {
   );
 
   test('debounced identity uses first dirty time as triggeredAt', () async {
-    final sink = CollectorHttpSink(config: configForServer());
+    final sink = createIdentitySink();
     sink.startSession(createSession());
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -1121,7 +1136,9 @@ void main() {
       isTrue,
     );
     expect(
-      triggeredAt.isBefore(afterDebounce.subtract(const Duration(seconds: 2))),
+      triggeredAt.isBefore(
+        afterDebounce.subtract(const Duration(milliseconds: 20)),
+      ),
       isTrue,
     );
     sink.dispose();
@@ -1130,12 +1147,12 @@ void main() {
   test(
     'coalesced identity triggeredAt reflects latest dirty mark when both change',
     () async {
-      final sink = CollectorHttpSink(config: configForServer());
+      final sink = createIdentitySink();
       sink.startSession(createSession());
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       await sink.setUserId('user_at');
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await Future<void>.delayed(const Duration(milliseconds: 15));
       final beforeTraits = DateTime.now();
       await sink.setTraits({'plan': 'pro'});
       final afterTraits = DateTime.now();
@@ -1161,7 +1178,7 @@ void main() {
 
   test('endSession flushes debounced identity before session_end', () async {
     sessionResponseTraitsId = 'trt_end';
-    final sink = CollectorHttpSink(config: configForServer());
+    final sink = createIdentitySink();
     sink.startSession(createSession());
     await Future<void>.delayed(const Duration(milliseconds: 50));
 

@@ -19,12 +19,15 @@ class CollectorHttpSink implements TugboatCaptureSink {
     Map<String, dynamic>? initialTraits,
     String? initialTraitsId,
     String? initialUserId,
+    @visibleForTesting Duration? identityDebounceDuration,
   }) : _config = config,
        _userId = initialUserId ?? config.userId,
        _traits = initialTraits == null
            ? null
            : Map<String, dynamic>.from(initialTraits),
        _traitsId = initialTraitsId,
+       _identityDebounceDuration =
+           identityDebounceDuration ?? _defaultIdentityDebounceDuration,
        _client = _CollectorHttpClient(
          inner: client ?? http.Client(),
          apiKey: config.apiKey,
@@ -66,7 +69,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
   /// billing, feature flags). Debouncing merges those into one lifecycle POST
   /// (`session_identify` when both change) instead of back-to-back
   /// `user_changed` / `traits_updated`.
-  static const _identityDebounceDuration = Duration(seconds: 3);
+  static const _defaultIdentityDebounceDuration = Duration(seconds: 3);
+
+  final Duration _identityDebounceDuration;
 
   Timer? _identityDebounceTimer;
   bool _userDirty = false;
@@ -199,10 +204,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   /// Registers a full traits snapshot with the collector.
   ///
-  /// No-ops when [traits] deep-equals the cached bag. While `session_start` is
-  /// still pending, updates memory only (folded into start at send time).
-  /// Otherwise debounces `traits_updated` or `session_identify` when combined
-  /// with a pending user change within [_identityDebounceDuration].
+  /// No-ops when [traits] equals the cached bag via [mapEquals] (shallow:
+  /// nested maps/lists compared with `==`). While `session_start` is still
+  /// pending, updates memory only (folded into start at send time). Otherwise
+  /// debounces `traits_updated` or `session_identify` when combined with a
+  /// pending user change within [_identityDebounceDuration].
   Future<void> setTraits(Map<String, dynamic> traits) async {
     if (_disposed) return;
     if (mapEquals(_traits, traits)) return;

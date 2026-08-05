@@ -104,9 +104,10 @@ class TugboatReplay {
 
   /// Updates the runtime user id used on collector sessions and events.
   ///
-  /// No-ops when [userId] equals the current runtime id. When a capture session
-  /// is active and the id changes, debounces lifecycle posts (3s). Combined
-  /// with a pending traits change, posts `session_identify`; otherwise
+  /// Always records a remount override via [hasPendingUserIdOverride]. Collector
+  /// posting no-ops when [userId] equals the current runtime id. When a capture
+  /// session is active and the id changes, debounces lifecycle posts (3s).
+  /// Combined with a pending traits change, posts `session_identify`; otherwise
   /// `user_changed`. While `session_start` is still pending, updates memory only.
   static Future<void> setUserId(String? userId) async {
     _pendingUserId = userId;
