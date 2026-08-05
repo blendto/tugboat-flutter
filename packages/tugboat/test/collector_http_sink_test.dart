@@ -21,6 +21,12 @@ void main() {
   var sessionFailuresRemaining = 0;
   var eventResponseDelay = Duration.zero;
   var frameResponseDelay = Duration.zero;
+  String? sessionResponseTraitsId;
+
+  /// When non-null, written verbatim as the `/v1/sessions` response body
+  /// (including `''` for empty). When null, the default JSON acceptance map
+  /// is used.
+  String? sessionResponseBody;
 
   final collectorConfig = TugboatCollectorConfig(
     baseUrl: 'http://127.0.0.1:0',
@@ -57,6 +63,8 @@ void main() {
     sessionFailuresRemaining = 0;
     eventResponseDelay = Duration.zero;
     frameResponseDelay = Duration.zero;
+    sessionResponseTraitsId = null;
+    sessionResponseBody = null;
 
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     baseUri = Uri.parse('http://127.0.0.1:${server.port}');
@@ -79,9 +87,22 @@ void main() {
                 return 503;
               })()
             : sessionStatus;
-        request.response
-          ..statusCode = status
-          ..write(jsonEncode({'accepted': true, 'sessionId': 'sess_server'}));
+        request.response.statusCode = status;
+        final overrideBody = sessionResponseBody;
+        if (overrideBody != null) {
+          if (overrideBody.isNotEmpty) {
+            request.response.write(overrideBody);
+          }
+        } else {
+          request.response.write(
+            jsonEncode({
+              'accepted': true,
+              'sessionId': 'sess_server',
+              if (sessionResponseTraitsId != null)
+                'traitsId': sessionResponseTraitsId,
+            }),
+          );
+        }
       } else if (path == '/v1/events/batch') {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         final events = (body['events'] as List)
@@ -182,6 +203,29 @@ void main() {
     expect(headers['X-App-Version'], collectorConfig.appInfo.version);
     expect(headers['X-App-Id'], collectorConfig.appInfo.appId);
     expect(headers['X-Sdk-Version'], tugboatSdkVersion);
+  }
+
+  /// Short debounce so identity tests avoid ~3s wall-clock sleeps.
+  const testIdentityDebounce = Duration(milliseconds: 40);
+
+  CollectorHttpSink createIdentitySink({
+    Map<String, dynamic>? initialTraits,
+    String? initialTraitsId,
+    String? initialUserId,
+  }) {
+    return CollectorHttpSink(
+      config: configForServer(),
+      initialTraits: initialTraits,
+      initialTraitsId: initialTraitsId,
+      initialUserId: initialUserId,
+      identityDebounceDuration: testIdentityDebounce,
+    );
+  }
+
+  Future<void> awaitIdentityDebounce() async {
+    await Future<void>.delayed(
+      testIdentityDebounce + const Duration(milliseconds: 40),
+    );
   }
 
   test('collector defaults flush low-volume events every 3 seconds', () {
@@ -556,6 +600,56 @@ void main() {
     sink.dispose();
   });
 
+  test('accepts empty 202 lifecycle body without retrying', () async {
+    sessionResponseBody = '';
+    final sink = CollectorHttpSink(config: configForServer());
+    final session = createSession();
+    sink.startSession(session);
+
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts.map((post) => post['eventType']), ['session_start']);
+
+    // Empty session_start body falls back to local session id for uploads.
+    for (var i = 0; i < 10; i++) {
+      sink.recordEvent(createEvent(i));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(batchPosts, hasLength(1));
+    expect(batchPosts.first.first['sessionId'], session.id);
+
+    await sink.endSession();
+    expect(sessionPosts.map((post) => post['eventType']), [
+      'session_start',
+      'session_end',
+    ]);
+
+    final postsAfterEnd = sessionPosts.length;
+    await sink.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts, hasLength(postsAfterEnd));
+    sink.dispose();
+  });
+
+  test('accepts non-JSON 202 lifecycle body without retrying', () async {
+    sessionResponseBody = 'not-json';
+    final sink = CollectorHttpSink(config: configForServer());
+    sink.startSession(createSession());
+
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts, hasLength(1));
+
+    await sink.endSession();
+    expect(sessionPosts.map((post) => post['eventType']), [
+      'session_start',
+      'session_end',
+    ]);
+
+    final postsAfterEnd = sessionPosts.length;
+    await sink.flush();
+    expect(sessionPosts, hasLength(postsAfterEnd));
+    sink.dispose();
+  });
+
   test('session lifecycle retries after transient failure', () async {
     sessionStatus = 503;
     final sink = CollectorHttpSink(config: configForServer());
@@ -714,6 +808,422 @@ void main() {
 
     expect(framePosts, hasLength(1));
     expect(framePosts.single['frameNos'], ['2', '3', '4']);
+    sink.dispose();
+  });
+
+  test(
+    'setTraits posts traits_updated, caches traitsId, stamps next events',
+    () async {
+      sessionResponseTraitsId = 'trt_abc';
+      final sink = createIdentitySink();
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(sessionPosts, hasLength(1));
+
+      await sink.setTraits({'plan': 'pro', 'seatCount': 3});
+      await awaitIdentityDebounce();
+      expect(sessionPosts, hasLength(2));
+      final traitsPost = sessionPosts.last;
+      expect(traitsPost['eventType'], 'traits_updated');
+      expect(traitsPost['traits'], {'plan': 'pro', 'seatCount': 3});
+      expect(traitsPost.containsKey('traitsId'), isFalse);
+      expect(traitsPost['sessionId'], 'sess_server');
+      expect(sink.traitsId, 'trt_abc');
+
+      sink.recordEvent(createEvent(0));
+      await sink.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(batchPosts, isNotEmpty);
+      expect(batchPosts.last.first['traitsId'], 'trt_abc');
+      sink.dispose();
+    },
+  );
+
+  test('session_start includes pre-set traits bag', () async {
+    sessionResponseTraitsId = 'trt_from_start';
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      initialTraits: {'plan': 'free'},
+    );
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(sessionPosts, hasLength(1));
+    expect(sessionPosts.first['eventType'], 'session_start');
+    expect(sessionPosts.first['traits'], {'plan': 'free'});
+    expect(sessionPosts.first.containsKey('traitsId'), isFalse);
+    expect(sink.traitsId, 'trt_from_start');
+    sink.dispose();
+  });
+
+  test('setTraits before startSession lands on session_start', () async {
+    sessionResponseTraitsId = 'trt_pre';
+    final sink = CollectorHttpSink(config: configForServer());
+    await sink.setTraits({'plan': 'starter'});
+    expect(sessionPosts, isEmpty);
+
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(sessionPosts, hasLength(1));
+    expect(sessionPosts.single['eventType'], 'session_start');
+    expect(sessionPosts.single['traits'], {'plan': 'starter'});
+    expect(
+      sessionPosts.where((post) => post['eventType'] == 'traits_updated'),
+      isEmpty,
+    );
+    sink.dispose();
+  });
+
+  test(
+    'setTraits while session_start pending updates start payload only',
+    () async {
+      sessionStatus = 503;
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Failed attempts are still recorded by the test server.
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'session_start'),
+        isNotEmpty,
+      );
+
+      await sink.setTraits({'plan': 'pro'});
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'traits_updated'),
+        isEmpty,
+      );
+
+      sessionStatus = 202;
+      sessionResponseTraitsId = 'trt_pending';
+      await sink.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final starts = sessionPosts
+          .where((post) => post['eventType'] == 'session_start')
+          .toList();
+      expect(starts.last['traits'], {'plan': 'pro'});
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'traits_updated'),
+        isEmpty,
+      );
+      sink.dispose();
+    },
+  );
+
+  test(
+    'new session_start includes traits bag after mid-session setTraits',
+    () async {
+      sessionResponseTraitsId = 'trt_mid';
+      final sink = createIdentitySink();
+      sink.startSession(createSession(id: 'session-a'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(sessionPosts, hasLength(1));
+
+      await sink.setTraits({'plan': 'pro'});
+      await awaitIdentityDebounce();
+      expect(sessionPosts, hasLength(2));
+      expect(sessionPosts.last['eventType'], 'traits_updated');
+      expect(sessionPosts.last['traits'], {'plan': 'pro'});
+
+      await sink.endSession();
+      sessionPosts.clear();
+
+      sink.startSession(createSession(id: 'session-b'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(sessionPosts.first['eventType'], 'session_start');
+      expect(sessionPosts.first['traits'], {'plan': 'pro'});
+      expect(sessionPosts.first.containsKey('traitsId'), isFalse);
+      sink.dispose();
+    },
+  );
+
+  test('session lifecycle without traits bag sends cached traitsId', () async {
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      initialTraitsId: 'trt_cached',
+    );
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(sessionPosts.first['eventType'], 'session_start');
+    expect(sessionPosts.first['traitsId'], 'trt_cached');
+    expect(sessionPosts.first.containsKey('traits'), isFalse);
+
+    await sink.endSession();
+    final endPost = sessionPosts.last;
+    expect(endPost['eventType'], 'session_end');
+    expect(endPost['traitsId'], 'trt_cached');
+    expect(endPost.containsKey('traits'), isFalse);
+    sink.dispose();
+  });
+
+  test('setUserId posts user_changed with cached traits', () async {
+    sessionResponseTraitsId = 'trt_user';
+    final sink = createIdentitySink(
+      initialTraits: {'plan': 'pro'},
+      initialUserId: 'user_a',
+    );
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    await sink.setUserId('user_b');
+    await awaitIdentityDebounce();
+    expect(sink.userId, 'user_b');
+    final changed = sessionPosts.last;
+    expect(changed['eventType'], 'user_changed');
+    expect(changed['userId'], 'user_b');
+    expect(changed['traits'], {'plan': 'pro'});
+    expect(changed.containsKey('traitsId'), isFalse);
+    sink.dispose();
+  });
+
+  test('setUserId before startSession lands on session_start', () async {
+    final sink = CollectorHttpSink(config: configForServer());
+    await sink.setUserId('user_pre');
+    expect(sessionPosts, isEmpty);
+    expect(sink.userId, 'user_pre');
+
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(sessionPosts, hasLength(1));
+    expect(sessionPosts.single['eventType'], 'session_start');
+    expect(sessionPosts.single['userId'], 'user_pre');
+    expect(
+      sessionPosts.where((post) => post['eventType'] == 'user_changed'),
+      isEmpty,
+    );
+    sink.dispose();
+  });
+
+  test(
+    'setUserId while session_start pending updates start payload only',
+    () async {
+      sessionStatus = 503;
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'session_start'),
+        isNotEmpty,
+      );
+
+      await sink.setUserId('user_pending');
+      expect(sink.userId, 'user_pending');
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'user_changed'),
+        isEmpty,
+      );
+
+      sessionStatus = 202;
+      await sink.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final starts = sessionPosts
+          .where((post) => post['eventType'] == 'session_start')
+          .toList();
+      expect(starts.last['userId'], 'user_pending');
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'user_changed'),
+        isEmpty,
+      );
+      sink.dispose();
+    },
+  );
+
+  test('setUserId no-ops when user id is unchanged', () async {
+    final sink = createIdentitySink(initialUserId: 'user_a');
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts, hasLength(1));
+    expect(sessionPosts.single['eventType'], 'session_start');
+
+    await sink.setUserId('user_a');
+    expect(sink.userId, 'user_a');
+    expect(sessionPosts, hasLength(1));
+
+    await sink.setUserId(null);
+    await awaitIdentityDebounce();
+    expect(sink.userId, isNull);
+    expect(sessionPosts, hasLength(2));
+    expect(sessionPosts.last['eventType'], 'user_changed');
+    expect(sessionPosts.last['userId'], isNull);
+
+    await sink.setUserId(null);
+    expect(sessionPosts, hasLength(2));
+    sink.dispose();
+  });
+
+  test('setTraits no-ops when traits bag is unchanged', () async {
+    sessionResponseTraitsId = 'trt_skip';
+    final sink = createIdentitySink();
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(sessionPosts, hasLength(1));
+
+    await sink.setTraits({'plan': 'pro'});
+    await awaitIdentityDebounce();
+    expect(sessionPosts, hasLength(2));
+    expect(sessionPosts.last['eventType'], 'traits_updated');
+    expect(sessionPosts.last['traits'], {'plan': 'pro'});
+
+    await sink.setTraits({'plan': 'pro'});
+    expect(sessionPosts, hasLength(2));
+
+    await sink.setTraits({'plan': 'enterprise'});
+    await awaitIdentityDebounce();
+    expect(sessionPosts, hasLength(3));
+    expect(sessionPosts.last['eventType'], 'traits_updated');
+    expect(sessionPosts.last['traits'], {'plan': 'enterprise'});
+    sink.dispose();
+  });
+
+  test(
+    'setUserId then setTraits within debounce posts session_identify once',
+    () async {
+      sessionResponseTraitsId = 'trt_both';
+      final sink = createIdentitySink();
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(sessionPosts, hasLength(1));
+
+      await sink.setUserId('user_coalesce');
+      await sink.setTraits({'plan': 'pro', 'seatCount': 2});
+      await awaitIdentityDebounce();
+
+      expect(sessionPosts, hasLength(2));
+      expect(sessionPosts.last['eventType'], 'session_identify');
+      expect(sessionPosts.last['userId'], 'user_coalesce');
+      expect(sessionPosts.last['traits'], {'plan': 'pro', 'seatCount': 2});
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'user_changed'),
+        isEmpty,
+      );
+      expect(
+        sessionPosts.where((post) => post['eventType'] == 'traits_updated'),
+        isEmpty,
+      );
+      sink.dispose();
+    },
+  );
+
+  test('debounced identity uses first dirty time as triggeredAt', () async {
+    final sink = createIdentitySink();
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final before = DateTime.now();
+    await sink.setTraits({'plan': 'pro'});
+    final afterCall = DateTime.now();
+    await awaitIdentityDebounce();
+    final afterDebounce = DateTime.now();
+
+    expect(sessionPosts, hasLength(2));
+    expect(sessionPosts.last['eventType'], 'traits_updated');
+    final triggeredAt = DateTime.parse(
+      sessionPosts.last['triggeredAt'] as String,
+    );
+    expect(
+      triggeredAt.isAfter(before.subtract(const Duration(milliseconds: 50))),
+      isTrue,
+    );
+    expect(
+      triggeredAt.isBefore(afterCall.add(const Duration(milliseconds: 50))),
+      isTrue,
+    );
+    expect(
+      triggeredAt.isBefore(
+        afterDebounce.subtract(const Duration(milliseconds: 20)),
+      ),
+      isTrue,
+    );
+    sink.dispose();
+  });
+
+  test('debounced user change keeps its dirty time as triggeredAt', () async {
+    final sink = createIdentitySink();
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final before = DateTime.now();
+    await sink.setUserId('user_at');
+    final afterCall = DateTime.now();
+    await awaitIdentityDebounce();
+    final afterDebounce = DateTime.now();
+
+    expect(sessionPosts, hasLength(2));
+    expect(sessionPosts.last['eventType'], 'user_changed');
+    final triggeredAt = DateTime.parse(
+      sessionPosts.last['triggeredAt'] as String,
+    );
+    expect(
+      triggeredAt.isAfter(before.subtract(const Duration(milliseconds: 50))),
+      isTrue,
+    );
+    expect(
+      triggeredAt.isBefore(afterCall.add(const Duration(milliseconds: 50))),
+      isTrue,
+    );
+    expect(
+      triggeredAt.isBefore(
+        afterDebounce.subtract(const Duration(milliseconds: 20)),
+      ),
+      isTrue,
+    );
+    sink.dispose();
+  });
+
+  test(
+    'coalesced identity uses the later user dirty time when traits change first',
+    () async {
+      final sink = createIdentitySink();
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      await sink.setTraits({'plan': 'pro'});
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+      final beforeUser = DateTime.now();
+      await sink.setUserId('user_at');
+      final afterUser = DateTime.now();
+      await awaitIdentityDebounce();
+
+      expect(sessionPosts.last['eventType'], 'session_identify');
+      final triggeredAt = DateTime.parse(
+        sessionPosts.last['triggeredAt'] as String,
+      );
+      expect(
+        triggeredAt.isAfter(
+          beforeUser.subtract(const Duration(milliseconds: 50)),
+        ),
+        isTrue,
+      );
+      expect(
+        triggeredAt.isBefore(afterUser.add(const Duration(milliseconds: 50))),
+        isTrue,
+      );
+      sink.dispose();
+    },
+  );
+
+  test('endSession flushes debounced identity before session_end', () async {
+    sessionResponseTraitsId = 'trt_end';
+    final sink = createIdentitySink();
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    await sink.setTraits({'plan': 'pro'});
+    expect(sessionPosts, hasLength(1));
+
+    await sink.endSession();
+    expect(sessionPosts.map((post) => post['eventType']), [
+      'session_start',
+      'traits_updated',
+      'session_end',
+    ]);
     sink.dispose();
   });
 }

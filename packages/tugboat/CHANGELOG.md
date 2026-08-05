@@ -30,6 +30,49 @@
   to names-only outside exploration, and unsupported values contribute one
   drop to bounded diagnostics.
 
+## 0.5.3
+
+### Added
+
+- **Debounced identity coalesce** — after `session_start`, `setUserId` and
+  `setTraits` within 3s consolidate into one `session_identify` POST when
+  both change; otherwise `user_changed` or `traits_updated`. Pending updates are
+  flushed before `session_end`.
+
+### Changed
+
+- Pre-start identity still folds into a single `session_start` when values are
+  staged before or while start is pending.
+
+## 0.5.2
+
+### Changed
+
+- **`setUserId` folds into pending `session_start`** — when a `session_start`
+  is still pending, `CollectorHttpSink.setUserId` updates the runtime id only
+  and skips `user_changed` (same coalesce already used by `setTraits`). Boot
+  identity can land on a single `session_start` POST.
+
+## 0.5.1
+
+### Added
+
+- **User traits via collector sessions** — `TugboatReplay.setTraits` posts
+  `eventType: traits_updated` on `POST /v1/sessions` with a full traits bag,
+  caches the response `traitsId`, and stamps it on event batches.
+  `TugboatReplay.setUserId` posts `user_changed` and updates the runtime user
+  id. Pre-set traits are included on the next `session_start`. No
+  `/v1/identify` route.
+
+### Changed
+
+- **`setUserId` skips unchanged ids** — calling `TugboatReplay.setUserId` /
+  `CollectorHttpSink.setUserId` with the same value as the current runtime
+  user id does not post `user_changed`.
+- **Pre-initialize identify** — `setTraits` / `setUserId` called after the
+  controller mounts but before the HTTP sink is created retain identity for
+  the next `session_start` instead of dropping it.
+
 ## 0.5.0
 
 ### Breaking changes

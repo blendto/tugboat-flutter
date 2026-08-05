@@ -196,10 +196,36 @@ Identity contract:
 - `captureSessionId` (`session.id`) — SDK-generated emitted evidence session
 - `collectorSessionId` — stamped after HTTP `session_start` acceptance
 - `explorationRunId` — exploration control-plane ID from config
+- `traitsId` — collector-issued traits dictionary id after `setTraits` / session responses
 
 `TugboatReplay.activeSessionId` remains as a deprecated alias for
 `activationRequestId`. Inspect `TugboatReplay.health` for sink/outbox/screenshot
 budget pressure without reading protected content.
+
+### User traits and user id
+
+When an HTTP collector is configured, register a full traits snapshot (not a
+partial merge) via `POST /v1/sessions`:
+
+```dart
+await TugboatReplay.setTraits({
+  'plan': 'pro',
+  'seatCount': 3,
+});
+
+await TugboatReplay.setUserId(currentUserId);
+```
+
+- `setTraits` debounces `traits_updated` (3s) after start acceptance, or
+  `session_identify` when combined with a pending user change. Caches
+  `traitsId` and stamps it on event batches. While `session_start` is pending,
+  updates memory only (folded into start at send time).
+- `setUserId` debounces `user_changed` (3s) after start acceptance, or
+  `session_identify` when combined with a pending traits change. Unchanged ids
+  are ignored. While `session_start` is pending, updates memory only.
+- Pre-activate calls are retained in memory and included on the next
+  `session_start` when present. Pending debounced updates flush on `session_end`.
+  There is no `/v1/identify` route.
 
 Optional durable HTTP delivery (Collector only, default off):
 
@@ -306,7 +332,7 @@ Emitted event types currently include:
   immutable `origin`, `result`, `attribution`, and `evidenceEventIds`;
 - legacy gesture peers (`stream: legacy_projection` when canonical is on):
   `tap`, `tap_settled`, `swipe`, `tap_outside_tree`, `tap_gesture_resolved`;
-- lifecycle: `session_start`, `session_end`;
+- lifecycle: `session_start`, `session_identify`, `session_end`;
 - input: `pointer_cancel` (`stream: evidence`);
 - state/navigation evidence (`stream: evidence`): `state_change`, `route_change`
   (claimed routes also carry `causedByInteractionId`);
@@ -423,11 +449,12 @@ so it is suitable for health polling and cannot grow with session duration.
 
 ## Public surface
 
-The supported import exports `TugboatReplay`, `TugboatNavigatorObserver`,
-`TugboatReplayConfig`, capture/semantic/masking enums and policies, collector
-configuration and host helpers, markers (`TugboatSensitive`, `TugboatTag`,
-`TugboatSubView`, `TugboatInternal`), anchor and session models, the controller,
-and `TugboatExplorationTransport`.
+The supported import exports `TugboatReplay` (including `setTraits` /
+`setUserId`), `TugboatNavigatorObserver`, `TugboatReplayConfig`,
+capture/semantic/masking enums and policies, collector configuration and host
+helpers, markers (`TugboatSensitive`, `TugboatTag`, `TugboatSubView`,
+`TugboatInternal`), anchor and session models, the controller, and
+`TugboatExplorationTransport`.
 
 `TugboatCaptureSink` and the built-in sink implementations are internal today;
 config supports only the WebSocket and HTTP destinations above. A stable custom

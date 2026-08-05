@@ -142,7 +142,7 @@ void main() {
 
   test('maps session lifecycle payloads for collector sessions endpoint', () {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
-      eventType: 'session_start',
+      eventType: TugboatCollectorSessionEventType.sessionStart.wireValue,
       sessionId: 'sess_123',
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
@@ -159,6 +159,70 @@ void main() {
     expect((mapped['locale'] as Map)['language'], 'en');
     expect(mapped['platform'], 'ios');
     expect(mapped['fingerprintSchemaVersion'], tugboatFingerprintSchemaVersion);
+    expect(mapped.containsKey('traits'), isFalse);
+    expect(mapped.containsKey('traitsId'), isFalse);
+  });
+
+  test('session map prefers full traits bag over traitsId', () {
+    final mapped = mapTugboatSessionLifecycleToCollectorSession(
+      eventType: TugboatCollectorSessionEventType.traitsUpdated.wireValue,
+      sessionId: 'sess_123',
+      triggeredAt: DateTime.utc(2026, 6, 19),
+      config: collectorConfig,
+      traits: {'plan': 'pro'},
+      traitsId: 'trt_ignored',
+    );
+
+    expect(mapped['eventType'], 'traits_updated');
+    expect(mapped['traits'], {'plan': 'pro'});
+    expect(mapped.containsKey('traitsId'), isFalse);
+  });
+
+  test('session map sends traitsId when no traits bag is provided', () {
+    final mapped = mapTugboatSessionLifecycleToCollectorSession(
+      eventType: TugboatCollectorSessionEventType.sessionEnd.wireValue,
+      sessionId: 'sess_123',
+      triggeredAt: DateTime.utc(2026, 6, 19),
+      config: collectorConfig,
+      traitsId: 'trt_cached',
+    );
+
+    expect(mapped['traitsId'], 'trt_cached');
+    expect(mapped.containsKey('traits'), isFalse);
+  });
+
+  test('event map includes optional traitsId', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(id: 'event-1', atMs: 0, type: 'tap'),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+      traitsId: 'trt_evt',
+    );
+
+    expect(mapped['traitsId'], 'trt_evt');
+  });
+
+  test('session event type wire values match collector contract', () {
+    expect(
+      TugboatCollectorSessionEventType.sessionIdentify.wireValue,
+      'session_identify',
+    );
+    expect(
+      TugboatCollectorSessionEventType.sessionStart.wireValue,
+      'session_start',
+    );
+    expect(
+      TugboatCollectorSessionEventType.sessionEnd.wireValue,
+      'session_end',
+    );
+    expect(
+      TugboatCollectorSessionEventType.traitsUpdated.wireValue,
+      'traits_updated',
+    );
+    expect(
+      TugboatCollectorSessionEventType.userChanged.wireValue,
+      'user_changed',
+    );
   });
 
   test('keeps deprecated packageName legacy constructor compatibility', () {
