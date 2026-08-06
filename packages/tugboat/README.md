@@ -45,6 +45,16 @@ final call = TugboatReplay.beginNetworkCall(
   route: '/blend/:blendId', // host-supplied template only
 );
 call.complete(statusCode: 200);
+
+// HTTP error bodies may be supplied as bounded JSON/text evidence.
+final failedCall = TugboatReplay.beginNetworkCall(
+  method: 'POST',
+  route: '/projects',
+);
+failedCall.complete(
+  statusCode: 422,
+  errorResponseBody: {'code': 'invalid_project'},
+);
 ```
 
 Both emit on `stream: evidence` and never inherit exploration `actionId` or UI
@@ -54,6 +64,9 @@ downgrades it to names-only at record time. Network routes must be absolute path
 templates. The SDK drops resolver output containing a scheme, query, fragment,
 percent-encoded data, a network-path prefix, backslash, or whitespace/control
 characters; host resolvers must still replace dynamic IDs with placeholders.
+HTTP response bodies are retained only when `statusCode >= 400`. JSON and text
+are deep-copied and bounded to 16 KiB; binary and unsupported values are
+omitted. Successful response bodies are never retained.
 
 Hooks resolve the active controller when `record` is called, rather than keeping
 a session reference. Network tokens are bound to the capture session in which

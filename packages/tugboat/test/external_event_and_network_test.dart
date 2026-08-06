@@ -290,6 +290,92 @@ void main() {
     );
   });
 
+  testWidgets('network call retains a copied HTTP error response body', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    final body = <String, Object?>{
+      'code': 'invalid_project',
+      'details': <Object?>['missing_name'],
+    };
+
+    TugboatReplay.beginNetworkCall(
+      method: 'POST',
+      route: '/projects',
+    ).complete(statusCode: 422, errorResponseBody: body);
+    body['code'] = 'mutated';
+    (body['details'] as List<Object?>).add('mutated');
+
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'network_call',
+    );
+    expect(event.data['errorResponseBody'], {
+      'code': 'invalid_project',
+      'details': ['missing_name'],
+    });
+    expect(event.data['errorResponseBodyCapture'], {
+      'format': 'json',
+      'representation': 'native',
+      'truncated': false,
+    });
+  });
+
+  testWidgets('network call never retains a successful response body', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+
+    TugboatReplay.beginNetworkCall(
+      method: 'GET',
+      route: '/projects',
+    ).complete(statusCode: 200, errorResponseBody: {'secret': 'success-body'});
+
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'network_call',
+    );
+    expect(event.data.containsKey('errorResponseBody'), isFalse);
+    expect(event.data.toString(), isNot(contains('success-body')));
+  });
+
+  testWidgets('network error response text is bounded', (tester) async {
+    await _pumpCapture(tester);
+
+    TugboatReplay.beginNetworkCall(method: 'GET', route: '/projects').complete(
+      statusCode: 500,
+      errorResponseBody:
+          'x' * (TugboatNetworkLimits.maxErrorResponseBodyBytes + 100),
+    );
+
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'network_call',
+    );
+    expect(
+      (event.data['errorResponseBody'] as String).length,
+      TugboatNetworkLimits.maxErrorResponseBodyBytes,
+    );
+    expect(event.data['errorResponseBodyCapture'], {
+      'format': 'text',
+      'representation': 'native',
+      'truncated': true,
+    });
+  });
+
+  testWidgets('network call omits binary error response bodies', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+
+    TugboatReplay.beginNetworkCall(
+      method: 'GET',
+      route: '/download',
+    ).complete(statusCode: 500, errorResponseBody: <int>[0, 1, 2, 3]);
+
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'network_call',
+    );
+    expect(event.data.containsKey('errorResponseBody'), isFalse);
+  });
+
   testWidgets('network token cannot finish into a replacement session', (
     tester,
   ) async {

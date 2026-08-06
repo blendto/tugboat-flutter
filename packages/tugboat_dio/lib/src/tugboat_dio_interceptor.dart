@@ -14,8 +14,9 @@ typedef TugboatDioRouteResolver = String? Function(RequestOptions request);
 /// finishes the token. Prefer [install], which appends and rejects duplicate
 /// installation on the same [Dio] instance.
 ///
-/// Never inspects request/response bodies, headers, cookies, query parameters,
-/// or raw error text.
+/// Never inspects request bodies, successful response bodies, headers, cookies,
+/// query parameters, or raw transport error text. Bounded JSON/text response
+/// bodies are retained only for HTTP error statuses.
 class TugboatDioInterceptor extends Interceptor {
   TugboatDioInterceptor({required this.routeResolver});
 
@@ -56,9 +57,11 @@ class TugboatDioInterceptor extends Interceptor {
     TugboatNetworkCall? call;
     try {
       call = _tokenOf(options);
+      final statusCode = response.statusCode;
       call?.complete(
-        statusCode: response.statusCode,
+        statusCode: statusCode,
         attemptCount: _attemptCount(options),
+        errorResponseBody: _isHttpError(statusCode) ? response.data : null,
       );
     } catch (_) {
     } finally {
@@ -84,8 +87,12 @@ class TugboatDioInterceptor extends Interceptor {
           );
         } else if (err.response != null) {
           // Logical HTTP response was available; retain status without error
-          // text.
-          call.complete(statusCode: statusCode, attemptCount: attempts);
+          // text, but include its bounded HTTP error response body.
+          call.complete(
+            statusCode: statusCode,
+            attemptCount: attempts,
+            errorResponseBody: err.response?.data,
+          );
         } else {
           call.fail(
             failure: TugboatNetworkFailure.networkError,
@@ -100,6 +107,8 @@ class TugboatDioInterceptor extends Interceptor {
     }
     handler.next(err);
   }
+
+  bool _isHttpError(int? statusCode) => statusCode != null && statusCode >= 400;
 
   void _ensureToken(RequestOptions options) {
     if (!TugboatReplay.isAcceptingEvidence) return;

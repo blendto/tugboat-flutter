@@ -1,8 +1,9 @@
 # tugboat_dio
 
 Dio adapter for Tugboat network evidence. Records method, safe route template,
-status, outcome, and duration into an active Tugboat session. Never captures
-headers, queries, bodies, raw errors, or stack traces.
+status, outcome, and duration into an active Tugboat session. HTTP error
+responses additionally retain bounded JSON/text bodies. Successful response
+bodies, headers, queries, raw transport errors, and stack traces are omitted.
 
 Requires `tugboat` `0.6.0` (lockstep).
 
@@ -69,7 +70,9 @@ checked again before any state is attached.
 
 - Route templates only — no scheme, host, port, query, or fragment
 - Invalid route outputs are dropped before a call is started
-- No request/response bodies, headers, or cookies
+- No request bodies, successful response bodies, headers, or cookies
+- HTTP status `>= 400`: JSON/text response body only, deep-copied and bounded
+  to 16 KiB; binary and unsupported bodies are omitted
 - No raw `DioException` messages or stack traces
 - Dormant/disabled/deactivating/ended Tugboat → resolver not called, networking
   unchanged, no events

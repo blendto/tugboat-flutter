@@ -1158,12 +1158,16 @@ class TugboatReplayController extends ChangeNotifier {
     required TugboatStateAnchor? afterState,
     required String? beforeFrame,
     required String? afterFrame,
+    TugboatTargetAnchor? targetAnchor,
+    bool causallyClaimed = false,
   }) {
     return _computeTapSettleResult(
       beforeState: beforeState,
       afterState: afterState,
       beforeFrame: beforeFrame,
       afterFrame: afterFrame,
+      targetAnchor: targetAnchor,
+      causallyClaimed: causallyClaimed,
     );
   }
 
@@ -2414,6 +2418,8 @@ class TugboatReplayController extends ChangeNotifier {
       startPosition: position,
       pointerGeneration: ++_pointerGeneration,
       captureSessionId: _session?.id,
+      explorationRunId: _activeExplorationRunId ?? config.explorationRunId,
+      actionId: _activeActionId,
     );
     final tx = InteractionTransaction(origin: origin, pointerId: pointer);
     final legacyStream = config.legacyGestureStream;
@@ -3041,6 +3047,8 @@ class TugboatReplayController extends ChangeNotifier {
           afterState: afterState,
           beforeFrame: beforeFrame,
           afterFrame: afterFrame,
+          targetAnchor: tapTargetAnchor,
+          causallyClaimed: pending.claimed,
           navigationOutcome: observation.navigationOutcome,
           degraded: observation.isDegraded,
         );
@@ -3225,6 +3233,8 @@ class TugboatReplayController extends ChangeNotifier {
     required TugboatStateAnchor? afterState,
     required String? beforeFrame,
     required String? afterFrame,
+    TugboatTargetAnchor? targetAnchor,
+    bool causallyClaimed = false,
     String navigationOutcome = 'same_route',
     bool degraded = false,
   }) {
@@ -3236,6 +3246,14 @@ class TugboatReplayController extends ChangeNotifier {
     final afterSig = afterState?.signature ?? '';
     if (beforeSig.isNotEmpty && afterSig.isNotEmpty && beforeSig != afterSig) {
       return TugboatInteractionResult.changed;
+    }
+    // Animated/loading surfaces can repaint independently of the pointer. If
+    // the resolved origin exposes no tap action, a pixel-only difference is
+    // ambient evidence and must not turn an empty-area tap into a successful
+    // interaction. Navigation and structural state changes still win above.
+    if (!causallyClaimed &&
+        (targetAnchor == null || !targetAnchor.actions.contains('tap'))) {
+      return TugboatInteractionResult.noVisibleChange;
     }
     if (_framesVisuallyDifferent(beforeFrame, afterFrame)) {
       return TugboatInteractionResult.changed;
@@ -3299,6 +3317,8 @@ class TugboatReplayController extends ChangeNotifier {
           ),
           'evidenceEventIds': List<String>.from(tx.evidenceEventIds),
         },
+        explorationRunId: tx.origin.explorationRunId,
+        actionId: tx.origin.actionId,
       ),
     );
   }
@@ -4326,8 +4346,10 @@ class TugboatReplayController extends ChangeNotifier {
             activationRequestId:
                 session.activationRequestId ?? activationRequestId,
             explorationRunId:
-                _activeExplorationRunId ?? config.explorationRunId,
-            actionId: _activeActionId,
+                event.explorationRunId ??
+                _activeExplorationRunId ??
+                config.explorationRunId,
+            actionId: event.actionId ?? _activeActionId,
           )
         : event.copyWith(
             sessionId: event.sessionId ?? session.id,

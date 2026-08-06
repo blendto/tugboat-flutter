@@ -90,9 +90,12 @@ void main() {
     expect(data.toString().contains('raw-id'), isFalse);
     expect(data.toString().contains('example.test'), isFalse);
     expect(data.containsKey('headers'), isFalse);
+    expect(data.containsKey('errorResponseBody'), isFalse);
   });
 
-  testWidgets('bad response retains status without raw error', (tester) async {
+  testWidgets('bad response retains status and bounded response body', (
+    tester,
+  ) async {
     await _pumpCapture(tester);
     final dio = Dio();
     dio.httpClientAdapter = _ScriptedAdapter(
@@ -114,7 +117,12 @@ void main() {
     );
     expect(event.data['statusCode'], 503);
     expect(event.data['outcome'], 'response');
-    expect(event.data.toString().contains('secret-body'), isFalse);
+    expect(event.data['errorResponseBody'], 'secret-body');
+    expect(event.data['errorResponseBodyCapture'], {
+      'format': 'text',
+      'representation': 'native',
+      'truncated': false,
+    });
   });
 
   testWidgets('transport error emits network_error', (tester) async {
@@ -214,6 +222,39 @@ void main() {
     expect(events.single.data['statusCode'], 200);
     expect(events.single.data['outcome'], 'response');
     expect(events.single.data['attemptCount'], 2);
+    expect(events.single.data.containsKey('errorResponseBody'), isFalse);
+  });
+
+  testWidgets('accepted HTTP error still retains its response body', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    final dio = Dio(
+      BaseOptions(validateStatus: (status) => status != null && status < 600),
+    );
+    dio.httpClientAdapter = _ScriptedAdapter(
+      (_) async => ResponseBody.fromString(
+        '{"code":"overloaded"}',
+        503,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      ),
+    );
+    TugboatDioInterceptor.install(dio, routeResolver: (_) => '/health');
+
+    final response = await _runAsync(tester, () => dio.get<dynamic>('/health'));
+    expect(response.statusCode, 503);
+
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'network_call',
+    );
+    expect(event.data['errorResponseBody'], {'code': 'overloaded'});
+    expect(event.data['errorResponseBodyCapture'], {
+      'format': 'json',
+      'representation': 'native',
+      'truncated': false,
+    });
   });
 
   testWidgets('unmatched route drops without event', (tester) async {

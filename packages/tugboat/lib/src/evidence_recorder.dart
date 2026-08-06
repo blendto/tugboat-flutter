@@ -166,6 +166,7 @@ class TugboatEvidenceRecorder {
     required TugboatNetworkOutcome outcome,
     int? statusCode,
     int? attemptCount,
+    Object? errorResponseBody,
   }) {
     try {
       if (!accepting) {
@@ -177,6 +178,9 @@ class TugboatEvidenceRecorder {
         return;
       }
       final durationMs = (nowMs() - startedAtMs).clamp(0, 24 * 60 * 60 * 1000);
+      final errorBody = statusCode != null && statusCode >= 400
+          ? snapshotNetworkErrorResponseBody(errorResponseBody)
+          : null;
       appendEvidence(
         TugboatEvent(
           id: nextEventId('event'),
@@ -191,6 +195,9 @@ class TugboatEvidenceRecorder {
             'durationMs': durationMs,
             if (attemptCount != null && attemptCount > 0)
               'attemptCount': attemptCount,
+            if (errorBody != null) 'errorResponseBody': errorBody.value,
+            if (errorBody != null)
+              'errorResponseBodyCapture': errorBody.toCaptureMetadata(),
           },
         ),
       );
@@ -235,11 +242,16 @@ class _ActiveNetworkCall implements TugboatNetworkCall {
   bool _finished = false;
 
   @override
-  void complete({int? statusCode, int? attemptCount}) {
+  void complete({
+    int? statusCode,
+    int? attemptCount,
+    Object? errorResponseBody,
+  }) {
     _finish(
       outcome: TugboatNetworkOutcome.response,
       statusCode: statusCode,
       attemptCount: attemptCount,
+      errorResponseBody: errorResponseBody,
     );
   }
 
@@ -248,11 +260,13 @@ class _ActiveNetworkCall implements TugboatNetworkCall {
     required TugboatNetworkFailure failure,
     int? statusCode,
     int? attemptCount,
+    Object? errorResponseBody,
   }) {
     _finish(
       outcome: failure.outcome,
       statusCode: statusCode,
       attemptCount: attemptCount,
+      errorResponseBody: errorResponseBody,
     );
   }
 
@@ -260,6 +274,7 @@ class _ActiveNetworkCall implements TugboatNetworkCall {
     required TugboatNetworkOutcome outcome,
     int? statusCode,
     int? attemptCount,
+    Object? errorResponseBody,
   }) {
     if (_finished) {
       _recorder._noteDuplicateFinish(sessionId);
@@ -274,6 +289,7 @@ class _ActiveNetworkCall implements TugboatNetworkCall {
       outcome: outcome,
       statusCode: statusCode,
       attemptCount: attemptCount,
+      errorResponseBody: errorResponseBody,
     );
   }
 }
