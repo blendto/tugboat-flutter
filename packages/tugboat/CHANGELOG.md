@@ -1,8 +1,20 @@
 ## 0.6.0
 
+### Changed
+
+- **Canonical interactions are now the recording default** —
+  `TugboatReplayConfig.interactionPublishMode` defaults to `canonicalOnly`, so
+  each finalized gesture emits one semantic `interaction` instead of also
+  emitting `tap`, `tap_settled`, or `swipe` compatibility rows.
+- **Legacy gesture publication is deprecated** — `dualWrite` and `legacyOnly`
+  remain explicit migration overrides for historical consumers. New
+  integrations must not enable them; removal prerequisites and the searchable
+  `TODO(tugboat-legacy-projection-removal)` marker are documented in the SDK
+  README.
+
 ### Added
 
-- **Provider-neutral app-event hook** — `TugboatReplay.eventHook` records one
+- **Provider-neutral coded-event hook** — `TugboatReplay.eventHook` records one
   logical `external_event` on the evidence stream with a bounded parameter
   policy (`namesOnly`, `allowList`, `transform`, or exploration-only
   `allowAll`). Values are deep-copied at hook time; dormant/disabled calls are
@@ -29,6 +41,11 @@
 - **Production parameter policy** — exploration-only `allowAll` is downgraded
   to names-only outside exploration, and unsupported values contribute one
   drop to bounded diagnostics.
+- **Session-end admission** — session end claims its in-flight future before
+  sync sink work, so evidence fencing no longer needs a separate ending bool.
+- **Deactivate evidence fence** — `TugboatReplay.deactivate` closes evidence
+  admission immediately; the activation gate still owns `session_end` on
+  teardown.
 
 ## 0.5.3
 

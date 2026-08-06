@@ -99,7 +99,7 @@ Screenshot readback and PNG encoding also perform UI-thread work without a stabl
 - AE1. Given an app mounted with the default dormant profile, when `activate()` is called, capture begins without rebuilding `MaterialApp`, and exactly one emitted session is linked to the activation request.
 - AE2. Given activate-deactivate-activate calls in rapid succession, each created session ends once, no event is delivered to the prior session's sinks, and the second activation has a new capture-session ID.
 - AE3. Given a process restart with unacknowledged outbox entries, delivery resumes within retry bounds and acknowledged envelopes are not delivered again.
-- AE4. Given screenshot encoding exceeds budget, interaction events continue, screenshots are coalesced or skipped, and health reports the specific degradation without including pixels or labels.
+- AE4. Given screenshot encoding exceeds budget, inferred events continue, screenshots are coalesced or skipped, and health reports the specific degradation without including pixels or labels.
 - AE5. Given the same tagged actionable control in two locale variants of one exact release build, structural identity remains stable; a different build is not automatically treated as equivalent.
 
 ### Scope Boundaries
@@ -237,7 +237,7 @@ Release-build validation and documentation close the rollout after the behavior 
 - **Requirements:** R9-R10; KTD7.
 - **Dependencies:** U1.
 - **Files:** Modify screenshot/frame capture and replay policy files; add benchmarks and tests under `packages/tugboat/test/replay/` and `packages/tugboat/benchmark/`.
-- **Approach:** Instrument capture stages, maintain a rolling budget, and coalesce or skip eligible screenshots while keeping interaction events and diagnostics.
+- **Approach:** Instrument capture stages, maintain a rolling budget, and coalesce or skip eligible screenshots while keeping inferred events and diagnostics.
 - **Test scenarios:** Stage timings and sizes are recorded without pixels; unchanged frames still deduplicate; overload coalesces pending captures; critical lifecycle captures follow policy; structural evidence continues when screenshots degrade; recovery clears degraded state after the budget window.
 - **Verification:** Benchmark fixtures establish thresholds and tests prove predictable degradation without event loss.
 

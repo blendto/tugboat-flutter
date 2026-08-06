@@ -186,9 +186,9 @@ class TugboatReplay {
   /// Returns the SDK to dormant mode without tearing down the host app.
   static void deactivate() {
     _lifecycle.deactivate();
-    // Widget teardown happens on the next build. End now so same-turn calls
-    // cannot append evidence after deactivation was requested.
-    unawaited(_controller?.endSession());
+    // Widget teardown (and session_end) happens on the next gate rebuild.
+    // Fence evidence now so same-turn host callbacks cannot append.
+    _controller?.fenceEvidence();
   }
 
   /// Current sanitized health snapshot (empty when no controller).

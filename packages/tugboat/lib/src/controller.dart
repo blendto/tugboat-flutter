@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
@@ -751,7 +751,7 @@ class TugboatReplayController extends ChangeNotifier {
        _initialUserId = initialUserId,
        _initialUserIdOverride = initialUserIdOverride {
     _evidence = TugboatEvidenceRecorder(
-      appendEvidence: _appendEvidenceEvent,
+      appendEvidence: (event) => _addEvent(event, attachActionContext: false),
       nextEventId: _nextId,
       nowMs: () => atMs,
       profile: () => config.profile,
@@ -777,7 +777,6 @@ class TugboatReplayController extends ChangeNotifier {
   Future<void> _queue = Future.value();
   int _queuedTaskCount = 0;
   Future<void>? _endSessionFuture;
-  bool _endingSession = false;
 
   TugboatSession? _session;
   ScreenshotCapturer? _capturer;
@@ -863,7 +862,14 @@ class TugboatReplayController extends ChangeNotifier {
 
   TugboatSession? get session => _session;
   bool get recording => _session != null;
+
+  /// Whether the evidence recorder is open for this mounted controller.
+  ///
+  /// Host apps should gate on [TugboatReplay.isAcceptingEvidence] instead of
+  /// reading this directly — the facade also applies lifecycle admission.
+  @internal
   bool get acceptingEvidence => !_disposed && _evidence.accepting;
+
   bool get scrolling => _scrollTrackers.isNotEmpty;
   bool get capturePaused => _capturePaused;
   int get atMs => _clock.elapsedMilliseconds;
@@ -1343,12 +1349,15 @@ class TugboatReplayController extends ChangeNotifier {
   Future<void> _endSession(String cancellationReason) {
     final active = _endSessionFuture;
     if (active != null) return active;
-    if (_endingSession) return Future<void>.value();
     if (_session == null) return Future<void>.value();
 
-    // Sink delivery is synchronous and may re-enter the controller. Fence
-    // evidence before publishing the terminal event.
-    _endingSession = true;
+    // Claim the end-session future before any sync sink work so re-entry sees
+    // a single in-flight end and cannot race a null future.
+    final done = Completer<void>();
+    _endSessionFuture = done.future;
+
+    // Fence evidence before publishing the terminal event — sink delivery is
+    // synchronous and may re-enter the controller.
     _evidence.close();
 
     _cancelActiveTapSettles(cancellationReason);
@@ -1368,9 +1377,9 @@ class TugboatReplayController extends ChangeNotifier {
         stateAnchor: _currentStateAnchor,
       ),
     );
-    final future = _sinkHub?.endSession() ?? Future<void>.value();
-    _endSessionFuture = future;
-    return future;
+    final sinkEnd = _sinkHub?.endSession() ?? Future<void>.value();
+    sinkEnd.then(done.complete, onError: done.completeError);
+    return done.future;
   }
 
   /// Pushes buffered capture output without closing the session.
@@ -1388,7 +1397,6 @@ class TugboatReplayController extends ChangeNotifier {
     _invalidateCaptureWork('session_replacement');
     _captureLifecycleActive = true;
     _captureLifecycleEpoch++;
-    _endingSession = false;
     _endSessionFuture = null;
     _clock
       ..reset()
@@ -2319,7 +2327,6 @@ class TugboatReplayController extends ChangeNotifier {
       !_disposed &&
       _session != null &&
       _captureLifecycleActive &&
-      !_endingSession &&
       _endSessionFuture == null;
 
   void recordPointerDown(Offset position, {int pointer = 0}) {
@@ -4304,41 +4311,50 @@ class TugboatReplayController extends ChangeNotifier {
     }
   }
 
-  void _addEvent(TugboatEvent event) {
+  /// Publishes one timeline event.
+  ///
+  /// When [attachActionContext] is true (default), stamps the active
+  /// exploration action window. Host app/network evidence passes false so it
+  /// never inherits [actionId] or interaction context.
+  void _addEvent(TugboatEvent event, {bool attachActionContext = true}) {
     final session = _session;
     if (session == null) return;
-    final enriched = event.withExplorationContext(
-      sessionId: session.id,
-      captureSessionId: session.id,
-      activationRequestId: session.activationRequestId ?? activationRequestId,
-      explorationRunId: _activeExplorationRunId ?? config.explorationRunId,
-      actionId: _activeActionId,
-    );
+    final enriched = attachActionContext
+        ? event.withExplorationContext(
+            sessionId: session.id,
+            captureSessionId: session.id,
+            activationRequestId:
+                session.activationRequestId ?? activationRequestId,
+            explorationRunId:
+                _activeExplorationRunId ?? config.explorationRunId,
+            actionId: _activeActionId,
+          )
+        : event.copyWith(
+            sessionId: event.sessionId ?? session.id,
+            captureSessionId: event.captureSessionId ?? session.id,
+            activationRequestId:
+                event.activationRequestId ??
+                session.activationRequestId ??
+                activationRequestId,
+            explorationRunId:
+                event.explorationRunId ?? session.explorationRunId,
+          );
     session.events.add(enriched);
     _sinkHub?.recordEvent(enriched);
     _trim();
   }
 
-  /// Session-stamped evidence that must never inherit action/interaction
-  /// context (active [actionId], related interaction, or anchors).
-  void _appendEvidenceEvent(TugboatEvent event) {
-    final session = _session;
-    if (session == null) return;
-    final enriched = event.copyWith(
-      sessionId: event.sessionId ?? session.id,
-      captureSessionId: event.captureSessionId ?? session.id,
-      activationRequestId:
-          event.activationRequestId ??
-          session.activationRequestId ??
-          activationRequestId,
-      explorationRunId: event.explorationRunId ?? session.explorationRunId,
-    );
-    session.events.add(enriched);
-    _sinkHub?.recordEvent(enriched);
-    _trim();
-  }
+  /// Same-turn fence for [TugboatReplay.deactivate] without full session end.
+  ///
+  /// The activation gate still owns `session_end` on teardown; this only stops
+  /// evidence admission for in-flight host callbacks.
+  @internal
+  void fenceEvidence() => _evidence.close();
 
   /// Records one logical host app/analytics event onto the evidence stream.
+  ///
+  /// Prefer [TugboatReplay.eventHook] — it applies lifecycle admission.
+  @internal
   void recordExternalEvent({
     required String name,
     String? source,
@@ -4354,6 +4370,9 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   /// Begins observation of one logical network call.
+  ///
+  /// Prefer [TugboatReplay.beginNetworkCall] — it applies lifecycle admission.
+  @internal
   TugboatNetworkCall beginNetworkCall({required String method, String? route}) {
     return _evidence.beginNetworkCall(method: method, route: route);
   }

@@ -8,6 +8,7 @@ import '../helpers/replay_coherence_harness.dart';
 
 const _config = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
+  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: true,

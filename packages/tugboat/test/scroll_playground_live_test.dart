@@ -8,6 +8,7 @@ import 'package:tugboat/tugboat.dart';
 void main() {
   const config = TugboatReplayConfig(
     profile: TugboatCaptureProfile.exploration,
+    interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
     settleDelay: Duration.zero,
     interactionClaimWindow: Duration.zero,
     enableGlobalPointerCapture: false,

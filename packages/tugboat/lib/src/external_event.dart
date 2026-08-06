@@ -159,42 +159,36 @@ TugboatParameterSnapshot snapshotExternalParameters({
     }
     keys.add(key);
 
-    final candidate = switch (policy.mode) {
-      TugboatParameterCaptureMode.namesOnly => _skipValue,
-      TugboatParameterCaptureMode.allowList =>
-        (policy.allowedKeys?.contains(key) ?? false) ? entry.value : _dropValue,
-      TugboatParameterCaptureMode.transform => _applyTransform(
-        policy,
-        key,
-        entry.value,
-      ),
-      TugboatParameterCaptureMode.allowAll => entry.value,
-    };
-    if (identical(candidate, _skipValue)) continue;
-    if (identical(candidate, _dropValue)) {
-      dropped += 1;
-      continue;
-    }
-
-    final copied = _copyJsonSafe(
-      candidate,
-      depth: 1,
-      seen: <Object>{},
-      dropped: (count) {
-        dropped += count;
-        truncated = true;
-      },
-      onCollectionItem: () {
-        collectionItems += 1;
-        if (collectionItems > TugboatParameterLimits.maxCollectionItems) {
-          truncated = true;
-          return false;
+    switch (_decideTopLevelValue(policy, key, entry.value)) {
+      case _SkipValue():
+        continue;
+      case _DropValue():
+        dropped += 1;
+        continue;
+      case _KeepValue(:final value):
+        switch (_copyJsonSafe(
+          value,
+          depth: 1,
+          seen: <Object>{},
+          dropped: (count) {
+            dropped += count;
+            truncated = true;
+          },
+          onCollectionItem: () {
+            collectionItems += 1;
+            if (collectionItems > TugboatParameterLimits.maxCollectionItems) {
+              truncated = true;
+              return false;
+            }
+            return true;
+          },
+        )) {
+          case _CopyUnsupported():
+            continue;
+          case _CopyOk(:final value):
+            retained[key] = value;
         }
-        return true;
-      },
-    );
-    if (identical(copied, _unsupported)) continue;
-    retained[key] = copied;
+    }
   }
 
   Map<String, Object?>? parametersOut;
@@ -221,32 +215,75 @@ TugboatParameterSnapshot snapshotExternalParameters({
   );
 }
 
-const _Sentinel _unsupported = _Sentinel('unsupported');
-const _Sentinel _skipValue = _Sentinel('skip');
-const _Sentinel _dropValue = _Sentinel('drop');
-
-class _Sentinel {
-  const _Sentinel(this.label);
-  final String label;
+sealed class _ValueDecision {
+  const _ValueDecision();
 }
 
-Object? _applyTransform(
+final class _SkipValue extends _ValueDecision {
+  const _SkipValue();
+}
+
+final class _DropValue extends _ValueDecision {
+  const _DropValue();
+}
+
+final class _KeepValue extends _ValueDecision {
+  const _KeepValue(this.value);
+  final Object? value;
+}
+
+sealed class _CopyResult {
+  const _CopyResult();
+}
+
+final class _CopyUnsupported extends _CopyResult {
+  const _CopyUnsupported();
+}
+
+final class _CopyOk extends _CopyResult {
+  const _CopyOk(this.value);
+  final Object? value;
+}
+
+_ValueDecision _decideTopLevelValue(
+  TugboatParameterPolicy policy,
+  String key,
+  Object? value,
+) {
+  return switch (policy.mode) {
+    TugboatParameterCaptureMode.namesOnly => const _SkipValue(),
+    TugboatParameterCaptureMode.allowList =>
+      (policy.allowedKeys?.contains(key) ?? false)
+          ? _KeepValue(value)
+          : const _DropValue(),
+    TugboatParameterCaptureMode.transform => _applyTransform(
+      policy,
+      key,
+      value,
+    ),
+    TugboatParameterCaptureMode.allowAll => _KeepValue(value),
+  };
+}
+
+_ValueDecision _applyTransform(
   TugboatParameterPolicy policy,
   String key,
   Object? value,
 ) {
   final transform = policy.valueTransform;
-  if (transform == null) return _dropValue;
+  if (transform == null) return const _DropValue();
   try {
     final candidate = transform(key, value);
-    if (identical(candidate, TugboatParameterPolicy.drop)) return _dropValue;
-    return candidate;
+    if (identical(candidate, TugboatParameterPolicy.drop)) {
+      return const _DropValue();
+    }
+    return _KeepValue(candidate);
   } catch (_) {
-    return _dropValue;
+    return const _DropValue();
   }
 }
 
-Object? _copyJsonSafe(
+_CopyResult _copyJsonSafe(
   Object? value, {
   required int depth,
   required Set<Object> seen,
@@ -255,23 +292,25 @@ Object? _copyJsonSafe(
 }) {
   if (depth > TugboatParameterLimits.maxDepth) {
     dropped(1);
-    return _unsupported;
+    return const _CopyUnsupported();
   }
-  if (value == null || value is bool) return value;
+  if (value == null || value is bool) return _CopyOk(value);
   if (value is num) {
-    if (value.isFinite) return value;
+    if (value.isFinite) return _CopyOk(value);
     dropped(1);
-    return _unsupported;
+    return const _CopyUnsupported();
   }
   if (value is String) {
-    if (value.length <= TugboatParameterLimits.maxStringLength) return value;
+    if (value.length <= TugboatParameterLimits.maxStringLength) {
+      return _CopyOk(value);
+    }
     dropped(1);
-    return _unsupported;
+    return const _CopyUnsupported();
   }
   if (value is Map) {
     if (!seen.add(value)) {
       dropped(1);
-      return _unsupported;
+      return const _CopyUnsupported();
     }
     final out = <String, Object?>{};
     for (final entry in value.entries) {
@@ -286,23 +325,26 @@ Object? _copyJsonSafe(
         dropped(1);
         break;
       }
-      final copied = _copyJsonSafe(
+      switch (_copyJsonSafe(
         entry.value,
         depth: depth + 1,
         seen: seen,
         dropped: dropped,
         onCollectionItem: onCollectionItem,
-      );
-      if (identical(copied, _unsupported)) continue;
-      out[key] = copied;
+      )) {
+        case _CopyUnsupported():
+          continue;
+        case _CopyOk(:final value):
+          out[key] = value;
+      }
     }
     seen.remove(value);
-    return out;
+    return _CopyOk(out);
   }
   if (value is Iterable) {
     if (!seen.add(value)) {
       dropped(1);
-      return _unsupported;
+      return const _CopyUnsupported();
     }
     final out = <Object?>[];
     for (final item in value) {
@@ -310,21 +352,24 @@ Object? _copyJsonSafe(
         dropped(1);
         break;
       }
-      final copied = _copyJsonSafe(
+      switch (_copyJsonSafe(
         item,
         depth: depth + 1,
         seen: seen,
         dropped: dropped,
         onCollectionItem: onCollectionItem,
-      );
-      if (identical(copied, _unsupported)) continue;
-      out.add(copied);
+      )) {
+        case _CopyUnsupported():
+          continue;
+        case _CopyOk(:final value):
+          out.add(value);
+      }
     }
     seen.remove(value);
-    return out;
+    return _CopyOk(out);
   }
   dropped(1);
-  return _unsupported;
+  return const _CopyUnsupported();
 }
 
 /// Host-facing callable for recording one logical app/analytics event.

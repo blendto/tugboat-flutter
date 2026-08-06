@@ -105,7 +105,7 @@ inflates insight calculations such as rage taps.
    configuration.
 
 4. **Canonical `interaction` envelope with compatibility projection.** Add a
-   canonical semantic event shape (`type: interaction`, `gesture: tap|swipe|
+   canonical inferred event shape (`type: interaction`, `gesture: tap|swipe|
    scroll|cancelled`) and project legacy `tap`/`tap_settled` only behind a
    temporary compatibility gate. The collector and graph should migrate to the
    canonical shape before the legacy pair is removed. This avoids a breaking
@@ -267,7 +267,7 @@ the transaction window has ended or a guard failed.
 - Place the semantic-publication gate immediately before `_addEvent`. The
   capture sink hub, outbox sink, and collector HTTP sink each serialize or
   queue events immediately, so none can safely be made responsible for
-  consolidation. Enforce one terminal semantic event per transaction ID before
+  consolidation. Enforce one terminal inferred event per transaction ID before
   it reaches any sink.
 - Move `_recordCaptureDiagnostic` to the diagnostic stream and define a compact
   end-of-session health aggregate for production observability.
@@ -280,7 +280,7 @@ the transaction window has ended or a guard failed.
 - Serialization round-trip preserves immutable origin and successor result.
 - Outbox recovery never duplicates a finalized interaction or loses its
   evidence IDs.
-- Normal semantic event selection excludes diagnostics and legacy projections.
+- Normal inferred event selection excludes diagnostics and legacy projections.
 - A session with 10 gestures publishes 10 canonical semantic interactions,
   regardless of raw pointer/route/scroll callback count.
 
@@ -329,6 +329,19 @@ the transaction window has ended or a guard failed.
 5. Compare dual-written sessions. Remove legacy `tap` + `tap_settled` semantic
    selection only after all acceptance gates pass for two representative Blend
    flows and no consumer still relies on it.
+
+### Migration status — 2026-08-06
+
+- The canonical `interaction` schema and temporary compatibility projection are
+  implemented.
+- New recordings now default to `canonicalOnly`; `dualWrite` and `legacyOnly`
+  require an explicit override and are deprecated for new integrations.
+- Collectors and replay readers must continue accepting historical legacy rows,
+  but enrichment, insight, and flow-attribution paths must select canonical
+  semantic `interaction` records.
+- Final emitter deletion is intentionally deferred. Track it through
+  `TODO(tugboat-legacy-projection-removal)` and the removal checklist in
+  `packages/tugboat/README.md`.
 
 ## Performance and safety budget
 
@@ -380,7 +393,7 @@ the transaction window has ended or a guard failed.
    analysis/formatting.
 2. Build Blend against the local SDK and manually exercise the acceptance flow.
 3. Query ClickHouse by SDK version and canonical interaction schema version.
-4. Score origin correctness, delayed attribution, false claims, semantic event
+4. Score origin correctness, delayed attribution, false claims, inferred event
    count per completed gesture, diagnostic-stream isolation, and rage-tap
    precision.
 5. Publish a side-by-side report against a locked 0.4.0+ baseline before

@@ -14,6 +14,7 @@ import 'helpers/json_roundtrip.dart';
 
 const _testConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
+  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,

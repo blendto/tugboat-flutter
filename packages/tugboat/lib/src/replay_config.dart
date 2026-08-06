@@ -84,7 +84,7 @@ class TugboatReplayConfig {
     this.profile = TugboatCaptureProfile.dormant,
     this.settleDelay = const Duration(seconds: 1),
     this.interactionClaimWindow = tugboatDefaultReconciliationWindow,
-    this.interactionPublishMode = TugboatInteractionPublishMode.dualWrite,
+    this.interactionPublishMode = TugboatInteractionPublishMode.canonicalOnly,
     this.maxFrames = 500,
     this.maxEvents = 5000,
     this.scrollCaptureInterval = const Duration(seconds: 2),
@@ -116,6 +116,11 @@ class TugboatReplayConfig {
   final Duration interactionClaimWindow;
 
   /// Canonical vs legacy gesture publication policy.
+  ///
+  /// New recordings default to [TugboatInteractionPublishMode.canonicalOnly]
+  /// so each finalized gesture produces one semantic `interaction` event.
+  /// The legacy modes are temporary read/migration compatibility options and
+  /// must not be enabled by new integrations.
   final TugboatInteractionPublishMode interactionPublishMode;
 
   bool get emitCanonicalInteractions =>

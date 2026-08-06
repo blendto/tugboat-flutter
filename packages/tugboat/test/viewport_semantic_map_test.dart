@@ -5,6 +5,7 @@ import 'package:tugboat/src/anchors.dart';
 
 const _semanticMapConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
+  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -14,6 +15,7 @@ const _semanticMapConfig = TugboatReplayConfig(
 
 const _semanticMapConfigWithLogs = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
+  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -23,6 +25,7 @@ const _semanticMapConfigWithLogs = TugboatReplayConfig(
 
 const _scrollSemanticMapConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
+  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -358,6 +361,7 @@ void main() {
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.productionLean,
+            interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
@@ -409,6 +413,7 @@ void main() {
           builder: (context, child) => TugboatReplay.wrapApp(
             config: const TugboatReplayConfig(
               profile: TugboatCaptureProfile.productionLean,
+              interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
               settleDelay: Duration.zero,
               interactionClaimWindow: Duration.zero,
               enableGlobalPointerCapture: false,
@@ -460,6 +465,7 @@ void main() {
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.productionLean,
+            interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,

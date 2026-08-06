@@ -122,7 +122,7 @@ interaction or a gesture sequence that should be coalesced before replay.
 This likely explains a major part of the replay feeling erratic: the player may
 be faithfully rendering an event stream that is already too noisy.
 
-### 5. Context graph identity was missing for diagnostics
+### 5. Atlas context build identity was missing for diagnostics
 
 All 37 `capture_diagnostic` events had
 `contextEnrichment.reason = missing_context_graph_build_identity`.
@@ -163,7 +163,7 @@ quality and completeness of the interaction evidence around those routes.
    coordinates without a clear degraded visual state.
 4. Add a focused runtime acceptance flow for bottom sheets and paywalls in the
    Blend app, using production collection and dashboard replay inspection.
-5. Ensure capture diagnostics include or can resolve context graph build
+5. Ensure capture diagnostics include or can resolve Atlas context build
    identity, so replay-quality diagnostics and enrichment state can be separated
    cleanly.
 

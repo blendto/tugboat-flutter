@@ -347,21 +347,21 @@ void main() {
   testWidgets('session end rejects evidence during sink reentrancy', (
     tester,
   ) async {
-    TugboatReplayController? activeController;
     final factory = _CallbackSinkFactory((event) {
       if (event.type != 'session_end') return;
-      final controller = activeController!;
-      controller.recordExternalEvent(name: 'AFTER_SESSION_END');
-      controller
-          .beginNetworkCall(method: 'GET', route: '/after-end')
-          .complete(statusCode: 200);
+      // Host-facing APIs must no-op once evidence is fenced, even when the
+      // lifecycle has not yet moved to stopping.
+      TugboatReplay.eventHook().record('AFTER_SESSION_END');
+      TugboatReplay.beginNetworkCall(
+        method: 'GET',
+        route: '/after-end',
+      ).complete(statusCode: 200);
     });
     await _pumpCapture(
       tester,
       config: _testConfig.copyWith(sinkFactories: [factory]),
     );
     final controller = TugboatReplay.controller!;
-    activeController = controller;
 
     await controller.endSession();
 
@@ -370,6 +370,7 @@ void main() {
     expect(eventTypes, isNot(contains('external_event')));
     expect(eventTypes, isNot(contains('network_call')));
     expect(controller.acceptingEvidence, isFalse);
+    expect(TugboatReplay.isAcceptingEvidence, isFalse);
   });
 
   testWidgets('empty route returns no-op without event', (tester) async {
