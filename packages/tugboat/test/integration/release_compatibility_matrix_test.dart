@@ -256,9 +256,9 @@ void main() {
       expect(push.data['navigatorId'], isNotNull);
       expect(push.data['navigationOrigin'], isNotNull);
 
-      final taps = session.events.where((e) => e.type == 'tap');
-      expect(taps, isNotEmpty);
-      expect(taps.first.data['captureCoordinate'], isA<Map>());
+      final interactions = session.events.where((e) => e.type == 'interaction');
+      expect(interactions, isNotEmpty);
+      expect(interactions.first.data['origin'], isA<Map>());
     },
   );
 }

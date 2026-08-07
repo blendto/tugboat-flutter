@@ -19,6 +19,80 @@ extension on TugboatSession {
 }
 
 void main() {
+  group('Interaction publication defaults', () {
+    test('new recordings emit canonical interactions only', () {
+      const config = TugboatReplayConfig();
+
+      expect(
+        config.interactionPublishMode,
+        TugboatInteractionPublishMode.canonicalOnly,
+      );
+      expect(config.emitCanonicalInteractions, isTrue);
+      expect(config.emitLegacyInteractionProjection, isFalse);
+    });
+
+    test(
+      'default controller recordings emit canonical interactions without legacy rows',
+      () async {
+        final harness = ReplayCoherenceHarness(
+          interactionPublishMode:
+              const TugboatReplayConfig().interactionPublishMode,
+        );
+        await harness.setUp();
+        addTearDown(harness.dispose);
+
+        harness.controller.recordPointerDown(const Offset(8, 8));
+        harness.controller.recordPointerUp(const Offset(8, 8));
+        await harness.flushScheduler();
+
+        final events = harness.controller.session!.events;
+        expect(
+          events.where((event) => event.type == 'interaction'),
+          isNotEmpty,
+        );
+        expect(
+          events.where(
+            (event) =>
+                event.type == 'tap' ||
+                event.type == 'tap_settled' ||
+                event.type == 'swipe',
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    test('legacy dual-write remains an explicit compatibility override', () {
+      const config = TugboatReplayConfig(
+        interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
+      );
+
+      expect(config.emitCanonicalInteractions, isTrue);
+      expect(config.emitLegacyInteractionProjection, isTrue);
+      expect(config.legacyGestureStream, TugboatEventStream.legacyProjection);
+    });
+
+    test('legacy-only recordings omit canonical interactions', () async {
+      final harness = ReplayCoherenceHarness(
+        interactionPublishMode: TugboatInteractionPublishMode.legacyOnly,
+      );
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.controller.recordPointerDown(const Offset(8, 8));
+      harness.controller.recordPointerUp(const Offset(8, 8));
+      await harness.flushScheduler();
+
+      final events = harness.controller.session!.events;
+      expect(events.where((event) => event.type == 'interaction'), isEmpty);
+      expect(events.where((event) => event.type == 'tap'), hasLength(1));
+      expect(
+        events.where((event) => event.type == 'tap_settled'),
+        hasLength(1),
+      );
+    });
+  });
+
   group('InteractionTransaction origin freeze (U1)', () {
     test(
       'origin screen/component survive route mutation before pointer-up',

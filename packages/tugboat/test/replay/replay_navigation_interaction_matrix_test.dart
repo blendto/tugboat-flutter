@@ -136,6 +136,7 @@ class _NavigationFixture {
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.exploration,
+            interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: true,

@@ -29,6 +29,8 @@ class InteractionOrigin {
     required this.startPosition,
     required this.pointerGeneration,
     required this.captureSessionId,
+    this.explorationRunId,
+    this.actionId,
   });
 
   final String interactionId;
@@ -43,6 +45,8 @@ class InteractionOrigin {
   final Offset startPosition;
   final int pointerGeneration;
   final String? captureSessionId;
+  final String? explorationRunId;
+  final String? actionId;
 
   Map<String, Object?> toJson() => {
     'interactionId': interactionId,
@@ -57,6 +61,8 @@ class InteractionOrigin {
     'startPosition': {'x': startPosition.dx, 'y': startPosition.dy},
     'pointerGeneration': pointerGeneration,
     if (captureSessionId != null) 'captureSessionId': captureSessionId,
+    if (explorationRunId != null) 'explorationRunId': explorationRunId,
+    if (actionId != null) 'actionId': actionId,
   };
 }
 

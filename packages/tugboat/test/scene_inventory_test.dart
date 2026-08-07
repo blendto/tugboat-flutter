@@ -183,6 +183,7 @@ void main() {
     (tester) async {
       const config = TugboatReplayConfig(
         profile: TugboatCaptureProfile.exploration,
+        interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
         settleDelay: Duration.zero,
         interactionClaimWindow: Duration.zero,
         enableGlobalPointerCapture: false,
@@ -247,6 +248,7 @@ void main() {
   ) async {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,
+      interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -305,6 +307,7 @@ void main() {
   ) async {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,
+      interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -349,6 +352,7 @@ void main() {
   ) async {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.productionLean,
+      interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -382,6 +386,7 @@ void main() {
   testWidgets('scene inventory event is deduped per state', (tester) async {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,
+      interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,

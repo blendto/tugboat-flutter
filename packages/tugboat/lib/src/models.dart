@@ -50,13 +50,24 @@ enum TugboatEventStream {
 
 /// How finalized gestures are published to sinks.
 enum TugboatInteractionPublishMode {
-  /// Only legacy `tap` / `tap_settled` / `swipe` on the semantic stream.
+  // TODO(tugboat-legacy-projection-removal): Remove legacyOnly and dualWrite
+  // after supported collectors, Context Graph, dashboards, and retained replay
+  // fixtures no longer consume legacy gesture rows. See the SDK README's
+  // "Legacy gesture projection deprecation" section.
+
+  /// Deprecated compatibility mode.
+  ///
+  /// Emits only legacy `tap` / `tap_settled` / `swipe` records on the semantic
+  /// stream. Do not use for new recordings.
   legacyOnly,
 
-  /// Canonical `interaction` plus legacy peers on [TugboatEventStream.legacyProjection].
+  /// Deprecated migration mode.
+  ///
+  /// Emits the canonical `interaction` plus legacy peers on
+  /// [TugboatEventStream.legacyProjection]. Do not use for new recordings.
   dualWrite,
 
-  /// Canonical `interaction` only.
+  /// Canonical `interaction` only. This is the default for new recordings.
   canonicalOnly,
 }
 

@@ -7,9 +7,11 @@ import 'package:flutter/material.dart';
 import 'capture_boundary.dart';
 import 'capture_profile.dart';
 import 'controller.dart';
+import 'external_event.dart';
 import 'health.dart';
 import 'input_capture.dart';
 import 'lifecycle.dart';
+import 'network_observer.dart';
 
 export 'capture_profile.dart' show TugboatCaptureProfile;
 export 'lifecycle.dart' show TugboatLifecycleState;
@@ -154,6 +156,16 @@ class TugboatReplay {
   /// Whether capture machinery is allowed to run ([disabled] is `false`).
   static bool get isEnabled => !_lifecycle.disabled;
 
+  /// Whether the current session can accept app and network evidence now.
+  ///
+  /// Companion adapters should check this before invoking host callbacks or
+  /// attaching observation metadata. The core APIs remain safe no-ops if the
+  /// lifecycle changes before an observation reaches them.
+  static bool get isAcceptingEvidence =>
+      !disabled &&
+      _lifecycle.state != TugboatLifecycleState.stopping &&
+      (_controller?.acceptingEvidence ?? false);
+
   /// Enables capture machinery for dormant builds at runtime.
   ///
   /// Prefer [activationRequestId]; [sessionId] is retained for compatibility.
@@ -174,6 +186,9 @@ class TugboatReplay {
   /// Returns the SDK to dormant mode without tearing down the host app.
   static void deactivate() {
     _lifecycle.deactivate();
+    // Widget teardown (and session_end) happens on the next gate rebuild.
+    // Fence evidence now so same-turn host callbacks cannot append.
+    _controller?.fenceEvidence();
   }
 
   /// Current sanitized health snapshot (empty when no controller).
@@ -206,6 +221,37 @@ class TugboatReplay {
     await _controller?.clearDurableOutbox();
   }
 
+  /// Returns a provider-neutral hook that records logical app/analytics events.
+  ///
+  /// The hook resolves the active controller at [TugboatEventHook.record] time
+  /// so it never retains a stale session reference. Calls made while capture is
+  /// dormant, disabled, or ended are safe no-ops.
+  static TugboatEventHook eventHook({
+    String? source,
+    TugboatParameterPolicy parameterPolicy = TugboatParameterPolicy.namesOnly,
+  }) {
+    return _TugboatEventHook(source: source, parameterPolicy: parameterPolicy);
+  }
+
+  /// Begins observation of one logical network call.
+  ///
+  /// [route] must already be a safe host-supplied template such as
+  /// `/blend/:blendId`. Raw paths are never accepted as a fallback. Returns a
+  /// no-op token when Tugboat is dormant/disabled or [route] is null/invalid.
+  static TugboatNetworkCall beginNetworkCall({
+    required String method,
+    String? route,
+  }) {
+    try {
+      if (!isAcceptingEvidence) return const TugboatNoOpNetworkCall();
+      final controller = _controller;
+      if (controller == null) return const TugboatNoOpNetworkCall();
+      return controller.beginNetworkCall(method: method, route: route);
+    } catch (_) {
+      return const TugboatNoOpNetworkCall();
+    }
+  }
+
   /// Resets lifecycle state between tests.
   @visibleForTesting
   static void resetForTest() {
@@ -218,6 +264,30 @@ class TugboatReplay {
     _pendingTraitsId = null;
     _pendingUserId = null;
     _pendingUserIdSet = false;
+  }
+}
+
+class _TugboatEventHook implements TugboatEventHook {
+  _TugboatEventHook({required this.source, required this.parameterPolicy});
+
+  final String? source;
+  final TugboatParameterPolicy parameterPolicy;
+
+  @override
+  void record(String name, {Map<String, Object?>? parameters}) {
+    try {
+      if (!TugboatReplay.isAcceptingEvidence) return;
+      final controller = TugboatReplay.controller;
+      if (controller == null) return;
+      controller.recordExternalEvent(
+        name: name,
+        source: source,
+        parameters: parameters,
+        parameterPolicy: parameterPolicy,
+      );
+    } catch (_) {
+      // Host analytics must never fail because of Tugboat.
+    }
   }
 }
 

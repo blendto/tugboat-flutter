@@ -28,12 +28,26 @@ export 'src/health.dart'
         TugboatSinkHealth,
         TugboatOutboxHealth,
         TugboatScreenshotBudgetHealth,
+        TugboatEvidenceHealth,
         TugboatSanitizedFailure;
 export 'src/lifecycle.dart'
     show TugboatLifecycleState, TugboatLifecycleNotifier;
 export 'src/interaction_transaction.dart'
     show tugboatDefaultReconciliationWindow;
 export 'src/models.dart';
+export 'src/external_event.dart'
+    show
+        TugboatEventHook,
+        TugboatParameterPolicy,
+        TugboatParameterCaptureMode,
+        TugboatParameterLimits,
+        TugboatParameterDrop;
+export 'src/network_observer.dart'
+    show
+        TugboatNetworkCall,
+        TugboatNetworkOutcome,
+        TugboatNetworkFailure,
+        TugboatNetworkLimits;
 export 'src/coordinate_space.dart'
     show
         tugboatCaptureCoordinateVersion,

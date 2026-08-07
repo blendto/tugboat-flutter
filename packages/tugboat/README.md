@@ -5,7 +5,7 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.5.3`. Session JSON writers emit schema
+The current package version is `0.6.0`. Session JSON writers emit schema
 version `9`; compatibility readers should accept versions `6` through
 `9`. Structural fingerprints use fingerprint schema version `6`.
 
@@ -18,6 +18,62 @@ import 'package:tugboat/tugboat.dart';
 ```
 
 The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
+
+### Optional Dio network evidence
+
+```yaml
+dependencies:
+  tugboat_dio: ^0.6.0
+```
+
+See `packages/tugboat_dio/README.md`.
+
+## Coded events and network observation
+
+Opt-in coded-event hooks append to the active session without coupling to Amplitude,
+Firebase, or a specific HTTP client:
+
+```dart
+final appEvents = TugboatReplay.eventHook(
+  source: 'analytics',
+  parameterPolicy: TugboatParameterPolicy.allowList({'method', 'result'}),
+);
+appEvents.record('USER_LOGIN', parameters: {'method': 'email'});
+
+final call = TugboatReplay.beginNetworkCall(
+  method: 'GET',
+  route: '/blend/:blendId', // host-supplied template only
+);
+call.complete(statusCode: 200);
+
+// HTTP error bodies may be supplied as bounded JSON/text evidence.
+final failedCall = TugboatReplay.beginNetworkCall(
+  method: 'POST',
+  route: '/projects',
+);
+failedCall.complete(
+  statusCode: 422,
+  errorResponseBody: {'code': 'invalid_project'},
+);
+```
+
+Both emit on `stream: evidence` and never inherit exploration `actionId` or UI
+anchors. Parameter values are omitted unless an explicit policy allows them.
+`allowAll` is an exploration escape hatch; outside exploration profiles the SDK
+downgrades it to names-only at record time. Network routes must be absolute path
+templates. The SDK drops resolver output containing a scheme, query, fragment,
+percent-encoded data, a network-path prefix, backslash, or whitespace/control
+characters; host resolvers must still replace dynamic IDs with placeholders.
+HTTP response bodies are retained only when `statusCode >= 400`. JSON and text
+are deep-copied and bounded to 16 KiB; binary and unsupported values are
+omitted. Successful response bodies are never retained.
+
+Hooks resolve the active controller when `record` is called, rather than keeping
+a session reference. Network tokens are bound to the capture session in which
+they were created. Finishing a token after `clear`, session replacement,
+deactivation, or session end is a bounded no-op and cannot append evidence to a
+newer session. Calls made while Tugboat is dormant, disabled, deactivating, not
+yet started, or already ended are also safe no-ops.
 
 ## Migrating to 0.5.0
 
@@ -205,7 +261,7 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | `profile` | `dormant` | capture cost and exploration-only behavior |
 | `settleDelay` | 1 second | delay before post-interaction and post-route capture |
 | `interactionClaimWindow` | 1,250 ms | released-tap window for delayed route/modal attribution; `Duration.zero` keeps microtask-only same-turn claims |
-| `interactionPublishMode` | `dualWrite` | how finalized gestures are published: `legacyOnly`, `dualWrite` (canonical + legacy peers on `stream: legacy_projection`), or `canonicalOnly` |
+| `interactionPublishMode` | `canonicalOnly` | how finalized gestures are published; new recordings emit one canonical `interaction`. `legacyOnly` and `dualWrite` are deprecated compatibility modes |
 | `maxFrames` | 500 | in-memory frame bound |
 | `maxEvents` | 5000 | in-memory event bound |
 | `scrollCaptureInterval` | 2 seconds | interval for scroll checkpoint capture |
@@ -225,6 +281,46 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | `sinkFactories` | empty | extra `TugboatCaptureSinkFactory` adapters |
 | `outbox` | disabled | durable HTTP outbox configuration |
 | `screenshotBudget` | defaults | degraded-capture skip window / budget |
+
+### Legacy gesture projection deprecation
+
+New recordings default to `TugboatInteractionPublishMode.canonicalOnly`. One
+completed physical gesture produces one semantic `interaction` event containing
+its immutable origin, finalized gesture, result, attribution, and evidence IDs.
+The SDK no longer emits separate `tap`, `tap_settled`, or `swipe` rows unless an
+integration explicitly opts into a legacy mode.
+
+`dualWrite` and `legacyOnly` remain available temporarily so older collectors,
+Context Graph revisions, dashboards, and replay fixtures can be migrated without
+making historical recordings unreadable:
+
+- `canonicalOnly` — supported default for all new recordings;
+- `dualWrite` — deprecated migration override that adds legacy peers on
+  `stream: legacy_projection` with `enrichmentCandidate: false`;
+- `legacyOnly` — deprecated emergency compatibility override for consumers that
+  cannot yet read canonical `interaction` records.
+
+Do not enable either legacy mode in a new application integration. Consumers
+must use `interaction` as the user action and treat route/state/frame records as
+linked evidence. Historical `tap` and `tap_settled` rows may still be read and
+correlated through `interactionId` / `relatedEventId`, but must not be counted as
+additional user actions.
+
+The code marker `TODO(tugboat-legacy-projection-removal)` tracks final removal.
+Remove the legacy enum values and emission branches in a future breaking SDK
+release only after all of the following are true:
+
+1. Supported Collector and Context Graph versions consume canonical
+   `interaction` records and ignore legacy projections by default.
+2. Dashboard, insight, rage-tap, and replay queries no longer depend on
+   `tap_settled` or legacy `swipe` rows.
+3. Production telemetry confirms that current SDK versions are recording
+   canonical interactions successfully across representative tap, navigation,
+   scroll, cancellation, and lifecycle cases.
+4. Retained dual-write fixtures remain available to test historical replay
+   compatibility after the emitters are deleted.
+5. Release notes announce the removal and the SDK schema/breaking version is
+   advanced deliberately.
 
 ### Resolver and exploration events
 
@@ -283,12 +379,17 @@ out to configured sinks. Sink failures are isolated from the host app. The
 session is bounded by `maxFrames` and `maxEvents`; trimming marks it
 `truncated`.
 
-Emitted event types currently include:
+**Inferred events** are derived from UI instrumentation. **Coded events** are
+host-supplied analytics records via `TugboatReplay.eventHook` (see
+[Coded events and network observation](#coded-events-and-network-observation)).
+
+Emitted inferred event types currently include:
 
 - canonical: `interaction` (`stream: semantic`) — one finalized gesture with
   immutable `origin`, `result`, `attribution`, and `evidenceEventIds`;
-- legacy gesture peers (`stream: legacy_projection` when canonical is on):
-  `tap`, `tap_settled`, `swipe`, `tap_outside_tree`, `tap_gesture_resolved`;
+- deprecated legacy gesture peers (emitted only when an integration explicitly
+  selects `dualWrite` or `legacyOnly`): `tap`, `tap_settled`, `swipe`,
+  `tap_outside_tree`, `tap_gesture_resolved`;
 - lifecycle: `session_start`, `session_identify`, `session_end`;
 - input: `pointer_cancel` (`stream: evidence`);
 - state/navigation evidence (`stream: evidence`): `state_change`, `route_change`
@@ -300,8 +401,9 @@ Emitted event types currently include:
 - semantic-map modes: `viewport_semantic_map`,
   `scroll_semantic_snapshot`.
 
-Default enrichment and insight selection should use `stream: semantic`
-`interaction` records (`enrichmentCandidate: true` on collector payloads).
+Default enrichment and insight selection should use inferred events:
+`stream: semantic` `interaction` records (`enrichmentCandidate: true` on
+collector payloads).
 Rage-tap style insights must count finalized `gesture=tap` interactions with
 no successful `navigated`/`changed` result; exclude scrolls, swipes,
 cancellations, evidence, legacy projections, and diagnostics.
@@ -326,9 +428,10 @@ an `InteractionTransaction`. After pointer-up, settlement waits for either the
 first eligible visible successor inside `interactionClaimWindow` (default
 1,250 ms) or the deadline. The canonical `interaction` event retains that
 frozen origin and attaches destination/result fields when a successor claims.
-Legacy `tap` + `tap_settled` remain dual-written for migration; `tap_settled`
-links via `relatedEventId` / `interactionId`. A missing attachment is explicit
-in `frameAttachment`/settle diagnostics rather than a fallback to an unrelated
+When deprecated dual-write compatibility is explicitly enabled, legacy `tap` +
+`tap_settled` records link via `relatedEventId` / `interactionId`. They are not
+additional semantic actions. A missing attachment is explicit in
+`frameAttachment`/settle diagnostics rather than a fallback to an unrelated
 frame.
 
 During local WebSocket exploration, connecting without an HTTP collector
@@ -382,7 +485,7 @@ Diagnostics contain only bounded correlation, outcome, route epoch, trigger,
 and evidence fields; they never include image bytes, labels, raw errors, or
 stack traces. `visualEvidence` distinguishes fresh, reused, and unavailable
 visual evidence, while `interactionEvidence` states whether the request links
-to an interaction event. The closed outcome vocabulary is:
+to an inferred event. The closed outcome vocabulary is:
 
 | Outcome | Meaning |
 | --- | --- |

@@ -214,6 +214,8 @@ class ReplayCoherenceHarness {
     /// reconciliation — pass that window explicitly when testing delayed
     /// attribution.
     this.interactionClaimWindow = Duration.zero,
+    // Keep deprecated projection behavior covered here even though production
+    // recordings now default to canonical-only publication.
     this.interactionPublishMode = TugboatInteractionPublishMode.dualWrite,
     this.maxFrames = 300,
     this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,

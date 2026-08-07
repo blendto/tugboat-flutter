@@ -14,6 +14,7 @@ import 'helpers/json_roundtrip.dart';
 
 const _testConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
+  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -781,6 +782,40 @@ void main() {
     );
   });
 
+  testWidgets('canonical interaction keeps its pointer-down action window', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: Scaffold(
+          body: FilledButton(onPressed: () {}, child: const Text('Act')),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    final controller = TugboatReplay.controller!;
+    controller.setExplorationActionWindow(
+      explorationRunId: 'run-1',
+      actionId: 'A-origin',
+    );
+    await tester.tap(find.text('Act'));
+    controller.setExplorationActionWindow(
+      explorationRunId: 'run-1',
+      actionId: 'A-next',
+    );
+    await _waitForCaptures(tester);
+
+    final interaction = controller.session!.events.singleWhere(
+      (event) => event.type == 'interaction',
+    );
+    expect(interaction.actionId, 'A-origin');
+    expect(interaction.explorationRunId, 'run-1');
+    expect((interaction.data['origin'] as Map)['actionId'], 'A-origin');
+  });
+
   testWidgets('does not record icon or tooltip labels on icon button taps', (
     tester,
   ) async {
@@ -1474,6 +1509,7 @@ void main() {
       afterState: const TugboatStateAnchor(signature: 'sig-after'),
       beforeFrame: 'frame-1',
       afterFrame: 'frame-1',
+      targetAnchor: const TugboatTargetAnchor(actions: ['tap']),
     );
     expect(result, TugboatInteractionResult.changed);
     controller.dispose();
@@ -1491,6 +1527,7 @@ void main() {
       afterState: const TugboatStateAnchor(signature: 'route-sig'),
       beforeFrame: 'frame-1',
       afterFrame: 'frame-1',
+      targetAnchor: const TugboatTargetAnchor(actions: ['tap']),
     );
     expect(result, TugboatInteractionResult.changed);
     controller.dispose();
@@ -1508,8 +1545,48 @@ void main() {
       afterState: const TugboatStateAnchor(signature: 'same-sig'),
       beforeFrame: null,
       afterFrame: 'frame-without-evidence',
+      targetAnchor: const TugboatTargetAnchor(actions: ['tap']),
     );
     expect(result, TugboatInteractionResult.unknown);
+    controller.dispose();
+  });
+
+  test('tap_settled ignores ambient frame changes on non-tappable targets', () {
+    final rootKey = GlobalKey();
+    final controller = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: rootKey,
+    );
+    controller.start(const Size(100, 100), 'test');
+    controller.session!.frames.addAll(const [
+      TugboatFrame(
+        id: 'frame-before',
+        atMs: 1,
+        width: 100,
+        height: 100,
+        contentHash: 'before-hash',
+      ),
+      TugboatFrame(
+        id: 'frame-after',
+        atMs: 2,
+        width: 100,
+        height: 100,
+        contentHash: 'after-hash',
+      ),
+    ]);
+
+    final result = controller.debugComputeTapSettleResult(
+      beforeState: const TugboatStateAnchor(signature: 'same-sig'),
+      afterState: const TugboatStateAnchor(signature: 'same-sig'),
+      beforeFrame: 'frame-before',
+      afterFrame: 'frame-after',
+      targetAnchor: const TugboatTargetAnchor(
+        role: 'scrollable',
+        actions: ['scroll'],
+      ),
+    );
+
+    expect(result, TugboatInteractionResult.noVisibleChange);
     controller.dispose();
   });
 

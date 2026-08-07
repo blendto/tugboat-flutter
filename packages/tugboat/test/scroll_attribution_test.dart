@@ -4,6 +4,7 @@ import 'package:tugboat/tugboat.dart';
 
 const _scrollTestConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
+  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,

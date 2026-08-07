@@ -17,6 +17,7 @@ void main() {
         builder: (context, child) => TugboatReplay.wrapApp(
           config: TugboatReplayConfig(
             profile: TugboatCaptureProfile.exploration,
+            interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: true,

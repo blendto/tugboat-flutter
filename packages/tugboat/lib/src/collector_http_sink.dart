@@ -287,10 +287,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
         : _userDirty
         ? TugboatCollectorSessionEventType.userChanged.wireValue
         : TugboatCollectorSessionEventType.traitsUpdated.wireValue;
+    final triggeredAt = _coalescedIdentityTriggeredAt();
 
     _userDirty = false;
     _traitsDirty = false;
-    _enqueueSessionLifecycle(eventType, _coalescedIdentityTriggeredAt());
+    _enqueueSessionLifecycle(eventType, triggeredAt);
     _userTriggeredAt = null;
     _traitsTriggeredAt = null;
   }

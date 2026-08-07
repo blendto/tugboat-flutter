@@ -40,16 +40,16 @@ side-by-side scoring. Record the new session id and Blend build before scoring.
 5. **Automatic false-claim rate** — timer/auth redirects after the window, and
    routes with competing pointers, stay `navigationOrigin =
    automatic_or_unknown`.
-6. **No semantic tap for scrolls/swipes** — completed scroll/swipe produces no
+6. **No inferred tap for scrolls/swipes** — completed scroll/swipe produces no
    `stream: semantic` tap; one `interaction` with `gesture=scroll|swipe`.
-7. **Diagnostic isolation** — enrichment selection of `stream: semantic`
+7. **Diagnostic isolation** — enrichment selection of inferred events (`stream: semantic`
    excludes `capture_diagnostic`.
 8. **Rage-tap precision** — three no-result taps on the same origin target flag
    once; three scrolls or three successful navigation taps do not.
 
 ## Soft / observational
 
-- Semantic event count per completed gesture should drop vs 0.4.0 raw
+- Inferred event count per completed gesture should drop vs 0.4.0 raw
   `tap`+`tap_settled`+scroll peer inflation.
 - Legacy projection remains present until collector/graph cut over; do not
   delete `tap`/`tap_settled` selection until two representative Blend flows pass

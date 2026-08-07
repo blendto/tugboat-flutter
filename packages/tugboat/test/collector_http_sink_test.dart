@@ -1144,18 +1144,51 @@ void main() {
     sink.dispose();
   });
 
+  test('debounced user change keeps its dirty time as triggeredAt', () async {
+    final sink = createIdentitySink();
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final before = DateTime.now();
+    await sink.setUserId('user_at');
+    final afterCall = DateTime.now();
+    await awaitIdentityDebounce();
+    final afterDebounce = DateTime.now();
+
+    expect(sessionPosts, hasLength(2));
+    expect(sessionPosts.last['eventType'], 'user_changed');
+    final triggeredAt = DateTime.parse(
+      sessionPosts.last['triggeredAt'] as String,
+    );
+    expect(
+      triggeredAt.isAfter(before.subtract(const Duration(milliseconds: 50))),
+      isTrue,
+    );
+    expect(
+      triggeredAt.isBefore(afterCall.add(const Duration(milliseconds: 50))),
+      isTrue,
+    );
+    expect(
+      triggeredAt.isBefore(
+        afterDebounce.subtract(const Duration(milliseconds: 20)),
+      ),
+      isTrue,
+    );
+    sink.dispose();
+  });
+
   test(
-    'coalesced identity triggeredAt reflects latest dirty mark when both change',
+    'coalesced identity uses the later user dirty time when traits change first',
     () async {
       final sink = createIdentitySink();
       sink.startSession(createSession());
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      await sink.setUserId('user_at');
-      await Future<void>.delayed(const Duration(milliseconds: 15));
-      final beforeTraits = DateTime.now();
       await sink.setTraits({'plan': 'pro'});
-      final afterTraits = DateTime.now();
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+      final beforeUser = DateTime.now();
+      await sink.setUserId('user_at');
+      final afterUser = DateTime.now();
       await awaitIdentityDebounce();
 
       expect(sessionPosts.last['eventType'], 'session_identify');
@@ -1164,12 +1197,12 @@ void main() {
       );
       expect(
         triggeredAt.isAfter(
-          beforeTraits.subtract(const Duration(milliseconds: 50)),
+          beforeUser.subtract(const Duration(milliseconds: 50)),
         ),
         isTrue,
       );
       expect(
-        triggeredAt.isBefore(afterTraits.add(const Duration(milliseconds: 50))),
+        triggeredAt.isBefore(afterUser.add(const Duration(milliseconds: 50))),
         isTrue,
       );
       sink.dispose();

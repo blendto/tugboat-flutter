@@ -3,8 +3,8 @@
 Documentation for the [Tugboat Flutter SDK](https://github.com/blendto/tugboat-flutter).
 
 These pages describe the Flutter package in this repository. The CLI,
-collector, dashboard, and Atlas services have separate ownership and should be
-verified in their own repositories.
+collector, Context Graph (Atlas context), and wiki have separate ownership and
+should be verified in their own repositories.
 
 ## Getting started
 
@@ -15,7 +15,7 @@ verified in their own repositories.
 
 ## Design
 
-- [Capture and fingerprint architecture](design/capture-and-fingerprint.md) — implemented schema-v6 identity, screenshots, semantic evidence, gaps, and next steps
+- [Capture and fingerprint architecture](design/capture-and-fingerprint.md) — implemented schema-v6 identity, screenshots, inferred-event evidence, gaps, and next steps
 
 ## Repository layout
 
@@ -28,7 +28,7 @@ verified in their own repositories.
 
 ## Current compatibility
 
-- package version: `0.5.3`;
+- package version: `0.6.0`;
 - session JSON schema: `9`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;
