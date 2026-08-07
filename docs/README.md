@@ -22,13 +22,14 @@ verified in their own repositories.
 | Path | Description |
 |------|-------------|
 | `packages/tugboat` | Flutter SDK (`package:tugboat`) |
+| `packages/tugboat_dio` | Optional Dio interceptor for network evidence |
 | `packages/tugboat/example` | Demo app and integration fixture (not published) |
 | `docs/design` | Current architecture and forward-looking SDK decisions |
 | `docs/integration` | Host-app and transport integration contracts |
 
 ## Current compatibility
 
-- package version: `0.5.0`;
+- package version: `0.6.0` (lockstep with `tugboat_dio`);
 - session JSON schema: `9`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;

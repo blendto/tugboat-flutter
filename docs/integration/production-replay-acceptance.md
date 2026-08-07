@@ -12,11 +12,13 @@ database receipt alone as proof that a replay is correct.
 
 ## Current acceptance status
 
-The current SDK release candidate is **0.5.0**, which writes session schema
+The current SDK release candidate is **0.6.0**, which writes session schema
 **v9**. It preserves structural interaction replay while no longer emitting
 `controlValue`, `controlValueTransition`, or `semanticAnnotation` in event
 data. Treat the absence of those fields as the expected privacy boundary, not
-as missing capture evidence.
+as missing capture evidence. Opt-in `external_event` and `network_call`
+records are evidence-only and are not substitutes for fingerprints, target
+anchors, or canonical interactions.
 
 [`production-replay-acceptance-0.4.15.md`](./production-replay-acceptance-0.4.15.md)
 remains a historical acceptance record for interaction consolidation. Do not
@@ -164,7 +166,7 @@ flows share a session, list the event IDs or timestamps that delimit each flow.
 
 Wait until the collector session has finalized and the replay is available in
 the production website. Filter to the recorded Blend build and SDK version
-under test (`0.5.0` for this release), then open every recorded session.
+under test (`0.6.0` for this release), then open every recorded session.
 
 For each interaction, inspect the actual replay UI and verify:
 
