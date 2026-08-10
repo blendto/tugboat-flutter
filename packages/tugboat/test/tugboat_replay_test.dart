@@ -8,7 +8,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:tugboat/tugboat.dart';
 import 'package:tugboat/src/anchors.dart';
-import 'package:tugboat/src/perceptual_hash.dart' show computeDHashFromRgba;
+import 'package:tugboat/src/capture_boundary.dart';
+import 'package:tugboat/src/perceptual_hash.dart'
+    show computeDHashFromRgba, dHashHammingDistance, dHashVisuallyMatches;
+import 'package:tugboat/src/screenshot_encode.dart';
 
 import 'helpers/json_roundtrip.dart';
 
@@ -29,6 +32,28 @@ Future<void> _waitForCaptures(WidgetTester tester) async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
   });
   await tester.pump();
+}
+
+/// Drive both Flutter frames and the real async queue until [future] resolves.
+/// Screenshot readback starts after end-of-frame, so a single delayed pump can
+/// otherwise leave a fresh attempt waiting for its next compositor turn.
+Future<T> _waitForCaptureResolution<T>(
+  WidgetTester tester,
+  Future<T> future,
+) async {
+  final resolution = Completer<T>();
+  unawaited(
+    future.then(resolution.complete, onError: resolution.completeError),
+  );
+  for (var attempt = 0; attempt < 60; attempt++) {
+    if (resolution.isCompleted) return resolution.future;
+    await tester.pump(const Duration(milliseconds: 25));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+  }
+  expect(resolution.isCompleted, isTrue, reason: 'capture did not resolve');
+  return resolution.future;
 }
 
 bool _containsLabelTelemetry(Object? value) {
@@ -202,6 +227,95 @@ void main() {
     expect(session.frames.length, greaterThan(framesBeforeTap));
     expect(settled.first.afterFrame, isNot(tapEvents.first.beforeFrame));
   });
+
+  testWidgets(
+    'completed interaction bypasses reuse gates with an unchanged compatible frame',
+    (tester) async {
+      final rootKey = GlobalKey();
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: TugboatCaptureBoundary(
+              key: rootKey,
+              child: const SizedBox.square(dimension: 80),
+            ),
+          ),
+        ),
+      );
+      final controller = TugboatReplayController(
+        config: _testConfig,
+        boundaryKey: rootKey,
+      )..debugScreenshotEncoder = InlineScreenshotEncoder();
+      await controller.initialize();
+      controller.start(const Size(80, 80), 'test');
+
+      final baselineCapture = controller.debugRequestCapture(
+        trigger: TugboatFrameTrigger.manual,
+        force: true,
+      );
+      final baselineResolution = await _waitForCaptureResolution(
+        tester,
+        baselineCapture.resolution,
+      );
+      expect(baselineResolution['outcome'], 'fresh_accepted');
+      final baselineFrameId = baselineResolution['frameId']! as String;
+      final baselineFrame = controller.session!.frames.singleWhere(
+        (frame) => frame.id == baselineFrameId,
+      );
+      final boundary =
+          rootKey.currentContext!.findRenderObject()!
+              as TugboatCaptureRenderBoundary;
+      final acceptedGeneration = boundary.paintGeneration;
+
+      // The seeded frame is compatible and the subtree has not changed. This
+      // also simulates the local exploration WebSocket's non-interaction
+      // suppression. A completed pointer interaction must still capture.
+      controller.debugSetExplorationFramesSuppressed(true);
+      expect(boundary.paintGeneration, acceptedGeneration);
+      final framesBeforeInteraction = controller.session!.frames.length;
+      controller.recordPointerDown(const Offset(40, 40), pointer: 7);
+      controller.recordPointerUp(const Offset(40, 40), pointer: 7);
+      for (var attempt = 0; attempt < 60; attempt++) {
+        final hasInteractionDiagnostic = controller.session!.events.any(
+          (event) =>
+              event.type == 'capture_diagnostic' &&
+              event.data['trigger'] == 'interaction',
+        );
+        if (hasInteractionDiagnostic) break;
+        await tester.pump(const Duration(milliseconds: 25));
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+      }
+
+      final interactionDiagnostics = controller.session!.events
+          .where(
+            (event) =>
+                event.type == 'capture_diagnostic' &&
+                event.data['trigger'] == 'interaction',
+          )
+          .toList(growable: false);
+      expect(interactionDiagnostics, hasLength(1));
+      final diagnostic = interactionDiagnostics.single;
+      expect(diagnostic.data['outcome'], 'fresh_accepted');
+      expect(diagnostic.data.containsKey('reuseReason'), isFalse);
+      expect(diagnostic.data.containsKey('coalesced'), isFalse);
+      expect(
+        controller.session!.frames,
+        hasLength(framesBeforeInteraction + 1),
+      );
+      final freshFrame = controller.session!.frames.last;
+      expect(freshFrame.id, isNot(baselineFrame.id));
+      expect(
+        freshFrame.contentHash,
+        baselineFrame.contentHash,
+        reason:
+            'identical pixels must not resolve through dHash or content-hash reuse',
+      );
+      controller.dispose();
+    },
+  );
 
   testWidgets('captures route changes with destination screenshot', (
     tester,
@@ -1415,6 +1529,41 @@ void main() {
     final second = computeDHashFromRgba(rgba, 8, 8);
     expect(first, second);
     expect(first.length, 64);
+  });
+
+  test('perceptual hash match tolerates small hamming distance', () {
+    final base = '0' * 64;
+    final oneBit = '1${'0' * 63}';
+    final twoBits = '11${'0' * 62}';
+    final threeBits = '111${'0' * 61}';
+    expect(dHashHammingDistance(base, oneBit), 1);
+    expect(dHashVisuallyMatches(base, oneBit), isTrue);
+    expect(dHashVisuallyMatches(base, twoBits), isTrue);
+    expect(dHashVisuallyMatches(base, threeBits), isFalse);
+  });
+
+  test('perceptual hash aggregates cell pixels on large buffers', () {
+    const width = 80;
+    const height = 80;
+    final rgba = Uint8List(width * height * 4);
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        final offset = (y * width + x) * 4;
+        final isCorner = x < width ~/ 8 && y < height ~/ 8;
+        final gray = isCorner ? 0 : 200;
+        rgba[offset] = gray;
+        rgba[offset + 1] = gray;
+        rgba[offset + 2] = gray;
+        rgba[offset + 3] = 255;
+      }
+    }
+    final uniform = computeDHashFromRgba(
+      Uint8List.fromList(List<int>.filled(width * height * 4, 200)),
+      width,
+      height,
+    );
+    final withCorner = computeDHashFromRgba(rgba, width, height);
+    expect(withCorner, isNot(uniform));
   });
 
   testWidgets('skips tap capture when route capture is pending', (

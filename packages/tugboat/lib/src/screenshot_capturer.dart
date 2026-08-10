@@ -1,21 +1,16 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:image/image.dart' as img;
 
 import 'anchors.dart';
 import 'capture_boundary.dart';
-import 'perceptual_hash.dart';
+import 'screenshot_encode.dart';
+import 'screenshot_encode_isolate.dart';
 import 'screenshot_mask_level.dart';
-
-/// JPEG quality for emitted frames. Screenshots are photo-heavy once masking
-/// is relaxed, where JPEG is ~5x smaller than PNG at comparable legibility.
-const int _jpegQuality = 80;
 
 /// Why a screenshot request could not produce a fresh rendered observation.
 ///
@@ -56,24 +51,6 @@ class ScreenshotCaptureAttempt {
   final int frameWaitMicros;
 }
 
-class _JpegEncodeRequest {
-  const _JpegEncodeRequest(this.rgba, this.width, this.height);
-
-  final Uint8List rgba;
-  final int width;
-  final int height;
-}
-
-Uint8List _encodeJpeg(_JpegEncodeRequest request) {
-  final image = img.Image.fromBytes(
-    width: request.width,
-    height: request.height,
-    bytes: request.rgba.buffer,
-    order: img.ChannelOrder.rgba,
-  );
-  return Uint8List.fromList(img.encodeJpg(image, quality: _jpegQuality));
-}
-
 class MaskRect {
   const MaskRect(this.rect);
 
@@ -93,6 +70,8 @@ class ScreenshotCaptureResult {
     required this.encodeMicros,
     this.maskMicros = 0,
     this.skippedByDHash = false,
+    this.skippedByPaintGeneration = false,
+    this.paintGeneration,
   });
 
   final Uint8List bytes;
@@ -106,6 +85,15 @@ class ScreenshotCaptureResult {
   final int encodeMicros;
   final int maskMicros;
   final bool skippedByDHash;
+  final bool skippedByPaintGeneration;
+
+  /// Subtree paint signature observed at gate time for this attempt.
+  ///
+  /// Covers the capture root and nested [RepaintBoundary] activity (see
+  /// [tugboatSubtreePaintSignature]). The controller commits this via
+  /// [ScreenshotCapturer.commitAcceptedPaintGeneration] only after accepting
+  /// a new frame or successfully reusing a compatible one.
+  final int? paintGeneration;
 }
 
 class ScreenshotCapturer {
@@ -115,18 +103,61 @@ class ScreenshotCapturer {
     required this.anchorResolver,
     this.pixelRatio = 0.75,
     @visibleForTesting Future<void> Function()? frameWaiter,
+    ScreenshotEncoder? encoder,
   }) : _frameWaiter =
-           frameWaiter ?? (() => SchedulerBinding.instance.endOfFrame);
+           frameWaiter ?? (() => SchedulerBinding.instance.endOfFrame),
+       _encoder = encoder ?? IsolateScreenshotEncoder();
 
   final GlobalKey boundaryKey;
   final double pixelRatio;
   final TugboatScreenshotMaskLevel maskLevel;
   final Future<void> Function() _frameWaiter;
+  final ScreenshotEncoder _encoder;
 
   /// Shared resolver used for frame-scoped element maps when masking.
   final AnchorResolver anchorResolver;
 
   String? _lastDHash;
+  int? _lastAcceptedPaintSignature;
+  TugboatCaptureRenderBoundary? _lastAcceptedBoundary;
+
+  /// Clears perceptual-hash and paint-signature coalesce state.
+  void resetCoalesceState() {
+    _lastDHash = null;
+    _lastAcceptedPaintSignature = null;
+    _lastAcceptedBoundary = null;
+  }
+
+  /// Records the current subtree paint signature as accepted without a
+  /// GPU readback (for example [TugboatReplayController.debugSeedFrame]).
+  void rememberAcceptedPaintGeneration() {
+    final renderObject = boundaryKey.currentContext?.findRenderObject();
+    if (renderObject is TugboatCaptureRenderBoundary) {
+      _lastAcceptedBoundary = renderObject;
+      _lastAcceptedPaintSignature = renderObject.subtreePaintSignature;
+    }
+  }
+
+  /// Commits a pre-capture [paintSignature] after accept or reuse.
+  ///
+  /// Callers must pass the signature from the capture result (gate-time), not
+  /// a freshly recomputed value, so paints during encode cannot poison the
+  /// next skip decision.
+  void commitAcceptedPaintGeneration(int? paintSignature) {
+    final renderObject = boundaryKey.currentContext?.findRenderObject();
+    if (paintSignature == null ||
+        renderObject is! TugboatCaptureRenderBoundary) {
+      return;
+    }
+    _lastAcceptedBoundary = renderObject;
+    _lastAcceptedPaintSignature = paintSignature;
+  }
+
+  /// Commits [dHash] after the controller accepts or reuses a frame.
+  void commitAcceptedDHash(String? dHash) {
+    if (dHash == null || dHash.isEmpty) return;
+    _lastDHash = dHash;
+  }
 
   /// Wait for one bounded compositor opportunity.  The timeout does not try
   /// to cancel Flutter's frame future (which is shared by the binding); it
@@ -194,10 +225,10 @@ class ScreenshotCapturer {
   /// snapshot the exact boundary before waiting; a remount during that wait is
   /// a failure, never permission to read a previous layer or a replacement.
   Future<ScreenshotCaptureAttempt> captureAttempt({
-    String? lastDHash,
     bool force = false,
     bool waitForFrame = true,
     bool requireFreshPaint = false,
+    bool allowPaintGenerationSkip = true,
     Duration frameTimeout = const Duration(seconds: 2),
     bool Function()? isCurrent,
     Future<void>? cancelled,
@@ -307,8 +338,8 @@ class ScreenshotCapturer {
         // ignore: use_build_context_synchronously
         currentContext,
         currentBoundary,
-        lastDHash: lastDHash,
         force: force,
+        allowPaintGenerationSkip: allowPaintGenerationSkip,
       );
       if (isCurrent != null && !isCurrent()) {
         return ScreenshotCaptureAttempt(
@@ -340,24 +371,52 @@ class ScreenshotCapturer {
   }
 
   Future<ScreenshotCaptureResult?> capture({
-    String? lastDHash,
     bool force = false,
     bool waitForFrame = true,
-  }) async => (await captureAttempt(
-    lastDHash: lastDHash,
-    force: force,
-    waitForFrame: waitForFrame,
-  )).result;
+  }) async =>
+      (await captureAttempt(force: force, waitForFrame: waitForFrame)).result;
 
   Future<ScreenshotCaptureResult?> _captureReadyBoundary(
     Element context,
     RenderRepaintBoundary boundary, {
-    required String? lastDHash,
     required bool force,
+    required bool allowPaintGenerationSkip,
   }) async {
     final rootRender = boundary;
     final boundaryOrigin = boundary.localToGlobal(Offset.zero);
     final boundaryLogicalRect = boundaryOrigin & boundary.size;
+    // Gate-time subtree signature: nested RepaintBoundary paints are included
+    // even when this outer boundary's paintGeneration is unchanged.
+    final paintSignature = boundary is TugboatCaptureRenderBoundary
+        ? boundary.subtreePaintSignature
+        : null;
+    final scaledWidth = (boundary.size.width * pixelRatio).ceil().clamp(
+      1,
+      1 << 20,
+    );
+    final scaledHeight = (boundary.size.height * pixelRatio).ceil().clamp(
+      1,
+      1 << 20,
+    );
+
+    if (allowPaintGenerationSkip &&
+        !force &&
+        paintSignature != null &&
+        identical(boundary, _lastAcceptedBoundary) &&
+        paintSignature == _lastAcceptedPaintSignature) {
+      return ScreenshotCaptureResult(
+        bytes: Uint8List(0),
+        contentHash: '',
+        width: scaledWidth,
+        height: scaledHeight,
+        boundaryLogicalRect: boundaryLogicalRect,
+        masked: false,
+        captureMicros: 0,
+        encodeMicros: 0,
+        skippedByPaintGeneration: true,
+        paintGeneration: paintSignature,
+      );
+    }
 
     final List<MaskRect> maskRects;
     final maskClock = Stopwatch()..start();
@@ -383,152 +442,70 @@ class ScreenshotCapturer {
       readbackClock.stop();
     }
     try {
-      final scaledWidth = image.width;
-      final scaledHeight = image.height;
-      ui.Image rasterImage = image;
+      final imageWidth = image.width;
+      final imageHeight = image.height;
 
-      var maskMicros = maskClock.elapsedMicroseconds;
-      if (maskRects.isNotEmpty) {
-        maskClock
-          ..reset()
-          ..start();
-        try {
-          final recorder = ui.PictureRecorder();
-          final canvas = Canvas(recorder);
-          canvas.drawImage(image, Offset.zero, Paint());
-
-          final maskPaint = Paint()..color = const Color(0xFF1A1A1A);
-          for (final mask in maskRects) {
-            final scaled = Rect.fromLTWH(
-              mask.rect.left * pixelRatio,
-              mask.rect.top * pixelRatio,
-              mask.rect.width * pixelRatio,
-              mask.rect.height * pixelRatio,
-            );
-            if (scaled.width > 0 && scaled.height > 0) {
-              canvas.drawRect(scaled, maskPaint);
-            }
-          }
-
-          final picture = recorder.endRecording();
-          try {
-            rasterImage = await picture.toImage(scaledWidth, scaledHeight);
-          } finally {
-            picture.dispose();
-          }
-        } catch (_) {
-          throw const _ScreenshotCaptureException(
-            ScreenshotCaptureFailure.maskFailed,
-          );
-        } finally {
-          maskClock.stop();
-          maskMicros += maskClock.elapsedMicroseconds;
-        }
+      // Scale mask rects into capture pixel space once. Mask fills are applied
+      // in the encode worker so we avoid a second full-size picture.toImage.
+      final maskClockTotal = Stopwatch()..start();
+      final scaledMasks = Float64List(maskRects.length * 4);
+      for (var i = 0; i < maskRects.length; i++) {
+        final rect = maskRects[i].rect;
+        final base = i * 4;
+        scaledMasks[base] = rect.left * pixelRatio;
+        scaledMasks[base + 1] = rect.top * pixelRatio;
+        scaledMasks[base + 2] = rect.right * pixelRatio;
+        scaledMasks[base + 3] = rect.bottom * pixelRatio;
       }
+      maskClockTotal.stop();
+      final maskMicros =
+          maskClock.elapsedMicroseconds + maskClockTotal.elapsedMicroseconds;
 
+      final encodeClock = Stopwatch()..start();
       try {
-        final encodeClock = Stopwatch()..start();
-        try {
-          final quickDHash = await _dHashFromThumbnail(rasterImage);
-          final compareDHash = lastDHash ?? _lastDHash;
-          if (!force &&
-              quickDHash != null &&
-              compareDHash != null &&
-              quickDHash == compareDHash) {
-            return ScreenshotCaptureResult(
-              bytes: Uint8List(0),
-              contentHash: '',
-              dHash: quickDHash,
-              width: scaledWidth,
-              height: scaledHeight,
-              boundaryLogicalRect: boundaryLogicalRect,
-              masked: maskRects.isNotEmpty,
-              captureMicros: readbackClock.elapsedMicroseconds,
-              encodeMicros: encodeClock.elapsedMicroseconds,
-              maskMicros: maskMicros,
-              skippedByDHash: true,
-            );
-          }
-
-          final byteData = await rasterImage.toByteData(
-            format: ui.ImageByteFormat.rawRgba,
-          );
-          if (byteData == null) {
-            throw const _ScreenshotCaptureException(
-              ScreenshotCaptureFailure.encodingFailed,
-            );
-          }
-          final jpeg = await compute(
-            _encodeJpeg,
-            _JpegEncodeRequest(
-              byteData.buffer.asUint8List(),
-              scaledWidth,
-              scaledHeight,
-            ),
-          );
-          final contentHash = sha256.convert(jpeg).toString();
-          if (quickDHash != null) {
-            _lastDHash = quickDHash;
-          }
-          return ScreenshotCaptureResult(
-            bytes: jpeg,
-            contentHash: contentHash,
-            dHash: quickDHash,
-            width: scaledWidth,
-            height: scaledHeight,
-            boundaryLogicalRect: boundaryLogicalRect,
-            masked: maskRects.isNotEmpty,
-            captureMicros: readbackClock.elapsedMicroseconds,
-            encodeMicros: encodeClock.elapsedMicroseconds,
-            maskMicros: maskMicros,
-          );
-        } on _ScreenshotCaptureException {
-          rethrow;
-        } catch (_) {
+        final byteData = await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
+        if (byteData == null) {
           throw const _ScreenshotCaptureException(
             ScreenshotCaptureFailure.encodingFailed,
           );
-        } finally {
-          encodeClock.stop();
         }
+        final encoded = await _encoder.encode(
+          ScreenshotEncodeInput(
+            rgba: byteData.buffer.asUint8List(),
+            width: imageWidth,
+            height: imageHeight,
+            maskRects: scaledMasks,
+            lastDHash: _lastDHash,
+            force: force,
+          ),
+        );
+        return ScreenshotCaptureResult(
+          bytes: encoded.bytes,
+          contentHash: encoded.contentHash,
+          dHash: encoded.dHash,
+          width: imageWidth,
+          height: imageHeight,
+          boundaryLogicalRect: boundaryLogicalRect,
+          masked: maskRects.isNotEmpty,
+          captureMicros: readbackClock.elapsedMicroseconds,
+          encodeMicros: encodeClock.elapsedMicroseconds,
+          maskMicros: maskMicros,
+          skippedByDHash: encoded.skippedByDHash,
+          paintGeneration: paintSignature,
+        );
+      } on _ScreenshotCaptureException {
+        rethrow;
+      } catch (_) {
+        throw const _ScreenshotCaptureException(
+          ScreenshotCaptureFailure.encodingFailed,
+        );
       } finally {
-        if (!identical(rasterImage, image)) {
-          rasterImage.dispose();
-        }
+        encodeClock.stop();
       }
     } finally {
       image.dispose();
-    }
-  }
-
-  Future<String?> _dHashFromThumbnail(ui.Image source) async {
-    const hashWidth = 9;
-    const hashHeight = 8;
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    canvas.drawImageRect(
-      source,
-      Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
-      Rect.fromLTWH(0, 0, hashWidth.toDouble(), hashHeight.toDouble()),
-      Paint()..filterQuality = FilterQuality.low,
-    );
-    final picture = recorder.endRecording();
-    final ui.Image thumb;
-    try {
-      thumb = await picture.toImage(hashWidth, hashHeight);
-    } finally {
-      picture.dispose();
-    }
-    try {
-      final bytes = await thumb.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (bytes == null) return null;
-      return computeDHashFromRgba(
-        bytes.buffer.asUint8List(),
-        hashWidth,
-        hashHeight,
-      );
-    } finally {
-      thumb.dispose();
     }
   }
 
@@ -603,4 +580,6 @@ class ScreenshotCapturer {
     }
     return provider is AssetBundleImageProvider;
   }
+
+  Future<void> dispose() => _encoder.dispose();
 }

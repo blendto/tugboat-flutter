@@ -83,7 +83,7 @@ those fields are optional historic data in older sessions only.
 
 The session stores:
 
-- frame metadata plus PNG bytes;
+- frame metadata plus JPEG bytes;
 - ordered events;
 - optional scroll samples;
 - app/platform/viewport metadata;
@@ -236,8 +236,9 @@ telemetry and avoid putting user data in them.
 ## Screenshot pipeline
 
 Screenshots are taken from the SDK `RepaintBoundary` at the configured pixel
-ratio (default `0.75`). Before PNG encoding the SDK collects mask rectangles
-using the shared anchor resolver and paints them onto the raster.
+ratio (default `0.75`). Before JPEG encoding the SDK collects mask rectangles
+using the shared anchor resolver and applies them as opaque fills on the RGBA
+buffer inside the encode isolate (avoiding a second full-size GPU raster).
 
 The default mask policy is profile-dependent:
 
@@ -247,17 +248,27 @@ The default mask policy is profile-dependent:
 The public mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
 `allTextExceptActionable`, and `sensitiveInputsOnly`.
 
-Non-interaction capture uses a 9x8 perceptual dHash before PNG encoding to
-skip a visually unchanged raster, then SHA-256 content hashing to deduplicate
-encoded frames. Capture requests are serialized and compatible non-interaction
-requests can coalesce. Each completed interaction requests a forced fresh
-after-frame. It cannot be suppressed by local-WebSocket non-interaction
-suppression, dHash, or content-hash deduplication. A fresh route capture can
-satisfy its claimed interaction.
+Capture computes a 9x8 perceptual dHash from the masked RGBA buffer inside the
+encode isolate and skips JPEG encoding when the Hamming distance to the last
+accepted hash is at most 2 bits (tolerating minor anti-alias shimmer). SHA-256
+content hashing then deduplicates encoded frames. Capture requests are
+serialized and compatible non-interaction requests can coalesce. When the
+capture subtree's paint signature has not
+changed since the last accepted frame (outer capture boundary paint generation
+plus nested [RepaintBoundary] layer/picture identity), the controller skips the
+entire GPU readback/encode path and reuses a compatible frame. Each completed
+interaction requests one forced fresh after-frame. This attempt does not
+coalesce, and local-WebSocket suppression, paint-generation reuse, dHash reuse,
+and content-hash reuse cannot replace it. A fresh route capture can satisfy only
+the interaction that causally claimed that route capture.
 
-PNG readback and encoding still happen through Flutter image APIs on the UI
-isolate. Platform views, video textures, maps, and native overlays may be absent
-or incomplete in repaint-boundary output.
+Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
+background isolate after a full-frame RGBA readback on the UI isolate. RGBA
+bytes are packed into [TransferableTypedData] for the worker: packing still
+copies once on the UI isolate, but the worker materializes the buffer without
+a second full-frame copy (unlike a plain isolate/`compute` send). Platform
+views, video textures, maps, and native overlays may be absent or incomplete
+in repaint-boundary output.
 
 When the exploration WebSocket connects and there is no HTTP collector, the
 controller suppresses only non-interaction Flutter screenshots for UI-thread
@@ -341,9 +352,11 @@ cross-build equivalence.
 
 ### 2. Screenshot budget device baselines
 
-Unit thresholds live in `benchmark/screenshot_budget_baseline.dart`. Record
-multi-tier device measurements before enabling aggressive degradation in
-production profiles.
+Unit thresholds live in `benchmark/screenshot_budget_baseline.dart`. The default
+rolling budget is 60 ms per 5 s window so eligible captures skip under load
+sooner now that paint-generation / dHash coalesce replace the old post-capture
+state-signature short circuit. Record multi-tier device measurements before
+enabling more aggressive degradation in production profiles.
 
 ### 3. Stronger collector acknowledgement
 

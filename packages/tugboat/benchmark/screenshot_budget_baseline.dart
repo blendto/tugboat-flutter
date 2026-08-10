@@ -5,7 +5,7 @@
 /// enabling aggressive degradation in production profiles.
 class ScreenshotBudgetBaseline {
   static const window = Duration(seconds: 5);
-  static const budgetMicros = 80 * 1000;
+  static const budgetMicros = 60 * 1000;
   static const maxAvgEncodeMicros = 50 * 1000;
   static const maxAvgReadbackMicros = 40 * 1000;
 }

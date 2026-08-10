@@ -584,15 +584,19 @@ class CollectorHttpSink implements TugboatCaptureSink {
       final result = _classifyResponse(response.statusCode);
       _framesNeedRetry = result == _SendResult.retry;
       if (_framesNeedRetry) {
-        _pendingFrames.insertAll(0, uploads);
-        _trimPendingFrames();
+        _requeueFailedUploads(uploads);
       }
     } catch (_) {
       if (!_isCurrentEpoch(epoch)) return;
       _framesNeedRetry = true;
-      _pendingFrames.insertAll(0, uploads);
-      _trimPendingFrames();
+      _requeueFailedUploads(uploads);
     }
+  }
+
+  void _requeueFailedUploads(List<_PendingFrameUpload> uploads) {
+    // Events reference exact frame IDs; never drop uploads on retry.
+    _pendingFrames.insertAll(0, uploads);
+    _trimPendingFrames();
   }
 
   void _trimPendingEvents() {

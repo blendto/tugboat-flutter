@@ -403,6 +403,114 @@ void main() {
     expect(framePosts, isEmpty);
     sink.dispose();
   });
+
+  test('uploads pending scroll and tap frames without superseding', () async {
+    frameStatus = 503;
+    final sink = CollectorHttpSink(config: configForServer());
+    final session = createSession();
+    sink.startSession(session);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    sink.recordFrame(
+      const TugboatFrame(
+        id: 'frame-0',
+        atMs: 0,
+        width: 1,
+        height: 1,
+        contentHash: 'scroll-a',
+        trigger: TugboatFrameTrigger.scroll,
+      ),
+      Uint8List.fromList([0]),
+      sessionId: session.id,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    sink.recordFrame(
+      const TugboatFrame(
+        id: 'frame-1',
+        atMs: 1,
+        width: 1,
+        height: 1,
+        contentHash: 'scroll-b',
+        trigger: TugboatFrameTrigger.scroll,
+      ),
+      Uint8List.fromList([1]),
+      sessionId: session.id,
+    );
+    sink.recordFrame(
+      const TugboatFrame(
+        id: 'frame-2',
+        atMs: 2,
+        width: 1,
+        height: 1,
+        contentHash: 'tap-final',
+        trigger: TugboatFrameTrigger.tap,
+      ),
+      Uint8List.fromList([2]),
+      sessionId: session.id,
+    );
+
+    framePosts.clear();
+    frameStatus = 202;
+    await sink.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(framePosts, isNotEmpty);
+    final uploaded = framePosts.last['frameNos'] as List;
+    expect(uploaded, ['0', '1', '2']);
+    sink.dispose();
+  });
+
+  test(
+    'retries failed frame uploads without dropping earlier frames',
+    () async {
+      frameStatus = 503;
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-0',
+          atMs: 0,
+          width: 1,
+          height: 1,
+          contentHash: 'scroll-old',
+          trigger: TugboatFrameTrigger.scroll,
+        ),
+        Uint8List.fromList([0]),
+        sessionId: session.id,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-1',
+          atMs: 1,
+          width: 1,
+          height: 1,
+          contentHash: 'tap-new',
+          trigger: TugboatFrameTrigger.tap,
+        ),
+        Uint8List.fromList([1]),
+        sessionId: session.id,
+      );
+
+      framePosts.clear();
+      frameStatus = 202;
+      await sink.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(framePosts, isNotEmpty);
+      final uploadedNos = framePosts
+          .expand((post) => (post['frameNos'] as List).cast<String>())
+          .toSet();
+      expect(uploadedNos.contains('0'), isTrue);
+      expect(uploadedNos.contains('1'), isTrue);
+      sink.dispose();
+    },
+  );
+
   test('skips duplicate session_start events in the event batch', () async {
     final sink = CollectorHttpSink(config: configForServer());
     final session = createSession();
@@ -941,25 +1049,28 @@ void main() {
     },
   );
 
-  test('session_start sends cached traitsId without adding it to session_end', () async {
-    final sink = CollectorHttpSink(
-      config: configForServer(),
-      initialTraitsId: 'trt_cached',
-    );
-    sink.startSession(createSession());
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+  test(
+    'session_start sends cached traitsId without adding it to session_end',
+    () async {
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        initialTraitsId: 'trt_cached',
+      );
+      sink.startSession(createSession());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    expect(sessionPosts.first['eventType'], 'session_start');
-    expect(sessionPosts.first['traitsId'], 'trt_cached');
-    expect(sessionPosts.first.containsKey('traits'), isFalse);
+      expect(sessionPosts.first['eventType'], 'session_start');
+      expect(sessionPosts.first['traitsId'], 'trt_cached');
+      expect(sessionPosts.first.containsKey('traits'), isFalse);
 
-    await sink.endSession();
-    final endPost = sessionPosts.last;
-    expect(endPost['eventType'], 'session_end');
-    expect(endPost.containsKey('traitsId'), isFalse);
-    expect(endPost.containsKey('traits'), isFalse);
-    sink.dispose();
-  });
+      await sink.endSession();
+      final endPost = sessionPosts.last;
+      expect(endPost['eventType'], 'session_end');
+      expect(endPost.containsKey('traitsId'), isFalse);
+      expect(endPost.containsKey('traits'), isFalse);
+      sink.dispose();
+    },
+  );
 
   test('setUserId posts user_changed without cached traits', () async {
     sessionResponseTraitsId = 'trt_user';

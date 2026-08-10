@@ -65,7 +65,7 @@ The SDK sends:
   `fingerprintSchemaVersion`;
 - `type: event`: serialized event payload plus available session/run/action
   correlation fields;
-- `type: frame`: frame metadata followed by a binary PNG message;
+- `type: frame`: frame metadata followed by a binary JPEG message;
 - `type: control_ack`: acknowledgement for supported exploration commands.
 
 Incoming JSON control messages are forwarded to the controller. The current
@@ -164,7 +164,7 @@ The SDK calls:
 | --- | --- |
 | `POST /v1/sessions` | Session lifecycle and identity: `session_start`, `session_identify`, `session_end`, `traits_updated`, `user_changed` |
 | `POST /v1/events/batch` | JSON event batches |
-| `POST /v1/frames` | multipart PNG frame upload |
+| `POST /v1/frames` | multipart JPEG frame upload |
 
 Every request includes both `X-PMKit-API-Key` and `X-Tugboat-API-Key`, plus
 platform, build number, version name, and app ID headers. Mobile API keys are
@@ -207,8 +207,13 @@ Event payloads contain:
   schema version.
 
 Frame uploads are sorted by numeric frame suffix and sent as multipart files
-named `<frameNo>.png`, with `sessionId` and comma-separated `frameNos` fields.
+named `<frameNo>.jpg`, with `sessionId` and comma-separated `frameNos` fields.
 Malformed frame IDs and frames belonging to a stale SDK session are dropped.
+Queued frames are uploaded as-is: events reference exact `beforeFrame` /
+`afterFrame` IDs, and the multipart protocol has no hash alias, so intermediate
+scroll or duplicate-content captures cannot be dropped without breaking those
+refs. Backpressure may still drop the oldest pending frames when
+`maxPendingFrames` is exceeded.
 
 ### Batching, retry, and backpressure
 

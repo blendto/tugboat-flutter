@@ -7,6 +7,7 @@ import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/capture_boundary.dart';
 import 'package:tugboat/src/health.dart';
 import 'package:tugboat/src/screenshot_capturer.dart';
+import 'package:tugboat/src/screenshot_encode.dart';
 import 'package:tugboat/src/screenshot_mask_level.dart';
 
 Widget _scene(GlobalKey boundaryKey, Color color) => Directionality(
@@ -53,6 +54,7 @@ void main() {
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       pixelRatio: 1,
       frameWaiter: () => redFrame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -64,6 +66,7 @@ void main() {
     );
     await tester.pump();
     final red = await redFuture;
+    addTearDown(capturer.dispose);
 
     await tester.pumpWidget(_scene(boundaryKey, Colors.blue));
     final blueFrame = Completer<void>();
@@ -73,7 +76,9 @@ void main() {
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       pixelRatio: 1,
       frameWaiter: () => blueFrame.future,
+      encoder: InlineScreenshotEncoder(),
     );
+    addTearDown(blueCapturer.dispose);
     final blueFuture = blueCapturer.captureAttempt(requireFreshPaint: true);
     await tester.pump();
     blueFrame.complete();
@@ -111,6 +116,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => frame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -135,6 +141,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => Future<void>.value(),
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -152,6 +159,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => Future<void>.value(),
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_plainRepaintScene(boundaryKey));
 
@@ -168,6 +176,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => frame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -192,6 +201,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => frame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -214,6 +224,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => frame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -233,6 +244,127 @@ void main() {
     expect(attempt.result, isNull);
     expect(attempt.failure, ScreenshotCaptureFailure.boundaryReplaced);
   });
+
+  testWidgets(
+    'paint-generation gate skips when unchanged, captures after repaint, force bypasses',
+    (tester) async {
+      final boundaryKey = GlobalKey();
+      final capturer = ScreenshotCapturer(
+        boundaryKey: boundaryKey,
+        maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
+        anchorResolver: AnchorResolver(rootKey: boundaryKey),
+        pixelRatio: 1,
+        frameWaiter: () => Future<void>.value(),
+        encoder: InlineScreenshotEncoder(),
+      );
+      addTearDown(capturer.dispose);
+      await tester.pumpWidget(_scene(boundaryKey, Colors.red));
+
+      final first = await tester.runAsync(
+        () => capturer.captureAttempt(force: true),
+      );
+      expect(first, isNotNull);
+      expect(first!.failure, isNull);
+      expect(first.result, isNotNull);
+      expect(first.result!.skippedByPaintGeneration, isFalse);
+      capturer.commitAcceptedPaintGeneration(first.result!.paintGeneration);
+
+      final skipped = await capturer.captureAttempt();
+      expect(skipped.failure, isNull);
+      expect(skipped.result, isNotNull);
+      expect(skipped.result!.skippedByPaintGeneration, isTrue);
+      expect(skipped.result!.bytes, isEmpty);
+
+      final boundary =
+          boundaryKey.currentContext!.findRenderObject()!
+              as TugboatCaptureRenderBoundary;
+      final generationBeforeRepaint = boundary.paintGeneration;
+      boundary.markNeedsPaint();
+      await tester.pump();
+      expect(boundary.paintGeneration, greaterThan(generationBeforeRepaint));
+
+      final afterRepaint = await tester.runAsync(
+        () => capturer.captureAttempt(),
+      );
+      expect(afterRepaint, isNotNull);
+      expect(afterRepaint!.failure, isNull);
+      expect(afterRepaint.result, isNotNull);
+      expect(afterRepaint.result!.skippedByPaintGeneration, isFalse);
+
+      capturer.commitAcceptedPaintGeneration(
+        afterRepaint.result!.paintGeneration,
+      );
+      final forced = await tester.runAsync(
+        () => capturer.captureAttempt(force: true),
+      );
+      expect(forced, isNotNull);
+      expect(forced!.failure, isNull);
+      expect(forced.result, isNotNull);
+      expect(forced.result!.skippedByPaintGeneration, isFalse);
+      expect(forced.result!.bytes, isNotEmpty);
+    },
+  );
+
+  testWidgets(
+    'paint-generation gate does not skip when a nested RepaintBoundary paints',
+    (tester) async {
+      final boundaryKey = GlobalKey();
+      var nestedColor = Colors.red;
+      final capturer = ScreenshotCapturer(
+        boundaryKey: boundaryKey,
+        maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
+        anchorResolver: AnchorResolver(rootKey: boundaryKey),
+        pixelRatio: 1,
+        frameWaiter: () => Future<void>.value(),
+        encoder: InlineScreenshotEncoder(),
+      );
+      addTearDown(capturer.dispose);
+
+      Widget scene() => Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: TugboatCaptureBoundary(
+            key: boundaryKey,
+            child: SizedBox(
+              width: 80,
+              height: 80,
+              child: RepaintBoundary(child: ColoredBox(color: nestedColor)),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(scene());
+      final first = await tester.runAsync(
+        () => capturer.captureAttempt(force: true),
+      );
+      expect(first, isNotNull);
+      expect(first!.failure, isNull);
+      expect(first.result, isNotNull);
+      capturer.commitAcceptedPaintGeneration(first.result!.paintGeneration);
+
+      final outer =
+          boundaryKey.currentContext!.findRenderObject()!
+              as TugboatCaptureRenderBoundary;
+      final outerGeneration = outer.paintGeneration;
+      final signatureBefore = tugboatSubtreePaintSignature(outer);
+
+      nestedColor = Colors.blue;
+      await tester.pumpWidget(scene());
+      // Nested boundary owns the paint; outer generation must stay put so this
+      // exercises the unsafe outer-only gate scenario.
+      expect(outer.paintGeneration, outerGeneration);
+      expect(tugboatSubtreePaintSignature(outer), isNot(signatureBefore));
+
+      final afterNested = await tester.runAsync(
+        () => capturer.captureAttempt(),
+      );
+      expect(afterNested, isNotNull);
+      expect(afterNested!.failure, isNull);
+      expect(afterNested.result, isNotNull);
+      expect(afterNested.result!.skippedByPaintGeneration, isFalse);
+    },
+  );
 
   test('screenshot budget reports independent capture-stage metrics', () {
     final tracker = TugboatScreenshotBudgetTracker();

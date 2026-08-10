@@ -21,6 +21,7 @@ import 'outbox/outbox.dart';
 import 'outbox/outbox_sink.dart';
 import 'replay_config.dart';
 import 'screenshot_capturer.dart';
+import 'screenshot_encode.dart';
 import 'scroll_capture.dart';
 import 'viewport_semantic_session.dart';
 
@@ -153,6 +154,7 @@ enum _CaptureOutcome {
   freshAccepted,
   exactContentReused,
   perceptualHashCoalesced,
+  paintGenerationUnchanged,
   screenshotBudgetSkip,
   noFrameAvailable,
   noCompatibleFrame,
@@ -168,6 +170,7 @@ extension on _CaptureOutcome {
     _CaptureOutcome.freshAccepted => 'fresh_accepted',
     _CaptureOutcome.exactContentReused => 'exact_content_reused',
     _CaptureOutcome.perceptualHashCoalesced => 'perceptual_hash_coalesced',
+    _CaptureOutcome.paintGenerationUnchanged => 'paint_generation_unchanged',
     _CaptureOutcome.screenshotBudgetSkip => 'screenshot_budget_skip',
     _CaptureOutcome.noFrameAvailable => 'no_frame_available',
     _CaptureOutcome.noCompatibleFrame => 'no_compatible_frame',
@@ -859,7 +862,6 @@ class TugboatReplayController extends ChangeNotifier {
   final Map<String, _PendingScrollCompletion> _pendingScrollCompletions = {};
   final Set<String> _emittedInventories = <String>{};
   SemanticsHandle? _semanticsHandle;
-  String? _lastDHash;
   late final ViewportSemanticSession _viewportSemantics =
       ViewportSemanticSession(
         config: config,
@@ -942,6 +944,11 @@ class TugboatReplayController extends ChangeNotifier {
     required bool force,
   })?
   debugExecuteCapture;
+
+  /// Optional inline encoder for widget tests that exercise the complete
+  /// capture path without a persistent worker isolate.
+  @visibleForTesting
+  ScreenshotEncoder? debugScreenshotEncoder;
 
   /// Test-only terminal outcome override for the next physical capture.
   ///
@@ -1109,6 +1116,7 @@ class TugboatReplayController extends ChangeNotifier {
       completedAtMs: atMs,
       completionStateAnchor: _snapshotStateAnchor(_currentStateAnchor),
     );
+    _capturer?.rememberAcceptedPaintGeneration();
     _trim();
     return frameId;
   }
@@ -1229,6 +1237,7 @@ class TugboatReplayController extends ChangeNotifier {
       pixelRatio: config.capturePixelRatio,
       maskLevel: config.effectiveScreenshotMaskLevel,
       anchorResolver: resolver,
+      encoder: debugScreenshotEncoder,
     );
     final sinks = <TugboatCaptureSink>[];
     final collectorUrl = config.explorationCollectorUrl;
@@ -1361,6 +1370,11 @@ class TugboatReplayController extends ChangeNotifier {
     }
     _explorationSink = null;
     _collectorHttpSink = null;
+    final capturer = _capturer;
+    _capturer = null;
+    if (capturer != null) {
+      unawaited(capturer.dispose());
+    }
     super.dispose();
   }
 
@@ -1455,7 +1469,7 @@ class TugboatReplayController extends ChangeNotifier {
     _lastCaptureFailure = null;
     _emittedInventories.clear();
     _viewportSemantics.clear();
-    _lastDHash = null;
+    _capturer?.resetCoalesceState();
     _captureDiagnosticOutcomes.clear();
     _captureDiagnosticTotal = 0;
     _lastCaptureDiagnosticOutcome = null;
@@ -1667,6 +1681,39 @@ class TugboatReplayController extends ChangeNotifier {
       reusedAtMs: atMs,
     );
     return frameId;
+  }
+
+  _CaptureExecution _reuseWithoutCapture({
+    required _CaptureRequestContext context,
+    required _CaptureOutcome outcome,
+    required String reuseReason,
+    int queueWaitMicros = 0,
+    bool recordBudget = false,
+    String? budgetDropReason,
+  }) {
+    final compatible = _compatibleFrameFor(context);
+    if (compatible == null) {
+      return const _CaptureExecution(
+        outcome: _CaptureOutcome.noCompatibleFrame,
+      );
+    }
+    if (recordBudget) {
+      _screenshotBudget.record(
+        queueWaitMicros: queueWaitMicros,
+        readbackMicros: 0,
+        encodeMicros: 0,
+        encodedBytes: 0,
+        dropReason: budgetDropReason ?? reuseReason,
+      );
+    }
+    _reuseCompatibleFrame(compatible, context, reuseReason);
+    _refreshStateAnchor();
+    _maybeEmitSceneInventory();
+    return _CaptureExecution(
+      outcome: outcome,
+      frameId: compatible,
+      reuseReason: reuseReason,
+    );
   }
 
   /// Emits exactly one bounded, sanitized resolution record for a logical
@@ -2090,6 +2137,8 @@ class TugboatReplayController extends ChangeNotifier {
             ? 'content_hash'
             : outcome == _CaptureOutcome.perceptualHashCoalesced
             ? 'dhash'
+            : outcome == _CaptureOutcome.paintGenerationUnchanged
+            ? 'paint_generation'
             : null,
       );
     }
@@ -2108,28 +2157,23 @@ class TugboatReplayController extends ChangeNotifier {
       return const _CaptureExecution(outcome: _CaptureOutcome.noFrameAvailable);
     }
 
+    final compatibleFrame = _compatibleFrameFor(context);
+    final hasCompatibleFrame = compatibleFrame != null;
+
     final eligibleToSkip =
         freshness == _CaptureFreshness.reusable &&
         trigger != TugboatFrameTrigger.initial &&
         trigger != TugboatFrameTrigger.lifecycle &&
         config.screenshotBudget.skipEligibleWhenDegraded &&
         _screenshotBudget.shouldSkipEligible;
-    final compatibleSkipFrame = eligibleToSkip
-        ? _compatibleFrameFor(context)
-        : null;
-    if (compatibleSkipFrame != null) {
-      _screenshotBudget.record(
-        queueWaitMicros: queueWaitMicros,
-        readbackMicros: 0,
-        encodeMicros: 0,
-        encodedBytes: 0,
-        dropReason: 'budget',
-      );
-      _refreshStateAnchor();
-      _maybeEmitSceneInventory();
-      return _CaptureExecution(
+    if (eligibleToSkip && hasCompatibleFrame) {
+      return _reuseWithoutCapture(
+        context: context,
         outcome: _CaptureOutcome.screenshotBudgetSkip,
-        frameId: compatibleSkipFrame,
+        reuseReason: 'budget',
+        queueWaitMicros: queueWaitMicros,
+        recordBudget: true,
+        budgetDropReason: 'budget',
       );
     }
 
@@ -2176,61 +2220,88 @@ class TugboatReplayController extends ChangeNotifier {
 
     _beginCapture();
     try {
-      final attempt = await capturer.captureAttempt(
-        lastDHash: _lastDHash,
-        // A freshness-sensitive request needs a new logical observation even
-        // when its pixels match. Reusing the old frame would also reuse its
-        // old completion-state provenance.
-        force: force || requiresFreshPaint,
-        waitForFrame: true,
-        requireFreshPaint: requiresFreshPaint,
-        cancelled: captureCancellation,
-        isCurrent: () =>
-            _captureContextStillCurrent(
-              context,
-              captureGeneration,
-              captureSession,
-            ) &&
-            !_capturePaused &&
-            !_skipCapture,
-      );
-      final result = attempt.result;
-      if (result == null ||
-          _disposed ||
-          !_captureContextStillCurrent(context, captureGeneration, session)) {
-        _lastCaptureFailure = attempt.failure;
-        if (attempt.failure != ScreenshotCaptureFailure.cancelled &&
-            _captureContextStillCurrent(
-              context,
-              captureGeneration,
-              captureSession,
-            )) {
-          _screenshotBudget.record(
-            queueWaitMicros: queueWaitMicros,
-            frameWaitMicros: attempt.frameWaitMicros,
-            readbackMicros: 0,
-            encodeMicros: 0,
-            encodedBytes: 0,
-            dropReason: attempt.failure?.name ?? 'capture_failed',
-          );
-        }
-        return _CaptureExecution(
-          outcome:
-              !_captureContextStillCurrent(
+      var allowPaintSkip =
+          trigger != TugboatFrameTrigger.initial && hasCompatibleFrame;
+      var captureForce = force || requiresFreshPaint || !hasCompatibleFrame;
+      late ScreenshotCaptureAttempt attempt;
+      late ScreenshotCaptureResult result;
+
+      for (var paintRetry = 0; paintRetry < 2; paintRetry++) {
+        attempt = await capturer.captureAttempt(
+          // A freshness-sensitive request needs a new logical observation even
+          // when its pixels match. Reusing the old frame would also reuse its
+          // old completion-state provenance.
+          force: captureForce,
+          waitForFrame: true,
+          requireFreshPaint: requiresFreshPaint,
+          allowPaintGenerationSkip: allowPaintSkip,
+          cancelled: captureCancellation,
+          isCurrent: () =>
+              _captureContextStillCurrent(
                 context,
                 captureGeneration,
                 captureSession,
-              )
-              ? _CaptureOutcome.supersededRoute
-              : _diagnosticOutcomeForFailure(attempt.failure),
-          failure: attempt.failure,
-          cancellationReason:
-              attempt.failure == ScreenshotCaptureFailure.cancelled
-              ? 'superseded_route'
-              : null,
+              ) &&
+              !_capturePaused &&
+              !_skipCapture,
         );
+        final attemptResult = attempt.result;
+        if (attemptResult == null ||
+            _disposed ||
+            !_captureContextStillCurrent(context, captureGeneration, session)) {
+          _lastCaptureFailure = attempt.failure;
+          if (attempt.failure != ScreenshotCaptureFailure.cancelled &&
+              _captureContextStillCurrent(
+                context,
+                captureGeneration,
+                captureSession,
+              )) {
+            _screenshotBudget.record(
+              queueWaitMicros: queueWaitMicros,
+              frameWaitMicros: attempt.frameWaitMicros,
+              readbackMicros: 0,
+              encodeMicros: 0,
+              encodedBytes: 0,
+              dropReason: attempt.failure?.name ?? 'capture_failed',
+            );
+          }
+          return _CaptureExecution(
+            outcome:
+                !_captureContextStillCurrent(
+                  context,
+                  captureGeneration,
+                  captureSession,
+                )
+                ? _CaptureOutcome.supersededRoute
+                : _diagnosticOutcomeForFailure(attempt.failure),
+            failure: attempt.failure,
+            cancellationReason:
+                attempt.failure == ScreenshotCaptureFailure.cancelled
+                ? 'superseded_route'
+                : null,
+          );
+        }
+        _lastCaptureFailure = null;
+
+        if (attemptResult.skippedByPaintGeneration) {
+          final reuseExecution = _reuseWithoutCapture(
+            context: context,
+            outcome: _CaptureOutcome.paintGenerationUnchanged,
+            reuseReason: 'paint_generation',
+          );
+          if (reuseExecution.outcome == _CaptureOutcome.noCompatibleFrame &&
+              paintRetry == 0) {
+            allowPaintSkip = false;
+            captureForce = true;
+            continue;
+          }
+          return reuseExecution;
+        }
+
+        result = attemptResult;
+        break;
       }
-      _lastCaptureFailure = null;
+
       _refreshStateAnchor();
       final activeSession = session;
       final completionStateAnchor = _snapshotStateAnchor(_refreshStateAnchor());
@@ -2246,13 +2317,14 @@ class TugboatReplayController extends ChangeNotifier {
       );
 
       if (result.skippedByDHash) {
-        if (result.dHash != null) {
-          _lastDHash = result.dHash;
-        }
         final compatible = _compatibleFrameFor(context);
         final reused = compatible == null
             ? null
             : _reuseCompatibleFrame(compatible, context, 'dhash');
+        if (reused != null) {
+          capturer.commitAcceptedPaintGeneration(result.paintGeneration);
+          capturer.commitAcceptedDHash(result.dHash);
+        }
         return _CaptureExecution(
           outcome: reused == null
               ? _CaptureOutcome.noCompatibleFrame
@@ -2268,9 +2340,8 @@ class TugboatReplayController extends ChangeNotifier {
           existingId != null &&
           _isFrameCompatible(existingId, context)) {
         _reuseCompatibleFrame(existingId, context, 'content_hash');
-        if (result.dHash != null) {
-          _lastDHash = result.dHash;
-        }
+        capturer.commitAcceptedPaintGeneration(result.paintGeneration);
+        capturer.commitAcceptedDHash(result.dHash);
         _maybeEmitSceneInventory();
         return _CaptureExecution(
           outcome: _CaptureOutcome.exactContentReused,
@@ -2310,9 +2381,8 @@ class TugboatReplayController extends ChangeNotifier {
         completedAtMs: atMs,
         completionStateAnchor: completionStateAnchor,
       );
-      if (result.dHash != null) {
-        _lastDHash = result.dHash;
-      }
+      capturer.commitAcceptedPaintGeneration(result.paintGeneration);
+      capturer.commitAcceptedDHash(result.dHash);
       _maybeEmitSceneInventory();
       _sinkHub?.recordFrame(
         frame,
