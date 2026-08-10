@@ -5,7 +5,7 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.6.0`. Session JSON writers emit schema
+The current package version is `0.7.0`. Session JSON writers emit schema
 version `9`; compatibility readers should accept versions `6` through
 `9`. Structural fingerprints use fingerprint schema version `6`.
 
@@ -23,7 +23,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.6.0
+  tugboat_dio: ^0.7.0
 ```
 
 See `packages/tugboat_dio/README.md`.
@@ -58,12 +58,35 @@ failedCall.complete(
 ```
 
 Both emit on `stream: evidence` and never inherit exploration `actionId` or UI
-anchors. Parameter values are omitted unless an explicit policy allows them.
-`allowAll` is an exploration escape hatch; outside exploration profiles the SDK
-downgrades it to names-only at record time. Network routes must be absolute path
-templates. The SDK drops resolver output containing a scheme, query, fragment,
-percent-encoded data, a network-path prefix, backslash, or whitespace/control
-characters; host resolvers must still replace dynamic IDs with placeholders.
+anchors. `namesOnly` is the default parameter policy. It retains parameter keys
+but omits parameter values. `allowAll` is an exploration-only escape hatch;
+outside exploration profiles the SDK downgrades it to names-only at record time.
+
+### Production parameter values
+
+Use `allowAllInProduction` only when the host needs to retain all JSON-safe
+parameter values in a production capture profile:
+
+```dart
+final productionEvents = TugboatReplay.eventHook(
+  source: 'feedback',
+  parameterPolicy: TugboatParameterPolicy.allowAllInProduction,
+);
+productionEvents.record(
+  'FEEDBACK_SUBMITTED',
+  parameters: {'comment': 'The search result was not useful.'},
+);
+```
+
+This policy can retain feedback, search terms, URLs, IDs, and other user
+content. Hosts must confirm consent, privacy, access, and retention rules before
+they use it. The SDK still deep-copies JSON-safe values and applies its hard
+JSON and size bounds.
+
+Network routes must be absolute path templates. The SDK drops resolver output
+containing a scheme, query, fragment, percent-encoded data, a network-path
+prefix, backslash, or whitespace/control characters; host resolvers must still
+replace dynamic IDs with placeholders.
 HTTP response bodies are retained only when `statusCode >= 400`. JSON and text
 are deep-copied and bounded to 16 KiB; binary and unsupported values are
 omitted. Successful response bodies are never retained.
@@ -533,8 +556,9 @@ sink registration API has not been published.
   output.
 - Nested navigator and anonymous-route identity depends on structural fallback
   and needs app-specific validation.
-- The package captures no logs, network traffic, analytics events, or native
-  performance signals.
+- The package captures no logs or native performance signals. It supports
+  opt-in external events and network observations with the privacy boundaries
+  described above.
 
 See [Collector integration](../../docs/integration/collector.md) and
 [Capture and fingerprint status](../../docs/design/capture-and-fingerprint.md)

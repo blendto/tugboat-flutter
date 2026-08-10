@@ -140,6 +140,48 @@ void main() {
     });
   });
 
+  testWidgets('production opt-in retains bounded JSON-safe parameter values', (
+    tester,
+  ) async {
+    await _pumpCapture(
+      tester,
+      config: _testConfig.copyWith(
+        profile: TugboatCaptureProfile.productionLean,
+      ),
+    );
+
+    TugboatReplay.eventHook(
+      parameterPolicy: TugboatParameterPolicy.allowAllInProduction,
+    ).record('SEARCH', parameters: {'query': 'private search', 'page': 2});
+
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'external_event',
+    );
+    expect(event.data['parameterKeys'], ['query', 'page']);
+    expect(event.data['parameters'], {'query': 'private search', 'page': 2});
+    expect(event.data['capture'], {
+      'values': 'allow_all',
+      'truncated': false,
+      'droppedCount': 0,
+    });
+  });
+
+  testWidgets('exploration capture retains allow-all parameter values', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+
+    TugboatReplay.eventHook(
+      parameterPolicy: TugboatParameterPolicy.allowAll,
+    ).record('SEARCH', parameters: {'query': 'private search'});
+
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'external_event',
+    );
+    expect(event.data['parameters'], {'query': 'private search'});
+    expect((event.data['capture'] as Map)['values'], 'allow_all');
+  });
+
   testWidgets('external event ignores active action window', (tester) async {
     await _pumpCapture(tester);
     final controller = TugboatReplay.controller!;

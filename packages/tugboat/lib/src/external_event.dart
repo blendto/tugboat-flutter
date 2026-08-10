@@ -27,13 +27,20 @@ class TugboatParameterDrop {
 ///
 /// Parameter keys may be captured by default. Values are captured only through
 /// an explicit allow-list, transform, or the deliberately named [allowAll]
-/// exploration escape hatch.
+/// exploration escape hatch. [allowAllInProduction] is a separate production
+/// opt-in.
 class TugboatParameterPolicy {
   const TugboatParameterPolicy._({
     required this.mode,
     this.allowedKeys,
     this.valueTransform,
-  });
+  }) : _allowAllInProduction = false;
+
+  const TugboatParameterPolicy._productionAllowAll()
+    : mode = TugboatParameterCaptureMode.allowAll,
+      allowedKeys = null,
+      valueTransform = null,
+      _allowAllInProduction = true;
 
   /// Record event name plus bounded parameter keys only. Default production
   /// policy.
@@ -67,12 +74,24 @@ class TugboatParameterPolicy {
     mode: TugboatParameterCaptureMode.allowAll,
   );
 
+  /// Production opt-in that retains all JSON-safe values within hard limits.
+  ///
+  /// This can capture feedback, search terms, URLs, IDs, and other user
+  /// content. The host must confirm consent, privacy, access, and retention
+  /// rules before it uses this policy.
+  ///
+  /// Unlike [allowAll], this policy retains values in production capture
+  /// profiles. It still applies all parameter safety and size limits.
+  static const allowAllInProduction =
+      TugboatParameterPolicy._productionAllowAll();
+
   /// Sentinel for transform callbacks.
   static const drop = TugboatParameterDrop._();
 
   final TugboatParameterCaptureMode mode;
   final Set<String>? allowedKeys;
   final Object? Function(String key, Object? value)? valueTransform;
+  final bool _allowAllInProduction;
 
   /// Wire label for capture metadata (`names_only`, `allow_list`, …).
   String get captureValues => mode.wireName;
@@ -80,6 +99,7 @@ class TugboatParameterPolicy {
   /// Resolves exploration-only escape hatches against the active profile.
   TugboatParameterPolicy effectiveFor(TugboatCaptureProfile profile) {
     if (mode == TugboatParameterCaptureMode.allowAll &&
+        !_allowAllInProduction &&
         profile != TugboatCaptureProfile.exploration) {
       return namesOnly;
     }
