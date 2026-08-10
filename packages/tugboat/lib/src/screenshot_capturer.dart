@@ -87,10 +87,12 @@ class ScreenshotCaptureResult {
   final bool skippedByDHash;
   final bool skippedByPaintGeneration;
 
-  /// Boundary paint generation observed for this attempt, when available.
+  /// Subtree paint signature observed at gate time for this attempt.
   ///
-  /// The controller commits this via [ScreenshotCapturer.commitAcceptedPaintGeneration]
-  /// only after accepting a new frame or successfully reusing a compatible one.
+  /// Covers the capture root and nested [RepaintBoundary] activity (see
+  /// [tugboatSubtreePaintSignature]). The controller commits this via
+  /// [ScreenshotCapturer.commitAcceptedPaintGeneration] only after accepting
+  /// a new frame or successfully reusing a compatible one.
   final int? paintGeneration;
 }
 
@@ -116,35 +118,39 @@ class ScreenshotCapturer {
   final AnchorResolver anchorResolver;
 
   String? _lastDHash;
-  int? _lastAcceptedPaintGeneration;
+  int? _lastAcceptedPaintSignature;
   TugboatCaptureRenderBoundary? _lastAcceptedBoundary;
 
-  /// Clears perceptual-hash and paint-generation coalesce state.
+  /// Clears perceptual-hash and paint-signature coalesce state.
   void resetCoalesceState() {
     _lastDHash = null;
-    _lastAcceptedPaintGeneration = null;
+    _lastAcceptedPaintSignature = null;
     _lastAcceptedBoundary = null;
   }
 
-  /// Records the current boundary paint generation as accepted without a
+  /// Records the current subtree paint signature as accepted without a
   /// GPU readback (for example [TugboatReplayController.debugSeedFrame]).
   void rememberAcceptedPaintGeneration() {
     final renderObject = boundaryKey.currentContext?.findRenderObject();
     if (renderObject is TugboatCaptureRenderBoundary) {
       _lastAcceptedBoundary = renderObject;
-      _lastAcceptedPaintGeneration = renderObject.paintGeneration;
+      _lastAcceptedPaintSignature = renderObject.subtreePaintSignature;
     }
   }
 
-  /// Commits [paintGeneration] after the controller accepts or reuses a frame.
-  void commitAcceptedPaintGeneration(int? paintGeneration) {
+  /// Commits a pre-capture [paintSignature] after accept or reuse.
+  ///
+  /// Callers must pass the signature from the capture result (gate-time), not
+  /// a freshly recomputed value, so paints during encode cannot poison the
+  /// next skip decision.
+  void commitAcceptedPaintGeneration(int? paintSignature) {
     final renderObject = boundaryKey.currentContext?.findRenderObject();
-    if (paintGeneration == null ||
+    if (paintSignature == null ||
         renderObject is! TugboatCaptureRenderBoundary) {
       return;
     }
     _lastAcceptedBoundary = renderObject;
-    _lastAcceptedPaintGeneration = paintGeneration;
+    _lastAcceptedPaintSignature = paintSignature;
   }
 
   /// Wait for one bounded compositor opportunity.  The timeout does not try
@@ -375,17 +381,19 @@ class ScreenshotCapturer {
     final rootRender = boundary;
     final boundaryOrigin = boundary.localToGlobal(Offset.zero);
     final boundaryLogicalRect = boundaryOrigin & boundary.size;
-    final paintGeneration = boundary is TugboatCaptureRenderBoundary
-        ? boundary.paintGeneration
+    // Gate-time subtree signature: nested RepaintBoundary paints are included
+    // even when this outer boundary's paintGeneration is unchanged.
+    final paintSignature = boundary is TugboatCaptureRenderBoundary
+        ? boundary.subtreePaintSignature
         : null;
     final scaledWidth = (boundary.size.width * pixelRatio).ceil().clamp(1, 1 << 20);
     final scaledHeight = (boundary.size.height * pixelRatio).ceil().clamp(1, 1 << 20);
 
     if (allowPaintGenerationSkip &&
         !force &&
-        paintGeneration != null &&
+        paintSignature != null &&
         identical(boundary, _lastAcceptedBoundary) &&
-        paintGeneration == _lastAcceptedPaintGeneration) {
+        paintSignature == _lastAcceptedPaintSignature) {
       return ScreenshotCaptureResult(
         bytes: Uint8List(0),
         contentHash: '',
@@ -396,7 +404,7 @@ class ScreenshotCapturer {
         captureMicros: 0,
         encodeMicros: 0,
         skippedByPaintGeneration: true,
-        paintGeneration: paintGeneration,
+        paintGeneration: paintSignature,
       );
     }
 
@@ -478,7 +486,7 @@ class ScreenshotCapturer {
           encodeMicros: encodeClock.elapsedMicroseconds,
           maskMicros: maskMicros,
           skippedByDHash: encoded.skippedByDHash,
-          paintGeneration: paintGeneration,
+          paintGeneration: paintSignature,
         );
       } on _ScreenshotCaptureException {
         rethrow;

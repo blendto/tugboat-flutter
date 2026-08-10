@@ -261,10 +261,11 @@ Capture computes a 9x8 perceptual dHash from the masked RGBA buffer inside the
 encode isolate and skips JPEG encoding when the Hamming distance to the last
 accepted hash is at most 2 bits (tolerating minor anti-alias shimmer). SHA-256
 content hashing then deduplicates encoded frames. Capture requests are
-serialized and coalesced. When the capture boundary's paint generation has not
-advanced since the last accepted frame, the controller skips the entire GPU
-readback/encode path and reuses a compatible frame (unless the caller forces
-capture or requires a fresh paint).
+serialized and coalesced. When the capture subtree's paint signature has not
+changed since the last accepted frame (outer capture boundary paint generation
+plus nested [RepaintBoundary] layer/picture identity), the controller skips the
+entire GPU readback/encode path and reuses a compatible frame (unless the
+caller forces capture or requires a fresh paint).
 
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA

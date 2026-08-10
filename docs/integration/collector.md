@@ -206,11 +206,11 @@ Event payloads contain:
 Frame uploads are sorted by numeric frame suffix and sent as multipart files
 named `<frameNo>.jpg`, with `sessionId` and comma-separated `frameNos` fields.
 Malformed frame IDs and frames belonging to a stale SDK session are dropped.
-While frames are still queued, newer captures supersede pending `scroll`
-samples and any pending frame with the same content hash so intermediate
-burst rasters are not uploaded. The same policy marks in-flight uploads
-superseded; if that HTTP request later fails, superseded frames are dropped
-before retry instead of being requeued.
+Queued frames are uploaded as-is: events reference exact `beforeFrame` /
+`afterFrame` IDs, and the multipart protocol has no hash alias, so intermediate
+scroll or duplicate-content captures cannot be dropped without breaking those
+refs. Backpressure may still drop the oldest pending frames when
+`maxPendingFrames` is exceeded.
 
 ### Batching, retry, and backpressure
 

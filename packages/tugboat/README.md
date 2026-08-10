@@ -516,7 +516,7 @@ to an inferred event. The closed outcome vocabulary is:
 | `fresh_accepted` | A fresh frame was accepted. |
 | `exact_content_reused` | An exact content hash reused a compatible frame. |
 | `perceptual_hash_coalesced` | A perceptual hash reused a compatible frame. |
-| `paint_generation_unchanged` | The capture boundary had not painted since the last accepted frame. |
+| `paint_generation_unchanged` | The capture subtree had not painted since the last accepted frame. |
 | `screenshot_budget_skip` | Degraded screenshot budget skipped eligible work. |
 | `superseded_route_epoch` | Navigation superseded the request's route epoch. |
 | `paint_readiness_timeout` | A fresh paint did not become available in time. |

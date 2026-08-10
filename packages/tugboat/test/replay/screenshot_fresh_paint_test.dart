@@ -305,6 +305,67 @@ void main() {
     },
   );
 
+  testWidgets(
+    'paint-generation gate does not skip when a nested RepaintBoundary paints',
+    (tester) async {
+      final boundaryKey = GlobalKey();
+      var nestedColor = Colors.red;
+      final capturer = ScreenshotCapturer(
+        boundaryKey: boundaryKey,
+        maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
+        anchorResolver: AnchorResolver(rootKey: boundaryKey),
+        pixelRatio: 1,
+        frameWaiter: () => Future<void>.value(),
+        encoder: InlineScreenshotEncoder(),
+      );
+      addTearDown(capturer.dispose);
+
+      Widget scene() => Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: TugboatCaptureBoundary(
+            key: boundaryKey,
+            child: SizedBox(
+              width: 80,
+              height: 80,
+              child: RepaintBoundary(
+                child: ColoredBox(color: nestedColor),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(scene());
+      final first = await tester.runAsync(
+        () => capturer.captureAttempt(force: true),
+      );
+      expect(first, isNotNull);
+      expect(first!.failure, isNull);
+      expect(first.result, isNotNull);
+      capturer.commitAcceptedPaintGeneration(first.result!.paintGeneration);
+
+      final outer =
+          boundaryKey.currentContext!.findRenderObject()!
+              as TugboatCaptureRenderBoundary;
+      final outerGeneration = outer.paintGeneration;
+      final signatureBefore = tugboatSubtreePaintSignature(outer);
+
+      nestedColor = Colors.blue;
+      await tester.pumpWidget(scene());
+      // Nested boundary owns the paint; outer generation must stay put so this
+      // exercises the unsafe outer-only gate scenario.
+      expect(outer.paintGeneration, outerGeneration);
+      expect(tugboatSubtreePaintSignature(outer), isNot(signatureBefore));
+
+      final afterNested = await tester.runAsync(() => capturer.captureAttempt());
+      expect(afterNested, isNotNull);
+      expect(afterNested!.failure, isNull);
+      expect(afterNested.result, isNotNull);
+      expect(afterNested.result!.skippedByPaintGeneration, isFalse);
+    },
+  );
+
   test('screenshot budget reports independent capture-stage metrics', () {
     final tracker = TugboatScreenshotBudgetTracker();
     tracker.record(
