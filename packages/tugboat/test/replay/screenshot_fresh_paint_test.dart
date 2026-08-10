@@ -64,6 +64,7 @@ void main() {
     );
     await tester.pump();
     final red = await redFuture;
+    addTearDown(capturer.dispose);
 
     await tester.pumpWidget(_scene(boundaryKey, Colors.blue));
     final blueFrame = Completer<void>();
@@ -74,6 +75,7 @@ void main() {
       pixelRatio: 1,
       frameWaiter: () => blueFrame.future,
     );
+    addTearDown(blueCapturer.dispose);
     final blueFuture = blueCapturer.captureAttempt(requireFreshPaint: true);
     await tester.pump();
     blueFrame.complete();

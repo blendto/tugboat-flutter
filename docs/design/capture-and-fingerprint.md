@@ -263,10 +263,11 @@ paint generation has not advanced since the last accepted frame, the controller
 skips the entire GPU readback/encode path and reuses a compatible frame
 (unless the caller forces capture or requires a fresh paint).
 
-JPEG encoding and content hashing run together on a background isolate after a
-full-frame RGBA readback on the UI isolate. Platform views, video textures,
-maps, and native overlays may be absent or incomplete in repaint-boundary
-output.
+JPEG encoding and content hashing run on a persistent background isolate after
+a full-frame RGBA readback on the UI isolate. RGBA pixels are handed to the
+worker with [TransferableTypedData] so the UI isolate does not pay a second
+full-frame copy into the worker. Platform views, video textures, maps, and
+native overlays may be absent or incomplete in repaint-boundary output.
 
 When the exploration WebSocket connects and there is no HTTP collector, the
 controller suppresses new Flutter screenshots for UI-thread performance.

@@ -1346,6 +1346,11 @@ class TugboatReplayController extends ChangeNotifier {
     }
     _explorationSink = null;
     _collectorHttpSink = null;
+    final capturer = _capturer;
+    _capturer = null;
+    if (capturer != null) {
+      unawaited(capturer.dispose());
+    }
     super.dispose();
   }
 

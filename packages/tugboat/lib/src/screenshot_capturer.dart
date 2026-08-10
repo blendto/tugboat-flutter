@@ -1,21 +1,16 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:image/image.dart' as img;
 
 import 'anchors.dart';
 import 'capture_boundary.dart';
 import 'perceptual_hash.dart';
+import 'screenshot_encode_isolate.dart';
 import 'screenshot_mask_level.dart';
-
-/// JPEG quality for emitted frames. Screenshots are photo-heavy once masking
-/// is relaxed, where JPEG is ~5x smaller than PNG at comparable legibility.
-const int _jpegQuality = 80;
 
 /// Why a screenshot request could not produce a fresh rendered observation.
 ///
@@ -54,37 +49,6 @@ class ScreenshotCaptureAttempt {
   final ScreenshotCaptureResult? result;
   final ScreenshotCaptureFailure? failure;
   final int frameWaitMicros;
-}
-
-class _JpegEncodeRequest {
-  const _JpegEncodeRequest(this.rgba, this.width, this.height);
-
-  final Uint8List rgba;
-  final int width;
-  final int height;
-}
-
-class _JpegEncodeResult {
-  const _JpegEncodeResult({required this.bytes, required this.contentHash});
-
-  final Uint8List bytes;
-  final String contentHash;
-}
-
-/// Encodes RGBA pixels to JPEG and hashes the encoded bytes on a worker
-/// isolate so neither JPEG compression nor SHA-256 run on the UI isolate.
-_JpegEncodeResult _encodeJpeg(_JpegEncodeRequest request) {
-  final image = img.Image.fromBytes(
-    width: request.width,
-    height: request.height,
-    bytes: request.rgba.buffer,
-    order: img.ChannelOrder.rgba,
-  );
-  final jpeg = Uint8List.fromList(img.encodeJpg(image, quality: _jpegQuality));
-  return _JpegEncodeResult(
-    bytes: jpeg,
-    contentHash: sha256.convert(jpeg).toString(),
-  );
 }
 
 class MaskRect {
@@ -128,13 +92,16 @@ class ScreenshotCapturer {
     required this.anchorResolver,
     this.pixelRatio = 0.75,
     @visibleForTesting Future<void> Function()? frameWaiter,
+    @visibleForTesting ScreenshotEncodeIsolate? encodeIsolate,
   }) : _frameWaiter =
-           frameWaiter ?? (() => SchedulerBinding.instance.endOfFrame);
+           frameWaiter ?? (() => SchedulerBinding.instance.endOfFrame),
+       _encodeIsolate = encodeIsolate ?? ScreenshotEncodeIsolate();
 
   final GlobalKey boundaryKey;
   final double pixelRatio;
   final TugboatScreenshotMaskLevel maskLevel;
   final Future<void> Function() _frameWaiter;
+  final ScreenshotEncodeIsolate _encodeIsolate;
 
   /// Shared resolver used for frame-scoped element maps when masking.
   final AnchorResolver anchorResolver;
@@ -471,13 +438,10 @@ class ScreenshotCapturer {
               ScreenshotCaptureFailure.encodingFailed,
             );
           }
-          final encoded = await compute(
-            _encodeJpeg,
-            _JpegEncodeRequest(
-              byteData.buffer.asUint8List(),
-              scaledWidth,
-              scaledHeight,
-            ),
+          final encoded = await _encodeIsolate.encode(
+            rgba: byteData.buffer.asUint8List(),
+            width: scaledWidth,
+            height: scaledHeight,
           );
           if (quickDHash != null) {
             _lastDHash = quickDHash;
@@ -615,4 +579,6 @@ class ScreenshotCapturer {
     }
     return provider is AssetBundleImageProvider;
   }
+
+  Future<void> dispose() => _encodeIsolate.dispose();
 }
