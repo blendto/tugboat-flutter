@@ -170,24 +170,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       );
       return;
     }
-    // Drop superseded pending frames so a rapid capture burst (especially
-    // scroll samples) uploads the newest observation instead of every
-    // intermediate raster. Non-scroll frames with distinct content remain.
-    if (_pendingFrames.isNotEmpty) {
-      final before = _pendingFrames.length;
-      _pendingFrames.removeWhere(
-        (pending) =>
-            pending.trigger == TugboatFrameTrigger.scroll ||
-            pending.contentHash == frame.contentHash,
-      );
-      final dropped = before - _pendingFrames.length;
-      if (dropped > 0) {
-        debugPrint(
-          '[tugboat] collector superseded $dropped pending frame(s) '
-          'before enqueueing frame $frameNo',
-        );
-      }
-    }
+    _supersedePendingFrames(frame, frameNo);
     _pendingFrames.add(
       _PendingFrameUpload(
         frameNo: frameNo,
@@ -629,6 +612,23 @@ class CollectorHttpSink implements TugboatCaptureSink {
     debugPrint(
       '[tugboat] collector dropped $dropped pending event(s) due to backpressure',
     );
+  }
+
+  void _supersedePendingFrames(TugboatFrame incoming, int incomingFrameNo) {
+    if (_pendingFrames.isEmpty) return;
+    final before = _pendingFrames.length;
+    _pendingFrames.removeWhere(
+      (pending) =>
+          pending.trigger == TugboatFrameTrigger.scroll ||
+          pending.contentHash == incoming.contentHash,
+    );
+    final dropped = before - _pendingFrames.length;
+    if (dropped > 0) {
+      debugPrint(
+        '[tugboat] collector superseded $dropped pending frame(s) '
+        'before enqueueing frame $incomingFrameNo',
+      );
+    }
   }
 
   void _trimPendingFrames() {

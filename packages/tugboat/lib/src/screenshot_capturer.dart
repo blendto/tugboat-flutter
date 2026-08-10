@@ -8,6 +8,7 @@ import 'package:flutter/scheduler.dart';
 
 import 'anchors.dart';
 import 'capture_boundary.dart';
+import 'screenshot_encode.dart';
 import 'screenshot_encode_isolate.dart';
 import 'screenshot_mask_level.dart';
 
@@ -69,6 +70,7 @@ class ScreenshotCaptureResult {
     required this.encodeMicros,
     this.maskMicros = 0,
     this.skippedByDHash = false,
+    this.skippedByPaintGeneration = false,
   });
 
   final Uint8List bytes;
@@ -82,6 +84,7 @@ class ScreenshotCaptureResult {
   final int encodeMicros;
   final int maskMicros;
   final bool skippedByDHash;
+  final bool skippedByPaintGeneration;
 }
 
 class ScreenshotCapturer {
@@ -91,21 +94,37 @@ class ScreenshotCapturer {
     required this.anchorResolver,
     this.pixelRatio = 0.75,
     @visibleForTesting Future<void> Function()? frameWaiter,
-    @visibleForTesting ScreenshotEncodeIsolate? encodeIsolate,
+    @visibleForTesting ScreenshotEncoder? encoder,
   }) : _frameWaiter =
            frameWaiter ?? (() => SchedulerBinding.instance.endOfFrame),
-       _encodeIsolate = encodeIsolate ?? ScreenshotEncodeIsolate();
+       _encoder = encoder ?? IsolateScreenshotEncoder();
 
   final GlobalKey boundaryKey;
   final double pixelRatio;
   final TugboatScreenshotMaskLevel maskLevel;
   final Future<void> Function() _frameWaiter;
-  final ScreenshotEncodeIsolate _encodeIsolate;
+  final ScreenshotEncoder _encoder;
 
   /// Shared resolver used for frame-scoped element maps when masking.
   final AnchorResolver anchorResolver;
 
   String? _lastDHash;
+  int? _lastAcceptedPaintGeneration;
+
+  /// Clears perceptual-hash and paint-generation coalesce state.
+  void resetCoalesceState() {
+    _lastDHash = null;
+    _lastAcceptedPaintGeneration = null;
+  }
+
+  /// Records the current boundary paint generation as accepted without a
+  /// GPU readback (for example [TugboatReplayController.debugSeedFrame]).
+  void rememberAcceptedPaintGeneration() {
+    final renderObject = boundaryKey.currentContext?.findRenderObject();
+    if (renderObject is TugboatCaptureRenderBoundary) {
+      _lastAcceptedPaintGeneration = renderObject.paintGeneration;
+    }
+  }
 
   /// Wait for one bounded compositor opportunity.  The timeout does not try
   /// to cancel Flutter's frame future (which is shared by the binding); it
@@ -173,10 +192,10 @@ class ScreenshotCapturer {
   /// snapshot the exact boundary before waiting; a remount during that wait is
   /// a failure, never permission to read a previous layer or a replacement.
   Future<ScreenshotCaptureAttempt> captureAttempt({
-    String? lastDHash,
     bool force = false,
     bool waitForFrame = true,
     bool requireFreshPaint = false,
+    bool allowPaintGenerationSkip = true,
     Duration frameTimeout = const Duration(seconds: 2),
     bool Function()? isCurrent,
     Future<void>? cancelled,
@@ -286,8 +305,8 @@ class ScreenshotCapturer {
         // ignore: use_build_context_synchronously
         currentContext,
         currentBoundary,
-        lastDHash: lastDHash,
         force: force,
+        allowPaintGenerationSkip: allowPaintGenerationSkip,
       );
       if (isCurrent != null && !isCurrent()) {
         return ScreenshotCaptureAttempt(
@@ -319,11 +338,9 @@ class ScreenshotCapturer {
   }
 
   Future<ScreenshotCaptureResult?> capture({
-    String? lastDHash,
     bool force = false,
     bool waitForFrame = true,
   }) async => (await captureAttempt(
-    lastDHash: lastDHash,
     force: force,
     waitForFrame: waitForFrame,
   )).result;
@@ -331,12 +348,34 @@ class ScreenshotCapturer {
   Future<ScreenshotCaptureResult?> _captureReadyBoundary(
     Element context,
     RenderRepaintBoundary boundary, {
-    required String? lastDHash,
     required bool force,
+    required bool allowPaintGenerationSkip,
   }) async {
     final rootRender = boundary;
     final boundaryOrigin = boundary.localToGlobal(Offset.zero);
     final boundaryLogicalRect = boundaryOrigin & boundary.size;
+    final paintGeneration = boundary is TugboatCaptureRenderBoundary
+        ? boundary.paintGeneration
+        : null;
+    final scaledWidth = (boundary.size.width * pixelRatio).ceil().clamp(1, 1 << 20);
+    final scaledHeight = (boundary.size.height * pixelRatio).ceil().clamp(1, 1 << 20);
+
+    if (allowPaintGenerationSkip &&
+        !force &&
+        paintGeneration != null &&
+        paintGeneration == _lastAcceptedPaintGeneration) {
+      return ScreenshotCaptureResult(
+        bytes: Uint8List(0),
+        contentHash: '',
+        width: scaledWidth,
+        height: scaledHeight,
+        boundaryLogicalRect: boundaryLogicalRect,
+        masked: false,
+        captureMicros: 0,
+        encodeMicros: 0,
+        skippedByPaintGeneration: true,
+      );
+    }
 
     final List<MaskRect> maskRects;
     final maskClock = Stopwatch()..start();
@@ -362,11 +401,11 @@ class ScreenshotCapturer {
       readbackClock.stop();
     }
     try {
-      final scaledWidth = image.width;
-      final scaledHeight = image.height;
+      final imageWidth = image.width;
+      final imageHeight = image.height;
 
       // Scale mask rects into capture pixel space once. Mask fills are applied
-      // in the encode isolate so we avoid a second full-size picture.toImage.
+      // in the encode worker so we avoid a second full-size picture.toImage.
       final maskClockTotal = Stopwatch()..start();
       final scaledMasks = Float64List(maskRects.length * 4);
       for (var i = 0; i < maskRects.length; i++) {
@@ -391,23 +430,28 @@ class ScreenshotCapturer {
             ScreenshotCaptureFailure.encodingFailed,
           );
         }
-        final encoded = await _encodeIsolate.encode(
-          rgba: byteData.buffer.asUint8List(),
-          width: scaledWidth,
-          height: scaledHeight,
-          maskRects: scaledMasks,
-          lastDHash: lastDHash ?? _lastDHash,
-          force: force,
+        final encoded = await _encoder.encode(
+          ScreenshotEncodeInput(
+            rgba: byteData.buffer.asUint8List(),
+            width: imageWidth,
+            height: imageHeight,
+            maskRects: scaledMasks,
+            lastDHash: _lastDHash,
+            force: force,
+          ),
         );
         if (encoded.dHash != null) {
           _lastDHash = encoded.dHash;
+        }
+        if (paintGeneration != null) {
+          _lastAcceptedPaintGeneration = paintGeneration;
         }
         return ScreenshotCaptureResult(
           bytes: encoded.bytes,
           contentHash: encoded.contentHash,
           dHash: encoded.dHash,
-          width: scaledWidth,
-          height: scaledHeight,
+          width: imageWidth,
+          height: imageHeight,
           boundaryLogicalRect: boundaryLogicalRect,
           masked: maskRects.isNotEmpty,
           captureMicros: readbackClock.elapsedMicroseconds,
@@ -501,5 +545,5 @@ class ScreenshotCapturer {
     return provider is AssetBundleImageProvider;
   }
 
-  Future<void> dispose() => _encodeIsolate.dispose();
+  Future<void> dispose() => _encoder.dispose();
 }

@@ -7,6 +7,7 @@ import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/capture_boundary.dart';
 import 'package:tugboat/src/health.dart';
 import 'package:tugboat/src/screenshot_capturer.dart';
+import 'package:tugboat/src/screenshot_encode.dart';
 import 'package:tugboat/src/screenshot_mask_level.dart';
 
 Widget _scene(GlobalKey boundaryKey, Color color) => Directionality(
@@ -53,6 +54,7 @@ void main() {
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       pixelRatio: 1,
       frameWaiter: () => redFrame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -74,6 +76,7 @@ void main() {
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       pixelRatio: 1,
       frameWaiter: () => blueFrame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     addTearDown(blueCapturer.dispose);
     final blueFuture = blueCapturer.captureAttempt(requireFreshPaint: true);
@@ -113,6 +116,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => frame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -137,6 +141,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => Future<void>.value(),
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -154,6 +159,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => Future<void>.value(),
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_plainRepaintScene(boundaryKey));
 
@@ -170,6 +176,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => frame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -194,6 +201,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => frame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 
@@ -216,6 +224,7 @@ void main() {
       maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
       anchorResolver: AnchorResolver(rootKey: boundaryKey),
       frameWaiter: () => frame.future,
+      encoder: InlineScreenshotEncoder(),
     );
     await tester.pumpWidget(_scene(boundaryKey, Colors.red));
 

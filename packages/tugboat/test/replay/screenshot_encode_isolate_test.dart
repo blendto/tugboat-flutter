@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:tugboat/src/screenshot_encode.dart';
 import 'package:tugboat/src/screenshot_encode_isolate.dart';
 
 Uint8List _solidRed() {
@@ -13,15 +14,25 @@ Uint8List _solidRed() {
   return rgba;
 }
 
+ScreenshotEncodeInput _solidRedInput({String? lastDHash, bool force = false}) {
+  return ScreenshotEncodeInput(
+    rgba: _solidRed(),
+    width: 8,
+    height: 8,
+    lastDHash: lastDHash,
+    force: force,
+  );
+}
+
 void main() {
   test('persistent encode isolate returns jpeg bytes and content hash', () async {
-    final worker = ScreenshotEncodeIsolate();
+    final worker = IsolateScreenshotEncoder();
     addTearDown(worker.dispose);
     final first = await worker
-        .encode(rgba: _solidRed(), width: 8, height: 8)
+        .encode(_solidRedInput())
         .timeout(const Duration(seconds: 10));
     final second = await worker
-        .encode(rgba: _solidRed(), width: 8, height: 8)
+        .encode(_solidRedInput())
         .timeout(const Duration(seconds: 10));
     expect(first.bytes, isNotEmpty);
     expect(first.contentHash, isNotEmpty);
@@ -29,14 +40,16 @@ void main() {
   });
 
   test('encode isolate applies mask fills before jpeg encoding', () async {
-    final worker = ScreenshotEncodeIsolate();
+    final worker = IsolateScreenshotEncoder();
     addTearDown(worker.dispose);
     final masked = await worker
         .encode(
-          rgba: _solidRed(),
-          width: 8,
-          height: 8,
-          maskRects: Float64List.fromList([0, 0, 4, 4]),
+          ScreenshotEncodeInput(
+            rgba: _solidRed(),
+            width: 8,
+            height: 8,
+            maskRects: Float64List.fromList([0, 0, 4, 4]),
+          ),
         )
         .timeout(const Duration(seconds: 10));
     final decoded = img.decodeJpg(masked.bytes)!;
@@ -47,18 +60,13 @@ void main() {
   });
 
   test('encode isolate skips jpeg when masked dHash matches', () async {
-    final worker = ScreenshotEncodeIsolate();
+    final worker = IsolateScreenshotEncoder();
     addTearDown(worker.dispose);
     final first = await worker
-        .encode(rgba: _solidRed(), width: 8, height: 8)
+        .encode(_solidRedInput())
         .timeout(const Duration(seconds: 10));
     final second = await worker
-        .encode(
-          rgba: _solidRed(),
-          width: 8,
-          height: 8,
-          lastDHash: first.dHash,
-        )
+        .encode(_solidRedInput(lastDHash: first.dHash))
         .timeout(const Duration(seconds: 10));
     expect(first.skippedByDHash, isFalse);
     expect(first.dHash, isNotNull);
