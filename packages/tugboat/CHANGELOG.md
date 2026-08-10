@@ -1,3 +1,19 @@
+## 0.7.1
+
+### Changed
+
+- **Screenshot capture performance** — remove the post-capture state-signature
+  short circuit and replace it with a paint-generation gate that skips the full
+  GPU readback/encode path when the capture boundary has not painted.
+  Diagnostic outcome `state_signature_short_circuit` is replaced by
+  `paint_generation_unchanged`.
+- **Encode path** — JPEG encoding, SHA-256, mask fills, and dHash now run on a
+  persistent background isolate with transferable RGBA input. dHash coalesce
+  tolerates Hamming distance ≤ 2. Default screenshot budget is 60 ms / 5 s.
+- **Collector uploads** — pending scroll samples and same-contentHash frames are
+  superseded before upload during capture bursts. Frame wire format docs
+  corrected to JPEG.
+
 ## 0.7.0
 
 ### Added

@@ -353,9 +353,11 @@ cross-build equivalence.
 
 ### 2. Screenshot budget device baselines
 
-Unit thresholds live in `benchmark/screenshot_budget_baseline.dart`. Record
-multi-tier device measurements before enabling aggressive degradation in
-production profiles.
+Unit thresholds live in `benchmark/screenshot_budget_baseline.dart`. The default
+rolling budget is 60 ms per 5 s window so eligible captures skip under load
+sooner now that paint-generation / dHash coalesce replace the old post-capture
+state-signature short circuit. Record multi-tier device measurements before
+enabling more aggressive degradation in production profiles.
 
 ### 3. Stronger collector acknowledgement
 
