@@ -208,7 +208,9 @@ named `<frameNo>.jpg`, with `sessionId` and comma-separated `frameNos` fields.
 Malformed frame IDs and frames belonging to a stale SDK session are dropped.
 While frames are still queued, newer captures supersede pending `scroll`
 samples and any pending frame with the same content hash so intermediate
-burst rasters are not uploaded.
+burst rasters are not uploaded. The same policy marks in-flight uploads
+superseded; if that HTTP request later fails, superseded frames are dropped
+before retry instead of being requeued.
 
 ### Batching, retry, and backpressure
 

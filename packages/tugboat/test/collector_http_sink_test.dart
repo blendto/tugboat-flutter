@@ -460,6 +460,62 @@ void main() {
     sink.dispose();
   });
 
+  test(
+    'drops superseded in-flight scroll frames before retrying a failed upload',
+    () async {
+      frameStatus = 503;
+      frameResponseDelay = const Duration(milliseconds: 80);
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-0',
+          atMs: 0,
+          width: 1,
+          height: 1,
+          contentHash: 'scroll-old',
+          trigger: TugboatFrameTrigger.scroll,
+        ),
+        Uint8List.fromList([0]),
+        sessionId: session.id,
+      );
+      while (framePosts.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-1',
+          atMs: 1,
+          width: 1,
+          height: 1,
+          contentHash: 'tap-new',
+          trigger: TugboatFrameTrigger.tap,
+        ),
+        Uint8List.fromList([1]),
+        sessionId: session.id,
+      );
+
+      framePosts.clear();
+      frameStatus = 202;
+      frameResponseDelay = Duration.zero;
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      await sink.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(framePosts, isNotEmpty);
+      final uploadedNos = framePosts
+          .expand((post) => (post['frameNos'] as List).cast<String>())
+          .toSet();
+      expect(uploadedNos.contains('0'), isFalse);
+      expect(uploadedNos.contains('1'), isTrue);
+      sink.dispose();
+    },
+  );
+
   test('skips duplicate session_start events in the event batch', () async {
     final sink = CollectorHttpSink(config: configForServer());
     final session = createSession();

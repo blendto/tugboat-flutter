@@ -2256,6 +2256,9 @@ class TugboatReplayController extends ChangeNotifier {
         final reused = compatible == null
             ? null
             : _reuseCompatibleFrame(compatible, context, 'dhash');
+        if (reused != null) {
+          capturer.commitAcceptedPaintGeneration(result.paintGeneration);
+        }
         return _CaptureExecution(
           outcome: reused == null
               ? _CaptureOutcome.noCompatibleFrame
@@ -2271,6 +2274,7 @@ class TugboatReplayController extends ChangeNotifier {
           existingId != null &&
           _isFrameCompatible(existingId, context)) {
         _reuseCompatibleFrame(existingId, context, 'content_hash');
+        capturer.commitAcceptedPaintGeneration(result.paintGeneration);
         _maybeEmitSceneInventory();
         return _CaptureExecution(
           outcome: _CaptureOutcome.exactContentReused,
@@ -2310,6 +2314,7 @@ class TugboatReplayController extends ChangeNotifier {
         completedAtMs: atMs,
         completionStateAnchor: completionStateAnchor,
       );
+      capturer.commitAcceptedPaintGeneration(result.paintGeneration);
       _maybeEmitSceneInventory();
       _sinkHub?.recordFrame(
         frame,

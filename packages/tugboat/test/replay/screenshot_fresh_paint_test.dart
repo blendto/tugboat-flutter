@@ -245,6 +245,66 @@ void main() {
     expect(attempt.failure, ScreenshotCaptureFailure.boundaryReplaced);
   });
 
+  testWidgets(
+    'paint-generation gate skips when unchanged, captures after repaint, force bypasses',
+    (tester) async {
+      final boundaryKey = GlobalKey();
+      final capturer = ScreenshotCapturer(
+        boundaryKey: boundaryKey,
+        maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
+        anchorResolver: AnchorResolver(rootKey: boundaryKey),
+        pixelRatio: 1,
+        frameWaiter: () => Future<void>.value(),
+        encoder: InlineScreenshotEncoder(),
+      );
+      addTearDown(capturer.dispose);
+      await tester.pumpWidget(_scene(boundaryKey, Colors.red));
+
+      final first = await tester.runAsync(
+        () => capturer.captureAttempt(force: true),
+      );
+      expect(first, isNotNull);
+      expect(first!.failure, isNull);
+      expect(first.result, isNotNull);
+      expect(first.result!.skippedByPaintGeneration, isFalse);
+      capturer.commitAcceptedPaintGeneration(first.result!.paintGeneration);
+
+      final skipped = await capturer.captureAttempt();
+      expect(skipped.failure, isNull);
+      expect(skipped.result, isNotNull);
+      expect(skipped.result!.skippedByPaintGeneration, isTrue);
+      expect(skipped.result!.bytes, isEmpty);
+
+      final boundary =
+          boundaryKey.currentContext!.findRenderObject()!
+              as TugboatCaptureRenderBoundary;
+      final generationBeforeRepaint = boundary.paintGeneration;
+      boundary.markNeedsPaint();
+      await tester.pump();
+      expect(boundary.paintGeneration, greaterThan(generationBeforeRepaint));
+
+      final afterRepaint = await tester.runAsync(
+        () => capturer.captureAttempt(),
+      );
+      expect(afterRepaint, isNotNull);
+      expect(afterRepaint!.failure, isNull);
+      expect(afterRepaint.result, isNotNull);
+      expect(afterRepaint.result!.skippedByPaintGeneration, isFalse);
+
+      capturer.commitAcceptedPaintGeneration(
+        afterRepaint.result!.paintGeneration,
+      );
+      final forced = await tester.runAsync(
+        () => capturer.captureAttempt(force: true),
+      );
+      expect(forced, isNotNull);
+      expect(forced!.failure, isNull);
+      expect(forced.result, isNotNull);
+      expect(forced.result!.skippedByPaintGeneration, isFalse);
+      expect(forced.result!.bytes, isNotEmpty);
+    },
+  );
+
   test('screenshot budget reports independent capture-stage metrics', () {
     final tracker = TugboatScreenshotBudgetTracker();
     tracker.record(

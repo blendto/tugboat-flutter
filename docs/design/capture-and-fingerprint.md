@@ -268,10 +268,11 @@ capture or requires a fresh paint).
 
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA
-pixels are handed to the worker with [TransferableTypedData] so the UI isolate
-does not pay a second full-frame copy into the worker. Platform views, video
-textures, maps, and native overlays may be absent or incomplete in
-repaint-boundary output.
+bytes are packed into [TransferableTypedData] for the worker: packing still
+copies once on the UI isolate, but the worker materializes the buffer without
+a second full-frame copy (unlike a plain isolate/`compute` send). Platform
+views, video textures, maps, and native overlays may be absent or incomplete
+in repaint-boundary output.
 
 When the exploration WebSocket connects and there is no HTTP collector, the
 controller suppresses new Flutter screenshots for UI-thread performance.

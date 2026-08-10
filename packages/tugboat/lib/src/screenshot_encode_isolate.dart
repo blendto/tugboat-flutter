@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
@@ -88,6 +87,9 @@ class IsolateScreenshotEncoder implements ScreenshotEncoder {
     final inFlight = _starting;
     if (inFlight != null) {
       await inFlight.future;
+      if (_disposed) {
+        throw StateError('IsolateScreenshotEncoder is disposed');
+      }
       return;
     }
     final starting = Completer<void>();
@@ -108,7 +110,14 @@ class IsolateScreenshotEncoder implements ScreenshotEncoder {
         responses.sendPort,
         debugName: 'tugboat-screenshot-encode',
       );
-      _commands = await handshake.future.timeout(const Duration(seconds: 5));
+      final commands = await handshake.future.timeout(
+        const Duration(seconds: 5),
+      );
+      if (_disposed) {
+        await _tearDown();
+        throw StateError('IsolateScreenshotEncoder is disposed');
+      }
+      _commands = commands;
       starting.complete();
     } catch (error, stack) {
       if (!starting.isCompleted) {
@@ -157,6 +166,9 @@ class IsolateScreenshotEncoder implements ScreenshotEncoder {
       throw StateError('IsolateScreenshotEncoder is disposed');
     }
     await ensureStarted();
+    if (_disposed) {
+      throw StateError('IsolateScreenshotEncoder is disposed');
+    }
     final commands = _commands;
     if (commands == null) {
       throw StateError('IsolateScreenshotEncoder failed to start');
@@ -164,6 +176,9 @@ class IsolateScreenshotEncoder implements ScreenshotEncoder {
     final jobId = _nextJobId++;
     final completer = Completer<ScreenshotEncodeResult>();
     _pending[jobId] = completer;
+    // fromList copies once into a transferable buffer on this isolate; the
+    // worker then materializes without a second full-frame copy. This still
+    // pays one sender-side memcpy versus keeping pixels in shared storage.
     commands.send(
       ScreenshotEncodeIsolateCommand(
         jobId: jobId,

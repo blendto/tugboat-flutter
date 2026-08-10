@@ -51,6 +51,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
   bool _framesNeedRetry = false;
   final List<Map<String, Object?>> _pendingEvents = [];
   final List<_PendingFrameUpload> _pendingFrames = [];
+  /// Frame numbers superseded while an upload batch was in flight. Failed
+  /// batches are re-filtered against this set before requeue so a newer frame
+  /// can drop superseded scroll/duplicate uploads that left the pending queue.
+  final Set<int> _supersededInFlightFrameNos = <int>{};
+
+  /// Uploads currently awaiting an HTTP response, if any.
+  List<_PendingFrameUpload>? _inFlightFrameUploads;
   final List<List<Map<String, Object?>>> _retryBatches = [];
   final List<_PendingSessionLifecycle> _pendingLifecycle = [];
 
@@ -104,6 +111,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _collectorSessionId = null;
     _pendingEvents.clear();
     _pendingFrames.clear();
+    _supersededInFlightFrameNos.clear();
+    _inFlightFrameUploads = null;
     _retryBatches.clear();
     _pendingLifecycle.clear();
     _framesNeedRetry = false;
@@ -329,6 +338,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _client.close();
     _pendingEvents.clear();
     _pendingFrames.clear();
+    _supersededInFlightFrameNos.clear();
+    _inFlightFrameUploads = null;
     _retryBatches.clear();
     _pendingLifecycle.clear();
     _flushInFlight = null;
@@ -561,10 +572,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final uploads = List<_PendingFrameUpload>.from(_pendingFrames)
       ..sort((a, b) => a.frameNo.compareTo(b.frameNo));
     _pendingFrames.clear();
+    _supersededInFlightFrameNos.clear();
+    _inFlightFrameUploads = uploads;
 
     // Drop extracted uploads when the session was reset mid-flush rather than
     // sending them under a stale collector id.
     if (!_isCurrentEpoch(epoch)) {
+      _inFlightFrameUploads = null;
       return;
     }
     final request = http.MultipartRequest(
@@ -594,15 +608,39 @@ class CollectorHttpSink implements TugboatCaptureSink {
       final result = _classifyResponse(response.statusCode);
       _framesNeedRetry = result == _SendResult.retry;
       if (_framesNeedRetry) {
-        _pendingFrames.insertAll(0, uploads);
-        _trimPendingFrames();
+        _requeueFailedUploads(uploads);
       }
     } catch (_) {
       if (!_isCurrentEpoch(epoch)) return;
       _framesNeedRetry = true;
-      _pendingFrames.insertAll(0, uploads);
-      _trimPendingFrames();
+      _requeueFailedUploads(uploads);
+    } finally {
+      if (identical(_inFlightFrameUploads, uploads)) {
+        _inFlightFrameUploads = null;
+      }
+      _supersededInFlightFrameNos.clear();
     }
+  }
+
+  void _requeueFailedUploads(List<_PendingFrameUpload> uploads) {
+    final retained = uploads
+        .where(
+          (upload) => !_supersededInFlightFrameNos.contains(upload.frameNo),
+        )
+        .toList(growable: false);
+    final dropped = uploads.length - retained.length;
+    if (dropped > 0) {
+      debugPrint(
+        '[tugboat] collector dropped $dropped superseded in-flight '
+        'frame(s) before retry',
+      );
+    }
+    if (retained.isEmpty) {
+      _framesNeedRetry = false;
+      return;
+    }
+    _pendingFrames.insertAll(0, retained);
+    _trimPendingFrames();
   }
 
   void _trimPendingEvents() {
@@ -615,20 +653,43 @@ class CollectorHttpSink implements TugboatCaptureSink {
   }
 
   void _supersedePendingFrames(TugboatFrame incoming, int incomingFrameNo) {
-    if (_pendingFrames.isEmpty) return;
-    final before = _pendingFrames.length;
-    _pendingFrames.removeWhere(
-      (pending) =>
-          pending.trigger == TugboatFrameTrigger.scroll ||
-          pending.contentHash == incoming.contentHash,
-    );
-    final dropped = before - _pendingFrames.length;
-    if (dropped > 0) {
+    if (_pendingFrames.isNotEmpty) {
+      final before = _pendingFrames.length;
+      _pendingFrames.removeWhere(
+        (pending) => _shouldSupersedePending(pending, incoming),
+      );
+      final dropped = before - _pendingFrames.length;
+      if (dropped > 0) {
+        debugPrint(
+          '[tugboat] collector superseded $dropped pending frame(s) '
+          'before enqueueing frame $incomingFrameNo',
+        );
+      }
+    }
+
+    final inFlight = _inFlightFrameUploads;
+    if (inFlight == null || inFlight.isEmpty) return;
+    var marked = 0;
+    for (final upload in inFlight) {
+      if (_shouldSupersedePending(upload, incoming) &&
+          _supersededInFlightFrameNos.add(upload.frameNo)) {
+        marked++;
+      }
+    }
+    if (marked > 0) {
       debugPrint(
-        '[tugboat] collector superseded $dropped pending frame(s) '
-        'before enqueueing frame $incomingFrameNo',
+        '[tugboat] collector marked $marked in-flight frame(s) superseded '
+        'by frame $incomingFrameNo',
       );
     }
+  }
+
+  bool _shouldSupersedePending(
+    _PendingFrameUpload pending,
+    TugboatFrame incoming,
+  ) {
+    return pending.trigger == TugboatFrameTrigger.scroll ||
+        pending.contentHash == incoming.contentHash;
   }
 
   void _trimPendingFrames() {
