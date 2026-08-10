@@ -140,7 +140,7 @@ void main() {
     expect(mapped['build'], isNotNull);
   });
 
-  test('maps session lifecycle payloads for collector sessions endpoint', () {
+  test('maps only session context on session_start', () {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.sessionStart.wireValue,
       sessionId: 'sess_123',
@@ -151,14 +151,15 @@ void main() {
     expect(mapped['sessionId'], 'sess_123');
     expect(mapped['eventType'], 'session_start');
     expect(mapped['userId'], 'user_1');
-    expect((mapped['appInfo'] as Map)['name'], 'Example App');
+    expect((mapped['appInfo'] as Map).containsKey('name'), isFalse);
+    expect((mapped['appInfo'] as Map).containsKey('installationId'), isFalse);
     expect((mapped['appInfo'] as Map)['appId'], 'com.example.app');
     expect((mapped['appInfo'] as Map)['packageName'], 'com.example.app');
     expect((mapped['device'] as Map)['platform'], 'ios');
     expect((mapped['ipInfo'] as Map)['ip'], '127.0.0.1');
     expect((mapped['locale'] as Map)['language'], 'en');
-    expect(mapped['platform'], 'ios');
-    expect(mapped['fingerprintSchemaVersion'], tugboatFingerprintSchemaVersion);
+    expect(mapped.containsKey('platform'), isFalse);
+    expect(mapped.containsKey('fingerprintSchemaVersion'), isFalse);
     expect(mapped.containsKey('traits'), isFalse);
     expect(mapped.containsKey('traitsId'), isFalse);
   });
@@ -176,19 +177,64 @@ void main() {
     expect(mapped['eventType'], 'traits_updated');
     expect(mapped['traits'], {'plan': 'pro'});
     expect(mapped.containsKey('traitsId'), isFalse);
+    expect(mapped.containsKey('appInfo'), isFalse);
+    expect(mapped.containsKey('device'), isFalse);
+    expect(mapped.containsKey('userId'), isFalse);
   });
 
-  test('session map sends traitsId when no traits bag is provided', () {
+  test('session map sends no repeated context on session_end', () {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.sessionEnd.wireValue,
       sessionId: 'sess_123',
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
+      userId: 'user_1',
       traitsId: 'trt_cached',
     );
 
-    expect(mapped['traitsId'], 'trt_cached');
+    expect(mapped, {
+      'sessionId': 'sess_123',
+      'eventType': 'session_end',
+      'triggeredAt': '2026-06-19T00:00:00.000Z',
+    });
     expect(mapped.containsKey('traits'), isFalse);
+  });
+
+  test('session_identify sends only its user and traits changes', () {
+    final mapped = mapTugboatSessionLifecycleToCollectorSession(
+      eventType: TugboatCollectorSessionEventType.sessionIdentify.wireValue,
+      sessionId: 'sess_123',
+      triggeredAt: DateTime.utc(2026, 6, 19),
+      config: collectorConfig,
+      userId: 'user_2',
+      traits: {'plan': 'pro'},
+    );
+
+    expect(mapped, {
+      'sessionId': 'sess_123',
+      'eventType': 'session_identify',
+      'triggeredAt': '2026-06-19T00:00:00.000Z',
+      'userId': 'user_2',
+      'traits': {'plan': 'pro'},
+    });
+  });
+
+  test('user_changed sends only its user-id change', () {
+    final mapped = mapTugboatSessionLifecycleToCollectorSession(
+      eventType: TugboatCollectorSessionEventType.userChanged.wireValue,
+      sessionId: 'sess_123',
+      triggeredAt: DateTime.utc(2026, 6, 19),
+      config: collectorConfig,
+      userId: null,
+      traits: {'mustNot': 'send'},
+    );
+
+    expect(mapped, {
+      'sessionId': 'sess_123',
+      'eventType': 'user_changed',
+      'triggeredAt': '2026-06-19T00:00:00.000Z',
+      'userId': 'user_1',
+    });
   });
 
   test('event map includes optional traitsId', () {

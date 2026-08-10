@@ -399,9 +399,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
             eventType ==
                 TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
             eventType ==
-                TugboatCollectorSessionEventType.traitsUpdated.wireValue ||
-            eventType ==
-                TugboatCollectorSessionEventType.userChanged.wireValue);
+                TugboatCollectorSessionEventType.traitsUpdated.wireValue);
 
     final body = mapTugboatSessionLifecycleToCollectorSession(
       eventType: eventType,

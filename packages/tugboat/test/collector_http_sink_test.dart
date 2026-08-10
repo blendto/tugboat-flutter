@@ -941,7 +941,7 @@ void main() {
     },
   );
 
-  test('session lifecycle without traits bag sends cached traitsId', () async {
+  test('session_start sends cached traitsId without adding it to session_end', () async {
     final sink = CollectorHttpSink(
       config: configForServer(),
       initialTraitsId: 'trt_cached',
@@ -956,12 +956,12 @@ void main() {
     await sink.endSession();
     final endPost = sessionPosts.last;
     expect(endPost['eventType'], 'session_end');
-    expect(endPost['traitsId'], 'trt_cached');
+    expect(endPost.containsKey('traitsId'), isFalse);
     expect(endPost.containsKey('traits'), isFalse);
     sink.dispose();
   });
 
-  test('setUserId posts user_changed with cached traits', () async {
+  test('setUserId posts user_changed without cached traits', () async {
     sessionResponseTraitsId = 'trt_user';
     final sink = createIdentitySink(
       initialTraits: {'plan': 'pro'},
@@ -976,7 +976,7 @@ void main() {
     final changed = sessionPosts.last;
     expect(changed['eventType'], 'user_changed');
     expect(changed['userId'], 'user_b');
-    expect(changed['traits'], {'plan': 'pro'});
+    expect(changed.containsKey('traits'), isFalse);
     expect(changed.containsKey('traitsId'), isFalse);
     sink.dispose();
   });

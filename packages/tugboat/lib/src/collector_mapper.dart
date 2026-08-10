@@ -79,21 +79,43 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   Map<String, dynamic>? traits,
   String? traitsId,
 }) {
-  return {
+  final isSessionStart =
+      eventType == TugboatCollectorSessionEventType.sessionStart.wireValue;
+  final carriesUserId =
+      isSessionStart ||
+      eventType == TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
+      eventType == TugboatCollectorSessionEventType.userChanged.wireValue;
+  final carriesTraits =
+      isSessionStart ||
+      eventType == TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
+      eventType == TugboatCollectorSessionEventType.traitsUpdated.wireValue;
+
+  final body = <String, Object?>{
     'sessionId': sessionId,
-    'userId': userId ?? config.userId,
     'eventType': eventType,
     'triggeredAt': triggeredAt.toUtc().toIso8601String(),
-    'platform': config.deviceInfo.platform,
-    'fingerprintSchemaVersion': tugboatFingerprintSchemaVersion,
-    'appInfo': config.appInfo.toJson(),
-    'device': config.deviceInfo.toJson(),
-    'ipInfo': config.ipInfo.toJson(),
-    'locale': config.locale.toJson(),
-    // Full traits bag wins over traitsId pass-through.
-    if (traits != null) 'traits': traits,
-    if (traits == null && traitsId != null) 'traitsId': traitsId,
   };
+
+  if (carriesUserId) {
+    body['userId'] = userId ?? config.userId;
+  }
+  if (isSessionStart) {
+    final appInfo = Map<String, Object?>.from(config.appInfo.toJson())
+      ..remove('installationId')
+      ..remove('name');
+    body.addAll({
+      'appInfo': appInfo,
+      'device': config.deviceInfo.toJson(),
+      'ipInfo': config.ipInfo.toJson(),
+      'locale': config.locale.toJson(),
+    });
+  }
+  if (carriesTraits) {
+    // Full traits bag wins over traitsId pass-through.
+    if (traits != null) body['traits'] = traits;
+    if (traits == null && traitsId != null) body['traitsId'] = traitsId;
+  }
+  return body;
 }
 
 /// Trailing digits from a tugboat frame id (`frame-12` → `12`).
