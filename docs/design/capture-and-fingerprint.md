@@ -63,7 +63,7 @@ current controller and keeps future calls to `wrapApp` inert. Runtime
 requiring a host rebuild. `deactivate()` tears capture down through the same
 gate. Pause/hidden flush pending delivery; detach ends the session once.
 
-Identity fields (session schema **v9**; compatibility readers accept v6–v9):
+Identity fields (session schema **v10**; compatibility readers accept v6–v10):
 
 - `activationRequestId` — host request correlation
 - `captureSessionId` — SDK-emitted session (`session.id`)
@@ -76,10 +76,11 @@ emits exact build and fingerprint-schema provenance only.
 ## Session and event model
 
 The controller owns one bounded, in-memory `TugboatSession`. Serialized session
-JSON is schema version `9`. Compatibility readers accept schema versions
-`6` through `9`. Schema v9 does not write `controlValue`,
-`controlValueTransition`, or `semanticAnnotation` in event `data`;
-those fields are optional historic data in older sessions only.
+JSON is schema version `10`. Compatibility readers accept schema versions
+`6` through `10`. Schema v9 stopped writing `controlValue`,
+`controlValueTransition`, or `semanticAnnotation` in event `data`; those fields
+are optional historic data in older sessions only. Schema v10 removes
+serialized state identity and adds the `interaction` frame trigger.
 
 The session stores:
 

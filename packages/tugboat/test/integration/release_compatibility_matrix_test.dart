@@ -116,7 +116,7 @@ void main() {
     expect(routes, isNotEmpty);
   });
 
-  test('v6-v8 session JSON remains readable alongside v9 writers', () {
+  test('v6-v9 session JSON remains readable alongside v10 writers', () {
     final session = TugboatSession(
       id: 'legacy-session',
       startedAt: DateTime.utc(2026, 8, 3),
@@ -124,9 +124,9 @@ void main() {
       viewport: const TugboatRect(0, 0, 100, 200),
     );
     final writerJson = session.toJson();
-    expect(writerJson['schemaVersion'], 9);
+    expect(writerJson['schemaVersion'], 10);
 
-    for (final version in [6, 7, 8]) {
+    for (final version in [6, 7, 8, 9]) {
       final legacyJson = Map<String, dynamic>.from(writerJson)
         ..['schemaVersion'] = version
         ..['events'] = [

@@ -6,10 +6,11 @@ import 'package:flutter/widgets.dart';
 import 'anchors.dart';
 import 'collector_config.dart';
 
-/// Current session JSON schema. Writers emit this; readers accept 6–9.
+/// Current session JSON schema. Writers emit this; readers accept 6–10.
 ///
-/// Schema 9 stops emitting value and semantic-annotation event data.
-const int tugboatSessionSchemaVersion = 9;
+/// Schema 10 removes serialized state identity, removes `state_change`, and
+/// adds the `interaction` frame trigger.
+const int tugboatSessionSchemaVersion = 10;
 
 /// Event selection channel for enrichment / insight / replay consumers.
 enum TugboatEventStream {

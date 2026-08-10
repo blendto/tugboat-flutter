@@ -13,7 +13,7 @@ database receipt alone as proof that a replay is correct.
 ## Current acceptance status
 
 The current SDK release candidate is **0.8.0**, which writes session schema
-**v9**. It preserves structural interaction replay while no longer emitting
+**v10**. It preserves structural interaction replay while no longer emitting
 `controlValue`, `controlValueTransition`, `semanticAnnotation`, `stateAnchor`,
 or `stateSignature` in new writer output. It also does not emit `state_change`.
 Treat the absence of those fields as the expected privacy boundary, not as

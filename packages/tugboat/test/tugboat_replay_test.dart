@@ -1054,7 +1054,7 @@ void main() {
     );
 
     final json = jsonDecode(session.toPrettyJson()) as Map<String, dynamic>;
-    expect(json['schemaVersion'], 9);
+    expect(json['schemaVersion'], 10);
     expect(json.containsKey('routes'), isFalse);
     expect(json['events'], [isNot(contains('route'))]);
     expect(json['frames'], [containsPair('captureMicros', 12345)]);
