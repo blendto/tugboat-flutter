@@ -121,6 +121,13 @@ class ViewportSemanticSession {
     required AnchorResolver? resolver,
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
+    if (scrollContext?.trigger == 'scroll_start') {
+      _beginScrollSemanticGesture(
+        stateSignature: inventory.stateSignature,
+        routeKey: inventory.routeKey,
+        scroll: scrollContext!,
+      );
+    }
     if (!engineEnabled || resolver == null) return;
 
     final buildStopwatch = Stopwatch()..start();
@@ -148,10 +155,6 @@ class ViewportSemanticSession {
     final encodedPayload = bounded.encodedJson;
 
     _latestMap = map;
-    if (scrollContext?.trigger == 'scroll_start') {
-      _beginScrollSemanticGesture(map);
-    }
-
     // tapResolutionOnly: keep the map as a device-local lookup table.
     if (!emitEvents) return;
 
@@ -259,18 +262,20 @@ class ViewportSemanticSession {
     }
   }
 
-  void _beginScrollSemanticGesture(TugboatViewportSemanticMap map) {
-    final scroll = map.scrollContext;
-    if (scroll == null) return;
+  void _beginScrollSemanticGesture({
+    required String stateSignature,
+    required String routeKey,
+    required TugboatViewportSemanticScrollContext scroll,
+  }) {
     final accumulatorKey = [
-      map.routeKey,
+      routeKey,
       scroll.scrollableFingerprint ?? 'unknown',
       scroll.axis ?? 'unknown',
     ].join('|');
     _scrollSemanticAccumulators[accumulatorKey] = _ScrollSemanticAccumulator(
       gestureSequence: ++_scrollGestureSequence,
-      stateSignature: map.stateSignature,
-      routeKey: map.routeKey,
+      stateSignature: stateSignature,
+      routeKey: routeKey,
       scrollableFingerprint: scroll.scrollableFingerprint,
       axis: scroll.axis,
     );

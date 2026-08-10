@@ -860,6 +860,7 @@ class TugboatReplayController extends ChangeNotifier {
   final Map<Element, _ScrollTracker> _scrollTrackers = {};
   final Map<String, InteractionTransaction> _scrollInteractions = {};
   final Map<String, _PendingScrollCompletion> _pendingScrollCompletions = {};
+  final Set<InteractionTransaction> _activeCompletedGestureCaptures = {};
   final Set<String> _emittedInventories = <String>{};
   SemanticsHandle? _semanticsHandle;
   late final ViewportSemanticSession _viewportSemantics =
@@ -1404,6 +1405,9 @@ class TugboatReplayController extends ChangeNotifier {
     // orphan causal_only tap for a claim that will never be referenced.
     _abandonAllPendingPointers(publishClaimedTap: false);
     _clearReleasedInteractions();
+    _finalizeActiveCompletedGestureCaptures(
+      InteractionRejectionReason.sessionEnd,
+    );
     _clearScrollCompletionState();
     _captureLifecycleActive = false;
 
@@ -1433,6 +1437,9 @@ class TugboatReplayController extends ChangeNotifier {
     _cancelActiveTapSettles('session_replacement');
     _cancelActiveRouteCapture('session_replacement');
     _invalidateCaptureWork('session_replacement');
+    _finalizeActiveCompletedGestureCaptures(
+      InteractionRejectionReason.sessionEnd,
+    );
     _captureLifecycleActive = true;
     _captureLifecycleEpoch++;
     _endSessionFuture = null;
@@ -3424,15 +3431,18 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   bool _linkScrollStartToActiveGestures(String scrollStartEventId) {
-    var linked = false;
+    // A ScrollNotification does not identify a pointer. Give it one stable
+    // owner so a shared start ID cannot make pointer-up transactions replace
+    // each other in _scrollInteractions. Other active pointers remain swipes
+    // and receive their own interaction captures.
     for (final tx in _interactions.pending) {
-      linked = true;
       if (!tx.scrollStartEventIds.contains(scrollStartEventId)) {
         tx.scrollStartEventIds.add(scrollStartEventId);
       }
       tx.addEvidence(scrollStartEventId);
+      return true;
     }
-    return linked;
+    return false;
   }
 
   void _publishCanonicalInteraction(InteractionTransaction tx) {
@@ -3478,6 +3488,20 @@ class TugboatReplayController extends ChangeNotifier {
     _pendingScrollCompletions.clear();
   }
 
+  void _finalizeActiveCompletedGestureCaptures(
+    InteractionRejectionReason reason,
+  ) {
+    for (final tx in List<InteractionTransaction>.from(
+      _activeCompletedGestureCaptures,
+    )) {
+      tx.afterFrame = null;
+      tx.captureOutcome = _CaptureOutcome.cancelled.wireName;
+      tx.rejectionReason = reason;
+      _finalizeAbandonedTransaction(tx, reason: reason);
+    }
+    _activeCompletedGestureCaptures.clear();
+  }
+
   void _discardScrollCompletionFor(InteractionTransaction tx) {
     for (final scrollStartEventId in tx.scrollStartEventIds) {
       _scrollInteractions.remove(scrollStartEventId);
@@ -3509,24 +3533,29 @@ class TugboatReplayController extends ChangeNotifier {
   void _publishCompletedGestureAfterCapture(InteractionTransaction tx) {
     final session = _session;
     final lifecycleEpoch = _captureLifecycleEpoch;
+    _activeCompletedGestureCaptures.add(tx);
     unawaited(() async {
-      final capture = _requestCaptureCancellable(
-        trigger: TugboatFrameTrigger.interaction,
-        force: true,
-        settleDelay: Duration.zero,
-        relatedEventId: tx.id,
-      );
-      final resolution = await capture.resolution;
-      if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch)) return;
-      tx.afterFrame = resolution.outcome == _CaptureOutcome.freshAccepted
-          ? resolution.frameId
-          : null;
-      tx.captureOutcome = resolution.outcome.wireName;
-      await _enqueue('interaction_after_capture', () async {
+      try {
+        final capture = _requestCaptureCancellable(
+          trigger: TugboatFrameTrigger.interaction,
+          force: true,
+          settleDelay: Duration.zero,
+          relatedEventId: tx.id,
+        );
+        final resolution = await capture.resolution;
         if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch)) return;
-        _publishCanonicalInteraction(tx);
-        if (!_disposed) notifyListeners();
-      });
+        tx.afterFrame = resolution.outcome == _CaptureOutcome.freshAccepted
+            ? resolution.frameId
+            : null;
+        tx.captureOutcome = resolution.outcome.wireName;
+        await _enqueue('interaction_after_capture', () async {
+          if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch)) return;
+          _publishCanonicalInteraction(tx);
+          if (!_disposed) notifyListeners();
+        });
+      } finally {
+        _activeCompletedGestureCaptures.remove(tx);
+      }
     }());
   }
 
@@ -4351,6 +4380,9 @@ class TugboatReplayController extends ChangeNotifier {
         );
         _clearReleasedInteractions(
           reason: InteractionRejectionReason.lifecycle,
+        );
+        _finalizeActiveCompletedGestureCaptures(
+          InteractionRejectionReason.lifecycle,
         );
         _clearScrollCompletionState();
         _captureLifecycleActive = false;

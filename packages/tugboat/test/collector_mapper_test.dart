@@ -233,7 +233,7 @@ void main() {
       'sessionId': 'sess_123',
       'eventType': 'user_changed',
       'triggeredAt': '2026-06-19T00:00:00.000Z',
-      'userId': 'user_1',
+      'userId': null,
     });
   });
 

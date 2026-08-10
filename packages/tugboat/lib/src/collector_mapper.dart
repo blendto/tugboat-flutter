@@ -96,7 +96,9 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   };
 
   if (carriesUserId) {
-    body['userId'] = userId ?? config.userId;
+    // Only session_start inherits the configured startup identity. Later
+    // lifecycle records use null as an explicit identity-clear operation.
+    body['userId'] = isSessionStart ? userId ?? config.userId : userId;
   }
   if (isSessionStart) {
     final appInfo = Map<String, Object?>.from(config.appInfo.toJson())

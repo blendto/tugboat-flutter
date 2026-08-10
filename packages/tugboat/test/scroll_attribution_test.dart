@@ -109,6 +109,59 @@ void main() {
     await _exerciseScrollCallbackOrder(tester, endBeforePointerUp: false);
   });
 
+  testWidgets('one scroll start has one pointer owner', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _scrollTestConfig, child: child!),
+        home: Scaffold(
+          body: ListView.builder(
+            itemCount: 30,
+            itemBuilder: (context, index) => Text('Owner item $index'),
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    final controller = TugboatReplay.controller!;
+    controller.debugExecuteCapture =
+        ({required trigger, required force}) async {
+          return controller.debugSeedFrame(trigger: trigger);
+        };
+    final listContext = tester.element(find.byType(Scrollable));
+    final metrics = Scrollable.of(
+      tester.element(find.text('Owner item 0')),
+    ).position;
+    controller.recordPointerDown(const Offset(20, 120), pointer: 1);
+    controller.recordPointerDown(const Offset(40, 120), pointer: 2);
+    controller.markPendingTapAsSwipe(1);
+    controller.markPendingTapAsSwipe(2);
+    controller.recordScrollStart(
+      scrollContext: listContext,
+      metrics: metrics,
+      depth: 0,
+    );
+    controller.recordPointerUp(const Offset(20, 20), pointer: 1);
+    controller.recordPointerUp(const Offset(40, 20), pointer: 2);
+    controller.recordScrollEnd(scrollContext: listContext, metrics: metrics);
+    await _waitForCaptures(tester);
+    await _waitForCaptures(tester);
+
+    final interactions = controller.session!.events
+        .where((event) => event.type == 'interaction')
+        .toList();
+    expect(interactions, hasLength(2));
+    expect(interactions.map((event) => event.data['gesture']).toSet(), {
+      'scroll',
+      'swipe',
+    });
+    expect(
+      interactions.map((event) => event.data['interactionId']).toSet(),
+      hasLength(2),
+    );
+  });
+
   testWidgets(
     'programmatic scroll emits evidence without interaction capture',
     (tester) async {

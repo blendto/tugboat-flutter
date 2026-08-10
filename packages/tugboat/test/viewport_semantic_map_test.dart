@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 import 'package:tugboat/src/anchors.dart';
+import 'package:tugboat/src/viewport_semantic_session.dart';
 
 const _semanticMapConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
@@ -812,5 +813,108 @@ void main() {
     );
     expect(resolution.status, 'matched_actionable');
     expect(resolution.linkedFingerprint, isNotEmpty);
+  });
+
+  testWidgets('unavailable scroll start still resets semantic accumulation', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final rootKey = GlobalKey();
+    Future<TugboatSceneInventory> mountInventory() async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RepaintBoundary(
+            key: rootKey,
+            child: Scaffold(
+              body: FilledButton(
+                onPressed: () {},
+                child: const Text('Semantic target'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final resolver = AnchorResolver(rootKey: rootKey);
+      return resolver.buildSceneInventory(
+        route: '/list',
+        keyboardOpen: false,
+        modalOpen: false,
+      )!;
+    }
+
+    final emitted = <TugboatEvent>[];
+    var eventId = 0;
+    final semanticSession = ViewportSemanticSession(
+      config: _scrollSemanticMapConfig,
+      nextEventId: (prefix) => '$prefix-${eventId++}',
+      atMs: () => eventId,
+      addEvent: emitted.add,
+    );
+    var inventory = await mountInventory();
+    var resolver = AnchorResolver(rootKey: rootKey);
+    const start = TugboatViewportSemanticScrollContext(
+      trigger: 'scroll_start',
+      scrollableFingerprint: 'fp-list',
+      axis: 'vertical',
+      offsetNorm: 0,
+    );
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: start,
+    );
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: const TugboatViewportSemanticScrollContext(
+        trigger: 'scroll_update',
+        scrollableFingerprint: 'fp-list',
+        axis: 'vertical',
+        offsetNorm: 0.2,
+      ),
+    );
+    final firstSnapshotCount = emitted
+        .where((event) => event.type == 'scroll_semantic_snapshot')
+        .length;
+    expect(firstSnapshotCount, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: start,
+    );
+
+    inventory = await mountInventory();
+    resolver = AnchorResolver(rootKey: rootKey);
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: const TugboatViewportSemanticScrollContext(
+        trigger: 'scroll_update',
+        scrollableFingerprint: 'fp-list',
+        axis: 'vertical',
+        offsetNorm: 0.6,
+      ),
+    );
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: const TugboatViewportSemanticScrollContext(
+        trigger: 'scroll_end',
+        scrollableFingerprint: 'fp-list',
+        axis: 'vertical',
+        offsetNorm: 0.8,
+      ),
+    );
+
+    final newSnapshots = emitted
+        .where((event) => event.type == 'scroll_semantic_snapshot')
+        .skip(firstSnapshotCount)
+        .toList();
+    expect(newSnapshots, isNotEmpty);
+    expect(newSnapshots.first.data['observedSliceCount'], 2);
+    semantics.dispose();
   });
 }

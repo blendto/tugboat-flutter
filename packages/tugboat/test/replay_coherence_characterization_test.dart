@@ -537,6 +537,106 @@ void main() {
     },
   );
 
+  test(
+    'ending session retains a swipe whose capture is still pending',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/list', signature: 'sig-list');
+      harness.capturer.blockNext = true;
+      harness.controller.recordPointerDown(const Offset(10, 100));
+      harness.controller.markPendingTapAsSwipe(0);
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+
+      await harness.controller.endSession();
+      final interactions = harness.controller.session!.ofType('interaction');
+      expect(interactions, hasLength(1));
+      expect(interactions.single.data['gesture'], 'swipe');
+      final result = interactions.single.data['result'] as Map;
+      expect(result['status'], 'cancelled');
+      expect(result['captureOutcome'], 'cancelled');
+      expect(result['observedAtMs'], isA<int>());
+      expect(
+        (interactions.single.data['attribution'] as Map)['rejectionReason'],
+        'sessionEnd',
+      );
+
+      harness.capturer.completeBlocked('late-swipe-frame');
+      await harness.pumpQueueWork();
+      expect(harness.controller.session!.ofType('interaction'), hasLength(1));
+    },
+  );
+
+  test(
+    'backgrounding retains a swipe whose capture is still pending',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/list', signature: 'sig-list');
+      harness.capturer.blockNext = true;
+      harness.controller.recordPointerDown(const Offset(10, 100));
+      harness.controller.markPendingTapAsSwipe(0);
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+
+      harness.controller.recordAppLifecycleState(AppLifecycleState.paused);
+      final interactions = harness.controller.session!.ofType('interaction');
+      expect(interactions, hasLength(1));
+      expect(interactions.single.data['gesture'], 'swipe');
+      expect(
+        (interactions.single.data['result'] as Map)['status'],
+        'cancelled',
+      );
+      expect(
+        (interactions.single.data['attribution'] as Map)['rejectionReason'],
+        'lifecycle',
+      );
+
+      harness.capturer.completeBlocked('late-background-swipe-frame');
+      await harness.pumpQueueWork();
+      expect(harness.controller.session!.ofType('interaction'), hasLength(1));
+    },
+  );
+
+  test(
+    'session replacement finalizes a pending swipe in the old session',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      final oldSession = harness.controller.session!;
+      harness.seedRouteState(route: '/list', signature: 'sig-list');
+      harness.capturer.blockNext = true;
+      harness.controller.recordPointerDown(const Offset(10, 100));
+      harness.controller.markPendingTapAsSwipe(0);
+      harness.controller.recordPointerUp(const Offset(10, 10));
+      await harness.pumpQueueWork();
+      expect(harness.capturer.blockedCount, 1);
+
+      harness.controller.start(const Size(390, 844), 'replacement');
+      expect(oldSession.ofType('interaction'), hasLength(1));
+      expect(oldSession.ofType('interaction').single.data['gesture'], 'swipe');
+      expect(
+        (oldSession.ofType('interaction').single.data['result']
+            as Map)['status'],
+        'cancelled',
+      );
+
+      harness.capturer.completeBlocked('late-replacement-swipe-frame');
+      await harness.pumpQueueWork();
+      expect(oldSession.ofType('interaction'), hasLength(1));
+      expect(harness.controller.session!.ofType('interaction'), isEmpty);
+    },
+  );
+
   testWidgets('ending session suppresses blocked scroll_end output', (
     tester,
   ) async {
