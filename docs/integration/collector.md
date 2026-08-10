@@ -204,8 +204,11 @@ Event payloads contain:
   schema version.
 
 Frame uploads are sorted by numeric frame suffix and sent as multipart files
-named `<frameNo>.png`, with `sessionId` and comma-separated `frameNos` fields.
+named `<frameNo>.jpg`, with `sessionId` and comma-separated `frameNos` fields.
 Malformed frame IDs and frames belonging to a stale SDK session are dropped.
+While frames are still queued, newer captures supersede pending `scroll`
+samples and any pending frame with the same content hash so intermediate
+burst rasters are not uploaded.
 
 ### Batching, retry, and backpressure
 

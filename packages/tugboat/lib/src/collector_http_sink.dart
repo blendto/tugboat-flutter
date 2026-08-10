@@ -170,7 +170,32 @@ class CollectorHttpSink implements TugboatCaptureSink {
       );
       return;
     }
-    _pendingFrames.add(_PendingFrameUpload(frameNo: frameNo, bytes: bytes));
+    // Drop superseded pending frames so a rapid capture burst (especially
+    // scroll samples) uploads the newest observation instead of every
+    // intermediate raster. Non-scroll frames with distinct content remain.
+    if (_pendingFrames.isNotEmpty) {
+      final before = _pendingFrames.length;
+      _pendingFrames.removeWhere(
+        (pending) =>
+            pending.trigger == TugboatFrameTrigger.scroll ||
+            pending.contentHash == frame.contentHash,
+      );
+      final dropped = before - _pendingFrames.length;
+      if (dropped > 0) {
+        debugPrint(
+          '[tugboat] collector superseded $dropped pending frame(s) '
+          'before enqueueing frame $frameNo',
+        );
+      }
+    }
+    _pendingFrames.add(
+      _PendingFrameUpload(
+        frameNo: frameNo,
+        bytes: bytes,
+        trigger: frame.trigger,
+        contentHash: frame.contentHash,
+      ),
+    );
     _trimPendingFrames();
     // While a frame upload is retrying, rely on the periodic flush timer.
     if (!_framesNeedRetry) {
@@ -674,8 +699,15 @@ class _PendingSessionLifecycle {
 }
 
 class _PendingFrameUpload {
-  const _PendingFrameUpload({required this.frameNo, required this.bytes});
+  const _PendingFrameUpload({
+    required this.frameNo,
+    required this.bytes,
+    required this.trigger,
+    required this.contentHash,
+  });
 
   final int frameNo;
   final Uint8List bytes;
+  final TugboatFrameTrigger trigger;
+  final String contentHash;
 }
