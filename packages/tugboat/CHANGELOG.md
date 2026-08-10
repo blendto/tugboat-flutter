@@ -1,3 +1,16 @@
+## 0.7.0
+
+### Added
+
+- **Explicit production parameter opt-in** —
+  `TugboatParameterPolicy.allowAllInProduction` retains JSON-safe external-event
+  parameter values in production capture profiles. `namesOnly` remains the
+  default. `allowAll` remains an exploration-only escape hatch and still
+  downgrades to names-only outside exploration. The existing JSON and size
+  bounds still apply. This policy can retain feedback, search terms, URLs, IDs,
+  and other user content. Hosts must confirm consent, privacy, access, and
+  retention rules before they use it.
+
 ## 0.6.0
 
 ### Changed

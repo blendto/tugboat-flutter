@@ -7,13 +7,17 @@ enum TugboatParameterCaptureMode {
   namesOnly,
   allowList,
   transform,
-  allowAll;
+  allowAll,
+  allowAllInProduction;
 
   String get wireName => switch (this) {
     TugboatParameterCaptureMode.namesOnly => 'names_only',
     TugboatParameterCaptureMode.allowList => 'allow_list',
     TugboatParameterCaptureMode.transform => 'transform',
-    TugboatParameterCaptureMode.allowAll => 'allow_all',
+    // Both retain-all modes share the wire label; production scope is carried
+    // by the mode itself, not a parallel flag.
+    TugboatParameterCaptureMode.allowAll ||
+    TugboatParameterCaptureMode.allowAllInProduction => 'allow_all',
   };
 }
 
@@ -27,7 +31,8 @@ class TugboatParameterDrop {
 ///
 /// Parameter keys may be captured by default. Values are captured only through
 /// an explicit allow-list, transform, or the deliberately named [allowAll]
-/// exploration escape hatch.
+/// exploration escape hatch. [allowAllInProduction] is a separate production
+/// opt-in.
 class TugboatParameterPolicy {
   const TugboatParameterPolicy._({
     required this.mode,
@@ -65,6 +70,18 @@ class TugboatParameterPolicy {
   /// this to [namesOnly].
   static const allowAll = TugboatParameterPolicy._(
     mode: TugboatParameterCaptureMode.allowAll,
+  );
+
+  /// Production opt-in that retains all JSON-safe values within hard limits.
+  ///
+  /// This can capture feedback, search terms, URLs, IDs, and other user
+  /// content. The host must confirm consent, privacy, access, and retention
+  /// rules before it uses this policy.
+  ///
+  /// Unlike [allowAll], this policy retains values in production capture
+  /// profiles. It still applies all parameter safety and size limits.
+  static const allowAllInProduction = TugboatParameterPolicy._(
+    mode: TugboatParameterCaptureMode.allowAllInProduction,
   );
 
   /// Sentinel for transform callbacks.
@@ -261,7 +278,8 @@ _ValueDecision _decideTopLevelValue(
       key,
       value,
     ),
-    TugboatParameterCaptureMode.allowAll => _KeepValue(value),
+    TugboatParameterCaptureMode.allowAll ||
+    TugboatParameterCaptureMode.allowAllInProduction => _KeepValue(value),
   };
 }
 
