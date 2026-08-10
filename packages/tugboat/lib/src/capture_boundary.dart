@@ -50,6 +50,22 @@ int tugboatSubtreePaintSignature(RenderObject root) {
     if (layer is PictureLayer) {
       signature = Object.hash(signature, identityHashCode(layer.picture));
     }
+    if (layer is TransformLayer) {
+      final matrix = layer.transform;
+      if (matrix != null) {
+        signature = Object.hash(signature, matrix.storage.hashCode);
+      }
+    }
+    if (layer is OpacityLayer) {
+      signature = Object.hash(signature, layer.alpha);
+    }
+    if (layer is OffsetLayer) {
+      signature = Object.hash(
+        signature,
+        layer.offset.dx,
+        layer.offset.dy,
+      );
+    }
     if (layer is ContainerLayer) {
       var child = layer.firstChild;
       while (child != null) {

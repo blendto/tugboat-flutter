@@ -2176,69 +2176,86 @@ class TugboatReplayController extends ChangeNotifier {
 
     _beginCapture();
     try {
-      final attempt = await capturer.captureAttempt(
-        // A freshness-sensitive request needs a new logical observation even
-        // when its pixels match. Reusing the old frame would also reuse its
-        // old completion-state provenance.
-        force: force || requiresFreshPaint || !hasCompatibleFrame,
-        waitForFrame: true,
-        requireFreshPaint: requiresFreshPaint,
-        allowPaintGenerationSkip:
-            trigger != TugboatFrameTrigger.initial && hasCompatibleFrame,
-        cancelled: captureCancellation,
-        isCurrent: () =>
-            _captureContextStillCurrent(
-              context,
-              captureGeneration,
-              captureSession,
-            ) &&
-            !_capturePaused &&
-            !_skipCapture,
-      );
-      final result = attempt.result;
-      if (result == null ||
-          _disposed ||
-          !_captureContextStillCurrent(context, captureGeneration, session)) {
-        _lastCaptureFailure = attempt.failure;
-        if (attempt.failure != ScreenshotCaptureFailure.cancelled &&
-            _captureContextStillCurrent(
-              context,
-              captureGeneration,
-              captureSession,
-            )) {
-          _screenshotBudget.record(
-            queueWaitMicros: queueWaitMicros,
-            frameWaitMicros: attempt.frameWaitMicros,
-            readbackMicros: 0,
-            encodeMicros: 0,
-            encodedBytes: 0,
-            dropReason: attempt.failure?.name ?? 'capture_failed',
-          );
-        }
-        return _CaptureExecution(
-          outcome:
-              !_captureContextStillCurrent(
+      var allowPaintSkip =
+          trigger != TugboatFrameTrigger.initial && hasCompatibleFrame;
+      var captureForce = force || requiresFreshPaint || !hasCompatibleFrame;
+      late ScreenshotCaptureAttempt attempt;
+      late ScreenshotCaptureResult result;
+
+      for (var paintRetry = 0; paintRetry < 2; paintRetry++) {
+        attempt = await capturer.captureAttempt(
+          // A freshness-sensitive request needs a new logical observation even
+          // when its pixels match. Reusing the old frame would also reuse its
+          // old completion-state provenance.
+          force: captureForce,
+          waitForFrame: true,
+          requireFreshPaint: requiresFreshPaint,
+          allowPaintGenerationSkip: allowPaintSkip,
+          cancelled: captureCancellation,
+          isCurrent: () =>
+              _captureContextStillCurrent(
                 context,
                 captureGeneration,
                 captureSession,
-              )
-              ? _CaptureOutcome.supersededRoute
-              : _diagnosticOutcomeForFailure(attempt.failure),
-          failure: attempt.failure,
-          cancellationReason:
-              attempt.failure == ScreenshotCaptureFailure.cancelled
-              ? 'superseded_route'
-              : null,
+              ) &&
+              !_capturePaused &&
+              !_skipCapture,
         );
-      }
-      _lastCaptureFailure = null;
+        final attemptResult = attempt.result;
+        if (attemptResult == null ||
+            _disposed ||
+            !_captureContextStillCurrent(context, captureGeneration, session)) {
+          _lastCaptureFailure = attempt.failure;
+          if (attempt.failure != ScreenshotCaptureFailure.cancelled &&
+              _captureContextStillCurrent(
+                context,
+                captureGeneration,
+                captureSession,
+              )) {
+            _screenshotBudget.record(
+              queueWaitMicros: queueWaitMicros,
+              frameWaitMicros: attempt.frameWaitMicros,
+              readbackMicros: 0,
+              encodeMicros: 0,
+              encodedBytes: 0,
+              dropReason: attempt.failure?.name ?? 'capture_failed',
+            );
+          }
+          return _CaptureExecution(
+            outcome:
+                !_captureContextStillCurrent(
+                  context,
+                  captureGeneration,
+                  captureSession,
+                )
+                ? _CaptureOutcome.supersededRoute
+                : _diagnosticOutcomeForFailure(attempt.failure),
+            failure: attempt.failure,
+            cancellationReason:
+                attempt.failure == ScreenshotCaptureFailure.cancelled
+                ? 'superseded_route'
+                : null,
+          );
+        }
+        _lastCaptureFailure = null;
 
-      if (result.skippedByPaintGeneration) {
-        return _reuseWithoutCapture(
-          context: context,
-          outcome: _CaptureOutcome.paintGenerationUnchanged,
-          reuseReason: 'paint_generation',
-        );
+        if (attemptResult.skippedByPaintGeneration) {
+          final reuseExecution = _reuseWithoutCapture(
+            context: context,
+            outcome: _CaptureOutcome.paintGenerationUnchanged,
+            reuseReason: 'paint_generation',
+          );
+          if (reuseExecution.outcome == _CaptureOutcome.noCompatibleFrame &&
+              paintRetry == 0) {
+            allowPaintSkip = false;
+            captureForce = true;
+            continue;
+          }
+          return reuseExecution;
+        }
+
+        result = attemptResult;
+        break;
       }
 
       _refreshStateAnchor();
