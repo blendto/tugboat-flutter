@@ -7,13 +7,17 @@ enum TugboatParameterCaptureMode {
   namesOnly,
   allowList,
   transform,
-  allowAll;
+  allowAll,
+  allowAllInProduction;
 
   String get wireName => switch (this) {
     TugboatParameterCaptureMode.namesOnly => 'names_only',
     TugboatParameterCaptureMode.allowList => 'allow_list',
     TugboatParameterCaptureMode.transform => 'transform',
-    TugboatParameterCaptureMode.allowAll => 'allow_all',
+    // Both retain-all modes share the wire label; production scope is carried
+    // by the mode itself, not a parallel flag.
+    TugboatParameterCaptureMode.allowAll ||
+    TugboatParameterCaptureMode.allowAllInProduction => 'allow_all',
   };
 }
 
@@ -34,13 +38,7 @@ class TugboatParameterPolicy {
     required this.mode,
     this.allowedKeys,
     this.valueTransform,
-  }) : _allowAllInProduction = false;
-
-  const TugboatParameterPolicy._productionAllowAll()
-    : mode = TugboatParameterCaptureMode.allowAll,
-      allowedKeys = null,
-      valueTransform = null,
-      _allowAllInProduction = true;
+  });
 
   /// Record event name plus bounded parameter keys only. Default production
   /// policy.
@@ -82,8 +80,9 @@ class TugboatParameterPolicy {
   ///
   /// Unlike [allowAll], this policy retains values in production capture
   /// profiles. It still applies all parameter safety and size limits.
-  static const allowAllInProduction =
-      TugboatParameterPolicy._productionAllowAll();
+  static const allowAllInProduction = TugboatParameterPolicy._(
+    mode: TugboatParameterCaptureMode.allowAllInProduction,
+  );
 
   /// Sentinel for transform callbacks.
   static const drop = TugboatParameterDrop._();
@@ -91,7 +90,6 @@ class TugboatParameterPolicy {
   final TugboatParameterCaptureMode mode;
   final Set<String>? allowedKeys;
   final Object? Function(String key, Object? value)? valueTransform;
-  final bool _allowAllInProduction;
 
   /// Wire label for capture metadata (`names_only`, `allow_list`, …).
   String get captureValues => mode.wireName;
@@ -99,7 +97,6 @@ class TugboatParameterPolicy {
   /// Resolves exploration-only escape hatches against the active profile.
   TugboatParameterPolicy effectiveFor(TugboatCaptureProfile profile) {
     if (mode == TugboatParameterCaptureMode.allowAll &&
-        !_allowAllInProduction &&
         profile != TugboatCaptureProfile.exploration) {
       return namesOnly;
     }
@@ -281,7 +278,8 @@ _ValueDecision _decideTopLevelValue(
       key,
       value,
     ),
-    TugboatParameterCaptureMode.allowAll => _KeepValue(value),
+    TugboatParameterCaptureMode.allowAll ||
+    TugboatParameterCaptureMode.allowAllInProduction => _KeepValue(value),
   };
 }
 

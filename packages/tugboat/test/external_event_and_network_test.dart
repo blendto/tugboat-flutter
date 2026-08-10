@@ -178,8 +178,42 @@ void main() {
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (event) => event.type == 'external_event',
     );
+    expect(event.data['parameterKeys'], ['query']);
     expect(event.data['parameters'], {'query': 'private search'});
-    expect((event.data['capture'] as Map)['values'], 'allow_all');
+    expect(event.data['capture'], {
+      'values': 'allow_all',
+      'truncated': false,
+      'droppedCount': 0,
+    });
+  });
+
+  test('effectiveFor only downgrades exploration allowAll', () {
+    expect(
+      TugboatParameterPolicy.allowAll.effectiveFor(
+        TugboatCaptureProfile.productionLean,
+      ),
+      same(TugboatParameterPolicy.namesOnly),
+    );
+    expect(
+      TugboatParameterPolicy.allowAllInProduction.effectiveFor(
+        TugboatCaptureProfile.productionLean,
+      ),
+      same(TugboatParameterPolicy.allowAllInProduction),
+    );
+    expect(
+      TugboatParameterPolicy.allowAllInProduction.mode,
+      TugboatParameterCaptureMode.allowAllInProduction,
+    );
+    expect(
+      TugboatParameterPolicy.allowAllInProduction.captureValues,
+      'allow_all',
+    );
+    expect(
+      TugboatParameterPolicy.allowAll.effectiveFor(
+        TugboatCaptureProfile.exploration,
+      ),
+      same(TugboatParameterPolicy.allowAll),
+    );
   });
 
   testWidgets('external event ignores active action window', (tester) async {
