@@ -5,7 +5,7 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.7.0`. Session JSON writers emit schema
+The current package version is `0.7.1`. Session JSON writers emit schema
 version `9`; compatibility readers should accept versions `6` through
 `9`. Structural fingerprints use fingerprint schema version `6`.
 
@@ -23,7 +23,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.7.0
+  tugboat_dio: ^0.7.1
 ```
 
 See `packages/tugboat_dio/README.md`.
@@ -303,7 +303,7 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | `viewportSemanticMapMaxBytes` | 48000 | emitted map byte budget |
 | `sinkFactories` | empty | extra `TugboatCaptureSinkFactory` adapters |
 | `outbox` | disabled | durable HTTP outbox configuration |
-| `screenshotBudget` | defaults | degraded-capture skip window / budget |
+| `screenshotBudget` | 60ms / 5s window | degraded-capture skip window / budget |
 
 ### Legacy gesture projection deprecation
 
@@ -433,9 +433,10 @@ cancellations, evidence, legacy projections, and diagnostics.
 
 Frames can be triggered by initial startup, taps, scrolls, routes, lifecycle,
 or explicit controller calls. Capture requests are serialized and coalesced.
-The SDK first skips repeated state signatures, then uses a small dHash to avoid
-PNG encoding for visually unchanged content, and finally deduplicates encoded
-frames by content hash.
+When the capture boundary has not painted since the last accepted frame, the
+SDK reuses that frame without GPU readback. Otherwise it uses a small dHash
+(Hamming distance ≤ 2) to avoid JPEG encoding for near-identical content, and
+finally deduplicates encoded frames by content hash.
 
 Pointer coordinates in event data (`x`, `y`, and swipe `startX`/`startY`) are
 Flutter global logical-pixel coordinates from the pointer event. The SDK
@@ -515,7 +516,7 @@ to an inferred event. The closed outcome vocabulary is:
 | `fresh_accepted` | A fresh frame was accepted. |
 | `exact_content_reused` | An exact content hash reused a compatible frame. |
 | `perceptual_hash_coalesced` | A perceptual hash reused a compatible frame. |
-| `state_signature_short_circuit` | Compatible semantic state made capture unnecessary. |
+| `paint_generation_unchanged` | The capture subtree had not painted since the last accepted frame. |
 | `screenshot_budget_skip` | Degraded screenshot budget skipped eligible work. |
 | `superseded_route_epoch` | Navigation superseded the request's route epoch. |
 | `paint_readiness_timeout` | A fresh paint did not become available in time. |
@@ -547,7 +548,8 @@ sink registration API has not been published.
 
 - Platform views, maps, video textures, and native overlays may be absent or
   incomplete in repaint-boundary screenshots and structural walks.
-- Screenshot readback and PNG encoding perform UI-thread work at checkpoints.
+- Screenshot readback and JPEG encoding perform UI-thread and background-isolate
+  work at checkpoints.
 - Runtime activation/deactivation requires a host rebuild, and activation IDs
   are not yet the emitted session IDs.
 - There is no automatic Android intent-extra/deep-link bridge, offline file

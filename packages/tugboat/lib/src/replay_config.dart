@@ -67,7 +67,9 @@ TugboatViewportSemanticPolicy resolveViewportSemanticPolicy({
 class TugboatScreenshotBudgetConfig {
   const TugboatScreenshotBudgetConfig({
     this.window = const Duration(seconds: 5),
-    this.budgetMicros = 80 * 1000,
+    // 60ms / 5s: engage eligible-capture skipping sooner under load now that
+    // post-capture state-signature short circuit no longer filters work.
+    this.budgetMicros = 60 * 1000,
     this.skipEligibleWhenDegraded = true,
   });
 

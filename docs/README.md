@@ -28,7 +28,7 @@ should be verified in their own repositories.
 
 ## Current compatibility
 
-- package version: `0.7.0`;
+- package version: `0.7.1`;
 - session JSON schema: `9`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;

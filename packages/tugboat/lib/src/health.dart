@@ -193,7 +193,7 @@ class TugboatSanitizedFailure {
 class TugboatScreenshotBudgetTracker {
   TugboatScreenshotBudgetTracker({
     this.window = const Duration(seconds: 5),
-    this.budgetMicros = 80 * 1000, // 80ms per window default
+    this.budgetMicros = 60 * 1000, // 60ms per window default
   });
 
   Duration window;

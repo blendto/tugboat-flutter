@@ -170,7 +170,12 @@ class CollectorHttpSink implements TugboatCaptureSink {
       );
       return;
     }
-    _pendingFrames.add(_PendingFrameUpload(frameNo: frameNo, bytes: bytes));
+    _pendingFrames.add(
+      _PendingFrameUpload(
+        frameNo: frameNo,
+        bytes: bytes,
+      ),
+    );
     _trimPendingFrames();
     // While a frame upload is retrying, rely on the periodic flush timer.
     if (!_framesNeedRetry) {
@@ -586,15 +591,19 @@ class CollectorHttpSink implements TugboatCaptureSink {
       final result = _classifyResponse(response.statusCode);
       _framesNeedRetry = result == _SendResult.retry;
       if (_framesNeedRetry) {
-        _pendingFrames.insertAll(0, uploads);
-        _trimPendingFrames();
+        _requeueFailedUploads(uploads);
       }
     } catch (_) {
       if (!_isCurrentEpoch(epoch)) return;
       _framesNeedRetry = true;
-      _pendingFrames.insertAll(0, uploads);
-      _trimPendingFrames();
+      _requeueFailedUploads(uploads);
     }
+  }
+
+  void _requeueFailedUploads(List<_PendingFrameUpload> uploads) {
+    // Events reference exact frame IDs; never drop uploads on retry.
+    _pendingFrames.insertAll(0, uploads);
+    _trimPendingFrames();
   }
 
   void _trimPendingEvents() {
@@ -674,7 +683,10 @@ class _PendingSessionLifecycle {
 }
 
 class _PendingFrameUpload {
-  const _PendingFrameUpload({required this.frameNo, required this.bytes});
+  const _PendingFrameUpload({
+    required this.frameNo,
+    required this.bytes,
+  });
 
   final int frameNo;
   final Uint8List bytes;
