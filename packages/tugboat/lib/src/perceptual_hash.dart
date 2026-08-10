@@ -33,3 +33,30 @@ String computeDHashFromRgba(Uint8List rgba, int width, int height) {
   }
   return bits.toString();
 }
+
+/// Hamming distance between two equal-length bit strings.
+///
+/// Returns a large sentinel when either input is empty or lengths differ so
+/// callers can treat malformed hashes as non-matching.
+int dHashHammingDistance(String a, String b) {
+  if (a.isEmpty || b.isEmpty || a.length != b.length) {
+    return 0x7fffffff;
+  }
+  var distance = 0;
+  for (var i = 0; i < a.length; i++) {
+    if (a.codeUnitAt(i) != b.codeUnitAt(i)) distance++;
+  }
+  return distance;
+}
+
+/// Maximum Hamming distance treated as visually unchanged for coalesce.
+///
+/// A couple of flipped bits typically cover single-pixel anti-alias shimmer
+/// without swallowing meaningful UI changes.
+const int dHashMatchDistance = 2;
+
+/// Whether [candidate] is close enough to [previous] to skip JPEG encoding.
+bool dHashVisuallyMatches(String? previous, String candidate) {
+  if (previous == null || previous.isEmpty || candidate.isEmpty) return false;
+  return dHashHammingDistance(previous, candidate) <= dHashMatchDistance;
+}

@@ -258,8 +258,9 @@ The public mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
 `allTextExceptActionable`, and `sensitiveInputsOnly`.
 
 Capture computes a 9x8 perceptual dHash from the masked RGBA buffer inside the
-encode isolate to skip JPEG encoding for a visually unchanged raster, then
-SHA-256 content hashing to deduplicate encoded frames. Capture requests are
+encode isolate and skips JPEG encoding when the Hamming distance to the last
+accepted hash is at most 2 bits (tolerating minor anti-alias shimmer). SHA-256
+content hashing then deduplicates encoded frames. Capture requests are
 serialized and coalesced. When the capture boundary's paint generation has not
 advanced since the last accepted frame, the controller skips the entire GPU
 readback/encode path and reuses a compatible frame (unless the caller forces

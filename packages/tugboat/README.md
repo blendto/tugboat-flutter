@@ -434,9 +434,9 @@ cancellations, evidence, legacy projections, and diagnostics.
 Frames can be triggered by initial startup, taps, scrolls, routes, lifecycle,
 or explicit controller calls. Capture requests are serialized and coalesced.
 When the capture boundary has not painted since the last accepted frame, the
-SDK reuses that frame without GPU readback. Otherwise it uses a small dHash to
-avoid JPEG encoding for visually unchanged content, and finally deduplicates
-encoded frames by content hash.
+SDK reuses that frame without GPU readback. Otherwise it uses a small dHash
+(Hamming distance ≤ 2) to avoid JPEG encoding for near-identical content, and
+finally deduplicates encoded frames by content hash.
 
 Pointer coordinates in event data (`x`, `y`, and swipe `startX`/`startY`) are
 Flutter global logical-pixel coordinates from the pointer event. The SDK

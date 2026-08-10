@@ -107,10 +107,7 @@ ScreenshotEncodeResult _encodeJpegBytes({
     );
   }
   final dHash = computeDHashFromRgba(rgba, width, height);
-  if (!force &&
-      lastDHash != null &&
-      dHash.isNotEmpty &&
-      dHash == lastDHash) {
+  if (!force && dHashVisuallyMatches(lastDHash, dHash)) {
     return ScreenshotEncodeResult(
       bytes: Uint8List(0),
       contentHash: '',

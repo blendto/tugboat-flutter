@@ -8,7 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:tugboat/tugboat.dart';
 import 'package:tugboat/src/anchors.dart';
-import 'package:tugboat/src/perceptual_hash.dart' show computeDHashFromRgba;
+import 'package:tugboat/src/perceptual_hash.dart'
+    show computeDHashFromRgba, dHashHammingDistance, dHashVisuallyMatches;
 
 import 'helpers/json_roundtrip.dart';
 
@@ -1420,6 +1421,17 @@ void main() {
     final second = computeDHashFromRgba(rgba, 8, 8);
     expect(first, second);
     expect(first.length, 64);
+  });
+
+  test('perceptual hash match tolerates small hamming distance', () {
+    final base = '0' * 64;
+    final oneBit = '1${'0' * 63}';
+    final twoBits = '11${'0' * 62}';
+    final threeBits = '111${'0' * 61}';
+    expect(dHashHammingDistance(base, oneBit), 1);
+    expect(dHashVisuallyMatches(base, oneBit), isTrue);
+    expect(dHashVisuallyMatches(base, twoBits), isTrue);
+    expect(dHashVisuallyMatches(base, threeBits), isFalse);
   });
 
   testWidgets('skips tap capture when route capture is pending', (
