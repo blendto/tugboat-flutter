@@ -303,7 +303,7 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | `viewportSemanticMapMaxBytes` | 48000 | emitted map byte budget |
 | `sinkFactories` | empty | extra `TugboatCaptureSinkFactory` adapters |
 | `outbox` | disabled | durable HTTP outbox configuration |
-| `screenshotBudget` | defaults | degraded-capture skip window / budget |
+| `screenshotBudget` | 60ms / 5s window | degraded-capture skip window / budget |
 
 ### Legacy gesture projection deprecation
 
