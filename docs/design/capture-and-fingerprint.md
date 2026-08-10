@@ -257,18 +257,20 @@ The default mask policy is profile-dependent:
 The public mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
 `allTextExceptActionable`, and `sensitiveInputsOnly`.
 
-Capture uses a 9x8 perceptual dHash before JPEG encoding to skip a visually
-unchanged raster, then SHA-256 content hashing to deduplicate encoded frames.
-Capture requests are serialized and coalesced. When the capture boundary's
-paint generation has not advanced since the last accepted frame, the controller
-skips the entire GPU readback/encode path and reuses a compatible frame
-(unless the caller forces capture or requires a fresh paint).
+Capture computes a 9x8 perceptual dHash from the masked RGBA buffer inside the
+encode isolate to skip JPEG encoding for a visually unchanged raster, then
+SHA-256 content hashing to deduplicate encoded frames. Capture requests are
+serialized and coalesced. When the capture boundary's paint generation has not
+advanced since the last accepted frame, the controller skips the entire GPU
+readback/encode path and reuses a compatible frame (unless the caller forces
+capture or requires a fresh paint).
 
-JPEG encoding and content hashing run on a persistent background isolate after
-a full-frame RGBA readback on the UI isolate. RGBA pixels are handed to the
-worker with [TransferableTypedData] so the UI isolate does not pay a second
-full-frame copy into the worker. Platform views, video textures, maps, and
-native overlays may be absent or incomplete in repaint-boundary output.
+Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
+background isolate after a full-frame RGBA readback on the UI isolate. RGBA
+pixels are handed to the worker with [TransferableTypedData] so the UI isolate
+does not pay a second full-frame copy into the worker. Platform views, video
+textures, maps, and native overlays may be absent or incomplete in
+repaint-boundary output.
 
 When the exploration WebSocket connects and there is no HTTP collector, the
 controller suppresses new Flutter screenshots for UI-thread performance.

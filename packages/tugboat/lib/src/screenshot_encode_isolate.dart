@@ -6,28 +6,36 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:image/image.dart' as img;
 
+import 'perceptual_hash.dart';
+
 /// JPEG quality for emitted frames. Screenshots are photo-heavy once masking
 /// is relaxed, where JPEG is ~5x smaller than PNG at comparable legibility.
 const int screenshotJpegQuality = 80;
 
-/// Encoded JPEG bytes plus the content hash used for session dedup.
+/// Encoded JPEG bytes plus hashes used for coalesce / session dedup.
 class ScreenshotEncodeResult {
   const ScreenshotEncodeResult({
     required this.bytes,
     required this.contentHash,
+    this.dHash,
+    this.skippedByDHash = false,
   });
 
   final Uint8List bytes;
   final String contentHash;
+  final String? dHash;
+  final bool skippedByDHash;
 }
 
 class _ComputeEncodeRequest {
-  const _ComputeEncodeRequest(
-    this.rgba,
-    this.width,
-    this.height,
-    this.maskRects,
-  );
+  const _ComputeEncodeRequest({
+    required this.rgba,
+    required this.width,
+    required this.height,
+    required this.maskRects,
+    required this.lastDHash,
+    required this.force,
+  });
 
   final Uint8List rgba;
   final int width;
@@ -35,6 +43,8 @@ class _ComputeEncodeRequest {
 
   /// Pixel-space mask rectangles as flat `[left, top, right, bottom, ...]`.
   final Float64List maskRects;
+  final String? lastDHash;
+  final bool force;
 }
 
 ScreenshotEncodeResult _encodeJpegCompute(_ComputeEncodeRequest request) {
@@ -43,6 +53,8 @@ ScreenshotEncodeResult _encodeJpegCompute(_ComputeEncodeRequest request) {
     width: request.width,
     height: request.height,
     maskRects: request.maskRects,
+    lastDHash: request.lastDHash,
+    force: request.force,
   );
 }
 
@@ -83,6 +95,8 @@ ScreenshotEncodeResult _encodeJpegBytes({
   required int width,
   required int height,
   Float64List? maskRects,
+  String? lastDHash,
+  bool force = false,
 }) {
   if (maskRects != null && maskRects.isNotEmpty) {
     _applyMaskRectsInPlace(
@@ -90,6 +104,18 @@ ScreenshotEncodeResult _encodeJpegBytes({
       width: width,
       height: height,
       maskRects: maskRects,
+    );
+  }
+  final dHash = computeDHashFromRgba(rgba, width, height);
+  if (!force &&
+      lastDHash != null &&
+      dHash.isNotEmpty &&
+      dHash == lastDHash) {
+    return ScreenshotEncodeResult(
+      bytes: Uint8List(0),
+      contentHash: '',
+      dHash: dHash,
+      skippedByDHash: true,
     );
   }
   final image = img.Image.fromBytes(
@@ -106,6 +132,7 @@ ScreenshotEncodeResult _encodeJpegBytes({
   return ScreenshotEncodeResult(
     bytes: jpeg,
     contentHash: sha256.convert(jpeg).toString(),
+    dHash: dHash.isEmpty ? null : dHash,
   );
 }
 
@@ -119,9 +146,9 @@ bool _underWidgetTestBinding() {
   }
 }
 
-/// Long-lived encode worker that keeps JPEG + SHA-256 off the UI isolate and
-/// accepts RGBA pixels via [TransferableTypedData] to avoid a second full-frame
-/// copy into the worker.
+/// Long-lived encode worker that keeps mask fills, dHash, JPEG, and SHA-256
+/// off the UI isolate. RGBA is accepted via [TransferableTypedData] to avoid a
+/// second full-frame copy into the worker.
 ///
 /// Under `testWidgets` FakeAsync, ReceivePort replies are not pumped unless
 /// callers wrap awaits in `tester.runAsync`. Those tests fall back to
@@ -183,37 +210,47 @@ class ScreenshotEncodeIsolate {
   }
 
   void _onReply(dynamic message) {
-    if (message is! List || message.length < 3) return;
+    if (message is! List || message.length < 5) return;
     final jobId = message[0];
     if (jobId is! int) return;
     final pending = _pending.remove(jobId);
     if (pending == null || pending.isCompleted) return;
-    final error = message.length > 3 ? message[3] : null;
+    final error = message[4];
     if (error is String) {
       pending.completeError(StateError(error));
       return;
     }
     final bytes = message[1];
     final contentHash = message[2];
+    final dHash = message[3];
+    final skipped = message.length > 5 ? message[5] == true : false;
     if (bytes is! Uint8List || contentHash is! String) {
       pending.completeError(StateError('encode reply missing payload'));
       return;
     }
     pending.complete(
-      ScreenshotEncodeResult(bytes: bytes, contentHash: contentHash),
+      ScreenshotEncodeResult(
+        bytes: bytes,
+        contentHash: contentHash,
+        dHash: dHash is String && dHash.isNotEmpty ? dHash : null,
+        skippedByDHash: skipped,
+      ),
     );
   }
 
-  /// Encodes [rgba] (straight RGBA) to JPEG and returns bytes + SHA-256.
+  /// Masks, dHashes, and optionally JPEG-encodes [rgba].
   ///
   /// [maskRects] is an optional flat list of pixel-space rectangles
   /// (`left, top, right, bottom` repeating) painted as opaque dark fills
-  /// before encoding.
+  /// before hashing/encoding. When [force] is false and the masked dHash
+  /// matches [lastDHash], JPEG encoding is skipped.
   Future<ScreenshotEncodeResult> encode({
     required Uint8List rgba,
     required int width,
     required int height,
     Float64List? maskRects,
+    String? lastDHash,
+    bool force = false,
   }) async {
     if (_disposed) {
       throw StateError('ScreenshotEncodeIsolate is disposed');
@@ -222,7 +259,14 @@ class ScreenshotEncodeIsolate {
     if (_underWidgetTestBinding()) {
       return compute(
         _encodeJpegCompute,
-        _ComputeEncodeRequest(rgba, width, height, masks),
+        _ComputeEncodeRequest(
+          rgba: rgba,
+          width: width,
+          height: height,
+          maskRects: masks,
+          lastDHash: lastDHash,
+          force: force,
+        ),
       );
     }
     await ensureStarted();
@@ -239,6 +283,8 @@ class ScreenshotEncodeIsolate {
       width,
       height,
       masks,
+      lastDHash,
+      force,
     ]);
     return completer.future;
   }
@@ -272,17 +318,21 @@ void _screenshotEncodeIsolateMain(SendPort replyTo) {
   final commands = ReceivePort();
   replyTo.send(commands.sendPort);
   commands.listen((message) {
-    if (message is! List || message.length != 5) return;
+    if (message is! List || message.length != 7) return;
     final jobId = message[0];
     final transferable = message[1];
     final width = message[2];
     final height = message[3];
     final maskRects = message[4];
+    final lastDHash = message[5];
+    final force = message[6];
     if (jobId is! int ||
         transferable is! TransferableTypedData ||
         width is! int ||
         height is! int ||
-        maskRects is! Float64List) {
+        maskRects is! Float64List ||
+        (lastDHash != null && lastDHash is! String) ||
+        force is! bool) {
       return;
     }
     try {
@@ -292,10 +342,19 @@ void _screenshotEncodeIsolateMain(SendPort replyTo) {
         width: width,
         height: height,
         maskRects: maskRects,
+        lastDHash: lastDHash as String?,
+        force: force,
       );
-      replyTo.send(<Object?>[jobId, encoded.bytes, encoded.contentHash]);
+      replyTo.send(<Object?>[
+        jobId,
+        encoded.bytes,
+        encoded.contentHash,
+        encoded.dHash,
+        null,
+        encoded.skippedByDHash,
+      ]);
     } catch (error) {
-      replyTo.send(<Object?>[jobId, null, null, error.toString()]);
+      replyTo.send(<Object?>[jobId, null, null, null, error.toString(), false]);
     }
   });
 }

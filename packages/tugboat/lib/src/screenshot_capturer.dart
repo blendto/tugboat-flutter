@@ -8,7 +8,6 @@ import 'package:flutter/scheduler.dart';
 
 import 'anchors.dart';
 import 'capture_boundary.dart';
-import 'perceptual_hash.dart';
 import 'screenshot_encode_isolate.dart';
 import 'screenshot_mask_level.dart';
 
@@ -384,27 +383,6 @@ class ScreenshotCapturer {
 
       final encodeClock = Stopwatch()..start();
       try {
-        final quickDHash = await _dHashFromThumbnail(image);
-        final compareDHash = lastDHash ?? _lastDHash;
-        if (!force &&
-            quickDHash != null &&
-            compareDHash != null &&
-            quickDHash == compareDHash) {
-          return ScreenshotCaptureResult(
-            bytes: Uint8List(0),
-            contentHash: '',
-            dHash: quickDHash,
-            width: scaledWidth,
-            height: scaledHeight,
-            boundaryLogicalRect: boundaryLogicalRect,
-            masked: maskRects.isNotEmpty,
-            captureMicros: readbackClock.elapsedMicroseconds,
-            encodeMicros: encodeClock.elapsedMicroseconds,
-            maskMicros: maskMicros,
-            skippedByDHash: true,
-          );
-        }
-
         final byteData = await image.toByteData(
           format: ui.ImageByteFormat.rawRgba,
         );
@@ -418,14 +396,16 @@ class ScreenshotCapturer {
           width: scaledWidth,
           height: scaledHeight,
           maskRects: scaledMasks,
+          lastDHash: lastDHash ?? _lastDHash,
+          force: force,
         );
-        if (quickDHash != null) {
-          _lastDHash = quickDHash;
+        if (encoded.dHash != null) {
+          _lastDHash = encoded.dHash;
         }
         return ScreenshotCaptureResult(
           bytes: encoded.bytes,
           contentHash: encoded.contentHash,
-          dHash: quickDHash,
+          dHash: encoded.dHash,
           width: scaledWidth,
           height: scaledHeight,
           boundaryLogicalRect: boundaryLogicalRect,
@@ -433,6 +413,7 @@ class ScreenshotCapturer {
           captureMicros: readbackClock.elapsedMicroseconds,
           encodeMicros: encodeClock.elapsedMicroseconds,
           maskMicros: maskMicros,
+          skippedByDHash: encoded.skippedByDHash,
         );
       } on _ScreenshotCaptureException {
         rethrow;
@@ -445,37 +426,6 @@ class ScreenshotCapturer {
       }
     } finally {
       image.dispose();
-    }
-  }
-
-  Future<String?> _dHashFromThumbnail(ui.Image source) async {
-    const hashWidth = 9;
-    const hashHeight = 8;
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    canvas.drawImageRect(
-      source,
-      Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
-      Rect.fromLTWH(0, 0, hashWidth.toDouble(), hashHeight.toDouble()),
-      Paint()..filterQuality = FilterQuality.low,
-    );
-    final picture = recorder.endRecording();
-    final ui.Image thumb;
-    try {
-      thumb = await picture.toImage(hashWidth, hashHeight);
-    } finally {
-      picture.dispose();
-    }
-    try {
-      final bytes = await thumb.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (bytes == null) return null;
-      return computeDHashFromRgba(
-        bytes.buffer.asUint8List(),
-        hashWidth,
-        hashHeight,
-      );
-    } finally {
-      thumb.dispose();
     }
   }
 
