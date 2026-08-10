@@ -69,6 +69,76 @@ void main() {
   );
 
   test(
+    'local WebSocket suppression keeps a standalone tap screenshot',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/home', signature: 'sig-home');
+      harness.controller.debugSetExplorationFramesSuppressed(true);
+      final manual = harness.controller.debugRequestCapture(
+        trigger: TugboatFrameTrigger.manual,
+      );
+      final manualResolution = await manual.resolution;
+      expect(manualResolution['outcome'], 'cancelled');
+
+      final interactionForces = <bool>[];
+      harness.capturer.frameFactory = (trigger, force) {
+        if (trigger == TugboatFrameTrigger.interaction) {
+          interactionForces.add(force);
+        }
+        return null;
+      };
+      harness.controller.recordPointerDown(const Offset(12, 12));
+      harness.controller.recordPointerUp(const Offset(12, 12));
+      await harness.flushScheduler();
+
+      final settle = harness.controller.session!.ofType('tap_settled').single;
+      expect(settle.afterFrame, isNotNull);
+      expect(interactionForces, [true]);
+      expect(
+        harness.capturer.triggers,
+        isNot(contains(TugboatFrameTrigger.manual)),
+      );
+    },
+  );
+
+  test(
+    'local WebSocket suppression keeps a claimed route screenshot',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.seedRouteState(route: '/home', signature: 'sig-home');
+      harness.controller.debugSetExplorationFramesSuppressed(true);
+      final routeForces = <bool>[];
+      harness.capturer.frameFactory = (trigger, force) {
+        if (trigger == TugboatFrameTrigger.route) routeForces.add(force);
+        return null;
+      };
+      harness.controller.recordPointerDown(const Offset(12, 12));
+      final route = harness.controller.route(
+        'route_push',
+        harness.route('/next'),
+      );
+      harness.controller.recordPointerUp(const Offset(12, 12));
+      await harness.flushScheduler();
+      await route;
+
+      final session = harness.controller.session!;
+      final routeChange = session.ofType('route_change').single;
+      final settle = session.ofType('tap_settled').single;
+      final interaction = session.ofType('interaction').single;
+      expect(routeChange.afterFrame, isNotNull);
+      expect(settle.afterFrame, routeChange.afterFrame);
+      expect(routeForces, [true]);
+      expect(interaction.data['evidenceEventIds'], contains(routeChange.id));
+    },
+  );
+
+  test(
     'tap that starts navigation awaits the matching route capture',
     () async {
       final harness = ReplayCoherenceHarness(
@@ -236,14 +306,26 @@ void main() {
     await routeFuture;
 
     final session = harness.controller.session!;
-    final routeFrame = session.ofType('route_change').single.afterFrame;
+    final routeChange = session.ofType('route_change').single;
     final settle = session.ofType('tap_settled').single;
+    final interaction = session.events.singleWhere(
+      (event) =>
+          event.type == 'interaction' &&
+          event.stream == TugboatEventStream.semantic,
+    );
     final observation = Map<String, Object?>.from(
       settle.data['settleObservation']! as Map,
     );
-    expect(settle.afterFrame, isNot(routeFrame));
+    expect(settle.afterFrame, isNull);
+    expect(interaction.afterFrame, isNull);
     expect(observation['navigationOutcome'], 'same_route');
+    expect(observation['captureOutcome'], 'superseded_route_epoch');
     expect(observation['routeEventId'], isNull);
+    expect(
+      interaction.data['evidenceEventIds'],
+      isNot(contains(routeChange.id)),
+      reason: 'the automatic route is not causal evidence for the tap',
+    );
     expect(
       harness.capturer.triggers.where(
         (trigger) => trigger == TugboatFrameTrigger.route,
@@ -252,7 +334,7 @@ void main() {
     );
     expect(
       harness.capturer.triggers.where(
-        (trigger) => trigger == TugboatFrameTrigger.tap,
+        (trigger) => trigger == TugboatFrameTrigger.interaction,
       ),
       hasLength(1),
     );
@@ -286,10 +368,10 @@ void main() {
       final observation = Map<String, Object?>.from(
         settle.data['settleObservation']! as Map,
       );
-      expect(settle.afterFrame, routeChange.afterFrame);
+      expect(settle.afterFrame, isNull);
       expect(settle.result, isNot(TugboatInteractionResult.navigated));
       expect(observation['navigationOutcome'], 'visual_successor');
-      expect(observation['routeEventId'], routeChange.id);
+      expect(observation['routeEventId'], isNull);
       expect(routeChange.afterFrame, isNotNull);
     },
   );
@@ -311,12 +393,30 @@ void main() {
       final changes = harness.controller.session!.ofType('route_change');
       expect(changes.map((event) => event.data['route']), ['/c']);
       final settle = harness.controller.session!.ofType('tap_settled').single;
+      final interaction = harness.controller.session!.events.singleWhere(
+        (event) =>
+            event.type == 'interaction' &&
+            event.stream == TugboatEventStream.semantic,
+      );
       final observation = Map<String, Object?>.from(
         settle.data['settleObservation']! as Map,
       );
       expect(settle.afterFrame, isNull);
+      expect(interaction.afterFrame, isNull);
       expect(observation['navigationOutcome'], 'navigation_unavailable');
+      expect(observation['captureOutcome'], 'superseded_route_epoch');
       expect(observation['routeEventId'], isNull);
+      expect(
+        harness.capturer.triggers.where(
+          (trigger) => trigger == TugboatFrameTrigger.interaction,
+        ),
+        hasLength(1),
+      );
+      expect(
+        interaction.data['evidenceEventIds'],
+        isNot(contains(changes.single.id)),
+        reason: 'the final automatic route is not evidence for the tap',
+      );
     },
   );
 
@@ -449,7 +549,10 @@ void main() {
       signature: 'sig-list',
     );
     harness.capturer.blockNext = true;
+    harness.controller.recordPointerDown(const Offset(10, 10));
+    harness.controller.markPendingTapAsSwipe(0);
     await tester.drag(find.byType(ListView), const Offset(0, -200));
+    harness.controller.recordPointerUp(const Offset(10, -190));
     await harness.pumpQueueWork();
     expect(harness.controller.session!.ofType('scroll_start'), hasLength(1));
     expect(harness.capturer.blockedCount, 1);
@@ -477,7 +580,10 @@ void main() {
       signature: 'sig-list',
     );
     harness.capturer.blockNext = true;
+    harness.controller.recordPointerDown(const Offset(10, 10));
+    harness.controller.markPendingTapAsSwipe(0);
     await tester.drag(find.byType(ListView), const Offset(0, -200));
+    harness.controller.recordPointerUp(const Offset(10, -190));
     await harness.pumpQueueWork();
     expect(harness.controller.session!.ofType('scroll_start'), hasLength(1));
     expect(harness.capturer.blockedCount, 1);
@@ -871,7 +977,7 @@ void main() {
     await harness.controller.endSession();
   });
 
-  test('capture coalescing preserves incompatible request order', () async {
+  test('interaction captures execute uniquely in route order', () async {
     final harness = ReplayCoherenceHarness();
     await harness.setUp();
     addTearDown(harness.dispose);
@@ -892,9 +998,27 @@ void main() {
         Offset(pointer.toDouble(), pointer.toDouble()),
         pointer: pointer,
       );
+      await harness.flushScheduler();
     }
 
-    expect(harness.controller.debugScheduledCaptureRoutes, ['/a', '/b', '/a']);
+    final interactionTriggers = harness.capturer.triggers
+        .where((trigger) => trigger == TugboatFrameTrigger.interaction)
+        .toList(growable: false);
+    expect(interactionTriggers, hasLength(3));
+    final settles = harness.controller.session!.ofType('tap_settled');
+    expect(settles, hasLength(3));
+    expect(settles.map((event) => event.afterFrame), everyElement(isNotNull));
+    expect(
+      settles
+          .map((event) => harness.provenanceFor(event.afterFrame)?.route)
+          .toList(growable: false),
+      ['/a', '/b', '/a'],
+    );
+    expect(
+      settles.map((event) => event.afterFrame).toSet(),
+      hasLength(3),
+      reason: 'each interaction uses one fresh, non-reused screenshot',
+    );
 
     await harness.controller.endSession();
   });
@@ -933,13 +1057,11 @@ void main() {
 
     final settle = harness.controller.session!.ofType('tap_settled').single;
     expect(settle.afterFrame, isNotNull);
-    expect(settle.stateAnchor?.signature, 'sig-captured');
+    expect(settle.toJson().containsKey('stateAnchor'), isFalse);
     expect(harness.controller.currentStateAnchor?.signature, 'sig-advanced');
     expect(
-      harness.controller.debugFrameProvenance(
-        settle.afterFrame!,
-      )!['completionStateSignature'],
-      'sig-captured',
+      harness.controller.debugFrameProvenance(settle.afterFrame!),
+      isNot(contains('completionStateSignature')),
     );
   });
 
@@ -967,11 +1089,7 @@ void main() {
       expect(settle.afterFrame, isNot(beforeFrame));
       expect(settle.result, TugboatInteractionResult.noVisibleChange);
       final observation = settle.data['settleObservation'] as Map;
-      expect(observation['semantic'], {
-        'changed': false,
-        'evidence': 'state_signature',
-        'reason': 'same_signature',
-      });
+      expect(observation.containsKey('semantic'), isFalse);
       expect(observation['visual'], {
         'changed': false,
         'evidence': 'content_hash',
@@ -1816,7 +1934,7 @@ void main() {
       final settle = harness.controller.session!.ofType('tap_settled').single;
       expect(settle.beforeFrame, frame);
       expect(settle.afterFrame, isNot(frame));
-      expect(settle.result, TugboatInteractionResult.changed);
+      expect(settle.result, TugboatInteractionResult.noVisibleChange);
       expect(
         settle.stateAnchor?.signature,
         'sig-after',
@@ -1913,9 +2031,6 @@ void main() {
     final tap = session.ofType('tap').single;
     final settle = session.ofType('tap_settled').single;
     final inventory = session.ofType('scene_inventory').last;
-    final inventorySignature =
-        inventory.stateAnchor?.signature ??
-        inventory.data['stateSignature'] as String?;
 
     expect(tap.targetAnchor, isNotNull);
     expect(tap.targetAnchor!.fingerprint, isNotNull);
@@ -1923,7 +2038,7 @@ void main() {
     expect(tap.targetAnchor!.canonicalPath, isNotEmpty);
     expect(tap.targetAnchor!.role, 'button');
     expect(tap.targetAnchor!.widgetType, isNot('RepaintBoundary'));
-    expect(tap.stateAnchor?.signature, inventorySignature);
+    expect(inventory.data.containsKey('stateSignature'), isFalse);
     expect(settle.targetAnchor, isNotNull);
     expect(settle.targetAnchor!.fingerprint, tap.targetAnchor!.fingerprint);
     expect(settle.targetAnchor!.canonicalPath, tap.targetAnchor!.canonicalPath);
@@ -1972,16 +2087,13 @@ void main() {
     final session = harness.controller.session!;
     final tap = session.ofType('tap').single;
     final inventory = session.ofType('scene_inventory').last;
-    final inventorySignature =
-        inventory.stateAnchor?.signature ??
-        inventory.data['stateSignature'] as String?;
 
     expect(tap.targetAnchor, isNotNull);
     expect(tap.targetAnchor!.fingerprint, isNotNull);
     expect(tap.targetAnchor!.fingerprint, isNotEmpty);
     expect(tap.targetAnchor!.canonicalPath, isNotEmpty);
     expect(tap.targetAnchor!.role, 'button');
-    expect(tap.stateAnchor?.signature, inventorySignature);
+    expect(inventory.data.containsKey('stateSignature'), isFalse);
 
     await harness.flushScheduler();
     await routeFuture;

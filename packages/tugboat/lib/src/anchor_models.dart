@@ -271,7 +271,6 @@ class TugboatSceneInventory {
   final List<TugboatSceneInventoryEntry> elements;
 
   Map<String, Object?> toJson() => {
-    'stateSignature': stateSignature,
     'inventoryHash': inventoryHash,
     'routeKey': routeKey,
     'elements': elements.map((entry) => entry.toJson()).toList(),
@@ -434,7 +433,6 @@ class TugboatViewportSemanticMap {
   }
 
   Map<String, Object?> toJson() => {
-    'stateSignature': stateSignature,
     'routeKey': routeKey,
     'viewport': {'width': viewport.width, 'height': viewport.height},
     'nodes': nodes.map((node) => node.toJson()).toList(),
@@ -473,7 +471,6 @@ class TugboatScrollSemanticSnapshot {
   final String snapshotHash;
 
   Map<String, Object?> toJson() => {
-    'stateSignature': stateSignature,
     'routeKey': routeKey,
     if (scrollableFingerprint != null)
       'scrollableFingerprint': scrollableFingerprint,

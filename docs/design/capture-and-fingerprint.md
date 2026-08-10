@@ -98,14 +98,14 @@ The event stream currently includes:
 - lifecycle: `session_start`, `session_end`;
 - pointer intent and outcome: `tap`, `tap_settled`, `swipe`,
   `pointer_cancel`, `tap_outside_tree`;
-- navigation and state: `route_change`, `state_change`;
+- navigation: `route_change`;
 - scrolling: `scroll_start`, `scroll_end`;
 - exploration control: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
 - optional semantic evidence: `viewport_semantic_map`,
   `scroll_semantic_snapshot`.
 
-Events may carry `beforeFrame`, `afterFrame`, `stateAnchor`, `targetAnchor`,
+Events may carry `beforeFrame`, `afterFrame`, `targetAnchor`,
 `relatedEventId`, `explorationRunId`, `actionId`, an interaction result, and
 type-specific `data`. Route transition values live in `route_change.data`, not
 in a session-level route dictionary.
@@ -122,10 +122,12 @@ observed route epoch. A capture that is unavailable, cancelled, superseded, or
 timed out is represented by bounded capture/attachment diagnostics instead of
 borrowing the latest frame from another screen.
 
-Frame requests are serialized, may coalesce, and use fresh-paint/readback
-checks before publishing. Their provenance records the capture context and
-completion state, so exact-content and perceptual deduplication reuse frames
-only within a compatible context. `paused` and `hidden` request a delivery
+Frame requests are serialized and use fresh-paint/readback checks before
+publishing. Non-interaction requests can coalesce and reuse exact-content or
+perceptual frames only within a compatible context. Each completed interaction
+uses a separate fresh request and cannot coalesce or reuse either type of
+frame. Provenance records capture context without state identity. `paused` and
+`hidden` request a delivery
 flush after 500 ms; `resumed` cancels that pending flush; `detached`, wrapper
 disposal, and deactivation end the session once and initiate sink shutdown.
 
@@ -191,26 +193,15 @@ fingerprint parts for diagnosis.
 
 `TugboatTag` and a stable `ValueKey<String>` can add a high-confidence
 `tagFingerprint`. A tag is transparent to structural identity: adding it does
-not change the target fingerprint or state signature. `TugboatSubView` adds a
-developer-owned subview label for route-internal state and scroll attribution.
+not change the target fingerprint. `TugboatSubView` adds a developer-owned
+subview label for route-internal state and scroll attribution.
 
 ### State identity
 
-Schema v6 deliberately uses coarse state identity. `stateSignature` hashes:
-
-- `routeKey`;
-- keyboard-open state;
-- modal-open state;
-- the active `TugboatSubView.label`, when present;
-- the fingerprint schema version during computation.
-
-Actionable role counts are emitted as diagnostic `actionableSummary` metadata
-but do not determine the signature. Dynamic list length, visible rows, and
-control multiplicity therefore do not fork a screen state.
-
-The schema version is also serialized beside the hash. Downstream joins must
-include build identity and `fingerprintSchemaVersion`; v5 and v6 signatures are
-not interchangeable.
+Version 0.8.0 does not write state identity. State anchors and signatures remain
+internal legacy model data only. New event, inventory, semantic-map, diagnostic,
+debug, and provenance JSON omit them. Use route evidence, target anchors, and
+frame hashes for raw replay facts.
 
 ### Confidence
 
@@ -256,19 +247,24 @@ The default mask policy is profile-dependent:
 The public mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
 `allTextExceptActionable`, and `sensitiveInputsOnly`.
 
-Capture uses a 9x8 perceptual dHash before PNG encoding to skip a visually
-unchanged raster, then SHA-256 content hashing to deduplicate encoded frames.
-Capture requests are serialized and coalesced; repeated state signatures are
-also skipped unless a caller forces capture.
+Non-interaction capture uses a 9x8 perceptual dHash before PNG encoding to
+skip a visually unchanged raster, then SHA-256 content hashing to deduplicate
+encoded frames. Capture requests are serialized and compatible non-interaction
+requests can coalesce. Each completed interaction requests a forced fresh
+after-frame. It cannot be suppressed by local-WebSocket non-interaction
+suppression, dHash, or content-hash deduplication. A fresh route capture can
+satisfy its claimed interaction.
 
 PNG readback and encoding still happen through Flutter image APIs on the UI
 isolate. Platform views, video textures, maps, and native overlays may be absent
 or incomplete in repaint-boundary output.
 
 When the exploration WebSocket connects and there is no HTTP collector, the
-controller suppresses new Flutter screenshots for UI-thread performance.
-Events, anchors, inventories, and semantic evidence continue to stream. Any
-frames captured before connection are still sent.
+controller suppresses only non-interaction Flutter screenshots for UI-thread
+performance. Each completed interaction still encodes a fresh screenshot. A
+causally claimed route capture also remains enabled. Events, anchors,
+inventories, and semantic evidence continue to stream. Any frames captured
+before connection are still sent.
 
 ## Viewport semantics
 

@@ -216,19 +216,15 @@ void main() {
 
       final tapEvent = tapEvents.single;
       final tapFingerprint = tapEvent.targetAnchor?.fingerprint;
-      final tapSignature = tapEvent.stateAnchor?.signature;
       expect(tapFingerprint, isNotEmpty);
-      expect(tapSignature, isNotEmpty);
 
       final inventoryEvents = controller.session!.events
           .where((event) => event.type == 'scene_inventory')
           .toList();
       expect(inventoryEvents, isNotEmpty);
 
-      final tapInventory = inventoryEvents.lastWhere(
-        (event) => event.stateAnchor?.signature == tapSignature,
-      );
-      expect(tapInventory.data['stateSignature'], tapSignature);
+      final tapInventory = inventoryEvents.last;
+      expect(tapInventory.data.containsKey('stateSignature'), isFalse);
 
       final elements = tapInventory.data['elements'] as List<dynamic>;
       expect(
@@ -288,10 +284,7 @@ void main() {
         .toList();
     expect(inventoryEvents, isNotEmpty);
 
-    final tapInventory = inventoryEvents.lastWhere(
-      (event) =>
-          event.stateAnchor?.signature == tapEvent.stateAnchor?.signature,
-    );
+    final tapInventory = inventoryEvents.last;
     final elements = tapInventory.data['elements'] as List<dynamic>;
     expect(
       elements.any(
@@ -429,7 +422,7 @@ void main() {
     expect(afterCount, beforeCount);
 
     final payload = inventoryEvents.first.data;
-    expect(payload['stateSignature'], isA<String>());
+    expect(payload.containsKey('stateSignature'), isFalse);
     expect(payload['inventoryHash'], isA<String>());
     expect(payload['elements'], isA<List<dynamic>>());
   });

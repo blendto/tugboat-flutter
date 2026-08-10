@@ -49,7 +49,6 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
     if (event.beforeFrame != null) 'beforeFrame': event.beforeFrame,
     if (event.afterFrame != null) 'afterFrame': event.afterFrame,
     if (traitsId != null) 'traitsId': traitsId,
-    'stateAnchor': event.stateAnchor?.toJson() ?? <String, Object?>{},
     'targetAnchor': event.targetAnchor?.toJson() ?? <String, Object?>{},
     if (event.result != null) 'result': event.result!.name,
     'payload': payload,

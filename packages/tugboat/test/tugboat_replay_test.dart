@@ -254,12 +254,7 @@ void main() {
     final routeChangeJson = routeChange.toJson();
     expect(routeChangeJson.containsKey('route'), isFalse);
     expect(routeChangeJson.containsKey('toRoute'), isFalse);
-    expect(
-      (routeChangeJson['stateAnchor'] as Map<String, Object?>).containsKey(
-        'route',
-      ),
-      isFalse,
-    );
+    expect(routeChangeJson.containsKey('stateAnchor'), isFalse);
     expect(session.frames, isNotEmpty);
     expect(routeChange.afterFrame, isNotNull);
     final routeBytes = session.frameBytes[routeChange.afterFrame]!;
@@ -1497,7 +1492,7 @@ void main() {
     expect(session.frames.length, greaterThanOrEqualTo(framesBeforeScroll));
   });
 
-  test('tap_settled result prefers signature change over stale frame ids', () {
+  test('tap_settled result does not infer a change from state signatures', () {
     final rootKey = GlobalKey();
     final controller = TugboatReplayController(
       config: _testConfig,
@@ -1511,11 +1506,11 @@ void main() {
       afterFrame: 'frame-1',
       targetAnchor: const TugboatTargetAnchor(actions: ['tap']),
     );
-    expect(result, TugboatInteractionResult.changed);
+    expect(result, TugboatInteractionResult.unknown);
     controller.dispose();
   });
 
-  test('tap_settled result uses tap-down baseline signatures', () {
+  test('tap_settled result ignores tap-down state signatures', () {
     final rootKey = GlobalKey();
     final controller = TugboatReplayController(
       config: _testConfig,
@@ -1529,7 +1524,7 @@ void main() {
       afterFrame: 'frame-1',
       targetAnchor: const TugboatTargetAnchor(actions: ['tap']),
     );
-    expect(result, TugboatInteractionResult.changed);
+    expect(result, TugboatInteractionResult.unknown);
     controller.dispose();
   });
 

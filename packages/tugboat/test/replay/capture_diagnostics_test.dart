@@ -104,7 +104,6 @@ void main() {
         'fresh_accepted',
         'exact_content_reused',
         'perceptual_hash_coalesced',
-        'state_signature_short_circuit',
         'screenshot_budget_skip',
         'no_frame_available',
         'no_compatible_frame',

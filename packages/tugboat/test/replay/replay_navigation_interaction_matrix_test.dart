@@ -250,10 +250,7 @@ class _NavigationFixture {
     expect(tap.targetAnchor, isNotNull);
     expect(settle.targetAnchor?.fingerprint, tap.targetAnchor?.fingerprint);
     expect(settle.targetAnchor?.canonicalPath, tap.targetAnchor?.canonicalPath);
-    expect(tap.stateAnchor?.signature, isNotNull);
-    expect(routeChange.stateAnchor?.signature, isNotNull);
-    expect(settle.stateAnchor?.signature, routeChange.stateAnchor?.signature);
-    expect(settle.stateAnchor?.signature, isNot(tap.stateAnchor?.signature));
+    expect(settle.toJson().containsKey('stateAnchor'), isFalse);
     expect(settle.afterFrame, routeFrame);
     expect(routeFrame, isNotNull);
     expect(routeDiagnostic.data['outcome'], 'fresh_accepted');

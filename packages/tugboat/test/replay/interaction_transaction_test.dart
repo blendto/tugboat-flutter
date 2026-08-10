@@ -124,8 +124,7 @@ void main() {
           interaction.data['origin']! as Map,
         );
         expect(origin['route'], '/origin');
-        final state = Map<String, Object?>.from(origin['stateAnchor']! as Map);
-        expect(state['signature'], 'origin-sig');
+        expect(origin.containsKey('stateAnchor'), isFalse);
         expect(interaction.targetAnchor?.fingerprint, isNull);
       },
     );
@@ -145,6 +144,37 @@ void main() {
       expect(interactions, hasLength(1));
       expect(interactions.single.data['gesture'], 'cancelled');
       expect(harness.controller.session!.ofType('tap'), isEmpty);
+    });
+
+    test('swipe terminal path clears causal route state', () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.controller.recordPointerDown(const Offset(4, 4));
+      await harness.controller.route('route_push', harness.route('/next'));
+      expect(harness.controller.debugCausalRouteCaptureCount, 1);
+
+      harness.controller.markPendingTapAsSwipe(0);
+      harness.controller.recordPointerUp(const Offset(80, 4));
+
+      expect(harness.controller.debugCausalRouteCaptureCount, 0);
+      expect(harness.controller.debugCausalRouteSupersededInteractionCount, 0);
+    });
+
+    test('pointer cancel clears causal route state', () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.controller.recordPointerDown(const Offset(4, 4));
+      await harness.controller.route('route_push', harness.route('/next'));
+      expect(harness.controller.debugCausalRouteCaptureCount, 1);
+
+      harness.controller.recordPointerCancel(const Offset(4, 4));
+
+      expect(harness.controller.debugCausalRouteCaptureCount, 0);
+      expect(harness.controller.debugCausalRouteSupersededInteractionCount, 0);
     });
 
     test('duplicate pointer-down cancels prior and keeps one tap', () async {

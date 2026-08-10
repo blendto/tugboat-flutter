@@ -116,7 +116,7 @@ void main() {
 
       expect(mapEvents, isNotEmpty);
       final payload = mapEvents.single.data;
-      expect(payload['stateSignature'], isNotEmpty);
+      expect(payload.containsKey('stateSignature'), isFalse);
       expect(payload['routeKey'], isNotEmpty);
       expect(payload['mapHash'], isNotEmpty);
       expect(payload['summary'], isA<Map<Object?, Object?>>());
@@ -158,6 +158,56 @@ void main() {
     final tapFingerprint = tapEvent.targetAnchor?.fingerprint;
     expect(tapFingerprint, isNotEmpty);
     expect(resolution['linkedFingerprint'], tapFingerprint);
+  });
+
+  testWidgets('tap resolution rebuilds the same-route semantic map', (
+    tester,
+  ) async {
+    var showBottomButton = false;
+    late StateSetter setScreen;
+    await _pumpSettledScreen(
+      tester,
+      StatefulBuilder(
+        builder: (context, setState) {
+          setScreen = setState;
+          return Scaffold(
+            body: showBottomButton
+                ? Align(
+                    alignment: Alignment.bottomCenter,
+                    child: FilledButton(
+                      onPressed: () {},
+                      child: const Text('Bottom action'),
+                    ),
+                  )
+                : Align(
+                    alignment: Alignment.topCenter,
+                    child: FilledButton(
+                      onPressed: () {},
+                      child: const Text('Top action'),
+                    ),
+                  ),
+          );
+        },
+      ),
+    );
+
+    setScreen(() => showBottomButton = true);
+    await tester.pump();
+
+    final controller = TugboatReplay.controller!;
+    final tapCenter = tester.getCenter(find.text('Bottom action'));
+    controller.recordPointerDown(tapCenter);
+    controller.recordPointerUp(tapCenter);
+    await tester.pump();
+
+    final tapEvent = controller.session!.events
+        .where((event) => event.type == 'tap')
+        .last;
+    final resolution =
+        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
+    expect(resolution, isNotNull);
+    expect(resolution!['status'], 'matched_actionable');
+    expect(resolution['role'], 'button');
   });
 
   testWidgets('tap on non-actionable text resolves to matched_non_actionable', (
@@ -223,9 +273,7 @@ void main() {
   ) async {
     await _pumpSettledScreen(
       tester,
-      Scaffold(
-        body: FilledButton(onPressed: () {}, child: const Text('Go')),
-      ),
+      Scaffold(body: const Center(child: Text('Static copy'))),
     );
 
     final controller = TugboatReplay.controller!;
@@ -559,6 +607,43 @@ void main() {
     expect((inventory['elements'] as List).isNotEmpty, isTrue);
   });
 
+  testWidgets('separate scroll gestures reset semantic accumulation', (
+    tester,
+  ) async {
+    await _pumpSettledScreen(
+      tester,
+      Scaffold(
+        body: ListView.builder(
+          itemCount: 60,
+          itemBuilder: (context, index) => ListTile(title: Text('Row $index')),
+        ),
+      ),
+      config: _scrollSemanticMapConfig,
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -260));
+    await _waitForCaptures(tester);
+    await _waitForEvent(tester, 'scroll_semantic_snapshot');
+    final controller = TugboatReplay.controller!;
+    final firstGestureSnapshotCount = controller.session!.events
+        .where((event) => event.type == 'scroll_semantic_snapshot')
+        .length;
+
+    await tester.drag(find.byType(ListView), const Offset(0, -260));
+    await _waitForCaptures(tester);
+
+    final snapshots = controller.session!.events
+        .where((event) => event.type == 'scroll_semantic_snapshot')
+        .toList();
+    final secondGestureSnapshots = snapshots.skip(firstGestureSnapshotCount);
+    expect(secondGestureSnapshots, isNotEmpty);
+    expect(
+      secondGestureSnapshots.first.data['observedSliceCount'],
+      2,
+      reason: 'the second scroll starts a new semantic accumulation',
+    );
+  });
+
   testWidgets(
     'settled exploration screen emits both scene_inventory and viewport_semantic_map',
     (tester) async {
@@ -582,14 +667,14 @@ void main() {
       expect(mapEvents, isNotEmpty);
 
       final inventory = inventoryEvents.first.data;
-      expect(inventory['stateSignature'], isA<String>());
+      expect(inventory.containsKey('stateSignature'), isFalse);
       expect(inventory['routeKey'], isA<String>());
       expect(inventory['inventoryHash'], isA<String>());
       expect(inventory['elements'], isA<List<dynamic>>());
       expect((inventory['elements'] as List).isNotEmpty, isTrue);
 
       final map = mapEvents.first.data;
-      expect(map['stateSignature'], inventory['stateSignature']);
+      expect(map.containsKey('stateSignature'), isFalse);
       expect(map['routeKey'], inventory['routeKey']);
 
       final inventoryFingerprints = (inventory['elements'] as List)

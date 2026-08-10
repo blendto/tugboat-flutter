@@ -1,3 +1,13 @@
+## 0.8.0
+
+### Changed
+
+- Raw SDK writers no longer emit `stateAnchor`, `stateSignature`, or
+  `state_change` events. Completed interactions request one fresh after-frame.
+- Collector event mapping now omits `stateAnchor`. Deploy the serial collector
+  compatibility patch before sending 0.8.0 recordings to a collector that
+  still requires that key.
+
 ## 0.7.0
 
 ### Added

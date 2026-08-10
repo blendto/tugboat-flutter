@@ -306,7 +306,7 @@ void main() {
   });
 
   test(
-    'automatic route superseding a tap capture supplies visual successor',
+    'automatic route superseding a tap capture does not supply its frame',
     () async {
       final harness = ReplayCoherenceHarness();
       await harness.setUp();
@@ -341,6 +341,7 @@ void main() {
       final tap = _ofType(session, 'tap').single;
       final settle = _ofType(session, 'tap_settled').single;
       final change = _ofType(session, 'route_change').single;
+      final interaction = _ofType(session, 'interaction').single;
       final observation = Map<String, Object?>.from(
         settle.data['settleObservation']! as Map,
       );
@@ -349,10 +350,15 @@ void main() {
       expect(change.data['causeEventId'], isNull);
       expect(change.afterFrame, isNotNull);
       expect(settle.relatedEventId, tap.id);
-      expect(settle.afterFrame, change.afterFrame);
+      expect(settle.afterFrame, isNull);
       expect(observation['navigationOutcome'], 'visual_successor');
-      expect(observation['captureOutcome'], 'captured');
-      expect(observation['routeEventId'], change.id);
+      expect(observation['captureOutcome'], isNot('captured'));
+      expect(observation['routeEventId'], isNull);
+      expect(
+        interaction.data['evidenceEventIds'],
+        isNot(contains(change.id)),
+        reason: 'an automatic successor is not causal evidence for the tap',
+      );
       _expectEveryDiagnosticRequestIsResolvedOnce(session);
       expect(CoherenceInvariants.hasNoStrandedCaptureWork(harness), isTrue);
     },

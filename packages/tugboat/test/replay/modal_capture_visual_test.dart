@@ -154,7 +154,7 @@ void main() {
 
       await openAndAssertSheet();
       popStart = fixture.session.events.length;
-      await tester.tapAt(const Offset(200, 80));
+      await tester.tap(find.byType(ModalBarrier).last);
       await tester.pumpAndSettle();
       await assertRestoredBase(after: popStart);
 
@@ -695,10 +695,12 @@ Future<T> _pumpUntil<T>(
   T? Function() read, {
   required String description,
 }) async {
-  for (var attempt = 0; attempt < 100; attempt++) {
+  for (var attempt = 0; attempt < 250; attempt++) {
     final value = read();
     if (value != null) return value;
-    await tester.pump();
+    // Route barriers use transition deadlines. Advance the test clock so the
+    // deadline can fire while this helper waits for the resulting evidence.
+    await tester.pump(const Duration(milliseconds: 16));
     if (attempt > 0 && attempt % 10 == 0) {
       await tester.runAsync(() async {
         await Future<void>.delayed(const Duration(milliseconds: 50));

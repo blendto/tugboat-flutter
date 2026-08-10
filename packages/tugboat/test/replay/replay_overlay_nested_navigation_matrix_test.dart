@@ -23,7 +23,8 @@ void main() {
       route: '/dialog',
       after: dialogStart,
     );
-    fixture.assertNavigationEvidence(
+    await fixture.assertNavigationEvidence(
+      tester: tester,
       routeChange: dialogPush,
       destination: '/dialog',
       after: dialogStart,
@@ -38,7 +39,8 @@ void main() {
       route: '/root',
       after: dialogPopStart,
     );
-    fixture.assertNavigationEvidence(
+    await fixture.assertNavigationEvidence(
+      tester: tester,
       routeChange: dialogPop,
       destination: '/root',
       after: dialogPopStart,
@@ -53,7 +55,8 @@ void main() {
       route: '/sheet',
       after: sheetStart,
     );
-    fixture.assertNavigationEvidence(
+    await fixture.assertNavigationEvidence(
+      tester: tester,
       routeChange: sheetPush,
       destination: '/sheet',
       after: sheetStart,
@@ -68,7 +71,8 @@ void main() {
       route: '/root',
       after: sheetPopStart,
     );
-    fixture.assertNavigationEvidence(
+    await fixture.assertNavigationEvidence(
+      tester: tester,
       routeChange: sheetPop,
       destination: '/root',
       after: sheetPopStart,
@@ -98,7 +102,8 @@ void main() {
       after: nestedStart,
     );
 
-    fixture.assertNavigationEvidence(
+    await fixture.assertNavigationEvidence(
+      tester: tester,
       routeChange: push,
       destination: '/nested/details',
       after: nestedStart,
@@ -120,7 +125,8 @@ void main() {
     );
     final anonymousRoute = anonymous.data['route'] as String;
     expect(anonymousRoute, contains('MaterialPageRoute'));
-    fixture.assertNavigationEvidence(
+    await fixture.assertNavigationEvidence(
+      tester: tester,
       routeChange: anonymous,
       destination: anonymousRoute,
       after: anonymousStart,
@@ -144,7 +150,8 @@ void main() {
       route: '/generated',
       after: generatedStart,
     );
-    fixture.assertNavigationEvidence(
+    await fixture.assertNavigationEvidence(
+      tester: tester,
       routeChange: generated,
       destination: '/generated',
       after: generatedStart,
@@ -192,7 +199,7 @@ class _OverlayFixture {
             profile: TugboatCaptureProfile.exploration,
             interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
             settleDelay: Duration.zero,
-            interactionClaimWindow: Duration.zero,
+            interactionClaimWindow: tugboatDefaultReconciliationWindow,
             enableGlobalPointerCapture: true,
             capturePixelRatio: 1,
           ),
@@ -255,11 +262,21 @@ class _OverlayFixture {
     return null;
   }, description: '$navigation route');
 
-  void assertNavigationEvidence({
+  Future<void> assertNavigationEvidence({
+    required WidgetTester tester,
     required TugboatEvent routeChange,
     required String destination,
     required int after,
-  }) {
+  }) async {
+    await _pumpUntil<TugboatEvent>(tester, () {
+      for (final event in session.events) {
+        if (event.type == 'tap_settled' &&
+            event.afterFrame == routeChange.afterFrame) {
+          return event;
+        }
+      }
+      return null;
+    }, description: 'route-linked settled interaction');
     final events = session.events;
     final routeIndex = events.indexOf(routeChange);
     final routeFrame = routeChange.afterFrame;
@@ -299,10 +316,7 @@ class _OverlayFixture {
       settled.targetAnchor?.canonicalPath,
       tap.targetAnchor?.canonicalPath,
     );
-    expect(tap.stateAnchor?.signature, isNotNull);
-    expect(routeChange.stateAnchor?.signature, isNotNull);
-    expect(settled.stateAnchor?.signature, routeChange.stateAnchor?.signature);
-    expect(settled.stateAnchor?.signature, isNot(tap.stateAnchor?.signature));
+    expect(settled.toJson().containsKey('stateAnchor'), isFalse);
     expect(settled.afterFrame, routeFrame);
     expect(events.indexOf(tap), lessThan(routeIndex));
     expect(routeIndex, lessThan(events.indexOf(settled)));
@@ -460,10 +474,10 @@ Future<T> _pumpUntil<T>(
   T? Function() read, {
   required String description,
 }) async {
-  for (var attempt = 0; attempt < 80; attempt++) {
+  for (var attempt = 0; attempt < 120; attempt++) {
     final value = read();
     if (value != null) return value;
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
   }
   fail('Timed out waiting for $description');
 }

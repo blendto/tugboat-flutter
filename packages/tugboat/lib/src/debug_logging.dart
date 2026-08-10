@@ -11,7 +11,7 @@ void tugboatLogViewportSemanticMap(
   debugPrint(
     '[tugboat] viewport_semantic_map route=${map.routeKey} '
     'buildMs=${buildMs ?? '?'} '
-    'state=${map.stateSignature} nodes=${map.summary['totalNodes']} '
+    'nodes=${map.summary['totalNodes']} '
     'actionable=${map.summary['actionableCount']} '
     'linked=${map.summary['linkedCount']} '
     'semantic=${map.summary['semanticCount']} '
@@ -43,7 +43,6 @@ void tugboatLogViewportSemanticMap(
 void tugboatLogScrollSemanticSnapshot(TugboatScrollSemanticSnapshot snapshot) {
   debugPrint(
     '[tugboat] scroll_semantic_snapshot route=${snapshot.routeKey} '
-    'state=${snapshot.stateSignature} '
     'scrollFp=${snapshot.scrollableFingerprint ?? 'none'} '
     'axis=${snapshot.axis ?? 'none'} slices=${snapshot.observedSliceCount} '
     'nodes=${snapshot.observedNodeCount} '

@@ -76,7 +76,7 @@ void main() {
     // Compat path: semantic tap without canonical dual-write remains eligible.
     expect(mapped['enrichmentCandidate'], isTrue);
     expect(mapped['beforeFrame'], 'frame-3');
-    expect((mapped['stateAnchor'] as Map)['signature'], '23f17a629520d522');
+    expect(mapped.containsKey('stateAnchor'), isFalse);
     expect((mapped['targetAnchor'] as Map)['fingerprint'], '9eadb7c56ae836bc');
     expect(mapped['actionId'], 'A-1');
     expect(mapped['explorationRunId'], 'run-1');

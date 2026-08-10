@@ -21,7 +21,164 @@ Future<void> _waitForCaptures(WidgetTester tester) async {
   await tester.pump();
 }
 
+Future<void> _exerciseScrollCallbackOrder(
+  WidgetTester tester, {
+  required bool endBeforePointerUp,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      builder: (context, child) =>
+          TugboatReplay.wrapApp(config: _scrollTestConfig, child: child!),
+      home: Scaffold(
+        body: ListView.builder(
+          itemCount: 30,
+          itemBuilder: (context, index) => Text('Callback item $index'),
+        ),
+      ),
+    ),
+  );
+  await _waitForCaptures(tester);
+
+  final listContext = tester.element(find.byType(Scrollable));
+  final metrics = Scrollable.of(
+    tester.element(find.text('Callback item 0')),
+  ).position;
+  final controller = TugboatReplay.controller!;
+  final initialInteractionRequests = controller.session!.events
+      .where(
+        (event) =>
+            event.type == 'capture_diagnostic' &&
+            event.data['trigger'] == 'interaction',
+      )
+      .length;
+  controller.recordPointerDown(const Offset(20, 20));
+  controller.markPendingTapAsSwipe(0);
+  controller.recordScrollStart(
+    scrollContext: listContext,
+    metrics: metrics,
+    depth: 0,
+  );
+  if (endBeforePointerUp) {
+    controller.recordScrollEnd(scrollContext: listContext, metrics: metrics);
+    controller.recordPointerUp(const Offset(20, -100));
+  } else {
+    controller.recordPointerUp(const Offset(20, -100));
+    controller.recordScrollEnd(scrollContext: listContext, metrics: metrics);
+  }
+  await tester.pump();
+  await _waitForCaptures(tester);
+
+  final session = controller.session!;
+  final interactions = session.events
+      .where(
+        (event) =>
+            event.type == 'interaction' &&
+            event.stream == TugboatEventStream.semantic &&
+            event.data['gesture'] == 'scroll',
+      )
+      .toList();
+  expect(interactions, hasLength(1));
+  final afterFrame = interactions.single.afterFrame;
+  expect(afterFrame, isNotNull);
+  final frame = session.frameById(afterFrame!);
+  expect(frame, isNotNull);
+  expect(frame!.trigger, TugboatFrameTrigger.interaction);
+  expect(frame.byteLength, greaterThan(0));
+  expect(
+    session.events
+        .where(
+          (event) =>
+              event.type == 'capture_diagnostic' &&
+              event.data['trigger'] == 'interaction',
+        )
+        .length,
+    initialInteractionRequests + 1,
+  );
+}
+
 void main() {
+  testWidgets('scroll end before pointer up joins one interaction capture', (
+    tester,
+  ) async {
+    await _exerciseScrollCallbackOrder(tester, endBeforePointerUp: true);
+  });
+
+  testWidgets('pointer up before scroll end joins one interaction capture', (
+    tester,
+  ) async {
+    await _exerciseScrollCallbackOrder(tester, endBeforePointerUp: false);
+  });
+
+  testWidgets(
+    'programmatic scroll emits evidence without interaction capture',
+    (tester) async {
+      final scrollController = ScrollController();
+      addTearDown(scrollController.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              TugboatReplay.wrapApp(config: _scrollTestConfig, child: child!),
+          home: Scaffold(
+            body: ListView.builder(
+              controller: scrollController,
+              itemCount: 40,
+              itemBuilder: (context, index) => Text('Program item $index'),
+            ),
+          ),
+        ),
+      );
+      await _waitForCaptures(tester);
+      final controller = TugboatReplay.controller!;
+      final interactionRequestCount = controller.session!.events
+          .where(
+            (event) =>
+                event.type == 'capture_diagnostic' &&
+                event.data['trigger'] == 'interaction',
+          )
+          .length;
+
+      scrollController.animateTo(
+        180,
+        duration: const Duration(milliseconds: 32),
+        curve: Curves.linear,
+      );
+      await tester.pumpAndSettle();
+      await _waitForCaptures(tester);
+
+      final session = controller.session!;
+      expect(
+        session.events.where((event) => event.type == 'scroll_start'),
+        hasLength(1),
+      );
+      final scrollEnd = session.events
+          .where((event) => event.type == 'scroll_end')
+          .single;
+      expect(scrollEnd.afterFrame, isNull);
+      expect(
+        (scrollEnd.data['frameAttachment']! as Map)['reason'],
+        'programmatic_scroll',
+      );
+      expect(
+        session.events.where(
+          (event) =>
+              event.type == 'interaction' &&
+              event.stream == TugboatEventStream.semantic,
+        ),
+        isEmpty,
+      );
+      expect(
+        session.events
+            .where(
+              (event) =>
+                  event.type == 'capture_diagnostic' &&
+                  event.data['trigger'] == 'interaction',
+            )
+            .length,
+        interactionRequestCount,
+      );
+    },
+  );
+
   testWidgets('ListView scroll carries scrollable target anchor', (
     tester,
   ) async {

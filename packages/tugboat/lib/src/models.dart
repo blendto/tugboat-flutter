@@ -115,7 +115,17 @@ class TugboatRect {
   };
 }
 
-enum TugboatFrameTrigger { initial, tap, scroll, route, lifecycle, manual }
+/// `interaction` is a fresh, non-coalescing after-frame request for one
+/// completed user interaction.
+enum TugboatFrameTrigger {
+  initial,
+  tap,
+  scroll,
+  route,
+  lifecycle,
+  manual,
+  interaction,
+}
 
 enum TugboatInteractionResult { changed, noVisibleChange, navigated, unknown }
 
@@ -242,7 +252,6 @@ class TugboatEvent {
     if (sessionId != null) 'sessionId': sessionId,
     if (captureSessionId != null) 'captureSessionId': captureSessionId,
     if (activationRequestId != null) 'activationRequestId': activationRequestId,
-    if (stateAnchor != null) 'stateAnchor': stateAnchor!.toJson(),
     if (targetAnchor != null) 'targetAnchor': targetAnchor!.toJson(),
     if (beforeFrame != null) 'beforeFrame': beforeFrame,
     if (afterFrame != null) 'afterFrame': afterFrame,

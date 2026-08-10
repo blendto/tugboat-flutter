@@ -20,6 +20,7 @@ class InteractionOrigin {
     required this.interactionId,
     required this.stateAnchor,
     required this.route,
+    required this.routeEpoch,
     required this.routeInstanceId,
     required this.navigatorId,
     required this.targetAnchor,
@@ -36,6 +37,7 @@ class InteractionOrigin {
   final String interactionId;
   final TugboatStateAnchor? stateAnchor;
   final String? route;
+  final int routeEpoch;
   final String? routeInstanceId;
   final String? navigatorId;
   final TugboatTargetAnchor? targetAnchor;
@@ -50,7 +52,6 @@ class InteractionOrigin {
 
   Map<String, Object?> toJson() => {
     'interactionId': interactionId,
-    if (stateAnchor != null) 'stateAnchor': stateAnchor!.toJson(),
     if (route != null) 'route': route,
     if (routeInstanceId != null) 'routeInstanceId': routeInstanceId,
     if (navigatorId != null) 'navigatorId': navigatorId,
@@ -162,6 +163,7 @@ class InteractionTransaction {
   String? resultRoute;
   String? resultRouteInstanceId;
   String? afterFrame;
+  String? captureOutcome;
   int? resultObservedAtMs;
   TugboatStateAnchor? resultStateAnchor;
 
@@ -207,8 +209,8 @@ class InteractionTransaction {
     'status': (resultStatus ?? InteractionResultStatus.unknown).name,
     if (resultRoute != null) 'route': resultRoute,
     if (resultRouteInstanceId != null) 'routeInstanceId': resultRouteInstanceId,
-    if (resultStateAnchor != null) 'stateAnchor': resultStateAnchor!.toJson(),
     if (afterFrame != null) 'afterFrame': afterFrame,
+    if (captureOutcome != null) 'captureOutcome': captureOutcome,
     if (resultObservedAtMs != null) 'observedAtMs': resultObservedAtMs,
   };
 

@@ -5,9 +5,18 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.7.0`. Session JSON writers emit schema
+The current package version is `0.8.0`. Session JSON writers emit schema
 version `9`; compatibility readers should accept versions `6` through
 `9`. Structural fingerprints use fingerprint schema version `6`.
+
+## 0.8.0 raw-event compatibility
+
+New writers omit `stateAnchor`, `stateSignature`, and `state_change` events.
+Legacy public state model types remain available for source compatibility, but
+new recordings do not write them. Each completed tap, swipe, and scroll
+requests its own fresh after-frame. The collector mapper also omits the top-
+level `stateAnchor` key. Deploy the related collector change with this SDK
+release.
 
 ## Install
 
@@ -23,7 +32,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.7.0
+  tugboat_dio: ^0.8.0
 ```
 
 See `packages/tugboat_dio/README.md`.
@@ -324,7 +333,7 @@ making historical recordings unreadable:
   cannot yet read canonical `interaction` records.
 
 Do not enable either legacy mode in a new application integration. Consumers
-must use `interaction` as the user action and treat route/state/frame records as
+must use `interaction` as the user action and treat route/frame records as
 linked evidence. Historical `tap` and `tap_settled` rows may still be read and
 correlated through `interactionId` / `relatedEventId`, but must not be counted as
 additional user actions.
@@ -415,7 +424,7 @@ Emitted inferred event types currently include:
   `tap_outside_tree`, `tap_gesture_resolved`;
 - lifecycle: `session_start`, `session_identify`, `session_end`;
 - input: `pointer_cancel` (`stream: evidence`);
-- state/navigation evidence (`stream: evidence`): `state_change`, `route_change`
+- navigation evidence (`stream: evidence`): `route_change`
   (claimed routes also carry `causedByInteractionId`);
 - scrolling evidence (`stream: evidence`): `scroll_start`, `scroll_end`;
 - diagnostics: `capture_diagnostic` (`stream: diagnostic`);
@@ -431,11 +440,13 @@ Rage-tap style insights must count finalized `gesture=tap` interactions with
 no successful `navigated`/`changed` result; exclude scrolls, swipes,
 cancellations, evidence, legacy projections, and diagnostics.
 
-Frames can be triggered by initial startup, taps, scrolls, routes, lifecycle,
-or explicit controller calls. Capture requests are serialized and coalesced.
-The SDK first skips repeated state signatures, then uses a small dHash to avoid
-PNG encoding for visually unchanged content, and finally deduplicates encoded
-frames by content hash.
+Frames can be triggered by initial startup, interactions, routes, lifecycle,
+or explicit controller calls. Capture requests are serialized. Non-interaction
+requests can coalesce and use dHash or content-hash deduplication. Each
+completed tap, swipe, and scroll gets a forced fresh after-frame request. It is
+not suppressed by local-WebSocket non-interaction suppression, dHash, or
+content-hash deduplication. A claimed route capture can satisfy that interaction
+when it is its fresh frame.
 
 Pointer coordinates in event data (`x`, `y`, and swipe `startX`/`startY`) are
 Flutter global logical-pixel coordinates from the pointer event. The SDK
@@ -445,7 +456,7 @@ capture-boundary-normalized for replay playback. Do not interpret them as
 physical pixels or as coordinates relative to an individual widget. Fractional
 overlay drift is therefore still possible.
 
-For a tap, origin context (`stateAnchor`, target, `beforeFrame`,
+For a tap, origin context (target, `beforeFrame`,
 `captureCoordinate`, route/navigator identity) is frozen at pointer-down into
 an `InteractionTransaction`. After pointer-up, settlement waits for either the
 first eligible visible successor inside `interactionClaimWindow` (default
@@ -458,9 +469,11 @@ additional semantic actions. A missing attachment is explicit in
 frame.
 
 During local WebSocket exploration, connecting without an HTTP collector
-suppresses new Flutter screenshot capture for UI-thread performance. Events,
-anchors, inventories, and semantic evidence continue to stream; the CLI's ADB
-before/after screenshots remain the primary gesture-level visual evidence.
+suppresses only non-interaction Flutter screenshot capture for UI-thread
+performance. Every completed interaction still encodes a fresh screenshot.
+This includes a causally claimed route capture. Events, anchors, inventories,
+and semantic evidence continue to stream; the CLI's ADB before/after screenshots
+remain the primary gesture-level visual evidence.
 
 ## Structural identity
 
@@ -481,11 +494,6 @@ TugboatTag(
 and scroll attribution. `widgetNames` can replace runtime type names used in
 canonical paths, which is particularly useful when an obfuscated build needs a
 generated stable-name map.
-
-State signatures in v6 are deliberately coarse: route key plus keyboard,
-modal, and subview state. Role counts remain diagnostic metadata but do not
-determine the signature. Identity should be joined only within the same build
-and fingerprint schema version.
 
 ## Lifecycle
 
@@ -515,7 +523,6 @@ to an inferred event. The closed outcome vocabulary is:
 | `fresh_accepted` | A fresh frame was accepted. |
 | `exact_content_reused` | An exact content hash reused a compatible frame. |
 | `perceptual_hash_coalesced` | A perceptual hash reused a compatible frame. |
-| `state_signature_short_circuit` | Compatible semantic state made capture unnecessary. |
 | `screenshot_budget_skip` | Degraded screenshot budget skipped eligible work. |
 | `superseded_route_epoch` | Navigation superseded the request's route epoch. |
 | `paint_readiness_timeout` | A fresh paint did not become available in time. |
