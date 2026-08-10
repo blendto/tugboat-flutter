@@ -153,6 +153,12 @@ class ScreenshotCapturer {
     _lastAcceptedPaintSignature = paintSignature;
   }
 
+  /// Commits [dHash] after the controller accepts or reuses a frame.
+  void commitAcceptedDHash(String? dHash) {
+    if (dHash == null || dHash.isEmpty) return;
+    _lastDHash = dHash;
+  }
+
   /// Wait for one bounded compositor opportunity.  The timeout does not try
   /// to cancel Flutter's frame future (which is shared by the binding); it
   /// merely releases this capture request and later fences the stale waiter.
@@ -471,9 +477,6 @@ class ScreenshotCapturer {
             force: force,
           ),
         );
-        if (encoded.dHash != null) {
-          _lastDHash = encoded.dHash;
-        }
         return ScreenshotCaptureResult(
           bytes: encoded.bytes,
           contentHash: encoded.contentHash,

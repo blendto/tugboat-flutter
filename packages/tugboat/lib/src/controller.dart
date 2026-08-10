@@ -2113,13 +2113,16 @@ class TugboatReplayController extends ChangeNotifier {
       return const _CaptureExecution(outcome: _CaptureOutcome.noFrameAvailable);
     }
 
+    final compatibleFrame = _compatibleFrameFor(context);
+    final hasCompatibleFrame = compatibleFrame != null;
+
     final eligibleToSkip =
         freshness == _CaptureFreshness.reusable &&
         trigger != TugboatFrameTrigger.initial &&
         trigger != TugboatFrameTrigger.lifecycle &&
         config.screenshotBudget.skipEligibleWhenDegraded &&
         _screenshotBudget.shouldSkipEligible;
-    if (eligibleToSkip && _compatibleFrameFor(context) != null) {
+    if (eligibleToSkip && hasCompatibleFrame) {
       return _reuseWithoutCapture(
         context: context,
         outcome: _CaptureOutcome.screenshotBudgetSkip,
@@ -2177,10 +2180,11 @@ class TugboatReplayController extends ChangeNotifier {
         // A freshness-sensitive request needs a new logical observation even
         // when its pixels match. Reusing the old frame would also reuse its
         // old completion-state provenance.
-        force: force || requiresFreshPaint,
+        force: force || requiresFreshPaint || !hasCompatibleFrame,
         waitForFrame: true,
         requireFreshPaint: requiresFreshPaint,
-        allowPaintGenerationSkip: trigger != TugboatFrameTrigger.initial,
+        allowPaintGenerationSkip:
+            trigger != TugboatFrameTrigger.initial && hasCompatibleFrame,
         cancelled: captureCancellation,
         isCurrent: () =>
             _captureContextStillCurrent(
@@ -2258,6 +2262,7 @@ class TugboatReplayController extends ChangeNotifier {
             : _reuseCompatibleFrame(compatible, context, 'dhash');
         if (reused != null) {
           capturer.commitAcceptedPaintGeneration(result.paintGeneration);
+          capturer.commitAcceptedDHash(result.dHash);
         }
         return _CaptureExecution(
           outcome: reused == null
@@ -2275,6 +2280,7 @@ class TugboatReplayController extends ChangeNotifier {
           _isFrameCompatible(existingId, context)) {
         _reuseCompatibleFrame(existingId, context, 'content_hash');
         capturer.commitAcceptedPaintGeneration(result.paintGeneration);
+        capturer.commitAcceptedDHash(result.dHash);
         _maybeEmitSceneInventory();
         return _CaptureExecution(
           outcome: _CaptureOutcome.exactContentReused,
@@ -2315,6 +2321,7 @@ class TugboatReplayController extends ChangeNotifier {
         completionStateAnchor: completionStateAnchor,
       );
       capturer.commitAcceptedPaintGeneration(result.paintGeneration);
+      capturer.commitAcceptedDHash(result.dHash);
       _maybeEmitSceneInventory();
       _sinkHub?.recordFrame(
         frame,

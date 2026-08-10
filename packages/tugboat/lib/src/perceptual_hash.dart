@@ -11,15 +11,25 @@ String computeDHashFromRgba(Uint8List rgba, int width, int height) {
   final pixels = List<int>.filled(hashWidth * hashHeight, 0);
 
   for (var y = 0; y < hashHeight; y++) {
-    final srcY = ((y + 0.5) * height / hashHeight).floor().clamp(0, height - 1);
+    final y0 = (y * height / hashHeight).floor();
+    final y1 = ((y + 1) * height / hashHeight).floor().clamp(y0 + 1, height);
     for (var x = 0; x < hashWidth; x++) {
-      final srcX = ((x + 0.5) * width / hashWidth).floor().clamp(0, width - 1);
-      final offset = (srcY * width + srcX) * 4;
-      if (offset + 2 >= rgba.length) continue;
-      final r = rgba[offset];
-      final g = rgba[offset + 1];
-      final b = rgba[offset + 2];
-      pixels[y * hashWidth + x] = ((r * 299 + g * 587 + b * 114) ~/ 1000);
+      final x0 = (x * width / hashWidth).floor();
+      final x1 = ((x + 1) * width / hashWidth).floor().clamp(x0 + 1, width);
+      var sum = 0;
+      var count = 0;
+      for (var sy = y0; sy < y1; sy++) {
+        for (var sx = x0; sx < x1; sx++) {
+          final offset = (sy * width + sx) * 4;
+          if (offset + 2 >= rgba.length) continue;
+          final r = rgba[offset];
+          final g = rgba[offset + 1];
+          final b = rgba[offset + 2];
+          sum += ((r * 299 + g * 587 + b * 114) ~/ 1000);
+          count++;
+        }
+      }
+      pixels[y * hashWidth + x] = count == 0 ? 0 : sum ~/ count;
     }
   }
 

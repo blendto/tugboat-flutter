@@ -175,6 +175,9 @@ class IsolateScreenshotEncoder implements ScreenshotEncoder {
     }
     final jobId = _nextJobId++;
     final completer = Completer<ScreenshotEncodeResult>();
+    if (_disposed) {
+      throw StateError('IsolateScreenshotEncoder is disposed');
+    }
     _pending[jobId] = completer;
     // fromList copies once into a transferable buffer on this isolate; the
     // worker then materializes without a second full-frame copy. This still

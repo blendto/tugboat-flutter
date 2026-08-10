@@ -1434,6 +1434,30 @@ void main() {
     expect(dHashVisuallyMatches(base, threeBits), isFalse);
   });
 
+  test('perceptual hash aggregates cell pixels on large buffers', () {
+    const width = 80;
+    const height = 80;
+    final rgba = Uint8List(width * height * 4);
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        final offset = (y * width + x) * 4;
+        final isCorner = x < width ~/ 8 && y < height ~/ 8;
+        final gray = isCorner ? 0 : 200;
+        rgba[offset] = gray;
+        rgba[offset + 1] = gray;
+        rgba[offset + 2] = gray;
+        rgba[offset + 3] = 255;
+      }
+    }
+    final uniform = computeDHashFromRgba(
+      Uint8List.fromList(List<int>.filled(width * height * 4, 200)),
+      width,
+      height,
+    );
+    final withCorner = computeDHashFromRgba(rgba, width, height);
+    expect(withCorner, isNot(uniform));
+  });
+
   testWidgets('skips tap capture when route capture is pending', (
     tester,
   ) async {
