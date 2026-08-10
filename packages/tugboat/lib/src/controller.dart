@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
+import 'capture_boundary.dart';
 import 'capture_profile.dart';
 import 'capture_sink.dart';
 import 'collector_http_sink.dart';
@@ -135,7 +136,7 @@ enum _CaptureOutcome {
   freshAccepted,
   exactContentReused,
   perceptualHashCoalesced,
-  stateSignatureShortCircuit,
+  paintGenerationUnchanged,
   screenshotBudgetSkip,
   noFrameAvailable,
   noCompatibleFrame,
@@ -151,8 +152,7 @@ extension on _CaptureOutcome {
     _CaptureOutcome.freshAccepted => 'fresh_accepted',
     _CaptureOutcome.exactContentReused => 'exact_content_reused',
     _CaptureOutcome.perceptualHashCoalesced => 'perceptual_hash_coalesced',
-    _CaptureOutcome.stateSignatureShortCircuit =>
-      'state_signature_short_circuit',
+    _CaptureOutcome.paintGenerationUnchanged => 'paint_generation_unchanged',
     _CaptureOutcome.screenshotBudgetSkip => 'screenshot_budget_skip',
     _CaptureOutcome.noFrameAvailable => 'no_frame_available',
     _CaptureOutcome.noCompatibleFrame => 'no_compatible_frame',
@@ -843,7 +843,10 @@ class TugboatReplayController extends ChangeNotifier {
   static String _routeCaptureKey(String? navigatorId) => navigatorId ?? '';
 
   final Map<Element, _ScrollTracker> _scrollTrackers = {};
-  String? _lastCapturedStateSignature;
+  /// Paint generation observed on the capture boundary when the last frame
+  /// was accepted (or pixel-coalesced). Used to skip GPU readback when the
+  /// boundary has not painted again.
+  int? _lastCapturedPaintGeneration;
   final Set<String> _emittedInventories = <String>{};
   SemanticsHandle? _semanticsHandle;
   String? _lastDHash;
@@ -1089,6 +1092,7 @@ class TugboatReplayController extends ChangeNotifier {
       completedAtMs: atMs,
       completionStateAnchor: _snapshotStateAnchor(_currentStateAnchor),
     );
+    _rememberPaintGeneration();
     _trim();
     return frameId;
   }
@@ -1430,7 +1434,7 @@ class TugboatReplayController extends ChangeNotifier {
     _hashToFrameId.clear();
     _frameProvenance.clear();
     _frameReuseObservations.clear();
-    _lastCapturedStateSignature = null;
+    _lastCapturedPaintGeneration = null;
     _lastCaptureFailure = null;
     _emittedInventories.clear();
     _viewportSemantics.clear();
@@ -1645,6 +1649,20 @@ class TugboatReplayController extends ChangeNotifier {
       reusedAtMs: atMs,
     );
     return frameId;
+  }
+
+  /// Current paint generation of the SDK capture boundary, or null when the
+  /// boundary is not mounted / not a [TugboatCaptureRenderBoundary].
+  int? _currentPaintGeneration() {
+    final renderObject = _boundaryKey.currentContext?.findRenderObject();
+    if (renderObject is TugboatCaptureRenderBoundary) {
+      return renderObject.paintGeneration;
+    }
+    return null;
+  }
+
+  void _rememberPaintGeneration() {
+    _lastCapturedPaintGeneration = _currentPaintGeneration();
   }
 
   /// Emits exactly one bounded, sanitized resolution record for a logical
@@ -2060,8 +2078,8 @@ class TugboatReplayController extends ChangeNotifier {
             ? 'content_hash'
             : outcome == _CaptureOutcome.perceptualHashCoalesced
             ? 'dhash'
-            : outcome == _CaptureOutcome.stateSignatureShortCircuit
-            ? 'state_signature'
+            : outcome == _CaptureOutcome.paintGenerationUnchanged
+            ? 'paint_generation'
             : null,
       );
     }
@@ -2103,6 +2121,31 @@ class TugboatReplayController extends ChangeNotifier {
         outcome: _CaptureOutcome.screenshotBudgetSkip,
         frameId: compatibleSkipFrame,
       );
+    }
+
+    // When the capture boundary has not painted since the last accepted
+    // frame, pixels cannot have changed. Skip the entire GPU/encode path and
+    // reuse a compatible frame. Forced and fresh-paint requests still run.
+    if (!force &&
+        !requiresFreshPaint &&
+        trigger != TugboatFrameTrigger.initial) {
+      final paintGeneration = _currentPaintGeneration();
+      final lastPaint = _lastCapturedPaintGeneration;
+      if (paintGeneration != null &&
+          lastPaint != null &&
+          paintGeneration == lastPaint) {
+        final compatible = _compatibleFrameFor(context);
+        if (compatible != null) {
+          _reuseCompatibleFrame(compatible, context, 'paint_generation');
+          _refreshStateAnchor();
+          _maybeEmitSceneInventory();
+          return _CaptureExecution(
+            outcome: _CaptureOutcome.paintGenerationUnchanged,
+            frameId: compatible,
+            reuseReason: 'paint_generation',
+          );
+        }
+      }
     }
 
     final captureOverride = debugExecuteCapture;
@@ -2204,21 +2247,6 @@ class TugboatReplayController extends ChangeNotifier {
       }
       _lastCaptureFailure = null;
       _refreshStateAnchor();
-      final signature = _currentStateAnchor?.signature ?? '';
-      if (!force &&
-          !requiresFreshPaint &&
-          trigger != TugboatFrameTrigger.initial &&
-          signature.isNotEmpty &&
-          signature == _lastCapturedStateSignature) {
-        final compatible = _compatibleFrameFor(context);
-        return _CaptureExecution(
-          outcome: compatible == null
-              ? _CaptureOutcome.noCompatibleFrame
-              : _CaptureOutcome.stateSignatureShortCircuit,
-          frameId: compatible,
-          reuseReason: compatible == null ? null : 'state_signature',
-        );
-      }
       final activeSession = session;
       final completionStateAnchor = _snapshotStateAnchor(_refreshStateAnchor());
 
@@ -2236,6 +2264,7 @@ class TugboatReplayController extends ChangeNotifier {
         if (result.dHash != null) {
           _lastDHash = result.dHash;
         }
+        _rememberPaintGeneration();
         final compatible = _compatibleFrameFor(context);
         final reused = compatible == null
             ? null
@@ -2258,9 +2287,7 @@ class TugboatReplayController extends ChangeNotifier {
         if (result.dHash != null) {
           _lastDHash = result.dHash;
         }
-        if (signature.isNotEmpty) {
-          _lastCapturedStateSignature = signature;
-        }
+        _rememberPaintGeneration();
         _maybeEmitSceneInventory();
         return _CaptureExecution(
           outcome: _CaptureOutcome.exactContentReused,
@@ -2303,9 +2330,7 @@ class TugboatReplayController extends ChangeNotifier {
       if (result.dHash != null) {
         _lastDHash = result.dHash;
       }
-      if (signature.isNotEmpty) {
-        _lastCapturedStateSignature = signature;
-      }
+      _rememberPaintGeneration();
       _maybeEmitSceneInventory();
       _sinkHub?.recordFrame(
         frame,
