@@ -64,14 +64,27 @@ class _JpegEncodeRequest {
   final int height;
 }
 
-Uint8List _encodeJpeg(_JpegEncodeRequest request) {
+class _JpegEncodeResult {
+  const _JpegEncodeResult({required this.bytes, required this.contentHash});
+
+  final Uint8List bytes;
+  final String contentHash;
+}
+
+/// Encodes RGBA pixels to JPEG and hashes the encoded bytes on a worker
+/// isolate so neither JPEG compression nor SHA-256 run on the UI isolate.
+_JpegEncodeResult _encodeJpeg(_JpegEncodeRequest request) {
   final image = img.Image.fromBytes(
     width: request.width,
     height: request.height,
     bytes: request.rgba.buffer,
     order: img.ChannelOrder.rgba,
   );
-  return Uint8List.fromList(img.encodeJpg(image, quality: _jpegQuality));
+  final jpeg = Uint8List.fromList(img.encodeJpg(image, quality: _jpegQuality));
+  return _JpegEncodeResult(
+    bytes: jpeg,
+    contentHash: sha256.convert(jpeg).toString(),
+  );
 }
 
 class MaskRect {
@@ -458,7 +471,7 @@ class ScreenshotCapturer {
               ScreenshotCaptureFailure.encodingFailed,
             );
           }
-          final jpeg = await compute(
+          final encoded = await compute(
             _encodeJpeg,
             _JpegEncodeRequest(
               byteData.buffer.asUint8List(),
@@ -466,13 +479,12 @@ class ScreenshotCapturer {
               scaledHeight,
             ),
           );
-          final contentHash = sha256.convert(jpeg).toString();
           if (quickDHash != null) {
             _lastDHash = quickDHash;
           }
           return ScreenshotCaptureResult(
-            bytes: jpeg,
-            contentHash: contentHash,
+            bytes: encoded.bytes,
+            contentHash: encoded.contentHash,
             dHash: quickDHash,
             width: scaledWidth,
             height: scaledHeight,
