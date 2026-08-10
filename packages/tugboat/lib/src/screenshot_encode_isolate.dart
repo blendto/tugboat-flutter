@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -23,11 +22,19 @@ class ScreenshotEncodeResult {
 }
 
 class _ComputeEncodeRequest {
-  const _ComputeEncodeRequest(this.rgba, this.width, this.height);
+  const _ComputeEncodeRequest(
+    this.rgba,
+    this.width,
+    this.height,
+    this.maskRects,
+  );
 
   final Uint8List rgba;
   final int width;
   final int height;
+
+  /// Pixel-space mask rectangles as flat `[left, top, right, bottom, ...]`.
+  final Float64List maskRects;
 }
 
 ScreenshotEncodeResult _encodeJpegCompute(_ComputeEncodeRequest request) {
@@ -35,18 +42,62 @@ ScreenshotEncodeResult _encodeJpegCompute(_ComputeEncodeRequest request) {
     rgba: request.rgba,
     width: request.width,
     height: request.height,
+    maskRects: request.maskRects,
   );
+}
+
+/// Dark fill used for masked regions (matches the previous canvas mask color).
+const int _maskFillR = 0x1a;
+const int _maskFillG = 0x1a;
+const int _maskFillB = 0x1a;
+const int _maskFillA = 0xff;
+
+void _applyMaskRectsInPlace({
+  required Uint8List rgba,
+  required int width,
+  required int height,
+  required Float64List maskRects,
+}) {
+  if (maskRects.isEmpty) return;
+  for (var i = 0; i + 3 < maskRects.length; i += 4) {
+    final left = maskRects[i].floor().clamp(0, width);
+    final top = maskRects[i + 1].floor().clamp(0, height);
+    final right = maskRects[i + 2].ceil().clamp(0, width);
+    final bottom = maskRects[i + 3].ceil().clamp(0, height);
+    if (right <= left || bottom <= top) continue;
+    for (var y = top; y < bottom; y++) {
+      var offset = (y * width + left) * 4;
+      for (var x = left; x < right; x++) {
+        rgba[offset] = _maskFillR;
+        rgba[offset + 1] = _maskFillG;
+        rgba[offset + 2] = _maskFillB;
+        rgba[offset + 3] = _maskFillA;
+        offset += 4;
+      }
+    }
+  }
 }
 
 ScreenshotEncodeResult _encodeJpegBytes({
   required Uint8List rgba,
   required int width,
   required int height,
+  Float64List? maskRects,
 }) {
+  if (maskRects != null && maskRects.isNotEmpty) {
+    _applyMaskRectsInPlace(
+      rgba: rgba,
+      width: width,
+      height: height,
+      maskRects: maskRects,
+    );
+  }
   final image = img.Image.fromBytes(
     width: width,
     height: height,
     bytes: rgba.buffer,
+    bytesOffset: rgba.offsetInBytes,
+    rowStride: width * 4,
     order: img.ChannelOrder.rgba,
   );
   final jpeg = Uint8List.fromList(
@@ -154,18 +205,24 @@ class ScreenshotEncodeIsolate {
   }
 
   /// Encodes [rgba] (straight RGBA) to JPEG and returns bytes + SHA-256.
+  ///
+  /// [maskRects] is an optional flat list of pixel-space rectangles
+  /// (`left, top, right, bottom` repeating) painted as opaque dark fills
+  /// before encoding.
   Future<ScreenshotEncodeResult> encode({
     required Uint8List rgba,
     required int width,
     required int height,
+    Float64List? maskRects,
   }) async {
     if (_disposed) {
       throw StateError('ScreenshotEncodeIsolate is disposed');
     }
+    final masks = maskRects ?? Float64List(0);
     if (_underWidgetTestBinding()) {
       return compute(
         _encodeJpegCompute,
-        _ComputeEncodeRequest(rgba, width, height),
+        _ComputeEncodeRequest(rgba, width, height, masks),
       );
     }
     await ensureStarted();
@@ -181,6 +238,7 @@ class ScreenshotEncodeIsolate {
       TransferableTypedData.fromList([rgba]),
       width,
       height,
+      masks,
     ]);
     return completer.future;
   }
@@ -214,15 +272,17 @@ void _screenshotEncodeIsolateMain(SendPort replyTo) {
   final commands = ReceivePort();
   replyTo.send(commands.sendPort);
   commands.listen((message) {
-    if (message is! List || message.length != 4) return;
+    if (message is! List || message.length != 5) return;
     final jobId = message[0];
     final transferable = message[1];
     final width = message[2];
     final height = message[3];
+    final maskRects = message[4];
     if (jobId is! int ||
         transferable is! TransferableTypedData ||
         width is! int ||
-        height is! int) {
+        height is! int ||
+        maskRects is! Float64List) {
       return;
     }
     try {
@@ -231,6 +291,7 @@ void _screenshotEncodeIsolateMain(SendPort replyTo) {
         rgba: rgba,
         width: width,
         height: height,
+        maskRects: maskRects,
       );
       replyTo.send(<Object?>[jobId, encoded.bytes, encoded.contentHash]);
     } catch (error) {

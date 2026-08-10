@@ -365,90 +365,34 @@ class ScreenshotCapturer {
     try {
       final scaledWidth = image.width;
       final scaledHeight = image.height;
-      ui.Image rasterImage = image;
 
-      var maskMicros = maskClock.elapsedMicroseconds;
-      if (maskRects.isNotEmpty) {
-        maskClock
-          ..reset()
-          ..start();
-        try {
-          final recorder = ui.PictureRecorder();
-          final canvas = Canvas(recorder);
-          canvas.drawImage(image, Offset.zero, Paint());
-
-          final maskPaint = Paint()..color = const Color(0xFF1A1A1A);
-          for (final mask in maskRects) {
-            final scaled = Rect.fromLTWH(
-              mask.rect.left * pixelRatio,
-              mask.rect.top * pixelRatio,
-              mask.rect.width * pixelRatio,
-              mask.rect.height * pixelRatio,
-            );
-            if (scaled.width > 0 && scaled.height > 0) {
-              canvas.drawRect(scaled, maskPaint);
-            }
-          }
-
-          final picture = recorder.endRecording();
-          try {
-            rasterImage = await picture.toImage(scaledWidth, scaledHeight);
-          } finally {
-            picture.dispose();
-          }
-        } catch (_) {
-          throw const _ScreenshotCaptureException(
-            ScreenshotCaptureFailure.maskFailed,
-          );
-        } finally {
-          maskClock.stop();
-          maskMicros += maskClock.elapsedMicroseconds;
-        }
+      // Scale mask rects into capture pixel space once. Mask fills are applied
+      // in the encode isolate so we avoid a second full-size picture.toImage.
+      final maskClockTotal = Stopwatch()..start();
+      final scaledMasks = Float64List(maskRects.length * 4);
+      for (var i = 0; i < maskRects.length; i++) {
+        final rect = maskRects[i].rect;
+        final base = i * 4;
+        scaledMasks[base] = rect.left * pixelRatio;
+        scaledMasks[base + 1] = rect.top * pixelRatio;
+        scaledMasks[base + 2] = rect.right * pixelRatio;
+        scaledMasks[base + 3] = rect.bottom * pixelRatio;
       }
+      maskClockTotal.stop();
+      final maskMicros =
+          maskClock.elapsedMicroseconds + maskClockTotal.elapsedMicroseconds;
 
+      final encodeClock = Stopwatch()..start();
       try {
-        final encodeClock = Stopwatch()..start();
-        try {
-          final quickDHash = await _dHashFromThumbnail(rasterImage);
-          final compareDHash = lastDHash ?? _lastDHash;
-          if (!force &&
-              quickDHash != null &&
-              compareDHash != null &&
-              quickDHash == compareDHash) {
-            return ScreenshotCaptureResult(
-              bytes: Uint8List(0),
-              contentHash: '',
-              dHash: quickDHash,
-              width: scaledWidth,
-              height: scaledHeight,
-              boundaryLogicalRect: boundaryLogicalRect,
-              masked: maskRects.isNotEmpty,
-              captureMicros: readbackClock.elapsedMicroseconds,
-              encodeMicros: encodeClock.elapsedMicroseconds,
-              maskMicros: maskMicros,
-              skippedByDHash: true,
-            );
-          }
-
-          final byteData = await rasterImage.toByteData(
-            format: ui.ImageByteFormat.rawRgba,
-          );
-          if (byteData == null) {
-            throw const _ScreenshotCaptureException(
-              ScreenshotCaptureFailure.encodingFailed,
-            );
-          }
-          final encoded = await _encodeIsolate.encode(
-            rgba: byteData.buffer.asUint8List(),
-            width: scaledWidth,
-            height: scaledHeight,
-          );
-          if (quickDHash != null) {
-            _lastDHash = quickDHash;
-          }
+        final quickDHash = await _dHashFromThumbnail(image);
+        final compareDHash = lastDHash ?? _lastDHash;
+        if (!force &&
+            quickDHash != null &&
+            compareDHash != null &&
+            quickDHash == compareDHash) {
           return ScreenshotCaptureResult(
-            bytes: encoded.bytes,
-            contentHash: encoded.contentHash,
+            bytes: Uint8List(0),
+            contentHash: '',
             dHash: quickDHash,
             width: scaledWidth,
             height: scaledHeight,
@@ -457,20 +401,47 @@ class ScreenshotCapturer {
             captureMicros: readbackClock.elapsedMicroseconds,
             encodeMicros: encodeClock.elapsedMicroseconds,
             maskMicros: maskMicros,
+            skippedByDHash: true,
           );
-        } on _ScreenshotCaptureException {
-          rethrow;
-        } catch (_) {
+        }
+
+        final byteData = await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
+        if (byteData == null) {
           throw const _ScreenshotCaptureException(
             ScreenshotCaptureFailure.encodingFailed,
           );
-        } finally {
-          encodeClock.stop();
         }
+        final encoded = await _encodeIsolate.encode(
+          rgba: byteData.buffer.asUint8List(),
+          width: scaledWidth,
+          height: scaledHeight,
+          maskRects: scaledMasks,
+        );
+        if (quickDHash != null) {
+          _lastDHash = quickDHash;
+        }
+        return ScreenshotCaptureResult(
+          bytes: encoded.bytes,
+          contentHash: encoded.contentHash,
+          dHash: quickDHash,
+          width: scaledWidth,
+          height: scaledHeight,
+          boundaryLogicalRect: boundaryLogicalRect,
+          masked: maskRects.isNotEmpty,
+          captureMicros: readbackClock.elapsedMicroseconds,
+          encodeMicros: encodeClock.elapsedMicroseconds,
+          maskMicros: maskMicros,
+        );
+      } on _ScreenshotCaptureException {
+        rethrow;
+      } catch (_) {
+        throw const _ScreenshotCaptureException(
+          ScreenshotCaptureFailure.encodingFailed,
+        );
       } finally {
-        if (!identical(rasterImage, image)) {
-          rasterImage.dispose();
-        }
+        encodeClock.stop();
       }
     } finally {
       image.dispose();

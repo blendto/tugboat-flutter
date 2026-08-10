@@ -246,7 +246,8 @@ telemetry and avoid putting user data in them.
 
 Screenshots are taken from the SDK `RepaintBoundary` at the configured pixel
 ratio (default `0.75`). Before JPEG encoding the SDK collects mask rectangles
-using the shared anchor resolver and paints them onto the raster.
+using the shared anchor resolver and applies them as opaque fills on the RGBA
+buffer inside the encode isolate (avoiding a second full-size GPU raster).
 
 The default mask policy is profile-dependent:
 
