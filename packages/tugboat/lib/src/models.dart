@@ -78,7 +78,9 @@ const String tugboatEventStreamEvidence = 'evidence';
 const String tugboatEventStreamDiagnostic = 'diagnostic';
 const String tugboatEventStreamLegacyProjection = 'legacy_projection';
 
-const int tugboatInteractionSchemaVersion = 1;
+const int tugboatInteractionSchemaVersion = 2;
+const int tugboatRouteChangeSchemaVersion = 2;
+const int tugboatScrollSchemaVersion = 2;
 
 /// Whether [event] is a default enrichment / insight candidate.
 bool tugboatEventIsEnrichmentCandidate(TugboatEvent event) {
@@ -209,7 +211,6 @@ class TugboatEvent {
     this.sessionId,
     this.captureSessionId,
     this.activationRequestId,
-    this.stateAnchor,
     this.targetAnchor,
     this.beforeFrame,
     this.afterFrame,
@@ -229,7 +230,6 @@ class TugboatEvent {
   final String? sessionId;
   final String? captureSessionId;
   final String? activationRequestId;
-  final TugboatStateAnchor? stateAnchor;
   final TugboatTargetAnchor? targetAnchor;
   final String? beforeFrame;
   final String? afterFrame;
@@ -271,7 +271,6 @@ class TugboatEvent {
     String? sessionId,
     String? captureSessionId,
     String? activationRequestId,
-    TugboatStateAnchor? stateAnchor,
     TugboatTargetAnchor? targetAnchor,
     String? beforeFrame,
     String? afterFrame,
@@ -288,7 +287,6 @@ class TugboatEvent {
     sessionId: sessionId ?? this.sessionId,
     captureSessionId: captureSessionId ?? this.captureSessionId,
     activationRequestId: activationRequestId ?? this.activationRequestId,
-    stateAnchor: stateAnchor ?? this.stateAnchor,
     targetAnchor: targetAnchor ?? this.targetAnchor,
     beforeFrame: beforeFrame ?? this.beforeFrame,
     afterFrame: afterFrame ?? this.afterFrame,

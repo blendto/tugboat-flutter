@@ -225,12 +225,6 @@ void main() {
         transitionDuration: const Duration(milliseconds: 150),
       ),
     );
-    harness.controller.debugSetCurrentStateAnchor(
-      const TugboatStateAnchor(
-        signature: 'home',
-        signatureParts: <String, String>{'route': '/home'},
-      ),
-    );
     final position = harness.targetTapPosition(tester);
     harness.controller.recordPointerDown(position);
     harness.controller.recordPointerUp(position);
@@ -326,12 +320,6 @@ void main() {
         'route_push',
         harness.route('/automatic'),
       );
-      harness.controller.debugSetCurrentStateAnchor(
-        const TugboatStateAnchor(
-          signature: 'automatic',
-          signatureParts: <String, String>{'route': '/automatic'},
-        ),
-      );
 
       harness.capturer.completeBlocked();
       await harness.flushScheduler();
@@ -354,11 +342,7 @@ void main() {
       expect(observation['navigationOutcome'], 'visual_successor');
       expect(observation['captureOutcome'], isNot('captured'));
       expect(observation['routeEventId'], isNull);
-      expect(
-        interaction.data['evidenceEventIds'],
-        isNot(contains(change.id)),
-        reason: 'an automatic successor is not causal evidence for the tap',
-      );
+      expect(interaction.data.containsKey('evidenceEventIds'), isFalse);
       _expectEveryDiagnosticRequestIsResolvedOnce(session);
       expect(CoherenceInvariants.hasNoStrandedCaptureWork(harness), isTrue);
     },

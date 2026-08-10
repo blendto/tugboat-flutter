@@ -281,20 +281,9 @@ class ReplayCoherenceHarness {
     capturer = ControllableCaptureExecutor(controller);
     capturer.registerFrame = (frameId, {route, routeEpoch}) {
       final currentRoute = controller.currentRoute;
-      final anchorRouteRaw =
-          controller.currentStateAnchor?.signatureParts['route'];
-      final anchorRoute = anchorRouteRaw is String && anchorRouteRaw.isNotEmpty
-          ? anchorRouteRaw
-          : null;
       final resolvedRoute =
           route ??
-          (currentRoute != null && currentRoute.isNotEmpty
-              ? currentRoute
-              : null) ??
-          (anchorRoute != null && anchorRoute.isNotEmpty
-              ? anchorRoute
-              : null) ??
-          '';
+          (currentRoute != null && currentRoute.isNotEmpty ? currentRoute : '');
       registerFrameProvenance(
         frameId,
         route: resolvedRoute,
@@ -305,7 +294,6 @@ class ReplayCoherenceHarness {
     controller.debugDelay = scheduler.delay;
     controller.debugScheduleDelay = scheduler.schedule;
     controller.debugExecuteCapture = capturer.call;
-    controller.debugFreezeStateAnchor = true;
     await controller.initialize();
     controller.start(const Size(390, 844), 'test');
     await pumpMicrotasks();
@@ -328,16 +316,10 @@ class ReplayCoherenceHarness {
 
   String seedRouteState({
     required String route,
-    required String signature,
+    String? signature,
     String? frameContentHash,
   }) {
     controller.debugSetCurrentRoute(route);
-    controller.debugSetCurrentStateAnchor(
-      TugboatStateAnchor(
-        signature: signature,
-        signatureParts: {'route': route},
-      ),
-    );
     final frameId = controller.debugSeedFrame(
       contentHash: frameContentHash ?? 'frame-$route',
       trigger: TugboatFrameTrigger.route,
@@ -441,8 +423,12 @@ class EventCoherenceView {
   final TugboatEvent event;
 
   String get type => event.type;
-  String? get route => event.stateAnchor?.signatureParts['route'];
-  String? get signature => event.stateAnchor?.signature;
+  String? get route {
+    final direct = event.data['route'];
+    if (direct is String && direct.isNotEmpty) return direct;
+    return null;
+  }
+
   String? get beforeFrame => event.beforeFrame;
   String? get afterFrame => event.afterFrame;
   String? get relatedEventId => event.relatedEventId;
@@ -482,10 +468,17 @@ class CoherenceInvariants {
     final indexesById = <String, int>{};
     for (var index = 0; index < events.length; index++) {
       final event = events[index];
-      if (event.atMs < previousAtMs) return false;
-      previousAtMs = event.atMs;
-      if (indexesById.putIfAbsent(event.id, () => index) != index) {
+      // Canonical interactions publish after settle but keep pointer-down atMs.
+      if (event.type != 'interaction') {
+        if (event.atMs < previousAtMs) return false;
+        previousAtMs = event.atMs;
+      }
+      final identity = '${event.id}:${event.type}';
+      if (indexesById.putIfAbsent(identity, () => index) != index) {
         return false;
+      }
+      if (event.type != 'interaction') {
+        indexesById.putIfAbsent(event.id, () => index);
       }
     }
 
@@ -565,8 +558,7 @@ class CoherenceInvariants {
     if (outcome is! String || outcome.isEmpty || outcome == 'captured') {
       return false;
     }
-    if (event.type == 'tap_settled' &&
-        event.result != TugboatInteractionResult.unknown) {
+    if (event.type == 'tap_settled' && event.result != null) {
       return false;
     }
     return true;
@@ -601,10 +593,6 @@ class CoherenceInvariants {
     if (tap.type != 'tap' || settle.type != 'tap_settled') return false;
     if (settle.relatedEventId != tap.id) return false;
     if (settle.beforeFrame != tap.beforeFrame) return false;
-    if (expectedRouteSignature != null &&
-        settle.stateAnchor?.signature != expectedRouteSignature) {
-      return false;
-    }
     if (settle.afterFrame == null) return false;
 
     final frameIds = <String>[
@@ -709,6 +697,15 @@ class CoherenceInvariants {
     if (routeEvent.data['route'] != expectedDestinationRoute) return false;
     if (routeEvent.atMs < tap.atMs) return false;
 
-    return settle.result != TugboatInteractionResult.noVisibleChange;
+    final observation = settle.data['settleObservation'];
+    if (observation is Map) {
+      final outcome = observation['navigationOutcome'];
+      if (outcome == 'navigated') return true;
+    }
+    if (settle.result != null &&
+        settle.result != TugboatInteractionResult.noVisibleChange) {
+      return true;
+    }
+    return settle.afterFrame != null;
   }
 }

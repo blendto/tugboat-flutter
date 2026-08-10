@@ -38,7 +38,6 @@ void main() {
       expect(tap.beforeFrame, originFrame);
       expect(settle.beforeFrame, originFrame);
       expect(settle.afterFrame, isNotNull);
-      expect(settle.stateAnchor?.signature, 'sig-home');
       expect(
         CoherenceInvariants.tapSettleIsLinked(
           events: session.events,
@@ -134,7 +133,7 @@ void main() {
       expect(routeChange.afterFrame, isNotNull);
       expect(settle.afterFrame, routeChange.afterFrame);
       expect(routeForces, [true]);
-      expect(interaction.data['evidenceEventIds'], contains(routeChange.id));
+      expect(interaction.data.containsKey('evidenceEventIds'), isFalse);
     },
   );
 
@@ -188,7 +187,7 @@ void main() {
       expect(settle.relatedEventId, tap.id);
       expect(settle.afterFrame, routeChange.afterFrame);
       expect(settle.afterFrame, isNot(originFrame));
-      expect(settle.result, TugboatInteractionResult.navigated);
+      expect(settle.result, isNull);
       expect(routeChange.data['route'], '/home');
       expect(routeChange.afterFrame, isNot(originFrame));
       expect(
@@ -306,7 +305,7 @@ void main() {
     await routeFuture;
 
     final session = harness.controller.session!;
-    final routeChange = session.ofType('route_change').single;
+    expect(session.ofType('route_change'), hasLength(1));
     final settle = session.ofType('tap_settled').single;
     final interaction = session.events.singleWhere(
       (event) =>
@@ -321,11 +320,7 @@ void main() {
     expect(observation['navigationOutcome'], 'same_route');
     expect(observation['captureOutcome'], 'superseded_route_epoch');
     expect(observation['routeEventId'], isNull);
-    expect(
-      interaction.data['evidenceEventIds'],
-      isNot(contains(routeChange.id)),
-      reason: 'the automatic route is not causal evidence for the tap',
-    );
+    expect(interaction.data.containsKey('evidenceEventIds'), isFalse);
     expect(
       harness.capturer.triggers.where(
         (trigger) => trigger == TugboatFrameTrigger.route,
@@ -369,7 +364,7 @@ void main() {
         settle.data['settleObservation']! as Map,
       );
       expect(settle.afterFrame, isNull);
-      expect(settle.result, isNot(TugboatInteractionResult.navigated));
+      expect(settle.result, isNull);
       expect(observation['navigationOutcome'], 'visual_successor');
       expect(observation['routeEventId'], isNull);
       expect(routeChange.afterFrame, isNotNull);
@@ -412,11 +407,7 @@ void main() {
         ),
         hasLength(1),
       );
-      expect(
-        interaction.data['evidenceEventIds'],
-        isNot(contains(changes.single.id)),
-        reason: 'the final automatic route is not evidence for the tap',
-      );
+      expect(interaction.data.containsKey('evidenceEventIds'), isFalse);
     },
   );
 
@@ -556,14 +547,8 @@ void main() {
       final interactions = harness.controller.session!.ofType('interaction');
       expect(interactions, hasLength(1));
       expect(interactions.single.data['gesture'], 'swipe');
-      final result = interactions.single.data['result'] as Map;
-      expect(result['status'], 'cancelled');
-      expect(result['captureOutcome'], 'cancelled');
-      expect(result['observedAtMs'], isA<int>());
-      expect(
-        (interactions.single.data['attribution'] as Map)['rejectionReason'],
-        'sessionEnd',
-      );
+      expect(interactions.single.result, isNull);
+      expect(interactions.single.data.containsKey('result'), isFalse);
 
       harness.capturer.completeBlocked('late-swipe-frame');
       await harness.pumpQueueWork();
@@ -590,14 +575,7 @@ void main() {
       final interactions = harness.controller.session!.ofType('interaction');
       expect(interactions, hasLength(1));
       expect(interactions.single.data['gesture'], 'swipe');
-      expect(
-        (interactions.single.data['result'] as Map)['status'],
-        'cancelled',
-      );
-      expect(
-        (interactions.single.data['attribution'] as Map)['rejectionReason'],
-        'lifecycle',
-      );
+      expect(interactions.single.data.containsKey('result'), isFalse);
 
       harness.capturer.completeBlocked('late-background-swipe-frame');
       await harness.pumpQueueWork();
@@ -625,9 +603,8 @@ void main() {
       expect(oldSession.ofType('interaction'), hasLength(1));
       expect(oldSession.ofType('interaction').single.data['gesture'], 'swipe');
       expect(
-        (oldSession.ofType('interaction').single.data['result']
-            as Map)['status'],
-        'cancelled',
+        oldSession.ofType('interaction').single.data.containsKey('result'),
+        isFalse,
       );
 
       harness.capturer.completeBlocked('late-replacement-swipe-frame');
@@ -965,12 +942,6 @@ void main() {
 
       // Destination UI semantics are already visible, but the route capture has
       // not published a destination frame yet.
-      harness.controller.debugSetCurrentStateAnchor(
-        const TugboatStateAnchor(
-          signature: 'sig-home',
-          signatureParts: {'route': '/home'},
-        ),
-      );
 
       harness.controller.recordPointerDown(const Offset(30, 30));
       harness.controller.recordPointerUp(const Offset(30, 30));
@@ -984,7 +955,6 @@ void main() {
         'before': 'unavailable',
         'reason': 'no_compatible_frame',
       });
-      expect(destinationTap.stateAnchor?.signature, 'sig-home');
       expect(harness.controller.debugRouteCapturePending, isTrue);
       expect(
         CoherenceInvariants.actionFrameMatchesRoute(
@@ -1058,12 +1028,6 @@ void main() {
     harness.capturer.blockNext = true;
     harness.controller.start(const Size(390, 844), 'test');
     harness.controller.debugSetCurrentRoute('/home');
-    harness.controller.debugSetCurrentStateAnchor(
-      const TugboatStateAnchor(
-        signature: 'sig-home',
-        signatureParts: {'route': '/home'},
-      ),
-    );
 
     harness.controller.recordPointerDown(const Offset(4, 4));
     harness.controller.recordPointerUp(const Offset(4, 4));
@@ -1084,12 +1048,6 @@ void main() {
 
     for (final (pointer, route) in [(1, '/a'), (2, '/b'), (3, '/a')]) {
       harness.controller.debugSetCurrentRoute(route);
-      harness.controller.debugSetCurrentStateAnchor(
-        TugboatStateAnchor(
-          signature: 'sig-$route',
-          signatureParts: {'route': route},
-        ),
-      );
       harness.controller.recordPointerDown(
         Offset(pointer.toDouble(), pointer.toDouble()),
         pointer: pointer,
@@ -1130,24 +1088,12 @@ void main() {
 
     harness.seedRouteState(route: '/home', signature: 'sig-before');
     harness.capturer.frameFactory = (trigger, force) {
-      harness.controller.debugSetCurrentStateAnchor(
-        const TugboatStateAnchor(
-          signature: 'sig-captured',
-          signatureParts: {'route': '/home'},
-        ),
-      );
       final frame = harness.controller.debugSeedFrame(
         contentHash: 'captured-pixels',
         trigger: trigger,
       );
       // Simulate controller state advancing after readback but before the
       // settle event is admitted to the serialized mutation queue.
-      harness.controller.debugSetCurrentStateAnchor(
-        const TugboatStateAnchor(
-          signature: 'sig-advanced',
-          signatureParts: {'route': '/home'},
-        ),
-      );
       return frame;
     };
 
@@ -1157,8 +1103,6 @@ void main() {
 
     final settle = harness.controller.session!.ofType('tap_settled').single;
     expect(settle.afterFrame, isNotNull);
-    expect(settle.toJson().containsKey('stateAnchor'), isFalse);
-    expect(harness.controller.currentStateAnchor?.signature, 'sig-advanced');
     expect(
       harness.controller.debugFrameProvenance(settle.afterFrame!),
       isNot(contains('completionStateSignature')),
@@ -1187,7 +1131,7 @@ void main() {
       final settle = harness.controller.session!.ofType('tap_settled').single;
       expect(settle.beforeFrame, beforeFrame);
       expect(settle.afterFrame, isNot(beforeFrame));
-      expect(settle.result, TugboatInteractionResult.noVisibleChange);
+      expect(settle.result, isNull);
       final observation = settle.data['settleObservation'] as Map;
       expect(observation.containsKey('semantic'), isFalse);
       expect(observation['visual'], {
@@ -1217,12 +1161,6 @@ void main() {
         harness.route(
           '/destination',
           transitionDuration: const Duration(milliseconds: 20),
-        ),
-      );
-      harness.controller.debugSetCurrentStateAnchor(
-        const TugboatStateAnchor(
-          signature: 'sig-destination',
-          signatureParts: {'route': '/destination'},
         ),
       );
       final destination = harness.controller.debugSeedFrame(
@@ -1268,12 +1206,6 @@ void main() {
         harness.route(
           transition.$2,
           transitionDuration: const Duration(milliseconds: 20),
-        ),
-      );
-      harness.controller.debugSetCurrentStateAnchor(
-        TugboatStateAnchor(
-          signature: 'sig-${transition.$2}',
-          signatureParts: {'route': transition.$2},
         ),
       );
 
@@ -1399,13 +1331,6 @@ void main() {
         routeEpoch: 2,
       );
 
-      harness.controller.debugSetCurrentStateAnchor(
-        const TugboatStateAnchor(
-          signature: 'sig-home',
-          signatureParts: {'route': '/home'},
-        ),
-      );
-
       harness.controller.recordPointerDown(const Offset(30, 30));
       harness.controller.recordPointerUp(const Offset(30, 30));
       await harness.flushScheduler();
@@ -1416,7 +1341,6 @@ void main() {
         id: tap.id,
         atMs: tap.atMs,
         type: tap.type,
-        stateAnchor: tap.stateAnchor,
         targetAnchor: tap.targetAnchor,
         beforeFrame: unrelatedFrame,
         data: tap.data,
@@ -1476,12 +1400,6 @@ void main() {
         ),
       );
       expect(harness.controller.currentRoute, '/home');
-      expect(
-        harness.controller.currentStateAnchor?.signatureParts['route'],
-        '/scan',
-        reason:
-            'debugFreezeStateAnchor retains origin semantics during capture',
-      );
 
       await harness.flushScheduler();
       await routeFuture;
@@ -1775,9 +1693,8 @@ void main() {
       final timedOutSettle = harness.controller.session!
           .ofType('tap_settled')
           .single;
-      expect(timedOutSettle.result, TugboatInteractionResult.unknown);
+      expect(timedOutSettle.result, isNull);
       expect(timedOutSettle.afterFrame, isNull);
-      expect(timedOutSettle.stateAnchor, change.stateAnchor);
       expect(
         timedOutSettle.data['settleObservation'],
         allOf(
@@ -2020,12 +1937,6 @@ void main() {
       );
 
       harness.controller.recordPointerDown(const Offset(8, 8));
-      harness.controller.debugSetCurrentStateAnchor(
-        const TugboatStateAnchor(
-          signature: 'sig-after',
-          signatureParts: {'route': '/home'},
-        ),
-      );
       harness.capturer.frameFactory = (trigger, force) => harness.controller
           .debugSeedFrame(contentHash: 'same-pixels', trigger: trigger);
       harness.controller.recordPointerUp(const Offset(8, 8));
@@ -2034,12 +1945,7 @@ void main() {
       final settle = harness.controller.session!.ofType('tap_settled').single;
       expect(settle.beforeFrame, frame);
       expect(settle.afterFrame, isNot(frame));
-      expect(settle.result, TugboatInteractionResult.noVisibleChange);
-      expect(
-        settle.stateAnchor?.signature,
-        'sig-after',
-        reason: 'same-route semantic evidence is captured with the settle',
-      );
+      expect(settle.result, isNull);
       expect((settle.data['settleObservation'] as Map)['visual'], {
         'changed': false,
         'evidence': 'content_hash',
@@ -2065,7 +1971,7 @@ void main() {
       final settles = harness.controller.session!.ofType('tap_settled');
       expect(settles, hasLength(1));
       expect(settles.single.afterFrame, isNull);
-      expect(settles.single.result, TugboatInteractionResult.unknown);
+      expect(settles.single.result, isNull);
       expect(settles.single.data['frameAttachment'], {
         'after': 'unavailable',
         'reason': 'capture_processing_failed',

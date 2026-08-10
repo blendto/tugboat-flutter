@@ -156,10 +156,7 @@ void main() {
       'scroll',
       'swipe',
     });
-    expect(
-      interactions.map((event) => event.data['interactionId']).toSet(),
-      hasLength(2),
-    );
+    expect(interactions.map((event) => event.id).toSet(), hasLength(2));
   });
 
   testWidgets(

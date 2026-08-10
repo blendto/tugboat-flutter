@@ -62,10 +62,8 @@ void main() {
     );
 
     expect(inventory, isNotNull);
-    expect(inventory!.stateAnchor.signature, inventory.stateSignature);
-    expect(inventory.elements.length, greaterThanOrEqualTo(2));
+    expect(inventory!.elements.length, greaterThanOrEqualTo(2));
     expect(inventory.inventoryHash, isNotEmpty);
-    expect(inventory.stateSignature, isNotEmpty);
 
     final buttonCenter = tester.getCenter(find.text('Go'));
     final tapAnchor = resolver.targetAt(buttonCenter, route: '/home');

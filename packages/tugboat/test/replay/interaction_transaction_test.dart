@@ -9,6 +9,33 @@ import '../helpers/replay_coherence_harness.dart';
 Map<String, Object?> _roundTrip(Map<String, Object?> json) =>
     Map<String, Object?>.from(jsonDecode(jsonEncode(json)) as Map);
 
+void expectInteractionV2Contract(TugboatEvent event) {
+  expect(event.type, 'interaction');
+  expect(event.stream, TugboatEventStream.semantic);
+  expect(event.result, isNull);
+  expect(event.targetAnchor, isNull);
+  final data = event.data;
+  expect(data['interactionSchema'], tugboatInteractionSchemaVersion);
+  expect(data.containsKey('origin'), isFalse);
+  expect(data.containsKey('result'), isFalse);
+  expect(data.containsKey('attribution'), isFalse);
+  expect(data.containsKey('evidenceEventIds'), isFalse);
+  expect(data.containsKey('interactionId'), isFalse);
+  expect(data.containsKey('stateAnchor'), isFalse);
+  expect(data.containsKey('targetAnchor'), isFalse);
+  if (data.containsKey('targetFingerprint')) {
+    expect(data['targetFingerprint'], isA<String>());
+  }
+  if (data.containsKey('position')) {
+    final position = Map<String, Object?>.from(data['position']! as Map);
+    expect(position['xNorm'], isA<num>());
+    expect(position['yNorm'], isA<num>());
+    expect(position.containsKey('normalizedX'), isFalse);
+  }
+  final encoded = utf8.encode(jsonEncode(event.toJson()));
+  expect(encoded.length, lessThan(600));
+}
+
 extension on TugboatSession {
   List<TugboatEvent> semanticOfType(String type) => events
       .where((e) => e.type == type && e.stream == TugboatEventStream.semantic)
@@ -102,14 +129,6 @@ void main() {
         addTearDown(harness.dispose);
 
         harness.controller.debugSetCurrentRoute('/origin');
-        harness.controller.debugFreezeStateAnchor = true;
-        harness.controller.debugSetCurrentStateAnchor(
-          const TugboatStateAnchor(
-            signature: 'origin-sig',
-            signatureConfidence: 'high',
-            signatureParts: {'route': '/origin'},
-          ),
-        );
 
         harness.controller.recordPointerDown(const Offset(12, 34));
         await harness.controller.route('route_push', harness.route('/dest'));
@@ -120,12 +139,9 @@ void main() {
         final interaction = harness.controller.session!
             .semanticOfType('interaction')
             .single;
-        final origin = Map<String, Object?>.from(
-          interaction.data['origin']! as Map,
-        );
-        expect(origin['route'], '/origin');
-        expect(origin.containsKey('stateAnchor'), isFalse);
-        expect(interaction.targetAnchor?.fingerprint, isNull);
+        expectInteractionV2Contract(interaction);
+        expect(interaction.data['route'], '/origin');
+        expect(interaction.data.containsKey('targetFingerprint'), isFalse);
       },
     );
 
@@ -143,7 +159,7 @@ void main() {
       );
       expect(interactions, hasLength(1));
       expect(interactions.single.data['gesture'], 'cancelled');
-      expect(harness.controller.session!.ofType('tap'), isEmpty);
+      expectInteractionV2Contract(interactions.single);
     });
 
     test('swipe terminal path clears causal route state', () async {
@@ -196,11 +212,13 @@ void main() {
         containsAll(['cancelled', 'tap']),
       );
       final tap = interactions.singleWhere((e) => e.data['gesture'] == 'tap');
-      final origin = Map<String, Object?>.from(tap.data['origin']! as Map);
-      expect(
-        Map<String, Object?>.from(origin['startPosition']! as Map)['x'],
-        20.0,
-      );
+      expectInteractionV2Contract(tap);
+      if (tap.data.containsKey('position')) {
+        final position = Map<String, Object?>.from(
+          tap.data['position']! as Map,
+        );
+        expect(position['xNorm'], isA<num>());
+      }
     });
 
     test(
@@ -222,10 +240,8 @@ void main() {
             .semanticOfType('interaction')
             .where((e) => e.data['gesture'] == 'cancelled');
         expect(cancelled, isNotEmpty);
-        final attribution = Map<String, Object?>.from(
-          cancelled.last.data['attribution']! as Map,
-        );
-        expect(attribution['rejectionReason'], 'lifecycle');
+        expectInteractionV2Contract(cancelled.last);
+        expect(cancelled.last.data['gesture'], 'cancelled');
       },
     );
 
@@ -284,14 +300,7 @@ void main() {
         final interaction = harness.controller.session!
             .semanticOfType('interaction')
             .single;
-        final attribution = Map<String, Object?>.from(
-          interaction.data['attribution']! as Map,
-        );
-        expect(attribution['kind'], anyOf('direct', 'delayed_likely'));
-        final result = Map<String, Object?>.from(
-          interaction.data['result']! as Map,
-        );
-        expect(result['status'], anyOf('navigated', 'changed', 'unknown'));
+        expectInteractionV2Contract(interaction);
       },
     );
 
@@ -360,10 +369,7 @@ void main() {
       );
       expect(interactions, hasLength(1));
       expect(interactions.single.data['gesture'], anyOf('swipe', 'scroll'));
-      final origin = Map<String, Object?>.from(
-        interactions.single.data['origin']! as Map,
-      );
-      expect(origin['captureCoordinate'], isA<Map>());
+      expectInteractionV2Contract(interactions.single);
     });
 
     test('sub-slop movement remains one tap interaction', () async {
@@ -384,7 +390,7 @@ void main() {
   });
 
   group('Canonical publish and diagnostic isolation (U4)', () {
-    test('serialization round-trip preserves origin and result', () async {
+    test('serialization round-trip preserves facts-only v2 payload', () async {
       final harness = ReplayCoherenceHarness();
       await harness.setUp();
       addTearDown(harness.dispose);
@@ -401,9 +407,11 @@ void main() {
       expect(json['stream'], tugboatEventStreamSemantic);
       final data = Map<String, Object?>.from(json['data']! as Map);
       expect(data['interactionSchema'], tugboatInteractionSchemaVersion);
-      expect(data['origin'], isA<Map>());
-      expect(data['result'], isA<Map>());
-      expect(data['attribution'], isA<Map>());
+      expect(data.containsKey('origin'), isFalse);
+      expect(data.containsKey('result'), isFalse);
+      expect(data.containsKey('attribution'), isFalse);
+      expect(data.containsKey('evidenceEventIds'), isFalse);
+      expect(data['gesture'], 'tap');
     });
 
     test('legacy peers are dual-written on legacy_projection stream', () async {

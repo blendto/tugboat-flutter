@@ -25,9 +25,89 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
 }) {
   final triggeredAt = sessionStartedAt.add(Duration(milliseconds: event.atMs));
 
+  if (event.type == 'interaction') {
+    final data = event.data;
+    return _collectorFlatEnvelope(
+      event: event,
+      triggeredAt: triggeredAt,
+      collectorConfig: collectorConfig,
+      sessionId: sessionId,
+      userId: userId,
+      traitsId: traitsId,
+      extra: {
+        'interactionSchema':
+            data['interactionSchema'] ?? tugboatInteractionSchemaVersion,
+        if (data['route'] != null) 'route': data['route'],
+        if (data['targetFingerprint'] != null)
+          'targetFingerprint': data['targetFingerprint'],
+        if (data['gesture'] != null) 'gesture': data['gesture'],
+        if (data['position'] != null) 'position': data['position'],
+      },
+    );
+  }
+
+  if (event.type == 'route_change') {
+    final data = event.data;
+    return _collectorFlatEnvelope(
+      event: event,
+      triggeredAt: triggeredAt,
+      collectorConfig: collectorConfig,
+      sessionId: sessionId,
+      userId: userId,
+      traitsId: traitsId,
+      extra: {
+        'routeChangeSchema': tugboatRouteChangeSchemaVersion,
+        if (data['fromRoute'] != null) 'fromRoute': data['fromRoute'],
+        if (data['route'] != null) 'route': data['route'],
+        if (data['navigation'] != null) 'navigation': data['navigation'],
+      },
+    );
+  }
+
+  if (event.type == 'scroll_start') {
+    final data = event.data;
+    final targetFingerprint = _targetFingerprint(event);
+    return _collectorFlatEnvelope(
+      event: event,
+      triggeredAt: triggeredAt,
+      collectorConfig: collectorConfig,
+      sessionId: sessionId,
+      userId: userId,
+      traitsId: traitsId,
+      extra: {
+        'scrollSchema': tugboatScrollSchemaVersion,
+        if (data['axis'] != null) 'axis': data['axis'],
+        if (data['startOffset'] != null) 'startOffset': data['startOffset'],
+        if (targetFingerprint != null) 'targetFingerprint': targetFingerprint,
+      },
+    );
+  }
+
+  if (event.type == 'scroll_end') {
+    final data = event.data;
+    final overscrollCount = data['overscrollCount'];
+    final targetFingerprint = _targetFingerprint(event);
+    return _collectorFlatEnvelope(
+      event: event,
+      triggeredAt: triggeredAt,
+      collectorConfig: collectorConfig,
+      sessionId: sessionId,
+      userId: userId,
+      traitsId: traitsId,
+      extra: {
+        'scrollSchema': tugboatScrollSchemaVersion,
+        if (data['startOffset'] != null) 'startOffset': data['startOffset'],
+        if (data['endOffset'] != null) 'endOffset': data['endOffset'],
+        if (data['durationMs'] != null) 'durationMs': data['durationMs'],
+        if (overscrollCount is int && overscrollCount > 0)
+          'overscrollCount': overscrollCount,
+        if (targetFingerprint != null) 'targetFingerprint': targetFingerprint,
+      },
+    );
+  }
+
   final payload = <String, Object?>{
     ...event.data,
-    'stream': event.stream.wireName,
     if (event.relatedEventId != null) 'relatedEventId': event.relatedEventId,
     if (event.explorationRunId != null)
       'explorationRunId': event.explorationRunId,
@@ -49,11 +129,49 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
     if (event.beforeFrame != null) 'beforeFrame': event.beforeFrame,
     if (event.afterFrame != null) 'afterFrame': event.afterFrame,
     if (traitsId != null) 'traitsId': traitsId,
-    'targetAnchor': event.targetAnchor?.toJson() ?? <String, Object?>{},
+    if (event.targetAnchor != null)
+      'targetAnchor': event.targetAnchor!.toJson(),
     if (event.result != null) 'result': event.result!.name,
     'payload': payload,
     'build': collectorEventBuildIdentity(collectorConfig),
   };
+}
+
+/// Shared flat collector envelope for schema-v2 production events.
+Map<String, Object?> _collectorFlatEnvelope({
+  required TugboatEvent event,
+  required DateTime triggeredAt,
+  required TugboatCollectorConfig collectorConfig,
+  String? sessionId,
+  String? userId,
+  String? traitsId,
+  required Map<String, Object?> extra,
+}) {
+  return {
+    'id': event.id,
+    'atMs': event.atMs,
+    'triggeredAt': triggeredAt.toUtc().toIso8601String(),
+    if (sessionId != null) 'sessionId': sessionId,
+    'userId': userId,
+    'eventType': event.type,
+    'stream': event.stream.wireName,
+    'enrichmentCandidate': tugboatEventIsEnrichmentCandidate(event),
+    ...extra,
+    if (event.relatedEventId != null) 'relatedEventId': event.relatedEventId,
+    if (event.beforeFrame != null) 'beforeFrame': event.beforeFrame,
+    if (event.afterFrame != null) 'afterFrame': event.afterFrame,
+    if (event.explorationRunId != null)
+      'explorationRunId': event.explorationRunId,
+    if (event.actionId != null) 'actionId': event.actionId,
+    if (traitsId != null) 'traitsId': traitsId,
+    'build': collectorEventBuildIdentity(collectorConfig),
+  };
+}
+
+String? _targetFingerprint(TugboatEvent event) {
+  final fingerprint = event.targetAnchor?.fingerprint;
+  if (fingerprint == null || fingerprint.isEmpty) return null;
+  return fingerprint;
 }
 
 /// Immutable build identity required for Context Graph matching.

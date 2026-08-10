@@ -9,6 +9,14 @@
 - Collector event mapping now omits `stateAnchor`. Deploy the serial collector
   compatibility patch before sending 0.8.0 recordings to a collector that
   still requires that key.
+- Production collector events for `interaction`, `route_change`, `scroll_start`,
+  and `scroll_end` now use flat schema-v2 wire shapes (`interactionSchema`,
+  `routeChangeSchema`, or `scrollSchema` == `2`) with facts-only fields. The
+  mapper no longer nests these under `payload`, emits empty `targetAnchor`
+  objects, or duplicates `stream` inside `payload`. Scroll events send
+  `targetFingerprint` as a single string instead of a full anchor descriptor.
+  Interaction v2 drops inferred `result`, nested `origin`/`result`, and
+  tap-settle outcome computation.
 
 ## 0.7.1
 

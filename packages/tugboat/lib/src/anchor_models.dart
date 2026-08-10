@@ -133,73 +133,6 @@ class TugboatTargetAnchor {
   );
 }
 
-/// Compact canonical signature of the current screen state.
-class TugboatStateAnchor {
-  const TugboatStateAnchor({
-    this.schemaVersion = 1,
-    this.actionableSummary = const {},
-    this.keyboardOpen = false,
-    this.modalOpen = false,
-    this.subLabel,
-    this.signature = '',
-    this.signatureConfidence,
-    this.signatureParts = const {},
-  });
-
-  final int schemaVersion;
-
-  /// Aggregate role counts (for example `button: 3`) used as compact state
-  /// signature metadata. This is not a per-control inventory and must not be
-  /// used to discover individual tap targets; use screenshots for that instead.
-  final Map<String, int> actionableSummary;
-  final bool keyboardOpen;
-  final bool modalOpen;
-  final String? subLabel;
-  final String signature;
-  final String? signatureConfidence;
-
-  /// Stable fields used to derive [signature]. Dynamic labels are excluded.
-  final Map<String, String> signatureParts;
-
-  Map<String, Object?> toJson() => {
-    if (schemaVersion != 1) 'schemaVersion': schemaVersion,
-    if (actionableSummary.isNotEmpty) 'actionableSummary': actionableSummary,
-    if (keyboardOpen) 'keyboardOpen': keyboardOpen,
-    if (modalOpen) 'modalOpen': modalOpen,
-    if (subLabel != null && subLabel!.isNotEmpty) 'subLabel': subLabel,
-    if (signature.isNotEmpty) 'signature': signature,
-    if (signatureConfidence != null && signatureConfidence!.isNotEmpty)
-      'signatureConfidence': signatureConfidence,
-    if (signatureParts.isNotEmpty) 'signatureParts': signatureParts,
-  };
-
-  @override
-  bool operator ==(Object other) =>
-      other is TugboatStateAnchor &&
-      schemaVersion == other.schemaVersion &&
-      keyboardOpen == other.keyboardOpen &&
-      modalOpen == other.modalOpen &&
-      subLabel == other.subLabel &&
-      signature == other.signature &&
-      signatureConfidence == other.signatureConfidence &&
-      _mapEquals(signatureParts, other.signatureParts) &&
-      _mapEquals(actionableSummary, other.actionableSummary);
-
-  @override
-  int get hashCode => Object.hash(
-    schemaVersion,
-    keyboardOpen,
-    modalOpen,
-    subLabel,
-    signature,
-    signatureConfidence,
-    _stringMapHash(signatureParts),
-    Object.hashAll(
-      actionableSummary.entries.map((entry) => '${entry.key}:${entry.value}'),
-    ),
-  );
-}
-
 /// One salient element in a screen's structural inventory.
 class TugboatSceneInventoryEntry {
   const TugboatSceneInventoryEntry({
@@ -256,16 +189,11 @@ class TugboatSceneInventoryEntry {
 /// Structural inventory of salient elements on a settled screen state.
 class TugboatSceneInventory {
   const TugboatSceneInventory({
-    required this.stateAnchor,
-    required this.stateSignature,
     required this.inventoryHash,
     required this.routeKey,
     required this.elements,
   });
 
-  /// Anchor the inventory was computed against; not serialized into [toJson].
-  final TugboatStateAnchor stateAnchor;
-  final String stateSignature;
   final String inventoryHash;
   final String routeKey;
   final List<TugboatSceneInventoryEntry> elements;
@@ -394,8 +322,6 @@ class TugboatViewportSemanticScrollContext {
 /// Exploration-only viewport semantic map for a settled screen state.
 class TugboatViewportSemanticMap {
   const TugboatViewportSemanticMap({
-    required this.stateAnchor,
-    required this.stateSignature,
     required this.routeKey,
     required this.viewport,
     required this.nodes,
@@ -404,9 +330,6 @@ class TugboatViewportSemanticMap {
     this.scrollContext,
   });
 
-  /// Anchor the map was computed against; not serialized into [toJson].
-  final TugboatStateAnchor stateAnchor;
-  final String stateSignature;
   final String routeKey;
   final Size viewport;
   final List<TugboatViewportSemanticNode> nodes;
@@ -421,8 +344,6 @@ class TugboatViewportSemanticMap {
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
     return TugboatViewportSemanticMap(
-      stateAnchor: stateAnchor,
-      stateSignature: stateSignature,
       routeKey: routeKey,
       viewport: viewport,
       nodes: nodes ?? this.nodes,
@@ -445,7 +366,6 @@ class TugboatViewportSemanticMap {
 /// Multi-viewport semantic evidence observed during a scroll interaction.
 class TugboatScrollSemanticSnapshot {
   const TugboatScrollSemanticSnapshot({
-    required this.stateSignature,
     required this.routeKey,
     required this.scrollableFingerprint,
     required this.axis,
@@ -458,7 +378,6 @@ class TugboatScrollSemanticSnapshot {
     required this.snapshotHash,
   });
 
-  final String stateSignature;
   final String routeKey;
   final String? scrollableFingerprint;
   final String? axis;

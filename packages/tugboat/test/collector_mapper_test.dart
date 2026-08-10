@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/collector_config.dart';
@@ -33,6 +35,227 @@ void main() {
     userId: 'user_1',
   );
 
+  test('maps interaction events to facts-only schema v2', () {
+    final sessionStartedAt = DateTime.utc(2026, 6, 19);
+    final event = TugboatEvent(
+      id: 'evt_interaction_1',
+      atMs: 55957,
+      type: 'interaction',
+      stream: TugboatEventStream.semantic,
+      beforeFrame: 'frame-34',
+      afterFrame: 'frame-35',
+      data: {
+        'interactionSchema': tugboatInteractionSchemaVersion,
+        'route': '/home',
+        'targetFingerprint': 'bef605389f2f5207',
+        'gesture': 'tap',
+        'position': {'xNorm': 0.299, 'yNorm': 0.637},
+      },
+    );
+
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: event,
+      sessionId: 'session-abc',
+      sessionStartedAt: sessionStartedAt,
+      userId: 'user_1',
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped['id'], 'evt_interaction_1');
+    expect(mapped['eventType'], 'interaction');
+    expect(mapped['interactionSchema'], 2);
+    expect(mapped['route'], '/home');
+    expect(mapped['targetFingerprint'], 'bef605389f2f5207');
+    expect(mapped['gesture'], 'tap');
+    expect(mapped['position'], {'xNorm': 0.299, 'yNorm': 0.637});
+    expect(mapped['beforeFrame'], 'frame-34');
+    expect(mapped['afterFrame'], 'frame-35');
+    expect(mapped.containsKey('result'), isFalse);
+    expect(mapped.containsKey('payload'), isFalse);
+    expect(mapped.containsKey('targetAnchor'), isFalse);
+    expect(mapped.containsKey('stateAnchor'), isFalse);
+    final encoded = utf8.encode(jsonEncode(mapped));
+    expect(encoded.length, lessThan(700));
+  });
+
+  test('maps route_change events to facts-only schema v2', () {
+    final sessionStartedAt = DateTime.utc(2026, 6, 19);
+    final event = TugboatEvent(
+      id: 'evt_route_1',
+      atMs: 12000,
+      type: 'route_change',
+      stream: TugboatEventStream.evidence,
+      afterFrame: 'frame-8',
+      data: const {
+        'fromRoute': '/home',
+        'route': '/settings',
+        'navigation': 'route_push',
+        'navigatorId': 'nav-1',
+        'captureOutcome': 'captured',
+        'navigationOrigin': 'user_gesture',
+      },
+    );
+
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: event,
+      sessionId: 'session-abc',
+      sessionStartedAt: sessionStartedAt,
+      userId: 'user_1',
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped['eventType'], 'route_change');
+    expect(mapped['routeChangeSchema'], tugboatRouteChangeSchemaVersion);
+    expect(mapped['fromRoute'], '/home');
+    expect(mapped['route'], '/settings');
+    expect(mapped['navigation'], 'route_push');
+    expect(mapped['afterFrame'], 'frame-8');
+    expect(mapped.containsKey('result'), isFalse);
+    expect(mapped.containsKey('payload'), isFalse);
+    expect(mapped.containsKey('targetAnchor'), isFalse);
+    expect(mapped.containsKey('navigatorId'), isFalse);
+    expect(mapped.containsKey('captureOutcome'), isFalse);
+    expect(mapped.containsKey('navigationOrigin'), isFalse);
+    final encoded = utf8.encode(jsonEncode(mapped));
+    expect(encoded.length, lessThan(700));
+  });
+
+  test('maps scroll_start events to facts-only schema v2', () {
+    final sessionStartedAt = DateTime.utc(2026, 6, 19);
+    final event = TugboatEvent(
+      id: 'evt_scroll_start_1',
+      atMs: 15000,
+      type: 'scroll_start',
+      stream: TugboatEventStream.evidence,
+      beforeFrame: 'frame-10',
+      targetAnchor: const TugboatTargetAnchor(
+        widgetType: 'ListView',
+        role: 'scrollable',
+        fingerprint: 'abc123def4567890',
+        fingerprintConfidence: 'high',
+        canonicalPath: 'HomeScreen#0/ListView#0',
+      ),
+      data: const {
+        'axis': 'vertical',
+        'startOffset': 0.0,
+        'offset': 0.0,
+        'offsetNorm': 0.0,
+        'depth': 1,
+        'frameAttachment': {'before': 'unavailable'},
+      },
+    );
+
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: event,
+      sessionStartedAt: sessionStartedAt,
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped['eventType'], 'scroll_start');
+    expect(mapped['scrollSchema'], tugboatScrollSchemaVersion);
+    expect(mapped['axis'], 'vertical');
+    expect(mapped['startOffset'], 0.0);
+    expect(mapped['targetFingerprint'], 'abc123def4567890');
+    expect(mapped['targetFingerprint'], isA<String>());
+    expect(mapped['beforeFrame'], 'frame-10');
+    expect(mapped.containsKey('result'), isFalse);
+    expect(mapped.containsKey('payload'), isFalse);
+    expect(mapped.containsKey('targetAnchor'), isFalse);
+    expect(mapped.containsKey('offset'), isFalse);
+    expect(mapped.containsKey('frameAttachment'), isFalse);
+    final encoded = utf8.encode(jsonEncode(mapped));
+    expect(encoded.length, lessThan(700));
+  });
+
+  test('maps scroll_end events to facts-only schema v2', () {
+    final sessionStartedAt = DateTime.utc(2026, 6, 19);
+    final event = TugboatEvent(
+      id: 'evt_scroll_end_1',
+      atMs: 15500,
+      type: 'scroll_end',
+      stream: TugboatEventStream.evidence,
+      beforeFrame: 'frame-10',
+      afterFrame: 'frame-11',
+      relatedEventId: 'evt_scroll_start_1',
+      targetAnchor: const TugboatTargetAnchor(
+        widgetType: 'ListView',
+        role: 'scrollable',
+        fingerprint: 'abc123def4567890',
+        fingerprintConfidence: 'high',
+        canonicalPath: 'HomeScreen#0/ListView#0',
+      ),
+      data: const {
+        'startOffset': 0.0,
+        'endOffset': 240.0,
+        'durationMs': 500,
+        'overscrollCount': 2,
+        'offset': 240.0,
+        'captureRequestId': 'cap-1',
+        'captureOutcome': 'captured',
+      },
+    );
+
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: event,
+      sessionStartedAt: sessionStartedAt,
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped['eventType'], 'scroll_end');
+    expect(mapped['scrollSchema'], tugboatScrollSchemaVersion);
+    expect(mapped['relatedEventId'], 'evt_scroll_start_1');
+    expect(mapped['startOffset'], 0.0);
+    expect(mapped['endOffset'], 240.0);
+    expect(mapped['durationMs'], 500);
+    expect(mapped['overscrollCount'], 2);
+    expect(mapped['targetFingerprint'], 'abc123def4567890');
+    expect(mapped['targetFingerprint'], isA<String>());
+    expect(mapped['beforeFrame'], 'frame-10');
+    expect(mapped['afterFrame'], 'frame-11');
+    expect(mapped.containsKey('result'), isFalse);
+    expect(mapped.containsKey('payload'), isFalse);
+    expect(mapped.containsKey('targetAnchor'), isFalse);
+    expect(mapped.containsKey('captureRequestId'), isFalse);
+    expect(mapped.containsKey('captureOutcome'), isFalse);
+    final encoded = utf8.encode(jsonEncode(mapped));
+    expect(encoded.length, lessThan(800));
+  });
+
+  test('scroll_end omits zero overscrollCount', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'evt_scroll_end_2',
+        atMs: 1,
+        type: 'scroll_end',
+        stream: TugboatEventStream.evidence,
+        relatedEventId: 'evt_scroll_start_1',
+        data: const {'overscrollCount': 0},
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped.containsKey('overscrollCount'), isFalse);
+  });
+
+  test('generic branch omits empty targetAnchor and payload stream', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'event-app-bg',
+        atMs: 100,
+        type: 'app_backgrounded',
+        stream: TugboatEventStream.evidence,
+        data: const {'reason': 'lifecycle'},
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped.containsKey('targetAnchor'), isFalse);
+    expect((mapped['payload'] as Map).containsKey('stream'), isFalse);
+    expect((mapped['payload'] as Map)['reason'], 'lifecycle');
+  });
+
   test('maps tugboat events into collector event schema', () {
     final sessionStartedAt = DateTime.utc(2026, 6, 19);
     final event = TugboatEvent(
@@ -40,11 +263,6 @@ void main() {
       atMs: 28906,
       type: 'tap',
       beforeFrame: 'frame-3',
-      stateAnchor: const TugboatStateAnchor(
-        signature: '23f17a629520d522',
-        signatureConfidence: 'medium',
-        signatureParts: {'routeKey': '/intro'},
-      ),
       targetAnchor: const TugboatTargetAnchor(
         widgetType: 'GestureDetector',
         role: 'button',
@@ -83,6 +301,7 @@ void main() {
     expect((mapped['payload'] as Map)['x'], 100);
     expect((mapped['payload'] as Map)['actionId'], 'A-1');
     expect((mapped['payload'] as Map)['explorationRunId'], 'run-1');
+    expect((mapped['payload'] as Map).containsKey('stream'), isFalse);
     expect(mapped['build'], {
       'appId': 'com.example.app',
       'platform': 'ios',

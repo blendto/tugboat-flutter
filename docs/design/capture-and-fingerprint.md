@@ -108,8 +108,11 @@ The event stream currently includes:
 
 Events may carry `beforeFrame`, `afterFrame`, `targetAnchor`,
 `relatedEventId`, `explorationRunId`, `actionId`, an interaction result, and
-type-specific `data`. Route transition values live in `route_change.data`, not
-in a session-level route dictionary.
+type-specific `data`. Schema-v2 production events (`interaction`,
+`route_change`, `scroll_start`, `scroll_end`) are flat facts-only collector
+records without nested `payload` or inferred interaction results. Route
+transition values live in `route_change` fields, not in a session-level route
+dictionary.
 
 ### Capture lifecycle and attribution
 

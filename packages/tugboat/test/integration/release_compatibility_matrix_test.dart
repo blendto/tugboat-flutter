@@ -258,7 +258,8 @@ void main() {
 
       final interactions = session.events.where((e) => e.type == 'interaction');
       expect(interactions, isNotEmpty);
-      expect(interactions.first.data['origin'], isA<Map>());
+      expect(interactions.first.data.containsKey('origin'), isFalse);
+      expect(interactions.first.data['interactionSchema'], 2);
     },
   );
 }

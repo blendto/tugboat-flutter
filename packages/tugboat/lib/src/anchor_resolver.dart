@@ -185,15 +185,6 @@ class AnchorResolver {
 
     final tokenMap = _tokenMapFor(rootContext, rootRender);
     if (tokenMap == null) return (inventory: null, target: null);
-    final stateAnchor = _stateAnchorFromTokenMap(
-      tokenMap: tokenMap,
-      route: route,
-      keyboardOpen: keyboardOpen,
-      modalOpen: modalOpen,
-    );
-    if (stateAnchor.signature.isEmpty) {
-      return (inventory: null, target: null);
-    }
 
     var target = _targetAtWithTokenMap(
       tapPosition,
@@ -205,7 +196,6 @@ class AnchorResolver {
       tokenMap: tokenMap,
       rootRender: rootRender,
       route: route,
-      stateAnchor: stateAnchor,
     );
     target = _snapPathlessTargetToInventory(
       target: target,
@@ -217,7 +207,6 @@ class AnchorResolver {
       inventory: inventory,
       target: target,
       tapPosition: tapPosition,
-      stateAnchor: stateAnchor,
       route: route,
       tokenMap: tokenMap,
       rootRender: rootRender,
@@ -868,83 +857,6 @@ class AnchorResolver {
     if (widget is Scrollable) return true;
     final type = widget.runtimeType.toString();
     return type.startsWith('Sliver');
-  }
-
-  TugboatStateAnchor buildStateAnchor({
-    required String? route,
-    required bool keyboardOpen,
-    required bool modalOpen,
-  }) {
-    final rootContext = rootKey.currentContext;
-    final rootRender = rootContext?.findRenderObject();
-    if (rootContext is! Element || rootRender is! RenderBox) {
-      return TugboatStateAnchor(
-        keyboardOpen: keyboardOpen,
-        modalOpen: modalOpen,
-      );
-    }
-
-    final tokenMap = _tokenMapFor(rootContext, rootRender);
-    if (tokenMap == null) {
-      return TugboatStateAnchor(
-        keyboardOpen: keyboardOpen,
-        modalOpen: modalOpen,
-      );
-    }
-    return _stateAnchorFromTokenMap(
-      tokenMap: tokenMap,
-      route: route,
-      keyboardOpen: keyboardOpen,
-      modalOpen: modalOpen,
-    );
-  }
-
-  TugboatStateAnchor _stateAnchorFromTokenMap({
-    required _TokenMap tokenMap,
-    required String? route,
-    required bool keyboardOpen,
-    required bool modalOpen,
-  }) {
-    final routeKey = _resolveRouteKey(route, tokenMap);
-    final actionableSummary = tokenMap.actionableSummary;
-    final subLabel = tokenMap.subLabel;
-    final effectiveModalOpen = modalOpen || tokenMap.hasBlockingOverlay;
-    // fp schema v6: state identity is coarse — route + overlay flags + subLabel
-    // only. Dynamic list length, scroll viewport, and per-item path multiplicity
-    // must not fork signatures across production sessions on the same screen.
-    final hashParts = <String, String>{
-      'routeKey': routeKey,
-      'schemaVersion': tugboatFingerprintSchemaVersion.toString(),
-      if (keyboardOpen) 'keyboardOpen': 'true',
-      if (effectiveModalOpen) 'modalOpen': 'true',
-      if (subLabel != null && subLabel.isNotEmpty) 'subLabel': subLabel,
-    };
-    final signature = _fingerprintForParts(hashParts);
-
-    // Serialized evidence: compact descriptors only, never the skeleton.
-    final signatureParts = <String, String>{
-      'schemaVersion': tugboatFingerprintSchemaVersion.toString(),
-      'routeKey': routeKey,
-      if (keyboardOpen) 'keyboardOpen': 'true',
-      if (effectiveModalOpen) 'modalOpen': 'true',
-      if (subLabel != null && subLabel.isNotEmpty) 'subLabel': subLabel,
-    };
-
-    final pathConfidence = tokenMap.isActionable.isNotEmpty ? 'medium' : 'low';
-
-    return TugboatStateAnchor(
-      schemaVersion: tugboatFingerprintSchemaVersion,
-      actionableSummary: actionableSummary,
-      keyboardOpen: keyboardOpen,
-      modalOpen: effectiveModalOpen,
-      subLabel: subLabel,
-      signature: signature,
-      signatureConfidence: _confidenceFloor([
-        _routeKeyConfidence(routeKey),
-        pathConfidence,
-      ]),
-      signatureParts: signatureParts,
-    );
   }
 
   String _normalizeItemPathForSignature(String path) {

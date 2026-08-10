@@ -10,14 +10,12 @@ import 'replay_config.dart';
 class _ScrollSemanticAccumulator {
   _ScrollSemanticAccumulator({
     required this.gestureSequence,
-    required this.stateSignature,
     required this.routeKey,
     required this.scrollableFingerprint,
     required this.axis,
   });
 
   final int gestureSequence;
-  final String stateSignature;
   final String routeKey;
   final String? scrollableFingerprint;
   final String? axis;
@@ -123,7 +121,6 @@ class ViewportSemanticSession {
   }) {
     if (scrollContext?.trigger == 'scroll_start') {
       _beginScrollSemanticGesture(
-        stateSignature: inventory.stateSignature,
         routeKey: inventory.routeKey,
         scroll: scrollContext!,
       );
@@ -236,7 +233,6 @@ class ViewportSemanticSession {
     if (accumulator == null) {
       accumulator = _ScrollSemanticAccumulator(
         gestureSequence: ++_scrollGestureSequence,
-        stateSignature: map.stateSignature,
         routeKey: map.routeKey,
         scrollableFingerprint: scroll.scrollableFingerprint,
         axis: scroll.axis,
@@ -263,7 +259,6 @@ class ViewportSemanticSession {
   }
 
   void _beginScrollSemanticGesture({
-    required String stateSignature,
     required String routeKey,
     required TugboatViewportSemanticScrollContext scroll,
   }) {
@@ -274,7 +269,6 @@ class ViewportSemanticSession {
     ].join('|');
     _scrollSemanticAccumulators[accumulatorKey] = _ScrollSemanticAccumulator(
       gestureSequence: ++_scrollGestureSequence,
-      stateSignature: stateSignature,
       routeKey: routeKey,
       scrollableFingerprint: scroll.scrollableFingerprint,
       axis: scroll.axis,
@@ -337,7 +331,6 @@ class ViewportSemanticSession {
       ].join('|'),
     );
     return TugboatScrollSemanticSnapshot(
-      stateSignature: accumulator.stateSignature,
       routeKey: accumulator.routeKey,
       scrollableFingerprint: accumulator.scrollableFingerprint,
       axis: accumulator.axis,

@@ -621,7 +621,7 @@ void main() {
     final scrollStart = session.events.firstWhere(
       (event) => event.type == 'scroll_start',
     );
-    expect(scrollStart.stateAnchor?.actionableSummary['scrollable'], 1);
+    expect(scrollStart.targetAnchor?.role, 'scrollable');
     expect(session.scrollSamples, isNotEmpty);
     expect(session.frames, isNotEmpty);
   });
@@ -922,7 +922,7 @@ void main() {
     );
     expect(interaction.actionId, 'A-origin');
     expect(interaction.explorationRunId, 'run-1');
-    expect((interaction.data['origin'] as Map)['actionId'], 'A-origin');
+    expect(interaction.data.containsKey('origin'), isFalse);
   });
 
   testWidgets('does not record icon or tooltip labels on icon button taps', (
@@ -1130,43 +1130,6 @@ void main() {
     expect(anchor.toJson().containsKey('labelHash'), isFalse);
     expect(anchor.toJson().containsKey('bounds'), isFalse);
     expect(anchor.toJson().containsKey('itemIndex'), isFalse);
-  });
-
-  testWidgets('state signatures ignore dynamic visible labels', (tester) async {
-    final rootKey = GlobalKey();
-
-    Future<TugboatStateAnchor> buildAnchor(String label) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: RepaintBoundary(
-            key: rootKey,
-            child: Scaffold(
-              body: Column(
-                children: [
-                  Text(label),
-                  FilledButton(onPressed: () {}, child: const Text('Continue')),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      return AnchorResolver(rootKey: rootKey).buildStateAnchor(
-        route: '/intro',
-        keyboardOpen: false,
-        modalOpen: false,
-      );
-    }
-
-    final first = await buildAnchor('Brooke Martins');
-    final second = await buildAnchor('Alex Chen');
-
-    expect(first.signature, second.signature);
-    expect(first.signatureConfidence, isNotNull);
-    expect(first.signatureParts, containsPair('routeKey', '/intro'));
-    expect(first.signatureParts.containsKey('labels'), isFalse);
-    expect(_containsLabelTelemetry(first.toJson()), isFalse);
   });
 
   testWidgets('target fingerprints ignore dynamic button labels', (
@@ -1639,99 +1602,6 @@ void main() {
     expect(scrollEnds, isNotEmpty);
     expect(scrollEnds.last.afterFrame, isNotNull);
     expect(session.frames.length, greaterThanOrEqualTo(framesBeforeScroll));
-  });
-
-  test('tap_settled result does not infer a change from state signatures', () {
-    final rootKey = GlobalKey();
-    final controller = TugboatReplayController(
-      config: _testConfig,
-      boundaryKey: rootKey,
-    );
-
-    final result = controller.debugComputeTapSettleResult(
-      beforeState: const TugboatStateAnchor(signature: 'sig-before'),
-      afterState: const TugboatStateAnchor(signature: 'sig-after'),
-      beforeFrame: 'frame-1',
-      afterFrame: 'frame-1',
-      targetAnchor: const TugboatTargetAnchor(actions: ['tap']),
-    );
-    expect(result, TugboatInteractionResult.unknown);
-    controller.dispose();
-  });
-
-  test('tap_settled result ignores tap-down state signatures', () {
-    final rootKey = GlobalKey();
-    final controller = TugboatReplayController(
-      config: _testConfig,
-      boundaryKey: rootKey,
-    );
-
-    final result = controller.debugComputeTapSettleResult(
-      beforeState: const TugboatStateAnchor(signature: 'home-sig'),
-      afterState: const TugboatStateAnchor(signature: 'route-sig'),
-      beforeFrame: 'frame-1',
-      afterFrame: 'frame-1',
-      targetAnchor: const TugboatTargetAnchor(actions: ['tap']),
-    );
-    expect(result, TugboatInteractionResult.unknown);
-    controller.dispose();
-  });
-
-  test('tap_settled does not claim a no-op without visual evidence', () {
-    final rootKey = GlobalKey();
-    final controller = TugboatReplayController(
-      config: _testConfig,
-      boundaryKey: rootKey,
-    );
-
-    final result = controller.debugComputeTapSettleResult(
-      beforeState: const TugboatStateAnchor(signature: 'same-sig'),
-      afterState: const TugboatStateAnchor(signature: 'same-sig'),
-      beforeFrame: null,
-      afterFrame: 'frame-without-evidence',
-      targetAnchor: const TugboatTargetAnchor(actions: ['tap']),
-    );
-    expect(result, TugboatInteractionResult.unknown);
-    controller.dispose();
-  });
-
-  test('tap_settled ignores ambient frame changes on non-tappable targets', () {
-    final rootKey = GlobalKey();
-    final controller = TugboatReplayController(
-      config: _testConfig,
-      boundaryKey: rootKey,
-    );
-    controller.start(const Size(100, 100), 'test');
-    controller.session!.frames.addAll(const [
-      TugboatFrame(
-        id: 'frame-before',
-        atMs: 1,
-        width: 100,
-        height: 100,
-        contentHash: 'before-hash',
-      ),
-      TugboatFrame(
-        id: 'frame-after',
-        atMs: 2,
-        width: 100,
-        height: 100,
-        contentHash: 'after-hash',
-      ),
-    ]);
-
-    final result = controller.debugComputeTapSettleResult(
-      beforeState: const TugboatStateAnchor(signature: 'same-sig'),
-      afterState: const TugboatStateAnchor(signature: 'same-sig'),
-      beforeFrame: 'frame-before',
-      afterFrame: 'frame-after',
-      targetAnchor: const TugboatTargetAnchor(
-        role: 'scrollable',
-        actions: ['scroll'],
-      ),
-    );
-
-    expect(result, TugboatInteractionResult.noVisibleChange);
-    controller.dispose();
   });
 
   test('a throwing queued task does not poison later tap settles', () async {

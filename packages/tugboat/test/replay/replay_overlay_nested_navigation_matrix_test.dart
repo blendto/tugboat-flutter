@@ -486,8 +486,10 @@ void _assertChronological(List<TugboatEvent> events) {
   var previousAt = -1;
   final ids = <String>{};
   for (final event in events) {
-    expect(event.atMs, greaterThanOrEqualTo(previousAt));
-    expect(ids.add(event.id), isTrue);
-    previousAt = event.atMs;
+    if (event.type != 'interaction') {
+      expect(event.atMs, greaterThanOrEqualTo(previousAt));
+      previousAt = event.atMs;
+    }
+    expect(ids.add('${event.id}:${event.type}'), isTrue);
   }
 }

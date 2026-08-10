@@ -82,7 +82,7 @@ void main() {
     expect(event.isEnrichmentCandidate, isFalse);
     expect(event.actionId, isNull);
     expect(event.relatedEventId, isNull);
-    expect(event.stateAnchor, isNull);
+    expect(event.toJson().containsKey('stateAnchor'), isFalse);
     expect(event.targetAnchor, isNull);
     expect(event.data['source'], 'analytics');
     expect(event.data['name'], 'USER_LOGIN');
@@ -240,7 +240,7 @@ void main() {
     for (final event in [external, network]) {
       expect(event.actionId, isNull);
       expect(event.relatedEventId, isNull);
-      expect(event.stateAnchor, isNull);
+      expect(event.toJson().containsKey('stateAnchor'), isFalse);
       expect(event.targetAnchor, isNull);
       expect(event.stream, TugboatEventStream.evidence);
     }

@@ -18,6 +18,12 @@ requests its own fresh after-frame. The collector mapper also omits the top-
 level `stateAnchor` key. Deploy the related collector change with this SDK
 release.
 
+Schema-v2 collector events (`interaction`, `route_change`, `scroll_start`,
+`scroll_end`) are flat facts-only records: no nested `payload`, no empty
+`targetAnchor`, and no inferred interaction `result`. Scroll events send
+`targetFingerprint` as a string; interaction v2 sends `targetFingerprint`,
+`gesture`, optional `route`/`position`, and frame refs only.
+
 ## Install
 
 Add `tugboat` to the host app and import the public barrel:
