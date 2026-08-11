@@ -52,7 +52,11 @@ void main() {
       platform: 'ios',
       viewport: const TugboatRect(0, 0, 390, 844),
     );
-    final event = TugboatEvent(id: 'event-1', atMs: 1, type: 'tap');
+    final event = TugboatEvent(
+      id: 'event-1',
+      atMs: 1,
+      type: 'capture_diagnostic',
+    );
     final frame = const TugboatFrame(
       id: 'frame-0',
       atMs: 0,

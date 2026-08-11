@@ -216,7 +216,6 @@ class ReplayCoherenceHarness {
     this.interactionClaimWindow = Duration.zero,
     // Keep deprecated projection behavior covered here even though production
     // recordings now default to canonical-only publication.
-    this.interactionPublishMode = TugboatInteractionPublishMode.dualWrite,
     this.maxFrames = 300,
     this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,
     GlobalKey? boundaryKey,
@@ -224,7 +223,6 @@ class ReplayCoherenceHarness {
 
   final Duration settleDelay;
   final Duration interactionClaimWindow;
-  final TugboatInteractionPublishMode interactionPublishMode;
   final int maxFrames;
   final TugboatScreenshotBudgetConfig screenshotBudget;
   final GlobalKey boundaryKey;
@@ -270,7 +268,6 @@ class ReplayCoherenceHarness {
         profile: TugboatCaptureProfile.exploration,
         settleDelay: settleDelay,
         interactionClaimWindow: interactionClaimWindow,
-        interactionPublishMode: interactionPublishMode,
         maxFrames: maxFrames,
         enableGlobalPointerCapture: false,
         capturePixelRatio: 1.0,
@@ -281,20 +278,9 @@ class ReplayCoherenceHarness {
     capturer = ControllableCaptureExecutor(controller);
     capturer.registerFrame = (frameId, {route, routeEpoch}) {
       final currentRoute = controller.currentRoute;
-      final anchorRouteRaw =
-          controller.currentStateAnchor?.signatureParts['route'];
-      final anchorRoute = anchorRouteRaw is String && anchorRouteRaw.isNotEmpty
-          ? anchorRouteRaw
-          : null;
       final resolvedRoute =
           route ??
-          (currentRoute != null && currentRoute.isNotEmpty
-              ? currentRoute
-              : null) ??
-          (anchorRoute != null && anchorRoute.isNotEmpty
-              ? anchorRoute
-              : null) ??
-          '';
+          (currentRoute != null && currentRoute.isNotEmpty ? currentRoute : '');
       registerFrameProvenance(
         frameId,
         route: resolvedRoute,
@@ -305,7 +291,6 @@ class ReplayCoherenceHarness {
     controller.debugDelay = scheduler.delay;
     controller.debugScheduleDelay = scheduler.schedule;
     controller.debugExecuteCapture = capturer.call;
-    controller.debugFreezeStateAnchor = true;
     await controller.initialize();
     controller.start(const Size(390, 844), 'test');
     await pumpMicrotasks();
@@ -328,16 +313,10 @@ class ReplayCoherenceHarness {
 
   String seedRouteState({
     required String route,
-    required String signature,
+    String? signature,
     String? frameContentHash,
   }) {
     controller.debugSetCurrentRoute(route);
-    controller.debugSetCurrentStateAnchor(
-      TugboatStateAnchor(
-        signature: signature,
-        signatureParts: {'route': route},
-      ),
-    );
     final frameId = controller.debugSeedFrame(
       contentHash: frameContentHash ?? 'frame-$route',
       trigger: TugboatFrameTrigger.route,
@@ -441,8 +420,12 @@ class EventCoherenceView {
   final TugboatEvent event;
 
   String get type => event.type;
-  String? get route => event.stateAnchor?.signatureParts['route'];
-  String? get signature => event.stateAnchor?.signature;
+  String? get route {
+    final direct = event.data['route'];
+    if (direct is String && direct.isNotEmpty) return direct;
+    return null;
+  }
+
   String? get beforeFrame => event.beforeFrame;
   String? get afterFrame => event.afterFrame;
   String? get relatedEventId => event.relatedEventId;
@@ -482,10 +465,17 @@ class CoherenceInvariants {
     final indexesById = <String, int>{};
     for (var index = 0; index < events.length; index++) {
       final event = events[index];
-      if (event.atMs < previousAtMs) return false;
-      previousAtMs = event.atMs;
-      if (indexesById.putIfAbsent(event.id, () => index) != index) {
+      // Canonical interactions publish after settle but keep pointer-down atMs.
+      if (event.type != 'interaction') {
+        if (event.atMs < previousAtMs) return false;
+        previousAtMs = event.atMs;
+      }
+      final identity = '${event.id}:${event.type}';
+      if (indexesById.putIfAbsent(identity, () => index) != index) {
         return false;
+      }
+      if (event.type != 'interaction') {
+        indexesById.putIfAbsent(event.id, () => index);
       }
     }
 
@@ -519,28 +509,15 @@ class CoherenceInvariants {
     });
   }
 
-  /// Checks the stable one-to-one relation between a tap and its settle event.
-  static bool tapSettleIsLinked({
+  static bool interactionIsLinked({
     required List<TugboatEvent> events,
     required TugboatEvent tap,
     required TugboatEvent settle,
-  }) {
-    if (tap.type != 'tap' || settle.type != 'tap_settled') return false;
-    if (settle.relatedEventId != tap.id) return false;
-    if (!hasChronologicalChain(
-      events: events,
-      orderedEventIds: <String>[tap.id, settle.id],
-    )) {
-      return false;
-    }
-    return events
-            .where(
-              (event) =>
-                  event.type == 'tap_settled' && event.relatedEventId == tap.id,
-            )
-            .length ==
-        1;
-  }
+  }) =>
+      tap.type == 'interaction' &&
+      settle.type == 'interaction' &&
+      tap.id == settle.id &&
+      events.where((event) => event.id == tap.id).length == 1;
 
   /// Rejects an action which substitutes an origin or unrelated frame for the
   /// destination route epoch.
@@ -557,21 +534,6 @@ class CoherenceInvariants {
     frameProvenanceFor: frameProvenanceFor,
   );
 
-  /// A missing after-frame is valid only when the event says why, without
-  /// leaking an implementation error or pretending it captured evidence.
-  static bool hasExplicitDegradation(TugboatEvent event) {
-    if (event.afterFrame != null) return false;
-    final outcome = event.data['captureOutcome'];
-    if (outcome is! String || outcome.isEmpty || outcome == 'captured') {
-      return false;
-    }
-    if (event.type == 'tap_settled' &&
-        event.result != TugboatInteractionResult.unknown) {
-      return false;
-    }
-    return true;
-  }
-
   /// Ensures every controller-owned capture path has drained.
   ///
   /// [ControllableCaptureExecutor] is also included because a blocked test
@@ -584,12 +546,7 @@ class CoherenceInvariants {
       !harness.scheduler.hasPendingDelays &&
       harness.capturer.blockedCount == 0;
 
-  /// Tap settle evidence belongs to one route epoch.
-  ///
-  /// Proves [tap.beforeFrame], [settle.beforeFrame], and [settle.afterFrame]
-  /// all belong to [expectedRoute] + [expectedRouteEpoch], while allowing
-  /// distinct capture ids/content hashes within that provenance.
-  static bool tapSettleIsRouteCoherent({
+  static bool interactionIsRouteCoherent({
     required TugboatEvent tap,
     required TugboatEvent settle,
     required String expectedRoute,
@@ -597,36 +554,14 @@ class CoherenceInvariants {
     required HarnessFrameProvenance? Function(String? frameId)
     frameProvenanceFor,
     String? expectedRouteSignature,
-  }) {
-    if (tap.type != 'tap' || settle.type != 'tap_settled') return false;
-    if (settle.relatedEventId != tap.id) return false;
-    if (settle.beforeFrame != tap.beforeFrame) return false;
-    if (expectedRouteSignature != null &&
-        settle.stateAnchor?.signature != expectedRouteSignature) {
-      return false;
-    }
-    if (settle.afterFrame == null) return false;
-
-    final frameIds = <String>[
-      if (tap.beforeFrame != null) tap.beforeFrame!,
-      if (settle.beforeFrame != null) settle.beforeFrame!,
-      settle.afterFrame!,
-    ];
-    if (frameIds.length < 3) return false;
-
-    return eventFramesMatchRoute(
-          event: tap,
-          expectedRoute: expectedRoute,
-          expectedRouteEpoch: expectedRouteEpoch,
-          frameProvenanceFor: frameProvenanceFor,
-        ) &&
-        eventFramesMatchRoute(
-          event: settle,
-          expectedRoute: expectedRoute,
-          expectedRouteEpoch: expectedRouteEpoch,
-          frameProvenanceFor: frameProvenanceFor,
-        );
-  }
+  }) =>
+      tap.id == settle.id &&
+      eventFramesMatchRoute(
+        event: tap,
+        expectedRoute: expectedRoute,
+        expectedRouteEpoch: expectedRouteEpoch,
+        frameProvenanceFor: frameProvenanceFor,
+      );
 
   /// Destination-route actions must carry destination-frame provenance.
   ///
@@ -671,44 +606,26 @@ class CoherenceInvariants {
     return true;
   }
 
-  /// Navigation-producing taps must not emit an unrelated noVisibleChange.
-  ///
-  /// Harness causality contract: when expectations are provided, the exact
-  /// destination route event must exist, match [expectedDestinationRoute], and
-  /// occur no earlier than the tap. Missing destination/id returns false.
-  static bool navigationTapHasNoEarlyNoVisibleChange({
+  static bool navigationInteractionHasRouteEvidence({
     required List<TugboatEvent> events,
     required String tapEventId,
     String? expectedDestinationRoute,
     String? expectedRouteEventId,
   }) {
-    final tap = events.cast<TugboatEvent?>().firstWhere(
-      (event) => event?.id == tapEventId,
-      orElse: () => null,
-    );
-    if (tap == null) return false;
-
-    final settle = events.cast<TugboatEvent?>().firstWhere(
-      (event) =>
-          event?.type == 'tap_settled' && event?.relatedEventId == tapEventId,
-      orElse: () => null,
-    );
-    if (settle == null) return false;
-    if (settle.relatedEventId != tapEventId) return false;
-
     if (expectedDestinationRoute == null || expectedRouteEventId == null) {
       return false;
     }
-
-    final routeEvent = events.cast<TugboatEvent?>().firstWhere(
+    final interaction = events.cast<TugboatEvent?>().firstWhere(
+      (event) => event?.id == tapEventId && event?.type == 'interaction',
+      orElse: () => null,
+    );
+    final route = events.cast<TugboatEvent?>().firstWhere(
       (event) => event?.id == expectedRouteEventId,
       orElse: () => null,
     );
-    if (routeEvent == null) return false;
-    if (routeEvent.type != 'route_change') return false;
-    if (routeEvent.data['route'] != expectedDestinationRoute) return false;
-    if (routeEvent.atMs < tap.atMs) return false;
-
-    return settle.result != TugboatInteractionResult.noVisibleChange;
+    return interaction != null &&
+        route?.type == 'route_change' &&
+        route?.data['route'] == expectedDestinationRoute &&
+        route?.data['causeEventId'] == interaction.id;
   }
 }

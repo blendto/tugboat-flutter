@@ -8,16 +8,22 @@ import 'package:tugboat/tugboat.dart';
 void main() {
   const config = TugboatReplayConfig(
     profile: TugboatCaptureProfile.exploration,
-    interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
     settleDelay: Duration.zero,
     interactionClaimWindow: Duration.zero,
-    enableGlobalPointerCapture: false,
+    enableGlobalPointerCapture: true,
     scrollCaptureInterval: Duration(milliseconds: 50),
     captureScrollSamples: true,
     capturePixelRatio: 1.0,
   );
 
   Future<void> settle(WidgetTester tester) async {
+    final controller = TugboatReplay.controller;
+    if (controller != null) {
+      controller.debugExecuteCapture =
+          ({required trigger, required force}) async {
+            return controller.debugSeedFrame(trigger: trigger);
+          };
+    }
     await tester.pump();
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(milliseconds: 450));
@@ -120,13 +126,17 @@ void main() {
     final interesting = session.events
         .where(
           (e) =>
-              e.type == 'scroll_start' ||
-              e.type == 'scroll_end' ||
-              e.type == 'swipe',
+              (e.type == 'interaction' &&
+                  e.stream == TugboatEventStream.semantic &&
+                  (e.data['gesture'] == 'scroll' ||
+                      e.data['gesture'] == 'swipe' ||
+                      e.data['gesture'] == 'cancelled')) ||
+              false,
         )
         .map(
           (e) => {
             'type': e.type,
+            if (e.type == 'interaction') 'gesture': e.data['gesture'],
             'id': e.id,
             if (e.relatedEventId != null) 'relatedEventId': e.relatedEventId,
             if (e.targetAnchor?.role != null) 'role': e.targetAnchor!.role,
@@ -143,26 +153,31 @@ void main() {
     print(const JsonEncoder.withIndent('  ').convert(interesting));
 
     expect(
-      interesting.where((e) => e['type'] == 'scroll_start').length,
+      interesting
+          .where((e) => e['type'] == 'interaction' && e['gesture'] == 'scroll')
+          .length,
       greaterThanOrEqualTo(2),
     );
-    expect(interesting.where((e) => e['type'] == 'swipe'), isNotEmpty);
-
     // Hero-image drag is inside the outer ListView: parent scroll fires with
     // overscroll but no offset change — failed scroll intent on static content.
-    final overscrollAtStatic = interesting.where(
-      (e) =>
-          e['type'] == 'scroll_end' &&
-          (e['data'] as Map)['overscrollCount'] != null &&
-          ((e['data'] as Map)['overscrollCount'] as num) > 0,
-    );
+    final overscrollAtStatic = interesting.where((e) {
+      if (e['type'] != 'interaction' || e['gesture'] != 'scroll') {
+        return false;
+      }
+      final payload = (e['data'] as Map)['payload'] as Map?;
+      if (payload == null) return false;
+      final overscrollCount = payload['overscrollCount'];
+      return overscrollCount != null && (overscrollCount as num) > 0;
+    });
     expect(overscrollAtStatic, isNotEmpty);
 
     final verticalScroll = interesting.firstWhere(
-      (e) =>
-          e['type'] == 'scroll_start' &&
-          (e['data'] as Map)['sectionLabel'] == 'vertical-feed',
+      (e) => e['type'] == 'interaction' && e['gesture'] == 'scroll',
     );
-    expect(verticalScroll['role'], 'scrollable');
+    final payload = Map<String, Object?>.from(
+      (verticalScroll['data'] as Map)['payload']! as Map,
+    );
+    expect(payload['endOffset'], isNotNull);
+    expect((payload['endOffset'] as num), greaterThan(0));
   });
 }

@@ -328,9 +328,7 @@ void main() {
             child: SizedBox(
               width: 80,
               height: 80,
-              child: RepaintBoundary(
-                child: ColoredBox(color: nestedColor),
-              ),
+              child: RepaintBoundary(child: ColoredBox(color: nestedColor)),
             ),
           ),
         ),
@@ -358,7 +356,9 @@ void main() {
       expect(outer.paintGeneration, outerGeneration);
       expect(tugboatSubtreePaintSignature(outer), isNot(signatureBefore));
 
-      final afterNested = await tester.runAsync(() => capturer.captureAttempt());
+      final afterNested = await tester.runAsync(
+        () => capturer.captureAttempt(),
+      );
       expect(afterNested, isNotNull);
       expect(afterNested!.failure, isNull);
       expect(afterNested.result, isNotNull);

@@ -1,7 +1,6 @@
 import 'capture_profile.dart';
 import 'collector_config.dart';
 import 'interaction_transaction.dart' show tugboatDefaultReconciliationWindow;
-import 'models.dart';
 import 'outbox/outbox.dart';
 import 'screenshot_mask_level.dart';
 import 'sinks/capture_sink.dart' show TugboatCaptureSinkFactory;
@@ -86,7 +85,6 @@ class TugboatReplayConfig {
     this.profile = TugboatCaptureProfile.dormant,
     this.settleDelay = const Duration(seconds: 1),
     this.interactionClaimWindow = tugboatDefaultReconciliationWindow,
-    this.interactionPublishMode = TugboatInteractionPublishMode.canonicalOnly,
     this.maxFrames = 500,
     this.maxEvents = 5000,
     this.scrollCaptureInterval = const Duration(seconds: 2),
@@ -116,25 +114,6 @@ class TugboatReplayConfig {
   /// Default is [tugboatDefaultReconciliationWindow] (1,250 ms). Set to
   /// [Duration.zero] for microtask-only same-turn claims.
   final Duration interactionClaimWindow;
-
-  /// Canonical vs legacy gesture publication policy.
-  ///
-  /// New recordings default to [TugboatInteractionPublishMode.canonicalOnly]
-  /// so each finalized gesture produces one semantic `interaction` event.
-  /// The legacy modes are temporary read/migration compatibility options and
-  /// must not be enabled by new integrations.
-  final TugboatInteractionPublishMode interactionPublishMode;
-
-  bool get emitCanonicalInteractions =>
-      interactionPublishMode != TugboatInteractionPublishMode.legacyOnly;
-
-  bool get emitLegacyInteractionProjection =>
-      interactionPublishMode != TugboatInteractionPublishMode.canonicalOnly;
-
-  TugboatEventStream get legacyGestureStream =>
-      interactionPublishMode == TugboatInteractionPublishMode.dualWrite
-      ? TugboatEventStream.legacyProjection
-      : TugboatEventStream.semantic;
 
   final int maxFrames;
   final int maxEvents;
@@ -175,7 +154,6 @@ class TugboatReplayConfig {
     TugboatCaptureProfile? profile,
     Duration? settleDelay,
     Duration? interactionClaimWindow,
-    TugboatInteractionPublishMode? interactionPublishMode,
     int? maxFrames,
     int? maxEvents,
     Duration? scrollCaptureInterval,
@@ -201,8 +179,6 @@ class TugboatReplayConfig {
       settleDelay: settleDelay ?? this.settleDelay,
       interactionClaimWindow:
           interactionClaimWindow ?? this.interactionClaimWindow,
-      interactionPublishMode:
-          interactionPublishMode ?? this.interactionPublishMode,
       maxFrames: maxFrames ?? this.maxFrames,
       maxEvents: maxEvents ?? this.maxEvents,
       scrollCaptureInterval:

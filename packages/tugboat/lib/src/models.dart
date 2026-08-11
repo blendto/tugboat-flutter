@@ -6,10 +6,11 @@ import 'package:flutter/widgets.dart';
 import 'anchors.dart';
 import 'collector_config.dart';
 
-/// Current session JSON schema. Writers emit this; readers accept 6–9.
+/// Current session JSON schema.
 ///
-/// Schema 9 stops emitting value and semantic-annotation event data.
-const int tugboatSessionSchemaVersion = 9;
+/// Schema 10 removes serialized state identity, removes `state_change`, and
+/// adds the `interaction` frame trigger.
+const int tugboatSessionSchemaVersion = 10;
 
 /// Event selection channel for enrichment / insight / replay consumers.
 enum TugboatEventStream {
@@ -20,77 +21,43 @@ enum TugboatEventStream {
   evidence,
 
   /// Capture health and support diagnostics.
-  diagnostic,
-
-  /// Temporary dual-write of legacy `tap` / `tap_settled` / `swipe` peers.
-  legacyProjection;
+  diagnostic;
 
   String get wireName => switch (this) {
     TugboatEventStream.semantic => 'semantic',
     TugboatEventStream.evidence => 'evidence',
     TugboatEventStream.diagnostic => 'diagnostic',
-    TugboatEventStream.legacyProjection => 'legacy_projection',
   };
 
   static TugboatEventStream parse(String? raw) {
     switch (raw) {
+      case 'semantic':
+        return TugboatEventStream.semantic;
       case 'evidence':
         return TugboatEventStream.evidence;
       case 'diagnostic':
         return TugboatEventStream.diagnostic;
-      case 'legacy_projection':
-        return TugboatEventStream.legacyProjection;
-      case 'semantic':
-      case null:
       default:
-        return TugboatEventStream.semantic;
+        throw FormatException('Unsupported Tugboat event stream: $raw');
     }
   }
 }
 
-/// How finalized gestures are published to sinks.
-enum TugboatInteractionPublishMode {
-  // TODO(tugboat-legacy-projection-removal): Remove legacyOnly and dualWrite
-  // after supported collectors, Context Graph, dashboards, and retained replay
-  // fixtures no longer consume legacy gesture rows. See the SDK README's
-  // "Legacy gesture projection deprecation" section.
-
-  /// Deprecated compatibility mode.
-  ///
-  /// Emits only legacy `tap` / `tap_settled` / `swipe` records on the semantic
-  /// stream. Do not use for new recordings.
-  legacyOnly,
-
-  /// Deprecated migration mode.
-  ///
-  /// Emits the canonical `interaction` plus legacy peers on
-  /// [TugboatEventStream.legacyProjection]. Do not use for new recordings.
-  dualWrite,
-
-  /// Canonical `interaction` only. This is the default for new recordings.
-  canonicalOnly,
-}
-
-/// Wire-compatible string aliases for tests and docs.
+/// Wire strings for event streams.
 const String tugboatEventStreamSemantic = 'semantic';
 const String tugboatEventStreamEvidence = 'evidence';
 const String tugboatEventStreamDiagnostic = 'diagnostic';
-const String tugboatEventStreamLegacyProjection = 'legacy_projection';
 
-const int tugboatInteractionSchemaVersion = 1;
+const int tugboatInteractionSchemaVersion = 2;
+const int tugboatRouteChangeSchemaVersion = 2;
 
 /// Whether [event] is a default enrichment / insight candidate.
 bool tugboatEventIsEnrichmentCandidate(TugboatEvent event) {
   switch (event.stream) {
     case TugboatEventStream.diagnostic:
     case TugboatEventStream.evidence:
-    case TugboatEventStream.legacyProjection:
-      return false;
     case TugboatEventStream.semantic:
-      if (event.type == 'interaction') return true;
-      return event.type == 'tap' ||
-          event.type == 'tap_settled' ||
-          event.type == 'swipe';
+      return event.type == 'interaction';
   }
 }
 
@@ -115,7 +82,17 @@ class TugboatRect {
   };
 }
 
-enum TugboatFrameTrigger { initial, tap, scroll, route, lifecycle, manual }
+/// `interaction` is a fresh, non-coalescing after-frame request for one
+/// completed user interaction.
+enum TugboatFrameTrigger {
+  initial,
+  tap,
+  scroll,
+  route,
+  lifecycle,
+  manual,
+  interaction,
+}
 
 enum TugboatInteractionResult { changed, noVisibleChange, navigated, unknown }
 
@@ -195,10 +172,8 @@ class TugboatEvent {
     required this.atMs,
     required this.type,
     this.stream = TugboatEventStream.semantic,
-    this.sessionId,
     this.captureSessionId,
     this.activationRequestId,
-    this.stateAnchor,
     this.targetAnchor,
     this.beforeFrame,
     this.afterFrame,
@@ -214,11 +189,8 @@ class TugboatEvent {
   final String type;
   final TugboatEventStream stream;
 
-  /// Legacy alias for [captureSessionId].
-  final String? sessionId;
   final String? captureSessionId;
   final String? activationRequestId;
-  final TugboatStateAnchor? stateAnchor;
   final TugboatTargetAnchor? targetAnchor;
   final String? beforeFrame;
   final String? afterFrame;
@@ -227,8 +199,6 @@ class TugboatEvent {
   final Map<String, Object?> data;
   final String? explorationRunId;
   final String? actionId;
-
-  String? get effectiveCaptureSessionId => captureSessionId ?? sessionId;
 
   bool get isSemanticStream => stream == TugboatEventStream.semantic;
 
@@ -239,10 +209,8 @@ class TugboatEvent {
     'atMs': atMs,
     'type': type,
     'stream': stream.wireName,
-    if (sessionId != null) 'sessionId': sessionId,
     if (captureSessionId != null) 'captureSessionId': captureSessionId,
     if (activationRequestId != null) 'activationRequestId': activationRequestId,
-    if (stateAnchor != null) 'stateAnchor': stateAnchor!.toJson(),
     if (targetAnchor != null) 'targetAnchor': targetAnchor!.toJson(),
     if (beforeFrame != null) 'beforeFrame': beforeFrame,
     if (afterFrame != null) 'afterFrame': afterFrame,
@@ -258,10 +226,8 @@ class TugboatEvent {
     int? atMs,
     String? type,
     TugboatEventStream? stream,
-    String? sessionId,
     String? captureSessionId,
     String? activationRequestId,
-    TugboatStateAnchor? stateAnchor,
     TugboatTargetAnchor? targetAnchor,
     String? beforeFrame,
     String? afterFrame,
@@ -275,10 +241,8 @@ class TugboatEvent {
     atMs: atMs ?? this.atMs,
     type: type ?? this.type,
     stream: stream ?? this.stream,
-    sessionId: sessionId ?? this.sessionId,
     captureSessionId: captureSessionId ?? this.captureSessionId,
     activationRequestId: activationRequestId ?? this.activationRequestId,
-    stateAnchor: stateAnchor ?? this.stateAnchor,
     targetAnchor: targetAnchor ?? this.targetAnchor,
     beforeFrame: beforeFrame ?? this.beforeFrame,
     afterFrame: afterFrame ?? this.afterFrame,
@@ -293,13 +257,11 @@ class TugboatEvent {
       copyWith(data: {...data, ...updates});
 
   TugboatEvent withExplorationContext({
-    String? sessionId,
     String? captureSessionId,
     String? activationRequestId,
     String? explorationRunId,
     String? actionId,
   }) => copyWith(
-    sessionId: sessionId ?? this.sessionId,
     captureSessionId: captureSessionId ?? this.captureSessionId,
     activationRequestId: activationRequestId ?? this.activationRequestId,
     explorationRunId: explorationRunId ?? this.explorationRunId,

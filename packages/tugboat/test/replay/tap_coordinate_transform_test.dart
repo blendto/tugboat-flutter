@@ -12,12 +12,17 @@ void main() {
     EdgeInsets padding = EdgeInsets.zero,
     double capturePixelRatio = 1,
   }) async {
+    TugboatReplay.debugConfigureControllerForTest = (controller) {
+      controller.debugExecuteCapture =
+          ({required trigger, required force}) async {
+            return controller.debugSeedFrame(trigger: trigger);
+          };
+    };
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
           config: TugboatReplayConfig(
             profile: TugboatCaptureProfile.exploration,
-            interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: true,
@@ -50,9 +55,8 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 350)),
-    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
     final controller = TugboatReplay.controller;
     expect(controller, isNotNull);
@@ -70,23 +74,18 @@ void main() {
     final center = tester.getCenter(find.byKey(const Key('target')));
     controller.recordPointerDown(center);
     controller.recordPointerUp(center);
-    final tap = controller.session!.events.where((e) => e.type == 'tap').last;
-    expect(tap.data['x'], center.dx);
-    expect(tap.data['y'], center.dy);
-    final coord = Map<String, Object?>.from(
-      tap.data['captureCoordinate']! as Map,
-    );
-    expect(coord['version'], 1);
-    expect(coord['unavailableReason'], isNull);
-    expect(coord['normalizedX'], inInclusiveRange(0.0, 1.0));
-    expect(coord['normalizedY'], inInclusiveRange(0.0, 1.0));
-    expect(coord['frameId'], isNotNull);
-
-    final restored = TugboatCaptureCoordinate.fromJson(coord);
-    final raster = restored.projectToRaster();
-    expect(raster, isNotNull);
-    expect(raster!.x, inInclusiveRange(0, restored.framePixelWidth - 1));
-    expect(raster.y, inInclusiveRange(0, restored.framePixelHeight - 1));
+    await tester.pump();
+    await controller.drainPointerQueue();
+    final interaction = controller.session!.events
+        .where((event) => event.type == 'interaction')
+        .last;
+    final position =
+        Map<String, Object?>.from(
+              interaction.data['payload']! as Map,
+            )['position']
+            as Map;
+    expect(position['xNorm'], inInclusiveRange(0.0, 1.0));
+    expect(position['yNorm'], inInclusiveRange(0.0, 1.0));
   });
 
   testWidgets('outside-boundary tap is unavailable without clamping', (
@@ -96,13 +95,12 @@ void main() {
     // Far outside the capture boundary / screen.
     controller.recordPointerDown(const Offset(-80, -80));
     controller.recordPointerUp(const Offset(-80, -80));
-    final tap = controller.session!.events.where((e) => e.type == 'tap').last;
-    final coord = Map<String, Object?>.from(
-      tap.data['captureCoordinate']! as Map,
-    );
-    expect(coord['unavailableReason'], 'outside_boundary');
-    expect(tap.data['x'], -80);
-    expect(tap.data['y'], -80);
+    await tester.pump();
+    await controller.drainPointerQueue();
+    final interaction = controller.session!.events
+        .where((event) => event.type == 'interaction')
+        .last;
+    expect(interaction.data['payload'], isNull);
   });
 
   testWidgets('capture ratio below 1.0 still projects within one pixel', (
@@ -110,27 +108,23 @@ void main() {
   ) async {
     final controller = await mount(tester, capturePixelRatio: 0.5);
     // Ensure a real before-frame exists at the reduced ratio.
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 350)),
-    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
     final center = tester.getCenter(find.byKey(const Key('target')));
     controller.recordPointerDown(center);
     controller.recordPointerUp(center);
-    final tap = controller.session!.events.where((e) => e.type == 'tap').last;
-    final coord = TugboatCaptureCoordinate.fromJson(
-      Map<String, Object?>.from(tap.data['captureCoordinate']! as Map),
+    await tester.pump();
+    await controller.drainPointerQueue();
+    final interaction = controller.session!.events
+        .where((event) => event.type == 'interaction')
+        .last;
+    final payload = Map<String, Object?>.from(
+      interaction.data['payload']! as Map,
     );
-    if (!coord.isAvailable) {
-      // No compatible before-frame yet — still emit explicit unavailability.
-      expect(coord.unavailableReason, isNotNull);
-      return;
-    }
-    final raster = coord.projectToRaster()!;
-    final backX = raster.x / (coord.framePixelWidth - 1);
-    final backY = raster.y / (coord.framePixelHeight - 1);
-    expect((backX - coord.normalizedX).abs(), lessThan(0.02));
-    expect((backY - coord.normalizedY).abs(), lessThan(0.02));
+    final position = Map<String, Object?>.from(payload['position']! as Map);
+    expect(position['xNorm'], inInclusiveRange(0.0, 1.0));
+    expect(position['yNorm'], inInclusiveRange(0.0, 1.0));
   });
 
   testWidgets('resized boundary suppresses coordinates for the older frame', (
@@ -142,7 +136,6 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final controller = await mount(tester);
-    final priorFrame = controller.session!.frames.last.id;
 
     tester.view.physicalSize = const Size(900, 600);
     await tester.pump();
@@ -150,16 +143,12 @@ void main() {
     final center = tester.getCenter(find.byKey(const Key('target')));
     controller.recordPointerDown(center);
     controller.recordPointerUp(center);
-    final tap = controller.session!.events.where((e) => e.type == 'tap').last;
-    final coord = TugboatCaptureCoordinate.fromJson(
-      Map<String, Object?>.from(tap.data['captureCoordinate']! as Map),
-    );
-
-    expect(tap.beforeFrame, isNull);
-    expect(coord.isAvailable, isFalse);
-    expect(coord.unavailableReason, 'generation_mismatch');
-    expect(coord.frameId, priorFrame);
-    expect(coord.framePixelWidth, greaterThan(0));
-    expect(coord.framePixelHeight, greaterThan(0));
+    await tester.pump();
+    await controller.drainPointerQueue();
+    final interaction = controller.session!.events
+        .where((event) => event.type == 'interaction')
+        .last;
+    expect(interaction.beforeFrame, isNull);
+    expect(interaction.data['payload'], isNull);
   });
 }

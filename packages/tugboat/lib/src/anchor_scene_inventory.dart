@@ -19,19 +19,11 @@ extension TugboatSceneInventoryApi on AnchorResolver {
 
     final tokenMap = _tokenMapFor(rootContext, rootRender);
     if (tokenMap == null) return null;
-    final stateAnchor = _stateAnchorFromTokenMap(
-      tokenMap: tokenMap,
-      route: route,
-      keyboardOpen: keyboardOpen,
-      modalOpen: modalOpen,
-    );
-    if (stateAnchor.signature.isEmpty) return null;
 
     return _buildSceneInventoryFromTokenMap(
       tokenMap: tokenMap,
       rootRender: rootRender,
       route: route,
-      stateAnchor: stateAnchor,
     );
   }
 
@@ -39,7 +31,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required _TokenMap tokenMap,
     required RenderBox rootRender,
     required String? route,
-    required TugboatStateAnchor stateAnchor,
   }) {
     final routeKey = _resolveRouteKey(route, tokenMap);
     final viewport = rootRender.size;
@@ -108,15 +99,10 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     final elements = [...interactiveByFingerprint.values, ...contentEntries];
     if (elements.isEmpty) return null;
 
-    return _inventoryFromElements(
-      stateAnchor: stateAnchor,
-      routeKey: routeKey,
-      elements: elements,
-    );
+    return _inventoryFromElements(routeKey: routeKey, elements: elements);
   }
 
   TugboatSceneInventory _inventoryFromElements({
-    required TugboatStateAnchor stateAnchor,
     required String routeKey,
     required List<TugboatSceneInventoryEntry> elements,
   }) {
@@ -125,8 +111,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     final inventoryHash = tugboatLabelHash(fingerprints.join('|'));
 
     return TugboatSceneInventory(
-      stateAnchor: stateAnchor,
-      stateSignature: stateAnchor.signature,
       inventoryHash: inventoryHash,
       routeKey: routeKey,
       elements: elements,
@@ -279,7 +263,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required TugboatSceneInventory? inventory,
     required TugboatTargetAnchor? target,
     required Offset tapPosition,
-    required TugboatStateAnchor stateAnchor,
     required String? route,
     required _TokenMap tokenMap,
     required RenderBox rootRender,
@@ -308,7 +291,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       injectedEntry,
     ];
     return _inventoryFromElements(
-      stateAnchor: stateAnchor,
       routeKey: inventory?.routeKey ?? routeKey,
       elements: elements,
     );

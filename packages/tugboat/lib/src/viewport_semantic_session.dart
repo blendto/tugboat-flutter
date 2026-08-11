@@ -9,13 +9,13 @@ import 'replay_config.dart';
 
 class _ScrollSemanticAccumulator {
   _ScrollSemanticAccumulator({
-    required this.stateSignature,
+    required this.gestureSequence,
     required this.routeKey,
     required this.scrollableFingerprint,
     required this.axis,
   });
 
-  final String stateSignature;
+  final int gestureSequence;
   final String routeKey;
   final String? scrollableFingerprint;
   final String? axis;
@@ -43,6 +43,7 @@ class ViewportSemanticSession {
   final Set<String> _emittedScrollSemanticSnapshots = <String>{};
   TugboatViewportSemanticMap? _latestMap;
   DateTime? _lastScrollSemanticBuildAt;
+  int _scrollGestureSequence = 0;
 
   TugboatViewportSemanticPolicy get _policy => config.viewportSemanticPolicy;
 
@@ -61,6 +62,7 @@ class ViewportSemanticSession {
     _emittedScrollSemanticSnapshots.clear();
     _latestMap = null;
     _lastScrollSemanticBuildAt = null;
+    _scrollGestureSequence = 0;
   }
 
   /// Returns false when a scroll-update semantic rebuild should be skipped.
@@ -83,7 +85,7 @@ class ViewportSemanticSession {
     } catch (error, stackTrace) {
       debugPrint(
         '[tugboat] viewport_semantic_map build failed '
-        'route=${inventory.routeKey} state=${inventory.stateSignature}: '
+        'route=${inventory.routeKey}: '
         '$error\n$stackTrace',
       );
     }
@@ -117,6 +119,12 @@ class ViewportSemanticSession {
     required AnchorResolver? resolver,
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
+    if (scrollContext?.trigger == 'scroll_start') {
+      _beginScrollSemanticGesture(
+        routeKey: inventory.routeKey,
+        scroll: scrollContext!,
+      );
+    }
     if (!engineEnabled || resolver == null) return;
 
     final buildStopwatch = Stopwatch()..start();
@@ -131,7 +139,7 @@ class ViewportSemanticSession {
       if (debugLogs) {
         debugPrint(
           '[tugboat] viewport_semantic_map skipped '
-          'route=${inventory.routeKey} state=${inventory.stateSignature} '
+          'route=${inventory.routeKey} '
           'reason=empty_or_unavailable_semantics',
         );
       }
@@ -144,29 +152,29 @@ class ViewportSemanticSession {
     final encodedPayload = bounded.encodedJson;
 
     _latestMap = map;
-
     // tapResolutionOnly: keep the map as a device-local lookup table.
     if (!emitEvents) return;
 
     final dedupeKey =
-        '${map.stateSignature}|${map.mapHash}|${map.scrollContext?.dedupeKey ?? ''}';
-    if (!_emittedSemanticMaps.add(dedupeKey)) return;
-
-    addEvent(
-      TugboatEvent(
-        id: nextEventId('event'),
-        atMs: atMs(),
-        type: 'viewport_semantic_map',
-        stateAnchor: map.stateAnchor,
-        data: encodedPayload ?? map.toJson(),
-      ),
-    );
-    if (debugLogs) {
-      tugboatLogViewportSemanticMap(
-        map,
-        buildMs: buildStopwatch.elapsedMilliseconds,
+        '${map.routeKey}|${map.mapHash}|${map.scrollContext?.dedupeKey ?? ''}';
+    if (_emittedSemanticMaps.add(dedupeKey)) {
+      addEvent(
+        TugboatEvent(
+          id: nextEventId('event'),
+          atMs: atMs(),
+          type: 'viewport_semantic_map',
+          data: encodedPayload ?? map.toJson(),
+        ),
       );
+      if (debugLogs) {
+        tugboatLogViewportSemanticMap(
+          map,
+          buildMs: buildStopwatch.elapsedMilliseconds,
+        );
+      }
     }
+    // A new scroll gesture can revisit a slice that was already published.
+    // Keep gesture accumulation independent from event-level map deduplication.
     _recordScrollSemanticSlice(map);
   }
 
@@ -204,7 +212,7 @@ class ViewportSemanticSession {
         if (debugLogs) {
           debugPrint(
             '[tugboat] viewport_semantic_map skipped '
-            'route=${map.routeKey} state=${map.stateSignature} '
+            'route=${map.routeKey} '
             'reason=payload_too_large bytes=$encodedLength '
             'limit=$maxBytes',
           );
@@ -224,12 +232,9 @@ class ViewportSemanticSession {
       scroll.axis ?? 'unknown',
     ].join('|');
     var accumulator = _scrollSemanticAccumulators[accumulatorKey];
-    // A state signature change mid-scroll means the screen materially changed;
-    // stitching across it would attribute slices to a stale state.
-    if (accumulator == null ||
-        accumulator.stateSignature != map.stateSignature) {
+    if (accumulator == null) {
       accumulator = _ScrollSemanticAccumulator(
-        stateSignature: map.stateSignature,
+        gestureSequence: ++_scrollGestureSequence,
         routeKey: map.routeKey,
         scrollableFingerprint: scroll.scrollableFingerprint,
         axis: scroll.axis,
@@ -239,19 +244,37 @@ class ViewportSemanticSession {
     accumulator.slices[scroll.dedupeKey] = map;
     if (accumulator.slices.length < 2) return;
     final snapshot = _buildScrollSemanticSnapshot(accumulator);
-    if (!_emittedScrollSemanticSnapshots.add(snapshot.snapshotHash)) return;
+    final snapshotKey =
+        '${accumulator.gestureSequence}|${snapshot.snapshotHash}';
+    if (!_emittedScrollSemanticSnapshots.add(snapshotKey)) return;
     addEvent(
       TugboatEvent(
         id: nextEventId('event'),
         atMs: atMs(),
         type: 'scroll_semantic_snapshot',
-        stateAnchor: map.stateAnchor,
         data: snapshot.toJson(),
       ),
     );
     if (debugLogs) {
       tugboatLogScrollSemanticSnapshot(snapshot);
     }
+  }
+
+  void _beginScrollSemanticGesture({
+    required String routeKey,
+    required TugboatViewportSemanticScrollContext scroll,
+  }) {
+    final accumulatorKey = [
+      routeKey,
+      scroll.scrollableFingerprint ?? 'unknown',
+      scroll.axis ?? 'unknown',
+    ].join('|');
+    _scrollSemanticAccumulators[accumulatorKey] = _ScrollSemanticAccumulator(
+      gestureSequence: ++_scrollGestureSequence,
+      routeKey: routeKey,
+      scrollableFingerprint: scroll.scrollableFingerprint,
+      axis: scroll.axis,
+    );
   }
 
   TugboatScrollSemanticSnapshot _buildScrollSemanticSnapshot(
@@ -303,7 +326,6 @@ class ViewportSemanticSession {
     final hash = tugboatLabelHash(
       [
         accumulator.routeKey,
-        accumulator.stateSignature,
         accumulator.scrollableFingerprint ?? '',
         accumulator.axis ?? '',
         accumulator.slices.length,
@@ -311,7 +333,6 @@ class ViewportSemanticSession {
       ].join('|'),
     );
     return TugboatScrollSemanticSnapshot(
-      stateSignature: accumulator.stateSignature,
       routeKey: accumulator.routeKey,
       scrollableFingerprint: accumulator.scrollableFingerprint,
       axis: accumulator.axis,
@@ -335,9 +356,7 @@ class ViewportSemanticSession {
     final rootRender = boundaryKey.currentContext?.findRenderObject();
     if (resolver == null || rootRender is! RenderBox) return null;
 
-    if (inventory != null &&
-        (_latestMap == null ||
-            _latestMap!.stateSignature != inventory.stateSignature)) {
+    if (inventory != null) {
       maybeEmit(inventory, resolver: resolver);
     }
 

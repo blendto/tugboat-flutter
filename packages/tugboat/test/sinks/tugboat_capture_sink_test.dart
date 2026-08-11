@@ -86,7 +86,11 @@ void main() {
         captureSessionId: 'cap-1',
         sessionEpoch: 1,
         idempotencyKey: 'e1',
-        event: const TugboatEvent(id: 'e1', atMs: 0, type: 'tap'),
+        event: const TugboatEvent(
+          id: 'e1',
+          atMs: 0,
+          type: 'capture_diagnostic',
+        ),
       ),
     );
     await box.finish();
@@ -96,7 +100,11 @@ void main() {
         captureSessionId: 'cap-1',
         sessionEpoch: 1,
         idempotencyKey: 'e2',
-        event: const TugboatEvent(id: 'e2', atMs: 1, type: 'tap'),
+        event: const TugboatEvent(
+          id: 'e2',
+          atMs: 1,
+          type: 'capture_diagnostic',
+        ),
       ),
     );
     expect(sink.accepted, hasLength(1));
@@ -114,7 +122,9 @@ void main() {
       viewport: const TugboatRect(0, 0, 390, 844),
     );
     hub.startSession(session);
-    hub.recordEvent(const TugboatEvent(id: 'e1', atMs: 0, type: 'tap'));
+    hub.recordEvent(
+      const TugboatEvent(id: 'e1', atMs: 0, type: 'capture_diagnostic'),
+    );
     await hub.flush();
     await hub.endSession();
     expect(good.events, hasLength(1));

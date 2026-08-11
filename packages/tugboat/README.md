@@ -5,9 +5,24 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.7.1`. Session JSON writers emit schema
-version `9`; compatibility readers should accept versions `6` through
-`9`. Structural fingerprints use fingerprint schema version `6`.
+The current package version is `0.8.0`. Session JSON writers and readers use
+schema version `10` only. Structural fingerprints use fingerprint schema
+version `6`.
+
+## 0.8.0 raw-event compatibility
+
+New writers omit `stateAnchor`, `stateSignature`, and `state_change` events.
+The old public state model types are removed. Each completed tap, swipe, and
+scroll requests its own fresh after-frame. The collector mapper also omits the
+top-level `stateAnchor` key. Deploy the related collector change with this SDK
+release.
+
+Schema-v2 collector events (`interaction`, `route_change`) are flat facts-only
+records: no nested top-level `payload` on route changes, no empty
+`targetAnchor`, and no inferred interaction `result`. Interaction v2 uses a
+nested `payload` for gesture facts (`tap`/`swipe`/`scroll`/`cancelled`) and
+no longer emits separate `scroll_start`, `scroll_end`, or `pointer_cancel`
+events.
 
 ## Install
 
@@ -23,7 +38,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.7.1
+  tugboat_dio: ^0.8.0
 ```
 
 See `packages/tugboat_dio/README.md`.
@@ -166,7 +181,7 @@ Navigator/repaint-boundary contract.
 Each visible route change creates a route epoch and waits for the transition
 plus the configured settle delay before taking the destination capture. A newer
 visible route supersedes an older pending capture. Consequently, a route event
-and a related `tap_settled` event are intended to reference a frame compatible
+and a related canonical `interaction` are intended to reference a frame compatible
 with that route epoch, or report bounded degraded/capture diagnostics rather
 than attach an origin-route frame merely because it was the latest frame.
 
@@ -175,30 +190,12 @@ Production acceptance for #13/#14 remains open: rapid or nested modal chains
 and programmatic/automatic navigation can still be absent or degraded. Treat
 those cases as an SDK capture gap, not as coherent replay evidence.
 
-### Deferred taps and interaction claims
+### Interaction claims
 
-`tap` is sampled at pointer-down but emitted only after gesture classification
-(or when a claimed `route_change` must publish a cause). Consumers must read:
-
-| Field | Meaning |
-| --- | --- |
-| `data.replayRole` | `interaction` (real user tap) or `causal_only` (cause id for a route; not a replayable action) |
-| `data.gestureFinal` | `tap`, `swipe`, `cancelled`, `superseded`, `session_end`, or `unresolved` |
-| `data.sampledAtMs` | Pointer-down sample time when the event was published later |
-| `data.captureCoordinate` | Boundary-local / normalized / raster transform for the before-frame |
-| `route_change.data.navigationOrigin` | `interaction` or `automatic_or_unknown` |
-| `route_change.data.causeEventId` | Claimed tap id when origin is `interaction` |
-| `route_change.data.interactionAttribution` | Always `same_turn` when claimed |
-| `swipe`/`pointer_cancel.data.invalidatesRelatedTap` | Boolean `true` when a related causal tap should be ignored for playback |
-| `tap_gesture_resolved` | Promotes `relatedEventId` from `causal_only` → interaction (`promotesRelatedTap`) |
-
-Released pointer-up claims attribute a route only through the pointer-up turn
-(sync `onTap` → `Navigator.push`). Timer/auth redirects after that turn stay
-`automatic_or_unknown`. Backgrounding and `session_end` drop pending claims
-without minting orphan `causal_only` taps for cancelled routes.
-
-**Downstream contract:** Context Graph and PMKit CLI must not treat
-`replayRole: causal_only` taps as real actions or step openers.
+Pointer-down freezes interaction origin data. Pointer-up classifies the gesture
+and publishes one canonical `interaction`. A claimed `route_change` uses that
+interaction ID as `causeEventId`. Released pointer-up claims apply only through
+the pointer-up turn. Timer or auth redirects stay `automatic_or_unknown`.
 
 ## Capture profiles and runtime state
 
@@ -234,9 +231,8 @@ Identity contract:
 - `explorationRunId` — exploration control-plane ID from config
 - `traitsId` — collector-issued traits dictionary id after `setTraits` / session responses
 
-`TugboatReplay.activeSessionId` remains as a deprecated alias for
-`activationRequestId`. Inspect `TugboatReplay.health` for sink/outbox/screenshot
-budget pressure without reading protected content.
+Inspect `TugboatReplay.health` for sink, outbox, and screenshot-budget pressure
+without reading protected content.
 
 ### User traits and user id
 
@@ -284,7 +280,6 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | `profile` | `dormant` | capture cost and exploration-only behavior |
 | `settleDelay` | 1 second | delay before post-interaction and post-route capture |
 | `interactionClaimWindow` | 1,250 ms | released-tap window for delayed route/modal attribution; `Duration.zero` keeps microtask-only same-turn claims |
-| `interactionPublishMode` | `canonicalOnly` | how finalized gestures are published; new recordings emit one canonical `interaction`. `legacyOnly` and `dualWrite` are deprecated compatibility modes |
 | `maxFrames` | 500 | in-memory frame bound |
 | `maxEvents` | 5000 | in-memory event bound |
 | `scrollCaptureInterval` | 2 seconds | interval for scroll checkpoint capture |
@@ -305,46 +300,6 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | `outbox` | disabled | durable HTTP outbox configuration |
 | `screenshotBudget` | 60ms / 5s window | degraded-capture skip window / budget |
 
-### Legacy gesture projection deprecation
-
-New recordings default to `TugboatInteractionPublishMode.canonicalOnly`. One
-completed physical gesture produces one semantic `interaction` event containing
-its immutable origin, finalized gesture, result, attribution, and evidence IDs.
-The SDK no longer emits separate `tap`, `tap_settled`, or `swipe` rows unless an
-integration explicitly opts into a legacy mode.
-
-`dualWrite` and `legacyOnly` remain available temporarily so older collectors,
-Context Graph revisions, dashboards, and replay fixtures can be migrated without
-making historical recordings unreadable:
-
-- `canonicalOnly` — supported default for all new recordings;
-- `dualWrite` — deprecated migration override that adds legacy peers on
-  `stream: legacy_projection` with `enrichmentCandidate: false`;
-- `legacyOnly` — deprecated emergency compatibility override for consumers that
-  cannot yet read canonical `interaction` records.
-
-Do not enable either legacy mode in a new application integration. Consumers
-must use `interaction` as the user action and treat route/state/frame records as
-linked evidence. Historical `tap` and `tap_settled` rows may still be read and
-correlated through `interactionId` / `relatedEventId`, but must not be counted as
-additional user actions.
-
-The code marker `TODO(tugboat-legacy-projection-removal)` tracks final removal.
-Remove the legacy enum values and emission branches in a future breaking SDK
-release only after all of the following are true:
-
-1. Supported Collector and Context Graph versions consume canonical
-   `interaction` records and ignore legacy projections by default.
-2. Dashboard, insight, rage-tap, and replay queries no longer depend on
-   `tap_settled` or legacy `swipe` rows.
-3. Production telemetry confirms that current SDK versions are recording
-   canonical interactions successfully across representative tap, navigation,
-   scroll, cancellation, and lifecycle cases.
-4. Retained dual-write fixtures remain available to test historical replay
-   compatibility after the emitters are deleted.
-5. Release notes announce the removal and the SDK schema/breaking version is
-   advanced deliberately.
-
 ### Resolver and exploration events
 
 When exploration is active, the controller may emit:
@@ -355,10 +310,6 @@ When exploration is active, the controller may emit:
 | `viewport_semantic_map` | Bounded semantic node map (mode-dependent) |
 | `scroll_semantic_snapshot` | Semantic snapshot tied to scroll checkpoints |
 | `action_window_set` / `action_window_cleared` | CLI exploration action-window fencing |
-| `tap_outside_tree` | Pointer resolved no target; carries the same `replayRole` / `gestureFinal` as the paired tap when deferred |
-| `tap_gesture_resolved` | Promotes a prior `causal_only` tap (`promotesRelatedTap: true`, `relatedEventId`) after the gesture finalizes as a real tap |
-
-Consumers that filter `replayRole: causal_only` must honor `tap_gesture_resolved` (or the patched in-memory tap) before suppressing genuine navigations.
 
 ## Privacy and payload boundary
 
@@ -408,16 +359,11 @@ host-supplied analytics records via `TugboatReplay.eventHook` (see
 
 Emitted inferred event types currently include:
 
-- canonical: `interaction` (`stream: semantic`) — one finalized gesture with
-  immutable `origin`, `result`, `attribution`, and `evidenceEventIds`;
-- deprecated legacy gesture peers (emitted only when an integration explicitly
-  selects `dualWrite` or `legacyOnly`): `tap`, `tap_settled`, `swipe`,
-  `tap_outside_tree`, `tap_gesture_resolved`;
+- canonical: `interaction` (`stream: semantic`) — one finalized gesture
+  (`tap`, `swipe`, `scroll`, or `cancelled`) with gesture-specific facts under
+  `payload` (omitted for `cancelled`);
 - lifecycle: `session_start`, `session_identify`, `session_end`;
-- input: `pointer_cancel` (`stream: evidence`);
-- state/navigation evidence (`stream: evidence`): `state_change`, `route_change`
-  (claimed routes also carry `causedByInteractionId`);
-- scrolling evidence (`stream: evidence`): `scroll_start`, `scroll_end`;
+- navigation evidence (`stream: evidence`): `route_change`;
 - diagnostics: `capture_diagnostic` (`stream: diagnostic`);
 - exploration: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
@@ -427,41 +373,40 @@ Emitted inferred event types currently include:
 Default enrichment and insight selection should use inferred events:
 `stream: semantic` `interaction` records (`enrichmentCandidate: true` on
 collector payloads).
-Rage-tap style insights must count finalized `gesture=tap` interactions with
-no successful `navigated`/`changed` result; exclude scrolls, swipes,
-cancellations, evidence, legacy projections, and diagnostics.
+Rage-tap style insights must count finalized `gesture=tap` interactions;
+exclude scrolls, swipes, cancellations, evidence, and
+diagnostics.
 
-Frames can be triggered by initial startup, taps, scrolls, routes, lifecycle,
-or explicit controller calls. Capture requests are serialized and coalesced.
-When the capture boundary has not painted since the last accepted frame, the
-SDK reuses that frame without GPU readback. Otherwise it uses a small dHash
-(Hamming distance ≤ 2) to avoid JPEG encoding for near-identical content, and
-finally deduplicates encoded frames by content hash.
+Frames can be triggered by initial startup, interactions, routes, lifecycle,
+or explicit controller calls. Capture requests are serialized. Non-interaction
+requests can coalesce. When the capture boundary has not painted since the
+last accepted frame, the SDK reuses that frame without GPU readback. Otherwise
+it uses a small dHash (Hamming distance ≤ 2) to avoid JPEG encoding for
+near-identical content, and finally deduplicates encoded frames by content hash.
+Each completed tap, swipe, and scroll requests exactly one forced fresh
+after-frame. This interaction-owned attempt cannot coalesce or resolve through
+local-WebSocket suppression, paint-generation reuse, dHash reuse, or
+content-hash reuse. A fresh route capture can satisfy only the interaction that
+causally claimed it.
 
-Pointer coordinates in event data (`x`, `y`, and swipe `startX`/`startY`) are
-Flutter global logical-pixel coordinates from the pointer event. The SDK
-converts a copy into its capture boundary's local space only for hit-testing and
-normalizing target/viewport-semantic bounds; stored event coordinates are not
-capture-boundary-normalized for replay playback. Do not interpret them as
-physical pixels or as coordinates relative to an individual widget. Fractional
-overlay drift is therefore still possible.
+Interaction payload coordinates use normalized capture-boundary space. Do not
+interpret them as physical pixels or as coordinates relative to a widget.
 
-For a tap, origin context (`stateAnchor`, target, `beforeFrame`,
+For a tap, origin context (target, `beforeFrame`,
 `captureCoordinate`, route/navigator identity) is frozen at pointer-down into
 an `InteractionTransaction`. After pointer-up, settlement waits for either the
 first eligible visible successor inside `interactionClaimWindow` (default
 1,250 ms) or the deadline. The canonical `interaction` event retains that
 frozen origin and attaches destination/result fields when a successor claims.
-When deprecated dual-write compatibility is explicitly enabled, legacy `tap` +
-`tap_settled` records link via `relatedEventId` / `interactionId`. They are not
-additional semantic actions. A missing attachment is explicit in
-`frameAttachment`/settle diagnostics rather than a fallback to an unrelated
-frame.
+A missing attachment remains unavailable. The SDK does not attach an unrelated
+frame as a fallback.
 
 During local WebSocket exploration, connecting without an HTTP collector
-suppresses new Flutter screenshot capture for UI-thread performance. Events,
-anchors, inventories, and semantic evidence continue to stream; the CLI's ADB
-before/after screenshots remain the primary gesture-level visual evidence.
+suppresses only non-interaction Flutter screenshot capture for UI-thread
+performance. Every completed interaction still encodes a fresh screenshot.
+This includes a causally claimed route capture. Events, anchors, inventories,
+and semantic evidence continue to stream; the CLI's ADB before/after screenshots
+remain the primary gesture-level visual evidence.
 
 ## Structural identity
 
@@ -482,11 +427,6 @@ TugboatTag(
 and scroll attribution. `widgetNames` can replace runtime type names used in
 canonical paths, which is particularly useful when an obfuscated build needs a
 generated stable-name map.
-
-State signatures in v6 are deliberately coarse: route key plus keyboard,
-modal, and subview state. Role counts remain diagnostic metadata but do not
-determine the signature. Identity should be joined only within the same build
-and fingerprint schema version.
 
 ## Lifecycle
 

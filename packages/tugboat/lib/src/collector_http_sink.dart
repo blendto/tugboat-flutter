@@ -170,12 +170,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       );
       return;
     }
-    _pendingFrames.add(
-      _PendingFrameUpload(
-        frameNo: frameNo,
-        bytes: bytes,
-      ),
-    );
+    _pendingFrames.add(_PendingFrameUpload(frameNo: frameNo, bytes: bytes));
     _trimPendingFrames();
     // While a frame upload is retrying, rely on the periodic flush timer.
     if (!_framesNeedRetry) {
@@ -404,9 +399,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
             eventType ==
                 TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
             eventType ==
-                TugboatCollectorSessionEventType.traitsUpdated.wireValue ||
-            eventType ==
-                TugboatCollectorSessionEventType.userChanged.wireValue);
+                TugboatCollectorSessionEventType.traitsUpdated.wireValue);
 
     final body = mapTugboatSessionLifecycleToCollectorSession(
       eventType: eventType,
@@ -683,10 +676,7 @@ class _PendingSessionLifecycle {
 }
 
 class _PendingFrameUpload {
-  const _PendingFrameUpload({
-    required this.frameNo,
-    required this.bytes,
-  });
+  const _PendingFrameUpload({required this.frameNo, required this.bytes});
 
   final int frameNo;
   final Uint8List bytes;

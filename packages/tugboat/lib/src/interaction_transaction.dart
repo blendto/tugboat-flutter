@@ -18,8 +18,8 @@ const int tugboatMaxReleasedInteractionTransactions = 8;
 class InteractionOrigin {
   const InteractionOrigin({
     required this.interactionId,
-    required this.stateAnchor,
     required this.route,
+    required this.routeEpoch,
     required this.routeInstanceId,
     required this.navigatorId,
     required this.targetAnchor,
@@ -34,8 +34,8 @@ class InteractionOrigin {
   });
 
   final String interactionId;
-  final TugboatStateAnchor? stateAnchor;
   final String? route;
+  final int routeEpoch;
   final String? routeInstanceId;
   final String? navigatorId;
   final TugboatTargetAnchor? targetAnchor;
@@ -47,61 +47,9 @@ class InteractionOrigin {
   final String? captureSessionId;
   final String? explorationRunId;
   final String? actionId;
-
-  Map<String, Object?> toJson() => {
-    'interactionId': interactionId,
-    if (stateAnchor != null) 'stateAnchor': stateAnchor!.toJson(),
-    if (route != null) 'route': route,
-    if (routeInstanceId != null) 'routeInstanceId': routeInstanceId,
-    if (navigatorId != null) 'navigatorId': navigatorId,
-    if (targetAnchor != null) 'targetAnchor': targetAnchor!.toJson(),
-    'captureCoordinate': captureCoordinate.toJson(),
-    if (beforeFrame != null) 'beforeFrame': beforeFrame,
-    'atMs': atMs,
-    'startPosition': {'x': startPosition.dx, 'y': startPosition.dy},
-    'pointerGeneration': pointerGeneration,
-    if (captureSessionId != null) 'captureSessionId': captureSessionId,
-    if (explorationRunId != null) 'explorationRunId': explorationRunId,
-    if (actionId != null) 'actionId': actionId,
-  };
 }
 
 enum InteractionGesture { tap, swipe, scroll, cancelled }
-
-enum InteractionResultStatus {
-  navigated,
-  changed,
-  unchanged,
-  unknown,
-  cancelled;
-
-  TugboatInteractionResult get asEventResult => switch (this) {
-    InteractionResultStatus.navigated => TugboatInteractionResult.navigated,
-    InteractionResultStatus.changed => TugboatInteractionResult.changed,
-    InteractionResultStatus.unchanged =>
-      TugboatInteractionResult.noVisibleChange,
-    InteractionResultStatus.cancelled ||
-    InteractionResultStatus.unknown => TugboatInteractionResult.unknown,
-  };
-
-  static InteractionResultStatus fromSettle({
-    required TugboatInteractionResult result,
-    String navigationOutcome = 'same_route',
-    bool degraded = false,
-  }) {
-    if (degraded) return InteractionResultStatus.unknown;
-    if (navigationOutcome == 'navigated') {
-      return InteractionResultStatus.navigated;
-    }
-    return switch (result) {
-      TugboatInteractionResult.navigated => InteractionResultStatus.navigated,
-      TugboatInteractionResult.changed => InteractionResultStatus.changed,
-      TugboatInteractionResult.noVisibleChange =>
-        InteractionResultStatus.unchanged,
-      TugboatInteractionResult.unknown => InteractionResultStatus.unknown,
-    };
-  }
-}
 
 enum InteractionAttribution {
   direct,
@@ -133,6 +81,105 @@ enum InteractionRejectionReason {
   sessionEnd,
 }
 
+Map<String, double>? interactionNormalizedPosition(
+  TugboatCaptureCoordinate coordinate,
+) {
+  if (!coordinate.isAvailable) return null;
+  if (coordinate.normalizedX < 0 ||
+      coordinate.normalizedX > 1 ||
+      coordinate.normalizedY < 0 ||
+      coordinate.normalizedY > 1) {
+    return null;
+  }
+  return {'xNorm': coordinate.normalizedX, 'yNorm': coordinate.normalizedY};
+}
+
+Map<String, double>? interactionNormalizedPoint(
+  Offset global,
+  TugboatCaptureCoordinate reference,
+) {
+  if (!reference.isAvailable ||
+      reference.boundaryWidth <= 0 ||
+      reference.boundaryHeight <= 0) {
+    return null;
+  }
+  final localX = global.dx - reference.boundaryOriginX;
+  final localY = global.dy - reference.boundaryOriginY;
+  return {
+    'xNorm': (localX / reference.boundaryWidth).clamp(0.0, 1.0),
+    'yNorm': (localY / reference.boundaryHeight).clamp(0.0, 1.0),
+  };
+}
+
+/// Facts-only interaction schema v2 fields stored in [TugboatEvent.data].
+Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
+  final envelope = <String, Object?>{
+    'interactionSchema': tugboatInteractionSchemaVersion,
+    'gesture': tx.gesture.name,
+  };
+  final route = tx.origin.route;
+  if (route != null && route.isNotEmpty) {
+    envelope['route'] = route;
+  }
+  final fingerprint = tx.gesture == InteractionGesture.scroll
+      ? (tx.scrollTargetAnchor?.fingerprint ??
+            tx.origin.targetAnchor?.fingerprint)
+      : tx.origin.targetAnchor?.fingerprint;
+  if (fingerprint != null && fingerprint.isNotEmpty) {
+    envelope['targetFingerprint'] = fingerprint;
+  }
+  if (tx.gesture == InteractionGesture.cancelled) {
+    return envelope;
+  }
+
+  final gesturePayload = <String, Object?>{};
+  final position = interactionNormalizedPosition(tx.origin.captureCoordinate);
+  if (position != null) {
+    gesturePayload['position'] = position;
+  }
+
+  switch (tx.gesture) {
+    case InteractionGesture.tap:
+      break;
+    case InteractionGesture.swipe:
+      final endPosition = tx.endPosition;
+      if (endPosition != null) {
+        final end = interactionNormalizedPoint(
+          endPosition,
+          tx.origin.captureCoordinate,
+        );
+        if (end != null) {
+          gesturePayload['endPosition'] = end;
+          if (position != null) {
+            gesturePayload['delta'] = {
+              'xNorm': end['xNorm']! - position['xNorm']!,
+              'yNorm': end['yNorm']! - position['yNorm']!,
+            };
+          }
+        }
+      }
+      break;
+    case InteractionGesture.scroll:
+      if (tx.scrollStartOffset != null) {
+        gesturePayload['startOffset'] = tx.scrollStartOffset;
+      }
+      if (tx.scrollEndOffset != null) {
+        gesturePayload['endOffset'] = tx.scrollEndOffset;
+      }
+      if (tx.overscrollCount > 0) {
+        gesturePayload['overscrollCount'] = tx.overscrollCount;
+      }
+      break;
+    case InteractionGesture.cancelled:
+      break;
+  }
+
+  if (gesturePayload.isNotEmpty) {
+    envelope['payload'] = gesturePayload;
+  }
+  return envelope;
+}
+
 /// Bounded in-memory transaction for one pointer gesture.
 class InteractionTransaction {
   InteractionTransaction({required this.origin, required this.pointerId});
@@ -143,27 +190,22 @@ class InteractionTransaction {
   InteractionGesture gesture = InteractionGesture.tap;
   bool claimed = false;
   bool cancelled = false;
-  bool tapEmitted = false;
   bool semanticPublished = false;
   bool sameTurnEligible = true;
 
   int? releasedAtMs;
   int? reconciliationDeadlineMs;
 
-  TugboatEvent? bufferedTap;
-  TugboatEvent? bufferedOutside;
-
-  final List<String> evidenceEventIds = <String>[];
   final List<String> scrollStartEventIds = <String>[];
 
-  InteractionResultStatus? resultStatus;
   InteractionAttribution attribution = InteractionAttribution.none;
   InteractionRejectionReason? rejectionReason;
-  String? resultRoute;
-  String? resultRouteInstanceId;
   String? afterFrame;
-  int? resultObservedAtMs;
-  TugboatStateAnchor? resultStateAnchor;
+  Offset? endPosition;
+  double? scrollStartOffset;
+  double? scrollEndOffset;
+  int overscrollCount = 0;
+  TugboatTargetAnchor? scrollTargetAnchor;
 
   Completer<void>? _successorSignal;
 
@@ -195,28 +237,9 @@ class InteractionTransaction {
     });
   }
 
-  void addEvidence(String eventId) {
-    if (!evidenceEventIds.contains(eventId)) evidenceEventIds.add(eventId);
-  }
-
   void markSwipe() {
     gesture = InteractionGesture.swipe;
   }
-
-  Map<String, Object?> resultToJson() => {
-    'status': (resultStatus ?? InteractionResultStatus.unknown).name,
-    if (resultRoute != null) 'route': resultRoute,
-    if (resultRouteInstanceId != null) 'routeInstanceId': resultRouteInstanceId,
-    if (resultStateAnchor != null) 'stateAnchor': resultStateAnchor!.toJson(),
-    if (afterFrame != null) 'afterFrame': afterFrame,
-    if (resultObservedAtMs != null) 'observedAtMs': resultObservedAtMs,
-  };
-
-  Map<String, Object?> attributionToJson({int? windowMs}) => {
-    'kind': attribution.wireName,
-    if (windowMs != null) 'windowMs': windowMs,
-    if (rejectionReason != null) 'rejectionReason': rejectionReason!.name,
-  };
 }
 
 /// Single index for pending/released interaction transactions.

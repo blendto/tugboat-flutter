@@ -1,3 +1,34 @@
+## Unreleased
+
+### Breaking changes
+
+- The SDK now publishes only schema-v2 canonical `interaction` gesture events.
+  Removed legacy gesture projections, publication modes, session aliases, and
+  compatibility constructors.
+
+## 0.8.0
+
+### Changed
+
+- Raw SDK writers no longer emit `stateAnchor`, `stateSignature`, or
+  `state_change` events. Session wire schema 10 identifies this contract and
+  the serialized `interaction` frame trigger. Completed interactions request
+  one fresh after-frame.
+- Collector event mapping now omits `stateAnchor`. Deploy the serial collector
+  compatibility patch before sending 0.8.0 recordings to a collector that
+  still requires that key.
+- Production collector events for `interaction` and `route_change` use flat
+  schema-v2 wire shapes (`interactionSchema` or `routeChangeSchema` == `2`) with
+  facts-only fields. The mapper no longer emits empty `targetAnchor` objects or
+  duplicates `stream` inside generic `payload`. Interaction v2 drops inferred
+  `result`, nested `origin`/`result`, and tap-settle outcome computation.
+- `interaction` schema v2 carries gesture-specific facts under a nested
+  `payload` (`position` for tap; `position`/`endPosition`/`delta` for swipe;
+  `position`/`startOffset`/`endOffset`/`overscrollCount` for scroll). Cancelled
+  interactions omit `payload`. The SDK no longer emits `scroll_start`,
+  `scroll_end`, or `pointer_cancel` — scroll and cancel semantics live on
+  `interaction` only.
+
 ## 0.7.1
 
 ### Changed

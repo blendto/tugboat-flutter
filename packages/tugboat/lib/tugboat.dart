@@ -3,7 +3,6 @@ library;
 export 'src/anchors.dart'
     show
         TugboatNormalizedBounds,
-        TugboatStateAnchor,
         TugboatTargetAnchor,
         tugboatIconLabel,
         tugboatIconHash,

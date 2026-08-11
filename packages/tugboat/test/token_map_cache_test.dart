@@ -35,7 +35,7 @@ void main() {
     final tap = tester.getCenter(find.text('Continue'));
 
     final before = resolver.debugTokenMapBuildCount;
-    resolver.buildStateAnchor(
+    resolver.buildSceneInventory(
       route: '/home',
       keyboardOpen: false,
       modalOpen: false,
@@ -59,7 +59,7 @@ void main() {
     // A bare pump may not fire post-frame callbacks that idle apps schedule;
     // invalidate explicitly and confirm the next call rebuilds.
     resolver.invalidateTokenMapCache();
-    resolver.buildStateAnchor(
+    resolver.buildSceneInventory(
       route: '/home',
       keyboardOpen: false,
       modalOpen: false,

@@ -79,8 +79,6 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
       final mapHash = _viewportSemanticMapHash(nodes);
 
       return TugboatViewportSemanticMap(
-        stateAnchor: inventory.stateAnchor,
-        stateSignature: inventory.stateSignature,
         routeKey: inventory.routeKey,
         viewport: viewport,
         nodes: nodes,

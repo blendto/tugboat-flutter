@@ -63,7 +63,7 @@ current controller and keeps future calls to `wrapApp` inert. Runtime
 requiring a host rebuild. `deactivate()` tears capture down through the same
 gate. Pause/hidden flush pending delivery; detach ends the session once.
 
-Identity fields (session schema **v9**; compatibility readers accept v6–v9):
+Identity fields (session schema **v10** only):
 
 - `activationRequestId` — host request correlation
 - `captureSessionId` — SDK-emitted session (`session.id`)
@@ -76,10 +76,10 @@ emits exact build and fingerprint-schema provenance only.
 ## Session and event model
 
 The controller owns one bounded, in-memory `TugboatSession`. Serialized session
-JSON is schema version `9`. Compatibility readers accept schema versions
-`6` through `9`. Schema v9 does not write `controlValue`,
-`controlValueTransition`, or `semanticAnnotation` in event `data`;
-those fields are optional historic data in older sessions only.
+JSON is schema version `10` only. Schema v9 stopped writing `controlValue`,
+`controlValueTransition`, or `semanticAnnotation` in event `data`; those fields
+are optional historic data in older sessions only. Schema v10 removes
+serialized state identity and adds the `interaction` frame trigger.
 
 The session stores:
 
@@ -96,36 +96,39 @@ delivery envelopes across process restarts within byte/age bounds.
 The event stream currently includes:
 
 - lifecycle: `session_start`, `session_end`;
-- pointer intent and outcome: `tap`, `tap_settled`, `swipe`,
-  `pointer_cancel`, `tap_outside_tree`;
-- navigation and state: `route_change`, `state_change`;
-- scrolling: `scroll_start`, `scroll_end`;
+- canonical gestures: `interaction` (`gesture`: `tap`, `swipe`, `scroll`,
+  `cancelled`) with nested `payload` facts;
+- navigation: `route_change`;
 - exploration control: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
 - optional semantic evidence: `viewport_semantic_map`,
   `scroll_semantic_snapshot`.
 
-Events may carry `beforeFrame`, `afterFrame`, `stateAnchor`, `targetAnchor`,
-`relatedEventId`, `explorationRunId`, `actionId`, an interaction result, and
-type-specific `data`. Route transition values live in `route_change.data`, not
-in a session-level route dictionary.
+Events may carry `beforeFrame`, `afterFrame`, `targetAnchor`,
+`relatedEventId`, `explorationRunId`, `actionId`, and type-specific `data`.
+Schema-v2 production `interaction` and `route_change` collector records are
+flat facts-only shapes without inferred interaction results. `interaction`
+carries gesture facts under nested `payload` (omitted for `cancelled`).
+Route transition values live in `route_change` fields, not in a session-level
+route dictionary.
 
 ### Capture lifecycle and attribution
 
 `wrapApp` starts a session only after its repaint boundary has a non-zero
 viewport. The session begins with `session_start` and an initial capture
-request. Pointer-down records `tap` plus a compatible pre-interaction frame,
-then pointer-up either records a swipe or creates one `tap_settled` outcome.
-The settled event refers to the initial tap through `relatedEventId` and is
-intended to attach an after-frame only when that frame's provenance matches the
-observed route epoch. A capture that is unavailable, cancelled, superseded, or
+request. Pointer-down freezes a compatible pre-interaction frame. Pointer-up
+publishes one canonical `interaction` after gesture classification. Its
+after-frame attaches only when the frame provenance matches the observed route
+epoch. A capture that is unavailable, cancelled, superseded, or
 timed out is represented by bounded capture/attachment diagnostics instead of
 borrowing the latest frame from another screen.
 
-Frame requests are serialized, may coalesce, and use fresh-paint/readback
-checks before publishing. Their provenance records the capture context and
-completion state, so exact-content and perceptual deduplication reuse frames
-only within a compatible context. `paused` and `hidden` request a delivery
+Frame requests are serialized and use fresh-paint/readback checks before
+publishing. Non-interaction requests can coalesce and reuse exact-content or
+perceptual frames only within a compatible context. Each completed interaction
+uses a separate fresh request and cannot coalesce or reuse either type of
+frame. Provenance records capture context without state identity. `paused` and
+`hidden` request a delivery
 flush after 500 ms; `resumed` cancels that pending flush; `detached`, wrapper
 disposal, and deactivation end the session once and initiate sink shutdown.
 
@@ -191,26 +194,15 @@ fingerprint parts for diagnosis.
 
 `TugboatTag` and a stable `ValueKey<String>` can add a high-confidence
 `tagFingerprint`. A tag is transparent to structural identity: adding it does
-not change the target fingerprint or state signature. `TugboatSubView` adds a
-developer-owned subview label for route-internal state and scroll attribution.
+not change the target fingerprint. `TugboatSubView` adds a developer-owned
+subview label for route-internal state and scroll attribution.
 
 ### State identity
 
-Schema v6 deliberately uses coarse state identity. `stateSignature` hashes:
-
-- `routeKey`;
-- keyboard-open state;
-- modal-open state;
-- the active `TugboatSubView.label`, when present;
-- the fingerprint schema version during computation.
-
-Actionable role counts are emitted as diagnostic `actionableSummary` metadata
-but do not determine the signature. Dynamic list length, visible rows, and
-control multiplicity therefore do not fork a screen state.
-
-The schema version is also serialized beside the hash. Downstream joins must
-include build identity and `fingerprintSchemaVersion`; v5 and v6 signatures are
-not interchangeable.
+Version 0.8.0 does not write state identity. State anchors and signatures remain
+internal legacy model data only. New event, inventory, semantic-map, diagnostic,
+debug, and provenance JSON omit them. Use route evidence, target anchors, and
+frame hashes for raw replay facts.
 
 ### Confidence
 
@@ -261,11 +253,15 @@ Capture computes a 9x8 perceptual dHash from the masked RGBA buffer inside the
 encode isolate and skips JPEG encoding when the Hamming distance to the last
 accepted hash is at most 2 bits (tolerating minor anti-alias shimmer). SHA-256
 content hashing then deduplicates encoded frames. Capture requests are
-serialized and coalesced. When the capture subtree's paint signature has not
+serialized and compatible non-interaction requests can coalesce. When the
+capture subtree's paint signature has not
 changed since the last accepted frame (outer capture boundary paint generation
 plus nested [RepaintBoundary] layer/picture identity), the controller skips the
-entire GPU readback/encode path and reuses a compatible frame (unless the
-caller forces capture or requires a fresh paint).
+entire GPU readback/encode path and reuses a compatible frame. Each completed
+interaction requests one forced fresh after-frame. This attempt does not
+coalesce, and local-WebSocket suppression, paint-generation reuse, dHash reuse,
+and content-hash reuse cannot replace it. A fresh route capture can satisfy only
+the interaction that causally claimed that route capture.
 
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA
@@ -276,9 +272,11 @@ views, video textures, maps, and native overlays may be absent or incomplete
 in repaint-boundary output.
 
 When the exploration WebSocket connects and there is no HTTP collector, the
-controller suppresses new Flutter screenshots for UI-thread performance.
-Events, anchors, inventories, and semantic evidence continue to stream. Any
-frames captured before connection are still sent.
+controller suppresses only non-interaction Flutter screenshots for UI-thread
+performance. Each completed interaction still encodes a fresh screenshot. A
+causally claimed route capture also remains enabled. Events, anchors,
+inventories, and semantic evidence continue to stream. Any frames captured
+before connection are still sent.
 
 ## Viewport semantics
 
@@ -336,8 +334,9 @@ The package test suite covers deterministic fingerprints, list-length and
 scroll stability, dynamic-label exclusion, static list discriminators, tag
 transparency, route separation, modal/visibility filtering, generated widget
 names, actionable `InkWell` paths, dormant activation without rebuild,
-screenshot mask defaults, route payloads, scroll/swipe attribution, schema-v7
-JSON with v6 read compatibility, semantic modes, sink factories/mailboxes,
+screenshot mask defaults, route payloads, scroll/swipe attribution, schema-v10
+JSON round trips and rejection of unsupported schema versions, semantic modes,
+sink factories/mailboxes,
 outbox restart recovery, health diagnostics, lifecycle ordering, retry bounds,
 and stale session/frame protection.
 

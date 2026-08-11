@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 import 'package:tugboat/src/anchors.dart';
+import 'package:tugboat/src/viewport_semantic_session.dart';
 
 const _semanticMapConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
-  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -15,7 +15,6 @@ const _semanticMapConfig = TugboatReplayConfig(
 
 const _semanticMapConfigWithLogs = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
-  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -25,7 +24,6 @@ const _semanticMapConfigWithLogs = TugboatReplayConfig(
 
 const _scrollSemanticMapConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
-  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -99,6 +97,15 @@ Future<void> _pumpSettledScreen(
 }
 
 void main() {
+  setUp(() {
+    TugboatReplay.debugConfigureControllerForTest = (controller) {
+      controller.debugExecuteCapture =
+          ({required trigger, required force}) async =>
+              controller.debugSeedFrame(trigger: trigger);
+    };
+  });
+  tearDown(TugboatReplay.resetForTest);
+
   testWidgets(
     'enabling viewport semantic map emits event after settled screen',
     (tester) async {
@@ -116,7 +123,7 @@ void main() {
 
       expect(mapEvents, isNotEmpty);
       final payload = mapEvents.single.data;
-      expect(payload['stateSignature'], isNotEmpty);
+      expect(payload.containsKey('stateSignature'), isFalse);
       expect(payload['routeKey'], isNotEmpty);
       expect(payload['mapHash'], isNotEmpty);
       expect(payload['summary'], isA<Map<Object?, Object?>>());
@@ -143,21 +150,64 @@ void main() {
     final tapCenter = tester.getCenter(find.text('Go'));
     controller.recordPointerDown(tapCenter);
     controller.recordPointerUp(tapCenter);
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
+
+    final interaction = controller.session!.events
+        .where(
+          (event) =>
+              event.type == 'interaction' && event.data['gesture'] == 'tap',
+        )
+        .single;
+
+    final tapFingerprint = interaction.data['targetFingerprint'];
+    expect(tapFingerprint, isNotEmpty);
+  });
+
+  testWidgets('tap resolution rebuilds the same-route semantic map', (
+    tester,
+  ) async {
+    var showBottomButton = false;
+    late StateSetter setScreen;
+    await _pumpSettledScreen(
+      tester,
+      StatefulBuilder(
+        builder: (context, setState) {
+          setScreen = setState;
+          return Scaffold(
+            body: showBottomButton
+                ? Align(
+                    alignment: Alignment.bottomCenter,
+                    child: FilledButton(
+                      onPressed: () {},
+                      child: const Text('Bottom action'),
+                    ),
+                  )
+                : Align(
+                    alignment: Alignment.topCenter,
+                    child: FilledButton(
+                      onPressed: () {},
+                      child: const Text('Top action'),
+                    ),
+                  ),
+          );
+        },
+      ),
+    );
+
+    setScreen(() => showBottomButton = true);
     await tester.pump();
 
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
-        .single;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'matched_actionable');
-    expect(resolution['linkedFingerprint'], isNotEmpty);
-    expect(resolution['role'], 'button');
-
-    final tapFingerprint = tapEvent.targetAnchor?.fingerprint;
-    expect(tapFingerprint, isNotEmpty);
-    expect(resolution['linkedFingerprint'], tapFingerprint);
+    final controller = TugboatReplay.controller!;
+    final tapCenter = tester.getCenter(find.text('Bottom action'));
+    controller.recordPointerDown(tapCenter);
+    controller.recordPointerUp(tapCenter);
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(
+      controller.session!.events.where((event) => event.type == 'interaction'),
+      hasLength(1),
+    );
   });
 
   testWidgets('tap on non-actionable text resolves to matched_non_actionable', (
@@ -201,15 +251,8 @@ void main() {
     );
     controller.recordPointerDown(tapPoint);
     controller.recordPointerUp(tapPoint);
-    await tester.pump();
-
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
-        .single;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'matched_non_actionable');
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
     expect(
       controller.session!.events
           .where((event) => event.type == 'viewport_semantic_map')
@@ -223,24 +266,19 @@ void main() {
   ) async {
     await _pumpSettledScreen(
       tester,
-      Scaffold(
-        body: FilledButton(onPressed: () {}, child: const Text('Go')),
-      ),
+      Scaffold(body: const Center(child: Text('Static copy'))),
     );
 
     final controller = TugboatReplay.controller!;
     final bottomRight = tester.getBottomRight(find.byType(Scaffold));
     controller.recordPointerDown(bottomRight - const Offset(2, 2));
     controller.recordPointerUp(bottomRight - const Offset(2, 2));
-    await tester.pump();
-
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
-        .single;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'outside_known_ui');
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(
+      controller.session!.events.where((event) => event.type == 'interaction'),
+      hasLength(1),
+    );
   });
 
   testWidgets('inventory fallback covers gesture controls missing semantics', (
@@ -295,16 +333,13 @@ void main() {
     );
     controller.recordPointerDown(ctaCenter);
     controller.recordPointerUp(ctaCenter);
-    await tester.pump();
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
 
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
+    final interaction = controller.session!.events
+        .where((event) => event.type == 'interaction')
         .last;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'matched_actionable');
-    expect(resolution['linkedFingerprint'], isNotEmpty);
+    expect(interaction.data['targetFingerprint'], isNotEmpty);
   });
 
   testWidgets('dormant profile stays off with default semantic mode', (
@@ -346,11 +381,6 @@ void main() {
     controller.recordPointerDown(tapCenter);
     controller.recordPointerUp(tapCenter);
     await tester.pump();
-
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
-        .last;
-    expect(tapEvent.data.containsKey('viewportSemanticResolution'), isFalse);
   });
 
   testWidgets('production default resolves taps without emitting maps', (
@@ -361,7 +391,6 @@ void main() {
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.productionLean,
-            interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
@@ -382,7 +411,8 @@ void main() {
     final tapCenter = tester.getCenter(find.text('Go'));
     controller.recordPointerDown(tapCenter);
     controller.recordPointerUp(tapCenter);
-    await tester.pump();
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
 
     final mapEvents = controller.session!.events
         .where(
@@ -393,16 +423,10 @@ void main() {
         .toList();
     expect(mapEvents, isEmpty);
 
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
+    final interaction = controller.session!.events
+        .where((event) => event.type == 'interaction')
         .last;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'matched_actionable');
-    // Verdict payload must remain text-free.
-    expect(resolution.keys, isNot(contains('label')));
-    expect(resolution.keys, isNot(contains('text')));
+    expect(interaction.data['targetFingerprint'], isNotEmpty);
   });
 
   testWidgets(
@@ -413,7 +437,6 @@ void main() {
           builder: (context, child) => TugboatReplay.wrapApp(
             config: const TugboatReplayConfig(
               profile: TugboatCaptureProfile.productionLean,
-              interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
               settleDelay: Duration.zero,
               interactionClaimWindow: Duration.zero,
               enableGlobalPointerCapture: false,
@@ -439,7 +462,8 @@ void main() {
       final controller = TugboatReplay.controller!;
       controller.recordPointerDown(tester.getCenter(find.text('Go')));
       controller.recordPointerUp(tester.getCenter(find.text('Go')));
-      await tester.pump();
+      await _waitForCaptures(tester);
+      await tester.pump(const Duration(milliseconds: 350));
 
       final mapEvents = controller.session!.events
           .where(
@@ -450,10 +474,10 @@ void main() {
           .toList();
       expect(mapEvents, isEmpty);
 
-      final tapEvent = controller.session!.events
-          .where((event) => event.type == 'tap')
+      final interaction = controller.session!.events
+          .where((event) => event.type == 'interaction')
           .last;
-      expect(tapEvent.data['viewportSemanticResolution'], isNotNull);
+      expect(interaction.data['gesture'], 'tap');
     },
   );
 
@@ -465,7 +489,6 @@ void main() {
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.productionLean,
-            interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
@@ -559,6 +582,43 @@ void main() {
     expect((inventory['elements'] as List).isNotEmpty, isTrue);
   });
 
+  testWidgets('separate scroll gestures reset semantic accumulation', (
+    tester,
+  ) async {
+    await _pumpSettledScreen(
+      tester,
+      Scaffold(
+        body: ListView.builder(
+          itemCount: 60,
+          itemBuilder: (context, index) => ListTile(title: Text('Row $index')),
+        ),
+      ),
+      config: _scrollSemanticMapConfig,
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -260));
+    await _waitForCaptures(tester);
+    await _waitForEvent(tester, 'scroll_semantic_snapshot');
+    final controller = TugboatReplay.controller!;
+    final firstGestureSnapshotCount = controller.session!.events
+        .where((event) => event.type == 'scroll_semantic_snapshot')
+        .length;
+
+    await tester.drag(find.byType(ListView), const Offset(0, -260));
+    await _waitForCaptures(tester);
+
+    final snapshots = controller.session!.events
+        .where((event) => event.type == 'scroll_semantic_snapshot')
+        .toList();
+    final secondGestureSnapshots = snapshots.skip(firstGestureSnapshotCount);
+    expect(secondGestureSnapshots, isNotEmpty);
+    expect(
+      secondGestureSnapshots.first.data['observedSliceCount'],
+      2,
+      reason: 'the second scroll starts a new semantic accumulation',
+    );
+  });
+
   testWidgets(
     'settled exploration screen emits both scene_inventory and viewport_semantic_map',
     (tester) async {
@@ -582,14 +642,14 @@ void main() {
       expect(mapEvents, isNotEmpty);
 
       final inventory = inventoryEvents.first.data;
-      expect(inventory['stateSignature'], isA<String>());
+      expect(inventory.containsKey('stateSignature'), isFalse);
       expect(inventory['routeKey'], isA<String>());
       expect(inventory['inventoryHash'], isA<String>());
       expect(inventory['elements'], isA<List<dynamic>>());
       expect((inventory['elements'] as List).isNotEmpty, isTrue);
 
       final map = mapEvents.first.data;
-      expect(map['stateSignature'], inventory['stateSignature']);
+      expect(map.containsKey('stateSignature'), isFalse);
       expect(map['routeKey'], inventory['routeKey']);
 
       final inventoryFingerprints = (inventory['elements'] as List)
@@ -727,5 +787,129 @@ void main() {
     );
     expect(resolution.status, 'matched_actionable');
     expect(resolution.linkedFingerprint, isNotEmpty);
+  });
+
+  testWidgets('unavailable scroll start still resets semantic accumulation', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final rootKey = GlobalKey();
+    Future<TugboatSceneInventory> mountInventory() async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RepaintBoundary(
+            key: rootKey,
+            child: Scaffold(
+              body: FilledButton(
+                onPressed: () {},
+                child: const Text('Semantic target'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final resolver = AnchorResolver(rootKey: rootKey);
+      return resolver.buildSceneInventory(
+        route: '/list',
+        keyboardOpen: false,
+        modalOpen: false,
+      )!;
+    }
+
+    final emitted = <TugboatEvent>[];
+    var eventId = 0;
+    final semanticSession = ViewportSemanticSession(
+      config: _scrollSemanticMapConfig,
+      nextEventId: (prefix) => '$prefix-${eventId++}',
+      atMs: () => eventId,
+      addEvent: emitted.add,
+    );
+    var inventory = await mountInventory();
+    var resolver = AnchorResolver(rootKey: rootKey);
+    const start = TugboatViewportSemanticScrollContext(
+      trigger: 'scroll_start',
+      scrollableFingerprint: 'fp-list',
+      axis: 'vertical',
+      offsetNorm: 0,
+    );
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: start,
+    );
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: const TugboatViewportSemanticScrollContext(
+        trigger: 'scroll_update',
+        scrollableFingerprint: 'fp-list',
+        axis: 'vertical',
+        offsetNorm: 0.2,
+      ),
+    );
+    final firstSnapshotCount = emitted
+        .where((event) => event.type == 'scroll_semantic_snapshot')
+        .length;
+    expect(firstSnapshotCount, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: start,
+    );
+
+    inventory = await mountInventory();
+    resolver = AnchorResolver(rootKey: rootKey);
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: const TugboatViewportSemanticScrollContext(
+        trigger: 'scroll_update',
+        scrollableFingerprint: 'fp-list',
+        axis: 'vertical',
+        offsetNorm: 0.6,
+      ),
+    );
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: const TugboatViewportSemanticScrollContext(
+        trigger: 'scroll_end',
+        scrollableFingerprint: 'fp-list',
+        axis: 'vertical',
+        offsetNorm: 0.8,
+      ),
+    );
+
+    final newSnapshots = emitted
+        .where((event) => event.type == 'scroll_semantic_snapshot')
+        .skip(firstSnapshotCount)
+        .toList();
+    expect(newSnapshots, isNotEmpty);
+    expect(newSnapshots.first.data['observedSliceCount'], 2);
+
+    final snapshotCount = firstSnapshotCount + newSnapshots.length;
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: start,
+    );
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: const TugboatViewportSemanticScrollContext(
+        trigger: 'scroll_update',
+        scrollableFingerprint: 'fp-list',
+        axis: 'vertical',
+        offsetNorm: 0.6,
+      ),
+    );
+    expect(
+      emitted.where((event) => event.type == 'scroll_semantic_snapshot'),
+      hasLength(snapshotCount + 1),
+    );
+    semantics.dispose();
   });
 }

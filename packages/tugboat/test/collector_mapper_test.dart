@@ -1,5 +1,6 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/collector_mapper.dart';
 import 'package:tugboat/src/models.dart';
@@ -33,81 +34,174 @@ void main() {
     userId: 'user_1',
   );
 
-  test('maps tugboat events into collector event schema', () {
+  test('maps interaction events to facts-only schema v2', () {
     final sessionStartedAt = DateTime.utc(2026, 6, 19);
     final event = TugboatEvent(
-      id: 'event-5',
-      atMs: 28906,
-      type: 'tap',
-      beforeFrame: 'frame-3',
-      stateAnchor: const TugboatStateAnchor(
-        signature: '23f17a629520d522',
-        signatureConfidence: 'medium',
-        signatureParts: {'routeKey': '/intro'},
-      ),
-      targetAnchor: const TugboatTargetAnchor(
-        widgetType: 'GestureDetector',
-        role: 'button',
-        fingerprint: '9eadb7c56ae836bc',
-        fingerprintConfidence: 'low',
-        canonicalPath: 'IntroScreen#0/PillButton#0',
-        relativePosition: 'bottom',
-      ),
-      data: const {'x': 100, 'y': 200},
-      actionId: 'A-1',
-      explorationRunId: 'run-1',
+      id: 'evt_interaction_1',
+      atMs: 55957,
+      type: 'interaction',
+      stream: TugboatEventStream.semantic,
+      beforeFrame: 'frame-34',
+      afterFrame: 'frame-35',
+      data: {
+        'interactionSchema': tugboatInteractionSchemaVersion,
+        'route': '/home',
+        'targetFingerprint': 'bef605389f2f5207',
+        'gesture': 'tap',
+        'payload': {
+          'position': {'xNorm': 0.299, 'yNorm': 0.637},
+        },
+      },
     );
 
     final mapped = mapTugboatEventToCollectorEvent(
       event: event,
-      sessionId: 'sess_123',
+      sessionId: 'session-abc',
       sessionStartedAt: sessionStartedAt,
       userId: 'user_1',
       collectorConfig: collectorConfig,
     );
 
-    expect(mapped['id'], 'event-5');
-    expect(mapped['atMs'], 28906);
-    expect(mapped['triggeredAt'], '2026-06-19T00:00:28.906Z');
-    expect(mapped['sessionId'], 'sess_123');
-    expect(mapped['userId'], 'user_1');
-    expect(mapped['eventType'], 'tap');
-    expect(mapped['stream'], tugboatEventStreamSemantic);
-    // Compat path: semantic tap without canonical dual-write remains eligible.
-    expect(mapped['enrichmentCandidate'], isTrue);
-    expect(mapped['beforeFrame'], 'frame-3');
-    expect((mapped['stateAnchor'] as Map)['signature'], '23f17a629520d522');
-    expect((mapped['targetAnchor'] as Map)['fingerprint'], '9eadb7c56ae836bc');
-    expect(mapped['actionId'], 'A-1');
-    expect(mapped['explorationRunId'], 'run-1');
-    expect((mapped['payload'] as Map)['x'], 100);
-    expect((mapped['payload'] as Map)['actionId'], 'A-1');
-    expect((mapped['payload'] as Map)['explorationRunId'], 'run-1');
-    expect(mapped['build'], {
-      'appId': 'com.example.app',
-      'platform': 'ios',
-      'versionName': '1.0.0',
-      'buildNumber': '1',
-      'fingerprintSchemaVersion': tugboatFingerprintSchemaVersion,
+    expect(mapped['id'], 'evt_interaction_1');
+    expect(mapped['eventType'], 'interaction');
+    expect(mapped['interactionSchema'], 2);
+    expect(mapped['route'], '/home');
+    expect(mapped['targetFingerprint'], 'bef605389f2f5207');
+    expect(mapped['gesture'], 'tap');
+    expect(mapped['payload'], {
+      'position': {'xNorm': 0.299, 'yNorm': 0.637},
     });
+    expect(mapped.containsKey('position'), isFalse);
+    expect(mapped['beforeFrame'], 'frame-34');
+    expect(mapped['afterFrame'], 'frame-35');
+    expect(mapped.containsKey('result'), isFalse);
+    expect(mapped.containsKey('targetAnchor'), isFalse);
+    expect(mapped.containsKey('stateAnchor'), isFalse);
+    final encoded = utf8.encode(jsonEncode(mapped));
+    expect(encoded.length, lessThan(750));
   });
 
-  test('marks legacy projection and evidence as non-enrichment candidates', () {
-    final sessionStartedAt = DateTime.utc(2026, 6, 19);
-    final legacy = mapTugboatEventToCollectorEvent(
-      event: const TugboatEvent(
-        id: 'event-legacy',
-        atMs: 1,
-        type: 'tap_settled',
-        stream: TugboatEventStream.legacyProjection,
+  test('maps cancelled interactions without payload', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'evt_cancelled_1',
+        atMs: 1000,
+        type: 'interaction',
+        stream: TugboatEventStream.semantic,
+        data: const {
+          'interactionSchema': tugboatInteractionSchemaVersion,
+          'gesture': 'cancelled',
+        },
       ),
-      sessionStartedAt: sessionStartedAt,
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
       collectorConfig: collectorConfig,
     );
+
+    expect(mapped['gesture'], 'cancelled');
+    expect(mapped.containsKey('payload'), isFalse);
+  });
+
+  test('maps scroll interactions with nested payload', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'evt_scroll_interaction_1',
+        atMs: 15000,
+        type: 'interaction',
+        stream: TugboatEventStream.semantic,
+        beforeFrame: 'frame-10',
+        afterFrame: 'frame-11',
+        data: const {
+          'interactionSchema': tugboatInteractionSchemaVersion,
+          'gesture': 'scroll',
+          'targetFingerprint': 'abc123def4567890',
+          'payload': {
+            'position': {'xNorm': 0.30, 'yNorm': 0.64},
+            'startOffset': 0.0,
+            'endOffset': 240.0,
+            'overscrollCount': 2,
+          },
+        },
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped['gesture'], 'scroll');
+    expect(mapped['targetFingerprint'], 'abc123def4567890');
+    expect((mapped['payload'] as Map)['startOffset'], 0.0);
+    expect((mapped['payload'] as Map)['endOffset'], 240.0);
+    expect((mapped['payload'] as Map)['overscrollCount'], 2);
+    expect(mapped.containsKey('scrollSchema'), isFalse);
+  });
+
+  test('maps route_change events to facts-only schema v2', () {
+    final sessionStartedAt = DateTime.utc(2026, 6, 19);
+    final event = TugboatEvent(
+      id: 'evt_route_1',
+      atMs: 12000,
+      type: 'route_change',
+      stream: TugboatEventStream.evidence,
+      afterFrame: 'frame-8',
+      data: const {
+        'fromRoute': '/home',
+        'route': '/settings',
+        'navigation': 'route_push',
+        'causeEventId': 'event-interaction-1',
+        'navigatorId': 'nav-1',
+        'captureOutcome': 'captured',
+        'navigationOrigin': 'user_gesture',
+      },
+    );
+
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: event,
+      sessionId: 'session-abc',
+      sessionStartedAt: sessionStartedAt,
+      userId: 'user_1',
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped['eventType'], 'route_change');
+    expect(mapped['routeChangeSchema'], tugboatRouteChangeSchemaVersion);
+    expect(mapped['fromRoute'], '/home');
+    expect(mapped['route'], '/settings');
+    expect(mapped['navigation'], 'route_push');
+    expect(mapped['causeEventId'], 'event-interaction-1');
+    expect(mapped['afterFrame'], 'frame-8');
+    expect(mapped.containsKey('result'), isFalse);
+    expect(mapped.containsKey('payload'), isFalse);
+    expect(mapped.containsKey('targetAnchor'), isFalse);
+    expect(mapped.containsKey('navigatorId'), isFalse);
+    expect(mapped.containsKey('captureOutcome'), isFalse);
+    expect(mapped.containsKey('navigationOrigin'), isFalse);
+    final encoded = utf8.encode(jsonEncode(mapped));
+    expect(encoded.length, lessThan(700));
+  });
+
+  test('generic branch omits empty targetAnchor and payload stream', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'event-app-bg',
+        atMs: 100,
+        type: 'app_backgrounded',
+        stream: TugboatEventStream.evidence,
+        data: const {'reason': 'lifecycle'},
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped.containsKey('targetAnchor'), isFalse);
+    expect((mapped['payload'] as Map).containsKey('stream'), isFalse);
+    expect((mapped['payload'] as Map)['reason'], 'lifecycle');
+  });
+
+  test('marks evidence as a non-enrichment candidate', () {
+    final sessionStartedAt = DateTime.utc(2026, 6, 19);
     final evidence = mapTugboatEventToCollectorEvent(
       event: const TugboatEvent(
         id: 'event-route',
-        atMs: 2,
+        atMs: 1,
         type: 'route_change',
         stream: TugboatEventStream.evidence,
       ),
@@ -117,7 +211,7 @@ void main() {
     final interaction = mapTugboatEventToCollectorEvent(
       event: const TugboatEvent(
         id: 'event-interaction',
-        atMs: 3,
+        atMs: 2,
         type: 'interaction',
         stream: TugboatEventStream.semantic,
       ),
@@ -125,14 +219,13 @@ void main() {
       collectorConfig: collectorConfig,
     );
 
-    expect(legacy['enrichmentCandidate'], isFalse);
     expect(evidence['enrichmentCandidate'], isFalse);
     expect(interaction['enrichmentCandidate'], isTrue);
   });
 
   test('omits sessionId when not provided so the sink can stamp at send', () {
     final mapped = mapTugboatEventToCollectorEvent(
-      event: TugboatEvent(id: 'event-1', atMs: 0, type: 'tap'),
+      event: TugboatEvent(id: 'event-1', atMs: 0, type: 'capture_diagnostic'),
       sessionStartedAt: DateTime.utc(2026, 6, 19),
       collectorConfig: collectorConfig,
     );
@@ -140,7 +233,7 @@ void main() {
     expect(mapped['build'], isNotNull);
   });
 
-  test('maps session lifecycle payloads for collector sessions endpoint', () {
+  test('maps only session context on session_start', () {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.sessionStart.wireValue,
       sessionId: 'sess_123',
@@ -151,14 +244,15 @@ void main() {
     expect(mapped['sessionId'], 'sess_123');
     expect(mapped['eventType'], 'session_start');
     expect(mapped['userId'], 'user_1');
-    expect((mapped['appInfo'] as Map)['name'], 'Example App');
+    expect((mapped['appInfo'] as Map).containsKey('name'), isFalse);
+    expect((mapped['appInfo'] as Map).containsKey('installationId'), isFalse);
     expect((mapped['appInfo'] as Map)['appId'], 'com.example.app');
     expect((mapped['appInfo'] as Map)['packageName'], 'com.example.app');
     expect((mapped['device'] as Map)['platform'], 'ios');
     expect((mapped['ipInfo'] as Map)['ip'], '127.0.0.1');
     expect((mapped['locale'] as Map)['language'], 'en');
-    expect(mapped['platform'], 'ios');
-    expect(mapped['fingerprintSchemaVersion'], tugboatFingerprintSchemaVersion);
+    expect(mapped.containsKey('platform'), isFalse);
+    expect(mapped.containsKey('fingerprintSchemaVersion'), isFalse);
     expect(mapped.containsKey('traits'), isFalse);
     expect(mapped.containsKey('traitsId'), isFalse);
   });
@@ -176,24 +270,69 @@ void main() {
     expect(mapped['eventType'], 'traits_updated');
     expect(mapped['traits'], {'plan': 'pro'});
     expect(mapped.containsKey('traitsId'), isFalse);
+    expect(mapped.containsKey('appInfo'), isFalse);
+    expect(mapped.containsKey('device'), isFalse);
+    expect(mapped.containsKey('userId'), isFalse);
   });
 
-  test('session map sends traitsId when no traits bag is provided', () {
+  test('session map sends no repeated context on session_end', () {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.sessionEnd.wireValue,
       sessionId: 'sess_123',
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
+      userId: 'user_1',
       traitsId: 'trt_cached',
     );
 
-    expect(mapped['traitsId'], 'trt_cached');
+    expect(mapped, {
+      'sessionId': 'sess_123',
+      'eventType': 'session_end',
+      'triggeredAt': '2026-06-19T00:00:00.000Z',
+    });
     expect(mapped.containsKey('traits'), isFalse);
+  });
+
+  test('session_identify sends only its user and traits changes', () {
+    final mapped = mapTugboatSessionLifecycleToCollectorSession(
+      eventType: TugboatCollectorSessionEventType.sessionIdentify.wireValue,
+      sessionId: 'sess_123',
+      triggeredAt: DateTime.utc(2026, 6, 19),
+      config: collectorConfig,
+      userId: 'user_2',
+      traits: {'plan': 'pro'},
+    );
+
+    expect(mapped, {
+      'sessionId': 'sess_123',
+      'eventType': 'session_identify',
+      'triggeredAt': '2026-06-19T00:00:00.000Z',
+      'userId': 'user_2',
+      'traits': {'plan': 'pro'},
+    });
+  });
+
+  test('user_changed sends only its user-id change', () {
+    final mapped = mapTugboatSessionLifecycleToCollectorSession(
+      eventType: TugboatCollectorSessionEventType.userChanged.wireValue,
+      sessionId: 'sess_123',
+      triggeredAt: DateTime.utc(2026, 6, 19),
+      config: collectorConfig,
+      userId: null,
+      traits: {'mustNot': 'send'},
+    );
+
+    expect(mapped, {
+      'sessionId': 'sess_123',
+      'eventType': 'user_changed',
+      'triggeredAt': '2026-06-19T00:00:00.000Z',
+      'userId': null,
+    });
   });
 
   test('event map includes optional traitsId', () {
     final mapped = mapTugboatEventToCollectorEvent(
-      event: TugboatEvent(id: 'event-1', atMs: 0, type: 'tap'),
+      event: TugboatEvent(id: 'event-1', atMs: 0, type: 'capture_diagnostic'),
       sessionStartedAt: DateTime.utc(2026, 6, 19),
       collectorConfig: collectorConfig,
       traitsId: 'trt_evt',
@@ -223,21 +362,6 @@ void main() {
       TugboatCollectorSessionEventType.userChanged.wireValue,
       'user_changed',
     );
-  });
-
-  test('keeps deprecated packageName legacy constructor compatibility', () {
-    // ignore: deprecated_member_use_from_same_package
-    const appInfo = TugboatCollectorAppInfo.legacyPackageName(
-      name: 'Example App',
-      version: '1.0.0',
-      buildNumber: '1',
-      installationId: 'inst_1',
-      packageName: 'com.example.legacy',
-    );
-
-    expect(appInfo.appId, 'com.example.legacy');
-    expect(appInfo.toJson()['appId'], 'com.example.legacy');
-    expect(appInfo.toJson()['packageName'], 'com.example.legacy');
   });
 
   test('copies collector config with replay userId override', () {

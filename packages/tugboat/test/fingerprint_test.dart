@@ -4,123 +4,6 @@ import 'package:tugboat/tugboat.dart';
 import 'package:tugboat/src/anchors.dart';
 
 void main() {
-  testWidgets('fingerprints are deterministic for the same widget tree', (
-    tester,
-  ) async {
-    final rootKey = GlobalKey();
-
-    Future<TugboatStateAnchor> capture() async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: RepaintBoundary(
-            key: rootKey,
-            child: Scaffold(
-              body: Column(
-                children: [
-                  FilledButton(onPressed: () {}, child: const Text('Go')),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      return AnchorResolver(
-        rootKey: rootKey,
-      ).buildStateAnchor(route: '/home', keyboardOpen: false, modalOpen: false);
-    }
-
-    final first = await capture();
-    final second = await capture();
-    expect(first.signature, second.signature);
-    expect(first.signature, isNotEmpty);
-    expect(first.schemaVersion, tugboatFingerprintSchemaVersion);
-  });
-
-  testWidgets('list length does not change state signature', (tester) async {
-    final rootKey = GlobalKey();
-
-    Future<String> signatureFor(int count) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: RepaintBoundary(
-            key: rootKey,
-            child: Scaffold(
-              body: ListView(
-                children: [
-                  for (var i = 0; i < count; i++)
-                    ListTile(title: Text('Row $i'), onTap: () {}),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      return AnchorResolver(rootKey: rootKey)
-          .buildStateAnchor(
-            route: '/feed',
-            keyboardOpen: false,
-            modalOpen: false,
-          )
-          .signature;
-    }
-
-    expect(await signatureFor(3), await signatureFor(7));
-  });
-
-  testWidgets('scroll changes visible items without forking state signature', (
-    tester,
-  ) async {
-    final rootKey = GlobalKey();
-    final scrollController = ScrollController();
-
-    Future<String> signatureAt(double offset, {bool showChrome = false}) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: RepaintBoundary(
-            key: rootKey,
-            child: Scaffold(
-              body: Column(
-                children: [
-                  if (showChrome)
-                    FilledButton(onPressed: () {}, child: const Text('Filter')),
-                  Expanded(
-                    child: ListView.builder(
-                      controller: scrollController,
-                      itemCount: 30,
-                      itemBuilder: (context, index) => ListTile(
-                        key: ValueKey('row-$index'),
-                        title: Text('Plan ${index % 3}'),
-                        onTap: () {},
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      scrollController.jumpTo(offset);
-      await tester.pump();
-      return AnchorResolver(rootKey: rootKey)
-          .buildStateAnchor(
-            route: '/feed',
-            keyboardOpen: false,
-            modalOpen: false,
-          )
-          .signature;
-    }
-
-    final topSignature = await signatureAt(0);
-    final scrolledSignature = await signatureAt(800);
-    expect(topSignature, scrolledSignature);
-    // v6 coarse signatures ignore optional chrome widgets on the same route.
-    expect(await signatureAt(0, showChrome: true), topSignature);
-  });
-
   testWidgets(
     'list row taps without discriminator share low-confidence fingerprint',
     (tester) async {
@@ -188,49 +71,12 @@ void main() {
     expect(basic?.canonicalPath, isNot(contains('Basic')));
   });
 
-  testWidgets('dynamic visible text does not change signatures', (
-    tester,
-  ) async {
-    final rootKey = GlobalKey();
-
-    Future<TugboatStateAnchor> buildAnchor(String label) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: RepaintBoundary(
-            key: rootKey,
-            child: Scaffold(
-              body: Column(
-                children: [
-                  Text(label),
-                  FilledButton(onPressed: () {}, child: const Text('Continue')),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      return AnchorResolver(rootKey: rootKey).buildStateAnchor(
-        route: '/intro',
-        keyboardOpen: false,
-        modalOpen: false,
-      );
-    }
-
-    final first = await buildAnchor('Brooke Martins');
-    final second = await buildAnchor('Alex Chen');
-    expect(first.signature, second.signature);
-    expect(first.toJson().containsKey('labels'), isFalse);
-  });
-
   testWidgets('TugboatTag adds an alias without changing structural identity', (
     tester,
   ) async {
     final rootKey = GlobalKey();
 
-    Future<(TugboatTargetAnchor, TugboatStateAnchor)> capture({
-      required bool tagged,
-    }) async {
+    Future<TugboatTargetAnchor> capture({required bool tagged}) async {
       final button = FilledButton(
         onPressed: () {},
         child: const Text('Pay now'),
@@ -246,26 +92,17 @@ void main() {
         ),
       );
       await tester.pump();
-      final resolver = AnchorResolver(rootKey: rootKey);
       final center = tester.getCenter(find.text('Pay now'));
-      return (
-        resolver.targetAt(center)!,
-        resolver.buildStateAnchor(
-          route: null,
-          keyboardOpen: false,
-          modalOpen: false,
-        ),
-      );
+      return AnchorResolver(rootKey: rootKey).targetAt(center)!;
     }
 
     final untagged = await capture(tagged: false);
     final tagged = await capture(tagged: true);
 
-    expect(tagged.$1.fingerprint, untagged.$1.fingerprint);
-    expect(tagged.$1.canonicalPath, untagged.$1.canonicalPath);
-    expect(tagged.$2.signature, untagged.$2.signature);
-    expect(tagged.$1.tagFingerprint, isNotNull);
-    expect(tagged.$1.fingerprintParts, containsPair('tag', 'checkout-cta'));
+    expect(tagged.fingerprint, untagged.fingerprint);
+    expect(tagged.canonicalPath, untagged.canonicalPath);
+    expect(tagged.tagFingerprint, isNotNull);
+    expect(tagged.fingerprintParts, containsPair('tag', 'checkout-cta'));
   });
 
   testWidgets('target fingerprint excludes schema version metadata', (
@@ -295,34 +132,6 @@ void main() {
       tugboatLabelHash('path=${anchor.canonicalPath}|routeKey=/home'),
     );
     expect(anchor.schemaVersion, tugboatFingerprintSchemaVersion);
-  });
-
-  testWidgets('state signature excludes schema version metadata', (
-    tester,
-  ) async {
-    final rootKey = GlobalKey();
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: RepaintBoundary(
-          key: rootKey,
-          child: Scaffold(body: const Text('Read only')),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    final state = AnchorResolver(
-      rootKey: rootKey,
-    ).buildStateAnchor(route: '/home', keyboardOpen: false, modalOpen: false);
-
-    expect(
-      state.signature,
-      tugboatLabelHash(
-        'routeKey=/home|schemaVersion=$tugboatFingerprintSchemaVersion',
-      ),
-    );
-    expect(state.schemaVersion, tugboatFingerprintSchemaVersion);
   });
 
   testWidgets('different route keys produce different fingerprints', (
@@ -375,90 +184,16 @@ void main() {
     await tester.pump();
 
     final resolver = AnchorResolver(rootKey: rootKey);
-    final anchor = resolver.buildStateAnchor(
+    final inventory = resolver.buildSceneInventory(
       route: '/big-list',
       keyboardOpen: false,
       modalOpen: false,
     );
     stopwatch.stop();
 
-    expect(anchor.signature, isNotEmpty);
+    expect(inventory, isNotNull);
+    expect(inventory!.inventoryHash, isNotEmpty);
     expect(stopwatch.elapsedMilliseconds, lessThan(5000));
-  });
-
-  testWidgets('same resolver refreshes signatures after an in-route rebuild', (
-    tester,
-  ) async {
-    final rootKey = GlobalKey();
-    final contentKey = GlobalKey<_MutableContentState>();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: RepaintBoundary(
-          key: rootKey,
-          child: _MutableContent(key: contentKey),
-        ),
-      ),
-    );
-    final resolver = AnchorResolver(rootKey: rootKey);
-    final first = resolver.buildStateAnchor(
-      route: '/mutable',
-      keyboardOpen: false,
-      modalOpen: false,
-    );
-
-    contentKey.currentState!.showSecondControl();
-    await tester.pump();
-    final second = resolver.buildStateAnchor(
-      route: '/mutable',
-      keyboardOpen: false,
-      modalOpen: false,
-    );
-
-    expect(first.actionableSummary['button'], 1);
-    expect(second.actionableSummary['button'], 2);
-    // v6 coarse state signatures ignore actionable-count drift on the same route.
-    expect(second.signature, first.signature);
-  });
-
-  testWidgets('blocking modal excludes controls on the obscured route', (
-    tester,
-  ) async {
-    final rootKey = GlobalKey();
-    await tester.pumpWidget(
-      RepaintBoundary(
-        key: rootKey,
-        child: MaterialApp(
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: FilledButton(
-                onPressed: () => showDialog<void>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    content: const Text('Confirm'),
-                    actions: [
-                      TextButton(onPressed: () {}, child: const Text('Cancel')),
-                      TextButton(onPressed: () {}, child: const Text('Delete')),
-                    ],
-                  ),
-                ),
-                child: const Text('Open'),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    final resolver = AnchorResolver(rootKey: rootKey);
-    await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
-
-    final modal = resolver.buildStateAnchor(
-      route: '/home',
-      keyboardOpen: false,
-      modalOpen: false,
-    );
-    expect(modal.modalOpen, isTrue);
-    expect(modal.actionableSummary['button'], 2);
   });
 
   testWidgets('generated names replace runtime names in canonical paths', (
@@ -482,54 +217,6 @@ void main() {
     expect(anchor.canonicalPath, contains('CheckoutButton'));
   });
 
-  testWidgets('hidden and off-viewport controls do not affect state identity', (
-    tester,
-  ) async {
-    final rootKey = GlobalKey();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: RepaintBoundary(
-          key: rootKey,
-          child: Scaffold(
-            body: Stack(
-              children: [
-                FilledButton(onPressed: () {}, child: const Text('Visible')),
-                Offstage(
-                  offstage: true,
-                  child: FilledButton(
-                    onPressed: () {},
-                    child: const Text('Offstage'),
-                  ),
-                ),
-                Opacity(
-                  opacity: 0,
-                  child: FilledButton(
-                    onPressed: () {},
-                    child: const Text('Transparent'),
-                  ),
-                ),
-                Positioned(
-                  top: 2000,
-                  child: FilledButton(
-                    onPressed: () {},
-                    child: const Text('Outside'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    final state = AnchorResolver(rootKey: rootKey).buildStateAnchor(
-      route: '/visibility',
-      keyboardOpen: false,
-      modalOpen: false,
-    );
-    expect(state.actionableSummary['button'], 1);
-  });
-
   testWidgets('disabled controls retain target role but are not actionable', (
     tester,
   ) async {
@@ -550,15 +237,9 @@ void main() {
       tester.getCenter(find.text('Disabled')),
       route: '/disabled',
     );
-    final state = resolver.buildStateAnchor(
-      route: '/disabled',
-      keyboardOpen: false,
-      modalOpen: false,
-    );
     expect(target?.role, 'button');
     expect(target?.enabled, isFalse);
     expect(target?.actions, isEmpty);
-    expect(state.actionableSummary['button'], isNull);
   });
 
   testWidgets('typed async dropdown callbacks do not crash role inspection', (
@@ -770,32 +451,6 @@ void main() {
     ).targetAt(tester.getCenter(find.text('Moved')), route: '/transformed');
     expect(target?.relativePosition, 'bottom');
   });
-}
-
-class _MutableContent extends StatefulWidget {
-  const _MutableContent({super.key});
-
-  @override
-  State<_MutableContent> createState() => _MutableContentState();
-}
-
-class _MutableContentState extends State<_MutableContent> {
-  bool showSecond = false;
-
-  void showSecondControl() => setState(() => showSecond = true);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        children: [
-          FilledButton(onPressed: () {}, child: const Text('First')),
-          if (showSecond)
-            FilledButton(onPressed: () {}, child: const Text('Second')),
-        ],
-      ),
-    );
-  }
 }
 
 class _CatalogButton extends StatelessWidget {

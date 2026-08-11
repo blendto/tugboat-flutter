@@ -103,7 +103,7 @@ class ScreenshotCapturer {
     required this.anchorResolver,
     this.pixelRatio = 0.75,
     @visibleForTesting Future<void> Function()? frameWaiter,
-    @visibleForTesting ScreenshotEncoder? encoder,
+    ScreenshotEncoder? encoder,
   }) : _frameWaiter =
            frameWaiter ?? (() => SchedulerBinding.instance.endOfFrame),
        _encoder = encoder ?? IsolateScreenshotEncoder();
@@ -373,10 +373,8 @@ class ScreenshotCapturer {
   Future<ScreenshotCaptureResult?> capture({
     bool force = false,
     bool waitForFrame = true,
-  }) async => (await captureAttempt(
-    force: force,
-    waitForFrame: waitForFrame,
-  )).result;
+  }) async =>
+      (await captureAttempt(force: force, waitForFrame: waitForFrame)).result;
 
   Future<ScreenshotCaptureResult?> _captureReadyBoundary(
     Element context,
@@ -392,8 +390,14 @@ class ScreenshotCapturer {
     final paintSignature = boundary is TugboatCaptureRenderBoundary
         ? boundary.subtreePaintSignature
         : null;
-    final scaledWidth = (boundary.size.width * pixelRatio).ceil().clamp(1, 1 << 20);
-    final scaledHeight = (boundary.size.height * pixelRatio).ceil().clamp(1, 1 << 20);
+    final scaledWidth = (boundary.size.width * pixelRatio).ceil().clamp(
+      1,
+      1 << 20,
+    );
+    final scaledHeight = (boundary.size.height * pixelRatio).ceil().clamp(
+      1,
+      1 << 20,
+    );
 
     if (allowPaintGenerationSkip &&
         !force &&

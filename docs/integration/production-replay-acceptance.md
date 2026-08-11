@@ -12,11 +12,13 @@ database receipt alone as proof that a replay is correct.
 
 ## Current acceptance status
 
-The current SDK release candidate is **0.7.1**, which writes session schema
-**v9**. It preserves structural interaction replay while no longer emitting
-`controlValue`, `controlValueTransition`, or `semanticAnnotation` in event
-data. Treat the absence of those fields as the expected privacy boundary, not
-as missing capture evidence.
+The current SDK release candidate is **0.8.0**, which writes session schema
+**v10**. It preserves structural interaction replay while no longer emitting
+`controlValue`, `controlValueTransition`, `semanticAnnotation`, `stateAnchor`,
+or `stateSignature` in new writer output. It also does not emit `state_change`.
+Treat the absence of those fields as the expected privacy boundary, not as
+missing capture evidence. Deploy the related collector change with this SDK
+release.
 
 [`production-replay-acceptance-0.4.15.md`](./production-replay-acceptance-0.4.15.md)
 remains a historical acceptance record for interaction consolidation. Do not
@@ -164,17 +166,17 @@ flows share a session, list the event IDs or timestamps that delimit each flow.
 
 Wait until the collector session has finalized and the replay is available in
 the production website. Filter to the recorded Blend build and SDK version
-under test (`0.7.1` for this release), then open every recorded session.
+under test (`0.8.0` for this release), then open every recorded session.
 
 For each interaction, inspect the actual replay UI and verify:
 
 - the tap marker lands on the control visible in its before-frame;
-- target anchor, route, state signature, and frame describe the same screen;
+- target anchor, route, and frame describe the same screen;
 - a navigation-producing tap does not emit an early unrelated
   `noVisibleChange`;
 - an action on a destination screen does not reuse an origin-screen frame;
-- a changed outcome has either a fresh visual frame or an explicit
-  semantic-only/degraded classification;
+- a changed outcome has fresh visual evidence; a missing screenshot is
+  explicitly degraded and does not create a semantic-only result;
 - a route event shows the rendered destination rather than a splash, outgoing
   route, or partially advanced UI;
 - reused visual evidence has an explainable capture diagnostic;

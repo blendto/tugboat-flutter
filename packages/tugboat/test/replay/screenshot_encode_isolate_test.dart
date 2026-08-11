@@ -25,19 +25,22 @@ ScreenshotEncodeInput _solidRedInput({String? lastDHash, bool force = false}) {
 }
 
 void main() {
-  test('persistent encode isolate returns jpeg bytes and content hash', () async {
-    final worker = IsolateScreenshotEncoder();
-    addTearDown(worker.dispose);
-    final first = await worker
-        .encode(_solidRedInput())
-        .timeout(const Duration(seconds: 10));
-    final second = await worker
-        .encode(_solidRedInput())
-        .timeout(const Duration(seconds: 10));
-    expect(first.bytes, isNotEmpty);
-    expect(first.contentHash, isNotEmpty);
-    expect(second.contentHash, first.contentHash);
-  });
+  test(
+    'persistent encode isolate returns jpeg bytes and content hash',
+    () async {
+      final worker = IsolateScreenshotEncoder();
+      addTearDown(worker.dispose);
+      final first = await worker
+          .encode(_solidRedInput())
+          .timeout(const Duration(seconds: 10));
+      final second = await worker
+          .encode(_solidRedInput())
+          .timeout(const Duration(seconds: 10));
+      expect(first.bytes, isNotEmpty);
+      expect(first.contentHash, isNotEmpty);
+      expect(second.contentHash, first.contentHash);
+    },
+  );
 
   test('encode isolate applies mask fills before jpeg encoding', () async {
     final worker = IsolateScreenshotEncoder();

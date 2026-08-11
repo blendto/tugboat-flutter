@@ -64,14 +64,16 @@ void main() {
       socket.listen((raw) => messages.add(raw as String));
     });
 
-    transport.sendEvent(TugboatEvent(id: 'event-1', atMs: 1, type: 'tap'));
+    transport.sendEvent(
+      TugboatEvent(id: 'event-1', atMs: 1, type: 'capture_diagnostic'),
+    );
     await transport.connect();
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(messages, isNotEmpty);
     final decoded = jsonDecode(messages.first) as Map<String, dynamic>;
     expect(decoded['type'], 'event');
-    expect((decoded['payload'] as Map)['type'], 'tap');
+    expect((decoded['payload'] as Map)['type'], 'capture_diagnostic');
 
     transport.dispose();
   });

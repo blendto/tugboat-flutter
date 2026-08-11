@@ -236,7 +236,10 @@ void _screenshotEncodeIsolateMain(SendPort replyTo) {
         ),
       );
       replyTo.send(
-        ScreenshotEncodeIsolateReply.success(jobId: message.jobId, result: encoded),
+        ScreenshotEncodeIsolateReply.success(
+          jobId: message.jobId,
+          result: encoded,
+        ),
       );
     } catch (error) {
       replyTo.send(

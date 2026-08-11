@@ -21,7 +21,7 @@ import 'outbox/outbox.dart';
 import 'outbox/outbox_sink.dart';
 import 'replay_config.dart';
 import 'screenshot_capturer.dart';
-import 'scroll_capture.dart';
+import 'screenshot_encode.dart';
 import 'viewport_semantic_session.dart';
 
 export 'replay_config.dart'
@@ -38,13 +38,13 @@ class _ScrollTracker {
     required this.startedAtMs,
     required this.startOffset,
     required this.routeEpoch,
-    required this.startState,
     required this.beforeFrame,
     required this.targetAnchor,
     required this.sectionLabel,
     required this.axis,
     required this.depth,
     required this.maxScrollExtent,
+    required this.pointerLinked,
     this.pageStart,
   });
 
@@ -53,7 +53,6 @@ class _ScrollTracker {
   final int startedAtMs;
   final double startOffset;
   final int routeEpoch;
-  final TugboatStateAnchor? startState;
   final String? beforeFrame;
   final TugboatTargetAnchor? targetAnchor;
   final String? sectionLabel;
@@ -61,14 +60,24 @@ class _ScrollTracker {
   final int depth;
   final double maxScrollExtent;
   final double? pageStart;
+  bool pointerLinked;
   int overscrollCount = 0;
   DateTime? lastSampleAt;
+}
+
+/// Holds the scroll-end work until the matching global pointer-up arrives.
+/// Flutter can deliver these callbacks in either order.
+class _PendingScrollCompletion {
+  bool resolved = false;
+  String? afterFrame;
+  String? captureOutcome;
 }
 
 class _ScheduledCapture {
   _ScheduledCapture({
     required this.trigger,
     required this.force,
+    required this.bypassesExplorationSuppression,
     required this.freshness,
     required this.notBefore,
     required this.enqueuedAt,
@@ -77,6 +86,7 @@ class _ScheduledCapture {
 
   TugboatFrameTrigger trigger;
   bool force;
+  bool bypassesExplorationSuppression;
   _CaptureFreshness freshness;
   DateTime notBefore;
   DateTime enqueuedAt;
@@ -89,6 +99,8 @@ class _ScheduledCapture {
       trigger = other.trigger;
     }
     force = force || other.force;
+    bypassesExplorationSuppression =
+        bypassesExplorationSuppression || other.bypassesExplorationSuppression;
     if (other.freshness == _CaptureFreshness.freshPaint) {
       freshness = _CaptureFreshness.freshPaint;
     }
@@ -108,11 +120,15 @@ class _ScheduledCapture {
   }
 
   bool canAbsorb(_ScheduledCapture other) =>
+      trigger != TugboatFrameTrigger.interaction &&
+      other.trigger != TugboatFrameTrigger.interaction &&
       context.compatibleWith(other.context);
 
   static int _triggerPriority(TugboatFrameTrigger trigger) {
     switch (trigger) {
       case TugboatFrameTrigger.manual:
+        return 7;
+      case TugboatFrameTrigger.interaction:
         return 6;
       case TugboatFrameTrigger.route:
         return 5;
@@ -237,7 +253,6 @@ class _CaptureRequestContext {
     required this.route,
     required this.trigger,
     required this.requestedAtMs,
-    required this.stateAnchor,
     this.navigatorId,
     this.routeInstanceId,
     this.visualObservationGeneration,
@@ -250,14 +265,11 @@ class _CaptureRequestContext {
   final String? route;
   final TugboatFrameTrigger trigger;
   final int requestedAtMs;
-  final TugboatStateAnchor? stateAnchor;
   final String? navigatorId;
   final String? routeInstanceId;
   final int? visualObservationGeneration;
   final Rect? boundaryLogicalRect;
   final int boundaryTransformGeneration;
-
-  String? get stateSignature => stateAnchor?.signature;
 
   bool compatibleWith(_CaptureRequestContext other) =>
       captureSessionId == other.captureSessionId &&
@@ -281,7 +293,6 @@ class _CaptureRequestContext {
         route: route,
         trigger: value,
         requestedAtMs: requestedAtMs,
-        stateAnchor: stateAnchor,
         navigatorId: navigatorId,
         routeInstanceId: routeInstanceId,
         visualObservationGeneration: visualObservationGeneration,
@@ -298,7 +309,6 @@ class _CaptureRequestContext {
     route: route,
     trigger: trigger,
     requestedAtMs: requestedAtMs,
-    stateAnchor: stateAnchor,
     navigatorId: navigatorId,
     routeInstanceId: routeInstanceId,
     visualObservationGeneration: visualObservationGeneration,
@@ -311,19 +321,16 @@ class _FrameProvenance {
   const _FrameProvenance({
     required this.context,
     required this.completedAtMs,
-    required this.completionStateAnchor,
     this.available = true,
   });
 
   final _CaptureRequestContext context;
   final int completedAtMs;
-  final TugboatStateAnchor? completionStateAnchor;
   final bool available;
 
   _FrameProvenance unavailable() => _FrameProvenance(
     context: context,
     completedAtMs: completedAtMs,
-    completionStateAnchor: completionStateAnchor,
     available: false,
   );
 
@@ -346,12 +353,6 @@ class _FrameProvenance {
     'trigger': context.trigger.name,
     'requestedAtMs': context.requestedAtMs,
     'completedAtMs': completedAtMs,
-    'requestStateSignature': context.stateSignature,
-    'completionStateSignature': completionStateAnchor?.signature,
-    if (context.stateAnchor != null)
-      'requestStateAnchor': context.stateAnchor!.toJson(),
-    if (completionStateAnchor != null)
-      'completionStateAnchor': completionStateAnchor!.toJson(),
     'available': available,
   };
 }
@@ -564,7 +565,6 @@ class _RouteCaptureResult {
   const _RouteCaptureResult(
     this.outcome, {
     this.frameId,
-    this.stateAnchor,
     this.routeEventId,
     this.captureFailure,
     this.captureRequestId,
@@ -572,7 +572,6 @@ class _RouteCaptureResult {
 
   final _RouteCaptureOutcome outcome;
   final String? frameId;
-  final TugboatStateAnchor? stateAnchor;
   final String? routeEventId;
   final String? captureFailure;
   final String? captureRequestId;
@@ -696,7 +695,7 @@ class _TapSettleWork {
   }
 }
 
-/// The one immutable observation used to write a `tap_settled` event.
+/// The one immutable observation used to write an `interaction` event.
 ///
 /// A tap can outlive both a Navigator callback and another capture request.
 /// Do not derive event fields from controller state after this is constructed:
@@ -705,7 +704,6 @@ class _TapSettleObservation {
   const _TapSettleObservation({
     required this.routeEpoch,
     required this.route,
-    required this.afterState,
     required this.afterFrame,
     required this.navigationOutcome,
     required this.captureOutcome,
@@ -716,7 +714,6 @@ class _TapSettleObservation {
 
   final int routeEpoch;
   final String? route;
-  final TugboatStateAnchor? afterState;
   final String? afterFrame;
   final String navigationOutcome;
   final String captureOutcome;
@@ -800,7 +797,6 @@ class TugboatReplayController extends ChangeNotifier {
   Rect? _lastObservedBoundaryRect;
   int _pointerGeneration = 0;
   final _NavigatorSurfaceRegistry _surfaces = _NavigatorSurfaceRegistry();
-  TugboatStateAnchor? _currentStateAnchor;
   String? _latestFrameId;
   final InteractionRegistry _interactions = InteractionRegistry();
   bool _reconciliationSweepScheduled = false;
@@ -829,6 +825,11 @@ class TugboatReplayController extends ChangeNotifier {
   int _routeEpoch = 0;
   final Map<String, _RouteCaptureWork> _activeRouteCaptures =
       <String, _RouteCaptureWork>{};
+  // A route can finish before its pointer-up settle resumes from the delayed
+  // claim wait. Retain that causal barrier until the interaction consumes it.
+  final Map<String, _RouteCaptureWork> _causalRouteCaptures =
+      <String, _RouteCaptureWork>{};
+  final Set<String> _causalRouteSupersededInteractions = <String>{};
   String? _latestRouteCaptureKey;
   final Set<_TapSettleWork> _activeTapSettles = <_TapSettleWork>{};
 
@@ -842,6 +843,9 @@ class TugboatReplayController extends ChangeNotifier {
   static String _routeCaptureKey(String? navigatorId) => navigatorId ?? '';
 
   final Map<Element, _ScrollTracker> _scrollTrackers = {};
+  final Map<String, InteractionTransaction> _scrollInteractions = {};
+  final Map<String, _PendingScrollCompletion> _pendingScrollCompletions = {};
+  final Set<InteractionTransaction> _activeCompletedGestureCaptures = {};
   final Set<String> _emittedInventories = <String>{};
   SemanticsHandle? _semanticsHandle;
   late final ViewportSemanticSession _viewportSemantics =
@@ -871,7 +875,6 @@ class TugboatReplayController extends ChangeNotifier {
   bool get capturePaused => _capturePaused;
   int get atMs => _clock.elapsedMilliseconds;
   String? get currentRoute => _currentRoute;
-  TugboatStateAnchor? get currentStateAnchor => _currentStateAnchor;
   String? get latestFrameId => _latestFrameId;
 
   bool get _viewportSemanticMapDebugLogsEnabled => _viewportSemantics.debugLogs;
@@ -882,20 +885,9 @@ class TugboatReplayController extends ChangeNotifier {
       _viewportSemantics.holdPersistentSemanticsHandle;
 
   @visibleForTesting
-  void debugSetCurrentStateAnchor(TugboatStateAnchor? anchor) {
-    _currentStateAnchor = anchor;
-  }
-
-  @visibleForTesting
   void debugSetCurrentRoute(String? route) {
     _currentRoute = route;
   }
-
-  /// When true, [_refreshStateAnchor] keeps the last planted state instead of
-  /// rebuilding from the widget tree. Characterization tests use this when
-  /// driving the controller without a mounted scene.
-  @visibleForTesting
-  bool debugFreezeStateAnchor = false;
 
   @visibleForTesting
   void debugSetExplorationFramesSuppressed(bool suppressed) {
@@ -926,6 +918,11 @@ class TugboatReplayController extends ChangeNotifier {
     required bool force,
   })?
   debugExecuteCapture;
+
+  /// Optional inline encoder for widget tests that exercise the complete
+  /// capture path without a persistent worker isolate.
+  @visibleForTesting
+  ScreenshotEncoder? debugScreenshotEncoder;
 
   /// Test-only terminal outcome override for the next physical capture.
   ///
@@ -997,6 +994,13 @@ class TugboatReplayController extends ChangeNotifier {
 
   @visibleForTesting
   int get debugActiveTapSettleCount => _activeTapSettles.length;
+
+  @visibleForTesting
+  int get debugCausalRouteCaptureCount => _causalRouteCaptures.length;
+
+  @visibleForTesting
+  int get debugCausalRouteSupersededInteractionCount =>
+      _causalRouteSupersededInteractions.length;
 
   @visibleForTesting
   List<String?> get debugScheduledCaptureRoutes {
@@ -1084,7 +1088,6 @@ class TugboatReplayController extends ChangeNotifier {
     _frameProvenance[frameId] = _FrameProvenance(
       context: _captureContext(trigger),
       completedAtMs: atMs,
-      completionStateAnchor: _snapshotStateAnchor(_currentStateAnchor),
     );
     _capturer?.rememberAcceptedPaintGeneration();
     _trim();
@@ -1151,28 +1154,7 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   @visibleForTesting
-  TugboatInteractionResult debugComputeTapSettleResult({
-    required TugboatStateAnchor? beforeState,
-    required TugboatStateAnchor? afterState,
-    required String? beforeFrame,
-    required String? afterFrame,
-    TugboatTargetAnchor? targetAnchor,
-    bool causallyClaimed = false,
-  }) {
-    return _computeTapSettleResult(
-      beforeState: beforeState,
-      afterState: afterState,
-      beforeFrame: beforeFrame,
-      afterFrame: afterFrame,
-      targetAnchor: targetAnchor,
-      causallyClaimed: causallyClaimed,
-    );
-  }
-
-  /// Debug helper for host apps to dump current semantic anchors (CLI diffing).
-  @visibleForTesting
   Map<String, Object?> debugExportSemanticSnapshot({Offset? tapPoint}) {
-    final stateAnchor = _refreshStateAnchor();
     final resolver = _anchorResolver;
     TugboatTargetAnchor? targetAnchor;
     if (tapPoint != null && resolver != null) {
@@ -1185,7 +1167,6 @@ class TugboatReplayController extends ChangeNotifier {
       'frameId': _compatibleFrameFor(
         _captureContext(TugboatFrameTrigger.manual),
       ),
-      'stateAnchor': stateAnchor?.toJson(),
       if (tapPoint != null) 'tapPoint': {'x': tapPoint.dx, 'y': tapPoint.dy},
       if (targetAnchor != null) 'targetAnchor': targetAnchor.toJson(),
     };
@@ -1208,6 +1189,7 @@ class TugboatReplayController extends ChangeNotifier {
       pixelRatio: config.capturePixelRatio,
       maskLevel: config.effectiveScreenshotMaskLevel,
       anchorResolver: resolver,
+      encoder: debugScreenshotEncoder,
     );
     final sinks = <TugboatCaptureSink>[];
     final collectorUrl = config.explorationCollectorUrl;
@@ -1372,17 +1354,19 @@ class TugboatReplayController extends ChangeNotifier {
     _invalidateCaptureWork(cancellationReason);
     // Routes cancelled above never publish causeEventId — do not mint an
     // orphan causal_only tap for a claim that will never be referenced.
-    _abandonAllPendingPointers(publishClaimedTap: false);
+    _abandonAllPendingPointers();
     _clearReleasedInteractions();
+    _finalizeActiveCompletedGestureCaptures(
+      InteractionRejectionReason.sessionEnd,
+    );
+    _finalizeScrollCompletionInteractions(
+      InteractionRejectionReason.sessionEnd,
+    );
+    _clearScrollCompletionState();
     _captureLifecycleActive = false;
 
     _addEvent(
-      TugboatEvent(
-        id: _nextId('event'),
-        atMs: atMs,
-        type: 'session_end',
-        stateAnchor: _currentStateAnchor,
-      ),
+      TugboatEvent(id: _nextId('event'), atMs: atMs, type: 'session_end'),
     );
     final sinkEnd = _sinkHub?.endSession() ?? Future<void>.value();
     sinkEnd.then(done.complete, onError: done.completeError);
@@ -1402,6 +1386,14 @@ class TugboatReplayController extends ChangeNotifier {
     _cancelActiveTapSettles('session_replacement');
     _cancelActiveRouteCapture('session_replacement');
     _invalidateCaptureWork('session_replacement');
+    _finalizeActiveCompletedGestureCaptures(
+      InteractionRejectionReason.sessionEnd,
+    );
+    _finalizeScrollCompletionInteractions(
+      InteractionRejectionReason.sessionEnd,
+    );
+    _abandonAllPendingPointers(gestureFinal: 'session_end');
+    _clearReleasedInteractions(reason: InteractionRejectionReason.sessionEnd);
     _captureLifecycleActive = true;
     _captureLifecycleEpoch++;
     _endSessionFuture = null;
@@ -1425,11 +1417,11 @@ class TugboatReplayController extends ChangeNotifier {
     _lastObservedBoundaryRect = null;
     _pointerGeneration = 0;
     _surfaces.clear();
-    _currentStateAnchor = null;
     _latestFrameId = null;
-    _clearReleasedInteractions();
     _interactions.clearAll();
-    _scrollTrackers.clear();
+    _clearScrollCompletionState();
+    _causalRouteCaptures.clear();
+    _causalRouteSupersededInteractions.clear();
     _hashToFrameId.clear();
     _frameProvenance.clear();
     _frameReuseObservations.clear();
@@ -1460,12 +1452,7 @@ class TugboatReplayController extends ChangeNotifier {
     }
     _sinkHub?.startSession(_session!);
     _addEvent(
-      TugboatEvent(
-        id: _nextId('event'),
-        atMs: atMs,
-        type: 'session_start',
-        stateAnchor: _refreshStateAnchor(),
-      ),
+      TugboatEvent(id: _nextId('event'), atMs: atMs, type: 'session_start'),
     );
     unawaited(
       _requestCapture(
@@ -1486,18 +1473,20 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
-  TugboatStateAnchor? _refreshStateAnchor() {
-    if (debugFreezeStateAnchor) return _currentStateAnchor;
-    final resolver = _anchorResolver;
-    if (resolver == null) return _currentStateAnchor;
-    final keyboardOpen = _isKeyboardOpen();
-    final modalOpen = _isModalOpen();
-    _currentStateAnchor = resolver.buildStateAnchor(
+  _CaptureRequestContext _captureContext(TugboatFrameTrigger trigger) {
+    final boundary = _observeCurrentBoundaryTransform();
+    return _CaptureRequestContext(
+      captureSessionId: _session?.id,
+      routeEpoch: _routeEpoch,
       route: _currentRoute,
-      keyboardOpen: keyboardOpen,
-      modalOpen: modalOpen,
+      trigger: trigger,
+      requestedAtMs: atMs,
+      navigatorId: _currentNavigatorId,
+      routeInstanceId: _currentRouteInstanceId,
+      visualObservationGeneration: _visualObservationGeneration,
+      boundaryLogicalRect: boundary.rect,
+      boundaryTransformGeneration: boundary.generation,
     );
-    return _currentStateAnchor;
   }
 
   bool _isKeyboardOpen() {
@@ -1531,30 +1520,11 @@ class TugboatReplayController extends ChangeNotifier {
     if (force ||
         trigger == TugboatFrameTrigger.initial ||
         trigger == TugboatFrameTrigger.lifecycle ||
-        trigger == TugboatFrameTrigger.tap) {
+        trigger == TugboatFrameTrigger.tap ||
+        trigger == TugboatFrameTrigger.interaction) {
       return _CaptureFreshness.freshPaint;
     }
     return _CaptureFreshness.reusable;
-  }
-
-  _CaptureRequestContext _captureContext(TugboatFrameTrigger trigger) {
-    final anchor = _currentStateAnchor;
-    final boundary = _observeCurrentBoundaryTransform();
-    return _CaptureRequestContext(
-      captureSessionId: _session?.id,
-      routeEpoch: _routeEpoch,
-      // Characterization harnesses can plant a state anchor without a real
-      // Navigator callback. Its route remains valid evidence in that case.
-      route: _currentRoute ?? anchor?.signatureParts['route'],
-      trigger: trigger,
-      requestedAtMs: atMs,
-      stateAnchor: _snapshotStateAnchor(anchor),
-      navigatorId: _currentNavigatorId,
-      routeInstanceId: _currentRouteInstanceId,
-      visualObservationGeneration: _visualObservationGeneration,
-      boundaryLogicalRect: boundary.rect,
-      boundaryTransformGeneration: boundary.generation,
-    );
   }
 
   ({Rect? rect, int generation}) _observeCurrentBoundaryTransform() {
@@ -1584,25 +1554,6 @@ class TugboatReplayController extends ChangeNotifier {
         (left.width - right.width).abs() <= epsilon &&
         (left.height - right.height).abs() <= epsilon;
   }
-
-  TugboatStateAnchor? _snapshotStateAnchor(TugboatStateAnchor? anchor) {
-    if (anchor == null) return null;
-    return TugboatStateAnchor(
-      schemaVersion: anchor.schemaVersion,
-      actionableSummary: Map<String, int>.unmodifiable(
-        anchor.actionableSummary,
-      ),
-      keyboardOpen: anchor.keyboardOpen,
-      modalOpen: anchor.modalOpen,
-      subLabel: anchor.subLabel,
-      signature: anchor.signature,
-      signatureConfidence: anchor.signatureConfidence,
-      signatureParts: Map<String, String>.unmodifiable(anchor.signatureParts),
-    );
-  }
-
-  TugboatStateAnchor? _stateObservedWithFrame(String? frameId) =>
-      frameId == null ? null : _frameProvenance[frameId]?.completionStateAnchor;
 
   String? _compatibleFrameFor(_CaptureRequestContext context) {
     final latest = _latestFrameId;
@@ -1659,7 +1610,9 @@ class TugboatReplayController extends ChangeNotifier {
   }) {
     final compatible = _compatibleFrameFor(context);
     if (compatible == null) {
-      return const _CaptureExecution(outcome: _CaptureOutcome.noCompatibleFrame);
+      return const _CaptureExecution(
+        outcome: _CaptureOutcome.noCompatibleFrame,
+      );
     }
     if (recordBudget) {
       _screenshotBudget.record(
@@ -1671,7 +1624,6 @@ class TugboatReplayController extends ChangeNotifier {
       );
     }
     _reuseCompatibleFrame(compatible, context, reuseReason);
-    _refreshStateAnchor();
     _maybeEmitSceneInventory();
     return _CaptureExecution(
       outcome: outcome,
@@ -1802,8 +1754,7 @@ class TugboatReplayController extends ChangeNotifier {
         identical(_session, session) &&
         context.captureSessionId == session?.id &&
         context.routeEpoch == _routeEpoch &&
-        context.route ==
-            (_currentRoute ?? _currentStateAnchor?.signatureParts['route']) &&
+        context.route == _currentRoute &&
         context.boundaryTransformGeneration == boundary.generation;
   }
 
@@ -1815,6 +1766,7 @@ class TugboatReplayController extends ChangeNotifier {
   _requestCaptureCancellable({
     required TugboatFrameTrigger trigger,
     bool force = false,
+    bool bypassExplorationSuppression = false,
     Duration? settleDelay,
     String? relatedEventId,
   }) {
@@ -1825,11 +1777,13 @@ class TugboatReplayController extends ChangeNotifier {
       relatedEventId: relatedEventId,
     );
     final freshness = _captureFreshnessFor(trigger, force);
+    final bypassesExplorationSuppression =
+        bypassExplorationSuppression ||
+        trigger == TugboatFrameTrigger.interaction;
     if (_disposed ||
         _capturePaused ||
         _skipCapture ||
-        _shouldSuppressFrameCapture) {
-      _refreshStateAnchor();
+        (_shouldSuppressFrameCapture && !bypassesExplorationSuppression)) {
       _maybeEmitSceneInventory();
       _completeCaptureWaiter(
         waiter,
@@ -1849,6 +1803,7 @@ class TugboatReplayController extends ChangeNotifier {
     final incoming = _ScheduledCapture(
       trigger: trigger,
       force: force,
+      bypassesExplorationSuppression: bypassesExplorationSuppression,
       freshness: freshness,
       notBefore: notBefore,
       enqueuedAt: now,
@@ -1964,6 +1919,8 @@ class TugboatReplayController extends ChangeNotifier {
         execution = await _executeCapture(
           trigger: scheduled.trigger,
           force: scheduled.force,
+          bypassExplorationSuppression:
+              scheduled.bypassesExplorationSuppression,
           freshness: scheduled.freshness,
           context: scheduled.context.withTrigger(scheduled.trigger),
           queueWaitMicros: queueWaitMicros,
@@ -2062,6 +2019,7 @@ class TugboatReplayController extends ChangeNotifier {
   Future<_CaptureExecution> _executeCapture({
     required TugboatFrameTrigger trigger,
     bool force = false,
+    bool bypassExplorationSuppression = false,
     required _CaptureFreshness freshness,
     required _CaptureRequestContext context,
     required int queueWaitMicros,
@@ -2101,7 +2059,7 @@ class TugboatReplayController extends ChangeNotifier {
     if (_disposed ||
         _capturePaused ||
         _skipCapture ||
-        _shouldSuppressFrameCapture ||
+        (_shouldSuppressFrameCapture && !bypassExplorationSuppression) ||
         _captureInFlight) {
       return _cancelledCaptureExecution(
         _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
@@ -2137,10 +2095,6 @@ class TugboatReplayController extends ChangeNotifier {
     if (captureOverride != null) {
       _beginCapture();
       try {
-        // Match the production capture path: refresh state before capture and
-        // emit inventory after, so the override seam does not leave anchors
-        // stale relative to real screenshot execution.
-        _refreshStateAnchor();
         final frameId = await captureOverride(trigger: trigger, force: force);
         if (!_captureContextStillCurrent(
           context,
@@ -2258,9 +2212,7 @@ class TugboatReplayController extends ChangeNotifier {
         break;
       }
 
-      _refreshStateAnchor();
       final activeSession = session;
-      final completionStateAnchor = _snapshotStateAnchor(_refreshStateAnchor());
 
       _screenshotBudget.record(
         queueWaitMicros: queueWaitMicros,
@@ -2335,7 +2287,6 @@ class TugboatReplayController extends ChangeNotifier {
       _frameProvenance[frameId] = _FrameProvenance(
         context: frameContext,
         completedAtMs: atMs,
-        completionStateAnchor: completionStateAnchor,
       );
       capturer.commitAcceptedPaintGeneration(result.paintGeneration);
       capturer.commitAcceptedDHash(result.dHash);
@@ -2370,19 +2321,16 @@ class TugboatReplayController extends ChangeNotifier {
     if (!_acceptsPointerInput) return;
     final previousClaim = _interactions.removeReleased(pointer);
     if (previousClaim != null) {
-      previousClaim.cancelled = true;
-      previousClaim.rejectionReason ??=
-          InteractionRejectionReason.claimConsumed;
-      if (!previousClaim.tapEmitted) {
-        _interactions.forgetId(previousClaim.id);
-      }
+      _finalizeAbandonedTransaction(
+        previousClaim,
+        reason: InteractionRejectionReason.claimConsumed,
+      );
     }
     if (_interactions.pendingAt(pointer) != null) {
       _abandonPendingPointer(pointer, gestureFinal: 'superseded');
     }
     final resolver = _anchorResolver;
     TugboatTargetAnchor? target;
-    TugboatStateAnchor? tapState = _currentStateAnchor;
     TugboatSceneInventory? tapInventory;
 
     if (resolver != null && config.profile != TugboatCaptureProfile.dormant) {
@@ -2395,8 +2343,6 @@ class TugboatReplayController extends ChangeNotifier {
       target = tapContext.target;
       tapInventory = tapContext.inventory;
       if (tapInventory != null) {
-        _currentStateAnchor = tapInventory.stateAnchor;
-        tapState = tapInventory.stateAnchor;
         _emitSceneInventory(tapInventory, emitViewportSemanticMap: false);
       }
     } else {
@@ -2416,32 +2362,17 @@ class TugboatReplayController extends ChangeNotifier {
     final beforeFrame = _compatibleFrameFor(attachmentContext);
     final coordinateFrame =
         beforeFrame ?? _surfaceCompatibleFrameFor(attachmentContext);
-    final unavailableReason = _unavailableAttachmentReason(attachmentContext);
     final captureCoordinate = _sampleCaptureCoordinate(
       position: position,
       frameId: coordinateFrame,
       context: attachmentContext,
     );
-    final tapData = <String, Object?>{
-      'x': position.dx,
-      'y': position.dy,
-      'captureCoordinate': captureCoordinate.toJson(),
-      if (unavailableReason != null)
-        'frameAttachment': {
-          'before': 'unavailable',
-          'reason': unavailableReason,
-        },
-      if (viewportResolution != null)
-        'viewportSemanticResolution': viewportResolution.toJson(),
-    };
-
-    final beforeState = tapState;
     final eventId = _nextId('event');
     final startedAtMs = atMs;
     final origin = InteractionOrigin(
       interactionId: eventId,
-      stateAnchor: beforeState,
       route: _currentRoute,
+      routeEpoch: _routeEpoch,
       routeInstanceId: _currentRouteInstanceId,
       navigatorId: _currentNavigatorId,
       targetAnchor: target,
@@ -2455,33 +2386,6 @@ class TugboatReplayController extends ChangeNotifier {
       actionId: _activeActionId,
     );
     final tx = InteractionTransaction(origin: origin, pointerId: pointer);
-    final legacyStream = config.legacyGestureStream;
-    tx.bufferedOutside = target == null
-        ? TugboatEvent(
-            id: _nextId('event'),
-            atMs: startedAtMs,
-            type: 'tap_outside_tree',
-            stream: legacyStream,
-            stateAnchor: beforeState,
-            beforeFrame: beforeFrame,
-            data: {
-              'x': position.dx,
-              'y': position.dy,
-              'pointer': pointer,
-              'interactionId': eventId,
-            },
-          )
-        : null;
-    tx.bufferedTap = TugboatEvent(
-      id: eventId,
-      atMs: startedAtMs,
-      type: 'tap',
-      stream: legacyStream,
-      stateAnchor: beforeState,
-      targetAnchor: target,
-      beforeFrame: beforeFrame,
-      data: {...tapData, 'interactionId': eventId},
-    );
     _interactions.register(tx);
     if (viewportResolution != null && _viewportSemanticMapDebugLogsEnabled) {
       tugboatLogViewportSemanticTapResolution(position, viewportResolution);
@@ -2534,110 +2438,16 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
-  void _emitBufferedTapFromClaim(
-    InteractionTransaction tx, {
-    required String gestureFinal,
-    required String replayRole,
+  /// Retains route evidence until the claimed interaction reaches terminal
+  /// gesture classification.
+  void _attachCauseInteractionEvidence(
+    String? causeEventId, {
+    String? afterFrame,
   }) {
-    if (tx.tapEmitted) return;
-    tx.tapEmitted = true;
-    final emittedAtMs = atMs;
-    final emitLegacy = config.emitLegacyInteractionProjection;
-    final outside = tx.bufferedOutside;
-    if (outside != null) {
-      if (emitLegacy) {
-        _addEvent(
-          outside.copyWith(
-            atMs: emittedAtMs,
-            data: {
-              ...outside.data,
-              'gestureFinal': gestureFinal,
-              'replayRole': replayRole,
-              'sampledAtMs': outside.atMs,
-            },
-          ),
-        );
-      }
-      tx.bufferedOutside = null;
-    }
-    final tap = tx.bufferedTap;
-    if (tap != null) {
-      if (emitLegacy) {
-        _addEvent(
-          tap.copyWith(
-            atMs: emittedAtMs,
-            data: {
-              ...tap.data,
-              'gestureFinal': gestureFinal,
-              'replayRole': replayRole,
-              'sampledAtMs': tap.atMs,
-            },
-          ),
-        );
-      }
-      tx.bufferedTap = null;
-    }
-    _interactions.forgetId(tx.id);
-  }
-
-  /// Promotes a previously published `causal_only` tap once the gesture finalizes
-  /// as a real tap. Patches the in-memory session (and sibling `tap_outside_tree`)
-  /// and emits `tap_gesture_resolved` so already-flushed sinks can promote too.
-  void _promoteCausalTapToInteraction(String tapEventId) {
-    if (!config.emitLegacyInteractionProjection) return;
-    const promotion = <String, Object?>{
-      'gestureFinal': 'tap',
-      'replayRole': 'interaction',
-      'promotedFrom': 'causal_only',
-    };
-    final session = _session;
-    if (session != null) {
-      Object? sampledAtMs;
-      for (var i = 0; i < session.events.length; i++) {
-        final event = session.events[i];
-        if (event.id != tapEventId || event.type != 'tap') continue;
-        sampledAtMs = event.data['sampledAtMs'];
-        session.events[i] = event.withData(promotion);
-        break;
-      }
-      if (sampledAtMs != null) {
-        for (var i = 0; i < session.events.length; i++) {
-          final event = session.events[i];
-          if (event.type != 'tap_outside_tree') continue;
-          if (event.data['sampledAtMs'] != sampledAtMs) continue;
-          if (event.data['replayRole'] != 'causal_only') continue;
-          session.events[i] = event.withData(promotion);
-        }
-      }
-    }
-    _addEvent(
-      TugboatEvent(
-        id: _nextId('event'),
-        atMs: atMs,
-        type: 'tap_gesture_resolved',
-        stream: config.legacyGestureStream,
-        relatedEventId: tapEventId,
-        data: {
-          'gestureFinal': 'tap',
-          'replayRole': 'interaction',
-          'promotesRelatedTap': true,
-          'interactionId': tapEventId,
-        },
-      ),
-    );
-  }
-
-  /// Ensures a route_change causeEventId names a live tap before it is written.
-  void _ensureCauseTapPublished(String? causeEventId) {
     if (causeEventId == null) return;
     final tx = _interactions.byId(causeEventId);
-    if (tx == null || tx.tapEmitted) return;
-    // Still unresolved at route publish time — causal only until gesture ends.
-    _emitBufferedTapFromClaim(
-      tx,
-      gestureFinal: 'unresolved',
-      replayRole: 'causal_only',
-    );
+    if (tx == null) return;
+    if (afterFrame != null) tx.afterFrame = afterFrame;
   }
 
   void _releaseInteractionClaim(InteractionTransaction tx) {
@@ -2652,9 +2462,8 @@ class TugboatReplayController extends ChangeNotifier {
         if (!identical(_interactions.byPointer(pointer), tx)) return;
         tx.sameTurnEligible = false;
         _interactions.removeReleased(pointer);
-        if (!tx.claimed && !tx.tapEmitted) {
+        if (!tx.claimed && !tx.semanticPublished) {
           tx.rejectionReason ??= InteractionRejectionReason.expired;
-          _interactions.forgetId(tx.id);
         }
       });
       return;
@@ -2713,9 +2522,6 @@ class TugboatReplayController extends ChangeNotifier {
       tx.rejectionReason ??= InteractionRejectionReason.expired;
     }
     _interactions.removeReleased(tx.pointerId);
-    if (!tx.claimed && !tx.tapEmitted) {
-      _interactions.forgetId(tx.id);
-    }
   }
 
   void _clearReleasedInteractions({
@@ -2726,19 +2532,7 @@ class TugboatReplayController extends ChangeNotifier {
     _reconciliationSweepScheduled = false;
     for (final tx in _interactions.takeAllReleased()) {
       _finalizeAbandonedTransaction(tx, reason: reason);
-      if (!tx.tapEmitted) {
-        tx.bufferedTap = null;
-        tx.bufferedOutside = null;
-        _interactions.forgetId(tx.id);
-      }
     }
-  }
-
-  void _dropClaimBuffers(InteractionTransaction tx) {
-    tx.cancelled = true;
-    tx.bufferedTap = null;
-    tx.bufferedOutside = null;
-    _interactions.forgetId(tx.id);
   }
 
   /// Ensures every transaction reaches exactly one terminal canonical state.
@@ -2747,33 +2541,20 @@ class TugboatReplayController extends ChangeNotifier {
     required InteractionRejectionReason reason,
   }) {
     if (tx.semanticPublished) return;
+    _clearCausalRouteState(tx.id);
+    _discardScrollCompletionFor(tx);
     tx.cancelled = true;
     tx.rejectionReason ??= reason;
     tx.attribution = InteractionAttribution.none;
     if (!tx.isSwipeOrScroll) {
       tx.gesture = InteractionGesture.cancelled;
     }
-    tx.resultStatus = InteractionResultStatus.cancelled;
-    tx.resultObservedAtMs ??= atMs;
     _publishCanonicalInteraction(tx);
   }
 
-  void _abandonPendingPointer(
-    int pointer, {
-    required String gestureFinal,
-    bool publishClaimedTap = true,
-  }) {
+  void _abandonPendingPointer(int pointer, {required String gestureFinal}) {
     final pending = _interactions.removePending(pointer);
     if (pending == null) return;
-    if (pending.claimed && !pending.tapEmitted && publishClaimedTap) {
-      _emitBufferedTapFromClaim(
-        pending,
-        gestureFinal: gestureFinal,
-        replayRole: 'causal_only',
-      );
-    } else if (!pending.tapEmitted) {
-      _dropClaimBuffers(pending);
-    }
     final reason = switch (gestureFinal) {
       'superseded' => InteractionRejectionReason.claimConsumed,
       'session_end' => InteractionRejectionReason.sessionEnd,
@@ -2782,16 +2563,9 @@ class TugboatReplayController extends ChangeNotifier {
     _finalizeAbandonedTransaction(pending, reason: reason);
   }
 
-  void _abandonAllPendingPointers({
-    bool publishClaimedTap = true,
-    String gestureFinal = 'session_end',
-  }) {
+  void _abandonAllPendingPointers({String gestureFinal = 'session_end'}) {
     for (final pointer in _interactions.takePendingPointers()) {
-      _abandonPendingPointer(
-        pointer,
-        gestureFinal: gestureFinal,
-        publishClaimedTap: publishClaimedTap,
-      );
+      _abandonPendingPointer(pointer, gestureFinal: gestureFinal);
     }
   }
 
@@ -2799,49 +2573,21 @@ class TugboatReplayController extends ChangeNotifier {
     if (!_acceptsPointerInput) return;
     final pending = _interactions.removePending(pointer);
     if (pending != null) {
+      _discardScrollCompletionFor(pending);
       pending.gesture = InteractionGesture.cancelled;
       pending.rejectionReason ??= InteractionRejectionReason.lifecycle;
-      if (pending.claimed) {
-        _emitBufferedTapFromClaim(
-          pending,
-          gestureFinal: 'cancelled',
-          replayRole: 'causal_only',
-        );
-      } else {
-        _dropClaimBuffers(pending);
-      }
-      pending.resultStatus = InteractionResultStatus.cancelled;
-      pending.resultObservedAtMs = atMs;
+      _clearCausalRouteState(pending.id);
       _publishCanonicalInteraction(pending);
     }
     final released = _interactions.removeReleased(pointer);
     if (released != null) {
+      _discardScrollCompletionFor(released);
       released.rejectionReason ??= InteractionRejectionReason.lifecycle;
-      if (!released.tapEmitted) {
-        _interactions.forgetId(released.id);
-      }
       _finalizeAbandonedTransaction(
         released,
         reason: InteractionRejectionReason.lifecycle,
       );
     }
-    _addEvent(
-      TugboatEvent(
-        id: _nextId('event'),
-        atMs: atMs,
-        type: 'pointer_cancel',
-        stream: TugboatEventStream.evidence,
-        stateAnchor: _currentStateAnchor,
-        data: {
-          'x': position.dx,
-          'y': position.dy,
-          'pointer': pointer,
-          if (pending?.claimed == true) 'invalidatesRelatedTap': true,
-          if (pending != null) 'interactionId': pending.id,
-        },
-        relatedEventId: pending?.claimed == true ? pending!.id : null,
-      ),
-    );
     if (!_disposed) notifyListeners();
   }
 
@@ -2849,12 +2595,8 @@ class TugboatReplayController extends ChangeNotifier {
     final pending = _interactions.pendingAt(pointer);
     if (pending != null) {
       pending.markSwipe();
-      // Keep a claimed cause intact so route_change causeEventId stays valid.
-      if (!pending.claimed) {
-        pending.rejectionReason ??=
-            InteractionRejectionReason.gestureReclassified;
-        _dropClaimBuffers(pending);
-      }
+      pending.rejectionReason ??=
+          InteractionRejectionReason.gestureReclassified;
     }
   }
 
@@ -2864,85 +2606,23 @@ class TugboatReplayController extends ChangeNotifier {
     if (pending == null) return;
 
     if (pending.isSwipeOrScroll) {
-      if (pending.claimed) {
-        _emitBufferedTapFromClaim(
-          pending,
-          gestureFinal: 'swipe',
-          replayRole: 'causal_only',
-        );
-      } else {
-        _dropClaimBuffers(pending);
-      }
-      final origin = pending.origin;
-      final delta = position - origin.startPosition;
-      final durationMs = atMs - origin.atMs;
-      final velocity = durationMs > 0
-          ? delta.distance / (durationMs / 1000)
-          : 0.0;
       final scrollStartEventId = pending.scrollStartEventIds.isNotEmpty
           ? pending.scrollStartEventIds.first
           : null;
       final scrolled = scrollStartEventId != null;
-      final tapWasEmitted = pending.tapEmitted;
       pending.gesture = scrolled
           ? InteractionGesture.scroll
           : InteractionGesture.swipe;
-      pending.resultStatus = scrolled
-          ? InteractionResultStatus.changed
-          : InteractionResultStatus.unchanged;
-      pending.resultObservedAtMs = atMs;
-      if (scrollStartEventId != null) pending.addEvidence(scrollStartEventId);
-      if (config.emitLegacyInteractionProjection) {
-        _addEvent(
-          TugboatEvent(
-            id: _nextId('event'),
-            atMs: atMs,
-            type: 'swipe',
-            stream: config.legacyGestureStream,
-            // R1: freeze to the origin state anchor rather than a live refresh.
-            stateAnchor: origin.stateAnchor,
-            targetAnchor: origin.targetAnchor,
-            beforeFrame: origin.beforeFrame,
-            relatedEventId: tapWasEmitted ? pending.id : null,
-            result: scrolled
-                ? TugboatInteractionResult.changed
-                : TugboatInteractionResult.noVisibleChange,
-            data: {
-              'x': position.dx,
-              'y': position.dy,
-              'startX': origin.startPosition.dx,
-              'startY': origin.startPosition.dy,
-              'deltaX': delta.dx,
-              'deltaY': delta.dy,
-              'direction': tugboatSwipeDirection(delta),
-              'distance': delta.distance,
-              'velocity': velocity,
-              'durationMs': durationMs,
-              'scrolled': scrolled,
-              'startCaptureCoordinate': origin.captureCoordinate.toJson(),
-              if (tapWasEmitted) 'invalidatesRelatedTap': true,
-              if (scrollStartEventId != null)
-                'scrollStartEventId': scrollStartEventId,
-              'interactionId': pending.id,
-            },
-          ),
-        );
+      pending.endPosition = position;
+      _clearCausalRouteState(pending.id);
+      if (scrollStartEventId == null) {
+        _publishCompletedGestureAfterCapture(pending);
+      } else {
+        _scrollInteractions[scrollStartEventId] = pending;
+        _publishResolvedScrollInteraction(scrollStartEventId);
       }
-      _publishCanonicalInteraction(pending);
       if (!_disposed) notifyListeners();
       return;
-    }
-
-    if (!pending.tapEmitted) {
-      _emitBufferedTapFromClaim(
-        pending,
-        gestureFinal: 'tap',
-        replayRole: 'interaction',
-      );
-    } else if (pending.claimed) {
-      // Route already published a causal-only tap; promote it for consumers that
-      // filter causal_only, and patch the in-memory event when still present.
-      _promoteCausalTapToInteraction(pending.id);
     }
 
     // Keep the single-use claim alive through the pointer-up turn so sync
@@ -2991,26 +2671,76 @@ class TugboatReplayController extends ChangeNotifier {
       // while this tap is waiting to settle is independent evidence: joining
       // it would incorrectly copy its destination frame and route event ID
       // onto the tap.
-      final currentRouteCapture = _activeRouteCapture;
-      final routeCapture =
+      final interactionRouteEpoch = pending.origin.routeEpoch;
+      final interactionRoute = pending.origin.route;
+      var currentRouteCapture = _activeRouteCapture;
+      var routeCapture =
           initialRouteCapture ??
           (currentRouteCapture?.change.causeEventId == pending.id
               ? currentRouteCapture
-              : null);
+              : _causalRouteCaptures[pending.id]);
+      if (routeCapture == null && config.settleDelay <= Duration.zero) {
+        // Flutter delivers some gesture callbacks, such as ModalBarrier
+        // dismissal, after pointer-up. Yield one microtask before starting a
+        // standalone screenshot so a synchronous route claim can own its
+        // forced route frame without leaving a pending timer in widget tests.
+        await Future<void>.microtask(() {});
+        if (!_isActiveTapSettle(work)) return;
+        currentRouteCapture = _activeRouteCapture;
+        routeCapture = currentRouteCapture?.change.causeEventId == pending.id
+            ? currentRouteCapture
+            : _causalRouteCaptures[pending.id];
+      }
       _TapSettleObservation observation;
       if (routeCapture != null) {
+        _causalRouteCaptures.remove(pending.id);
         final routeBarrier = await _awaitRouteCaptureBarrier(
           routeCapture,
           expectedCauseEventId: pending.id,
         );
         if (!_isActiveTapSettle(work)) return;
-        observation = _tapObservationFromRouteBarrier(routeBarrier);
+        // The route capture is a forced fresh frame and belongs to this
+        // claimed interaction. Reuse it here instead of scheduling a second
+        // interaction capture that can delay later route ownership.
+        final barrierWasSupersededByAutomatic =
+            routeBarrier.result.outcome == _RouteCaptureOutcome.cancelled &&
+            routeBarrier.work.change.causeEventId == pending.id &&
+            routeBarrier.work.supersededBy?.change.causeEventId != pending.id;
+        if (barrierWasSupersededByAutomatic) {
+          // The claimed route never produced a valid frame. Preserve the
+          // interaction capture attempt, but never attach the automatic
+          // successor's pixels or route event as this tap's evidence.
+          final capture = _requestCaptureCancellable(
+            trigger: TugboatFrameTrigger.interaction,
+            force: true,
+            settleDelay: Duration.zero,
+            relatedEventId: pending.id,
+          );
+          work.attachCaptureCancellation((reason) => capture.cancel(reason));
+          final captureResolution = await capture.resolution;
+          if (!_isActiveTapSettle(work)) return;
+          observation = _TapSettleObservation(
+            routeEpoch: _routeEpoch,
+            route: _currentRoute,
+            afterFrame: null,
+            navigationOutcome: 'navigation_unavailable',
+            captureOutcome: 'superseded_route_epoch',
+            captureFailure: 'superseded_route_epoch',
+            captureRequestId: captureResolution.requestId,
+          );
+        } else {
+          observation = _tapObservationFromRouteBarrier(routeBarrier);
+        }
       } else {
         final requestedRouteEpoch = _routeEpoch;
         final requestedRoute = _currentRoute;
-        final semanticAfterState = _snapshotStateAnchor(_refreshStateAnchor());
+        final routeChangedFromOrigin =
+            requestedRouteEpoch != interactionRouteEpoch ||
+            requestedRoute != interactionRoute ||
+            _causalRouteSupersededInteractions.contains(pending.id);
         final capture = _requestCaptureCancellable(
-          trigger: TugboatFrameTrigger.tap,
+          trigger: TugboatFrameTrigger.interaction,
+          force: true,
           settleDelay: Duration.zero,
           relatedEventId: pending.id,
         );
@@ -3021,18 +2751,25 @@ class TugboatReplayController extends ChangeNotifier {
         final provenance = afterFrame == null
             ? null
             : _frameProvenance[afterFrame];
-        final compatibleFrame =
+        // A standalone interaction capture belongs to the immutable
+        // pointer-down route epoch. A later automatic route can be a useful
+        // visual successor, but it cannot supply this interaction's evidence.
+        final frameMatchesOrigin =
             afterFrame != null &&
             provenance != null &&
-            provenance.context.routeEpoch == requestedRouteEpoch &&
-            provenance.context.route == requestedRoute;
+            provenance.context.routeEpoch == interactionRouteEpoch &&
+            provenance.context.route == interactionRoute;
         final replacementRoute = _activeRouteCapture;
         final replacementIsCausal =
             replacementRoute?.change.causeEventId == pending.id;
         final replacementIsSafeVisualSuccessor =
             replacementRoute != null &&
             _pointerGeneration == pending.origin.pointerGeneration;
-        if (!compatibleFrame &&
+        final captureWasSuperseded =
+            routeChangedFromOrigin ||
+            (!frameMatchesOrigin &&
+                captureResolution.outcome == _CaptureOutcome.supersededRoute);
+        if (!frameMatchesOrigin &&
             replacementRoute != null &&
             replacementRoute.epoch != requestedRouteEpoch &&
             (replacementIsCausal || replacementIsSafeVisualSuccessor)) {
@@ -3041,24 +2778,45 @@ class TugboatReplayController extends ChangeNotifier {
             expectedCauseEventId: replacementIsCausal ? pending.id : null,
           );
           if (!_isActiveTapSettle(work)) return;
-          observation = _tapObservationFromRouteBarrier(
+          final successor = _tapObservationFromRouteBarrier(
             routeBarrier,
             navigationOutcome: replacementIsCausal
                 ? 'navigated'
                 : 'visual_successor',
           );
+          // The interaction request belongs to the old route epoch. Do not
+          // attach the successor route frame as its after-frame.
+          observation = _TapSettleObservation(
+            routeEpoch: successor.routeEpoch,
+            route: successor.route,
+            afterFrame: null,
+            navigationOutcome: successor.navigationOutcome,
+            captureOutcome: replacementIsCausal
+                ? captureResolution.outcome.wireName
+                : 'superseded_route_epoch',
+            captureFailure: replacementIsCausal
+                ? captureResolution.outcome.wireName
+                : 'superseded_route_epoch',
+            routeEventId: replacementIsCausal ? successor.routeEventId : null,
+            captureRequestId: captureResolution.requestId,
+          );
         } else {
           observation = _TapSettleObservation(
             routeEpoch: requestedRouteEpoch,
             route: requestedRoute,
-            afterState: compatibleFrame
-                ? _stateObservedWithFrame(afterFrame)
-                : semanticAfterState,
-            afterFrame: compatibleFrame ? afterFrame : null,
+            afterFrame: frameMatchesOrigin && !routeChangedFromOrigin
+                ? afterFrame
+                : null,
             navigationOutcome: 'same_route',
-            captureOutcome: compatibleFrame ? 'captured' : 'failed',
-            captureFailure: compatibleFrame
+            captureOutcome: frameMatchesOrigin && !routeChangedFromOrigin
+                ? 'captured'
+                : captureWasSuperseded
+                ? 'superseded_route_epoch'
+                : 'failed',
+            captureFailure: frameMatchesOrigin && !routeChangedFromOrigin
                 ? null
+                : captureWasSuperseded
+                ? 'superseded_route_epoch'
                 : captureResolution.outcome.wireName,
             captureRequestId: captureResolution.requestId,
           );
@@ -3066,129 +2824,9 @@ class TugboatReplayController extends ChangeNotifier {
       }
       Future<void> writeSettle() async {
         if (!_isActiveTapSettle(work)) return;
-        final origin = pending.origin;
-        final beforeState = origin.stateAnchor;
-        final beforeFrame = origin.beforeFrame;
-        final tapEventId = pending.id;
-        final tapTargetAnchor = origin.targetAnchor;
-        // Never read mutable controller state here: later route/capture work
-        // may have advanced while this task waited on the serialized queue.
-        final afterState = observation.afterState;
         final afterFrame = observation.afterFrame;
-        final result = _computeTapSettleResult(
-          beforeState: beforeState,
-          afterState: afterState,
-          beforeFrame: beforeFrame,
-          afterFrame: afterFrame,
-          targetAnchor: tapTargetAnchor,
-          causallyClaimed: pending.claimed,
-          navigationOutcome: observation.navigationOutcome,
-          degraded: observation.isDegraded,
-        );
-        final beforeSignature = beforeState?.signature;
-        final afterSignature = afterState?.signature;
-        final semanticAvailable =
-            beforeSignature?.isNotEmpty == true &&
-            afterSignature?.isNotEmpty == true;
-        final semanticChanged = semanticAvailable
-            ? beforeSignature != afterSignature
-            : null;
-        final beforeContentHash = beforeFrame == null
-            ? null
-            : _frameContentHash(beforeFrame);
-        final afterContentHash = afterFrame == null
-            ? null
-            : _frameContentHash(afterFrame);
-        final visualAvailable =
-            beforeContentHash != null && afterContentHash != null;
-        final visualChanged = visualAvailable
-            ? beforeContentHash != afterContentHash
-            : null;
-
-        if (config.emitLegacyInteractionProjection) {
-          _addEvent(
-            TugboatEvent(
-              id: _nextId('event'),
-              atMs: atMs,
-              type: 'tap_settled',
-              stream: config.legacyGestureStream,
-              stateAnchor: afterState,
-              targetAnchor: tapTargetAnchor,
-              beforeFrame: beforeFrame,
-              afterFrame: afterFrame,
-              result: result,
-              relatedEventId: tapEventId,
-              data: {
-                'x': position.dx,
-                'y': position.dy,
-                'interactionId': tapEventId,
-                'settleObservation': {
-                  'version': 1,
-                  'routeEpoch': observation.routeEpoch,
-                  if (observation.route != null) 'route': observation.route,
-                  'navigationOutcome': observation.navigationOutcome,
-                  'captureOutcome': observation.captureOutcome,
-                  if (observation.captureFailure != null)
-                    'captureFailure': observation.captureFailure,
-                  if (observation.routeEventId != null)
-                    'routeEventId': observation.routeEventId,
-                  if (observation.captureRequestId != null)
-                    'captureRequestId': observation.captureRequestId,
-                  'semantic': {
-                    'changed': semanticChanged,
-                    'evidence': semanticAvailable
-                        ? 'state_signature'
-                        : 'unavailable',
-                    'reason': semanticChanged == null
-                        ? 'unavailable'
-                        : semanticChanged
-                        ? 'state_signature_changed'
-                        : 'same_signature',
-                  },
-                  'visual': {
-                    'changed': visualChanged,
-                    'evidence': visualAvailable
-                        ? 'content_hash'
-                        : 'unavailable',
-                    'reason': visualChanged == null
-                        ? 'unavailable'
-                        : visualChanged
-                        ? 'frame_changed'
-                        : 'same_frame',
-                  },
-                },
-                if (afterFrame == null)
-                  'frameAttachment': {
-                    'after': 'unavailable',
-                    'reason':
-                        observation.captureFailure ??
-                        observation.captureOutcome,
-                  },
-              },
-            ),
-          );
-        }
-        _maybeEmitStateChange(
-          beforeState: beforeState,
-          afterState: afterState,
-          beforeFrame: beforeFrame,
-          afterFrame: afterFrame,
-          causingTx: pending,
-        );
-
         pending.gesture = InteractionGesture.tap;
-        pending.resultStatus = InteractionResultStatus.fromSettle(
-          result: result,
-          navigationOutcome: observation.navigationOutcome,
-          degraded: observation.isDegraded,
-        );
         pending.afterFrame = afterFrame;
-        pending.resultStateAnchor = afterState;
-        pending.resultRoute = observation.route;
-        pending.resultObservedAtMs = atMs;
-        if (observation.routeEventId != null) {
-          pending.addEvidence(observation.routeEventId!);
-        }
         _publishCanonicalInteraction(pending);
 
         if (!_disposed) notifyListeners();
@@ -3201,13 +2839,16 @@ class TugboatReplayController extends ChangeNotifier {
         try {
           await writeSettle();
         } catch (error, stackTrace) {
-          debugPrint('[tugboat] tap_settled failed: $error\n$stackTrace');
+          debugPrint(
+            '[tugboat] interaction settle failed: $error\n$stackTrace',
+          );
         }
       } else {
-        await _enqueue('tap_settled', writeSettle);
+        await _enqueue('interaction_settle', writeSettle);
       }
     } finally {
       _activeTapSettles.remove(work);
+      _clearCausalRouteState(pending.id);
       work.complete();
     }
   }
@@ -3236,9 +2877,6 @@ class TugboatReplayController extends ChangeNotifier {
     return _TapSettleObservation(
       routeEpoch: settledRoute.epoch,
       route: settledRoute.change.destinationRoute,
-      afterState: validFrame
-          ? _stateObservedWithFrame(frameId)
-          : routeResult.stateAnchor,
       afterFrame: validFrame ? frameId : null,
       navigationOutcome: validFrame
           ? navigationOutcome
@@ -3261,99 +2899,137 @@ class TugboatReplayController extends ChangeNotifier {
     _activeTapSettles.clear();
   }
 
-  TugboatInteractionResult _computeTapSettleResult({
-    required TugboatStateAnchor? beforeState,
-    required TugboatStateAnchor? afterState,
-    required String? beforeFrame,
-    required String? afterFrame,
-    TugboatTargetAnchor? targetAnchor,
-    bool causallyClaimed = false,
-    String navigationOutcome = 'same_route',
-    bool degraded = false,
-  }) {
-    if (degraded) return TugboatInteractionResult.unknown;
-    if (navigationOutcome == 'navigated') {
-      return TugboatInteractionResult.navigated;
-    }
-    final beforeSig = beforeState?.signature ?? '';
-    final afterSig = afterState?.signature ?? '';
-    if (beforeSig.isNotEmpty && afterSig.isNotEmpty && beforeSig != afterSig) {
-      return TugboatInteractionResult.changed;
-    }
-    // Animated/loading surfaces can repaint independently of the pointer. If
-    // the resolved origin exposes no tap action, a pixel-only difference is
-    // ambient evidence and must not turn an empty-area tap into a successful
-    // interaction. Navigation and structural state changes still win above.
-    if (!causallyClaimed &&
-        (targetAnchor == null || !targetAnchor.actions.contains('tap'))) {
-      return TugboatInteractionResult.noVisibleChange;
-    }
-    if (_framesVisuallyDifferent(beforeFrame, afterFrame)) {
-      return TugboatInteractionResult.changed;
-    }
-    final beforeHash = beforeFrame == null
-        ? null
-        : _frameContentHash(beforeFrame);
-    final afterHash = afterFrame == null ? null : _frameContentHash(afterFrame);
-    if (beforeSig.isNotEmpty &&
-        afterSig.isNotEmpty &&
-        beforeHash != null &&
-        afterHash != null) {
-      return TugboatInteractionResult.noVisibleChange;
-    }
-    return TugboatInteractionResult.unknown;
-  }
-
-  bool _framesVisuallyDifferent(String? beforeFrame, String? afterFrame) {
-    if (beforeFrame == null || afterFrame == null) return false;
-    final beforeHash = _frameContentHash(beforeFrame);
-    final afterHash = _frameContentHash(afterFrame);
-    return beforeHash != null && afterHash != null && beforeHash != afterHash;
-  }
-
-  String? _frameContentHash(String frameId) {
-    return _session?.frameById(frameId)?.contentHash;
-  }
-
-  void _linkScrollStartToActiveGestures(String scrollStartEventId) {
+  bool _linkScrollStartToActiveGestures(String scrollStartEventId) {
+    // A ScrollNotification does not identify a pointer. Give it one stable
+    // owner so a shared start ID cannot make pointer-up transactions replace
+    // each other in _scrollInteractions. Other active pointers remain swipes
+    // and receive their own interaction captures.
     for (final tx in _interactions.pending) {
       if (!tx.scrollStartEventIds.contains(scrollStartEventId)) {
         tx.scrollStartEventIds.add(scrollStartEventId);
       }
-      tx.addEvidence(scrollStartEventId);
+      return true;
     }
+    return false;
   }
 
   void _publishCanonicalInteraction(InteractionTransaction tx) {
     if (tx.semanticPublished) return;
-    if (!config.emitCanonicalInteractions) return;
     tx.semanticPublished = true;
     _addEvent(
       TugboatEvent(
-        id: _nextId('event'),
-        atMs: atMs,
+        id: tx.id,
+        atMs: tx.origin.atMs,
         type: 'interaction',
-        stateAnchor: tx.origin.stateAnchor,
-        targetAnchor: tx.origin.targetAnchor,
+        stream: TugboatEventStream.semantic,
         beforeFrame: tx.origin.beforeFrame,
         afterFrame: tx.afterFrame,
-        result:
-            tx.resultStatus?.asEventResult ?? TugboatInteractionResult.unknown,
-        data: {
-          'interactionId': tx.id,
-          'interactionSchema': tugboatInteractionSchemaVersion,
-          'gesture': tx.gesture.name,
-          'origin': tx.origin.toJson(),
-          'result': tx.resultToJson(),
-          'attribution': tx.attributionToJson(
-            windowMs: config.interactionClaimWindow.inMilliseconds,
-          ),
-          'evidenceEventIds': List<String>.from(tx.evidenceEventIds),
-        },
+        data: buildInteractionV2Payload(tx),
         explorationRunId: tx.origin.explorationRunId,
         actionId: tx.origin.actionId,
       ),
     );
+    _interactions.forgetId(tx.id);
+  }
+
+  void _clearCausalRouteState(String interactionId) {
+    _causalRouteCaptures.remove(interactionId);
+    _causalRouteSupersededInteractions.remove(interactionId);
+  }
+
+  void _clearScrollCompletionState() {
+    _scrollTrackers.clear();
+    _scrollInteractions.clear();
+    _pendingScrollCompletions.clear();
+  }
+
+  void _finalizeScrollCompletionInteractions(
+    InteractionRejectionReason reason,
+  ) {
+    final transactions = _scrollInteractions.values.toSet();
+    for (final tx in transactions) {
+      _finalizeAbandonedTransaction(tx, reason: reason);
+    }
+  }
+
+  void _finalizeActiveCompletedGestureCaptures(
+    InteractionRejectionReason reason,
+  ) {
+    for (final tx in List<InteractionTransaction>.from(
+      _activeCompletedGestureCaptures,
+    )) {
+      tx.afterFrame = null;
+      tx.rejectionReason = reason;
+      _finalizeAbandonedTransaction(tx, reason: reason);
+    }
+    _activeCompletedGestureCaptures.clear();
+  }
+
+  void _discardScrollCompletionFor(InteractionTransaction tx) {
+    for (final scrollStartEventId in tx.scrollStartEventIds) {
+      _scrollInteractions.remove(scrollStartEventId);
+      _pendingScrollCompletions.remove(scrollStartEventId);
+      for (final tracker in _scrollTrackers.values) {
+        if (tracker.startEventId == scrollStartEventId) {
+          tracker.pointerLinked = false;
+        }
+      }
+    }
+  }
+
+  void _applyScrollMetricsToInteraction(
+    _ScrollTracker tracker,
+    ScrollMetrics metrics,
+  ) {
+    final interaction = _scrollInteractions[tracker.startEventId];
+    if (interaction == null) return;
+    interaction.scrollStartOffset = tracker.startOffset;
+    interaction.scrollEndOffset = metrics.pixels;
+    interaction.overscrollCount = tracker.overscrollCount;
+    interaction.scrollTargetAnchor = tracker.targetAnchor;
+  }
+
+  void _publishResolvedScrollInteraction(String scrollStartEventId) {
+    final completion = _pendingScrollCompletions[scrollStartEventId];
+    final interaction = _scrollInteractions[scrollStartEventId];
+    if (completion == null || interaction == null || !completion.resolved) {
+      return;
+    }
+    interaction.afterFrame = completion.afterFrame;
+    _publishCanonicalInteraction(interaction);
+    _scrollInteractions.remove(scrollStartEventId);
+    _pendingScrollCompletions.remove(scrollStartEventId);
+  }
+
+  /// A completed swipe or scroll gets its own fresh after-frame. Interaction
+  /// requests never coalesce, and fresh-paint capture cannot reuse a content
+  /// hash or perceptual hash frame.
+  void _publishCompletedGestureAfterCapture(InteractionTransaction tx) {
+    final session = _session;
+    final lifecycleEpoch = _captureLifecycleEpoch;
+    _activeCompletedGestureCaptures.add(tx);
+    unawaited(() async {
+      try {
+        final capture = _requestCaptureCancellable(
+          trigger: TugboatFrameTrigger.interaction,
+          force: true,
+          settleDelay: Duration.zero,
+          relatedEventId: tx.id,
+        );
+        final resolution = await capture.resolution;
+        if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch)) return;
+        tx.afterFrame = resolution.outcome == _CaptureOutcome.freshAccepted
+            ? resolution.frameId
+            : null;
+        await _enqueue('interaction_after_capture', () async {
+          if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch)) return;
+          _publishCanonicalInteraction(tx);
+          if (!_disposed) notifyListeners();
+        });
+      } finally {
+        _activeCompletedGestureCaptures.remove(tx);
+      }
+    }());
   }
 
   Element? _scrollableElementFor(BuildContext? context) {
@@ -3383,39 +3059,6 @@ class TugboatReplayController extends ChangeNotifier {
 
   String? _sectionLabelFor(Element scrollableElement) {
     return _anchorResolver?.subViewLabelFor(scrollableElement);
-  }
-
-  Map<String, Object?> _scrollEventData({
-    required ScrollMetrics metrics,
-    required int depth,
-    required _ScrollTracker tracker,
-    double? endOffset,
-    int? durationMs,
-    int? overscrollCount,
-  }) {
-    final data = tugboatScrollMetricsData(metrics)
-      ..['depth'] = depth
-      ..['startOffset'] = tracker.startOffset;
-    if (endOffset != null) {
-      data['endOffset'] = endOffset;
-    }
-    if (durationMs != null) {
-      data['durationMs'] = durationMs;
-    }
-    if (tracker.pageStart != null) {
-      data['pageStart'] = tracker.pageStart;
-      if (metrics is PageMetrics) {
-        data['pageEnd'] = metrics.page;
-      }
-    }
-    if (tracker.sectionLabel != null) {
-      data['sectionLabel'] = tracker.sectionLabel;
-    }
-    if (overscrollCount != null && overscrollCount > 0) {
-      data['overscrollCount'] = overscrollCount;
-    }
-    data.addAll(tugboatScrollEdgeData(metrics));
-    return data;
   }
 
   TugboatViewportSemanticScrollContext _scrollSemanticContext({
@@ -3457,12 +3100,10 @@ class TugboatReplayController extends ChangeNotifier {
     if (scrollableElement == null) return;
     if (_scrollTrackers.containsKey(scrollableElement)) return;
 
-    _refreshStateAnchor();
     final targetAnchor = _resolveScrollableAnchor(scrollableElement);
     final sectionLabel = _sectionLabelFor(scrollableElement);
     final attachmentContext = _captureContext(TugboatFrameTrigger.scroll);
     final beforeFrame = _compatibleFrameFor(attachmentContext);
-    final unavailableReason = _unavailableAttachmentReason(attachmentContext);
     final startEventId = _nextId('event');
     final pageStart = metrics is PageMetrics ? metrics.page : null;
 
@@ -3472,13 +3113,13 @@ class TugboatReplayController extends ChangeNotifier {
       startedAtMs: atMs,
       startOffset: metrics.pixels,
       routeEpoch: _routeEpoch,
-      startState: _snapshotStateAnchor(_currentStateAnchor),
       beforeFrame: beforeFrame,
       targetAnchor: targetAnchor,
       sectionLabel: sectionLabel,
       axis: metrics.axis.name,
       depth: depth,
       maxScrollExtent: metrics.maxScrollExtent,
+      pointerLinked: false,
       pageStart: pageStart,
     );
     _scrollTrackers[scrollableElement] = tracker;
@@ -3500,25 +3141,6 @@ class TugboatReplayController extends ChangeNotifier {
       _trimScrollSamples();
     }
 
-    _addEvent(
-      TugboatEvent(
-        id: startEventId,
-        atMs: atMs,
-        type: 'scroll_start',
-        stream: TugboatEventStream.evidence,
-        stateAnchor: _currentStateAnchor,
-        targetAnchor: targetAnchor,
-        beforeFrame: beforeFrame,
-        data: {
-          ..._scrollEventData(metrics: metrics, depth: depth, tracker: tracker),
-          if (unavailableReason != null)
-            'frameAttachment': {
-              'before': 'unavailable',
-              'reason': unavailableReason,
-            },
-        },
-      ),
-    );
     _maybeEmitSceneInventory(
       scrollContext: _scrollSemanticContext(
         trigger: 'scroll_start',
@@ -3526,7 +3148,7 @@ class TugboatReplayController extends ChangeNotifier {
         tracker: tracker,
       ),
     );
-    _linkScrollStartToActiveGestures(startEventId);
+    tracker.pointerLinked = _linkScrollStartToActiveGestures(startEventId);
     if (!_disposed) notifyListeners();
   }
 
@@ -3600,52 +3222,69 @@ class TugboatReplayController extends ChangeNotifier {
     final captureSession = _session;
     final captureLifecycleEpoch = _captureLifecycleEpoch;
 
+    if (!tracker.pointerLinked) {
+      // Programmatic scrolls retain evidence, but do not manufacture an
+      // interaction capture or bypass local-WebSocket suppression.
+      _enqueue('scroll_end', () async {
+        if (!_isCaptureLifecycleCurrent(
+          captureSession,
+          captureLifecycleEpoch,
+        )) {
+          return;
+        }
+        _maybeEmitSceneInventory(
+          scrollContext: _scrollSemanticContext(
+            trigger: 'scroll_end',
+            metrics: metrics,
+            tracker: tracker,
+            endOffset: metrics.pixels,
+          ),
+        );
+        if (!_disposed) notifyListeners();
+      });
+      return;
+    }
+
+    final completion = _PendingScrollCompletion();
+    _pendingScrollCompletions[tracker.startEventId] = completion;
+
     _enqueue('scroll_end', () async {
       if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
         return;
       }
       if (tracker.routeEpoch != _routeEpoch) {
-        // A navigator transition won the race with pointer-up. Capturing now
-        // would attribute the destination's pixels to the completed scroll on
-        // the previous route, so retain the scroll boundary as explicitly
-        // degraded evidence instead of queuing a cross-route capture.
-        _addEvent(
-          TugboatEvent(
-            id: _nextId('event'),
-            atMs: atMs,
-            type: 'scroll_end',
-            stream: TugboatEventStream.evidence,
-            stateAnchor: tracker.startState,
-            targetAnchor: tracker.targetAnchor,
-            beforeFrame: tracker.beforeFrame,
-            relatedEventId: tracker.startEventId,
-            data: {
-              ..._scrollEventData(
-                metrics: metrics,
-                depth: tracker.depth,
-                tracker: tracker,
-                endOffset: metrics.pixels,
-                durationMs: atMs - tracker.startedAtMs,
-                overscrollCount: tracker.overscrollCount,
-              ),
-              'captureOutcome': 'superseded_route_epoch',
-              'frameAttachment': {
-                'after': 'unavailable',
-                'reason': 'superseded_route_epoch',
-              },
-            },
-          ),
+        // Do make the interaction capture attempt. Do not attach its frame:
+        // it now depicts the automatic successor route, not the scroll route.
+        final afterCapture = _requestCaptureCancellable(
+          trigger: TugboatFrameTrigger.interaction,
+          force: true,
+          relatedEventId: tracker.startEventId,
         );
+        await afterCapture.resolution;
+        if (!_isCaptureLifecycleCurrent(
+          captureSession,
+          captureLifecycleEpoch,
+        )) {
+          return;
+        }
+        _applyScrollMetricsToInteraction(tracker, metrics);
+        completion
+          ..captureOutcome = 'superseded_route_epoch'
+          ..resolved = true;
+        _publishResolvedScrollInteraction(tracker.startEventId);
         if (!_disposed) notifyListeners();
         return;
       }
       final afterCapture = _requestCaptureCancellable(
-        trigger: TugboatFrameTrigger.scroll,
+        trigger: TugboatFrameTrigger.interaction,
         force: true,
         relatedEventId: tracker.startEventId,
       );
       final afterResolution = await afterCapture.resolution;
-      final afterFrame = afterResolution.frameId;
+      final afterFrame =
+          afterResolution.outcome == _CaptureOutcome.freshAccepted
+          ? afterResolution.frameId
+          : null;
       if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
         return;
       }
@@ -3670,37 +3309,12 @@ class TugboatReplayController extends ChangeNotifier {
           endOffset: metrics.pixels,
         ),
       );
-      _addEvent(
-        TugboatEvent(
-          id: _nextId('event'),
-          atMs: atMs,
-          type: 'scroll_end',
-          stream: TugboatEventStream.evidence,
-          stateAnchor:
-              _stateObservedWithFrame(afterFrame) ?? _refreshStateAnchor(),
-          targetAnchor: tracker.targetAnchor,
-          beforeFrame: tracker.beforeFrame,
-          afterFrame: afterFrame,
-          relatedEventId: tracker.startEventId,
-          data: {
-            ..._scrollEventData(
-              metrics: metrics,
-              depth: tracker.depth,
-              tracker: tracker,
-              endOffset: metrics.pixels,
-              durationMs: atMs - tracker.startedAtMs,
-              overscrollCount: tracker.overscrollCount,
-            ),
-            'captureRequestId': afterResolution.requestId,
-            'captureOutcome': afterResolution.outcome.wireName,
-            if (afterFrame == null)
-              'frameAttachment': {
-                'after': 'unavailable',
-                'reason': afterResolution.outcome.wireName,
-              },
-          },
-        ),
-      );
+      _applyScrollMetricsToInteraction(tracker, metrics);
+      completion
+        ..afterFrame = afterFrame
+        ..captureOutcome = afterResolution.outcome.wireName
+        ..resolved = true;
+      _publishResolvedScrollInteraction(tracker.startEventId);
       if (!_disposed) notifyListeners();
     });
   }
@@ -3760,11 +3374,23 @@ class TugboatReplayController extends ChangeNotifier {
       change: change,
       deadline:
           transition.transitionDuration +
-          (_shouldSuppressFrameCapture ? Duration.zero : config.settleDelay),
+          (_shouldSuppressFrameCapture && change.causeEventId == null
+              ? Duration.zero
+              : config.settleDelay),
     );
     _activeRouteCaptures[captureKey] = work;
     _latestRouteCaptureKey = captureKey;
     prior?.supersededBy = work;
+    final priorCauseEventId = prior?.change.causeEventId;
+    if (priorCauseEventId != null && priorCauseEventId != change.causeEventId) {
+      // A later, unclaimed route superseded this interaction's route. It is
+      // independent evidence and cannot supply the interaction's after-frame.
+      _causalRouteCaptures.remove(priorCauseEventId);
+      _causalRouteSupersededInteractions.add(priorCauseEventId);
+    }
+    if (change.causeEventId != null) {
+      _causalRouteCaptures[change.causeEventId!] = work;
+    }
     _skipCapture = transition.transitionDuration > Duration.zero;
     _startRouteBarrierTimeout(work);
     // Wake a reconciliation-pending settle only after this capture is visible
@@ -3820,11 +3446,15 @@ class TugboatReplayController extends ChangeNotifier {
 
   void _cancelActiveRouteCapture([String reason = 'manual']) {
     if (_activeRouteCaptures.isEmpty) {
+      _causalRouteCaptures.clear();
+      _causalRouteSupersededInteractions.clear();
       _skipCapture = false;
       return;
     }
     final active = List<_RouteCaptureWork>.from(_activeRouteCaptures.values);
     _activeRouteCaptures.clear();
+    _causalRouteCaptures.clear();
+    _causalRouteSupersededInteractions.clear();
     _latestRouteCaptureKey = null;
     _advanceCaptureGeneration();
     for (final work in active) {
@@ -3875,23 +3505,20 @@ class TugboatReplayController extends ChangeNotifier {
       }
     }
     _skipCapture = false;
-    final observedState = _snapshotStateAnchor(_refreshStateAnchor());
     final routeEventId = _nextId('event');
     // This must not enqueue behind the blocked task that caused the timeout.
     // Dart's single isolate means the session mutation is still atomic with
     // respect to the next event-loop turn.
-    _ensureCauseTapPublished(change.causeEventId);
+    _attachCauseInteractionEvidence(change.causeEventId);
     _emitRouteChange(
       routeEventId: routeEventId,
       change: change,
-      stateAnchor: observedState,
       result: TugboatInteractionResult.unknown,
       extraData: const {'captureOutcome': 'timed_out'},
     );
     work.complete(
       _RouteCaptureResult(
         _RouteCaptureOutcome.timedOut,
-        stateAnchor: observedState,
         routeEventId: routeEventId,
       ),
     );
@@ -3902,7 +3529,6 @@ class TugboatReplayController extends ChangeNotifier {
   void _emitRouteChange({
     required String routeEventId,
     required _VisibleRouteChange change,
-    required TugboatStateAnchor? stateAnchor,
     required TugboatInteractionResult result,
     String? afterFrame,
     Map<String, Object?> extraData = const <String, Object?>{},
@@ -3913,7 +3539,6 @@ class TugboatReplayController extends ChangeNotifier {
         atMs: atMs,
         type: 'route_change',
         stream: TugboatEventStream.evidence,
-        stateAnchor: stateAnchor,
         afterFrame: afterFrame,
         result: result,
         data: {
@@ -3943,7 +3568,6 @@ class TugboatReplayController extends ChangeNotifier {
 
   Future<void> _finalizeRouteCapture(_RouteCaptureWork work) async {
     String? afterFrame;
-    TugboatStateAnchor? observedState;
     String? routeEventId;
     String? captureFailure;
     String? captureRequestId;
@@ -3956,10 +3580,10 @@ class TugboatReplayController extends ChangeNotifier {
         _currentNavigatorId = change.navigatorId;
         _currentRouteInstanceId = change.routeInstanceId;
       }
-      _refreshStateAnchor();
       final capture = _requestCaptureCancellable(
         trigger: TugboatFrameTrigger.route,
         force: true,
+        bypassExplorationSuppression: change.causeEventId != null,
         // The route deadline already includes the configured post-route
         // settle. Scheduling it again here would delay capture twice and can
         // strand widget-backed callers waiting for route completion.
@@ -3972,13 +3596,11 @@ class TugboatReplayController extends ChangeNotifier {
         if (!_isActiveRouteCapture(work)) return;
         outcome = _RouteCaptureOutcome.failed;
         captureFailure = _lastCaptureFailure?.name;
-        observedState = _snapshotStateAnchor(_currentStateAnchor);
         routeEventId = _nextId('event');
-        _ensureCauseTapPublished(change.causeEventId);
+        _attachCauseInteractionEvidence(change.causeEventId);
         _emitRouteChange(
           routeEventId: routeEventId,
           change: change,
-          stateAnchor: observedState,
           result: TugboatInteractionResult.navigated,
           extraData: {
             'captureOutcome': 'failed',
@@ -3999,14 +3621,14 @@ class TugboatReplayController extends ChangeNotifier {
         captureFailure = _lastCaptureFailure?.name;
       }
       if (!_isActiveRouteCapture(work)) return;
-      observedState =
-          _stateObservedWithFrame(afterFrame) ?? _currentStateAnchor;
       routeEventId = _nextId('event');
-      _ensureCauseTapPublished(change.causeEventId);
+      _attachCauseInteractionEvidence(
+        change.causeEventId,
+        afterFrame: afterFrame,
+      );
       _emitRouteChange(
         routeEventId: routeEventId,
         change: change,
-        stateAnchor: observedState,
         afterFrame: afterFrame,
         result: TugboatInteractionResult.navigated,
         extraData: {
@@ -4035,7 +3657,6 @@ class TugboatReplayController extends ChangeNotifier {
         _RouteCaptureResult(
           outcome,
           frameId: afterFrame,
-          stateAnchor: observedState,
           routeEventId: routeEventId,
           captureFailure: captureFailure,
           captureRequestId: captureRequestId,
@@ -4078,13 +3699,17 @@ class TugboatReplayController extends ChangeNotifier {
         _invalidateCaptureWork('lifecycle_deactivate');
         // Drop in-flight pointer claims so a later resume/navigation cannot
         // attribute itself to a pre-background gesture.
-        _abandonAllPendingPointers(
-          publishClaimedTap: false,
-          gestureFinal: 'lifecycle',
-        );
+        _abandonAllPendingPointers(gestureFinal: 'lifecycle');
         _clearReleasedInteractions(
           reason: InteractionRejectionReason.lifecycle,
         );
+        _finalizeActiveCompletedGestureCaptures(
+          InteractionRejectionReason.lifecycle,
+        );
+        _finalizeScrollCompletionInteractions(
+          InteractionRejectionReason.lifecycle,
+        );
+        _clearScrollCompletionState();
         _captureLifecycleActive = false;
         break;
       case AppLifecycleState.resumed:
@@ -4244,9 +3869,8 @@ class TugboatReplayController extends ChangeNotifier {
   /// Observer-time single-use claim. Returns the transaction only when exactly
   /// one unambiguous active pointer is eligible for this navigator/session.
   ///
-  /// Does not flush the buffered tap — that happens at route_change publish via
-  /// [_ensureCauseTapPublished], or earlier at pointer-up / swipe / cancel, so
-  /// a pre-up claim that later becomes a swipe stays `causal_only`.
+  /// The route writer retains the claim until terminal publication, so a
+  /// causeEventId remains stable across route and gesture settlement.
   InteractionTransaction? _tryClaimInteractionCause({String? navigatorId}) {
     if (!_captureLifecycleActive || _endSessionFuture != null) return null;
     final eligible = _interactions.eligibleForClaim(
@@ -4277,46 +3901,6 @@ class TugboatReplayController extends ChangeNotifier {
     return tx;
   }
 
-  void _maybeEmitStateChange({
-    required TugboatStateAnchor? beforeState,
-    required TugboatStateAnchor? afterState,
-    required String? beforeFrame,
-    required String? afterFrame,
-    InteractionTransaction? causingTx,
-  }) {
-    final beforeSignature = beforeState?.signature ?? '';
-    final afterSignature = afterState?.signature ?? '';
-    if (beforeSignature.isEmpty || afterSignature.isEmpty) return;
-    if (beforeSignature == afterSignature) return;
-
-    final data = <String, Object?>{
-      if (afterState?.subLabel != null) 'subLabel': afterState!.subLabel,
-    };
-    // Route claim takes priority; only claim if not already claimed elsewhere.
-    if (causingTx != null && causingTx.isEligible) {
-      causingTx.claimed = true;
-      causingTx.attribution = InteractionAttribution.direct;
-      data['causedByInteractionId'] = causingTx.id;
-    } else if (causingTx != null && causingTx.claimed) {
-      data['causedByInteractionId'] = causingTx.id;
-    }
-
-    _addEvent(
-      TugboatEvent(
-        id: _nextId('event'),
-        atMs: atMs,
-        type: 'state_change',
-        stream: TugboatEventStream.evidence,
-        stateAnchor: afterState,
-        beforeFrame: beforeFrame,
-        afterFrame: afterFrame,
-        result: TugboatInteractionResult.changed,
-        data: data,
-      ),
-    );
-    _maybeEmitSceneInventory();
-  }
-
   void _maybeEmitSceneInventory({
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
@@ -4331,7 +3915,6 @@ class TugboatReplayController extends ChangeNotifier {
     );
     if (inventory == null) return;
 
-    _currentStateAnchor = inventory.stateAnchor;
     _emitSceneInventory(inventory, scrollContext: scrollContext);
   }
 
@@ -4343,14 +3926,17 @@ class TugboatReplayController extends ChangeNotifier {
     if (config.profile != TugboatCaptureProfile.exploration) return;
     // Always emit raw scene_inventory first (when new). Semantic-map emission
     // must not replace or suppress inventory; maps are an exploration companion.
-    final dedupeKey = '${inventory.stateSignature}|${inventory.inventoryHash}';
+    final dedupeKey = [
+      inventory.routeKey,
+      inventory.inventoryHash,
+      scrollContext?.dedupeKey ?? '',
+    ].join('|');
     if (_emittedInventories.add(dedupeKey)) {
       _addEvent(
         TugboatEvent(
           id: _nextId('event'),
           atMs: atMs,
           type: 'scene_inventory',
-          stateAnchor: inventory.stateAnchor,
           data: inventory.toJson(),
         ),
       );
@@ -4374,7 +3960,6 @@ class TugboatReplayController extends ChangeNotifier {
     if (session == null) return;
     final enriched = attachActionContext
         ? event.withExplorationContext(
-            sessionId: session.id,
             captureSessionId: session.id,
             activationRequestId:
                 session.activationRequestId ?? activationRequestId,
@@ -4385,7 +3970,6 @@ class TugboatReplayController extends ChangeNotifier {
             actionId: event.actionId ?? _activeActionId,
           )
         : event.copyWith(
-            sessionId: event.sessionId ?? session.id,
             captureSessionId: event.captureSessionId ?? session.id,
             activationRequestId:
                 event.activationRequestId ??

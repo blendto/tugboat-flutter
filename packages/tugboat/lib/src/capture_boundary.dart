@@ -60,11 +60,7 @@ int tugboatSubtreePaintSignature(RenderObject root) {
       signature = Object.hash(signature, layer.alpha);
     }
     if (layer is OffsetLayer) {
-      signature = Object.hash(
-        signature,
-        layer.offset.dx,
-        layer.offset.dy,
-      );
+      signature = Object.hash(signature, layer.offset.dx, layer.offset.dy);
     }
     if (layer is ContainerLayer) {
       var child = layer.firstChild;

@@ -80,9 +80,12 @@ message is dropped when the bound is exceeded. The queue is not persisted.
 ### Exploration screenshot suppression
 
 When the WebSocket connects and no HTTP collector is configured, the controller
-suppresses new Flutter screenshot capture to reduce UI-thread work. Events,
-anchors, scene inventories, and enabled viewport semantic evidence continue to
-stream. Frames captured before the socket connects can still be sent.
+suppresses non-interaction Flutter screenshot capture to reduce UI-thread work.
+Each completed interaction still captures and encodes a fresh screenshot. A
+route capture claimed by that interaction also bypasses this suppression.
+Events, anchors, scene inventories, and enabled viewport semantic evidence
+continue to stream. Frames captured before the socket connects can still be
+sent.
 
 The external exploration runner may record its own before/after screenshots,
 but that behavior is not implemented or guaranteed by this Flutter package.
@@ -198,8 +201,11 @@ Event payloads contain:
 - optional user/session/run/action IDs;
 - optional `traitsId` (pass-through only; does not upsert the traits dictionary);
 - optional before/after frame references, related-event ID, and result;
-- serialized state and target anchors;
-- event-specific data under `payload`;
+- serialized target anchors, when captured;
+- event-specific data under `payload`, except for schema-v2 `interaction` and
+  `route_change`, which are flat facts-only records at the top level
+  (`interactionSchema` or `routeChangeSchema` == `2`). `interaction` carries
+  gesture facts under nested `payload` (omitted for `cancelled`);
 - build identity: app ID, platform, version name, build number, and fingerprint
   schema version.
 

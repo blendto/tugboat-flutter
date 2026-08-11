@@ -5,14 +5,14 @@ status, outcome, and duration into an active Tugboat session. HTTP error
 responses additionally retain bounded JSON/text bodies. Successful response
 bodies, headers, queries, raw transport errors, and stack traces are omitted.
 
-Requires `tugboat` `0.7.1` (lockstep).
+Requires `tugboat` `0.8.0` (lockstep).
 
 ## Install
 
 ```yaml
 dependencies:
-  tugboat: ^0.7.1
-  tugboat_dio: ^0.7.1
+  tugboat: ^0.8.0
+  tugboat_dio: ^0.8.0
 ```
 
 ## Usage
