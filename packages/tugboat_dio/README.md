@@ -30,11 +30,11 @@ final dio = Dio();
 // before Tugboat finishes the observation token.
 TugboatDioInterceptor.install(
   dio,
-  routeResolver: (request) => apiRouteTemplate(request.path),
+  routeResolver: (request) => request.path,
 );
 ```
 
-`apiRouteTemplate` must return a bounded absolute path. Dynamic identifier
+`routeResolver` must return a bounded absolute path. Dynamic identifier
 segments are allowed. Return `null` or `''` to drop the call. The adapter also
 drops resolver output that contains a scheme, query, fragment, percent-encoded
 data, a network-path prefix, backslash, or whitespace/control character. Route

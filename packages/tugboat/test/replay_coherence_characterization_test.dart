@@ -88,14 +88,47 @@ void main() {
     },
   );
 
-  test('swipe cannot claim a following route', () async {
+  test(
+    'swipe gets a temporal route frame without claiming the route',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.capturer.failNext = true;
+      harness.controller.recordPointerDown(const Offset(12, 12));
+      harness.controller.markPendingTapAsSwipe(0);
+      harness.controller.recordPointerUp(const Offset(12, 80));
+      final route = harness.controller.route(
+        'route_push',
+        harness.route('/next'),
+      );
+      await harness.flushScheduler();
+      await route;
+
+      final session = harness.controller.session!;
+      final interaction = session.ofType('interaction').single;
+      final change = session.ofType('route_change').single;
+      expect(interaction.data['gesture'], 'swipe');
+      expect(interaction.afterFrame, change.afterFrame);
+      expect(interaction.afterFrame, isNotNull);
+      expect(change.data, isNot(contains('causeEventId')));
+    },
+  );
+
+  testWidgets('scroll gets a temporal route frame without claiming the route', (
+    tester,
+  ) async {
     final harness = ReplayCoherenceHarness();
     await harness.setUp();
-    addTearDown(harness.dispose);
+    await _mountScrollableHarness(tester, harness);
 
-    harness.controller.recordPointerDown(const Offset(12, 12));
+    harness.seedRouteState(route: '/list', signature: 'list');
+    harness.capturer.failNext = true;
+    harness.controller.recordPointerDown(const Offset(10, 10));
     harness.controller.markPendingTapAsSwipe(0);
-    harness.controller.recordPointerUp(const Offset(12, 80));
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    harness.controller.recordPointerUp(const Offset(10, -190));
     final route = harness.controller.route(
       'route_push',
       harness.route('/next'),
@@ -104,11 +137,17 @@ void main() {
     await route;
 
     final session = harness.controller.session!;
-    expect(session.ofType('interaction').single.data['gesture'], 'swipe');
-    expect(
-      session.ofType('route_change').single.data,
-      isNot(contains('causeEventId')),
-    );
+    final interaction = session
+        .ofType('interaction')
+        .singleWhere((event) => event.data['gesture'] == 'scroll');
+    final change = session.ofType('route_change').single;
+    expect(interaction.afterFrame, change.afterFrame);
+    expect(interaction.afterFrame, isNotNull);
+    expect(change.data, isNot(contains('causeEventId')));
+
+    harness.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 
   test('cancelled interaction cannot claim a following route', () async {

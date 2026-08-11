@@ -194,6 +194,7 @@ class InteractionTransaction {
   bool sameTurnEligible = true;
 
   int? releasedAtMs;
+  int? releasedFrameSequence;
   int? reconciliationDeadlineMs;
 
   final List<String> scrollStartEventIds = <String>[];

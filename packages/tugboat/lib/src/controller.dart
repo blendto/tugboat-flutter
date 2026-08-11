@@ -67,8 +67,10 @@ class _ScrollTracker {
 /// Flutter can deliver these callbacks in either order.
 class _PendingScrollCompletion {
   bool resolved = false;
+  bool publishing = false;
   String? afterFrame;
   String? captureOutcome;
+  _CaptureResolution? captureResolution;
 }
 
 class _ScheduledCapture {
@@ -319,16 +321,19 @@ class _FrameProvenance {
   const _FrameProvenance({
     required this.context,
     required this.completedAtMs,
+    required this.sequence,
     this.available = true,
   });
 
   final _CaptureRequestContext context;
   final int completedAtMs;
+  final int sequence;
   final bool available;
 
   _FrameProvenance unavailable() => _FrameProvenance(
     context: context,
     completedAtMs: completedAtMs,
+    sequence: sequence,
     available: false,
   );
 
@@ -351,6 +356,7 @@ class _FrameProvenance {
     'trigger': context.trigger.name,
     'requestedAtMs': context.requestedAtMs,
     'completedAtMs': completedAtMs,
+    'sequence': sequence,
     'available': available,
   };
 }
@@ -800,6 +806,7 @@ class TugboatReplayController extends ChangeNotifier {
   void Function()? _reconciliationSweepCancel;
   final Map<String, String> _hashToFrameId = {};
   final Map<String, _FrameProvenance> _frameProvenance = {};
+  int _frameCompletionSequence = 0;
   final Map<String, _FrameReuseObservation> _frameReuseObservations = {};
 
   bool _disposed = false;
@@ -843,6 +850,7 @@ class TugboatReplayController extends ChangeNotifier {
   final Map<String, InteractionTransaction> _scrollInteractions = {};
   final Map<String, _PendingScrollCompletion> _pendingScrollCompletions = {};
   final Set<InteractionTransaction> _activeCompletedGestureCaptures = {};
+  final Set<Future<void>> _activeCompletedGestureTasks = {};
   final Set<String> _emittedInventories = <String>{};
   SemanticsHandle? _semanticsHandle;
   late final ViewportSemanticSession _viewportSemantics =
@@ -1046,6 +1054,9 @@ class TugboatReplayController extends ChangeNotifier {
     await _queue;
     final settles = _activeTapSettles.toList(growable: false);
     await Future.wait(settles.map((work) => work.completer.future));
+    while (_activeCompletedGestureTasks.isNotEmpty) {
+      await Future.wait(_activeCompletedGestureTasks.toList(growable: false));
+    }
     await _queue;
   }
 
@@ -1085,6 +1096,7 @@ class TugboatReplayController extends ChangeNotifier {
     _frameProvenance[frameId] = _FrameProvenance(
       context: _captureContext(trigger),
       completedAtMs: atMs,
+      sequence: ++_frameCompletionSequence,
     );
     _capturer?.rememberAcceptedPaintGeneration();
     _trim();
@@ -1386,6 +1398,7 @@ class TugboatReplayController extends ChangeNotifier {
     _currentNavigatorId = null;
     _currentRouteInstanceId = null;
     _visualObservationGeneration = 0;
+    _frameCompletionSequence = 0;
     _boundaryTransformGeneration = 0;
     _lastObservedBoundaryRect = null;
     _pointerGeneration = 0;
@@ -2260,6 +2273,7 @@ class TugboatReplayController extends ChangeNotifier {
       _frameProvenance[frameId] = _FrameProvenance(
         context: frameContext,
         completedAtMs: atMs,
+        sequence: ++_frameCompletionSequence,
       );
       capturer.commitAcceptedPaintGeneration(result.paintGeneration);
       capturer.commitAcceptedDHash(result.dHash);
@@ -2426,7 +2440,7 @@ class TugboatReplayController extends ChangeNotifier {
   void _releaseInteractionClaim(InteractionTransaction tx) {
     final pointer = tx.pointerId;
     tx.sameTurnEligible = true;
-    tx.releasedAtMs = atMs;
+    tx.releasedAtMs ??= atMs;
     _interactions.release(tx);
     final window = config.interactionClaimWindow;
     if (window <= Duration.zero) {
@@ -2577,6 +2591,8 @@ class TugboatReplayController extends ChangeNotifier {
     if (!_acceptsPointerInput) return;
     final pending = _interactions.removePending(pointer);
     if (pending == null) return;
+    pending.releasedAtMs = atMs;
+    pending.releasedFrameSequence = _frameCompletionSequence;
 
     if (pending.isSwipeOrScroll) {
       final scrollStartEventId = pending.scrollStartEventIds.isNotEmpty
@@ -2685,12 +2701,17 @@ class TugboatReplayController extends ChangeNotifier {
           // visual successor without assigning its route event as causal.
           final successor = routeBarrier.work.supersededBy;
           String? temporalAfterFrame;
+          String? temporalCaptureRequestId;
           if (successor != null) {
             final temporalBarrier = await _awaitRouteCaptureBarrier(successor);
             temporalAfterFrame = _temporalAfterFrame(
               pending,
               temporalBarrier.result.frameId,
             );
+            if (temporalAfterFrame != null) {
+              temporalCaptureRequestId =
+                  temporalBarrier.result.captureRequestId;
+            }
           }
           if (!_isActiveTapSettle(work)) return;
           observation = _TapSettleObservation(
@@ -2700,7 +2721,7 @@ class TugboatReplayController extends ChangeNotifier {
             navigationOutcome: 'navigation_unavailable',
             captureOutcome: 'superseded_route_epoch',
             captureFailure: 'superseded_route_epoch',
-            captureRequestId: routeBarrier.result.captureRequestId,
+            captureRequestId: temporalCaptureRequestId,
           );
         } else {
           observation = _tapObservationFromRouteBarrier(routeBarrier);
@@ -2835,8 +2856,45 @@ class TugboatReplayController extends ChangeNotifier {
     final provenance = _frameProvenance[frameId];
     if (provenance == null || !provenance.available) return null;
     if (provenance.context.captureSessionId != _session?.id) return null;
-    if (provenance.completedAtMs < interaction.origin.atMs) return null;
+    final observationBoundary =
+        interaction.releasedAtMs ?? interaction.origin.atMs;
+    if (provenance.completedAtMs < observationBoundary) return null;
+    final releasedFrameSequence = interaction.releasedFrameSequence;
+    if (releasedFrameSequence != null &&
+        provenance.sequence <= releasedFrameSequence) {
+      return null;
+    }
     return frameId;
+  }
+
+  Future<String?> _temporalAfterFrameAfterCapture(
+    InteractionTransaction interaction,
+    _CaptureResolution resolution,
+  ) async {
+    final capturedFrame = _temporalAfterFrame(interaction, resolution.frameId);
+    if (resolution.outcome == _CaptureOutcome.freshAccepted &&
+        capturedFrame != null) {
+      return capturedFrame;
+    }
+
+    var routeCapture = _activeRouteCapture;
+    if (routeCapture == null) {
+      // A route callback can start later in the same pointer-up event turn.
+      // Give it one microtask to register before the fallback frame lookup.
+      await Future<void>.microtask(() {});
+      routeCapture = _activeRouteCapture;
+    }
+    final visited = <_RouteCaptureWork>{};
+    while (routeCapture != null && visited.add(routeCapture)) {
+      final barrier = await _awaitRouteCaptureBarrier(routeCapture);
+      final routeFrame = _temporalAfterFrame(
+        interaction,
+        barrier.result.frameId,
+      );
+      if (routeFrame != null) return routeFrame;
+      routeCapture = barrier.work.supersededBy;
+    }
+    return _temporalAfterFrame(interaction, _latestFrameId);
   }
 
   bool _isActiveTapSettle(_TapSettleWork work) =>
@@ -2978,13 +3036,41 @@ class TugboatReplayController extends ChangeNotifier {
   void _publishResolvedScrollInteraction(String scrollStartEventId) {
     final completion = _pendingScrollCompletions[scrollStartEventId];
     final interaction = _scrollInteractions[scrollStartEventId];
-    if (completion == null || interaction == null || !completion.resolved) {
+    if (completion == null ||
+        interaction == null ||
+        !completion.resolved ||
+        completion.publishing) {
       return;
     }
-    interaction.afterFrame = completion.afterFrame;
-    _publishCanonicalInteraction(interaction);
-    _scrollInteractions.remove(scrollStartEventId);
-    _pendingScrollCompletions.remove(scrollStartEventId);
+    completion.publishing = true;
+    _activeCompletedGestureCaptures.add(interaction);
+    late final Future<void> task;
+    task = () async {
+      try {
+        final resolution = completion.captureResolution;
+        final afterFrame = resolution == null
+            ? completion.afterFrame
+            : await _temporalAfterFrameAfterCapture(interaction, resolution);
+        if (!identical(
+              _pendingScrollCompletions[scrollStartEventId],
+              completion,
+            ) ||
+            !identical(_scrollInteractions[scrollStartEventId], interaction) ||
+            interaction.semanticPublished) {
+          return;
+        }
+        interaction.afterFrame = afterFrame;
+        _publishCanonicalInteraction(interaction);
+        _scrollInteractions.remove(scrollStartEventId);
+        _pendingScrollCompletions.remove(scrollStartEventId);
+      } finally {
+        completion.publishing = false;
+        _activeCompletedGestureCaptures.remove(interaction);
+        _activeCompletedGestureTasks.remove(task);
+      }
+    }();
+    _activeCompletedGestureTasks.add(task);
+    unawaited(task);
   }
 
   /// A completed swipe or scroll gets its own fresh after-frame. Interaction
@@ -2994,7 +3080,8 @@ class TugboatReplayController extends ChangeNotifier {
     final session = _session;
     final lifecycleEpoch = _captureLifecycleEpoch;
     _activeCompletedGestureCaptures.add(tx);
-    unawaited(() async {
+    late final Future<void> task;
+    task = () async {
       try {
         final capture = _requestCaptureCancellable(
           trigger: TugboatFrameTrigger.interaction,
@@ -3004,9 +3091,8 @@ class TugboatReplayController extends ChangeNotifier {
         );
         final resolution = await capture.resolution;
         if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch)) return;
-        tx.afterFrame = resolution.outcome == _CaptureOutcome.freshAccepted
-            ? resolution.frameId
-            : null;
+        tx.afterFrame = await _temporalAfterFrameAfterCapture(tx, resolution);
+        if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch)) return;
         await _enqueue('interaction_after_capture', () async {
           if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch)) return;
           _publishCanonicalInteraction(tx);
@@ -3014,8 +3100,11 @@ class TugboatReplayController extends ChangeNotifier {
         });
       } finally {
         _activeCompletedGestureCaptures.remove(tx);
+        _activeCompletedGestureTasks.remove(task);
       }
-    }());
+    }();
+    _activeCompletedGestureTasks.add(task);
+    unawaited(task);
   }
 
   Element? _scrollableElementFor(BuildContext? context) {
@@ -3239,14 +3328,14 @@ class TugboatReplayController extends ChangeNotifier {
         return;
       }
       if (tracker.routeEpoch != _routeEpoch) {
-        // Do make the interaction capture attempt. Do not attach its frame:
-        // it now depicts the automatic successor route, not the scroll route.
+        // Make the interaction capture attempt. A later route frame can be a
+        // temporal observation, but it does not make the route scroll-caused.
         final afterCapture = _requestCaptureCancellable(
           trigger: TugboatFrameTrigger.interaction,
           force: true,
           relatedEventId: tracker.startEventId,
         );
-        await afterCapture.resolution;
+        final afterResolution = await afterCapture.resolution;
         if (!_isCaptureLifecycleCurrent(
           captureSession,
           captureLifecycleEpoch,
@@ -3255,6 +3344,7 @@ class TugboatReplayController extends ChangeNotifier {
         }
         _applyScrollMetricsToInteraction(tracker, metrics);
         completion
+          ..captureResolution = afterResolution
           ..captureOutcome = 'superseded_route_epoch'
           ..resolved = true;
         _publishResolvedScrollInteraction(tracker.startEventId);
@@ -3267,13 +3357,13 @@ class TugboatReplayController extends ChangeNotifier {
         relatedEventId: tracker.startEventId,
       );
       final afterResolution = await afterCapture.resolution;
+      if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
+        return;
+      }
       final afterFrame =
           afterResolution.outcome == _CaptureOutcome.freshAccepted
           ? afterResolution.frameId
           : null;
-      if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
-        return;
-      }
       if (_session != null && _session!.scrollSamples.isNotEmpty) {
         final last = _session!.scrollSamples.last;
         _session!.scrollSamples[_session!.scrollSamples.length -
@@ -3298,6 +3388,7 @@ class TugboatReplayController extends ChangeNotifier {
       _applyScrollMetricsToInteraction(tracker, metrics);
       completion
         ..afterFrame = afterFrame
+        ..captureResolution = afterResolution
         ..captureOutcome = afterResolution.outcome.wireName
         ..resolved = true;
       _publishResolvedScrollInteraction(tracker.startEventId);
