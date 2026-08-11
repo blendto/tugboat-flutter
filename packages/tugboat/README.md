@@ -5,11 +5,11 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.0`. Session JSON writers and readers use
+The current package version is `0.9.0`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
 
-## 0.8.0 raw-event compatibility
+## 0.9.0 release compatibility
 
 New writers omit `stateAnchor`, `stateSignature`, and `state_change` events.
 The old public state model types are removed. Each completed tap, swipe, and
@@ -39,7 +39,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.8.0
+  tugboat_dio: ^0.9.0
 ```
 
 See `packages/tugboat_dio/README.md`.
@@ -58,7 +58,7 @@ appEvents.record('USER_LOGIN', parameters: {'method': 'email'});
 
 final call = TugboatReplay.beginNetworkCall(
   method: 'GET',
-  route: '/blend/:blendId', // host-supplied template only
+  route: '/blend/RC-T4KE7', // bounded absolute path; dynamic IDs are allowed
 );
 call.complete(statusCode: 200);
 
@@ -99,10 +99,11 @@ content. Hosts must confirm consent, privacy, access, and retention rules before
 they use it. The SDK still deep-copies JSON-safe values and applies its hard
 JSON and size bounds.
 
-Network routes must be absolute path templates. The SDK drops resolver output
-containing a scheme, query, fragment, percent-encoded data, a network-path
-prefix, backslash, or whitespace/control characters; host resolvers must still
-replace dynamic IDs with placeholders.
+Network routes must be bounded absolute paths. Dynamic identifier segments are
+allowed. The SDK drops resolver output containing a scheme, query, fragment,
+percent-encoded data, a network-path prefix, backslash, or whitespace/control
+characters. Route paths can contain user or tenant identifiers. Hosts must
+apply their own privacy and retention policy.
 HTTP response bodies are retained only when `statusCode >= 400`. JSON and text
 are deep-copied and bounded to 16 KiB; binary and unsupported values are
 omitted. Successful response bodies are never retained.

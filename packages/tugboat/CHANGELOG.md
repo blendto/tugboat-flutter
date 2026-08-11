@@ -1,4 +1,4 @@
-## Unreleased
+## 0.9.0
 
 ### Breaking changes
 
@@ -10,6 +10,12 @@
 - `interaction.afterFrame` now means a temporal post-interaction observation.
   An unclaimed route frame can satisfy it without creating route causality or
   an inferred result.
+
+### Changed
+
+- Network observation accepts bounded absolute paths with dynamic identifier
+  segments. Schemes, queries, fragments, encoded data, network-path prefixes,
+  backslashes, whitespace, and control characters remain rejected.
 
 ## 0.8.0
 

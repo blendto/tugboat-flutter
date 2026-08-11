@@ -199,10 +199,10 @@ subview label for route-internal state and scroll attribution.
 
 ### State identity
 
-Version 0.8.0 does not write state identity. State anchors and signatures remain
-internal legacy model data only. New event, inventory, semantic-map, diagnostic,
-debug, and provenance JSON omit them. Use route evidence, target anchors, and
-frame hashes for raw replay facts.
+Version 0.8.0 and later do not write state identity. State anchors and
+signatures remain internal legacy model data only. New event, inventory,
+semantic-map, diagnostic, debug, and provenance JSON omit them. Use route
+evidence, target anchors, and frame hashes for raw replay facts.
 
 ### Confidence
 

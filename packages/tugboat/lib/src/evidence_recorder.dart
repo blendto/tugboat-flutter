@@ -126,8 +126,8 @@ class TugboatEvidenceRecorder {
 
   /// Begins observation of one logical network call.
   ///
-  /// [route] must already be a safe host-supplied template. Null/invalid routes
-  /// return a no-op token without recording.
+  /// [route] must be a bounded absolute path. Dynamic identifier segments are
+  /// allowed. Null or invalid routes return a no-op token without recording.
   TugboatNetworkCall beginNetworkCall({required String method, String? route}) {
     try {
       if (!accepting) {
