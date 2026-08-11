@@ -17,6 +17,12 @@
   `targetFingerprint` as a single string instead of a full anchor descriptor.
   Interaction v2 drops inferred `result`, nested `origin`/`result`, and
   tap-settle outcome computation.
+- `interaction` schema v2 now carries gesture-specific facts under a nested
+  `payload` (`position` for tap; `position`/`endPosition`/`delta` for swipe;
+  `position`/`startOffset`/`endOffset`/`overscrollCount` for scroll). Cancelled
+  interactions omit `payload`. The SDK no longer emits `scroll_start`,
+  `scroll_end`, or `pointer_cancel` — scroll and cancel semantics live on
+  `interaction` only.
 
 ## 0.7.1
 

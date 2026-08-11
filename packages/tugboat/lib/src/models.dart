@@ -80,7 +80,6 @@ const String tugboatEventStreamLegacyProjection = 'legacy_projection';
 
 const int tugboatInteractionSchemaVersion = 2;
 const int tugboatRouteChangeSchemaVersion = 2;
-const int tugboatScrollSchemaVersion = 2;
 
 /// Whether [event] is a default enrichment / insight candidate.
 bool tugboatEventIsEnrichmentCandidate(TugboatEvent event) {

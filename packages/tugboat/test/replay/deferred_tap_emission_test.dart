@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tugboat/tugboat.dart';
 
 import '../helpers/replay_coherence_harness.dart';
 
@@ -52,7 +53,15 @@ void main() {
     harness.controller.recordPointerCancel(const Offset(4, 4));
 
     expect(harness.controller.session!.ofType('tap'), isEmpty);
-    expect(harness.controller.session!.ofType('pointer_cancel'), hasLength(1));
+    expect(
+      harness.controller.session!.events.where(
+        (event) =>
+            event.type == 'interaction' &&
+            event.stream == TugboatEventStream.semantic &&
+            event.data['gesture'] == 'cancelled',
+      ),
+      hasLength(1),
+    );
   });
 
   test(

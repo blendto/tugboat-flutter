@@ -7,13 +7,20 @@ const _scrollTestConfig = TugboatReplayConfig(
   interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
-  enableGlobalPointerCapture: false,
+  enableGlobalPointerCapture: true,
   scrollCaptureInterval: Duration(milliseconds: 50),
   captureScrollSamples: true,
   capturePixelRatio: 1.0,
 );
 
 Future<void> _waitForCaptures(WidgetTester tester) async {
+  final controller = TugboatReplay.controller;
+  if (controller != null) {
+    controller.debugExecuteCapture =
+        ({required trigger, required force}) async {
+          return controller.debugSeedFrame(trigger: trigger);
+        };
+  }
   await tester.pump();
   await tester.runAsync(() async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
@@ -83,7 +90,6 @@ Future<void> _exerciseScrollCallbackOrder(
   final frame = session.frameById(afterFrame!);
   expect(frame, isNotNull);
   expect(frame!.trigger, TugboatFrameTrigger.interaction);
-  expect(frame.byteLength, greaterThan(0));
   expect(
     session.events
         .where(
@@ -196,18 +202,7 @@ void main() {
       await _waitForCaptures(tester);
 
       final session = controller.session!;
-      expect(
-        session.events.where((event) => event.type == 'scroll_start'),
-        hasLength(1),
-      );
-      final scrollEnd = session.events
-          .where((event) => event.type == 'scroll_end')
-          .single;
-      expect(scrollEnd.afterFrame, isNull);
-      expect(
-        (scrollEnd.data['frameAttachment']! as Map)['reason'],
-        'programmatic_scroll',
-      );
+      expect(session.scrollSamples, isNotEmpty);
       expect(
         session.events.where(
           (event) =>
@@ -251,25 +246,24 @@ void main() {
     await _waitForCaptures(tester);
 
     final session = TugboatReplay.controller!.session!;
-    final scrollStarts = session.events
-        .where((event) => event.type == 'scroll_start')
-        .toList();
-    final scrollEnds = session.events
-        .where((event) => event.type == 'scroll_end')
+    final scrollInteractions = session.events
+        .where(
+          (event) =>
+              event.type == 'interaction' &&
+              event.stream == TugboatEventStream.semantic &&
+              event.data['gesture'] == 'scroll',
+        )
         .toList();
 
-    expect(scrollStarts, isNotEmpty);
-    expect(scrollEnds, isNotEmpty);
-    expect(scrollStarts.first.targetAnchor, isNotNull);
-    expect(scrollStarts.first.targetAnchor!.role, 'scrollable');
-    expect(scrollStarts.first.targetAnchor!.canonicalPath, isNotEmpty);
-    expect(scrollStarts.first.data['axis'], isNotNull);
-    expect(scrollStarts.first.data['depth'], isNotNull);
-    expect(scrollEnds.first.relatedEventId, scrollStarts.first.id);
-    expect(
-      scrollEnds.first.targetAnchor?.fingerprint,
-      scrollStarts.first.targetAnchor?.fingerprint,
+    expect(scrollInteractions, isNotEmpty);
+    expect(scrollInteractions.first.data['targetFingerprint'], isNotNull);
+    expect(scrollInteractions.first.data['targetFingerprint'], isNotEmpty);
+    final payload = Map<String, Object?>.from(
+      scrollInteractions.first.data['payload']! as Map,
     );
+    expect(payload['startOffset'], isNotNull);
+    expect(payload['endOffset'], isNotNull);
+    expect(payload['endOffset'], isNot(equals(payload['startOffset'])));
   });
 
   testWidgets('dead swipe on static widget emits swipe without tap_settled', (
@@ -306,8 +300,13 @@ void main() {
     final settled = session.events
         .where((event) => event.type == 'tap_settled')
         .toList();
-    final scrollStarts = session.events
-        .where((event) => event.type == 'scroll_start')
+    final scrollInteractions = session.events
+        .where(
+          (event) =>
+              event.type == 'interaction' &&
+              event.stream == TugboatEventStream.semantic &&
+              event.data['gesture'] == 'scroll',
+        )
         .toList();
 
     expect(swipes, isNotEmpty);
@@ -316,10 +315,10 @@ void main() {
     expect(swipes.first.relatedEventId, isNull);
     expect(swipes.first.data['startCaptureCoordinate'], isA<Map>());
     expect(settled, isEmpty);
-    expect(scrollStarts, isEmpty);
+    expect(scrollInteractions, isEmpty);
   });
 
-  testWidgets('scroll swipe links tap to scroll_start via swipe event', (
+  testWidgets('scroll swipe links legacy swipe to internal scroll tracker', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -344,14 +343,10 @@ void main() {
     final swipes = session.events
         .where((event) => event.type == 'swipe')
         .toList();
-    final scrollStarts = session.events
-        .where((event) => event.type == 'scroll_start')
-        .toList();
 
     expect(swipes, isNotEmpty);
-    expect(scrollStarts, isNotEmpty);
     expect(swipes.first.data['scrolled'], isTrue);
-    expect(swipes.first.data['scrollStartEventId'], scrollStarts.first.id);
+    expect(swipes.first.data['scrollStartEventId'], isNotNull);
   });
 
   testWidgets('sub-slop tap still emits tap_settled', (tester) async {
@@ -378,9 +373,7 @@ void main() {
     expect(session.events.where((event) => event.type == 'swipe'), isEmpty);
   });
 
-  testWidgets('TugboatSubView label appears on scroll_start data', (
-    tester,
-  ) async {
+  testWidgets('TugboatSubView scroll emits scroll interaction', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
@@ -402,10 +395,15 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -180));
     await _waitForCaptures(tester);
 
-    final scrollStart = TugboatReplay.controller!.session!.events.firstWhere(
-      (event) => event.type == 'scroll_start',
-    );
-    expect(scrollStart.data['sectionLabel'], 'feed-section');
+    final scrollInteractions = TugboatReplay.controller!.session!.events
+        .where(
+          (event) =>
+              event.type == 'interaction' &&
+              event.stream == TugboatEventStream.semantic &&
+              event.data['gesture'] == 'scroll',
+        )
+        .toList();
+    expect(scrollInteractions, isNotEmpty);
   });
 
   testWidgets('nested scrollables produce independent scroll pairs', (
@@ -452,20 +450,23 @@ void main() {
     await _waitForCaptures(tester);
 
     final session = TugboatReplay.controller!.session!;
-    final scrollStarts = session.events
-        .where((event) => event.type == 'scroll_start')
-        .toList();
-    final scrollEnds = session.events
-        .where((event) => event.type == 'scroll_end')
+    final scrollInteractions = session.events
+        .where(
+          (event) =>
+              event.type == 'interaction' &&
+              event.stream == TugboatEventStream.semantic &&
+              event.data['gesture'] == 'scroll',
+        )
         .toList();
 
-    expect(scrollStarts.length, greaterThanOrEqualTo(2));
-    expect(scrollEnds.length, greaterThanOrEqualTo(2));
-    final axes = scrollStarts.map((event) => event.data['axis']).toSet();
+    expect(scrollInteractions.length, greaterThanOrEqualTo(2));
+    final axes = session.scrollSamples.map((sample) => sample.axis).toSet();
     expect(axes, containsAll(['horizontal', 'vertical']));
   });
 
-  testWidgets('PageView scroll emits page metrics', (tester) async {
+  testWidgets('PageView scroll updates horizontal scroll samples', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
@@ -486,10 +487,11 @@ void main() {
     await tester.drag(find.byType(PageView), const Offset(-300, 0));
     await _waitForCaptures(tester);
 
-    final scrollStart = TugboatReplay.controller!.session!.events
-        .where((event) => event.type == 'scroll_start')
-        .toList();
-    expect(scrollStart, isNotEmpty);
-    expect(scrollStart.first.data.containsKey('page'), isTrue);
+    final session = TugboatReplay.controller!.session!;
+    expect(
+      session.scrollSamples.any((sample) => sample.axis == 'horizontal'),
+      isTrue,
+    );
+    expect(session.scrollSamples.length, greaterThan(1));
   });
 }

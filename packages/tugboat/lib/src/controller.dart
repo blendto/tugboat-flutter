@@ -2766,22 +2766,6 @@ class TugboatReplayController extends ChangeNotifier {
         reason: InteractionRejectionReason.lifecycle,
       );
     }
-    _addEvent(
-      TugboatEvent(
-        id: _nextId('event'),
-        atMs: atMs,
-        type: 'pointer_cancel',
-        stream: TugboatEventStream.evidence,
-        data: {
-          'x': position.dx,
-          'y': position.dy,
-          'pointer': pointer,
-          if (pending?.claimed == true) 'invalidatesRelatedTap': true,
-          if (pending != null) 'interactionId': pending.id,
-        },
-        relatedEventId: pending?.claimed == true ? pending!.id : null,
-      ),
-    );
     if (!_disposed) notifyListeners();
   }
 
@@ -2827,6 +2811,7 @@ class TugboatReplayController extends ChangeNotifier {
       pending.gesture = scrolled
           ? InteractionGesture.scroll
           : InteractionGesture.swipe;
+      pending.endPosition = position;
       _clearCausalRouteState(pending.id);
       if (config.emitLegacyInteractionProjection) {
         _addEvent(
@@ -3298,6 +3283,18 @@ class TugboatReplayController extends ChangeNotifier {
     }
   }
 
+  void _applyScrollMetricsToInteraction(
+    _ScrollTracker tracker,
+    ScrollMetrics metrics,
+  ) {
+    final interaction = _scrollInteractions[tracker.startEventId];
+    if (interaction == null) return;
+    interaction.scrollStartOffset = tracker.startOffset;
+    interaction.scrollEndOffset = metrics.pixels;
+    interaction.overscrollCount = tracker.overscrollCount;
+    interaction.scrollTargetAnchor = tracker.targetAnchor;
+  }
+
   void _publishResolvedScrollInteraction(String scrollStartEventId) {
     final completion = _pendingScrollCompletions[scrollStartEventId];
     final interaction = _scrollInteractions[scrollStartEventId];
@@ -3370,39 +3367,6 @@ class TugboatReplayController extends ChangeNotifier {
     return _anchorResolver?.subViewLabelFor(scrollableElement);
   }
 
-  Map<String, Object?> _scrollEventData({
-    required ScrollMetrics metrics,
-    required int depth,
-    required _ScrollTracker tracker,
-    double? endOffset,
-    int? durationMs,
-    int? overscrollCount,
-  }) {
-    final data = tugboatScrollMetricsData(metrics)
-      ..['depth'] = depth
-      ..['startOffset'] = tracker.startOffset;
-    if (endOffset != null) {
-      data['endOffset'] = endOffset;
-    }
-    if (durationMs != null) {
-      data['durationMs'] = durationMs;
-    }
-    if (tracker.pageStart != null) {
-      data['pageStart'] = tracker.pageStart;
-      if (metrics is PageMetrics) {
-        data['pageEnd'] = metrics.page;
-      }
-    }
-    if (tracker.sectionLabel != null) {
-      data['sectionLabel'] = tracker.sectionLabel;
-    }
-    if (overscrollCount != null && overscrollCount > 0) {
-      data['overscrollCount'] = overscrollCount;
-    }
-    data.addAll(tugboatScrollEdgeData(metrics));
-    return data;
-  }
-
   TugboatViewportSemanticScrollContext _scrollSemanticContext({
     required String trigger,
     required ScrollMetrics metrics,
@@ -3446,7 +3410,6 @@ class TugboatReplayController extends ChangeNotifier {
     final sectionLabel = _sectionLabelFor(scrollableElement);
     final attachmentContext = _captureContext(TugboatFrameTrigger.scroll);
     final beforeFrame = _compatibleFrameFor(attachmentContext);
-    final unavailableReason = _unavailableAttachmentReason(attachmentContext);
     final startEventId = _nextId('event');
     final pageStart = metrics is PageMetrics ? metrics.page : null;
 
@@ -3484,24 +3447,6 @@ class TugboatReplayController extends ChangeNotifier {
       _trimScrollSamples();
     }
 
-    _addEvent(
-      TugboatEvent(
-        id: startEventId,
-        atMs: atMs,
-        type: 'scroll_start',
-        stream: TugboatEventStream.evidence,
-        targetAnchor: targetAnchor,
-        beforeFrame: beforeFrame,
-        data: {
-          ..._scrollEventData(metrics: metrics, depth: depth, tracker: tracker),
-          if (unavailableReason != null)
-            'frameAttachment': {
-              'before': 'unavailable',
-              'reason': unavailableReason,
-            },
-        },
-      ),
-    );
     _maybeEmitSceneInventory(
       scrollContext: _scrollSemanticContext(
         trigger: 'scroll_start',
@@ -3601,31 +3546,6 @@ class TugboatReplayController extends ChangeNotifier {
             endOffset: metrics.pixels,
           ),
         );
-        _addEvent(
-          TugboatEvent(
-            id: _nextId('event'),
-            atMs: atMs,
-            type: 'scroll_end',
-            stream: TugboatEventStream.evidence,
-            targetAnchor: tracker.targetAnchor,
-            beforeFrame: tracker.beforeFrame,
-            relatedEventId: tracker.startEventId,
-            data: {
-              ..._scrollEventData(
-                metrics: metrics,
-                depth: tracker.depth,
-                tracker: tracker,
-                endOffset: metrics.pixels,
-                durationMs: atMs - tracker.startedAtMs,
-                overscrollCount: tracker.overscrollCount,
-              ),
-              'frameAttachment': {
-                'after': 'unavailable',
-                'reason': 'programmatic_scroll',
-              },
-            },
-          ),
-        );
         if (!_disposed) notifyListeners();
       });
       return;
@@ -3646,40 +3566,14 @@ class TugboatReplayController extends ChangeNotifier {
           force: true,
           relatedEventId: tracker.startEventId,
         );
-        final afterResolution = await afterCapture.resolution;
+        await afterCapture.resolution;
         if (!_isCaptureLifecycleCurrent(
           captureSession,
           captureLifecycleEpoch,
         )) {
           return;
         }
-        _addEvent(
-          TugboatEvent(
-            id: _nextId('event'),
-            atMs: atMs,
-            type: 'scroll_end',
-            stream: TugboatEventStream.evidence,
-            targetAnchor: tracker.targetAnchor,
-            beforeFrame: tracker.beforeFrame,
-            relatedEventId: tracker.startEventId,
-            data: {
-              ..._scrollEventData(
-                metrics: metrics,
-                depth: tracker.depth,
-                tracker: tracker,
-                endOffset: metrics.pixels,
-                durationMs: atMs - tracker.startedAtMs,
-                overscrollCount: tracker.overscrollCount,
-              ),
-              'captureOutcome': 'superseded_route_epoch',
-              'captureAttemptOutcome': afterResolution.outcome.wireName,
-              'frameAttachment': {
-                'after': 'unavailable',
-                'reason': 'superseded_route_epoch',
-              },
-            },
-          ),
-        );
+        _applyScrollMetricsToInteraction(tracker, metrics);
         completion
           ..captureOutcome = 'superseded_route_epoch'
           ..resolved = true;
@@ -3721,35 +3615,7 @@ class TugboatReplayController extends ChangeNotifier {
           endOffset: metrics.pixels,
         ),
       );
-      _addEvent(
-        TugboatEvent(
-          id: _nextId('event'),
-          atMs: atMs,
-          type: 'scroll_end',
-          stream: TugboatEventStream.evidence,
-          targetAnchor: tracker.targetAnchor,
-          beforeFrame: tracker.beforeFrame,
-          afterFrame: afterFrame,
-          relatedEventId: tracker.startEventId,
-          data: {
-            ..._scrollEventData(
-              metrics: metrics,
-              depth: tracker.depth,
-              tracker: tracker,
-              endOffset: metrics.pixels,
-              durationMs: atMs - tracker.startedAtMs,
-              overscrollCount: tracker.overscrollCount,
-            ),
-            'captureRequestId': afterResolution.requestId,
-            'captureOutcome': afterResolution.outcome.wireName,
-            if (afterFrame == null)
-              'frameAttachment': {
-                'after': 'unavailable',
-                'reason': afterResolution.outcome.wireName,
-              },
-          },
-        ),
-      );
+      _applyScrollMetricsToInteraction(tracker, metrics);
       completion
         ..afterFrame = afterFrame
         ..captureOutcome = afterResolution.outcome.wireName

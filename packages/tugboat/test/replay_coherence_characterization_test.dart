@@ -614,7 +614,7 @@ void main() {
     },
   );
 
-  testWidgets('ending session suppresses blocked scroll_end output', (
+  testWidgets('ending session suppresses blocked scroll interaction output', (
     tester,
   ) async {
     final harness = ReplayCoherenceHarness();
@@ -631,21 +631,38 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -200));
     harness.controller.recordPointerUp(const Offset(10, -190));
     await harness.pumpQueueWork();
-    expect(harness.controller.session!.ofType('scroll_start'), hasLength(1));
+    expect(harness.controller.session!.ofType('swipe'), isNotEmpty);
     expect(harness.capturer.blockedCount, 1);
+    expect(
+      harness.controller.session!.events.where(
+        (event) =>
+            event.type == 'interaction' &&
+            event.stream == TugboatEventStream.semantic &&
+            event.data['gesture'] == 'scroll',
+      ),
+      isEmpty,
+    );
 
     await harness.controller.endSession();
     harness.capturer.completeBlocked('late-scroll-frame');
     await harness.pumpQueueWork();
 
-    expect(harness.controller.session!.ofType('scroll_end'), isEmpty);
+    expect(
+      harness.controller.session!.events.where(
+        (event) =>
+            event.type == 'interaction' &&
+            event.stream == TugboatEventStream.semantic &&
+            event.data['gesture'] == 'scroll',
+      ),
+      isEmpty,
+    );
     expect(harness.controller.latestFrameId, originFrame);
     harness.dispose();
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
 
-  testWidgets('backgrounding suppresses blocked scroll_end output', (
+  testWidgets('backgrounding suppresses blocked scroll interaction output', (
     tester,
   ) async {
     final harness = ReplayCoherenceHarness();
@@ -662,14 +679,31 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -200));
     harness.controller.recordPointerUp(const Offset(10, -190));
     await harness.pumpQueueWork();
-    expect(harness.controller.session!.ofType('scroll_start'), hasLength(1));
+    expect(harness.controller.session!.ofType('swipe'), isNotEmpty);
     expect(harness.capturer.blockedCount, 1);
+    expect(
+      harness.controller.session!.events.where(
+        (event) =>
+            event.type == 'interaction' &&
+            event.stream == TugboatEventStream.semantic &&
+            event.data['gesture'] == 'scroll',
+      ),
+      isEmpty,
+    );
 
     harness.controller.recordAppLifecycleState(AppLifecycleState.paused);
     harness.capturer.completeBlocked('late-scroll-frame');
     await harness.pumpQueueWork();
 
-    expect(harness.controller.session!.ofType('scroll_end'), isEmpty);
+    expect(
+      harness.controller.session!.events.where(
+        (event) =>
+            event.type == 'interaction' &&
+            event.stream == TugboatEventStream.semantic &&
+            event.data['gesture'] == 'scroll',
+      ),
+      isEmpty,
+    );
     expect(harness.controller.latestFrameId, originFrame);
     harness.dispose();
     await tester.pumpWidget(const SizedBox.shrink());

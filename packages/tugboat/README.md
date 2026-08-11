@@ -18,11 +18,12 @@ requests its own fresh after-frame. The collector mapper also omits the top-
 level `stateAnchor` key. Deploy the related collector change with this SDK
 release.
 
-Schema-v2 collector events (`interaction`, `route_change`, `scroll_start`,
-`scroll_end`) are flat facts-only records: no nested `payload`, no empty
-`targetAnchor`, and no inferred interaction `result`. Scroll events send
-`targetFingerprint` as a string; interaction v2 sends `targetFingerprint`,
-`gesture`, optional `route`/`position`, and frame refs only.
+Schema-v2 collector events (`interaction`, `route_change`) are flat facts-only
+records: no nested top-level `payload` on route changes, no empty
+`targetAnchor`, and no inferred interaction `result`. Interaction v2 uses a
+nested `payload` for gesture facts (`tap`/`swipe`/`scroll`/`cancelled`) and
+no longer emits separate `scroll_start`, `scroll_end`, or `pointer_cancel`
+events.
 
 ## Install
 

@@ -379,34 +379,30 @@ void main() {
 
     final session = controller.session!;
     expect(_ofType(session, 'tap'), isEmpty);
-    final scrollStart = _ofType(session, 'scroll_start').single;
     final swipe = _ofType(session, 'swipe').single;
-    final scrollEnd = _ofType(session, 'scroll_end').single;
+    final scrollInteraction = session.events
+        .where(
+          (event) =>
+              event.type == 'interaction' &&
+              event.stream == TugboatEventStream.semantic &&
+              event.data['gesture'] == 'scroll',
+        )
+        .single;
     final change = _ofType(session, 'route_change').single;
     expect(_ofType(session, 'tap_settled'), isEmpty);
     expect(swipe.relatedEventId, isNull);
     expect(swipe.data['startCaptureCoordinate'], isA<Map>());
     expect(swipe.data['scrolled'], isTrue);
-    expect(scrollEnd.relatedEventId, scrollStart.id);
-    expect(scrollEnd.afterFrame, isNull);
-    expect(scrollEnd.data['captureOutcome'], 'superseded_route_epoch');
-    expect(scrollEnd.data['frameAttachment'], <String, Object?>{
-      'after': 'unavailable',
-      'reason': 'superseded_route_epoch',
-    });
+    expect(scrollInteraction.afterFrame, isNull);
     expect(change.data['route'], '/details');
     expect(
       CoherenceInvariants.hasChronologicalChain(
         events: session.events,
-        orderedEventIds: <String>[
-          scrollStart.id,
-          swipe.id,
-          scrollEnd.id,
-          change.id,
-        ],
+        orderedEventIds: <String>[swipe.id, change.id],
       ),
       isTrue,
     );
+    expect(_ofType(session, 'interaction'), hasLength(1));
     _expectEveryDiagnosticRequestIsResolvedOnce(session);
     expect(controller.debugRouteCapturePending, isFalse);
     expect(controller.debugActiveTapSettleCount, 0);

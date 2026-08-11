@@ -23,17 +23,39 @@ void expectInteractionV2Contract(TugboatEvent event) {
   expect(data.containsKey('interactionId'), isFalse);
   expect(data.containsKey('stateAnchor'), isFalse);
   expect(data.containsKey('targetAnchor'), isFalse);
+  expect(data.containsKey('position'), isFalse);
   if (data.containsKey('targetFingerprint')) {
     expect(data['targetFingerprint'], isA<String>());
   }
-  if (data.containsKey('position')) {
-    final position = Map<String, Object?>.from(data['position']! as Map);
-    expect(position['xNorm'], isA<num>());
-    expect(position['yNorm'], isA<num>());
-    expect(position.containsKey('normalizedX'), isFalse);
+  final gesture = data['gesture'];
+  if (gesture == 'cancelled') {
+    expect(data.containsKey('payload'), isFalse);
+  } else if (data.containsKey('payload')) {
+    final payload = Map<String, Object?>.from(data['payload']! as Map);
+    if (payload.containsKey('position')) {
+      final position = Map<String, Object?>.from(payload['position']! as Map);
+      expect(position['xNorm'], isA<num>());
+      expect(position['yNorm'], isA<num>());
+      expect(position.containsKey('normalizedX'), isFalse);
+    }
+    if (gesture == 'swipe') {
+      if (payload.containsKey('delta')) {
+        final delta = Map<String, Object?>.from(payload['delta']! as Map);
+        expect(delta['xNorm'], isA<num>());
+        expect(delta['yNorm'], isA<num>());
+      }
+    }
+    if (gesture == 'scroll') {
+      if (payload.containsKey('startOffset')) {
+        expect(payload['startOffset'], isA<num>());
+      }
+      if (payload.containsKey('endOffset')) {
+        expect(payload['endOffset'], isA<num>());
+      }
+    }
   }
   final encoded = utf8.encode(jsonEncode(event.toJson()));
-  expect(encoded.length, lessThan(600));
+  expect(encoded.length, lessThan(700));
 }
 
 extension on TugboatSession {
@@ -213,11 +235,14 @@ void main() {
       );
       final tap = interactions.singleWhere((e) => e.data['gesture'] == 'tap');
       expectInteractionV2Contract(tap);
-      if (tap.data.containsKey('position')) {
-        final position = Map<String, Object?>.from(
-          tap.data['position']! as Map,
-        );
-        expect(position['xNorm'], isA<num>());
+      if (tap.data.containsKey('payload')) {
+        final payload = Map<String, Object?>.from(tap.data['payload']! as Map);
+        if (payload.containsKey('position')) {
+          final position = Map<String, Object?>.from(
+            payload['position']! as Map,
+          );
+          expect(position['xNorm'], isA<num>());
+        }
       }
     });
 

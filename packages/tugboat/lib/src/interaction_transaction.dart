@@ -81,32 +81,103 @@ enum InteractionRejectionReason {
   sessionEnd,
 }
 
+Map<String, double>? interactionNormalizedPosition(
+  TugboatCaptureCoordinate coordinate,
+) {
+  if (!coordinate.isAvailable) return null;
+  if (coordinate.normalizedX < 0 ||
+      coordinate.normalizedX > 1 ||
+      coordinate.normalizedY < 0 ||
+      coordinate.normalizedY > 1) {
+    return null;
+  }
+  return {'xNorm': coordinate.normalizedX, 'yNorm': coordinate.normalizedY};
+}
+
+Map<String, double>? interactionNormalizedPoint(
+  Offset global,
+  TugboatCaptureCoordinate reference,
+) {
+  if (!reference.isAvailable ||
+      reference.boundaryWidth <= 0 ||
+      reference.boundaryHeight <= 0) {
+    return null;
+  }
+  final localX = global.dx - reference.boundaryOriginX;
+  final localY = global.dy - reference.boundaryOriginY;
+  return {
+    'xNorm': (localX / reference.boundaryWidth).clamp(0.0, 1.0),
+    'yNorm': (localY / reference.boundaryHeight).clamp(0.0, 1.0),
+  };
+}
+
 /// Facts-only interaction schema v2 fields stored in [TugboatEvent.data].
 Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
-  final payload = <String, Object?>{
+  final envelope = <String, Object?>{
     'interactionSchema': tugboatInteractionSchemaVersion,
     'gesture': tx.gesture.name,
   };
   final route = tx.origin.route;
   if (route != null && route.isNotEmpty) {
-    payload['route'] = route;
+    envelope['route'] = route;
   }
-  final fingerprint = tx.origin.targetAnchor?.fingerprint;
+  final fingerprint = tx.gesture == InteractionGesture.scroll
+      ? (tx.scrollTargetAnchor?.fingerprint ??
+            tx.origin.targetAnchor?.fingerprint)
+      : tx.origin.targetAnchor?.fingerprint;
   if (fingerprint != null && fingerprint.isNotEmpty) {
-    payload['targetFingerprint'] = fingerprint;
+    envelope['targetFingerprint'] = fingerprint;
   }
-  final coord = tx.origin.captureCoordinate;
-  if (coord.isAvailable &&
-      coord.normalizedX >= 0 &&
-      coord.normalizedX <= 1 &&
-      coord.normalizedY >= 0 &&
-      coord.normalizedY <= 1) {
-    payload['position'] = {
-      'xNorm': coord.normalizedX,
-      'yNorm': coord.normalizedY,
-    };
+  if (tx.gesture == InteractionGesture.cancelled) {
+    return envelope;
   }
-  return payload;
+
+  final gesturePayload = <String, Object?>{};
+  final position = interactionNormalizedPosition(tx.origin.captureCoordinate);
+  if (position != null) {
+    gesturePayload['position'] = position;
+  }
+
+  switch (tx.gesture) {
+    case InteractionGesture.tap:
+      break;
+    case InteractionGesture.swipe:
+      final endPosition = tx.endPosition;
+      if (endPosition != null) {
+        final end = interactionNormalizedPoint(
+          endPosition,
+          tx.origin.captureCoordinate,
+        );
+        if (end != null) {
+          gesturePayload['endPosition'] = end;
+          if (position != null) {
+            gesturePayload['delta'] = {
+              'xNorm': end['xNorm']! - position['xNorm']!,
+              'yNorm': end['yNorm']! - position['yNorm']!,
+            };
+          }
+        }
+      }
+      break;
+    case InteractionGesture.scroll:
+      if (tx.scrollStartOffset != null) {
+        gesturePayload['startOffset'] = tx.scrollStartOffset;
+      }
+      if (tx.scrollEndOffset != null) {
+        gesturePayload['endOffset'] = tx.scrollEndOffset;
+      }
+      if (tx.overscrollCount > 0) {
+        gesturePayload['overscrollCount'] = tx.overscrollCount;
+      }
+      break;
+    case InteractionGesture.cancelled:
+      break;
+  }
+
+  if (gesturePayload.isNotEmpty) {
+    envelope['payload'] = gesturePayload;
+  }
+  return envelope;
 }
 
 /// Bounded in-memory transaction for one pointer gesture.
@@ -134,6 +205,11 @@ class InteractionTransaction {
   InteractionAttribution attribution = InteractionAttribution.none;
   InteractionRejectionReason? rejectionReason;
   String? afterFrame;
+  Offset? endPosition;
+  double? scrollStartOffset;
+  double? scrollEndOffset;
+  int overscrollCount = 0;
+  TugboatTargetAnchor? scrollTargetAnchor;
 
   Completer<void>? _successorSignal;
 

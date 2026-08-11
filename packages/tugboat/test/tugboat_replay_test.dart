@@ -595,10 +595,18 @@ void main() {
   });
 
   testWidgets('captures scroll checkpoints and samples', (tester) async {
+    TugboatReplay.debugConfigureControllerForTest = (controller) {
+      controller.debugExecuteCapture =
+          ({required trigger, required force}) async {
+            return controller.debugSeedFrame(trigger: trigger);
+          };
+    };
     await tester.pumpWidget(
       MaterialApp(
-        builder: (context, child) =>
-            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: _testConfig.copyWith(enableGlobalPointerCapture: true),
+          child: child!,
+        ),
         home: Scaffold(
           body: ListView(
             children: [
@@ -616,14 +624,18 @@ void main() {
     await _waitForCaptures(tester);
 
     final session = TugboatReplay.controller!.session!;
-    final types = session.events.map((event) => event.type).toList();
-    expect(types, containsAll(['scroll_start', 'scroll_end']));
-    final scrollStart = session.events.firstWhere(
-      (event) => event.type == 'scroll_start',
-    );
-    expect(scrollStart.targetAnchor?.role, 'scrollable');
+    final scrollInteractions = session.events
+        .where(
+          (event) =>
+              event.type == 'interaction' &&
+              event.stream == TugboatEventStream.semantic &&
+              event.data['gesture'] == 'scroll',
+        )
+        .toList();
+    expect(scrollInteractions, isNotEmpty);
     expect(session.scrollSamples, isNotEmpty);
     expect(session.frames, isNotEmpty);
+    TugboatReplay.debugConfigureControllerForTest = null;
   });
 
   testWidgets('masks only TugboatSensitive subtrees in screenshots', (
@@ -1569,40 +1581,56 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('scroll_end forces after-frame capture when samples disabled', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        builder: (context, child) => TugboatReplay.wrapApp(
-          config: _testConfig.copyWith(captureScrollSamples: false),
-          child: child!,
-        ),
-        home: Scaffold(
-          body: ListView(
-            children: const [
-              SizedBox(height: 80, child: Text('Row 0')),
-              SizedBox(height: 80, child: Text('Row 1')),
-            ],
+  testWidgets(
+    'scroll interaction forces after-frame capture when samples disabled',
+    (tester) async {
+      TugboatReplay.debugConfigureControllerForTest = (controller) {
+        controller.debugExecuteCapture =
+            ({required trigger, required force}) async {
+              return controller.debugSeedFrame(trigger: trigger);
+            };
+      };
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => TugboatReplay.wrapApp(
+            config: _testConfig.copyWith(
+              captureScrollSamples: false,
+              enableGlobalPointerCapture: true,
+            ),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: ListView(
+              children: const [
+                SizedBox(height: 80, child: Text('Row 0')),
+                SizedBox(height: 80, child: Text('Row 1')),
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    await _waitForCaptures(tester);
-    final session = TugboatReplay.controller!.session!;
-    final framesBeforeScroll = session.frames.length;
+      await _waitForCaptures(tester);
+      final session = TugboatReplay.controller!.session!;
+      final framesBeforeScroll = session.frames.length;
 
-    await tester.drag(find.byType(ListView), const Offset(0, -40));
-    await _waitForCaptures(tester);
+      await tester.drag(find.byType(ListView), const Offset(0, -40));
+      await _waitForCaptures(tester);
 
-    final scrollEnds = session.events
-        .where((event) => event.type == 'scroll_end')
-        .toList();
-    expect(scrollEnds, isNotEmpty);
-    expect(scrollEnds.last.afterFrame, isNotNull);
-    expect(session.frames.length, greaterThanOrEqualTo(framesBeforeScroll));
-  });
+      final scrollInteractions = session.events
+          .where(
+            (event) =>
+                event.type == 'interaction' &&
+                event.stream == TugboatEventStream.semantic &&
+                event.data['gesture'] == 'scroll',
+          )
+          .toList();
+      expect(scrollInteractions, isNotEmpty);
+      expect(scrollInteractions.last.afterFrame, isNotNull);
+      expect(session.frames.length, greaterThanOrEqualTo(framesBeforeScroll));
+      TugboatReplay.debugConfigureControllerForTest = null;
+    },
+  );
 
   test('a throwing queued task does not poison later tap settles', () async {
     final rootKey = GlobalKey();

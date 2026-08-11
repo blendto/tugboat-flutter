@@ -41,7 +41,7 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
         if (data['targetFingerprint'] != null)
           'targetFingerprint': data['targetFingerprint'],
         if (data['gesture'] != null) 'gesture': data['gesture'],
-        if (data['position'] != null) 'position': data['position'],
+        if (data['payload'] != null) 'payload': data['payload'],
       },
     );
   }
@@ -60,48 +60,6 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
         if (data['fromRoute'] != null) 'fromRoute': data['fromRoute'],
         if (data['route'] != null) 'route': data['route'],
         if (data['navigation'] != null) 'navigation': data['navigation'],
-      },
-    );
-  }
-
-  if (event.type == 'scroll_start') {
-    final data = event.data;
-    final targetFingerprint = _targetFingerprint(event);
-    return _collectorFlatEnvelope(
-      event: event,
-      triggeredAt: triggeredAt,
-      collectorConfig: collectorConfig,
-      sessionId: sessionId,
-      userId: userId,
-      traitsId: traitsId,
-      extra: {
-        'scrollSchema': tugboatScrollSchemaVersion,
-        if (data['axis'] != null) 'axis': data['axis'],
-        if (data['startOffset'] != null) 'startOffset': data['startOffset'],
-        if (targetFingerprint != null) 'targetFingerprint': targetFingerprint,
-      },
-    );
-  }
-
-  if (event.type == 'scroll_end') {
-    final data = event.data;
-    final overscrollCount = data['overscrollCount'];
-    final targetFingerprint = _targetFingerprint(event);
-    return _collectorFlatEnvelope(
-      event: event,
-      triggeredAt: triggeredAt,
-      collectorConfig: collectorConfig,
-      sessionId: sessionId,
-      userId: userId,
-      traitsId: traitsId,
-      extra: {
-        'scrollSchema': tugboatScrollSchemaVersion,
-        if (data['startOffset'] != null) 'startOffset': data['startOffset'],
-        if (data['endOffset'] != null) 'endOffset': data['endOffset'],
-        if (data['durationMs'] != null) 'durationMs': data['durationMs'],
-        if (overscrollCount is int && overscrollCount > 0)
-          'overscrollCount': overscrollCount,
-        if (targetFingerprint != null) 'targetFingerprint': targetFingerprint,
       },
     );
   }
@@ -166,12 +124,6 @@ Map<String, Object?> _collectorFlatEnvelope({
     if (traitsId != null) 'traitsId': traitsId,
     'build': collectorEventBuildIdentity(collectorConfig),
   };
-}
-
-String? _targetFingerprint(TugboatEvent event) {
-  final fingerprint = event.targetAnchor?.fingerprint;
-  if (fingerprint == null || fingerprint.isEmpty) return null;
-  return fingerprint;
 }
 
 /// Immutable build identity required for Context Graph matching.
