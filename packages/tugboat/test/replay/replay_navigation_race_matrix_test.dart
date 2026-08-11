@@ -124,6 +124,8 @@ void main() {
       interactions.every((event) => event.data['gesture'] == 'tap'),
       isTrue,
     );
+    expect(change.afterFrame, isNotNull);
+    expect(interactions.every((event) => event.afterFrame != null), isTrue);
     expect(change.data['causeEventId'], isNull);
     expect(change.data['navigationOrigin'], 'automatic_or_unknown');
   });

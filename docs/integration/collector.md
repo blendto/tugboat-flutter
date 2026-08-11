@@ -209,6 +209,9 @@ Event payloads contain:
 - build identity: app ID, platform, version name, build number, and fingerprint
   schema version.
 
+For schema-v2 interactions, `afterFrame` is a temporal visual observation. It
+does not assert that the interaction caused that frame, route, or UI state.
+
 Frame uploads are sorted by numeric frame suffix and sent as multipart files
 named `<frameNo>.jpg`, with `sessionId` and comma-separated `frameNos` fields.
 Malformed frame IDs and frames belonging to a stale SDK session are dropped.

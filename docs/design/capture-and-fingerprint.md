@@ -118,10 +118,10 @@ route dictionary.
 viewport. The session begins with `session_start` and an initial capture
 request. Pointer-down freezes a compatible pre-interaction frame. Pointer-up
 publishes one canonical `interaction` after gesture classification. Its
-after-frame attaches only when the frame provenance matches the observed route
-epoch. A capture that is unavailable, cancelled, superseded, or
-timed out is represented by bounded capture/attachment diagnostics instead of
-borrowing the latest frame from another screen.
+after-frame is a temporal observation captured after the interaction. A route
+frame can satisfy this reference even when the route is not causally attributed
+to the interaction. Causal route ownership remains on `route_change`. A capture
+that is unavailable, cancelled, or timed out remains absent.
 
 Frame requests are serialized and use fresh-paint/readback checks before
 publishing. Non-interaction requests can coalesce and reuse exact-content or
@@ -258,10 +258,9 @@ capture subtree's paint signature has not
 changed since the last accepted frame (outer capture boundary paint generation
 plus nested [RepaintBoundary] layer/picture identity), the controller skips the
 entire GPU readback/encode path and reuses a compatible frame. Each completed
-interaction requests one forced fresh after-frame. This attempt does not
-coalesce, and local-WebSocket suppression, paint-generation reuse, dHash reuse,
-and content-hash reuse cannot replace it. A fresh route capture can satisfy only
-the interaction that causally claimed that route capture.
+interaction requests a post-interaction observation. A fresh route capture can
+satisfy it without asserting that the interaction caused the route.
+`afterFrame` therefore means "observed later," not "action result."
 
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA
@@ -273,8 +272,8 @@ in repaint-boundary output.
 
 When the exploration WebSocket connects and there is no HTTP collector, the
 controller suppresses only non-interaction Flutter screenshots for UI-thread
-performance. Each completed interaction still encodes a fresh screenshot. A
-causally claimed route capture also remains enabled. Events, anchors,
+performance. Each completed interaction still requests a visual observation.
+A route capture can satisfy it. Events, anchors,
 inventories, and semantic evidence continue to stream. Any frames captured
 before connection are still sent.
 

@@ -2680,26 +2680,27 @@ class TugboatReplayController extends ChangeNotifier {
             routeBarrier.work.change.causeEventId == pending.id &&
             routeBarrier.work.supersededBy?.change.causeEventId != pending.id;
         if (barrierWasSupersededByAutomatic) {
-          // The claimed route never produced a valid frame. Preserve the
-          // interaction capture attempt, but never attach the automatic
-          // successor's pixels or route event as this tap's evidence.
-          final capture = _requestCaptureCancellable(
-            trigger: TugboatFrameTrigger.interaction,
-            force: true,
-            settleDelay: Duration.zero,
-            relatedEventId: pending.id,
-          );
-          work.attachCaptureCancellation((reason) => capture.cancel(reason));
-          final captureResolution = await capture.resolution;
+          // The claimed route did not settle, but a later route frame remains
+          // a truthful temporal observation after this interaction. Follow the
+          // visual successor without assigning its route event as causal.
+          final successor = routeBarrier.work.supersededBy;
+          String? temporalAfterFrame;
+          if (successor != null) {
+            final temporalBarrier = await _awaitRouteCaptureBarrier(successor);
+            temporalAfterFrame = _temporalAfterFrame(
+              pending,
+              temporalBarrier.result.frameId,
+            );
+          }
           if (!_isActiveTapSettle(work)) return;
           observation = _TapSettleObservation(
             routeEpoch: _routeEpoch,
             route: _currentRoute,
-            afterFrame: null,
+            afterFrame: temporalAfterFrame,
             navigationOutcome: 'navigation_unavailable',
             captureOutcome: 'superseded_route_epoch',
             captureFailure: 'superseded_route_epoch',
-            captureRequestId: captureResolution.requestId,
+            captureRequestId: routeBarrier.result.captureRequestId,
           );
         } else {
           observation = _tapObservationFromRouteBarrier(routeBarrier);
@@ -2735,17 +2736,13 @@ class TugboatReplayController extends ChangeNotifier {
         final replacementRoute = _activeRouteCapture;
         final replacementIsCausal =
             replacementRoute?.change.causeEventId == pending.id;
-        final replacementIsSafeVisualSuccessor =
-            replacementRoute != null &&
-            _pointerGeneration == pending.origin.pointerGeneration;
         final captureWasSuperseded =
             routeChangedFromOrigin ||
             (!frameMatchesOrigin &&
                 captureResolution.outcome == _CaptureOutcome.supersededRoute);
         if (!frameMatchesOrigin &&
             replacementRoute != null &&
-            replacementRoute.epoch != requestedRouteEpoch &&
-            (replacementIsCausal || replacementIsSafeVisualSuccessor)) {
+            replacementRoute.epoch != requestedRouteEpoch) {
           final routeBarrier = await _awaitRouteCaptureBarrier(
             replacementRoute,
             expectedCauseEventId: replacementIsCausal ? pending.id : null,
@@ -2757,12 +2754,12 @@ class TugboatReplayController extends ChangeNotifier {
                 ? 'navigated'
                 : 'visual_successor',
           );
-          // The interaction request belongs to the old route epoch. Do not
-          // attach the successor route frame as its after-frame.
+          // The successor frame is a temporal post-interaction observation.
+          // Only routeEventId remains gated by causal ownership.
           observation = _TapSettleObservation(
             routeEpoch: successor.routeEpoch,
             route: successor.route,
-            afterFrame: null,
+            afterFrame: _temporalAfterFrame(pending, successor.afterFrame),
             navigationOutcome: successor.navigationOutcome,
             captureOutcome: replacementIsCausal
                 ? captureResolution.outcome.wireName
@@ -2774,12 +2771,14 @@ class TugboatReplayController extends ChangeNotifier {
             captureRequestId: captureResolution.requestId,
           );
         } else {
+          final temporalAfterFrame =
+              frameMatchesOrigin && !routeChangedFromOrigin
+              ? afterFrame
+              : _temporalAfterFrame(pending, _latestFrameId);
           observation = _TapSettleObservation(
             routeEpoch: requestedRouteEpoch,
             route: requestedRoute,
-            afterFrame: frameMatchesOrigin && !routeChangedFromOrigin
-                ? afterFrame
-                : null,
+            afterFrame: temporalAfterFrame,
             navigationOutcome: 'same_route',
             captureOutcome: frameMatchesOrigin && !routeChangedFromOrigin
                 ? 'captured'
@@ -2824,6 +2823,20 @@ class TugboatReplayController extends ChangeNotifier {
       _clearCausalRouteState(pending.id);
       work.complete();
     }
+  }
+
+  /// Returns a frame only as a temporal observation made after [interaction].
+  /// This does not claim that the interaction caused the frame's route or UI.
+  String? _temporalAfterFrame(
+    InteractionTransaction interaction,
+    String? frameId,
+  ) {
+    if (frameId == null) return null;
+    final provenance = _frameProvenance[frameId];
+    if (provenance == null || !provenance.available) return null;
+    if (provenance.context.captureSessionId != _session?.id) return null;
+    if (provenance.completedAtMs < interaction.origin.atMs) return null;
+    return frameId;
   }
 
   bool _isActiveTapSettle(_TapSettleWork work) =>

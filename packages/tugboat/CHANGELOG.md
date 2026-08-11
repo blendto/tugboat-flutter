@@ -7,6 +7,9 @@
   compatibility constructors.
 - Removed the on-device outbox and its public configuration. Collector and
   exploration delivery are best-effort through bounded in-memory queues.
+- `interaction.afterFrame` now means a temporal post-interaction observation.
+  An unclaimed route frame can satisfy it without creating route causality or
+  an inferred result.
 
 ## 0.8.0
 

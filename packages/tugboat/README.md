@@ -13,7 +13,8 @@ version `6`.
 
 New writers omit `stateAnchor`, `stateSignature`, and `state_change` events.
 The old public state model types are removed. Each completed tap, swipe, and
-scroll requests its own fresh after-frame. The collector mapper also omits the
+scroll records a temporal after-frame when capture succeeds. The collector
+mapper also omits the
 top-level `stateAnchor` key. Deploy the related collector change with this SDK
 release.
 
@@ -373,11 +374,10 @@ requests can coalesce. When the capture boundary has not painted since the
 last accepted frame, the SDK reuses that frame without GPU readback. Otherwise
 it uses a small dHash (Hamming distance ≤ 2) to avoid JPEG encoding for
 near-identical content, and finally deduplicates encoded frames by content hash.
-Each completed tap, swipe, and scroll requests exactly one forced fresh
-after-frame. This interaction-owned attempt cannot coalesce or resolve through
-local-WebSocket suppression, paint-generation reuse, dHash reuse, or
-content-hash reuse. A fresh route capture can satisfy only the interaction that
-causally claimed it.
+Each completed tap, swipe, and scroll requests a post-interaction observation.
+An already encoded route frame can satisfy that observation even when route
+causality is unknown. The frame records only what was visible later. It does
+not prove that the interaction caused the observed UI or navigation.
 
 Interaction payload coordinates use normalized capture-boundary space. Do not
 interpret them as physical pixels or as coordinates relative to a widget.
@@ -387,14 +387,14 @@ For a tap, origin context (target, `beforeFrame`,
 an `InteractionTransaction`. After pointer-up, settlement waits for either the
 first eligible visible successor inside `interactionClaimWindow` (default
 1,250 ms) or the deadline. The canonical `interaction` event retains that
-frozen origin and attaches destination/result fields when a successor claims.
-A missing attachment remains unavailable. The SDK does not attach an unrelated
-frame as a fallback.
+frozen origin. Route ownership remains separate. `afterFrame` is only a later
+visual observation and can come from an unclaimed route successor. It does not
+assign a result or destination to the interaction.
 
 During local WebSocket exploration, connecting without an HTTP collector
 suppresses only non-interaction Flutter screenshot capture for UI-thread
-performance. Every completed interaction still encodes a fresh screenshot.
-This includes a causally claimed route capture. Events, anchors, inventories,
+performance. Every completed interaction still requests a post-interaction
+visual observation. A route capture can satisfy it. Events, anchors, inventories,
 and semantic evidence continue to stream; the CLI's ADB before/after screenshots
 remain the primary gesture-level visual evidence.
 
