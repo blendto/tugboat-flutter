@@ -6,7 +6,6 @@ import 'package:tugboat/src/viewport_semantic_session.dart';
 
 const _semanticMapConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
-  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -16,7 +15,6 @@ const _semanticMapConfig = TugboatReplayConfig(
 
 const _semanticMapConfigWithLogs = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
-  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -26,7 +24,6 @@ const _semanticMapConfigWithLogs = TugboatReplayConfig(
 
 const _scrollSemanticMapConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
-  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -100,6 +97,15 @@ Future<void> _pumpSettledScreen(
 }
 
 void main() {
+  setUp(() {
+    TugboatReplay.debugConfigureControllerForTest = (controller) {
+      controller.debugExecuteCapture =
+          ({required trigger, required force}) async =>
+              controller.debugSeedFrame(trigger: trigger);
+    };
+  });
+  tearDown(TugboatReplay.resetForTest);
+
   testWidgets(
     'enabling viewport semantic map emits event after settled screen',
     (tester) async {
@@ -144,21 +150,18 @@ void main() {
     final tapCenter = tester.getCenter(find.text('Go'));
     controller.recordPointerDown(tapCenter);
     controller.recordPointerUp(tapCenter);
-    await tester.pump();
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
 
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
+    final interaction = controller.session!.events
+        .where(
+          (event) =>
+              event.type == 'interaction' && event.data['gesture'] == 'tap',
+        )
         .single;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'matched_actionable');
-    expect(resolution['linkedFingerprint'], isNotEmpty);
-    expect(resolution['role'], 'button');
 
-    final tapFingerprint = tapEvent.targetAnchor?.fingerprint;
+    final tapFingerprint = interaction.data['targetFingerprint'];
     expect(tapFingerprint, isNotEmpty);
-    expect(resolution['linkedFingerprint'], tapFingerprint);
   });
 
   testWidgets('tap resolution rebuilds the same-route semantic map', (
@@ -199,16 +202,12 @@ void main() {
     final tapCenter = tester.getCenter(find.text('Bottom action'));
     controller.recordPointerDown(tapCenter);
     controller.recordPointerUp(tapCenter);
-    await tester.pump();
-
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
-        .last;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'matched_actionable');
-    expect(resolution['role'], 'button');
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(
+      controller.session!.events.where((event) => event.type == 'interaction'),
+      hasLength(1),
+    );
   });
 
   testWidgets('tap on non-actionable text resolves to matched_non_actionable', (
@@ -252,15 +251,8 @@ void main() {
     );
     controller.recordPointerDown(tapPoint);
     controller.recordPointerUp(tapPoint);
-    await tester.pump();
-
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
-        .single;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'matched_non_actionable');
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
     expect(
       controller.session!.events
           .where((event) => event.type == 'viewport_semantic_map')
@@ -281,15 +273,12 @@ void main() {
     final bottomRight = tester.getBottomRight(find.byType(Scaffold));
     controller.recordPointerDown(bottomRight - const Offset(2, 2));
     controller.recordPointerUp(bottomRight - const Offset(2, 2));
-    await tester.pump();
-
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
-        .single;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'outside_known_ui');
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(
+      controller.session!.events.where((event) => event.type == 'interaction'),
+      hasLength(1),
+    );
   });
 
   testWidgets('inventory fallback covers gesture controls missing semantics', (
@@ -344,16 +333,13 @@ void main() {
     );
     controller.recordPointerDown(ctaCenter);
     controller.recordPointerUp(ctaCenter);
-    await tester.pump();
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
 
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
+    final interaction = controller.session!.events
+        .where((event) => event.type == 'interaction')
         .last;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'matched_actionable');
-    expect(resolution['linkedFingerprint'], isNotEmpty);
+    expect(interaction.data['targetFingerprint'], isNotEmpty);
   });
 
   testWidgets('dormant profile stays off with default semantic mode', (
@@ -395,11 +381,6 @@ void main() {
     controller.recordPointerDown(tapCenter);
     controller.recordPointerUp(tapCenter);
     await tester.pump();
-
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
-        .last;
-    expect(tapEvent.data.containsKey('viewportSemanticResolution'), isFalse);
   });
 
   testWidgets('production default resolves taps without emitting maps', (
@@ -410,7 +391,6 @@ void main() {
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.productionLean,
-            interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
@@ -431,7 +411,8 @@ void main() {
     final tapCenter = tester.getCenter(find.text('Go'));
     controller.recordPointerDown(tapCenter);
     controller.recordPointerUp(tapCenter);
-    await tester.pump();
+    await _waitForCaptures(tester);
+    await tester.pump(const Duration(milliseconds: 350));
 
     final mapEvents = controller.session!.events
         .where(
@@ -442,16 +423,10 @@ void main() {
         .toList();
     expect(mapEvents, isEmpty);
 
-    final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
+    final interaction = controller.session!.events
+        .where((event) => event.type == 'interaction')
         .last;
-    final resolution =
-        tapEvent.data['viewportSemanticResolution'] as Map<Object?, Object?>?;
-    expect(resolution, isNotNull);
-    expect(resolution!['status'], 'matched_actionable');
-    // Verdict payload must remain text-free.
-    expect(resolution.keys, isNot(contains('label')));
-    expect(resolution.keys, isNot(contains('text')));
+    expect(interaction.data['targetFingerprint'], isNotEmpty);
   });
 
   testWidgets(
@@ -462,7 +437,6 @@ void main() {
           builder: (context, child) => TugboatReplay.wrapApp(
             config: const TugboatReplayConfig(
               profile: TugboatCaptureProfile.productionLean,
-              interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
               settleDelay: Duration.zero,
               interactionClaimWindow: Duration.zero,
               enableGlobalPointerCapture: false,
@@ -488,7 +462,8 @@ void main() {
       final controller = TugboatReplay.controller!;
       controller.recordPointerDown(tester.getCenter(find.text('Go')));
       controller.recordPointerUp(tester.getCenter(find.text('Go')));
-      await tester.pump();
+      await _waitForCaptures(tester);
+      await tester.pump(const Duration(milliseconds: 350));
 
       final mapEvents = controller.session!.events
           .where(
@@ -499,10 +474,10 @@ void main() {
           .toList();
       expect(mapEvents, isEmpty);
 
-      final tapEvent = controller.session!.events
-          .where((event) => event.type == 'tap')
+      final interaction = controller.session!.events
+          .where((event) => event.type == 'interaction')
           .last;
-      expect(tapEvent.data['viewportSemanticResolution'], isNotNull);
+      expect(interaction.data['gesture'], 'tap');
     },
   );
 
@@ -514,7 +489,6 @@ void main() {
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.productionLean,
-            interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,

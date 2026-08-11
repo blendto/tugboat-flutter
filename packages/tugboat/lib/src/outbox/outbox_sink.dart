@@ -120,7 +120,6 @@ class OutboxBackedCaptureSink implements TugboatCaptureSink {
             id: entry.payloadJson['id'] as String? ?? entry.idempotencyKey,
             atMs: entry.payloadJson['atMs'] as int? ?? 0,
             type: entry.payloadJson['type'] as String? ?? 'unknown',
-            sessionId: entry.captureSessionId,
             captureSessionId: entry.captureSessionId,
             activationRequestId: entry.activationRequestId,
             data: Map<String, Object?>.from(

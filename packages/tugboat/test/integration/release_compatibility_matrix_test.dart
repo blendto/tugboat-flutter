@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 
-import '../helpers/json_roundtrip.dart';
-
 Future<void> _waitForCaptures(WidgetTester tester) async {
   await tester.pump();
   await tester.runAsync(() async {
@@ -114,45 +112,6 @@ void main() {
       (e) => e.type == 'route_change',
     );
     expect(routes, isNotEmpty);
-  });
-
-  test('v6-v9 session JSON remains readable alongside v10 writers', () {
-    final session = TugboatSession(
-      id: 'legacy-session',
-      startedAt: DateTime.utc(2026, 8, 3),
-      platform: 'test',
-      viewport: const TugboatRect(0, 0, 100, 200),
-    );
-    final writerJson = session.toJson();
-    expect(writerJson['schemaVersion'], 10);
-
-    for (final version in [6, 7, 8, 9]) {
-      final legacyJson = Map<String, dynamic>.from(writerJson)
-        ..['schemaVersion'] = version
-        ..['events'] = [
-          {
-            'id': 'legacy-event-$version',
-            'atMs': 0,
-            'type': 'tap',
-            'data': {
-              'controlValue': {'kind': 'number', 'value': 0.5},
-              'controlValueTransition': {
-                'before': {'kind': 'number', 'value': 0.4},
-                'after': {'kind': 'number', 'value': 0.5},
-              },
-              'semanticAnnotation': {
-                'label': {'kind': 'string', 'value': 'Legacy label'},
-              },
-            },
-          },
-        ];
-
-      final restored = TugboatSessionTestJson.fromJson(legacyJson);
-      expect(restored.id, 'legacy-session');
-      expect(restored.events.single.data, contains('controlValue'));
-      expect(restored.events.single.data, contains('controlValueTransition'));
-      expect(restored.events.single.data, contains('semanticAnnotation'));
-    }
   });
 
   test(

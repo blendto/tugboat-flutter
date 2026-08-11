@@ -192,7 +192,7 @@ void main() {
     return TugboatEvent(
       id: 'event-$index',
       atMs: index,
-      type: 'tap',
+      type: 'capture_diagnostic',
       data: {'index': index},
     );
   }
@@ -263,7 +263,7 @@ void main() {
     expect(batchPosts, hasLength(1));
     expect(batchPosts.first, hasLength(10));
     expect(batchPosts.first.first['sessionId'], 'sess_server');
-    expect(batchPosts.first.first['eventType'], 'tap');
+    expect(batchPosts.first.first['eventType'], 'capture_diagnostic');
     expect(batchPosts.first.first['build'], isA<Map>());
     expect(
       (batchPosts.first.first['build'] as Map)['appId'],
@@ -525,7 +525,7 @@ void main() {
 
     expect(batchPosts, hasLength(1));
     expect(batchPosts.first, hasLength(1));
-    expect(batchPosts.first.first['eventType'], 'tap');
+    expect(batchPosts.first.first['eventType'], 'capture_diagnostic');
 
     sink.dispose();
   });

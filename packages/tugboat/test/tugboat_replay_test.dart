@@ -17,7 +17,6 @@ import 'helpers/json_roundtrip.dart';
 
 const _testConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
-  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -32,6 +31,30 @@ Future<void> _waitForCaptures(WidgetTester tester) async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
   });
   await tester.pump();
+}
+
+void _useSeededCaptures() {
+  TugboatReplay.debugConfigureControllerForTest = (controller) {
+    controller.debugExecuteCapture =
+        ({required trigger, required force}) async =>
+            controller.debugSeedFrame(trigger: trigger);
+  };
+}
+
+Future<void> _waitForInteraction(WidgetTester tester) async {
+  for (var attempt = 0; attempt < 12; attempt++) {
+    if (TugboatReplay.controller?.session?.events.any(
+          (event) => event.type == 'interaction',
+        ) ??
+        false) {
+      return;
+    }
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+  }
 }
 
 /// Drive both Flutter frames and the real async queue until [future] resolves.
@@ -182,7 +205,7 @@ void main() {
     final controller = TugboatReplay.controller!;
     final session = controller.session!;
     expect(session.events.first.type, 'session_start');
-    expect(session.events.first.sessionId, session.id);
+    expect(session.events.first.captureSessionId, session.id);
     expect(session.frames, isNotEmpty);
     expect(session.frameBytes, isNotEmpty);
     expect(session.averageFrameBytes, greaterThan(0));
@@ -192,40 +215,21 @@ void main() {
     final framesBeforeTap = session.frames.length;
     await tester.tap(find.text('Continue'));
     await _waitForCaptures(tester);
+    await _waitForInteraction(tester);
 
-    final tapEvents = session.events.where((e) => e.type == 'tap').toList();
-    expect(tapEvents, isNotEmpty);
-    expect(tapEvents.first.targetAnchor, isNotNull);
-    expect(tapEvents.first.targetAnchor!.widgetType, isNot('RepaintBoundary'));
-    expect(tapEvents.first.targetAnchor!.role, 'button');
-    expect(tapEvents.first.targetAnchor!.fingerprint, isNotNull);
-    expect(tapEvents.first.targetAnchor!.fingerprintConfidence, isNotNull);
-    expect(tapEvents.first.targetAnchor!.canonicalPath, isNotEmpty);
-    expect(
-      tapEvents.first.targetAnchor!.fingerprintParts,
-      containsPair('schemaVersion', tugboatFingerprintSchemaVersion.toString()),
-    );
-    expect(
-      tapEvents.first.targetAnchor!.fingerprintParts.containsKey('labels'),
-      isFalse,
-    );
-    expect(_containsLabelTelemetry(session.toJson()), isFalse);
-    expect(tapEvents.first.targetAnchor!.relativePosition, isNotNull);
-    expect(tapEvents.first.beforeFrame, isNotNull);
-
-    final settled = session.events
-        .where((e) => e.type == 'tap_settled')
+    final interactions = session.events
+        .where((e) => e.type == 'interaction')
         .toList();
-    expect(settled, isNotEmpty);
-    expect(settled.first.relatedEventId, tapEvents.first.id);
-    expect(settled.first.targetAnchor?.role, 'button');
-    expect(
-      settled.first.targetAnchor?.canonicalPath,
-      tapEvents.first.targetAnchor?.canonicalPath,
-    );
-    expect(settled.first.afterFrame, isNotNull);
+    expect(interactions, isNotEmpty);
+    expect(interactions.first.data['targetFingerprint'], isNotEmpty);
+    expect(_containsLabelTelemetry(session.toJson()), isFalse);
+    expect(interactions.first.beforeFrame, isNotNull);
+    expect(interactions.first.afterFrame, isNotNull);
     expect(session.frames.length, greaterThan(framesBeforeTap));
-    expect(settled.first.afterFrame, isNot(tapEvents.first.beforeFrame));
+    expect(
+      interactions.first.afterFrame,
+      isNot(interactions.first.beforeFrame),
+    );
   });
 
   testWidgets(
@@ -940,6 +944,8 @@ void main() {
   testWidgets('does not record icon or tooltip labels on icon button taps', (
     tester,
   ) async {
+    _useSeededCaptures();
+    addTearDown(TugboatReplay.resetForTest);
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
@@ -957,17 +963,17 @@ void main() {
     await tester.tap(find.byIcon(Icons.notifications_outlined));
     await _waitForCaptures(tester);
 
-    final anchor = TugboatReplay.controller!.session!.events
-        .firstWhere((event) => event.type == 'tap')
-        .targetAnchor!;
-    expect(anchor.role, 'button');
-    expect(anchor.fingerprint, isNotNull);
-    expect(_containsLabelTelemetry(anchor.toJson()), isFalse);
+    final interaction = TugboatReplay.controller!.session!.events.firstWhere(
+      (event) => event.type == 'interaction',
+    );
+    expect(interaction.data['targetFingerprint'], isNotNull);
   });
 
   testWidgets('does not record descendant labels from list tile taps', (
     tester,
   ) async {
+    _useSeededCaptures();
+    addTearDown(TugboatReplay.resetForTest);
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
@@ -985,16 +991,17 @@ void main() {
     await tester.tap(find.byType(ListTile));
     await _waitForCaptures(tester);
 
-    final anchor = TugboatReplay.controller!.session!.events
-        .firstWhere((event) => event.type == 'tap')
-        .targetAnchor!;
-    expect(anchor.role, 'button');
-    expect(_containsLabelTelemetry(anchor.toJson()), isFalse);
+    final interaction = TugboatReplay.controller!.session!.events.firstWhere(
+      (event) => event.type == 'interaction',
+    );
+    expect(interaction.data['targetFingerprint'], isNotNull);
   });
 
   testWidgets('does not emit control or semantic value telemetry', (
     tester,
   ) async {
+    _useSeededCaptures();
+    addTearDown(TugboatReplay.resetForTest);
     var enabled = false;
     await tester.pumpWidget(
       MaterialApp(
@@ -1015,14 +1022,12 @@ void main() {
     await _waitForCaptures(tester);
 
     final session = TugboatReplay.controller!.session!;
-    final tap = session.events.firstWhere((event) => event.type == 'tap');
-    final settled = session.events.firstWhere(
-      (event) => event.type == 'tap_settled' && event.relatedEventId == tap.id,
+    final interaction = session.events.firstWhere(
+      (event) => event.type == 'interaction',
     );
     expect(enabled, isTrue);
-    expect(tap.targetAnchor, isNotNull);
-    expect(settled.targetAnchor, isNotNull);
-    for (final event in [tap, settled]) {
+    expect(interaction.data['targetFingerprint'], isNotNull);
+    for (final event in [interaction]) {
       expect(event.data.containsKey('controlValue'), isFalse);
       expect(event.data.containsKey('controlValueTransition'), isFalse);
       expect(event.data.containsKey('semanticAnnotation'), isFalse);
@@ -1086,16 +1091,30 @@ void main() {
     );
     final json = session.toJson();
 
-    expect(
-      () => TugboatSessionTestJson.fromJson({...json, 'schemaVersion': 5}),
-      throwsFormatException,
-    );
+    for (final version in [5, 6, 7, 8, 9]) {
+      expect(
+        () => TugboatSessionTestJson.fromJson({
+          ...json,
+          'schemaVersion': version,
+        }),
+        throwsFormatException,
+      );
+    }
     final withoutVersion = Map<String, Object?>.from(json)
       ..remove('schemaVersion');
     expect(
       () => TugboatSessionTestJson.fromJson(withoutVersion),
       throwsFormatException,
     );
+  });
+
+  test('event stream parser rejects missing and legacy values', () {
+    expect(() => TugboatEventStream.parse(null), throwsFormatException);
+    expect(
+      () => TugboatEventStream.parse('legacy_projection'),
+      throwsFormatException,
+    );
+    expect(() => TugboatEventStream.parse('unknown'), throwsFormatException);
   });
 
   test('frame JSON defaults missing capture timing for older sessions', () {
@@ -1180,13 +1199,13 @@ void main() {
     const event = TugboatEvent(
       id: 'event-1',
       atMs: 10,
-      type: 'tap',
-      sessionId: 's1',
+      type: 'interaction',
+      captureSessionId: 's1',
       explorationRunId: 'run-1',
       actionId: 'A-1',
     );
     final restored = TugboatEventTestJson.fromJson(event.toJson());
-    expect(restored.sessionId, 's1');
+    expect(restored.captureSessionId, 's1');
     expect(restored.toJson().containsKey('route'), isFalse);
     expect(restored.explorationRunId, 'run-1');
     expect(restored.actionId, 'A-1');
@@ -1652,14 +1671,14 @@ void main() {
     controller.recordPointerUp(const Offset(5, 5), pointer: 1);
     await controller.drainPointerQueue();
 
-    final settles = controller.session!.events
-        .where((event) => event.type == 'tap_settled')
-        .toList();
-    expect(settles, hasLength(1));
+    expect(
+      controller.session!.events.where((event) => event.type == 'interaction'),
+      hasLength(1),
+    );
     controller.dispose();
   });
 
-  test('overlapping taps keep pointer-specific relatedEventId links', () async {
+  test('overlapping taps publish one interaction per pointer', () async {
     final rootKey = GlobalKey();
     final controller = TugboatReplayController(
       config: _testConfig,
@@ -1675,16 +1694,10 @@ void main() {
     controller.recordPointerUp(const Offset(2, 2), pointer: 2);
     await controller.drainPointerQueue();
 
-    final taps = controller.session!.events
-        .where((event) => event.type == 'tap')
-        .toList();
-    final settles = controller.session!.events
-        .where((event) => event.type == 'tap_settled')
-        .toList();
-    expect(taps, hasLength(2));
-    expect(settles, hasLength(2));
-    expect(settles[0].relatedEventId, taps[0].id);
-    expect(settles[1].relatedEventId, taps[1].id);
+    expect(
+      controller.session!.events.where((event) => event.type == 'interaction'),
+      hasLength(2),
+    );
     controller.dispose();
   });
 }

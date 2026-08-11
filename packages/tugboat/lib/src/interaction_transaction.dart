@@ -190,15 +190,11 @@ class InteractionTransaction {
   InteractionGesture gesture = InteractionGesture.tap;
   bool claimed = false;
   bool cancelled = false;
-  bool tapEmitted = false;
   bool semanticPublished = false;
   bool sameTurnEligible = true;
 
   int? releasedAtMs;
   int? reconciliationDeadlineMs;
-
-  TugboatEvent? bufferedTap;
-  TugboatEvent? bufferedOutside;
 
   final List<String> scrollStartEventIds = <String>[];
 

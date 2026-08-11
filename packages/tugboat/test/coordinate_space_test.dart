@@ -31,20 +31,6 @@ void main() {
     expect(restored.projectToRaster(), (x: 50, y: 400));
   });
 
-  test('legacy events with only global x/y remain readable', () {
-    final event = TugboatEvent(
-      id: 'e1',
-      atMs: 1,
-      type: 'tap',
-      data: const {'x': 10.5, 'y': 20.25},
-    );
-    final json = jsonDecode(jsonEncode(event.toJson())) as Map<String, Object?>;
-    final data = Map<String, Object?>.from(json['data']! as Map);
-    expect(data['x'], 10.5);
-    expect(data['y'], 20.25);
-    expect(data['captureCoordinate'], isNull);
-  });
-
   test('rejects out-of-range normalized coordinates on projection', () {
     final bad = TugboatCaptureCoordinate(
       sourceSpace: TugboatCoordinateSourceSpace.boundaryLocalLogical,
@@ -163,37 +149,4 @@ void main() {
     });
     expect(golden.projectToRaster(), (x: 70, y: 150));
   });
-
-  test(
-    'captureCoordinate JSON nests under tap data for collector passthrough',
-    () {
-      final coord = buildCaptureCoordinate(
-        globalX: 50,
-        globalY: 50,
-        boundaryOriginX: 0,
-        boundaryOriginY: 0,
-        boundaryWidth: 100,
-        boundaryHeight: 100,
-        framePixelWidth: 100,
-        framePixelHeight: 100,
-        frameId: 'frame-1',
-        boundaryTransformGeneration: 1,
-      );
-      final event = TugboatEvent(
-        id: 'e1',
-        atMs: 1,
-        type: 'tap',
-        data: {'x': 50.0, 'y': 50.0, 'captureCoordinate': coord.toJson()},
-      );
-      final encoded =
-          jsonDecode(jsonEncode(event.toJson())) as Map<String, Object?>;
-      final data = Map<String, Object?>.from(encoded['data']! as Map);
-      expect(data['x'], 50.0);
-      expect(data['y'], 50.0);
-      expect(
-        Map<String, Object?>.from(data['captureCoordinate']! as Map),
-        coord.toJson(),
-      );
-    },
-  );
 }

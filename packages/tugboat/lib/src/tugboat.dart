@@ -70,8 +70,6 @@ class TugboatReplay {
   static bool get isActivated => _lifecycle.isActivated;
   static String? get activationRequestId => _lifecycle.activationRequestId;
 
-  /// Deprecated alias for [activationRequestId].
-  static String? get activeSessionId => _lifecycle.activationRequestId;
   static TugboatCaptureProfile? get activeProfile => _lifecycle.activeProfile;
 
   /// When `true`, the SDK is fully inert (no capture, no wrapping overhead).
@@ -168,19 +166,14 @@ class TugboatReplay {
 
   /// Enables capture machinery for dormant builds at runtime.
   ///
-  /// Prefer [activationRequestId]; [sessionId] is retained for compatibility.
   static void activate({
-    String? activationRequestId,
-    @Deprecated('Use activationRequestId') String? sessionId,
+    required String activationRequestId,
     TugboatCaptureProfile profile = TugboatCaptureProfile.productionLean,
   }) {
-    final requestId = activationRequestId ?? sessionId;
-    if (requestId == null) {
-      throw ArgumentError(
-        'activate requires activationRequestId (or legacy sessionId)',
-      );
-    }
-    _lifecycle.activate(activationRequestId: requestId, profile: profile);
+    _lifecycle.activate(
+      activationRequestId: activationRequestId,
+      profile: profile,
+    );
   }
 
   /// Returns the SDK to dormant mode without tearing down the host app.

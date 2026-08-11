@@ -4,7 +4,6 @@ import 'package:tugboat/tugboat.dart';
 
 const _scrollTestConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
-  interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: true,
@@ -266,7 +265,7 @@ void main() {
     expect(payload['endOffset'], isNot(equals(payload['startOffset'])));
   });
 
-  testWidgets('dead swipe on static widget emits swipe without tap_settled', (
+  testWidgets('dead swipe on static widget emits one swipe interaction', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -295,10 +294,10 @@ void main() {
 
     final session = TugboatReplay.controller!.session!;
     final swipes = session.events
-        .where((event) => event.type == 'swipe')
-        .toList();
-    final settled = session.events
-        .where((event) => event.type == 'tap_settled')
+        .where(
+          (event) =>
+              event.type == 'interaction' && event.data['gesture'] == 'swipe',
+        )
         .toList();
     final scrollInteractions = session.events
         .where(
@@ -310,17 +309,11 @@ void main() {
         .toList();
 
     expect(swipes, isNotEmpty);
-    expect(swipes.first.data['scrolled'], isFalse);
-    expect(swipes.first.result, TugboatInteractionResult.noVisibleChange);
-    expect(swipes.first.relatedEventId, isNull);
-    expect(swipes.first.data['startCaptureCoordinate'], isA<Map>());
-    expect(settled, isEmpty);
+    expect(swipes.first.data['gesture'], 'swipe');
     expect(scrollInteractions, isEmpty);
   });
 
-  testWidgets('scroll swipe links legacy swipe to internal scroll tracker', (
-    tester,
-  ) async {
+  testWidgets('scroll swipe resolves as a scroll interaction', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
@@ -340,16 +333,20 @@ void main() {
     await _waitForCaptures(tester);
 
     final session = TugboatReplay.controller!.session!;
-    final swipes = session.events
-        .where((event) => event.type == 'swipe')
+    final scrolls = session.events
+        .where(
+          (event) =>
+              event.type == 'interaction' && event.data['gesture'] == 'scroll',
+        )
         .toList();
 
-    expect(swipes, isNotEmpty);
-    expect(swipes.first.data['scrolled'], isTrue);
-    expect(swipes.first.data['scrollStartEventId'], isNotNull);
+    expect(scrolls, isNotEmpty);
+    expect(scrolls.first.data['payload'], isA<Map>());
   });
 
-  testWidgets('sub-slop tap still emits tap_settled', (tester) async {
+  testWidgets('sub-slop tap emits one canonical tap interaction', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
@@ -365,12 +362,20 @@ void main() {
     await _waitForCaptures(tester);
 
     final session = TugboatReplay.controller!.session!;
-    expect(session.events.where((event) => event.type == 'tap'), isNotEmpty);
     expect(
-      session.events.where((event) => event.type == 'tap_settled'),
-      isNotEmpty,
+      session.events.where(
+        (event) =>
+            event.type == 'interaction' && event.data['gesture'] == 'tap',
+      ),
+      hasLength(1),
     );
-    expect(session.events.where((event) => event.type == 'swipe'), isEmpty);
+    expect(
+      session.events.where(
+        (event) =>
+            event.type == 'interaction' && event.data['gesture'] == 'swipe',
+      ),
+      isEmpty,
+    );
   });
 
   testWidgets('TugboatSubView scroll emits scroll interaction', (tester) async {

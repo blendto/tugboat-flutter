@@ -8,15 +8,6 @@ class TugboatCollectorAppInfo {
     required this.appId,
   });
 
-  @Deprecated('Use TugboatCollectorAppInfo(appId: ...) instead.')
-  const TugboatCollectorAppInfo.legacyPackageName({
-    required this.name,
-    required this.version,
-    required this.buildNumber,
-    required this.installationId,
-    required String packageName,
-  }) : appId = packageName;
-
   final String name;
   final String version;
   final String buildNumber;

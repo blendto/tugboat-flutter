@@ -21,6 +21,15 @@ class PillButton extends StatelessWidget {
 }
 
 void main() {
+  setUp(() {
+    TugboatReplay.debugConfigureControllerForTest = (controller) {
+      controller.debugExecuteCapture =
+          ({required trigger, required force}) async =>
+              controller.debugSeedFrame(trigger: trigger);
+    };
+  });
+  tearDown(TugboatReplay.resetForTest);
+
   testWidgets('scene inventory lists actionable elements and images', (
     tester,
   ) async {
@@ -181,7 +190,6 @@ void main() {
     (tester) async {
       const config = TugboatReplayConfig(
         profile: TugboatCaptureProfile.exploration,
-        interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
         settleDelay: Duration.zero,
         interactionClaimWindow: Duration.zero,
         enableGlobalPointerCapture: false,
@@ -205,15 +213,18 @@ void main() {
       final tapCenter = tester.getCenter(find.text('Go'));
       controller.recordPointerDown(tapCenter);
       controller.recordPointerUp(tapCenter);
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
 
       final tapEvents = controller.session!.events
-          .where((event) => event.type == 'tap')
+          .where(
+            (event) =>
+                event.type == 'interaction' && event.data['gesture'] == 'tap',
+          )
           .toList();
       expect(tapEvents, hasLength(1));
 
       final tapEvent = tapEvents.single;
-      final tapFingerprint = tapEvent.targetAnchor?.fingerprint;
+      final tapFingerprint = tapEvent.data['targetFingerprint'];
       expect(tapFingerprint, isNotEmpty);
 
       final inventoryEvents = controller.session!.events
@@ -242,7 +253,6 @@ void main() {
   ) async {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,
-      interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -269,12 +279,15 @@ void main() {
     final tapPoint = const Offset(20, 20);
     controller.recordPointerDown(tapPoint);
     controller.recordPointerUp(tapPoint);
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
 
     final tapEvent = controller.session!.events
-        .where((event) => event.type == 'tap')
+        .where(
+          (event) =>
+              event.type == 'interaction' && event.data['gesture'] == 'tap',
+        )
         .single;
-    final tapFingerprint = tapEvent.targetAnchor?.fingerprint;
+    final tapFingerprint = tapEvent.data['targetFingerprint'];
     expect(tapFingerprint, isNotEmpty);
 
     final inventoryEvents = controller.session!.events
@@ -298,7 +311,6 @@ void main() {
   ) async {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,
-      interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -343,7 +355,6 @@ void main() {
   ) async {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.productionLean,
-      interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -367,17 +378,16 @@ void main() {
     final tapCenter = tester.getCenter(find.text('Go'));
     controller.recordPointerDown(tapCenter);
     controller.recordPointerUp(tapCenter);
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
 
     final eventTypes = controller.session!.events.map((event) => event.type);
-    expect(eventTypes, contains('tap'));
+    expect(eventTypes, contains('interaction'));
     expect(eventTypes, isNot(contains('scene_inventory')));
   });
 
   testWidgets('scene inventory event is deduped per state', (tester) async {
     const config = TugboatReplayConfig(
       profile: TugboatCaptureProfile.exploration,
-      interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,

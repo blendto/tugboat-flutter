@@ -1,3 +1,11 @@
+## Unreleased
+
+### Breaking changes
+
+- The SDK now publishes only schema-v2 canonical `interaction` gesture events.
+  Removed legacy gesture projections, publication modes, session aliases, and
+  compatibility constructors.
+
 ## 0.8.0
 
 ### Changed

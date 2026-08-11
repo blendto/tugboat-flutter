@@ -8,7 +8,6 @@ import 'package:tugboat/tugboat.dart';
 void main() {
   const config = TugboatReplayConfig(
     profile: TugboatCaptureProfile.exploration,
-    interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
     settleDelay: Duration.zero,
     interactionClaimWindow: Duration.zero,
     enableGlobalPointerCapture: true,
@@ -132,7 +131,7 @@ void main() {
                   (e.data['gesture'] == 'scroll' ||
                       e.data['gesture'] == 'swipe' ||
                       e.data['gesture'] == 'cancelled')) ||
-              e.type == 'swipe',
+              false,
         )
         .map(
           (e) => {
@@ -159,8 +158,6 @@ void main() {
           .length,
       greaterThanOrEqualTo(2),
     );
-    expect(interesting.where((e) => e['type'] == 'swipe'), isNotEmpty);
-
     // Hero-image drag is inside the outer ListView: parent scroll fires with
     // overscroll but no offset change — failed scroll intent on static content.
     final overscrollAtStatic = interesting.where((e) {

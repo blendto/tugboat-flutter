@@ -69,62 +69,8 @@ extension on TugboatSession {
 
 void main() {
   group('Interaction publication defaults', () {
-    test('new recordings emit canonical interactions only', () {
-      const config = TugboatReplayConfig();
-
-      expect(
-        config.interactionPublishMode,
-        TugboatInteractionPublishMode.canonicalOnly,
-      );
-      expect(config.emitCanonicalInteractions, isTrue);
-      expect(config.emitLegacyInteractionProjection, isFalse);
-    });
-
-    test(
-      'default controller recordings emit canonical interactions without legacy rows',
-      () async {
-        final harness = ReplayCoherenceHarness(
-          interactionPublishMode:
-              const TugboatReplayConfig().interactionPublishMode,
-        );
-        await harness.setUp();
-        addTearDown(harness.dispose);
-
-        harness.controller.recordPointerDown(const Offset(8, 8));
-        harness.controller.recordPointerUp(const Offset(8, 8));
-        await harness.flushScheduler();
-
-        final events = harness.controller.session!.events;
-        expect(
-          events.where((event) => event.type == 'interaction'),
-          isNotEmpty,
-        );
-        expect(
-          events.where(
-            (event) =>
-                event.type == 'tap' ||
-                event.type == 'tap_settled' ||
-                event.type == 'swipe',
-          ),
-          isEmpty,
-        );
-      },
-    );
-
-    test('legacy dual-write remains an explicit compatibility override', () {
-      const config = TugboatReplayConfig(
-        interactionPublishMode: TugboatInteractionPublishMode.dualWrite,
-      );
-
-      expect(config.emitCanonicalInteractions, isTrue);
-      expect(config.emitLegacyInteractionProjection, isTrue);
-      expect(config.legacyGestureStream, TugboatEventStream.legacyProjection);
-    });
-
-    test('legacy-only recordings omit canonical interactions', () async {
-      final harness = ReplayCoherenceHarness(
-        interactionPublishMode: TugboatInteractionPublishMode.legacyOnly,
-      );
+    test('controller recordings emit canonical interactions', () async {
+      final harness = ReplayCoherenceHarness();
       await harness.setUp();
       addTearDown(harness.dispose);
 
@@ -133,12 +79,7 @@ void main() {
       await harness.flushScheduler();
 
       final events = harness.controller.session!.events;
-      expect(events.where((event) => event.type == 'interaction'), isEmpty);
-      expect(events.where((event) => event.type == 'tap'), hasLength(1));
-      expect(
-        events.where((event) => event.type == 'tap_settled'),
-        hasLength(1),
-      );
+      expect(events.where((event) => event.type == 'interaction'), isNotEmpty);
     });
   });
 
@@ -269,28 +210,6 @@ void main() {
         expect(cancelled.last.data['gesture'], 'cancelled');
       },
     );
-
-    test(
-      'canonical-only mode does not emit legacy promotion evidence',
-      () async {
-        final harness = ReplayCoherenceHarness(
-          interactionPublishMode: TugboatInteractionPublishMode.canonicalOnly,
-        );
-        await harness.setUp();
-        addTearDown(harness.dispose);
-
-        harness.controller.recordPointerDown(const Offset(12, 34));
-        await harness.controller.route('route_push', harness.route('/dest'));
-        await harness.flushScheduler();
-        harness.controller.recordPointerUp(const Offset(12, 34));
-        await harness.flushScheduler();
-
-        expect(
-          harness.controller.session!.ofType('tap_gesture_resolved'),
-          isEmpty,
-        );
-      },
-    );
   });
 
   group('Delayed reconciliation (U2)', () {
@@ -387,8 +306,6 @@ void main() {
       harness.controller.recordPointerUp(const Offset(10, 40));
       await harness.flushScheduler();
 
-      expect(harness.controller.session!.ofType('tap'), isEmpty);
-      expect(harness.controller.session!.ofType('tap_settled'), isEmpty);
       final interactions = harness.controller.session!.semanticOfType(
         'interaction',
       );
@@ -437,35 +354,6 @@ void main() {
       expect(data.containsKey('attribution'), isFalse);
       expect(data.containsKey('evidenceEventIds'), isFalse);
       expect(data['gesture'], 'tap');
-    });
-
-    test('legacy peers are dual-written on legacy_projection stream', () async {
-      final harness = ReplayCoherenceHarness();
-      await harness.setUp();
-      addTearDown(harness.dispose);
-
-      harness.controller.recordPointerDown(const Offset(8, 8));
-      harness.controller.recordPointerUp(const Offset(8, 8));
-      await harness.flushScheduler();
-
-      final taps = harness.controller.session!.ofType('tap');
-      final settles = harness.controller.session!.ofType('tap_settled');
-      expect(taps, hasLength(1));
-      expect(settles, hasLength(1));
-      expect(taps.single.stream, TugboatEventStream.legacyProjection);
-      expect(settles.single.stream, TugboatEventStream.legacyProjection);
-      expect(taps.single.data['interactionId'], isNotNull);
-      expect(
-        settles.single.data['interactionId'],
-        taps.single.data['interactionId'],
-      );
-
-      final semantic = harness.controller.session!.ofStream(
-        TugboatEventStream.semantic,
-      );
-      expect(semantic.where((e) => e.type == 'tap'), isEmpty);
-      expect(semantic.where((e) => e.type == 'tap_settled'), isEmpty);
-      expect(semantic.where((e) => e.type == 'interaction'), hasLength(1));
     });
 
     test('ten gestures publish ten canonical semantic interactions', () async {
@@ -544,13 +432,6 @@ void main() {
               .singleWhere((e) => e.type == 'interaction')
               .isEnrichmentCandidate,
           isTrue,
-        );
-        expect(
-          harness.controller.session!
-              .ofType('tap')
-              .single
-              .isEnrichmentCandidate,
-          isFalse,
         );
       },
     );

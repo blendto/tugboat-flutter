@@ -63,7 +63,7 @@ current controller and keeps future calls to `wrapApp` inert. Runtime
 requiring a host rebuild. `deactivate()` tears capture down through the same
 gate. Pause/hidden flush pending delivery; detach ends the session once.
 
-Identity fields (session schema **v10**; compatibility readers accept v6–v10):
+Identity fields (session schema **v10** only):
 
 - `activationRequestId` — host request correlation
 - `captureSessionId` — SDK-emitted session (`session.id`)
@@ -76,8 +76,7 @@ emits exact build and fingerprint-schema provenance only.
 ## Session and event model
 
 The controller owns one bounded, in-memory `TugboatSession`. Serialized session
-JSON is schema version `10`. Compatibility readers accept schema versions
-`6` through `10`. Schema v9 stopped writing `controlValue`,
+JSON is schema version `10` only. Schema v9 stopped writing `controlValue`,
 `controlValueTransition`, or `semanticAnnotation` in event `data`; those fields
 are optional historic data in older sessions only. Schema v10 removes
 serialized state identity and adds the `interaction` frame trigger.
@@ -99,8 +98,6 @@ The event stream currently includes:
 - lifecycle: `session_start`, `session_end`;
 - canonical gestures: `interaction` (`gesture`: `tap`, `swipe`, `scroll`,
   `cancelled`) with nested `payload` facts;
-- deprecated legacy gesture peers (`dualWrite` / `legacyOnly` only): `tap`,
-  `tap_settled`, `swipe`, `tap_outside_tree`;
 - navigation: `route_change`;
 - exploration control: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
@@ -119,11 +116,10 @@ route dictionary.
 
 `wrapApp` starts a session only after its repaint boundary has a non-zero
 viewport. The session begins with `session_start` and an initial capture
-request. Pointer-down records `tap` plus a compatible pre-interaction frame,
-then pointer-up either records a swipe or creates one `tap_settled` outcome.
-The settled event refers to the initial tap through `relatedEventId` and is
-intended to attach an after-frame only when that frame's provenance matches the
-observed route epoch. A capture that is unavailable, cancelled, superseded, or
+request. Pointer-down freezes a compatible pre-interaction frame. Pointer-up
+publishes one canonical `interaction` after gesture classification. Its
+after-frame attaches only when the frame provenance matches the observed route
+epoch. A capture that is unavailable, cancelled, superseded, or
 timed out is represented by bounded capture/attachment diagnostics instead of
 borrowing the latest frame from another screen.
 
@@ -338,8 +334,9 @@ The package test suite covers deterministic fingerprints, list-length and
 scroll stability, dynamic-label exclusion, static list discriminators, tag
 transparency, route separation, modal/visibility filtering, generated widget
 names, actionable `InkWell` paths, dormant activation without rebuild,
-screenshot mask defaults, route payloads, scroll/swipe attribution, schema-v7
-JSON with v6 read compatibility, semantic modes, sink factories/mailboxes,
+screenshot mask defaults, route payloads, scroll/swipe attribution, schema-v10
+JSON round trips and rejection of unsupported schema versions, semantic modes,
+sink factories/mailboxes,
 outbox restart recovery, health diagnostics, lifecycle ordering, retry bounds,
 and stale session/frame protection.
 

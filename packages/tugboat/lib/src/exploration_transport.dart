@@ -74,7 +74,7 @@ class TugboatExplorationTransport {
   void sendEvent(TugboatEvent event) {
     _sendJson({
       'type': 'event',
-      if (event.sessionId != null) 'sessionId': event.sessionId,
+      if (event.captureSessionId != null) 'sessionId': event.captureSessionId,
       if (event.explorationRunId != null)
         'explorationRunId': event.explorationRunId,
       if (event.actionId != null) 'actionId': event.actionId,

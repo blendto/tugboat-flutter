@@ -29,7 +29,7 @@ should be verified in their own repositories.
 ## Current compatibility
 
 - package version: `0.8.0`;
-- session JSON schema: `9`;
+- session JSON schema: `10`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;
 - minimum Flutter SDK: `3.35.0`.
