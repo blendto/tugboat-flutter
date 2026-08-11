@@ -11,31 +11,45 @@ void main() {
     (tester) async {
       final fixture = await _OverlayFixture.mount(tester);
 
+      var eventCursor = fixture.eventCount;
       await tester.tap(find.byKey(_openDialog));
       await tester.pumpAndSettle();
-      final dialog = await fixture.route(tester, '/dialog');
+      final dialog = await fixture.route(
+        tester,
+        '/dialog',
+        afterIndex: eventCursor,
+      );
       fixture.expectOwned(dialog, '/dialog');
 
+      eventCursor = fixture.eventCount;
       await tester.tap(find.byKey(_closeDialog));
       await tester.pumpAndSettle();
       final dialogPop = await fixture.route(
         tester,
         '/root',
         navigation: 'route_pop',
+        afterIndex: eventCursor,
       );
       fixture.expectOwned(dialogPop, '/root');
 
+      eventCursor = fixture.eventCount;
       await tester.tap(find.byKey(_openSheet));
       await tester.pumpAndSettle();
-      final sheet = await fixture.route(tester, '/sheet');
+      final sheet = await fixture.route(
+        tester,
+        '/sheet',
+        afterIndex: eventCursor,
+      );
       fixture.expectOwned(sheet, '/sheet');
 
+      eventCursor = fixture.eventCount;
       await tester.tap(find.byKey(_closeSheet));
       await tester.pumpAndSettle();
       final sheetPop = await fixture.route(
         tester,
         '/root',
         navigation: 'route_pop',
+        afterIndex: eventCursor,
       );
       fixture.expectOwned(sheetPop, '/root');
     },
@@ -47,10 +61,15 @@ void main() {
     final fixture = await _OverlayFixture.mount(tester);
     await tester.tap(find.byKey(_openNested));
     await tester.pumpAndSettle();
+    final eventCursor = fixture.eventCount;
     await tester.tap(find.byKey(_openNested));
     await tester.pumpAndSettle();
 
-    final change = await fixture.route(tester, '/nested/details');
+    final change = await fixture.route(
+      tester,
+      '/nested/details',
+      afterIndex: eventCursor,
+    );
     fixture.expectOwned(change, '/nested/details');
   });
 }
@@ -68,6 +87,8 @@ class _OverlayFixture {
   int _frameSerial = 0;
 
   TugboatSession get session => controller.session!;
+
+  int get eventCount => session.events.length;
 
   static Future<_OverlayFixture> mount(WidgetTester tester) async {
     final nestedObserver = TugboatNavigatorObserver();
@@ -116,9 +137,11 @@ class _OverlayFixture {
     WidgetTester tester,
     String name, {
     String navigation = 'route_push',
+    required int afterIndex,
   }) => _pumpUntil<TugboatEvent>(tester, () {
-    for (final event in _ofType(session, 'route_change')) {
-      if (event.data['route'] == name &&
+    for (final event in session.events.skip(afterIndex)) {
+      if (event.type == 'route_change' &&
+          event.data['route'] == name &&
           event.data['navigation'] == navigation) {
         return event;
       }

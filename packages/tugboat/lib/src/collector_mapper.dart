@@ -60,6 +60,7 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
         if (data['fromRoute'] != null) 'fromRoute': data['fromRoute'],
         if (data['route'] != null) 'route': data['route'],
         if (data['navigation'] != null) 'navigation': data['navigation'],
+        if (data['causeEventId'] != null) 'causeEventId': data['causeEventId'],
       },
     );
   }

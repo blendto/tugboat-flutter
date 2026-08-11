@@ -157,22 +157,24 @@ class ViewportSemanticSession {
 
     final dedupeKey =
         '${map.routeKey}|${map.mapHash}|${map.scrollContext?.dedupeKey ?? ''}';
-    if (!_emittedSemanticMaps.add(dedupeKey)) return;
-
-    addEvent(
-      TugboatEvent(
-        id: nextEventId('event'),
-        atMs: atMs(),
-        type: 'viewport_semantic_map',
-        data: encodedPayload ?? map.toJson(),
-      ),
-    );
-    if (debugLogs) {
-      tugboatLogViewportSemanticMap(
-        map,
-        buildMs: buildStopwatch.elapsedMilliseconds,
+    if (_emittedSemanticMaps.add(dedupeKey)) {
+      addEvent(
+        TugboatEvent(
+          id: nextEventId('event'),
+          atMs: atMs(),
+          type: 'viewport_semantic_map',
+          data: encodedPayload ?? map.toJson(),
+        ),
       );
+      if (debugLogs) {
+        tugboatLogViewportSemanticMap(
+          map,
+          buildMs: buildStopwatch.elapsedMilliseconds,
+        );
+      }
     }
+    // A new scroll gesture can revisit a slice that was already published.
+    // Keep gesture accumulation independent from event-level map deduplication.
     _recordScrollSemanticSlice(map);
   }
 

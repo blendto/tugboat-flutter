@@ -146,6 +146,7 @@ void main() {
         'fromRoute': '/home',
         'route': '/settings',
         'navigation': 'route_push',
+        'causeEventId': 'event-interaction-1',
         'navigatorId': 'nav-1',
         'captureOutcome': 'captured',
         'navigationOrigin': 'user_gesture',
@@ -165,6 +166,7 @@ void main() {
     expect(mapped['fromRoute'], '/home');
     expect(mapped['route'], '/settings');
     expect(mapped['navigation'], 'route_push');
+    expect(mapped['causeEventId'], 'event-interaction-1');
     expect(mapped['afterFrame'], 'frame-8');
     expect(mapped.containsKey('result'), isFalse);
     expect(mapped.containsKey('payload'), isFalse);

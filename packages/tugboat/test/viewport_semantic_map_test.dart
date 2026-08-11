@@ -889,6 +889,27 @@ void main() {
         .toList();
     expect(newSnapshots, isNotEmpty);
     expect(newSnapshots.first.data['observedSliceCount'], 2);
+
+    final snapshotCount = firstSnapshotCount + newSnapshots.length;
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: start,
+    );
+    semanticSession.maybeEmit(
+      inventory,
+      resolver: resolver,
+      scrollContext: const TugboatViewportSemanticScrollContext(
+        trigger: 'scroll_update',
+        scrollableFingerprint: 'fp-list',
+        axis: 'vertical',
+        offsetNorm: 0.6,
+      ),
+    );
+    expect(
+      emitted.where((event) => event.type == 'scroll_semantic_snapshot'),
+      hasLength(snapshotCount + 1),
+    );
     semantics.dispose();
   });
 }

@@ -12,10 +12,9 @@ version `6`.
 ## 0.8.0 raw-event compatibility
 
 New writers omit `stateAnchor`, `stateSignature`, and `state_change` events.
-Legacy public state model types remain available for source compatibility, but
-new recordings do not write them. Each completed tap, swipe, and scroll
-requests its own fresh after-frame. The collector mapper also omits the top-
-level `stateAnchor` key. Deploy the related collector change with this SDK
+The old public state model types are removed. Each completed tap, swipe, and
+scroll requests its own fresh after-frame. The collector mapper also omits the
+top-level `stateAnchor` key. Deploy the related collector change with this SDK
 release.
 
 Schema-v2 collector events (`interaction`, `route_change`) are flat facts-only
