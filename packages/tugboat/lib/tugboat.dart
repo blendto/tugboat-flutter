@@ -25,7 +25,6 @@ export 'src/health.dart'
     show
         TugboatSdkHealth,
         TugboatSinkHealth,
-        TugboatOutboxHealth,
         TugboatScreenshotBudgetHealth,
         TugboatEvidenceHealth,
         TugboatSanitizedFailure;
@@ -53,8 +52,6 @@ export 'src/coordinate_space.dart'
         TugboatCoordinateSourceSpace,
         TugboatCaptureCoordinate,
         buildCaptureCoordinate;
-export 'src/outbox/outbox.dart'
-    show TugboatOutboxConfig, TugboatOutboxEnvelope, TugboatOutboxStore;
 export 'src/replay_config.dart'
     show
         TugboatReplayConfig,

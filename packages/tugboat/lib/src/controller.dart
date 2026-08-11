@@ -17,8 +17,6 @@ import 'health.dart';
 import 'interaction_transaction.dart';
 import 'models.dart';
 import 'network_observer.dart';
-import 'outbox/outbox.dart';
-import 'outbox/outbox_sink.dart';
 import 'replay_config.dart';
 import 'screenshot_capturer.dart';
 import 'screenshot_encode.dart';
@@ -780,7 +778,6 @@ class TugboatReplayController extends ChangeNotifier {
   TugboatCaptureSinkHub? _sinkHub;
   ExplorationCaptureSink? _explorationSink;
   CollectorHttpSink? _collectorHttpSink;
-  TugboatOutboxStore? _outboxStore;
   final TugboatScreenshotBudgetTracker _screenshotBudget =
       TugboatScreenshotBudgetTracker();
   final List<TugboatSanitizedFailure> _recentFailures = [];
@@ -1217,18 +1214,7 @@ class TugboatReplayController extends ChangeNotifier {
         initialTraitsId: _initialTraitsId,
         initialUserId: userId,
       );
-      TugboatCaptureSink httpSink = _collectorHttpSink!;
-      if (config.outbox.enabled) {
-        _outboxStore = TugboatOutboxStore(
-          config: config.outbox,
-          directory: config.outbox.directory,
-        );
-        httpSink = OutboxBackedCaptureSink(
-          inner: httpSink,
-          store: _outboxStore!,
-        );
-      }
-      sinks.add(httpSink);
+      sinks.add(_collectorHttpSink!);
     }
     _builtinSinks
       ..clear()
@@ -1239,10 +1225,6 @@ class TugboatReplayController extends ChangeNotifier {
     if (_holdPersistentSemanticsHandle) {
       _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
     }
-  }
-
-  Future<void> clearDurableOutbox() async {
-    await _outboxStore?.clear();
   }
 
   /// See [TugboatReplay.setTraits].
@@ -1274,7 +1256,6 @@ class TugboatReplayController extends ChangeNotifier {
   String? get collectorUserId => _collectorHttpSink?.userId;
 
   TugboatSdkHealth healthSnapshot() {
-    final outbox = _outboxStore;
     return TugboatSdkHealth(
       lifecycle: _session == null ? 'dormant' : 'active',
       profile: config.profile.name,
@@ -1285,14 +1266,6 @@ class TugboatReplayController extends ChangeNotifier {
         accepted: _sinkHub?.acceptCount ?? 0,
         dropped: _sinkHub?.dropCount ?? 0,
       ),
-      outbox: outbox == null
-          ? null
-          : TugboatOutboxHealth(
-              enabled: config.outbox.enabled,
-              pending: outbox.entryCount,
-              bytes: outbox.byteSize,
-              quarantined: outbox.quarantineReasons.length,
-            ),
       screenshots: _screenshotBudget.snapshot(),
       captureDiagnostics: TugboatCaptureDiagnosticHealth(
         total: _captureDiagnosticTotal,

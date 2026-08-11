@@ -1,7 +1,6 @@
 import 'capture_profile.dart';
 import 'collector_config.dart';
 import 'interaction_transaction.dart' show tugboatDefaultReconciliationWindow;
-import 'outbox/outbox.dart';
 import 'screenshot_mask_level.dart';
 import 'sinks/capture_sink.dart' show TugboatCaptureSinkFactory;
 import 'viewport_semantic_mode.dart';
@@ -102,7 +101,6 @@ class TugboatReplayConfig {
     this.viewportSemanticMapMaxNodes = 120,
     this.viewportSemanticMapMaxBytes = 48000,
     this.sinkFactories = const [],
-    this.outbox = TugboatOutboxConfig.disabled,
     this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,
   });
 
@@ -132,7 +130,6 @@ class TugboatReplayConfig {
   final int viewportSemanticMapMaxNodes;
   final int viewportSemanticMapMaxBytes;
   final List<TugboatCaptureSinkFactory> sinkFactories;
-  final TugboatOutboxConfig outbox;
   final TugboatScreenshotBudgetConfig screenshotBudget;
 
   TugboatScreenshotMaskLevel get effectiveScreenshotMaskLevel =>
@@ -171,7 +168,6 @@ class TugboatReplayConfig {
     int? viewportSemanticMapMaxNodes,
     int? viewportSemanticMapMaxBytes,
     List<TugboatCaptureSinkFactory>? sinkFactories,
-    TugboatOutboxConfig? outbox,
     TugboatScreenshotBudgetConfig? screenshotBudget,
   }) {
     return TugboatReplayConfig(
@@ -201,7 +197,6 @@ class TugboatReplayConfig {
       viewportSemanticMapMaxBytes:
           viewportSemanticMapMaxBytes ?? this.viewportSemanticMapMaxBytes,
       sinkFactories: sinkFactories ?? this.sinkFactories,
-      outbox: outbox ?? this.outbox,
       screenshotBudget: screenshotBudget ?? this.screenshotBudget,
     );
   }

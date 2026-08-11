@@ -231,7 +231,7 @@ Identity contract:
 - `explorationRunId` — exploration control-plane ID from config
 - `traitsId` — collector-issued traits dictionary id after `setTraits` / session responses
 
-Inspect `TugboatReplay.health` for sink, outbox, and screenshot-budget pressure
+Inspect `TugboatReplay.health` for sink and screenshot-budget pressure
 without reading protected content.
 
 ### User traits and user id
@@ -259,17 +259,8 @@ await TugboatReplay.setUserId(currentUserId);
   `session_start` when present. Pending debounced updates flush on `session_end`.
   There is no `/v1/identify` route.
 
-Optional durable HTTP delivery (Collector only, default off):
-
-```dart
-TugboatReplayConfig(
-  profile: TugboatCaptureProfile.productionLean,
-  collector: collectorConfig,
-  outbox: TugboatOutboxConfig(enabled: true),
-);
-```
-
-Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
+Collector delivery is best-effort. The SDK keeps bounded in-memory retry queues,
+but it does not persist events or frames across process restarts.
 
 ## Configuration reference
 
@@ -297,7 +288,6 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | `viewportSemanticMapMaxNodes` | 120 | emitted map node budget |
 | `viewportSemanticMapMaxBytes` | 48000 | emitted map byte budget |
 | `sinkFactories` | empty | extra `TugboatCaptureSinkFactory` adapters |
-| `outbox` | disabled | durable HTTP outbox configuration |
 | `screenshotBudget` | 60ms / 5s window | degraded-capture skip window / budget |
 
 ### Resolver and exploration events

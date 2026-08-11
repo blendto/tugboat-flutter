@@ -5,6 +5,8 @@
 - The SDK now publishes only schema-v2 canonical `interaction` gesture events.
   Removed legacy gesture projections, publication modes, session aliases, and
   compatibility constructors.
+- Removed the on-device outbox and its public configuration. Collector and
+  exploration delivery are best-effort through bounded in-memory queues.
 
 ## 0.8.0
 

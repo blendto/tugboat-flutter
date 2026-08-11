@@ -35,12 +35,6 @@ void main() {
       activationRequestId: 'req-1',
       captureSessionId: 'cap-1',
       sinks: const TugboatSinkHealth(pending: 2, accepted: 10, dropped: 1),
-      outbox: const TugboatOutboxHealth(
-        enabled: true,
-        pending: 3,
-        bytes: 128,
-        quarantined: 0,
-      ),
       screenshots: const TugboatScreenshotBudgetHealth(
         degraded: true,
         dropped: 2,

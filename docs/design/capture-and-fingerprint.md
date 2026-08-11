@@ -90,8 +90,8 @@ The session stores:
 - activation / capture / collector identity fields;
 - a `truncated` flag when configured frame or event limits are exceeded.
 
-Optional opt-in durable outbox (Collector HTTP only) persists sanitized
-delivery envelopes across process restarts within byte/age bounds.
+Collector and exploration delivery are best-effort. Bounded in-memory queues do
+not survive process termination.
 
 The event stream currently includes:
 
@@ -313,8 +313,7 @@ remains authoritative in memory. Public `TugboatCaptureSinkFactory` registration
 is supported via `TugboatReplayConfig.sinkFactories`; built-in HTTP/WS sinks
 remain available through existing config fields.
 
-HTTP delivery can optionally use a durable outbox (`TugboatOutboxConfig`).
-Exploration WebSocket queues remain process-local. See
+HTTP delivery and exploration WebSocket queues remain process-local. See
 [Collector integration](../integration/collector.md) for the wire behavior.
 
 ## Lifecycle
@@ -336,8 +335,7 @@ transparency, route separation, modal/visibility filtering, generated widget
 names, actionable `InkWell` paths, dormant activation without rebuild,
 screenshot mask defaults, route payloads, scroll/swipe attribution, schema-v10
 JSON round trips and rejection of unsupported schema versions, semantic modes,
-sink factories/mailboxes,
-outbox restart recovery, health diagnostics, lifecycle ordering, retry bounds,
+sink factories/mailboxes, health diagnostics, lifecycle ordering, retry bounds,
 and stale session/frame protection.
 
 These tests prove repository behavior; they do not replace validation on real,
@@ -360,12 +358,7 @@ sooner now that paint-generation / dHash coalesce replace the old post-capture
 state-signature short circuit. Record multi-tier device measurements before
 enabling more aggressive degradation in production profiles.
 
-### 3. Stronger collector acknowledgement
-
-Outbox delivery is at-least-once with local idempotency keys. Server-side
-envelope dedupe remains a collector concern.
-
-### 4. Deferred capture surfaces
+### 3. Deferred capture surfaces
 
 Native platform-view adapters, video texture capture, and iOS background upload
 services remain out of scope.

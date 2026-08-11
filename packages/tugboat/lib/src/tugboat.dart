@@ -209,11 +209,6 @@ class TugboatReplay {
     return _TugboatActivationGate(config: config, child: child);
   }
 
-  /// Clears any durable outbox entries (consent / logout).
-  static Future<void> clearDurableOutbox() async {
-    await _controller?.clearDurableOutbox();
-  }
-
   /// Returns a provider-neutral hook that records logical app/analytics events.
   ///
   /// The hook resolves the active controller at [TugboatEventHook.record] time
