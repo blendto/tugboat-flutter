@@ -205,7 +205,7 @@ those cases as an SDK capture gap, not as coherent replay evidence.
 | `route_change.data.navigationOrigin` | `interaction` or `automatic_or_unknown` |
 | `route_change.data.causeEventId` | Claimed tap id when origin is `interaction` |
 | `route_change.data.interactionAttribution` | Always `same_turn` when claimed |
-| `swipe`/`pointer_cancel.data.invalidatesRelatedTap` | Boolean `true` when a related causal tap should be ignored for playback |
+| `swipe` (legacy dual-write) `.data.invalidatesRelatedTap` | Boolean `true` when a related causal tap should be ignored for playback |
 | `tap_gesture_resolved` | Promotes `relatedEventId` from `causal_only` → interaction (`promotesRelatedTap`) |
 
 Released pointer-up claims attribute a route only through the pointer-up turn
@@ -424,16 +424,14 @@ host-supplied analytics records via `TugboatReplay.eventHook` (see
 
 Emitted inferred event types currently include:
 
-- canonical: `interaction` (`stream: semantic`) — one finalized gesture with
-  immutable `origin`, `result`, `attribution`, and `evidenceEventIds`;
+- canonical: `interaction` (`stream: semantic`) — one finalized gesture
+  (`tap`, `swipe`, `scroll`, or `cancelled`) with gesture-specific facts under
+  `payload` (omitted for `cancelled`);
 - deprecated legacy gesture peers (emitted only when an integration explicitly
   selects `dualWrite` or `legacyOnly`): `tap`, `tap_settled`, `swipe`,
   `tap_outside_tree`, `tap_gesture_resolved`;
 - lifecycle: `session_start`, `session_identify`, `session_end`;
-- input: `pointer_cancel` (`stream: evidence`);
-- navigation evidence (`stream: evidence`): `route_change`
-  (claimed routes also carry `causedByInteractionId`);
-- scrolling evidence (`stream: evidence`): `scroll_start`, `scroll_end`;
+- navigation evidence (`stream: evidence`): `route_change`;
 - diagnostics: `capture_diagnostic` (`stream: diagnostic`);
 - exploration: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
@@ -443,9 +441,9 @@ Emitted inferred event types currently include:
 Default enrichment and insight selection should use inferred events:
 `stream: semantic` `interaction` records (`enrichmentCandidate: true` on
 collector payloads).
-Rage-tap style insights must count finalized `gesture=tap` interactions with
-no successful `navigated`/`changed` result; exclude scrolls, swipes,
-cancellations, evidence, legacy projections, and diagnostics.
+Rage-tap style insights must count finalized `gesture=tap` interactions;
+exclude scrolls, swipes, cancellations, evidence, legacy projections, and
+diagnostics.
 
 Frames can be triggered by initial startup, interactions, routes, lifecycle,
 or explicit controller calls. Capture requests are serialized. Non-interaction

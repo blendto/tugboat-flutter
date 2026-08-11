@@ -97,22 +97,23 @@ delivery envelopes across process restarts within byte/age bounds.
 The event stream currently includes:
 
 - lifecycle: `session_start`, `session_end`;
-- pointer intent and outcome: `tap`, `tap_settled`, `swipe`,
-  `pointer_cancel`, `tap_outside_tree`;
+- canonical gestures: `interaction` (`gesture`: `tap`, `swipe`, `scroll`,
+  `cancelled`) with nested `payload` facts;
+- deprecated legacy gesture peers (`dualWrite` / `legacyOnly` only): `tap`,
+  `tap_settled`, `swipe`, `tap_outside_tree`;
 - navigation: `route_change`;
-- scrolling: `scroll_start`, `scroll_end`;
 - exploration control: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
 - optional semantic evidence: `viewport_semantic_map`,
   `scroll_semantic_snapshot`.
 
 Events may carry `beforeFrame`, `afterFrame`, `targetAnchor`,
-`relatedEventId`, `explorationRunId`, `actionId`, an interaction result, and
-type-specific `data`. Schema-v2 production events (`interaction`,
-`route_change`, `scroll_start`, `scroll_end`) are flat facts-only collector
-records without nested `payload` or inferred interaction results. Route
-transition values live in `route_change` fields, not in a session-level route
-dictionary.
+`relatedEventId`, `explorationRunId`, `actionId`, and type-specific `data`.
+Schema-v2 production `interaction` and `route_change` collector records are
+flat facts-only shapes without inferred interaction results. `interaction`
+carries gesture facts under nested `payload` (omitted for `cancelled`).
+Route transition values live in `route_change` fields, not in a session-level
+route dictionary.
 
 ### Capture lifecycle and attribution
 

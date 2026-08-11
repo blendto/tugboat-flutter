@@ -202,10 +202,10 @@ Event payloads contain:
 - optional `traitsId` (pass-through only; does not upsert the traits dictionary);
 - optional before/after frame references, related-event ID, and result;
 - serialized target anchors, when captured;
-- event-specific data under `payload`, except for schema-v2 `interaction`,
-  `route_change`, `scroll_start`, and `scroll_end`, which are flat facts-only
-  records at the top level (`interactionSchema`, `routeChangeSchema`, or
-  `scrollSchema` == `2`);
+- event-specific data under `payload`, except for schema-v2 `interaction` and
+  `route_change`, which are flat facts-only records at the top level
+  (`interactionSchema` or `routeChangeSchema` == `2`). `interaction` carries
+  gesture facts under nested `payload` (omitted for `cancelled`);
 - build identity: app ID, platform, version name, build number, and fingerprint
   schema version.
 
