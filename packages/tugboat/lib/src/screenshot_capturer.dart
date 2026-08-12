@@ -540,7 +540,7 @@ class ScreenshotCapturer {
       ratio = ratio.clamp(0.0, heightLimit / logicalSize.height);
     }
     if (degraded) ratio *= degradedScale.clamp(0.1, 1.0);
-    return ratio.clamp(double.minPositive, 1.0);
+    return ratio.clamp(double.minPositive, double.maxFinite);
   }
 
   List<MaskRect> _collectMaskRects(Element root, RenderBox ancestor) {

@@ -67,11 +67,29 @@ class _ScrollTracker {
 /// Holds the scroll-end work until the matching global pointer-up arrives.
 /// Flutter can deliver these callbacks in either order.
 class _PendingScrollCompletion {
+  _PendingScrollCompletion({
+    required this.startOffset,
+    required this.endOffset,
+    required this.overscrollCount,
+    required this.targetAnchor,
+  });
+
+  final double startOffset;
+  final double endOffset;
+  final int overscrollCount;
+  final TugboatTargetAnchor? targetAnchor;
   bool resolved = false;
   bool publishing = false;
   String? afterFrame;
   String? captureOutcome;
   _CaptureResolution? captureResolution;
+
+  void applyTo(InteractionTransaction interaction) {
+    interaction.scrollStartOffset = startOffset;
+    interaction.scrollEndOffset = endOffset;
+    interaction.overscrollCount = overscrollCount;
+    interaction.scrollTargetAnchor = targetAnchor;
+  }
 }
 
 class _ScheduledCapture {
@@ -3064,6 +3082,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   void _discardScrollCompletionFor(InteractionTransaction tx) {
     for (final scrollStartEventId in tx.scrollStartEventIds) {
+      _pendingScrollEndDelayCancellations.remove(scrollStartEventId)?.call();
       _scrollInteractions.remove(scrollStartEventId);
       _pendingScrollCompletions.remove(scrollStartEventId);
       for (final tracker in _scrollTrackers.values) {
@@ -3072,18 +3091,6 @@ class TugboatReplayController extends ChangeNotifier {
         }
       }
     }
-  }
-
-  void _applyScrollMetricsToInteraction(
-    _ScrollTracker tracker,
-    ScrollMetrics metrics,
-  ) {
-    final interaction = _scrollInteractions[tracker.startEventId];
-    if (interaction == null) return;
-    interaction.scrollStartOffset = tracker.startOffset;
-    interaction.scrollEndOffset = metrics.pixels;
-    interaction.overscrollCount = tracker.overscrollCount;
-    interaction.scrollTargetAnchor = tracker.targetAnchor;
   }
 
   void _publishResolvedScrollInteraction(String scrollStartEventId) {
@@ -3096,34 +3103,36 @@ class TugboatReplayController extends ChangeNotifier {
       return;
     }
     completion.publishing = true;
+    // Final scroll facts are independent from the delayed screenshot. Apply
+    // them before any cancellation or replacement path can publish the event.
+    completion.applyTo(interaction);
     _activeCompletedGestureCaptures.add(interaction);
-    late final Future<void> task;
-    task = () async {
-      try {
-        final resolution = completion.captureResolution;
-        final afterFrame = resolution == null
-            ? completion.afterFrame
-            : await _temporalAfterFrameAfterCapture(interaction, resolution);
-        if (!identical(
-              _pendingScrollCompletions[scrollStartEventId],
-              completion,
-            ) ||
-            !identical(_scrollInteractions[scrollStartEventId], interaction) ||
-            interaction.semanticPublished) {
-          return;
-        }
-        interaction.afterFrame = afterFrame;
-        _publishCanonicalInteraction(interaction);
-        _scrollInteractions.remove(scrollStartEventId);
-        _pendingScrollCompletions.remove(scrollStartEventId);
-      } finally {
+    final task = () async {
+      final resolution = completion.captureResolution;
+      final afterFrame = resolution == null
+          ? completion.afterFrame
+          : await _temporalAfterFrameAfterCapture(interaction, resolution);
+      if (!identical(
+            _pendingScrollCompletions[scrollStartEventId],
+            completion,
+          ) ||
+          !identical(_scrollInteractions[scrollStartEventId], interaction) ||
+          interaction.semanticPublished) {
+        return;
+      }
+      interaction.afterFrame = afterFrame;
+      _publishCanonicalInteraction(interaction);
+      _scrollInteractions.remove(scrollStartEventId);
+      _pendingScrollCompletions.remove(scrollStartEventId);
+    }();
+    _activeCompletedGestureTasks.add(task);
+    unawaited(
+      task.whenComplete(() {
         completion.publishing = false;
         _activeCompletedGestureCaptures.remove(interaction);
         _activeCompletedGestureTasks.remove(task);
-      }
-    }();
-    _activeCompletedGestureTasks.add(task);
-    unawaited(task);
+      }),
+    );
   }
 
   /// A completed swipe or scroll gets its own fresh after-frame. Interaction
@@ -3393,7 +3402,12 @@ class TugboatReplayController extends ChangeNotifier {
       return;
     }
 
-    final completion = _PendingScrollCompletion();
+    final completion = _PendingScrollCompletion(
+      startOffset: tracker.startOffset,
+      endOffset: metrics.pixels,
+      overscrollCount: tracker.overscrollCount,
+      targetAnchor: tracker.targetAnchor,
+    );
     _pendingScrollCompletions[tracker.startEventId] = completion;
     final idleDeadline = config.scrollEndCaptureDelay > Duration.zero
         ? _scheduleDelay(config.scrollEndCaptureDelay)
@@ -3429,7 +3443,6 @@ class TugboatReplayController extends ChangeNotifier {
         )) {
           return;
         }
-        _applyScrollMetricsToInteraction(tracker, metrics);
         completion
           ..captureResolution = afterResolution
           ..captureOutcome = 'superseded_route_epoch'
@@ -3475,7 +3488,6 @@ class TugboatReplayController extends ChangeNotifier {
           endOffset: metrics.pixels,
         ),
       );
-      _applyScrollMetricsToInteraction(tracker, metrics);
       completion
         ..afterFrame = afterFrame
         ..captureResolution = afterResolution

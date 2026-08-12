@@ -107,7 +107,7 @@ class TugboatReplayConfig {
     this.viewportSemanticMapMaxBytes = 48000,
     this.sinkFactories = const [],
     this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,
-  }) : assert(capturePixelRatio > 0 && capturePixelRatio <= 1),
+  }) : assert(capturePixelRatio > 0),
        assert(captureMaxWidth == null || captureMaxWidth > 0),
        assert(captureMaxHeight == null || captureMaxHeight > 0),
        assert(degradedCaptureScale > 0 && degradedCaptureScale <= 1);

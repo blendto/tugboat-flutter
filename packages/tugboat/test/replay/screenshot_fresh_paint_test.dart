@@ -402,6 +402,32 @@ void main() {
     expect(degraded.result!.height, 20);
   });
 
+  testWidgets('capture preserves public pixel ratios above one', (
+    tester,
+  ) async {
+    const config = TugboatReplayConfig(capturePixelRatio: 2);
+    final boundaryKey = GlobalKey();
+    final capturer = ScreenshotCapturer(
+      boundaryKey: boundaryKey,
+      maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
+      anchorResolver: AnchorResolver(rootKey: boundaryKey),
+      pixelRatio: config.capturePixelRatio,
+      frameWaiter: () => Future<void>.value(),
+      encoder: InlineScreenshotEncoder(),
+    );
+    addTearDown(capturer.dispose);
+    await tester.pumpWidget(_scene(boundaryKey, Colors.red));
+
+    final capture = await tester.runAsync(
+      () => capturer.captureAttempt(force: true),
+    );
+
+    expect(capture, isNotNull);
+    expect(capture!.result, isNotNull);
+    expect(capture.result!.width, 160);
+    expect(capture.result!.height, 160);
+  });
+
   test('copyWith can clear screenshot dimension bounds', () {
     const bounded = TugboatReplayConfig(
       captureMaxWidth: 540,
