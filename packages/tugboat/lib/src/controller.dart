@@ -2359,6 +2359,10 @@ class TugboatReplayController extends ChangeNotifier {
 
   void recordPointerDown(Offset position, {int pointer = 0}) {
     if (!_acceptsPointerInput) return;
+    // This is deliberately the first stateful operation. A new gesture makes
+    // an idle scroll frame stale, and cancelling it here keeps the next scroll
+    // responsive even when Flutter has not yet delivered ScrollStart.
+    _cancelDeferredScrollEndCaptures('superseded_by_pointer');
     final previousClaim = _interactions.removeReleased(pointer);
     if (previousClaim != null) {
       _finalizeAbandonedTransaction(
@@ -2369,35 +2373,6 @@ class TugboatReplayController extends ChangeNotifier {
     if (_interactions.pendingAt(pointer) != null) {
       _abandonPendingPointer(pointer, gestureFinal: 'superseded');
     }
-    final resolver = _anchorResolver;
-    TugboatTargetAnchor? target;
-    TugboatSceneInventory? tapInventory;
-
-    if (resolver != null && config.profile != TugboatCaptureProfile.dormant) {
-      final tapContext = resolver.buildTapContext(
-        tapPosition: position,
-        route: _currentRoute,
-        keyboardOpen: _isKeyboardOpen(),
-        modalOpen: _isModalOpen(),
-      );
-      target = tapContext.target;
-      tapInventory = tapContext.inventory;
-      if (tapInventory != null) {
-        _emitSceneInventory(tapInventory, emitViewportSemanticMap: false);
-      }
-    } else {
-      target = resolver?.targetAt(position, route: _currentRoute);
-    }
-
-    // Resolve after the tap context so a stale settled map can be refreshed
-    // against the tap-time inventory state.
-    final viewportResolution = _viewportSemantics.resolveTap(
-      position: position,
-      resolver: _anchorResolver,
-      boundaryKey: _boundaryKey,
-      inventory: tapInventory,
-    );
-
     final attachmentContext = _captureContext(TugboatFrameTrigger.tap);
     final beforeFrame = _compatibleFrameFor(attachmentContext);
     final coordinateFrame =
@@ -2415,7 +2390,7 @@ class TugboatReplayController extends ChangeNotifier {
       routeEpoch: _routeEpoch,
       routeInstanceId: _currentRouteInstanceId,
       navigatorId: _currentNavigatorId,
-      targetAnchor: target,
+      targetAnchor: null,
       captureCoordinate: captureCoordinate,
       beforeFrame: beforeFrame,
       atMs: startedAtMs,
@@ -2427,10 +2402,39 @@ class TugboatReplayController extends ChangeNotifier {
     );
     final tx = InteractionTransaction(origin: origin, pointerId: pointer);
     _interactions.register(tx);
+    if (!_disposed) notifyListeners();
+  }
+
+  /// Resolve tap-only evidence when input capture observes pointer-up. This is
+  /// the latest point that keeps the existing route-causing tap attribution
+  /// contract while avoiding this work for gestures that become scrolls.
+  void _resolveTapEvidence(InteractionTransaction tx, Offset position) {
+    final resolver = _anchorResolver;
+    TugboatSceneInventory? tapInventory;
+    if (resolver != null && config.profile != TugboatCaptureProfile.dormant) {
+      final tapContext = resolver.buildTapContext(
+        tapPosition: position,
+        route: _currentRoute,
+        keyboardOpen: _isKeyboardOpen(),
+        modalOpen: _isModalOpen(),
+      );
+      tx.targetAnchor = tapContext.target;
+      tapInventory = tapContext.inventory;
+      if (tapInventory != null) {
+        _emitSceneInventory(tapInventory, emitViewportSemanticMap: false);
+      }
+    } else {
+      tx.targetAnchor = resolver?.targetAt(position, route: _currentRoute);
+    }
+    final viewportResolution = _viewportSemantics.resolveTap(
+      position: position,
+      resolver: resolver,
+      boundaryKey: _boundaryKey,
+      inventory: tapInventory,
+    );
     if (viewportResolution != null && _viewportSemanticMapDebugLogsEnabled) {
       tugboatLogViewportSemanticTapResolution(position, viewportResolution);
     }
-    if (!_disposed) notifyListeners();
   }
 
   TugboatCaptureCoordinate _sampleCaptureCoordinate({
@@ -2667,6 +2671,7 @@ class TugboatReplayController extends ChangeNotifier {
       return;
     }
 
+    _resolveTapEvidence(pending, position);
     // Keep the single-use claim alive through the pointer-up turn so sync
     // onTap → Navigator can attribute without letting later redirects borrow.
     _releaseInteractionClaim(pending);

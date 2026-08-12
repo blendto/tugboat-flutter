@@ -122,9 +122,8 @@ Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
     envelope['route'] = route;
   }
   final fingerprint = tx.gesture == InteractionGesture.scroll
-      ? (tx.scrollTargetAnchor?.fingerprint ??
-            tx.origin.targetAnchor?.fingerprint)
-      : tx.origin.targetAnchor?.fingerprint;
+      ? (tx.scrollTargetAnchor?.fingerprint ?? tx.targetAnchor?.fingerprint)
+      : tx.targetAnchor?.fingerprint;
   if (fingerprint != null && fingerprint.isNotEmpty) {
     envelope['targetFingerprint'] = fingerprint;
   }
@@ -182,7 +181,8 @@ Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
 
 /// Bounded in-memory transaction for one pointer gesture.
 class InteractionTransaction {
-  InteractionTransaction({required this.origin, required this.pointerId});
+  InteractionTransaction({required this.origin, required this.pointerId})
+    : targetAnchor = origin.targetAnchor;
 
   final InteractionOrigin origin;
   final int pointerId;
@@ -207,6 +207,10 @@ class InteractionTransaction {
   double? scrollEndOffset;
   int overscrollCount = 0;
   TugboatTargetAnchor? scrollTargetAnchor;
+
+  /// Resolved only after this gesture remains a tap. Pointer-down stores only
+  /// origin facts so possible scrolls do not pay tap inventory costs.
+  TugboatTargetAnchor? targetAnchor;
 
   Completer<void>? _successorSignal;
 

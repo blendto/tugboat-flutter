@@ -182,8 +182,20 @@ void main() {
         metrics: endMetrics,
       );
 
-      // The next scroll cancels only the delayed visual observation. The first
-      // completed gesture must retain its facts.
+      // Pointer-down must cancel the stale deferred capture before Flutter
+      // sends the next ScrollStart. The first completed gesture keeps facts.
+      controller.recordPointerDown(const Offset(20, 120));
+      await tester.pump();
+      final cancelledInteractions = controller.session!.events
+          .where(
+            (event) =>
+                event.type == 'interaction' &&
+                event.data['gesture'] == 'scroll',
+          )
+          .toList();
+      expect(cancelledInteractions, hasLength(1));
+      expect(cancelledInteractions.single.afterFrame, isNull);
+      controller.markPendingTapAsSwipe(0);
       controller.recordScrollStart(
         scrollContext: listContext,
         metrics: position,
@@ -207,6 +219,47 @@ void main() {
       expect(payload['overscrollCount'], 2);
       expect(interactions.single.data['targetFingerprint'], isNotNull);
       expect(interactions.single.afterFrame, isNull);
+    },
+  );
+
+  testWidgets(
+    'possible scroll pointer-down does not emit tap inventory or semantic work',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              TugboatReplay.wrapApp(config: _scrollTestConfig, child: child!),
+          home: Scaffold(
+            body: ListView.builder(
+              itemCount: 30,
+              itemBuilder: (context, index) => Text('Lean item $index'),
+            ),
+          ),
+        ),
+      );
+      await _waitForCaptures(tester);
+      final controller = TugboatReplay.controller!;
+      final inventoriesBefore = controller.session!.events
+          .where((event) => event.type == 'scene_inventory')
+          .length;
+      final mapsBefore = controller.session!.events
+          .where((event) => event.type == 'viewport_semantic_map')
+          .length;
+
+      controller.recordPointerDown(const Offset(20, 120));
+
+      expect(
+        controller.session!.events
+            .where((event) => event.type == 'scene_inventory')
+            .length,
+        inventoriesBefore,
+      );
+      expect(
+        controller.session!.events
+            .where((event) => event.type == 'viewport_semantic_map')
+            .length,
+        mapsBefore,
+      );
     },
   );
 
