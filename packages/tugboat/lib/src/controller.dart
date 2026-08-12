@@ -61,6 +61,7 @@ class _ScrollTracker {
   bool pointerLinked;
   int overscrollCount = 0;
   DateTime? lastSampleAt;
+  DateTime? lastScreenshotAt;
 }
 
 /// Holds the scroll-end work until the matching global pointer-up arrives.
@@ -153,6 +154,7 @@ enum _CaptureOutcome {
   perceptualHashCoalesced,
   paintGenerationUnchanged,
   screenshotBudgetSkip,
+  capturePressureDrop,
   noFrameAvailable,
   noCompatibleFrame,
   paintReadinessTimeout,
@@ -169,6 +171,7 @@ extension on _CaptureOutcome {
     _CaptureOutcome.perceptualHashCoalesced => 'perceptual_hash_coalesced',
     _CaptureOutcome.paintGenerationUnchanged => 'paint_generation_unchanged',
     _CaptureOutcome.screenshotBudgetSkip => 'screenshot_budget_skip',
+    _CaptureOutcome.capturePressureDrop => 'capture_pressure_drop',
     _CaptureOutcome.noFrameAvailable => 'no_frame_available',
     _CaptureOutcome.noCompatibleFrame => 'no_compatible_frame',
     _CaptureOutcome.paintReadinessTimeout => 'paint_readiness_timeout',
@@ -849,6 +852,7 @@ class TugboatReplayController extends ChangeNotifier {
   final Map<Element, _ScrollTracker> _scrollTrackers = {};
   final Map<String, InteractionTransaction> _scrollInteractions = {};
   final Map<String, _PendingScrollCompletion> _pendingScrollCompletions = {};
+  final Map<String, void Function()> _pendingScrollEndDelayCancellations = {};
   final Set<InteractionTransaction> _activeCompletedGestureCaptures = {};
   final Set<Future<void>> _activeCompletedGestureTasks = {};
   final Set<String> _emittedInventories = <String>{};
@@ -959,12 +963,14 @@ class TugboatReplayController extends ChangeNotifier {
   debugRequestCapture({
     TugboatFrameTrigger trigger = TugboatFrameTrigger.manual,
     bool force = false,
+    bool dropWhenBusy = false,
     Duration settleDelay = Duration.zero,
     String? relatedEventId,
   }) {
     final request = _requestCaptureCancellable(
       trigger: trigger,
       force: force,
+      dropWhenBusy: dropWhenBusy,
       settleDelay: settleDelay,
       relatedEventId: relatedEventId,
     );
@@ -1196,6 +1202,9 @@ class TugboatReplayController extends ChangeNotifier {
     _capturer = ScreenshotCapturer(
       boundaryKey: _boundaryKey,
       pixelRatio: config.capturePixelRatio,
+      maxWidth: config.captureMaxWidth,
+      maxHeight: config.captureMaxHeight,
+      degradedScale: config.degradedCaptureScale,
       maskLevel: config.effectiveScreenshotMaskLevel,
       anchorResolver: resolver,
       encoder: debugScreenshotEncoder,
@@ -1711,6 +1720,7 @@ class TugboatReplayController extends ChangeNotifier {
       'route_transition',
       'capture_suppressed',
       'capture_in_flight',
+      'capture_pressure',
       'debug',
     };
     final sanitizedReason = allowedReasons.contains(reason) ? reason : 'manual';
@@ -1753,6 +1763,7 @@ class TugboatReplayController extends ChangeNotifier {
     required TugboatFrameTrigger trigger,
     bool force = false,
     bool bypassExplorationSuppression = false,
+    bool dropWhenBusy = false,
     Duration? settleDelay,
     String? relatedEventId,
   }) {
@@ -1775,6 +1786,29 @@ class TugboatReplayController extends ChangeNotifier {
         waiter,
         executionId: _nextId('capture_execution'),
         execution: _cancelledCaptureExecution(_captureSuppressionReason()),
+      );
+      return (
+        done: waiter.completer.future.then((value) => value.frameId),
+        resolution: waiter.completer.future,
+        cancel: ([String reason = 'manual']) {},
+      );
+    }
+
+    if (dropWhenBusy && (_captureInFlight || _scheduledCapture != null)) {
+      _screenshotBudget.record(
+        queueWaitMicros: 0,
+        readbackMicros: 0,
+        encodeMicros: 0,
+        encodedBytes: 0,
+        dropReason: 'capture_pressure',
+      );
+      _completeCaptureWaiter(
+        waiter,
+        executionId: _nextId('capture_execution'),
+        execution: const _CaptureExecution(
+          outcome: _CaptureOutcome.capturePressureDrop,
+          cancellationReason: 'capture_pressure',
+        ),
       );
       return (
         done: waiter.completer.future.then((value) => value.frameId),
@@ -2131,6 +2165,7 @@ class TugboatReplayController extends ChangeNotifier {
           waitForFrame: true,
           requireFreshPaint: requiresFreshPaint,
           allowPaintGenerationSkip: allowPaintSkip,
+          degraded: _screenshotBudget.shouldSkipEligible,
           cancelled: captureCancellation,
           isCurrent: () =>
               _captureContextStillCurrent(
@@ -2981,7 +3016,25 @@ class TugboatReplayController extends ChangeNotifier {
     _causalRouteSupersededInteractions.remove(interactionId);
   }
 
+  void _cancelDeferredScrollEndCaptures(String outcome) {
+    final pendingIds = _pendingScrollEndDelayCancellations.keys.toList(
+      growable: false,
+    );
+    for (final id in pendingIds) {
+      _pendingScrollEndDelayCancellations.remove(id)?.call();
+      final completion = _pendingScrollCompletions[id];
+      if (completion != null && !completion.resolved) {
+        completion
+          ..captureOutcome = outcome
+          ..resolved = true;
+        scheduleMicrotask(() => _publishResolvedScrollInteraction(id));
+      }
+    }
+  }
+
   void _clearScrollCompletionState() {
+    _cancelDeferredScrollEndCaptures('capture_cancelled');
+    _pendingScrollEndDelayCancellations.clear();
     _scrollTrackers.clear();
     _scrollInteractions.clear();
     _pendingScrollCompletions.clear();
@@ -3171,6 +3224,9 @@ class TugboatReplayController extends ChangeNotifier {
     required ScrollMetrics metrics,
     required int depth,
   }) {
+    // A new scroll means the viewport is no longer idle. Cancel any deferred
+    // scroll-end capture; its interaction completes without visual evidence.
+    _cancelDeferredScrollEndCaptures('superseded_by_scroll');
     final scrollableElement = _scrollableElementFor(scrollContext);
     if (scrollableElement == null) return;
     if (_scrollTrackers.containsKey(scrollableElement)) return;
@@ -3200,7 +3256,7 @@ class TugboatReplayController extends ChangeNotifier {
     _scrollTrackers[scrollableElement] = tracker;
 
     final session = _session;
-    if (session != null) {
+    if (session != null && config.captureScrollSamples) {
       session.scrollSamples.add(
         TugboatScrollSample(
           atMs: atMs,
@@ -3238,31 +3294,48 @@ class TugboatReplayController extends ChangeNotifier {
 
     final session = _session;
     if (session == null || _capturePaused) return;
-    if (!config.captureScrollSamples) return;
 
     final now = DateTime.now();
-    if (tracker.lastSampleAt != null &&
-        now.difference(tracker.lastSampleAt!) < config.scrollCaptureInterval) {
-      return;
+    final sampleDue =
+        config.captureScrollSamples &&
+        (tracker.lastSampleAt == null ||
+            now.difference(tracker.lastSampleAt!) >=
+                config.scrollCaptureInterval);
+    if (sampleDue) {
+      tracker.lastSampleAt = now;
+      session.scrollSamples.add(
+        TugboatScrollSample(
+          atMs: atMs,
+          offset: metrics.pixels,
+          beforeFrame: tracker.beforeFrame,
+          scrollableFingerprint: tracker.targetAnchor?.fingerprint,
+          axis: metrics.axis.name,
+          offsetNorm: metrics.maxScrollExtent > 0
+              ? metrics.pixels / metrics.maxScrollExtent
+              : null,
+        ),
+      );
+      _trimScrollSamples();
     }
-    tracker.lastSampleAt = now;
 
-    session.scrollSamples.add(
-      TugboatScrollSample(
-        atMs: atMs,
-        offset: metrics.pixels,
-        beforeFrame: tracker.beforeFrame,
-        scrollableFingerprint: tracker.targetAnchor?.fingerprint,
-        axis: metrics.axis.name,
-        offsetNorm: metrics.maxScrollExtent > 0
-            ? metrics.pixels / metrics.maxScrollExtent
-            : null,
-      ),
-    );
-    _trimScrollSamples();
-    unawaited(_requestCapture(trigger: TugboatFrameTrigger.scroll));
-    // Debounce semantic/inventory rebuilds during continuous scroll; capture
-    // still happens, and scroll_end emits a force update.
+    final screenshotDue =
+        config.captureScrollScreenshots &&
+        (tracker.lastScreenshotAt == null ||
+            now.difference(tracker.lastScreenshotAt!) >=
+                config.scrollCaptureInterval);
+    if (screenshotDue) {
+      tracker.lastScreenshotAt = now;
+      unawaited(
+        _requestCaptureCancellable(
+          trigger: TugboatFrameTrigger.scroll,
+          dropWhenBusy: true,
+        ).done,
+      );
+    }
+    if (!sampleDue && !screenshotDue) return;
+    // Debounce semantic/inventory rebuilds during continuous scroll. Scroll
+    // metrics are independent from visual capture; scroll_end forces the final
+    // semantic update.
     if (!_viewportSemantics.allowScrollSemanticRebuild(
       now,
       config.scrollCaptureInterval,
@@ -3322,8 +3395,21 @@ class TugboatReplayController extends ChangeNotifier {
 
     final completion = _PendingScrollCompletion();
     _pendingScrollCompletions[tracker.startEventId] = completion;
+    final idleDeadline = config.scrollEndCaptureDelay > Duration.zero
+        ? _scheduleDelay(config.scrollEndCaptureDelay)
+        : (done: Future<void>.value(), cancel: () {});
+    _pendingScrollEndDelayCancellations[tracker.startEventId] =
+        idleDeadline.cancel;
 
-    _enqueue('scroll_end', () async {
+    // Scroll-end capture is deliberately outside the controller task queue.
+    // It may wait for the viewport to settle, but must not delay pointer, route,
+    // or interaction work that arrives meanwhile.
+    unawaited(() async {
+      await idleDeadline.done;
+      final wasPending =
+          _pendingScrollEndDelayCancellations.remove(tracker.startEventId) !=
+          null;
+      if (!wasPending || completion.resolved) return;
       if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
         return;
       }
@@ -3333,6 +3419,7 @@ class TugboatReplayController extends ChangeNotifier {
         final afterCapture = _requestCaptureCancellable(
           trigger: TugboatFrameTrigger.interaction,
           force: true,
+          settleDelay: Duration.zero,
           relatedEventId: tracker.startEventId,
         );
         final afterResolution = await afterCapture.resolution;
@@ -3354,6 +3441,7 @@ class TugboatReplayController extends ChangeNotifier {
       final afterCapture = _requestCaptureCancellable(
         trigger: TugboatFrameTrigger.interaction,
         force: true,
+        settleDelay: Duration.zero,
         relatedEventId: tracker.startEventId,
       );
       final afterResolution = await afterCapture.resolution;
@@ -3364,7 +3452,9 @@ class TugboatReplayController extends ChangeNotifier {
           afterResolution.outcome == _CaptureOutcome.freshAccepted
           ? afterResolution.frameId
           : null;
-      if (_session != null && _session!.scrollSamples.isNotEmpty) {
+      if (config.captureScrollSamples &&
+          _session != null &&
+          _session!.scrollSamples.isNotEmpty) {
         final last = _session!.scrollSamples.last;
         _session!.scrollSamples[_session!.scrollSamples.length -
             1] = TugboatScrollSample(
@@ -3393,7 +3483,7 @@ class TugboatReplayController extends ChangeNotifier {
         ..resolved = true;
       _publishResolvedScrollInteraction(tracker.startEventId);
       if (!_disposed) notifyListeners();
-    });
+    }());
   }
 
   bool _isCaptureLifecycleCurrent(

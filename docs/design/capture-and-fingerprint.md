@@ -237,9 +237,14 @@ telemetry and avoid putting user data in them.
 ## Screenshot pipeline
 
 Screenshots are taken from the SDK `RepaintBoundary` at the configured pixel
-ratio (default `0.75`). Before JPEG encoding the SDK collects mask rectangles
-using the shared anchor resolver and applies them as opaque fills on the RGBA
-buffer inside the encode isolate (avoiding a second full-size GPU raster).
+ratio (default `0.75`). Optional `captureMaxWidth` / `captureMaxHeight` bounds
+lower the effective ratio before readback while preserving aspect ratio; when
+the rolling screenshot budget is degraded, `degradedCaptureScale` (default
+`0.67`) lowers it again. This reduces both GPU readback dimensions and the raw
+RGBA allocation rather than only shrinking the final JPEG. Before JPEG encoding
+the SDK collects mask rectangles using the shared anchor resolver and applies
+them as opaque fills on the RGBA buffer inside the encode isolate (avoiding a
+second full-size GPU raster).
 
 The default mask policy is profile-dependent:
 
@@ -257,10 +262,16 @@ serialized and compatible non-interaction requests can coalesce. When the
 capture subtree's paint signature has not
 changed since the last accepted frame (outer capture boundary paint generation
 plus nested [RepaintBoundary] layer/picture identity), the controller skips the
-entire GPU readback/encode path and reuses a compatible frame. Each completed
-interaction requests a post-interaction observation. A fresh route capture can
-satisfy it without asserting that the interaction caused the route.
-`afterFrame` therefore means "observed later," not "action result."
+entire GPU readback/encode path and reuses a compatible frame. Scroll metrics
+are sampled independently from screenshots. In-motion visual checkpoints are
+disabled by default and, when explicitly enabled, drop with
+`capture_pressure_drop` rather than queue behind active screenshot work. A
+pointer-linked scroll can request one fresh observation after an optional
+`scrollEndCaptureDelay`; that idle wait runs outside the controller queue so it
+does not block route or pointer settlement. Each other completed interaction
+requests a post-interaction observation. A fresh route capture can satisfy it
+without asserting that the interaction caused the route. `afterFrame` therefore
+means "observed later," not "action result."
 
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA

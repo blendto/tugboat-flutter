@@ -13,6 +13,16 @@
 
 ### Changed
 
+- Production-friendly scroll capture now keeps scroll metrics independent from
+  screenshots. In-motion scroll screenshots are opt-in, pressure-droppable,
+  and disabled by default; pointer-linked scrolls retain one optionally
+  deferred scroll-end observation.
+- Screenshot output can be bounded with `captureMaxWidth` /
+  `captureMaxHeight`. A degraded screenshot budget applies
+  `degradedCaptureScale` before GPU readback, reducing raw RGBA allocation as
+  well as encoded size.
+- Low-priority captures dropped under active/queued capture pressure emit the
+  bounded `capture_pressure_drop` diagnostic outcome.
 - Network observation accepts bounded absolute paths with dynamic identifier
   segments. Schemes, queries, fragments, encoded data, network-path prefixes,
   backslashes, whitespace, and control characters remain rejected.

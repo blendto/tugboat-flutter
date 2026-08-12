@@ -98,6 +98,38 @@ void main() {
   );
 
   test(
+    'low-priority capture drops instead of queueing under pressure',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+      harness.seedRouteState(route: '/home', signature: 'home');
+      harness.capturer.blockNext = true;
+
+      final critical = harness.controller.debugRequestCapture(force: true);
+      await harness.pumpMicrotasks();
+      expect(harness.controller.debugCaptureInFlight, isTrue);
+
+      final lowPriority = harness.controller.debugRequestCapture(
+        trigger: TugboatFrameTrigger.scroll,
+        dropWhenBusy: true,
+      );
+      final dropped = await lowPriority.resolution;
+
+      expect(dropped['outcome'], 'capture_pressure_drop');
+      expect(dropped['cancellationReason'], 'capture_pressure');
+      expect(
+        harness.controller.healthSnapshot().screenshots.lastDropReason,
+        'capture_pressure',
+      );
+
+      harness.capturer.completeBlocked();
+      await harness.flushScheduler();
+      expect((await critical.resolution)['outcome'], isNot('cancelled'));
+    },
+  );
+
+  test(
     'every closed capture outcome emits once and is reflected in health',
     () async {
       const outcomes = <String>[
@@ -106,6 +138,7 @@ void main() {
         'perceptual_hash_coalesced',
         'paint_generation_unchanged',
         'screenshot_budget_skip',
+        'capture_pressure_drop',
         'no_frame_available',
         'no_compatible_frame',
         'paint_readiness_timeout',
@@ -131,6 +164,7 @@ void main() {
         harness.controller.debugNextCaptureFrameId = switch (outcome) {
           'no_frame_available' ||
           'no_compatible_frame' ||
+          'capture_pressure_drop' ||
           'paint_readiness_timeout' ||
           'boundary_unavailable' ||
           'capture_processing_failed' ||

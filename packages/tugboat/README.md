@@ -272,12 +272,16 @@ but it does not persist events or frames across process restarts.
 | --- | --- | --- |
 | `profile` | `dormant` | capture cost and exploration-only behavior |
 | `settleDelay` | 1 second | delay before post-interaction and post-route capture |
+| `scrollEndCaptureDelay` | zero | optional idle delay before a pointer-linked scroll after-frame; does not block the controller queue |
 | `interactionClaimWindow` | 1,250 ms | released-tap window for delayed route/modal attribution; `Duration.zero` keeps microtask-only same-turn claims |
 | `maxFrames` | 500 | in-memory frame bound |
 | `maxEvents` | 5000 | in-memory event bound |
-| `scrollCaptureInterval` | 2 seconds | interval for scroll checkpoint capture |
+| `scrollCaptureInterval` | 2 seconds | interval for scroll metric sampling and optional semantic/in-motion visual checkpoints |
 | `captureScrollSamples` | `false` | retain `TugboatScrollSample` records in session JSON |
-| `capturePixelRatio` | `0.75` | repaint-boundary screenshot scale |
+| `captureScrollScreenshots` | `false` | request pressure-droppable visual checkpoints while scrolling; scroll metrics and the scroll-end observation remain independent |
+| `capturePixelRatio` | `0.75` | upper bound for repaint-boundary screenshot scale |
+| `captureMaxWidth` / `captureMaxHeight` | null | optional output pixel bounds applied before readback while preserving aspect ratio |
+| `degradedCaptureScale` | `0.67` | additional scale applied before readback while the screenshot budget is degraded |
 | `enableGlobalPointerCapture` | `true` | use global pointer routing; `false` uses a local `Listener` |
 | `explorationCollectorUrl` | null | local exploration WebSocket endpoint |
 | `explorationRunId` | null | optional run correlation ID |

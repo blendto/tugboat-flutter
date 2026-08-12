@@ -265,6 +265,115 @@ void main() {
     expect(payload['endOffset'], isNot(equals(payload['startOffset'])));
   });
 
+  testWidgets(
+    'scroll samples do not request in-motion screenshots by default',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              TugboatReplay.wrapApp(config: _scrollTestConfig, child: child!),
+          home: Scaffold(
+            body: ListView.builder(
+              itemCount: 40,
+              itemBuilder: (context, index) => Text('Metrics item $index'),
+            ),
+          ),
+        ),
+      );
+      await _waitForCaptures(tester);
+      final controller = TugboatReplay.controller!;
+      final listContext = tester.element(find.byType(Scrollable));
+      final metrics = Scrollable.of(
+        tester.element(find.text('Metrics item 0')),
+      ).position;
+      final scrollCapturesBefore = controller.session!.events
+          .where(
+            (event) =>
+                event.type == 'capture_diagnostic' &&
+                event.data['trigger'] == 'scroll',
+          )
+          .length;
+
+      controller.recordScrollStart(
+        scrollContext: listContext,
+        metrics: metrics,
+        depth: 0,
+      );
+      controller.recordScrollUpdate(
+        scrollContext: listContext,
+        metrics: metrics,
+      );
+      await tester.pump();
+
+      expect(controller.session!.scrollSamples.length, greaterThan(1));
+      expect(
+        controller.session!.events
+            .where(
+              (event) =>
+                  event.type == 'capture_diagnostic' &&
+                  event.data['trigger'] == 'scroll',
+            )
+            .length,
+        scrollCapturesBefore,
+      );
+    },
+  );
+
+  testWidgets(
+    'in-motion screenshots are independent from scroll sample retention',
+    (tester) async {
+      const config = TugboatReplayConfig(
+        profile: TugboatCaptureProfile.exploration,
+        settleDelay: Duration.zero,
+        interactionClaimWindow: Duration.zero,
+        enableGlobalPointerCapture: true,
+        scrollCaptureInterval: Duration.zero,
+        captureScrollSamples: false,
+        captureScrollScreenshots: true,
+        capturePixelRatio: 1.0,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              TugboatReplay.wrapApp(config: config, child: child!),
+          home: Scaffold(
+            body: ListView.builder(
+              itemCount: 40,
+              itemBuilder: (context, index) => Text('Visual item $index'),
+            ),
+          ),
+        ),
+      );
+      await _waitForCaptures(tester);
+      final controller = TugboatReplay.controller!;
+      final listContext = tester.element(find.byType(Scrollable));
+      final metrics = Scrollable.of(
+        tester.element(find.text('Visual item 0')),
+      ).position;
+
+      controller.recordScrollStart(
+        scrollContext: listContext,
+        metrics: metrics,
+        depth: 0,
+      );
+      controller.recordScrollUpdate(
+        scrollContext: listContext,
+        metrics: metrics,
+      );
+      await _waitForCaptures(tester);
+
+      expect(controller.session!.scrollSamples, isEmpty);
+      expect(
+        controller.session!.events.where(
+          (event) =>
+              event.type == 'capture_diagnostic' &&
+              event.data['trigger'] == 'scroll',
+        ),
+        isNotEmpty,
+      );
+    },
+  );
+
   testWidgets('dead swipe on static widget emits one swipe interaction', (
     tester,
   ) async {

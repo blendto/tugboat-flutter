@@ -6,6 +6,7 @@ import 'package:image/image.dart' as img;
 import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/capture_boundary.dart';
 import 'package:tugboat/src/health.dart';
+import 'package:tugboat/src/replay_config.dart';
 import 'package:tugboat/src/screenshot_capturer.dart';
 import 'package:tugboat/src/screenshot_encode.dart';
 import 'package:tugboat/src/screenshot_mask_level.dart';
@@ -365,6 +366,55 @@ void main() {
       expect(afterNested.result!.skippedByPaintGeneration, isFalse);
     },
   );
+
+  testWidgets('capture dimensions respect caps and degraded scaling', (
+    tester,
+  ) async {
+    final boundaryKey = GlobalKey();
+    final capturer = ScreenshotCapturer(
+      boundaryKey: boundaryKey,
+      maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
+      anchorResolver: AnchorResolver(rootKey: boundaryKey),
+      pixelRatio: 1,
+      maxWidth: 40,
+      maxHeight: 60,
+      degradedScale: 0.5,
+      frameWaiter: () => Future<void>.value(),
+      encoder: InlineScreenshotEncoder(),
+    );
+    addTearDown(capturer.dispose);
+    await tester.pumpWidget(_scene(boundaryKey, Colors.red));
+
+    final regular = await tester.runAsync(
+      () => capturer.captureAttempt(force: true),
+    );
+    final degraded = await tester.runAsync(
+      () => capturer.captureAttempt(force: true, degraded: true),
+    );
+
+    expect(regular, isNotNull);
+    expect(regular!.result, isNotNull);
+    expect(regular.result!.width, 40);
+    expect(regular.result!.height, 40);
+    expect(degraded, isNotNull);
+    expect(degraded!.result, isNotNull);
+    expect(degraded.result!.width, 20);
+    expect(degraded.result!.height, 20);
+  });
+
+  test('copyWith can clear screenshot dimension bounds', () {
+    const bounded = TugboatReplayConfig(
+      captureMaxWidth: 540,
+      captureMaxHeight: 1080,
+    );
+    final unbounded = bounded.copyWith(
+      clearCaptureMaxWidth: true,
+      clearCaptureMaxHeight: true,
+    );
+
+    expect(unbounded.captureMaxWidth, isNull);
+    expect(unbounded.captureMaxHeight, isNull);
+  });
 
   test('screenshot budget reports independent capture-stage metrics', () {
     final tracker = TugboatScreenshotBudgetTracker();
