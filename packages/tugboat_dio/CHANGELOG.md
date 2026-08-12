@@ -1,8 +1,10 @@
-## 0.9.0
+## 0.8.5
+
+This release follows `0.8.0` and stays on the `0.8.x` line.
 
 ### Changed
 
-- Compatibility release for `tugboat` 0.9.0. Route resolvers may retain
+- Compatibility release for `tugboat` 0.8.5. Route resolvers may retain
   dynamic identifier segments in bounded absolute paths.
 
 ## 0.8.0

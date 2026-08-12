@@ -273,6 +273,12 @@ requests a post-interaction observation. A fresh route capture can satisfy it
 without asserting that the interaction caused the route. `afterFrame` therefore
 means "observed later," not "action result."
 
+Pointer-down cancels a pending deferred scroll-end capture before Flutter sends
+the next `ScrollStart`. The SDK keeps the completed scroll metrics and publishes
+the old interaction without a stale after-frame. Tap-only target, inventory,
+and viewport-semantic resolution runs at pointer-up. This keeps tap evidence
+while removing that work from the scroll input path.
+
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA
 bytes are packed into [TransferableTypedData] for the worker: packing still

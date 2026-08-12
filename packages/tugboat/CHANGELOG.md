@@ -1,4 +1,6 @@
-## 0.9.0
+## 0.8.5
+
+This release follows `0.8.0` and stays on the `0.8.x` line.
 
 ### Breaking changes
 
@@ -23,9 +25,28 @@
   well as encoded size.
 - Low-priority captures dropped under active/queued capture pressure emit the
   bounded `capture_pressure_drop` diagnostic outcome.
+- `capturePixelRatio` accepts values above `1.0`. Optional output bounds still
+  cap the effective readback scale before allocation.
 - Network observation accepts bounded absolute paths with dynamic identifier
   segments. Schemes, queries, fragments, encoded data, network-path prefixes,
   backslashes, whitespace, and control characters remain rejected.
+
+### Fixed
+
+- A new pointer-down cancels a pending deferred scroll-end screenshot before
+  Flutter reports the next `ScrollStart`. The completed scroll keeps its final
+  offsets, overscroll count, target fingerprint, and interaction record, but it
+  does not block or consume the new gesture.
+- Tap-only target, inventory, and viewport-semantic resolution now runs after a
+  gesture remains a tap. Scroll gestures no longer pay that work on
+  pointer-down.
+- Scroll completion joins pointer-up and `ScrollEndNotification` in either
+  callback order and publishes one canonical interaction. Pointer cancellation,
+  replacement scrolls, lifecycle changes, and programmatic scrolls do not leave
+  a late interaction screenshot request.
+- Interaction after-frames must complete after the interaction boundary. A
+  pre-pointer-up frame cannot become an after-frame, and an unrelated automatic
+  route cannot add causal route evidence to the interaction.
 
 ## 0.8.0
 

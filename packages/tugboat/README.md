@@ -5,11 +5,15 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.9.0`. Session JSON writers and readers use
+The current package version is `0.8.5`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
 
-## 0.9.0 release compatibility
+## 0.8.5 release compatibility
+
+This release follows `0.8.0` and stays on the `0.8.x` line. It removes
+deprecated public APIs, so deploy the coordinated collector compatibility
+update before you release the SDK.
 
 New writers omit `stateAnchor`, `stateSignature`, and `state_change` events.
 The old public state model types are removed. Each completed tap, swipe, and
@@ -39,7 +43,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.9.0
+  tugboat_dio: ^0.8.5
 ```
 
 See `packages/tugboat_dio/README.md`.
@@ -279,7 +283,7 @@ but it does not persist events or frames across process restarts.
 | `scrollCaptureInterval` | 2 seconds | interval for scroll metric sampling and optional semantic/in-motion visual checkpoints |
 | `captureScrollSamples` | `false` | retain `TugboatScrollSample` records in session JSON |
 | `captureScrollScreenshots` | `false` | request pressure-droppable visual checkpoints while scrolling; scroll metrics and the scroll-end observation remain independent |
-| `capturePixelRatio` | `0.75` | upper bound for repaint-boundary screenshot scale |
+| `capturePixelRatio` | `0.75` | requested repaint-boundary screenshot scale; values above `1.0` are supported |
 | `captureMaxWidth` / `captureMaxHeight` | null | optional output pixel bounds applied before readback while preserving aspect ratio |
 | `degradedCaptureScale` | `0.67` | additional scale applied before readback while the screenshot budget is degraded |
 | `enableGlobalPointerCapture` | `true` | use global pointer routing; `false` uses a local `Listener` |
@@ -383,6 +387,13 @@ Each completed tap, swipe, and scroll requests a post-interaction observation.
 An already encoded route frame can satisfy that observation even when route
 causality is unknown. The frame records only what was visible later. It does
 not prove that the interaction caused the observed UI or navigation.
+
+A new pointer-down cancels a pending deferred scroll-end screenshot before the
+next `ScrollStart`. The prior scroll keeps its final metrics and interaction
+record, but it does not attach a stale frame or block the new gesture. The SDK
+also delays tap-only target, scene-inventory, and viewport-semantic resolution
+until pointer-up, so scroll gestures do not perform tap analysis on their
+input-critical path.
 
 Interaction payload coordinates use normalized capture-boundary space. Do not
 interpret them as physical pixels or as coordinates relative to a widget.
