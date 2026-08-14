@@ -1,6 +1,7 @@
-## 0.8.5
+## 0.9.0
 
-This release follows `0.8.0` and stays on the `0.8.x` line.
+This release is the next caret boundary after `0.8.0`. It removes public APIs
+that `^0.8.0` consumers could still import.
 
 ### Breaking changes
 

@@ -2408,6 +2408,8 @@ class TugboatReplayController extends ChangeNotifier {
   /// Resolve tap-only evidence when input capture observes pointer-up. This is
   /// the latest point that keeps the existing route-causing tap attribution
   /// contract while avoiding this work for gestures that become scrolls.
+  /// [position] must be the pointer-down origin so a slop-bounded release that
+  /// lands on a sibling still matches the recognizer's original target.
   void _resolveTapEvidence(InteractionTransaction tx, Offset position) {
     final resolver = _anchorResolver;
     TugboatSceneInventory? tapInventory;
@@ -2671,7 +2673,7 @@ class TugboatReplayController extends ChangeNotifier {
       return;
     }
 
-    _resolveTapEvidence(pending, position);
+    _resolveTapEvidence(pending, pending.origin.startPosition);
     // Keep the single-use claim alive through the pointer-up turn so sync
     // onTap → Navigator can attribute without letting later redirects borrow.
     _releaseInteractionClaim(pending);
@@ -2782,7 +2784,7 @@ class TugboatReplayController extends ChangeNotifier {
             captureRequestId: temporalCaptureRequestId,
           );
         } else {
-          observation = _tapObservationFromRouteBarrier(routeBarrier);
+          observation = _tapObservationFromRouteBarrier(pending, routeBarrier);
         }
       } else {
         final requestedRouteEpoch = _routeEpoch;
@@ -2828,6 +2830,7 @@ class TugboatReplayController extends ChangeNotifier {
           );
           if (!_isActiveTapSettle(work)) return;
           final successor = _tapObservationFromRouteBarrier(
+            pending,
             routeBarrier,
             navigationOutcome: replacementIsCausal
                 ? 'navigated'
@@ -2963,6 +2966,7 @@ class TugboatReplayController extends ChangeNotifier {
       identical(_session, work.session);
 
   _TapSettleObservation _tapObservationFromRouteBarrier(
+    InteractionTransaction interaction,
     ({_RouteCaptureWork work, _RouteCaptureResult result}) routeBarrier, {
     String navigationOutcome = 'navigated',
   }) {
@@ -2979,7 +2983,7 @@ class TugboatReplayController extends ChangeNotifier {
     return _TapSettleObservation(
       routeEpoch: settledRoute.epoch,
       route: settledRoute.change.destinationRoute,
-      afterFrame: validFrame ? frameId : null,
+      afterFrame: _temporalAfterFrame(interaction, validFrame ? frameId : null),
       navigationOutcome: validFrame
           ? navigationOutcome
           : 'navigation_unavailable',
