@@ -16,7 +16,7 @@ The current SDK release candidate is **0.8.5**, which writes session schema
 **v10**. It preserves structural interaction replay while no longer emitting
 `controlValue`, `controlValueTransition`, `semanticAnnotation`, `stateAnchor`,
 or `stateSignature` in new writer output. It also does not emit `state_change`.
-This release follows `0.8.0` and stays on the `0.8.x` line.
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
 Treat the absence of those fields as the expected privacy boundary, not as
 missing capture evidence. Deploy the related collector change with this SDK
 release.

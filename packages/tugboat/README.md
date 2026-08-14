@@ -11,8 +11,8 @@ version `6`.
 
 ## 0.8.5 release compatibility
 
-This release follows `0.8.0` and stays on the `0.8.x` line. It removes
-deprecated public APIs, so deploy the coordinated collector compatibility
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`. It
+removes deprecated public APIs, so deploy the coordinated collector compatibility
 update before you release the SDK.
 
 New writers omit `stateAnchor`, `stateSignature`, and `state_change` events.

@@ -29,7 +29,7 @@ should be verified in their own repositories.
 ## Current compatibility
 
 - package version: `0.8.5`;
-- release line: `0.8.x`, following `0.8.0`;
+- release line: `0.8.x` (`0.8.5` follows `0.8.0`);
 - session JSON schema: `10`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;

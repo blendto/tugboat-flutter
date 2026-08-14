@@ -1,6 +1,6 @@
 ## 0.8.5
 
-This release follows `0.8.0` and stays on the `0.8.x` line.
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
 
 ### Breaking changes
 
@@ -45,8 +45,14 @@ This release follows `0.8.0` and stays on the `0.8.x` line.
   replacement scrolls, lifecycle changes, and programmatic scrolls do not leave
   a late interaction screenshot request.
 - Interaction after-frames must complete after the interaction boundary. A
-  pre-pointer-up frame cannot become an after-frame, and an unrelated automatic
-  route cannot add causal route evidence to the interaction.
+  pre-pointer-up frame cannot become an after-frame, including frames from a
+  claimed route capture that settles while the pointer is still down. An
+  unrelated automatic route cannot add causal route evidence to the interaction.
+- Tap target resolution uses the pointer-down position so a slop-bounded
+  release cannot resolve a sibling control or miss the recognizer's original
+  target.
+- Screenshot capture pixel-ratio clamp results are explicitly converted to
+  `double` for sound null-safety.
 
 ## 0.8.0
 
