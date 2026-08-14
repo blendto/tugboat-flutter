@@ -533,14 +533,14 @@ class ScreenshotCapturer {
     var ratio = pixelRatio;
     final widthLimit = maxWidth;
     if (widthLimit != null && widthLimit > 0 && logicalSize.width > 0) {
-      ratio = ratio.clamp(0.0, widthLimit / logicalSize.width);
+      ratio = ratio.clamp(0.0, widthLimit / logicalSize.width).toDouble();
     }
     final heightLimit = maxHeight;
     if (heightLimit != null && heightLimit > 0 && logicalSize.height > 0) {
-      ratio = ratio.clamp(0.0, heightLimit / logicalSize.height);
+      ratio = ratio.clamp(0.0, heightLimit / logicalSize.height).toDouble();
     }
-    if (degraded) ratio *= degradedScale.clamp(0.1, 1.0);
-    return ratio.clamp(double.minPositive, double.maxFinite);
+    if (degraded) ratio *= degradedScale.clamp(0.1, 1.0).toDouble();
+    return ratio.clamp(double.minPositive, double.maxFinite).toDouble();
   }
 
   List<MaskRect> _collectMaskRects(Element root, RenderBox ancestor) {
