@@ -12,10 +12,11 @@ database receipt alone as proof that a replay is correct.
 
 ## Current acceptance status
 
-The current SDK release candidate is **0.8.0**, which writes session schema
+The current SDK release candidate is **0.8.5**, which writes session schema
 **v10**. It preserves structural interaction replay while no longer emitting
 `controlValue`, `controlValueTransition`, `semanticAnnotation`, `stateAnchor`,
 or `stateSignature` in new writer output. It also does not emit `state_change`.
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
 Treat the absence of those fields as the expected privacy boundary, not as
 missing capture evidence. Deploy the related collector change with this SDK
 release.
@@ -156,6 +157,7 @@ the race itself requires them.
 | Modal and sheet | Open and close a dialog and bottom sheet | Overlay events and frames describe the overlay that is actually visible |
 | Immediate destination tap | Tap a control as soon as the destination appears | Destination action does not reuse the origin frame |
 | Scroll then navigate | Begin/end a scroll and immediately navigate | Scroll evidence stays on its origin epoch; route capture shows the destination |
+| Rapid repeat scroll | End a scroll and immediately start another drag | The second drag responds; the first scroll keeps its metrics and does not attach a stale delayed frame |
 | External picker | Open a system picker, background/foreground, and return | Lifecycle cancellation/resumption is explicit and the resumed frame is current |
 | Degraded capture | Reproduce budget pressure or a classified capture failure when feasible | Missing visual evidence has a bounded diagnostic outcome and never borrows a stale frame |
 
@@ -166,7 +168,7 @@ flows share a session, list the event IDs or timestamps that delimit each flow.
 
 Wait until the collector session has finalized and the replay is available in
 the production website. Filter to the recorded Blend build and SDK version
-under test (`0.8.0` for this release), then open every recorded session.
+under test (`0.8.5` for this release), then open every recorded session.
 
 For each interaction, inspect the actual replay UI and verify:
 

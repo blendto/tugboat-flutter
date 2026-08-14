@@ -5,15 +5,20 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.0`. Session JSON writers and readers use
+The current package version is `0.8.5`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
 
-## 0.8.0 raw-event compatibility
+## 0.8.5 release compatibility
+
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`. It
+removes deprecated public APIs, so deploy the coordinated collector compatibility
+update before you release the SDK.
 
 New writers omit `stateAnchor`, `stateSignature`, and `state_change` events.
 The old public state model types are removed. Each completed tap, swipe, and
-scroll requests its own fresh after-frame. The collector mapper also omits the
+scroll records a temporal after-frame when capture succeeds. The collector
+mapper also omits the
 top-level `stateAnchor` key. Deploy the related collector change with this SDK
 release.
 
@@ -38,7 +43,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.8.0
+  tugboat_dio: ^0.8.5
 ```
 
 See `packages/tugboat_dio/README.md`.
@@ -57,7 +62,7 @@ appEvents.record('USER_LOGIN', parameters: {'method': 'email'});
 
 final call = TugboatReplay.beginNetworkCall(
   method: 'GET',
-  route: '/blend/:blendId', // host-supplied template only
+  route: '/blend/RC-T4KE7', // bounded absolute path; dynamic IDs are allowed
 );
 call.complete(statusCode: 200);
 
@@ -98,10 +103,11 @@ content. Hosts must confirm consent, privacy, access, and retention rules before
 they use it. The SDK still deep-copies JSON-safe values and applies its hard
 JSON and size bounds.
 
-Network routes must be absolute path templates. The SDK drops resolver output
-containing a scheme, query, fragment, percent-encoded data, a network-path
-prefix, backslash, or whitespace/control characters; host resolvers must still
-replace dynamic IDs with placeholders.
+Network routes must be bounded absolute paths. Dynamic identifier segments are
+allowed. The SDK drops resolver output containing a scheme, query, fragment,
+percent-encoded data, a network-path prefix, backslash, or whitespace/control
+characters. Route paths can contain user or tenant identifiers. Hosts must
+apply their own privacy and retention policy.
 HTTP response bodies are retained only when `statusCode >= 400`. JSON and text
 are deep-copied and bounded to 16 KiB; binary and unsupported values are
 omitted. Successful response bodies are never retained.
@@ -231,7 +237,7 @@ Identity contract:
 - `explorationRunId` — exploration control-plane ID from config
 - `traitsId` — collector-issued traits dictionary id after `setTraits` / session responses
 
-Inspect `TugboatReplay.health` for sink, outbox, and screenshot-budget pressure
+Inspect `TugboatReplay.health` for sink and screenshot-budget pressure
 without reading protected content.
 
 ### User traits and user id
@@ -259,17 +265,8 @@ await TugboatReplay.setUserId(currentUserId);
   `session_start` when present. Pending debounced updates flush on `session_end`.
   There is no `/v1/identify` route.
 
-Optional durable HTTP delivery (Collector only, default off):
-
-```dart
-TugboatReplayConfig(
-  profile: TugboatCaptureProfile.productionLean,
-  collector: collectorConfig,
-  outbox: TugboatOutboxConfig(enabled: true),
-);
-```
-
-Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
+Collector delivery is best-effort. The SDK keeps bounded in-memory retry queues,
+but it does not persist events or frames across process restarts.
 
 ## Configuration reference
 
@@ -279,12 +276,16 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | --- | --- | --- |
 | `profile` | `dormant` | capture cost and exploration-only behavior |
 | `settleDelay` | 1 second | delay before post-interaction and post-route capture |
+| `scrollEndCaptureDelay` | zero | optional idle delay before a pointer-linked scroll after-frame; does not block the controller queue |
 | `interactionClaimWindow` | 1,250 ms | released-tap window for delayed route/modal attribution; `Duration.zero` keeps microtask-only same-turn claims |
 | `maxFrames` | 500 | in-memory frame bound |
 | `maxEvents` | 5000 | in-memory event bound |
-| `scrollCaptureInterval` | 2 seconds | interval for scroll checkpoint capture |
+| `scrollCaptureInterval` | 2 seconds | interval for scroll metric sampling and optional semantic/in-motion visual checkpoints |
 | `captureScrollSamples` | `false` | retain `TugboatScrollSample` records in session JSON |
-| `capturePixelRatio` | `0.75` | repaint-boundary screenshot scale |
+| `captureScrollScreenshots` | `false` | request pressure-droppable visual checkpoints while scrolling; scroll metrics and the scroll-end observation remain independent |
+| `capturePixelRatio` | `0.75` | requested repaint-boundary screenshot scale; values above `1.0` are supported |
+| `captureMaxWidth` / `captureMaxHeight` | null | optional output pixel bounds applied before readback while preserving aspect ratio |
+| `degradedCaptureScale` | `0.67` | additional scale applied before readback while the screenshot budget is degraded |
 | `enableGlobalPointerCapture` | `true` | use global pointer routing; `false` uses a local `Listener` |
 | `explorationCollectorUrl` | null | local exploration WebSocket endpoint |
 | `explorationRunId` | null | optional run correlation ID |
@@ -297,7 +298,6 @@ Call `TugboatReplay.clearDurableOutbox()` on logout/consent revocation.
 | `viewportSemanticMapMaxNodes` | 120 | emitted map node budget |
 | `viewportSemanticMapMaxBytes` | 48000 | emitted map byte budget |
 | `sinkFactories` | empty | extra `TugboatCaptureSinkFactory` adapters |
-| `outbox` | disabled | durable HTTP outbox configuration |
 | `screenshotBudget` | 60ms / 5s window | degraded-capture skip window / budget |
 
 ### Resolver and exploration events
@@ -383,11 +383,17 @@ requests can coalesce. When the capture boundary has not painted since the
 last accepted frame, the SDK reuses that frame without GPU readback. Otherwise
 it uses a small dHash (Hamming distance ≤ 2) to avoid JPEG encoding for
 near-identical content, and finally deduplicates encoded frames by content hash.
-Each completed tap, swipe, and scroll requests exactly one forced fresh
-after-frame. This interaction-owned attempt cannot coalesce or resolve through
-local-WebSocket suppression, paint-generation reuse, dHash reuse, or
-content-hash reuse. A fresh route capture can satisfy only the interaction that
-causally claimed it.
+Each completed tap, swipe, and scroll requests a post-interaction observation.
+An already encoded route frame can satisfy that observation even when route
+causality is unknown. The frame records only what was visible later. It does
+not prove that the interaction caused the observed UI or navigation.
+
+A new pointer-down cancels a pending deferred scroll-end screenshot before the
+next `ScrollStart`. The prior scroll keeps its final metrics and interaction
+record, but it does not attach a stale frame or block the new gesture. The SDK
+also delays tap-only target, scene-inventory, and viewport-semantic resolution
+until pointer-up, so scroll gestures do not perform tap analysis on their
+input-critical path.
 
 Interaction payload coordinates use normalized capture-boundary space. Do not
 interpret them as physical pixels or as coordinates relative to a widget.
@@ -397,14 +403,14 @@ For a tap, origin context (target, `beforeFrame`,
 an `InteractionTransaction`. After pointer-up, settlement waits for either the
 first eligible visible successor inside `interactionClaimWindow` (default
 1,250 ms) or the deadline. The canonical `interaction` event retains that
-frozen origin and attaches destination/result fields when a successor claims.
-A missing attachment remains unavailable. The SDK does not attach an unrelated
-frame as a fallback.
+frozen origin. Route ownership remains separate. `afterFrame` is only a later
+visual observation and can come from an unclaimed route successor. It does not
+assign a result or destination to the interaction.
 
 During local WebSocket exploration, connecting without an HTTP collector
 suppresses only non-interaction Flutter screenshot capture for UI-thread
-performance. Every completed interaction still encodes a fresh screenshot.
-This includes a causally claimed route capture. Events, anchors, inventories,
+performance. Every completed interaction still requests a post-interaction
+visual observation. A route capture can satisfy it. Events, anchors, inventories,
 and semantic evidence continue to stream; the CLI's ADB before/after screenshots
 remain the primary gesture-level visual evidence.
 

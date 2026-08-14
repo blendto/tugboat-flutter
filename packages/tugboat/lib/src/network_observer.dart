@@ -235,10 +235,10 @@ String? normalizeNetworkRoute(String? route) {
   if (trimmed.isEmpty) return null;
   if (trimmed != route) return null;
   if (trimmed.length > TugboatNetworkLimits.maxRouteLength) return null;
-  // Routes are host-supplied templates, never arbitrary URLs. Requiring an
+  // Routes are host-supplied bounded paths, never arbitrary URLs. Requiring an
   // absolute path and rejecting URI delimiters, encoded delimiters, backslash,
-  // and whitespace keeps accidental raw request URLs out of evidence. Dynamic
-  // IDs still need to be removed by the host's route resolver.
+  // and whitespace keeps complete request URLs out of evidence. Dynamic
+  // identifier segments are allowed.
   if (!trimmed.startsWith('/') || trimmed.startsWith('//')) return null;
   if (trimmed.contains('://')) return null;
   if (trimmed.runes.any(_isForbiddenRouteRune)) return null;

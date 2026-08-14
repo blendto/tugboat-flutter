@@ -93,6 +93,25 @@ void main() {
     expect(data.containsKey('errorResponseBody'), isFalse);
   });
 
+  testWidgets('resolver can preserve a dynamic route path', (tester) async {
+    await _pumpCapture(tester);
+    final dio = Dio();
+    dio.httpClientAdapter = _ScriptedAdapter(
+      (_) async => ResponseBody.fromString('ok', 200),
+    );
+    TugboatDioInterceptor.install(
+      dio,
+      routeResolver: (_) => '/api/stores/4004584/websites',
+    );
+
+    await _runAsync(tester, () => dio.get<dynamic>('/ignored-by-resolver'));
+
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'network_call',
+    );
+    expect(event.data['route'], '/api/stores/4004584/websites');
+  });
+
   testWidgets('bad response retains status and bounded response body', (
     tester,
   ) async {

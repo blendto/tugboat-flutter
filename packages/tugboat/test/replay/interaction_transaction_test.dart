@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
+import 'package:tugboat/src/interaction_transaction.dart';
 
 import '../helpers/replay_coherence_harness.dart';
 
@@ -84,6 +85,32 @@ void main() {
   });
 
   group('InteractionTransaction origin freeze (U1)', () {
+    test('explicit origin target supplies the interaction fingerprint', () {
+      const origin = InteractionOrigin(
+        interactionId: 'interaction-1',
+        route: '/origin',
+        routeEpoch: 1,
+        routeInstanceId: 'route-1',
+        navigatorId: 'navigator-1',
+        targetAnchor: TugboatTargetAnchor(fingerprint: 'origin-target'),
+        captureCoordinate: TugboatCaptureCoordinate.unavailable(
+          unavailableReason: 'boundary_unavailable',
+        ),
+        beforeFrame: null,
+        atMs: 1,
+        startPosition: Offset.zero,
+        pointerGeneration: 1,
+        captureSessionId: 'session-1',
+      );
+
+      final tx = InteractionTransaction(origin: origin, pointerId: 1);
+
+      expect(
+        buildInteractionV2Payload(tx)['targetFingerprint'],
+        'origin-target',
+      );
+    });
+
     test(
       'origin screen/component survive route mutation before pointer-up',
       () async {

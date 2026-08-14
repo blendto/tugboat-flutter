@@ -209,11 +209,6 @@ class TugboatReplay {
     return _TugboatActivationGate(config: config, child: child);
   }
 
-  /// Clears any durable outbox entries (consent / logout).
-  static Future<void> clearDurableOutbox() async {
-    await _controller?.clearDurableOutbox();
-  }
-
   /// Returns a provider-neutral hook that records logical app/analytics events.
   ///
   /// The hook resolves the active controller at [TugboatEventHook.record] time
@@ -228,9 +223,9 @@ class TugboatReplay {
 
   /// Begins observation of one logical network call.
   ///
-  /// [route] must already be a safe host-supplied template such as
-  /// `/blend/:blendId`. Raw paths are never accepted as a fallback. Returns a
-  /// no-op token when Tugboat is dormant/disabled or [route] is null/invalid.
+  /// [route] must be a bounded absolute path such as `/blend/RC-T4KE7`.
+  /// Dynamic identifier segments are allowed. Returns a no-op token when
+  /// Tugboat is dormant/disabled or [route] is null/invalid.
   static TugboatNetworkCall beginNetworkCall({
     required String method,
     String? route,

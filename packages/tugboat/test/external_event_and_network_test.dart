@@ -548,6 +548,21 @@ void main() {
     expect(TugboatReplay.health.evidence.networkDropped, greaterThan(0));
   });
 
+  testWidgets('bounded route preserves dynamic identifier segments', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    TugboatReplay.beginNetworkCall(
+      method: 'GET',
+      route: '/api/stores/4004584/websites',
+    ).complete(statusCode: 200);
+
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'network_call',
+    );
+    expect(event.data['route'], '/api/stores/4004584/websites');
+  });
+
   testWidgets('unsafe route forms return no-op without retaining URL data', (
     tester,
   ) async {

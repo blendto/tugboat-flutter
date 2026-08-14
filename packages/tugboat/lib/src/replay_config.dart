@@ -1,7 +1,6 @@
 import 'capture_profile.dart';
 import 'collector_config.dart';
 import 'interaction_transaction.dart' show tugboatDefaultReconciliationWindow;
-import 'outbox/outbox.dart';
 import 'screenshot_mask_level.dart';
 import 'sinks/capture_sink.dart' show TugboatCaptureSinkFactory;
 import 'viewport_semantic_mode.dart';
@@ -84,12 +83,17 @@ class TugboatReplayConfig {
   const TugboatReplayConfig({
     this.profile = TugboatCaptureProfile.dormant,
     this.settleDelay = const Duration(seconds: 1),
+    this.scrollEndCaptureDelay = Duration.zero,
     this.interactionClaimWindow = tugboatDefaultReconciliationWindow,
     this.maxFrames = 500,
     this.maxEvents = 5000,
     this.scrollCaptureInterval = const Duration(seconds: 2),
     this.captureScrollSamples = false,
+    this.captureScrollScreenshots = false,
     this.capturePixelRatio = 0.75,
+    this.captureMaxWidth,
+    this.captureMaxHeight,
+    this.degradedCaptureScale = 0.67,
     this.enableGlobalPointerCapture = true,
     this.explorationCollectorUrl,
     this.explorationRunId,
@@ -102,12 +106,19 @@ class TugboatReplayConfig {
     this.viewportSemanticMapMaxNodes = 120,
     this.viewportSemanticMapMaxBytes = 48000,
     this.sinkFactories = const [],
-    this.outbox = TugboatOutboxConfig.disabled,
     this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,
-  });
+  }) : assert(capturePixelRatio > 0),
+       assert(captureMaxWidth == null || captureMaxWidth > 0),
+       assert(captureMaxHeight == null || captureMaxHeight > 0),
+       assert(degradedCaptureScale > 0 && degradedCaptureScale <= 1);
 
   final TugboatCaptureProfile profile;
   final Duration settleDelay;
+
+  /// Delay before the optional visual observation taken after a scroll ends.
+  /// This runs outside the controller queue so route and pointer work remain
+  /// responsive while the scroll settles.
+  final Duration scrollEndCaptureDelay;
 
   /// Released-tap window for delayed route/modal attribution.
   ///
@@ -119,7 +130,18 @@ class TugboatReplayConfig {
   final int maxEvents;
   final Duration scrollCaptureInterval;
   final bool captureScrollSamples;
+
+  /// Whether to request visual checkpoints while a scroll is in progress.
+  /// Production profiles should normally keep this false and retain scroll
+  /// metrics instead; a single deferred scroll-end frame is cheaper and more
+  /// coherent than repeated full-screen readbacks during scrolling.
+  final bool captureScrollScreenshots;
   final double capturePixelRatio;
+  final int? captureMaxWidth;
+  final int? captureMaxHeight;
+
+  /// Additional scale applied while the rolling screenshot budget is degraded.
+  final double degradedCaptureScale;
   final bool enableGlobalPointerCapture;
   final String? explorationCollectorUrl;
   final String? explorationRunId;
@@ -132,7 +154,6 @@ class TugboatReplayConfig {
   final int viewportSemanticMapMaxNodes;
   final int viewportSemanticMapMaxBytes;
   final List<TugboatCaptureSinkFactory> sinkFactories;
-  final TugboatOutboxConfig outbox;
   final TugboatScreenshotBudgetConfig screenshotBudget;
 
   TugboatScreenshotMaskLevel get effectiveScreenshotMaskLevel =>
@@ -153,12 +174,19 @@ class TugboatReplayConfig {
   TugboatReplayConfig copyWith({
     TugboatCaptureProfile? profile,
     Duration? settleDelay,
+    Duration? scrollEndCaptureDelay,
     Duration? interactionClaimWindow,
     int? maxFrames,
     int? maxEvents,
     Duration? scrollCaptureInterval,
     bool? captureScrollSamples,
+    bool? captureScrollScreenshots,
     double? capturePixelRatio,
+    int? captureMaxWidth,
+    int? captureMaxHeight,
+    bool clearCaptureMaxWidth = false,
+    bool clearCaptureMaxHeight = false,
+    double? degradedCaptureScale,
     bool? enableGlobalPointerCapture,
     String? explorationCollectorUrl,
     String? explorationRunId,
@@ -171,12 +199,13 @@ class TugboatReplayConfig {
     int? viewportSemanticMapMaxNodes,
     int? viewportSemanticMapMaxBytes,
     List<TugboatCaptureSinkFactory>? sinkFactories,
-    TugboatOutboxConfig? outbox,
     TugboatScreenshotBudgetConfig? screenshotBudget,
   }) {
     return TugboatReplayConfig(
       profile: profile ?? this.profile,
       settleDelay: settleDelay ?? this.settleDelay,
+      scrollEndCaptureDelay:
+          scrollEndCaptureDelay ?? this.scrollEndCaptureDelay,
       interactionClaimWindow:
           interactionClaimWindow ?? this.interactionClaimWindow,
       maxFrames: maxFrames ?? this.maxFrames,
@@ -184,7 +213,16 @@ class TugboatReplayConfig {
       scrollCaptureInterval:
           scrollCaptureInterval ?? this.scrollCaptureInterval,
       captureScrollSamples: captureScrollSamples ?? this.captureScrollSamples,
+      captureScrollScreenshots:
+          captureScrollScreenshots ?? this.captureScrollScreenshots,
       capturePixelRatio: capturePixelRatio ?? this.capturePixelRatio,
+      captureMaxWidth: clearCaptureMaxWidth
+          ? null
+          : captureMaxWidth ?? this.captureMaxWidth,
+      captureMaxHeight: clearCaptureMaxHeight
+          ? null
+          : captureMaxHeight ?? this.captureMaxHeight,
+      degradedCaptureScale: degradedCaptureScale ?? this.degradedCaptureScale,
       enableGlobalPointerCapture:
           enableGlobalPointerCapture ?? this.enableGlobalPointerCapture,
       explorationCollectorUrl:
@@ -201,7 +239,6 @@ class TugboatReplayConfig {
       viewportSemanticMapMaxBytes:
           viewportSemanticMapMaxBytes ?? this.viewportSemanticMapMaxBytes,
       sinkFactories: sinkFactories ?? this.sinkFactories,
-      outbox: outbox ?? this.outbox,
       screenshotBudget: screenshotBudget ?? this.screenshotBudget,
     );
   }

@@ -209,6 +209,9 @@ Event payloads contain:
 - build identity: app ID, platform, version name, build number, and fingerprint
   schema version.
 
+For schema-v2 interactions, `afterFrame` is a temporal visual observation. It
+does not assert that the interaction caused that frame, route, or UI state.
+
 Frame uploads are sorted by numeric frame suffix and sent as multipart files
 named `<frameNo>.jpg`, with `sessionId` and comma-separated `frameNos` fields.
 Malformed frame IDs and frames belonging to a stale SDK session are dropped.
@@ -239,11 +242,9 @@ The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
 events, and frames are bounded in memory. When a bound is exceeded the oldest
 items are discarded and a debug message is printed.
 
-When `TugboatReplayConfig.outbox` is enabled, sanitized Collector envelopes are
-also appended to an on-device outbox before send and replayed after process
-restart (at-least-once, with local idempotency keys). The outbox is opt-in,
-bounded by bytes/age/entries, and cleared via `TugboatReplay.clearDurableOutbox()`.
-WebSocket exploration traffic remains in-memory only.
+Collector and WebSocket delivery are best-effort. Bounded in-memory queues retry
+temporary failures while the process remains alive. The SDK does not persist
+events or frames across process restarts.
 
 Fresh events can continue to flush even while an older retry head remains
 blocked. Session epochs prevent an in-flight response from a prior session from
@@ -269,13 +270,11 @@ Custom destinations can be registered through `sinkFactories` on
 
 ## Operational limits
 
-- Durable outbox is Collector HTTP only; exploration WS stays process-local.
-- Delivery is at-least-once when the outbox is enabled; server-side dedupe is
-  not assumed.
+- Collector HTTP and exploration WebSocket delivery stay process-local.
 - `activationRequestId` and `captureSessionId` are distinct and both emitted.
 - Platform-view / video-texture capture adapters are deferred.
-- Disposal requests asynchronous finalization; a force-killed process can still
-  lose in-flight work that has not yet been appended to the outbox.
+- Disposal requests asynchronous finalization; a force-killed process can lose
+  queued or in-flight work.
 
 See [Capture and fingerprint architecture](../design/capture-and-fingerprint.md)
 for identity, screenshot, privacy, and lifecycle details.

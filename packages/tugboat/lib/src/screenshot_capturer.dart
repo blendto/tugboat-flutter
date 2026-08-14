@@ -102,6 +102,9 @@ class ScreenshotCapturer {
     required this.maskLevel,
     required this.anchorResolver,
     this.pixelRatio = 0.75,
+    this.maxWidth,
+    this.maxHeight,
+    this.degradedScale = 1.0,
     @visibleForTesting Future<void> Function()? frameWaiter,
     ScreenshotEncoder? encoder,
   }) : _frameWaiter =
@@ -110,6 +113,9 @@ class ScreenshotCapturer {
 
   final GlobalKey boundaryKey;
   final double pixelRatio;
+  final int? maxWidth;
+  final int? maxHeight;
+  final double degradedScale;
   final TugboatScreenshotMaskLevel maskLevel;
   final Future<void> Function() _frameWaiter;
   final ScreenshotEncoder _encoder;
@@ -229,6 +235,7 @@ class ScreenshotCapturer {
     bool waitForFrame = true,
     bool requireFreshPaint = false,
     bool allowPaintGenerationSkip = true,
+    bool degraded = false,
     Duration frameTimeout = const Duration(seconds: 2),
     bool Function()? isCurrent,
     Future<void>? cancelled,
@@ -340,6 +347,8 @@ class ScreenshotCapturer {
         currentBoundary,
         force: force,
         allowPaintGenerationSkip: allowPaintGenerationSkip,
+        degraded: degraded,
+        isCurrent: isCurrent,
       );
       if (isCurrent != null && !isCurrent()) {
         return ScreenshotCaptureAttempt(
@@ -381,6 +390,8 @@ class ScreenshotCapturer {
     RenderRepaintBoundary boundary, {
     required bool force,
     required bool allowPaintGenerationSkip,
+    required bool degraded,
+    bool Function()? isCurrent,
   }) async {
     final rootRender = boundary;
     final boundaryOrigin = boundary.localToGlobal(Offset.zero);
@@ -390,14 +401,17 @@ class ScreenshotCapturer {
     final paintSignature = boundary is TugboatCaptureRenderBoundary
         ? boundary.subtreePaintSignature
         : null;
-    final scaledWidth = (boundary.size.width * pixelRatio).ceil().clamp(
+    final capturePixelRatio = _capturePixelRatio(
+      boundary.size,
+      degraded: degraded,
+    );
+    final scaledWidth = (boundary.size.width * capturePixelRatio).ceil().clamp(
       1,
       1 << 20,
     );
-    final scaledHeight = (boundary.size.height * pixelRatio).ceil().clamp(
-      1,
-      1 << 20,
-    );
+    final scaledHeight = (boundary.size.height * capturePixelRatio)
+        .ceil()
+        .clamp(1, 1 << 20);
 
     if (allowPaintGenerationSkip &&
         !force &&
@@ -433,13 +447,19 @@ class ScreenshotCapturer {
     final ui.Image image;
     final readbackClock = Stopwatch()..start();
     try {
-      image = await boundary.toImage(pixelRatio: pixelRatio);
+      image = await boundary.toImage(pixelRatio: capturePixelRatio);
     } catch (_) {
       throw const _ScreenshotCaptureException(
         ScreenshotCaptureFailure.readbackFailed,
       );
     } finally {
       readbackClock.stop();
+    }
+    if (isCurrent != null && !isCurrent()) {
+      image.dispose();
+      throw const _ScreenshotCaptureException(
+        ScreenshotCaptureFailure.cancelled,
+      );
     }
     try {
       final imageWidth = image.width;
@@ -452,10 +472,10 @@ class ScreenshotCapturer {
       for (var i = 0; i < maskRects.length; i++) {
         final rect = maskRects[i].rect;
         final base = i * 4;
-        scaledMasks[base] = rect.left * pixelRatio;
-        scaledMasks[base + 1] = rect.top * pixelRatio;
-        scaledMasks[base + 2] = rect.right * pixelRatio;
-        scaledMasks[base + 3] = rect.bottom * pixelRatio;
+        scaledMasks[base] = rect.left * capturePixelRatio;
+        scaledMasks[base + 1] = rect.top * capturePixelRatio;
+        scaledMasks[base + 2] = rect.right * capturePixelRatio;
+        scaledMasks[base + 3] = rect.bottom * capturePixelRatio;
       }
       maskClockTotal.stop();
       final maskMicros =
@@ -507,6 +527,20 @@ class ScreenshotCapturer {
     } finally {
       image.dispose();
     }
+  }
+
+  double _capturePixelRatio(Size logicalSize, {required bool degraded}) {
+    var ratio = pixelRatio;
+    final widthLimit = maxWidth;
+    if (widthLimit != null && widthLimit > 0 && logicalSize.width > 0) {
+      ratio = ratio.clamp(0.0, widthLimit / logicalSize.width).toDouble();
+    }
+    final heightLimit = maxHeight;
+    if (heightLimit != null && heightLimit > 0 && logicalSize.height > 0) {
+      ratio = ratio.clamp(0.0, heightLimit / logicalSize.height).toDouble();
+    }
+    if (degraded) ratio *= degradedScale.clamp(0.1, 1.0).toDouble();
+    return ratio.clamp(double.minPositive, double.maxFinite).toDouble();
   }
 
   List<MaskRect> _collectMaskRects(Element root, RenderBox ancestor) {

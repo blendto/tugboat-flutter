@@ -1,10 +1,58 @@
-## Unreleased
+## 0.8.5
+
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
 
 ### Breaking changes
 
 - The SDK now publishes only schema-v2 canonical `interaction` gesture events.
   Removed legacy gesture projections, publication modes, session aliases, and
   compatibility constructors.
+- Removed the on-device outbox and its public configuration. Collector and
+  exploration delivery are best-effort through bounded in-memory queues.
+- `interaction.afterFrame` now means a temporal post-interaction observation.
+  An unclaimed route frame can satisfy it without creating route causality or
+  an inferred result.
+
+### Changed
+
+- Production-friendly scroll capture now keeps scroll metrics independent from
+  screenshots. In-motion scroll screenshots are opt-in, pressure-droppable,
+  and disabled by default; pointer-linked scrolls retain one optionally
+  deferred scroll-end observation.
+- Screenshot output can be bounded with `captureMaxWidth` /
+  `captureMaxHeight`. A degraded screenshot budget applies
+  `degradedCaptureScale` before GPU readback, reducing raw RGBA allocation as
+  well as encoded size.
+- Low-priority captures dropped under active/queued capture pressure emit the
+  bounded `capture_pressure_drop` diagnostic outcome.
+- `capturePixelRatio` accepts values above `1.0`. Optional output bounds still
+  cap the effective readback scale before allocation.
+- Network observation accepts bounded absolute paths with dynamic identifier
+  segments. Schemes, queries, fragments, encoded data, network-path prefixes,
+  backslashes, whitespace, and control characters remain rejected.
+
+### Fixed
+
+- A new pointer-down cancels a pending deferred scroll-end screenshot before
+  Flutter reports the next `ScrollStart`. The completed scroll keeps its final
+  offsets, overscroll count, target fingerprint, and interaction record, but it
+  does not block or consume the new gesture.
+- Tap-only target, inventory, and viewport-semantic resolution now runs after a
+  gesture remains a tap. Scroll gestures no longer pay that work on
+  pointer-down.
+- Scroll completion joins pointer-up and `ScrollEndNotification` in either
+  callback order and publishes one canonical interaction. Pointer cancellation,
+  replacement scrolls, lifecycle changes, and programmatic scrolls do not leave
+  a late interaction screenshot request.
+- Interaction after-frames must complete after the interaction boundary. A
+  pre-pointer-up frame cannot become an after-frame, including frames from a
+  claimed route capture that settles while the pointer is still down. An
+  unrelated automatic route cannot add causal route evidence to the interaction.
+- Tap target resolution uses the pointer-down position so a slop-bounded
+  release cannot resolve a sibling control or miss the recognizer's original
+  target.
+- Screenshot capture pixel-ratio clamp results are explicitly converted to
+  `double` for sound null-safety.
 
 ## 0.8.0
 

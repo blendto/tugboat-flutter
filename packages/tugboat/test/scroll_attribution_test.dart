@@ -84,6 +84,12 @@ Future<void> _exerciseScrollCallbackOrder(
       )
       .toList();
   expect(interactions, hasLength(1));
+  final payload = Map<String, Object?>.from(
+    interactions.single.data['payload']! as Map,
+  );
+  expect(payload['startOffset'], isNotNull);
+  expect(payload['endOffset'], isNotNull);
+  expect(interactions.single.data['targetFingerprint'], isNotNull);
   final afterFrame = interactions.single.afterFrame;
   expect(afterFrame, isNotNull);
   final frame = session.frameById(afterFrame!);
@@ -112,6 +118,213 @@ void main() {
     tester,
   ) async {
     await _exerciseScrollCallbackOrder(tester, endBeforePointerUp: false);
+  });
+
+  testWidgets(
+    'a replacement scroll keeps the completed scroll facts while dropping its delayed frame',
+    (tester) async {
+      const config = TugboatReplayConfig(
+        profile: TugboatCaptureProfile.exploration,
+        settleDelay: Duration.zero,
+        scrollEndCaptureDelay: Duration(seconds: 1),
+        interactionClaimWindow: Duration.zero,
+        enableGlobalPointerCapture: true,
+        capturePixelRatio: 1.0,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              TugboatReplay.wrapApp(config: config, child: child!),
+          home: Scaffold(
+            body: ListView.builder(
+              itemCount: 30,
+              itemBuilder: (context, index) => Text('Replacement item $index'),
+            ),
+          ),
+        ),
+      );
+      await _waitForCaptures(tester);
+
+      final controller = TugboatReplay.controller!;
+      final listContext = tester.element(find.byType(Scrollable));
+      final position = Scrollable.of(
+        tester.element(find.text('Replacement item 0')),
+      ).position;
+      final startMetrics = FixedScrollMetrics(
+        minScrollExtent: 0,
+        maxScrollExtent: 500,
+        pixels: 0,
+        viewportDimension: 400,
+        axisDirection: AxisDirection.down,
+        devicePixelRatio: 1,
+      );
+      final endMetrics = FixedScrollMetrics(
+        minScrollExtent: 0,
+        maxScrollExtent: 500,
+        pixels: 120,
+        viewportDimension: 400,
+        axisDirection: AxisDirection.down,
+        devicePixelRatio: 1,
+      );
+
+      controller.recordPointerDown(const Offset(20, 120));
+      controller.markPendingTapAsSwipe(0);
+      controller.recordScrollStart(
+        scrollContext: listContext,
+        metrics: startMetrics,
+        depth: 0,
+      );
+      controller.recordScrollOverscroll(scrollContext: listContext);
+      controller.recordScrollOverscroll(scrollContext: listContext);
+      controller.recordPointerUp(const Offset(20, 20));
+      controller.recordScrollEnd(
+        scrollContext: listContext,
+        metrics: endMetrics,
+      );
+
+      // Pointer-down must cancel the stale deferred capture before Flutter
+      // sends the next ScrollStart. The first completed gesture keeps facts.
+      controller.recordPointerDown(const Offset(20, 120));
+      await tester.pump();
+      final cancelledInteractions = controller.session!.events
+          .where(
+            (event) =>
+                event.type == 'interaction' &&
+                event.data['gesture'] == 'scroll',
+          )
+          .toList();
+      expect(cancelledInteractions, hasLength(1));
+      expect(cancelledInteractions.single.afterFrame, isNull);
+      controller.markPendingTapAsSwipe(0);
+      controller.recordScrollStart(
+        scrollContext: listContext,
+        metrics: position,
+        depth: 0,
+      );
+      await tester.pump();
+
+      final interactions = controller.session!.events
+          .where(
+            (event) =>
+                event.type == 'interaction' &&
+                event.data['gesture'] == 'scroll',
+          )
+          .toList();
+      expect(interactions, hasLength(1));
+      final payload = Map<String, Object?>.from(
+        interactions.single.data['payload']! as Map,
+      );
+      expect(payload['startOffset'], 0);
+      expect(payload['endOffset'], 120);
+      expect(payload['overscrollCount'], 2);
+      expect(interactions.single.data['targetFingerprint'], isNotNull);
+      expect(interactions.single.afterFrame, isNull);
+    },
+  );
+
+  testWidgets(
+    'possible scroll pointer-down does not emit tap inventory or semantic work',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              TugboatReplay.wrapApp(config: _scrollTestConfig, child: child!),
+          home: Scaffold(
+            body: ListView.builder(
+              itemCount: 30,
+              itemBuilder: (context, index) => Text('Lean item $index'),
+            ),
+          ),
+        ),
+      );
+      await _waitForCaptures(tester);
+      final controller = TugboatReplay.controller!;
+      final inventoriesBefore = controller.session!.events
+          .where((event) => event.type == 'scene_inventory')
+          .length;
+      final mapsBefore = controller.session!.events
+          .where((event) => event.type == 'viewport_semantic_map')
+          .length;
+
+      controller.recordPointerDown(const Offset(20, 120));
+
+      expect(
+        controller.session!.events
+            .where((event) => event.type == 'scene_inventory')
+            .length,
+        inventoriesBefore,
+      );
+      expect(
+        controller.session!.events
+            .where((event) => event.type == 'viewport_semantic_map')
+            .length,
+        mapsBefore,
+      );
+    },
+  );
+
+  testWidgets('pointer cancellation cancels deferred scroll capture work', (
+    tester,
+  ) async {
+    const config = TugboatReplayConfig(
+      profile: TugboatCaptureProfile.exploration,
+      settleDelay: Duration.zero,
+      scrollEndCaptureDelay: Duration(milliseconds: 30),
+      interactionClaimWindow: Duration.zero,
+      enableGlobalPointerCapture: true,
+      capturePixelRatio: 1.0,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: config, child: child!),
+        home: Scaffold(
+          body: ListView.builder(
+            itemCount: 30,
+            itemBuilder: (context, index) => Text('Cancel item $index'),
+          ),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    final controller = TugboatReplay.controller!;
+    final listContext = tester.element(find.byType(Scrollable));
+    final metrics = Scrollable.of(
+      tester.element(find.text('Cancel item 0')),
+    ).position;
+    final captureCountBefore = controller.session!.events
+        .where(
+          (event) =>
+              event.type == 'capture_diagnostic' &&
+              event.data['trigger'] == 'interaction',
+        )
+        .length;
+
+    controller.recordPointerDown(const Offset(20, 120));
+    controller.markPendingTapAsSwipe(0);
+    controller.recordScrollStart(
+      scrollContext: listContext,
+      metrics: metrics,
+      depth: 0,
+    );
+    controller.recordScrollEnd(scrollContext: listContext, metrics: metrics);
+    controller.recordPointerCancel(const Offset(20, 80));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 80)),
+    );
+    await tester.pump();
+
+    expect(
+      controller.session!.events
+          .where(
+            (event) =>
+                event.type == 'capture_diagnostic' &&
+                event.data['trigger'] == 'interaction',
+          )
+          .length,
+      captureCountBefore,
+    );
   });
 
   testWidgets('one scroll start has one pointer owner', (tester) async {
@@ -264,6 +477,115 @@ void main() {
     expect(payload['endOffset'], isNotNull);
     expect(payload['endOffset'], isNot(equals(payload['startOffset'])));
   });
+
+  testWidgets(
+    'scroll samples do not request in-motion screenshots by default',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              TugboatReplay.wrapApp(config: _scrollTestConfig, child: child!),
+          home: Scaffold(
+            body: ListView.builder(
+              itemCount: 40,
+              itemBuilder: (context, index) => Text('Metrics item $index'),
+            ),
+          ),
+        ),
+      );
+      await _waitForCaptures(tester);
+      final controller = TugboatReplay.controller!;
+      final listContext = tester.element(find.byType(Scrollable));
+      final metrics = Scrollable.of(
+        tester.element(find.text('Metrics item 0')),
+      ).position;
+      final scrollCapturesBefore = controller.session!.events
+          .where(
+            (event) =>
+                event.type == 'capture_diagnostic' &&
+                event.data['trigger'] == 'scroll',
+          )
+          .length;
+
+      controller.recordScrollStart(
+        scrollContext: listContext,
+        metrics: metrics,
+        depth: 0,
+      );
+      controller.recordScrollUpdate(
+        scrollContext: listContext,
+        metrics: metrics,
+      );
+      await tester.pump();
+
+      expect(controller.session!.scrollSamples.length, greaterThan(1));
+      expect(
+        controller.session!.events
+            .where(
+              (event) =>
+                  event.type == 'capture_diagnostic' &&
+                  event.data['trigger'] == 'scroll',
+            )
+            .length,
+        scrollCapturesBefore,
+      );
+    },
+  );
+
+  testWidgets(
+    'in-motion screenshots are independent from scroll sample retention',
+    (tester) async {
+      const config = TugboatReplayConfig(
+        profile: TugboatCaptureProfile.exploration,
+        settleDelay: Duration.zero,
+        interactionClaimWindow: Duration.zero,
+        enableGlobalPointerCapture: true,
+        scrollCaptureInterval: Duration.zero,
+        captureScrollSamples: false,
+        captureScrollScreenshots: true,
+        capturePixelRatio: 1.0,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              TugboatReplay.wrapApp(config: config, child: child!),
+          home: Scaffold(
+            body: ListView.builder(
+              itemCount: 40,
+              itemBuilder: (context, index) => Text('Visual item $index'),
+            ),
+          ),
+        ),
+      );
+      await _waitForCaptures(tester);
+      final controller = TugboatReplay.controller!;
+      final listContext = tester.element(find.byType(Scrollable));
+      final metrics = Scrollable.of(
+        tester.element(find.text('Visual item 0')),
+      ).position;
+
+      controller.recordScrollStart(
+        scrollContext: listContext,
+        metrics: metrics,
+        depth: 0,
+      );
+      controller.recordScrollUpdate(
+        scrollContext: listContext,
+        metrics: metrics,
+      );
+      await _waitForCaptures(tester);
+
+      expect(controller.session!.scrollSamples, isEmpty);
+      expect(
+        controller.session!.events.where(
+          (event) =>
+              event.type == 'capture_diagnostic' &&
+              event.data['trigger'] == 'scroll',
+        ),
+        isNotEmpty,
+      );
+    },
+  );
 
   testWidgets('dead swipe on static widget emits one swipe interaction', (
     tester,

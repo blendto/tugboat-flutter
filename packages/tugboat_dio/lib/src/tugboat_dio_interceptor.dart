@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:tugboat/tugboat.dart';
 
-/// Host-supplied mapper from a Dio request to a safe route template.
+/// Host-supplied mapper from a Dio request to a bounded route path.
 ///
-/// Must return a bounded template such as `/blend/:blendId`, never a raw path
-/// containing entity IDs. Return `null` or empty to drop the observation.
+/// May retain dynamic identifier segments. Return `null` or empty to drop the
+/// observation.
 typedef TugboatDioRouteResolver = String? Function(RequestOptions request);
 
 /// Records one logical Dio request as Tugboat `network_call` evidence.

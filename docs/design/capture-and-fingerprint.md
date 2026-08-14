@@ -90,8 +90,8 @@ The session stores:
 - activation / capture / collector identity fields;
 - a `truncated` flag when configured frame or event limits are exceeded.
 
-Optional opt-in durable outbox (Collector HTTP only) persists sanitized
-delivery envelopes across process restarts within byte/age bounds.
+Collector and exploration delivery are best-effort. Bounded in-memory queues do
+not survive process termination.
 
 The event stream currently includes:
 
@@ -118,10 +118,10 @@ route dictionary.
 viewport. The session begins with `session_start` and an initial capture
 request. Pointer-down freezes a compatible pre-interaction frame. Pointer-up
 publishes one canonical `interaction` after gesture classification. Its
-after-frame attaches only when the frame provenance matches the observed route
-epoch. A capture that is unavailable, cancelled, superseded, or
-timed out is represented by bounded capture/attachment diagnostics instead of
-borrowing the latest frame from another screen.
+after-frame is a temporal observation captured after the interaction. A route
+frame can satisfy this reference even when the route is not causally attributed
+to the interaction. Causal route ownership remains on `route_change`. A capture
+that is unavailable, cancelled, or timed out remains absent.
 
 Frame requests are serialized and use fresh-paint/readback checks before
 publishing. Non-interaction requests can coalesce and reuse exact-content or
@@ -199,10 +199,10 @@ subview label for route-internal state and scroll attribution.
 
 ### State identity
 
-Version 0.8.0 does not write state identity. State anchors and signatures remain
-internal legacy model data only. New event, inventory, semantic-map, diagnostic,
-debug, and provenance JSON omit them. Use route evidence, target anchors, and
-frame hashes for raw replay facts.
+Version 0.8.0 and later do not write state identity. State anchors and
+signatures remain internal legacy model data only. New event, inventory,
+semantic-map, diagnostic, debug, and provenance JSON omit them. Use route
+evidence, target anchors, and frame hashes for raw replay facts.
 
 ### Confidence
 
@@ -237,9 +237,14 @@ telemetry and avoid putting user data in them.
 ## Screenshot pipeline
 
 Screenshots are taken from the SDK `RepaintBoundary` at the configured pixel
-ratio (default `0.75`). Before JPEG encoding the SDK collects mask rectangles
-using the shared anchor resolver and applies them as opaque fills on the RGBA
-buffer inside the encode isolate (avoiding a second full-size GPU raster).
+ratio (default `0.75`). Optional `captureMaxWidth` / `captureMaxHeight` bounds
+lower the effective ratio before readback while preserving aspect ratio; when
+the rolling screenshot budget is degraded, `degradedCaptureScale` (default
+`0.67`) lowers it again. This reduces both GPU readback dimensions and the raw
+RGBA allocation rather than only shrinking the final JPEG. Before JPEG encoding
+the SDK collects mask rectangles using the shared anchor resolver and applies
+them as opaque fills on the RGBA buffer inside the encode isolate (avoiding a
+second full-size GPU raster).
 
 The default mask policy is profile-dependent:
 
@@ -257,11 +262,22 @@ serialized and compatible non-interaction requests can coalesce. When the
 capture subtree's paint signature has not
 changed since the last accepted frame (outer capture boundary paint generation
 plus nested [RepaintBoundary] layer/picture identity), the controller skips the
-entire GPU readback/encode path and reuses a compatible frame. Each completed
-interaction requests one forced fresh after-frame. This attempt does not
-coalesce, and local-WebSocket suppression, paint-generation reuse, dHash reuse,
-and content-hash reuse cannot replace it. A fresh route capture can satisfy only
-the interaction that causally claimed that route capture.
+entire GPU readback/encode path and reuses a compatible frame. Scroll metrics
+are sampled independently from screenshots. In-motion visual checkpoints are
+disabled by default and, when explicitly enabled, drop with
+`capture_pressure_drop` rather than queue behind active screenshot work. A
+pointer-linked scroll can request one fresh observation after an optional
+`scrollEndCaptureDelay`; that idle wait runs outside the controller queue so it
+does not block route or pointer settlement. Each other completed interaction
+requests a post-interaction observation. A fresh route capture can satisfy it
+without asserting that the interaction caused the route. `afterFrame` therefore
+means "observed later," not "action result."
+
+Pointer-down cancels a pending deferred scroll-end capture before Flutter sends
+the next `ScrollStart`. The SDK keeps the completed scroll metrics and publishes
+the old interaction without a stale after-frame. Tap-only target, inventory,
+and viewport-semantic resolution runs at pointer-up. This keeps tap evidence
+while removing that work from the scroll input path.
 
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA
@@ -273,8 +289,8 @@ in repaint-boundary output.
 
 When the exploration WebSocket connects and there is no HTTP collector, the
 controller suppresses only non-interaction Flutter screenshots for UI-thread
-performance. Each completed interaction still encodes a fresh screenshot. A
-causally claimed route capture also remains enabled. Events, anchors,
+performance. Each completed interaction still requests a visual observation.
+A route capture can satisfy it. Events, anchors,
 inventories, and semantic evidence continue to stream. Any frames captured
 before connection are still sent.
 
@@ -313,8 +329,7 @@ remains authoritative in memory. Public `TugboatCaptureSinkFactory` registration
 is supported via `TugboatReplayConfig.sinkFactories`; built-in HTTP/WS sinks
 remain available through existing config fields.
 
-HTTP delivery can optionally use a durable outbox (`TugboatOutboxConfig`).
-Exploration WebSocket queues remain process-local. See
+HTTP delivery and exploration WebSocket queues remain process-local. See
 [Collector integration](../integration/collector.md) for the wire behavior.
 
 ## Lifecycle
@@ -336,8 +351,7 @@ transparency, route separation, modal/visibility filtering, generated widget
 names, actionable `InkWell` paths, dormant activation without rebuild,
 screenshot mask defaults, route payloads, scroll/swipe attribution, schema-v10
 JSON round trips and rejection of unsupported schema versions, semantic modes,
-sink factories/mailboxes,
-outbox restart recovery, health diagnostics, lifecycle ordering, retry bounds,
+sink factories/mailboxes, health diagnostics, lifecycle ordering, retry bounds,
 and stale session/frame protection.
 
 These tests prove repository behavior; they do not replace validation on real,
@@ -360,12 +374,7 @@ sooner now that paint-generation / dHash coalesce replace the old post-capture
 state-signature short circuit. Record multi-tier device measurements before
 enabling more aggressive degradation in production profiles.
 
-### 3. Stronger collector acknowledgement
-
-Outbox delivery is at-least-once with local idempotency keys. Server-side
-envelope dedupe remains a collector concern.
-
-### 4. Deferred capture surfaces
+### 3. Deferred capture surfaces
 
 Native platform-view adapters, video texture capture, and iOS background upload
 services remain out of scope.

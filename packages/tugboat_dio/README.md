@@ -1,23 +1,25 @@
 # tugboat_dio
 
-Dio adapter for Tugboat network evidence. Records method, safe route template,
+Dio adapter for Tugboat network evidence. Records method, bounded route path,
 status, outcome, and duration into an active Tugboat session. HTTP error
 responses additionally retain bounded JSON/text bodies. Successful response
 bodies, headers, queries, raw transport errors, and stack traces are omitted.
 
-Requires `tugboat` `0.8.0` (lockstep).
+Requires `tugboat` `0.8.5` (lockstep).
+
+This package stays on the `0.8.x` line with the core SDK.
 
 ## Install
 
 ```yaml
 dependencies:
-  tugboat: ^0.8.0
-  tugboat_dio: ^0.8.0
+  tugboat: ^0.8.5
+  tugboat_dio: ^0.8.5
 ```
 
 ## Usage
 
-Supply a host-owned route template resolver. Unmatched routes are dropped.
+Supply a host-owned route path resolver. Unmatched routes are dropped.
 
 ```dart
 import 'package:dio/dio.dart';
@@ -30,16 +32,16 @@ final dio = Dio();
 // before Tugboat finishes the observation token.
 TugboatDioInterceptor.install(
   dio,
-  routeResolver: (request) => apiRouteTemplate(request.path),
+  routeResolver: (request) => request.path,
 );
 ```
 
-`apiRouteTemplate` must return a safe template such as `/blend/:blendId`, never
-a raw path containing entity IDs. Return `null` or `''` to drop the call.
-The adapter also drops resolver output that is not an absolute path or that
-contains a scheme, query, fragment, percent-encoded data, a network-path
-prefix, backslash, or whitespace/control character. A resolver is still
-responsible for replacing dynamic path segments with placeholders.
+`routeResolver` must return a bounded absolute path. Dynamic identifier
+segments are allowed. Return `null` or `''` to drop the call. The adapter also
+drops resolver output that contains a scheme, query, fragment, percent-encoded
+data, a network-path prefix, backslash, or whitespace/control character. Route
+paths can contain user or tenant identifiers. Hosts must apply their own
+privacy and retention policy.
 
 ## Interceptor ordering
 

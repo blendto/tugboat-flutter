@@ -6,7 +6,6 @@ class TugboatSdkHealth {
     this.activationRequestId,
     this.captureSessionId,
     this.sinks = const TugboatSinkHealth(),
-    this.outbox,
     this.screenshots = const TugboatScreenshotBudgetHealth(),
     this.captureDiagnostics = const TugboatCaptureDiagnosticHealth(),
     this.evidence = const TugboatEvidenceHealth(),
@@ -19,7 +18,6 @@ class TugboatSdkHealth {
   final String? activationRequestId;
   final String? captureSessionId;
   final TugboatSinkHealth sinks;
-  final TugboatOutboxHealth? outbox;
   final TugboatScreenshotBudgetHealth screenshots;
 
   /// Bounded, privacy-safe capture outcome counts. Additive to screenshot
@@ -37,7 +35,6 @@ class TugboatSdkHealth {
     if (activationRequestId != null) 'activationRequestId': activationRequestId,
     if (captureSessionId != null) 'captureSessionId': captureSessionId,
     'sinks': sinks.toJson(),
-    if (outbox != null) 'outbox': outbox!.toJson(),
     'screenshots': screenshots.toJson(),
     'captureDiagnostics': captureDiagnostics.toJson(),
     'evidence': evidence.toJson(),
@@ -111,27 +108,6 @@ class TugboatSinkHealth {
     'pending': pending,
     'accepted': accepted,
     'dropped': dropped,
-  };
-}
-
-class TugboatOutboxHealth {
-  const TugboatOutboxHealth({
-    this.enabled = false,
-    this.pending = 0,
-    this.bytes = 0,
-    this.quarantined = 0,
-  });
-
-  final bool enabled;
-  final int pending;
-  final int bytes;
-  final int quarantined;
-
-  Map<String, Object?> toJson() => {
-    'enabled': enabled,
-    'pending': pending,
-    'bytes': bytes,
-    'quarantined': quarantined,
   };
 }
 

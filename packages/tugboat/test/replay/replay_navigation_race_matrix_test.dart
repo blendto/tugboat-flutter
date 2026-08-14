@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tugboat/tugboat.dart';
 
 import '../helpers/replay_coherence_harness.dart';
 
@@ -99,6 +100,30 @@ void main() {
     expect(change.data['captureOutcome'], 'failed');
   });
 
+  test('frame completed before pointer-up is not an after-frame', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+
+    harness.seedRouteState(route: '/home', signature: 'home');
+    harness.controller.recordPointerDown(const Offset(10, 10));
+    await harness.tick(const Duration(milliseconds: 10));
+    final whileHeld = harness.controller.debugSeedFrame(
+      contentHash: 'while-held',
+      trigger: TugboatFrameTrigger.route,
+    );
+    await harness.tick(const Duration(milliseconds: 10));
+    harness.capturer.failNext = true;
+    harness.controller.recordPointerUp(const Offset(10, 10));
+    await harness.flushScheduler();
+
+    final interaction = harness.controller.session!
+        .ofType('interaction')
+        .single;
+    expect(harness.controller.latestFrameId, whileHeld);
+    expect(interaction.afterFrame, isNull);
+  });
+
   test('ambiguous multi-pointer gestures cannot claim a route', () async {
     final harness = ReplayCoherenceHarness(
       interactionClaimWindow: const Duration(milliseconds: 1250),
@@ -124,6 +149,8 @@ void main() {
       interactions.every((event) => event.data['gesture'] == 'tap'),
       isTrue,
     );
+    expect(change.afterFrame, isNotNull);
+    expect(interactions.every((event) => event.afterFrame != null), isTrue);
     expect(change.data['causeEventId'], isNull);
     expect(change.data['navigationOrigin'], 'automatic_or_unknown');
   });
