@@ -1648,6 +1648,9 @@ class TugboatReplayController extends ChangeNotifier {
   /// Emits exactly one bounded, sanitized resolution record for a logical
   /// request. This deliberately records a taxonomy value rather than the
   /// underlying exception so replay telemetry never contains app data.
+  ///
+  /// [productionLean] profiles update [healthSnapshot] counters only. Session
+  /// and collector output omit `capture_diagnostic` events to reduce volume.
   void _recordCaptureDiagnostic(_CaptureResolution resolution) {
     final outcome = resolution.outcome.wireName;
     _captureDiagnosticTotal = (_captureDiagnosticTotal + 1).clamp(
@@ -1663,6 +1666,7 @@ class TugboatReplayController extends ChangeNotifier {
             _maxCaptureDiagnosticCount,
           );
     }
+    if (config.profile == TugboatCaptureProfile.productionLean) return;
     _addEvent(
       TugboatEvent(
         id: _nextId('event'),

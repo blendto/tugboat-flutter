@@ -19,6 +19,10 @@ Canonical interactions now include `pan`, `zoom_in`, and `zoom_out` for
 two-pointer pinch/translation and trackpad pan/zoom. Nested payload adds
 `pointerCount` and, for zoom, `scale`. Tap, swipe, and scroll are unchanged.
 
+`productionLean` profiles no longer emit `capture_diagnostic` events to the
+session or collector. On-device `healthSnapshot().captureDiagnostics` counters
+still update. Exploration profiles still emit full diagnostic events.
+
 ## 0.8.5 release compatibility
 
 This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`. It
@@ -374,7 +378,8 @@ Emitted inferred event types currently include:
   `payload` (omitted for `cancelled`);
 - lifecycle: `session_start`, `session_identify`, `session_end`;
 - navigation evidence (`stream: evidence`): `route_change`;
-- diagnostics: `capture_diagnostic` (`stream: diagnostic`);
+- diagnostics: `capture_diagnostic` (`stream: diagnostic`; exploration profiles only;
+  `productionLean` updates on-device health counters without session events);
 - exploration: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
 - semantic-map modes: `viewport_semantic_map`,
@@ -457,13 +462,17 @@ generated stable-name map.
 
 ## Capture diagnostics
 
-Each logical capture request emits exactly one privacy-safe
-`capture_diagnostic` event and contributes to the bounded, session-scoped
-`healthSnapshot().captureDiagnostics` counter. Distinct request IDs with the
-same execution ID (and `coalesced: true`) identify scheduler coalescing.
-Diagnostics contain only bounded correlation, outcome, route epoch, trigger,
-and evidence fields; they never include image bytes, labels, raw errors, or
-stack traces. `visualEvidence` distinguishes fresh, reused, and unavailable
+Each logical capture request records one privacy-safe resolution in
+`healthSnapshot().captureDiagnostics` (bounded outcome counts and last
+outcome). Exploration profiles also emit a `capture_diagnostic` session event
+(`stream: diagnostic`). `productionLean` profiles omit those events from the
+session and collector to reduce volume; use on-device health for capture
+telemetry in production.
+
+Distinct request IDs with the same execution ID (and `coalesced: true`) identify
+scheduler coalescing when diagnostic events are present. Diagnostics contain only
+bounded correlation, outcome, route epoch, trigger, and evidence fields; they
+never include image bytes, labels, raw errors, or stack traces. `visualEvidence` distinguishes fresh, reused, and unavailable
 visual evidence, while `interactionEvidence` states whether the request links
 to an inferred event. The closed outcome vocabulary is:
 

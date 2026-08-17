@@ -218,6 +218,7 @@ class ReplayCoherenceHarness {
     // recordings now default to canonical-only publication.
     this.maxFrames = 300,
     this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,
+    this.profile = TugboatCaptureProfile.exploration,
     GlobalKey? boundaryKey,
   }) : boundaryKey = boundaryKey ?? GlobalKey();
 
@@ -225,6 +226,7 @@ class ReplayCoherenceHarness {
   final Duration interactionClaimWindow;
   final int maxFrames;
   final TugboatScreenshotBudgetConfig screenshotBudget;
+  final TugboatCaptureProfile profile;
   final GlobalKey boundaryKey;
   final ControllableScheduler scheduler = ControllableScheduler();
   final Map<String, HarnessFrameProvenance> _frameProvenance =
@@ -265,7 +267,7 @@ class ReplayCoherenceHarness {
     TestWidgetsFlutterBinding.ensureInitialized();
     controller = TugboatReplayController(
       config: TugboatReplayConfig(
-        profile: TugboatCaptureProfile.exploration,
+        profile: profile,
         settleDelay: settleDelay,
         interactionClaimWindow: interactionClaimWindow,
         maxFrames: maxFrames,

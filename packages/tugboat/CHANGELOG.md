@@ -19,6 +19,13 @@ This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.6`.
   scrolling still becomes `scroll`. Stationary two-finger contact remains two
   taps.
 
+### Changed
+
+- `productionLean` capture profiles no longer emit `capture_diagnostic` session
+  or collector events. Bounded `healthSnapshot().captureDiagnostics` counters
+  still update on device. Exploration profiles continue to emit full diagnostic
+  events.
+
 ## 0.8.5
 
 This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
