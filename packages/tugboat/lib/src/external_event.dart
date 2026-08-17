@@ -29,10 +29,11 @@ class TugboatParameterDrop {
 
 /// Policy controlling which external-event parameter values are retained.
 ///
-/// Parameter keys may be captured by default. Values are captured only through
-/// an explicit allow-list, transform, or the deliberately named [allowAll]
-/// exploration escape hatch. [allowAllInProduction] is a separate production
-/// opt-in.
+/// The default policy is [allowAllInProduction]: event name, parameter keys,
+/// and JSON-safe values are retained within hard limits in every capture
+/// profile. [namesOnly] keeps keys without values. Values can also be limited
+/// through an allow-list, a transform, or the exploration-only [allowAll]
+/// escape hatch.
 class TugboatParameterPolicy {
   const TugboatParameterPolicy._({
     required this.mode,
@@ -40,8 +41,9 @@ class TugboatParameterPolicy {
     this.valueTransform,
   });
 
-  /// Record event name plus bounded parameter keys only. Default production
-  /// policy.
+  /// Record event name plus bounded parameter keys only.
+  ///
+  /// Use this when the host must not retain parameter values.
   static const namesOnly = TugboatParameterPolicy._(
     mode: TugboatParameterCaptureMode.namesOnly,
   );
@@ -72,11 +74,12 @@ class TugboatParameterPolicy {
     mode: TugboatParameterCaptureMode.allowAll,
   );
 
-  /// Production opt-in that retains all JSON-safe values within hard limits.
+  /// Default policy. Retains all JSON-safe values within hard limits,
+  /// including in production capture profiles.
   ///
   /// This can capture feedback, search terms, URLs, IDs, and other user
-  /// content. The host must confirm consent, privacy, access, and retention
-  /// rules before it uses this policy.
+  /// content. Hosts that must not retain values should use [namesOnly], an
+  /// allow-list, or a transform.
   ///
   /// Unlike [allowAll], this policy retains values in production capture
   /// profiles. It still applies all parameter safety and size limits.

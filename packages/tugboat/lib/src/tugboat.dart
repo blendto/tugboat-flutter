@@ -214,9 +214,15 @@ class TugboatReplay {
   /// The hook resolves the active controller at [TugboatEventHook.record] time
   /// so it never retains a stale session reference. Calls made while capture is
   /// dormant, disabled, or ended are safe no-ops.
+  ///
+  /// By default, [parameterPolicy] is
+  /// [TugboatParameterPolicy.allowAllInProduction], so JSON-safe parameter
+  /// values are retained within hard limits. Pass
+  /// [TugboatParameterPolicy.namesOnly] to keep keys without values.
   static TugboatEventHook eventHook({
     String? source,
-    TugboatParameterPolicy parameterPolicy = TugboatParameterPolicy.namesOnly,
+    TugboatParameterPolicy parameterPolicy =
+        TugboatParameterPolicy.allowAllInProduction,
   }) {
     return _TugboatEventHook(source: source, parameterPolicy: parameterPolicy);
   }

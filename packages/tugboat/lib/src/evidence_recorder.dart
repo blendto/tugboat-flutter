@@ -66,7 +66,8 @@ class TugboatEvidenceRecorder {
     required String name,
     String? source,
     Map<String, Object?>? parameters,
-    TugboatParameterPolicy parameterPolicy = TugboatParameterPolicy.namesOnly,
+    TugboatParameterPolicy parameterPolicy =
+        TugboatParameterPolicy.allowAllInProduction,
   }) {
     try {
       if (!accepting) {

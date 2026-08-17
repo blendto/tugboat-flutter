@@ -1,3 +1,15 @@
+## 0.8.6
+
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.6`.
+
+### Fixed
+
+- Default `TugboatReplay.eventHook` parameter policy now retains bounded
+  JSON-safe external-event values (`allowAllInProduction`). Parameter keys
+  were already captured; values were omitted unless the host opted in. Hosts
+  that must not retain values can still pass `namesOnly`, an allow-list, or a
+  transform. Existing JSON and size bounds still apply.
+
 ## 0.8.5
 
 This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.

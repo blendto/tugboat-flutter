@@ -5,9 +5,15 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.5`. Session JSON writers and readers use
+The current package version is `0.8.6`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.8.6
+
+Default `TugboatReplay.eventHook` parameter policy now retains bounded
+JSON-safe values, including in production capture profiles. Pass
+`TugboatParameterPolicy.namesOnly` to keep keys without values.
 
 ## 0.8.5 release compatibility
 
@@ -43,7 +49,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.8.5
+  tugboat_dio: ^0.8.6
 ```
 
 See `packages/tugboat_dio/README.md`.
@@ -78,30 +84,30 @@ failedCall.complete(
 ```
 
 Both emit on `stream: evidence` and never inherit exploration `actionId` or UI
-anchors. `namesOnly` is the default parameter policy. It retains parameter keys
-but omits parameter values. `allowAll` is an exploration-only escape hatch;
-outside exploration profiles the SDK downgrades it to names-only at record time.
+anchors. The default parameter policy retains JSON-safe values within hard
+limits in every capture profile, including production. `allowAll` is an
+exploration-only escape hatch; outside exploration profiles the SDK downgrades
+it to names-only at record time.
 
-### Production parameter values
+### Omitting parameter values
 
-Use `allowAllInProduction` only when the host needs to retain all JSON-safe
-parameter values in a production capture profile:
+Use `namesOnly` when the host must retain parameter keys without values:
 
 ```dart
-final productionEvents = TugboatReplay.eventHook(
-  source: 'feedback',
-  parameterPolicy: TugboatParameterPolicy.allowAllInProduction,
+final privateEvents = TugboatReplay.eventHook(
+  source: 'analytics',
+  parameterPolicy: TugboatParameterPolicy.namesOnly,
 );
-productionEvents.record(
-  'FEEDBACK_SUBMITTED',
-  parameters: {'comment': 'The search result was not useful.'},
+privateEvents.record(
+  'SEARCH',
+  parameters: {'query': 'chicken soup'},
 );
 ```
 
-This policy can retain feedback, search terms, URLs, IDs, and other user
-content. Hosts must confirm consent, privacy, access, and retention rules before
-they use it. The SDK still deep-copies JSON-safe values and applies its hard
-JSON and size bounds.
+The default policy can retain feedback, search terms, URLs, IDs, and other user
+content. Hosts that need a narrower set can pass an allow-list or a transform.
+The SDK still deep-copies JSON-safe values and applies its hard JSON and size
+bounds.
 
 Network routes must be bounded absolute paths. Dynamic identifier segments are
 allowed. The SDK drops resolver output containing a scheme, query, fragment,

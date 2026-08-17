@@ -12,11 +12,11 @@ database receipt alone as proof that a replay is correct.
 
 ## Current acceptance status
 
-The current SDK release candidate is **0.8.5**, which writes session schema
+The current SDK release candidate is **0.8.6**, which writes session schema
 **v10**. It preserves structural interaction replay while no longer emitting
 `controlValue`, `controlValueTransition`, `semanticAnnotation`, `stateAnchor`,
 or `stateSignature` in new writer output. It also does not emit `state_change`.
-This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.6`.
 Treat the absence of those fields as the expected privacy boundary, not as
 missing capture evidence. Deploy the related collector change with this SDK
 release.
@@ -168,7 +168,7 @@ flows share a session, list the event IDs or timestamps that delimit each flow.
 
 Wait until the collector session has finalized and the replay is available in
 the production website. Filter to the recorded Blend build and SDK version
-under test (`0.8.5` for this release), then open every recorded session.
+under test (`0.8.6` for this release), then open every recorded session.
 
 For each interaction, inspect the actual replay UI and verify:
 

@@ -4186,7 +4186,8 @@ class TugboatReplayController extends ChangeNotifier {
     required String name,
     String? source,
     Map<String, Object?>? parameters,
-    TugboatParameterPolicy parameterPolicy = TugboatParameterPolicy.namesOnly,
+    TugboatParameterPolicy parameterPolicy =
+        TugboatParameterPolicy.allowAllInProduction,
   }) {
     _evidence.recordExternalEvent(
       name: name,
