@@ -118,12 +118,8 @@ void main() {
 
   testWidgets('names-only policy omits parameter values', (tester) async {
     await _pumpCapture(tester);
-    TugboatReplay.eventHook(
-      parameterPolicy: TugboatParameterPolicy.namesOnly,
-    ).record(
-      'SEARCH',
-      parameters: {'query': 'chicken soup'},
-    );
+    TugboatReplay.eventHook(parameterPolicy: TugboatParameterPolicy.namesOnly)
+        .record('SEARCH', parameters: {'query': 'chicken soup'});
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (e) => e.type == 'external_event',
@@ -137,36 +133,32 @@ void main() {
     });
   });
 
-  testWidgets(
-    'default policy retains parameter values in production capture',
-    (tester) async {
-      await _pumpCapture(
-        tester,
-        config: _testConfig.copyWith(
-          profile: TugboatCaptureProfile.productionLean,
-        ),
-      );
+  testWidgets('default policy retains parameter values in production capture', (
+    tester,
+  ) async {
+    await _pumpCapture(
+      tester,
+      config: _testConfig.copyWith(
+        profile: TugboatCaptureProfile.productionLean,
+      ),
+    );
 
-      TugboatReplay.eventHook().record(
-        'SEARCH',
-        parameters: {'query': 'private search', 'page': 2},
-      );
+    TugboatReplay.eventHook().record(
+      'SEARCH',
+      parameters: {'query': 'private search', 'page': 2},
+    );
 
-      final event = TugboatReplay.controller!.session!.events.singleWhere(
-        (event) => event.type == 'external_event',
-      );
-      expect(event.data['parameterKeys'], ['query', 'page']);
-      expect(event.data['parameters'], {
-        'query': 'private search',
-        'page': 2,
-      });
-      expect(event.data['capture'], {
-        'values': 'allow_all',
-        'truncated': false,
-        'droppedCount': 0,
-      });
-    },
-  );
+    final event = TugboatReplay.controller!.session!.events.singleWhere(
+      (event) => event.type == 'external_event',
+    );
+    expect(event.data['parameterKeys'], ['query', 'page']);
+    expect(event.data['parameters'], {'query': 'private search', 'page': 2});
+    expect(event.data['capture'], {
+      'values': 'allow_all',
+      'truncated': false,
+      'droppedCount': 0,
+    });
+  });
 
   testWidgets('production capture downgrades allow-all to names-only', (
     tester,
@@ -178,9 +170,8 @@ void main() {
       ),
     );
 
-    TugboatReplay.eventHook(
-      parameterPolicy: TugboatParameterPolicy.allowAll,
-    ).record('SEARCH', parameters: {'query': 'private search'});
+    TugboatReplay.eventHook(parameterPolicy: TugboatParameterPolicy.allowAll)
+        .record('SEARCH', parameters: {'query': 'private search'});
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (event) => event.type == 'external_event',
@@ -225,9 +216,8 @@ void main() {
   ) async {
     await _pumpCapture(tester);
 
-    TugboatReplay.eventHook(
-      parameterPolicy: TugboatParameterPolicy.allowAll,
-    ).record('SEARCH', parameters: {'query': 'private search'});
+    TugboatReplay.eventHook(parameterPolicy: TugboatParameterPolicy.allowAll)
+        .record('SEARCH', parameters: {'query': 'private search'});
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (event) => event.type == 'external_event',
