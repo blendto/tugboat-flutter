@@ -2592,7 +2592,7 @@ class TugboatReplayController extends ChangeNotifier {
     tx.cancelled = true;
     tx.rejectionReason ??= reason;
     tx.attribution = InteractionAttribution.none;
-    if (!tx.isSwipeOrScroll) {
+    if (!tx.skipsTapSettlement) {
       tx.gesture = InteractionGesture.cancelled;
     }
     _publishCanonicalInteraction(tx);
@@ -2646,6 +2646,34 @@ class TugboatReplayController extends ChangeNotifier {
     }
   }
 
+  void markPendingScaleGesture({
+    required int pointer,
+    required InteractionGesture gesture,
+    double scale = 1,
+    int pointerCount = 2,
+  }) {
+    final pending = _interactions.pendingAt(pointer);
+    if (pending == null) return;
+    pending.markScale(
+      gesture: gesture,
+      scale: scale,
+      pointerCount: pointerCount,
+    );
+    pending.rejectionReason ??= InteractionRejectionReason.gestureReclassified;
+  }
+
+  /// Drops a pending pointer without publishing an interaction.
+  ///
+  /// Used when a secondary pointer is absorbed into a pan/zoom gesture.
+  void suppressPendingPointer(int pointer) {
+    final pending = _interactions.removePending(pointer);
+    if (pending == null || pending.semanticPublished) return;
+    _discardScrollCompletionFor(pending);
+    _clearCausalRouteState(pending.id);
+    pending.semanticPublished = true;
+    _interactions.forgetId(pending.id);
+  }
+
   void recordPointerUp(Offset position, {int pointer = 0}) {
     if (!_acceptsPointerInput) return;
     final pending = _interactions.removePending(pointer);
@@ -2653,7 +2681,20 @@ class TugboatReplayController extends ChangeNotifier {
     pending.releasedAtMs = atMs;
     pending.releasedFrameSequence = _frameCompletionSequence;
 
-    if (pending.isSwipeOrScroll) {
+    if (pending.isPanOrZoom) {
+      final isZoom =
+          pending.gesture == InteractionGesture.zoomIn ||
+          pending.gesture == InteractionGesture.zoomOut;
+      if (isZoom || pending.scrollStartEventIds.isEmpty) {
+        pending.endPosition = position;
+        _clearCausalRouteState(pending.id);
+        _publishCompletedGestureAfterCapture(pending);
+        if (!_disposed) notifyListeners();
+        return;
+      }
+    }
+
+    if (pending.skipsTapSettlement) {
       final scrollStartEventId = pending.scrollStartEventIds.isNotEmpty
           ? pending.scrollStartEventIds.first
           : null;
@@ -3144,7 +3185,7 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
-  /// A completed swipe or scroll gets its own fresh after-frame. Interaction
+  /// A completed swipe, scroll, pan, or zoom gets its own fresh after-frame. Interaction
   /// requests never coalesce, and fresh-paint capture cannot reuse a content
   /// hash or perceptual hash frame.
   void _publishCompletedGestureAfterCapture(InteractionTransaction tx) {

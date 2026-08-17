@@ -134,6 +134,53 @@ void main() {
     expect(mapped.containsKey('scrollSchema'), isFalse);
   });
 
+  test('maps pan and zoom interactions with nested payload', () {
+    final pan = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'evt_pan_1',
+        atMs: 2000,
+        type: 'interaction',
+        stream: TugboatEventStream.semantic,
+        data: const {
+          'interactionSchema': tugboatInteractionSchemaVersion,
+          'gesture': 'pan',
+          'payload': {
+            'position': {'xNorm': 0.4, 'yNorm': 0.4},
+            'endPosition': {'xNorm': 0.4, 'yNorm': 0.6},
+            'delta': {'xNorm': 0.0, 'yNorm': 0.2},
+            'pointerCount': 2,
+          },
+        },
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+    expect(pan['gesture'], 'pan');
+    expect((pan['payload'] as Map)['pointerCount'], 2);
+
+    final zoom = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'evt_zoom_1',
+        atMs: 3000,
+        type: 'interaction',
+        stream: TugboatEventStream.semantic,
+        data: const {
+          'interactionSchema': tugboatInteractionSchemaVersion,
+          'gesture': 'zoom_in',
+          'payload': {
+            'position': {'xNorm': 0.5, 'yNorm': 0.5},
+            'scale': 1.4,
+            'pointerCount': 2,
+          },
+        },
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+    expect(zoom['gesture'], 'zoom_in');
+    expect((zoom['payload'] as Map)['scale'], 1.4);
+  });
+
   test('maps route_change events to facts-only schema v2', () {
     final sessionStartedAt = DateTime.utc(2026, 6, 19);
     final event = TugboatEvent(

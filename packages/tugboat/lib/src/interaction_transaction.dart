@@ -49,7 +49,25 @@ class InteractionOrigin {
   final String? actionId;
 }
 
-enum InteractionGesture { tap, swipe, scroll, cancelled }
+enum InteractionGesture {
+  tap,
+  swipe,
+  scroll,
+  pan,
+  zoomIn,
+  zoomOut,
+  cancelled;
+
+  String get wireName => switch (this) {
+    InteractionGesture.tap => 'tap',
+    InteractionGesture.swipe => 'swipe',
+    InteractionGesture.scroll => 'scroll',
+    InteractionGesture.pan => 'pan',
+    InteractionGesture.zoomIn => 'zoom_in',
+    InteractionGesture.zoomOut => 'zoom_out',
+    InteractionGesture.cancelled => 'cancelled',
+  };
+}
 
 enum InteractionAttribution {
   direct,
@@ -115,7 +133,7 @@ Map<String, double>? interactionNormalizedPoint(
 Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
   final envelope = <String, Object?>{
     'interactionSchema': tugboatInteractionSchemaVersion,
-    'gesture': tx.gesture.name,
+    'gesture': tx.gesture.wireName,
   };
   final route = tx.origin.route;
   if (route != null && route.isNotEmpty) {
@@ -141,6 +159,9 @@ Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
     case InteractionGesture.tap:
       break;
     case InteractionGesture.swipe:
+    case InteractionGesture.pan:
+    case InteractionGesture.zoomIn:
+    case InteractionGesture.zoomOut:
       final endPosition = tx.endPosition;
       if (endPosition != null) {
         final end = interactionNormalizedPoint(
@@ -157,7 +178,16 @@ Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
           }
         }
       }
-      break;
+      if (tx.gesture != InteractionGesture.swipe && tx.pointerCount > 1) {
+        gesturePayload['pointerCount'] = tx.pointerCount;
+      }
+      if (tx.gesture == InteractionGesture.zoomIn ||
+          tx.gesture == InteractionGesture.zoomOut) {
+        final scale = tx.scale;
+        if (scale != null) {
+          gesturePayload['scale'] = scale;
+        }
+      }
     case InteractionGesture.scroll:
       if (tx.scrollStartOffset != null) {
         gesturePayload['startOffset'] = tx.scrollStartOffset;
@@ -168,7 +198,6 @@ Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
       if (tx.overscrollCount > 0) {
         gesturePayload['overscrollCount'] = tx.overscrollCount;
       }
-      break;
     case InteractionGesture.cancelled:
       break;
   }
@@ -207,6 +236,8 @@ class InteractionTransaction {
   double? scrollEndOffset;
   int overscrollCount = 0;
   TugboatTargetAnchor? scrollTargetAnchor;
+  double? scale;
+  int pointerCount = 1;
 
   /// Resolved only after this gesture remains a tap. Pointer-down stores only
   /// origin facts so possible scrolls do not pay tap inventory costs.
@@ -219,6 +250,13 @@ class InteractionTransaction {
   bool get isSwipeOrScroll =>
       gesture == InteractionGesture.swipe ||
       gesture == InteractionGesture.scroll;
+
+  bool get isPanOrZoom =>
+      gesture == InteractionGesture.pan ||
+      gesture == InteractionGesture.zoomIn ||
+      gesture == InteractionGesture.zoomOut;
+
+  bool get skipsTapSettlement => isSwipeOrScroll || isPanOrZoom;
 
   bool get isEligible => !claimed && !cancelled && !semanticPublished;
 
@@ -243,7 +281,23 @@ class InteractionTransaction {
   }
 
   void markSwipe() {
+    if (isPanOrZoom) return;
     gesture = InteractionGesture.swipe;
+  }
+
+  void markScale({
+    required InteractionGesture gesture,
+    required double scale,
+    required int pointerCount,
+  }) {
+    if (gesture != InteractionGesture.pan &&
+        gesture != InteractionGesture.zoomIn &&
+        gesture != InteractionGesture.zoomOut) {
+      return;
+    }
+    this.gesture = gesture;
+    this.scale = scale;
+    this.pointerCount = pointerCount;
   }
 }
 
@@ -304,7 +358,7 @@ class InteractionRegistry {
   }) {
     final eligible = <InteractionTransaction>[];
     for (final tx in _pending.values) {
-      if (tx.isSwipeOrScroll) continue;
+      if (tx.skipsTapSettlement) continue;
       if (!tx.isEligible) continue;
       if (tx.origin.captureSessionId != sessionId) continue;
       eligible.add(tx);

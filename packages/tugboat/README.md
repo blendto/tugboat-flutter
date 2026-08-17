@@ -15,6 +15,10 @@ Default `TugboatReplay.eventHook` parameter policy now retains bounded
 JSON-safe values, including in production capture profiles. Pass
 `TugboatParameterPolicy.namesOnly` to keep keys without values.
 
+Canonical interactions now include `pan`, `zoom_in`, and `zoom_out` for
+two-pointer pinch/translation and trackpad pan/zoom. Nested payload adds
+`pointerCount` and, for zoom, `scale`. Tap, swipe, and scroll are unchanged.
+
 ## 0.8.5 release compatibility
 
 This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`. It
@@ -31,7 +35,7 @@ release.
 Schema-v2 collector events (`interaction`, `route_change`) are flat facts-only
 records: no nested top-level `payload` on route changes, no empty
 `targetAnchor`, and no inferred interaction `result`. Interaction v2 uses a
-nested `payload` for gesture facts (`tap`/`swipe`/`scroll`/`cancelled`) and
+nested `payload` for gesture facts (`tap`/`swipe`/`scroll`/`pan`/`zoom_in`/`zoom_out`/`cancelled`) and
 no longer emits separate `scroll_start`, `scroll_end`, or `pointer_cancel`
 events.
 

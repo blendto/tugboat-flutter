@@ -607,6 +607,12 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
             onPointerUp: (event) => inputCapture?.handlePointerUp(event),
             onPointerCancel: (event) =>
                 inputCapture?.handlePointerCancel(event),
+            onPointerPanZoomStart: (event) =>
+                inputCapture?.handlePanZoomStart(event),
+            onPointerPanZoomUpdate: (event) =>
+                inputCapture?.handlePanZoomUpdate(event),
+            onPointerPanZoomEnd: (event) =>
+                inputCapture?.handlePanZoomEnd(event),
             child: content,
           ),
       ],
