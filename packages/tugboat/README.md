@@ -5,9 +5,23 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.5`. Session JSON writers and readers use
+The current package version is `0.8.6`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.8.6
+
+Default `TugboatReplay.eventHook` parameter policy now retains bounded
+JSON-safe values, including in production capture profiles. Pass
+`TugboatParameterPolicy.namesOnly` to keep keys without values.
+
+Canonical interactions now include `pan`, `zoom_in`, and `zoom_out` for
+two-pointer pinch/translation and trackpad pan/zoom. Nested payload adds
+`pointerCount` and, for zoom, `scale`. Tap, swipe, and scroll are unchanged.
+
+`productionLean` profiles no longer emit `capture_diagnostic` events to the
+session or collector. On-device `healthSnapshot().captureDiagnostics` counters
+still update. Exploration profiles still emit full diagnostic events.
 
 ## 0.8.5 release compatibility
 
@@ -25,7 +39,7 @@ release.
 Schema-v2 collector events (`interaction`, `route_change`) are flat facts-only
 records: no nested top-level `payload` on route changes, no empty
 `targetAnchor`, and no inferred interaction `result`. Interaction v2 uses a
-nested `payload` for gesture facts (`tap`/`swipe`/`scroll`/`cancelled`) and
+nested `payload` for gesture facts (`tap`/`swipe`/`scroll`/`pan`/`zoom_in`/`zoom_out`/`cancelled`) and
 no longer emits separate `scroll_start`, `scroll_end`, or `pointer_cancel`
 events.
 
@@ -43,7 +57,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.8.5
+  tugboat_dio: ^0.8.6
 ```
 
 See `packages/tugboat_dio/README.md`.
@@ -78,30 +92,30 @@ failedCall.complete(
 ```
 
 Both emit on `stream: evidence` and never inherit exploration `actionId` or UI
-anchors. `namesOnly` is the default parameter policy. It retains parameter keys
-but omits parameter values. `allowAll` is an exploration-only escape hatch;
-outside exploration profiles the SDK downgrades it to names-only at record time.
+anchors. The default parameter policy retains JSON-safe values within hard
+limits in every capture profile, including production. `allowAll` is an
+exploration-only escape hatch; outside exploration profiles the SDK downgrades
+it to names-only at record time.
 
-### Production parameter values
+### Omitting parameter values
 
-Use `allowAllInProduction` only when the host needs to retain all JSON-safe
-parameter values in a production capture profile:
+Use `namesOnly` when the host must retain parameter keys without values:
 
 ```dart
-final productionEvents = TugboatReplay.eventHook(
-  source: 'feedback',
-  parameterPolicy: TugboatParameterPolicy.allowAllInProduction,
+final privateEvents = TugboatReplay.eventHook(
+  source: 'analytics',
+  parameterPolicy: TugboatParameterPolicy.namesOnly,
 );
-productionEvents.record(
-  'FEEDBACK_SUBMITTED',
-  parameters: {'comment': 'The search result was not useful.'},
+privateEvents.record(
+  'SEARCH',
+  parameters: {'query': 'chicken soup'},
 );
 ```
 
-This policy can retain feedback, search terms, URLs, IDs, and other user
-content. Hosts must confirm consent, privacy, access, and retention rules before
-they use it. The SDK still deep-copies JSON-safe values and applies its hard
-JSON and size bounds.
+The default policy can retain feedback, search terms, URLs, IDs, and other user
+content. Hosts that need a narrower set can pass an allow-list or a transform.
+The SDK still deep-copies JSON-safe values and applies its hard JSON and size
+bounds.
 
 Network routes must be bounded absolute paths. Dynamic identifier segments are
 allowed. The SDK drops resolver output containing a scheme, query, fragment,
@@ -364,7 +378,8 @@ Emitted inferred event types currently include:
   `payload` (omitted for `cancelled`);
 - lifecycle: `session_start`, `session_identify`, `session_end`;
 - navigation evidence (`stream: evidence`): `route_change`;
-- diagnostics: `capture_diagnostic` (`stream: diagnostic`);
+- diagnostics: `capture_diagnostic` (`stream: diagnostic`; exploration profiles only;
+  `productionLean` updates on-device health counters without session events);
 - exploration: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
 - semantic-map modes: `viewport_semantic_map`,
@@ -447,13 +462,17 @@ generated stable-name map.
 
 ## Capture diagnostics
 
-Each logical capture request emits exactly one privacy-safe
-`capture_diagnostic` event and contributes to the bounded, session-scoped
-`healthSnapshot().captureDiagnostics` counter. Distinct request IDs with the
-same execution ID (and `coalesced: true`) identify scheduler coalescing.
-Diagnostics contain only bounded correlation, outcome, route epoch, trigger,
-and evidence fields; they never include image bytes, labels, raw errors, or
-stack traces. `visualEvidence` distinguishes fresh, reused, and unavailable
+Each logical capture request records one privacy-safe resolution in
+`healthSnapshot().captureDiagnostics` (bounded outcome counts and last
+outcome). Exploration profiles also emit a `capture_diagnostic` session event
+(`stream: diagnostic`). `productionLean` profiles omit those events from the
+session and collector to reduce volume; use on-device health for capture
+telemetry in production.
+
+Distinct request IDs with the same execution ID (and `coalesced: true`) identify
+scheduler coalescing when diagnostic events are present. Diagnostics contain only
+bounded correlation, outcome, route epoch, trigger, and evidence fields; they
+never include image bytes, labels, raw errors, or stack traces. `visualEvidence` distinguishes fresh, reused, and unavailable
 visual evidence, while `interactionEvidence` states whether the request links
 to an inferred event. The closed outcome vocabulary is:
 

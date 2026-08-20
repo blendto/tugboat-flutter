@@ -39,11 +39,19 @@ void expectInteractionV2Contract(TugboatEvent event) {
       expect(position['yNorm'], isA<num>());
       expect(position.containsKey('normalizedX'), isFalse);
     }
-    if (gesture == 'swipe') {
+    if (gesture == 'swipe' ||
+        gesture == 'pan' ||
+        gesture == 'zoom_in' ||
+        gesture == 'zoom_out') {
       if (payload.containsKey('delta')) {
         final delta = Map<String, Object?>.from(payload['delta']! as Map);
         expect(delta['xNorm'], isA<num>());
         expect(delta['yNorm'], isA<num>());
+      }
+    }
+    if (gesture == 'zoom_in' || gesture == 'zoom_out') {
+      if (payload.containsKey('scale')) {
+        expect(payload['scale'], isA<num>());
       }
     }
     if (gesture == 'scroll') {
@@ -109,6 +117,56 @@ void main() {
         buildInteractionV2Payload(tx)['targetFingerprint'],
         'origin-target',
       );
+    });
+
+    test('pan payload omits scroll fields even when offsets are set', () {
+      const origin = InteractionOrigin(
+        interactionId: 'interaction-pan',
+        route: '/origin',
+        routeEpoch: 1,
+        routeInstanceId: 'route-1',
+        navigatorId: 'navigator-1',
+        targetAnchor: TugboatTargetAnchor(fingerprint: 'origin-target'),
+        captureCoordinate: TugboatCaptureCoordinate(
+          sourceSpace: TugboatCoordinateSourceSpace.globalLogical,
+          boundaryOriginX: 0,
+          boundaryOriginY: 0,
+          boundaryWidth: 100,
+          boundaryHeight: 100,
+          localX: 10,
+          localY: 10,
+          normalizedX: 0.1,
+          normalizedY: 0.1,
+          framePixelWidth: 100,
+          framePixelHeight: 100,
+          effectiveScaleX: 1,
+          effectiveScaleY: 1,
+          frameId: 'frame-1',
+          boundaryTransformGeneration: 1,
+        ),
+        beforeFrame: null,
+        atMs: 1,
+        startPosition: Offset(10, 10),
+        pointerGeneration: 1,
+        captureSessionId: 'session-1',
+      );
+
+      final tx = InteractionTransaction(origin: origin, pointerId: 1)
+        ..gesture = InteractionGesture.pan
+        ..endPosition = const Offset(10, 40)
+        ..pointerCount = 2
+        ..scrollStartOffset = 0
+        ..scrollEndOffset = 80
+        ..overscrollCount = 1;
+
+      final payload = Map<String, Object?>.from(
+        buildInteractionV2Payload(tx)['payload']! as Map,
+      );
+      expect(payload.containsKey('endPosition'), isTrue);
+      expect(payload.containsKey('pointerCount'), isTrue);
+      expect(payload.containsKey('startOffset'), isFalse);
+      expect(payload.containsKey('endOffset'), isFalse);
+      expect(payload.containsKey('overscrollCount'), isFalse);
     });
 
     test(
@@ -355,6 +413,91 @@ void main() {
       );
       expect(interactions, hasLength(1));
       expect(interactions.single.data['gesture'], 'tap');
+    });
+
+    test('two-pointer pinch-out publishes one zoom_in interaction', () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.controller.recordPointerDown(const Offset(40, 100), pointer: 1);
+      harness.controller.recordPointerDown(const Offset(80, 100), pointer: 2);
+      harness.controller.markPendingScaleGesture(
+        pointer: 1,
+        gesture: InteractionGesture.zoomIn,
+        scale: 1.8,
+        pointerCount: 2,
+      );
+      harness.controller.suppressPendingPointer(2);
+      harness.controller.recordPointerUp(const Offset(20, 100), pointer: 1);
+      await harness.flushScheduler();
+
+      final interactions = harness.controller.session!.semanticOfType(
+        'interaction',
+      );
+      expect(interactions, hasLength(1));
+      expect(interactions.single.data['gesture'], 'zoom_in');
+      expectInteractionV2Contract(interactions.single);
+      final payload = Map<String, Object?>.from(
+        interactions.single.data['payload']! as Map,
+      );
+      expect(payload['scale'], 1.8);
+      expect(payload['pointerCount'], 2);
+    });
+
+    test('two-pointer pinch-in publishes one zoom_out interaction', () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.controller.recordPointerDown(const Offset(20, 100), pointer: 1);
+      harness.controller.recordPointerDown(const Offset(120, 100), pointer: 2);
+      harness.controller.markPendingScaleGesture(
+        pointer: 1,
+        gesture: InteractionGesture.zoomOut,
+        scale: 0.5,
+        pointerCount: 2,
+      );
+      harness.controller.suppressPendingPointer(2);
+      harness.controller.recordPointerUp(const Offset(50, 100), pointer: 1);
+      await harness.flushScheduler();
+
+      final interactions = harness.controller.session!.semanticOfType(
+        'interaction',
+      );
+      expect(interactions, hasLength(1));
+      expect(interactions.single.data['gesture'], 'zoom_out');
+      expectInteractionV2Contract(interactions.single);
+    });
+
+    test('two-pointer translation publishes one pan interaction', () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+
+      harness.controller.recordPointerDown(const Offset(40, 40), pointer: 1);
+      harness.controller.recordPointerDown(const Offset(80, 40), pointer: 2);
+      harness.controller.markPendingScaleGesture(
+        pointer: 1,
+        gesture: InteractionGesture.pan,
+        scale: 1,
+        pointerCount: 2,
+      );
+      harness.controller.suppressPendingPointer(2);
+      harness.controller.recordPointerUp(const Offset(40, 120), pointer: 1);
+      await harness.flushScheduler();
+
+      final interactions = harness.controller.session!.semanticOfType(
+        'interaction',
+      );
+      expect(interactions, hasLength(1));
+      expect(interactions.single.data['gesture'], 'pan');
+      expectInteractionV2Contract(interactions.single);
+      final payload = Map<String, Object?>.from(
+        interactions.single.data['payload']! as Map,
+      );
+      expect(payload['pointerCount'], 2);
+      expect(payload.containsKey('scale'), isFalse);
     });
   });
 

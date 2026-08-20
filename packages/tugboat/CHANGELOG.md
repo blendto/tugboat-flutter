@@ -1,3 +1,31 @@
+## 0.8.6
+
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.6`.
+
+### Fixed
+
+- Default `TugboatReplay.eventHook` parameter policy now retains bounded
+  JSON-safe external-event values (`allowAllInProduction`). Parameter keys
+  were already captured; values were omitted unless the host opted in. Hosts
+  that must not retain values can still pass `namesOnly`, an allow-list, or a
+  transform. Existing JSON and size bounds still apply.
+
+### Added
+
+- Canonical interactions now include `pan`, `zoom_in`, and `zoom_out`.
+  Two-pointer pinch and translation, plus trackpad pan/zoom events, publish
+  one gesture. Nested payload carries `position` / `endPosition` / `delta`,
+  `pointerCount` when above one, and `scale` for zoom. Two-finger list
+  scrolling still becomes `scroll`. Stationary two-finger contact remains two
+  taps.
+
+### Changed
+
+- `productionLean` capture profiles no longer emit `capture_diagnostic` session
+  or collector events. Bounded `healthSnapshot().captureDiagnostics` counters
+  still update on device. Exploration profiles continue to emit full diagnostic
+  events.
+
 ## 0.8.5
 
 This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
@@ -71,7 +99,8 @@ This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
   duplicates `stream` inside generic `payload`. Interaction v2 drops inferred
   `result`, nested `origin`/`result`, and tap-settle outcome computation.
 - `interaction` schema v2 carries gesture-specific facts under a nested
-  `payload` (`position` for tap; `position`/`endPosition`/`delta` for swipe;
+  `payload` (`position` for tap; `position`/`endPosition`/`delta` for swipe,
+  pan, and zoom; `scale`/`pointerCount` for zoom and two-pointer pan;
   `position`/`startOffset`/`endOffset`/`overscrollCount` for scroll). Cancelled
   interactions omit `payload`. The SDK no longer emits `scroll_start`,
   `scroll_end`, or `pointer_cancel` — scroll and cancel semantics live on

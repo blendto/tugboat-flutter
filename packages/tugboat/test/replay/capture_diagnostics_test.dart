@@ -12,6 +12,28 @@ Map<String, Object?> _data(TugboatEvent event) => event.data;
 
 void main() {
   test(
+    'productionLean updates health without session capture_diagnostic events',
+    () async {
+      final harness = ReplayCoherenceHarness(
+        profile: TugboatCaptureProfile.productionLean,
+      );
+      await harness.setUp();
+      addTearDown(harness.dispose);
+      harness.seedRouteState(route: '/home', signature: 'home');
+      final healthStart = harness.controller.healthSnapshot().captureDiagnostics;
+
+      final request = harness.controller.debugRequestCapture(force: true);
+      await harness.pumpMicrotasks();
+      await request.resolution;
+
+      expect(_diagnostics(harness.controller.session!), isEmpty);
+      final health = harness.controller.healthSnapshot().captureDiagnostics;
+      expect(health.total, healthStart.total + 1);
+      expect(health.lastOutcome, isNotNull);
+    },
+  );
+
+  test(
     'compatible logical captures coalesce but retain per-request evidence',
     () async {
       final harness = ReplayCoherenceHarness();
