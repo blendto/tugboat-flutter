@@ -162,42 +162,11 @@ Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
     case InteractionGesture.pan:
     case InteractionGesture.zoomIn:
     case InteractionGesture.zoomOut:
-      final endPosition = tx.endPosition;
-      if (endPosition != null) {
-        final end = interactionNormalizedPoint(
-          endPosition,
-          tx.origin.captureCoordinate,
-        );
-        if (end != null) {
-          gesturePayload['endPosition'] = end;
-          if (position != null) {
-            gesturePayload['delta'] = {
-              'xNorm': end['xNorm']! - position['xNorm']!,
-              'yNorm': end['yNorm']! - position['yNorm']!,
-            };
-          }
-        }
-      }
-      if (tx.gesture != InteractionGesture.swipe && tx.pointerCount > 1) {
-        gesturePayload['pointerCount'] = tx.pointerCount;
-      }
-      if (tx.gesture == InteractionGesture.zoomIn ||
-          tx.gesture == InteractionGesture.zoomOut) {
-        final scale = tx.scale;
-        if (scale != null) {
-          gesturePayload['scale'] = scale;
-        }
-      }
+      _writeTravelGesturePayload(gesturePayload, tx, position);
+      break;
     case InteractionGesture.scroll:
-      if (tx.scrollStartOffset != null) {
-        gesturePayload['startOffset'] = tx.scrollStartOffset;
-      }
-      if (tx.scrollEndOffset != null) {
-        gesturePayload['endOffset'] = tx.scrollEndOffset;
-      }
-      if (tx.overscrollCount > 0) {
-        gesturePayload['overscrollCount'] = tx.overscrollCount;
-      }
+      _writeScrollGesturePayload(gesturePayload, tx);
+      break;
     case InteractionGesture.cancelled:
       break;
   }
@@ -206,6 +175,54 @@ Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
     envelope['payload'] = gesturePayload;
   }
   return envelope;
+}
+
+void _writeTravelGesturePayload(
+  Map<String, Object?> gesturePayload,
+  InteractionTransaction tx,
+  Map<String, double>? position,
+) {
+  final endPosition = tx.endPosition;
+  if (endPosition != null) {
+    final end = interactionNormalizedPoint(
+      endPosition,
+      tx.origin.captureCoordinate,
+    );
+    if (end != null) {
+      gesturePayload['endPosition'] = end;
+      if (position != null) {
+        gesturePayload['delta'] = {
+          'xNorm': end['xNorm']! - position['xNorm']!,
+          'yNorm': end['yNorm']! - position['yNorm']!,
+        };
+      }
+    }
+  }
+  if (tx.gesture != InteractionGesture.swipe && tx.pointerCount > 1) {
+    gesturePayload['pointerCount'] = tx.pointerCount;
+  }
+  if (tx.gesture == InteractionGesture.zoomIn ||
+      tx.gesture == InteractionGesture.zoomOut) {
+    final scale = tx.scale;
+    if (scale != null) {
+      gesturePayload['scale'] = scale;
+    }
+  }
+}
+
+void _writeScrollGesturePayload(
+  Map<String, Object?> gesturePayload,
+  InteractionTransaction tx,
+) {
+  if (tx.scrollStartOffset != null) {
+    gesturePayload['startOffset'] = tx.scrollStartOffset;
+  }
+  if (tx.scrollEndOffset != null) {
+    gesturePayload['endOffset'] = tx.scrollEndOffset;
+  }
+  if (tx.overscrollCount > 0) {
+    gesturePayload['overscrollCount'] = tx.overscrollCount;
+  }
 }
 
 /// Bounded in-memory transaction for one pointer gesture.

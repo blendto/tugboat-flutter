@@ -49,6 +49,15 @@ InteractionGesture? classifyTrackpadPanZoom({
   return null;
 }
 
+/// Last known primary-pointer point, even when a secondary pointer lifts first.
+Offset primaryPointerEndPosition({
+  required int primaryPointer,
+  required Map<int, Offset> pointerPositions,
+  required Offset fallback,
+}) {
+  return pointerPositions[primaryPointer] ?? fallback;
+}
+
 class InputCapture {
   InputCapture({required this.controller, required this.rootKey});
 
@@ -102,8 +111,12 @@ class InputCapture {
     final multi = _multi;
     if (multi != null && multi.pointers.contains(event.pointer)) {
       if (multi.classified != null) {
-        _completeMultiPointer(event.position);
-        _clearPointer(event.pointer);
+        final endPosition = primaryPointerEndPosition(
+          primaryPointer: multi.primaryPointer,
+          pointerPositions: _pointerPositions,
+          fallback: event.position,
+        );
+        _completeMultiPointer(endPosition);
         return;
       }
       _multi = null;
@@ -115,17 +128,18 @@ class InputCapture {
   void handlePointerCancel(PointerCancelEvent event) {
     final multi = _multi;
     if (multi != null && multi.pointers.contains(event.pointer)) {
+      final pointers = Set<int>.from(multi.pointers);
       controller.recordPointerCancel(
         event.position,
         pointer: multi.primaryPointer,
       );
-      for (final pointer in multi.pointers) {
+      for (final pointer in pointers) {
         if (pointer != multi.primaryPointer) {
           controller.suppressPendingPointer(pointer);
         }
       }
       _multi = null;
-      _clearPointer(event.pointer);
+      _clearPointers(pointers);
       return;
     }
     if (_panZoomPointer == event.pointer) {
@@ -262,7 +276,9 @@ class InputCapture {
       }
     }
     controller.recordPointerUp(endPosition, pointer: multi.primaryPointer);
+    final pointers = Set<int>.from(multi.pointers);
     _multi = null;
+    _clearPointers(pointers);
   }
 
   void _clearPanZoom() {
@@ -275,6 +291,12 @@ class InputCapture {
     _pointerPositions.remove(pointer);
     _pointerOrder.remove(pointer);
     _pointerIsSwipe.remove(pointer);
+  }
+
+  void _clearPointers(Iterable<int> pointers) {
+    for (final pointer in pointers) {
+      _clearPointer(pointer);
+    }
   }
 }
 

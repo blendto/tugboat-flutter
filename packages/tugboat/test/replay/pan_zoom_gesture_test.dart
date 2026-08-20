@@ -242,4 +242,98 @@ void main() {
     );
     expect(payload['scale'], 1.35);
   });
+
+  test('primary end position ignores a secondary lift location', () {
+    expect(
+      primaryPointerEndPosition(
+        primaryPointer: 1,
+        pointerPositions: const {1: Offset(140, 210), 2: Offset(220, 210)},
+        fallback: Offset(220, 210),
+      ),
+      const Offset(140, 210),
+    );
+  });
+
+  test(
+    'InputCapture secondary lift records one pan from the primary pointer',
+    () async {
+      final harness = ReplayCoherenceHarness();
+      await harness.setUp();
+      addTearDown(harness.dispose);
+      final capture = InputCapture(
+        controller: harness.controller,
+        rootKey: harness.boundaryKey,
+      );
+
+      capture.handlePointerDown(
+        const PointerDownEvent(pointer: 1, position: Offset(140, 160)),
+      );
+      capture.handlePointerDown(
+        const PointerDownEvent(pointer: 2, position: Offset(220, 160)),
+      );
+      capture.handlePointerMove(
+        const PointerMoveEvent(pointer: 1, position: Offset(140, 210)),
+      );
+      capture.handlePointerMove(
+        const PointerMoveEvent(pointer: 2, position: Offset(220, 210)),
+      );
+      capture.handlePointerUp(
+        const PointerUpEvent(pointer: 2, position: Offset(220, 210)),
+      );
+      capture.handlePointerUp(
+        const PointerUpEvent(pointer: 1, position: Offset(140, 210)),
+      );
+      await harness.flushScheduler();
+
+      final interactions = harness.controller.session!.ofType('interaction');
+      expect(interactions, hasLength(1));
+      expect(interactions.single.data['gesture'], 'pan');
+      final payload = Map<String, Object?>.from(
+        interactions.single.data['payload']! as Map,
+      );
+      expect(payload['pointerCount'], 2);
+    },
+  );
+
+  test('InputCapture multi-pointer cancel clears leftover pointers', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+    final capture = InputCapture(
+      controller: harness.controller,
+      rootKey: harness.boundaryKey,
+    );
+
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 1, position: Offset(140, 160)),
+    );
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 2, position: Offset(220, 160)),
+    );
+    capture.handlePointerMove(
+      const PointerMoveEvent(pointer: 1, position: Offset(140, 210)),
+    );
+    capture.handlePointerMove(
+      const PointerMoveEvent(pointer: 2, position: Offset(220, 210)),
+    );
+    capture.handlePointerCancel(
+      const PointerCancelEvent(pointer: 2, position: Offset(220, 210)),
+    );
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 3, position: Offset(200, 400)),
+    );
+    capture.handlePointerMove(
+      const PointerMoveEvent(pointer: 3, position: Offset(200, 460)),
+    );
+    capture.handlePointerUp(
+      const PointerUpEvent(pointer: 3, position: Offset(200, 460)),
+    );
+    await harness.flushScheduler();
+
+    final interactions = harness.controller.session!.ofType('interaction');
+    expect(interactions.map((event) => event.data['gesture']).toList(), [
+      'cancelled',
+      'swipe',
+    ]);
+  });
 }

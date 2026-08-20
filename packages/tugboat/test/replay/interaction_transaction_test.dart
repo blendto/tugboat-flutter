@@ -119,6 +119,56 @@ void main() {
       );
     });
 
+    test('pan payload omits scroll fields even when offsets are set', () {
+      const origin = InteractionOrigin(
+        interactionId: 'interaction-pan',
+        route: '/origin',
+        routeEpoch: 1,
+        routeInstanceId: 'route-1',
+        navigatorId: 'navigator-1',
+        targetAnchor: TugboatTargetAnchor(fingerprint: 'origin-target'),
+        captureCoordinate: TugboatCaptureCoordinate(
+          sourceSpace: TugboatCoordinateSourceSpace.globalLogical,
+          boundaryOriginX: 0,
+          boundaryOriginY: 0,
+          boundaryWidth: 100,
+          boundaryHeight: 100,
+          localX: 10,
+          localY: 10,
+          normalizedX: 0.1,
+          normalizedY: 0.1,
+          framePixelWidth: 100,
+          framePixelHeight: 100,
+          effectiveScaleX: 1,
+          effectiveScaleY: 1,
+          frameId: 'frame-1',
+          boundaryTransformGeneration: 1,
+        ),
+        beforeFrame: null,
+        atMs: 1,
+        startPosition: Offset(10, 10),
+        pointerGeneration: 1,
+        captureSessionId: 'session-1',
+      );
+
+      final tx = InteractionTransaction(origin: origin, pointerId: 1)
+        ..gesture = InteractionGesture.pan
+        ..endPosition = const Offset(10, 40)
+        ..pointerCount = 2
+        ..scrollStartOffset = 0
+        ..scrollEndOffset = 80
+        ..overscrollCount = 1;
+
+      final payload = Map<String, Object?>.from(
+        buildInteractionV2Payload(tx)['payload']! as Map,
+      );
+      expect(payload.containsKey('endPosition'), isTrue);
+      expect(payload.containsKey('pointerCount'), isTrue);
+      expect(payload.containsKey('startOffset'), isFalse);
+      expect(payload.containsKey('endOffset'), isFalse);
+      expect(payload.containsKey('overscrollCount'), isFalse);
+    });
+
     test(
       'origin screen/component survive route mutation before pointer-up',
       () async {
