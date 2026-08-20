@@ -58,7 +58,7 @@ Future<int?> _loadRamMb() async {
   try {
     final android = await DeviceInfoPlugin().androidInfo;
     if (android.physicalRamSize <= 0) return null;
-    return android.physicalRamSize;
+    return android.physicalRamSize ~/ (1024 * 1024);
   } on Object {
     return null;
   }
