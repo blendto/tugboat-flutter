@@ -262,11 +262,6 @@ class InputCapture {
     if (multi == null || !multi.pointers.add(pointer)) return;
     controller.suppressPendingPointer(pointer);
     _refreshMultiPointerBaseline(multi);
-    if (multi.classified == InteractionGesture.pan &&
-        multi.pointers.length >= 3) {
-      multi.classified = InteractionGesture.swipe;
-      _applyClusterClassification(multi);
-    }
   }
 
   void _refreshMultiPointerBaseline(_MultiPointerSession multi) {
@@ -302,6 +297,7 @@ class InputCapture {
     );
     if (classified == null) return;
     multi.classified = classified;
+    multi.classifiedPointerCount = multi.pointers.length;
     multi.scale = multi.startSpan > 0 ? span / multi.startSpan : 1;
     _applyClusterClassification(multi);
   }
@@ -313,7 +309,7 @@ class InputCapture {
       pointer: multi.primaryPointer,
       gesture: classified,
       scale: multi.scale,
-      pointerCount: multi.pointers.length,
+      pointerCount: multi.classifiedPointerCount,
     );
     for (final pointer in multi.pointers) {
       if (pointer != multi.primaryPointer) {
@@ -364,6 +360,7 @@ class _MultiPointerSession {
   Offset startCentroid;
   double startSpan;
   InteractionGesture? classified;
+  int classifiedPointerCount = 1;
   double scale = 1;
 }
 

@@ -270,6 +270,44 @@ void main() {
     expect(payload['pointerCount'], 3);
   });
 
+  test('stationary third finger keeps an established two-finger pan', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+    final capture = InputCapture(
+      controller: harness.controller,
+      rootKey: harness.boundaryKey,
+    );
+
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 1, position: Offset(120, 160)),
+    );
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 2, position: Offset(200, 160)),
+    );
+    capture.handlePointerMove(
+      const PointerMoveEvent(pointer: 1, position: Offset(120, 220)),
+    );
+    capture.handlePointerMove(
+      const PointerMoveEvent(pointer: 2, position: Offset(200, 220)),
+    );
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 3, position: Offset(280, 220)),
+    );
+    capture.handlePointerUp(
+      const PointerUpEvent(pointer: 3, position: Offset(280, 220)),
+    );
+    await harness.flushScheduler();
+
+    final interactions = harness.controller.session!.ofType('interaction');
+    expect(interactions, hasLength(1));
+    expect(interactions.single.data['gesture'], 'pan');
+    final payload = Map<String, Object?>.from(
+      interactions.single.data['payload']! as Map,
+    );
+    expect(payload['pointerCount'], 2);
+  });
+
   test('InputCapture trackpad pinch records zoom_in', () async {
     final harness = ReplayCoherenceHarness();
     await harness.setUp();

@@ -46,7 +46,7 @@ Future<int?> _loadBatteryPercent() async {
 Future<int?> _loadStorageFreeMb() async {
   try {
     final freeMb = await DiskSpacePlus().getFreeDiskSpace;
-    if (freeMb == null || freeMb <= 0) return null;
+    if (freeMb == null || freeMb < 0) return null;
     return freeMb.round();
   } on Object {
     return null;
