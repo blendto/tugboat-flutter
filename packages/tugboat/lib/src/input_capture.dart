@@ -7,18 +7,19 @@ import 'interaction_transaction.dart';
 /// Minimum trackpad scale ratio treated as zoom rather than pan.
 const double tugboatTrackpadZoomRatio = 1.08;
 
-/// Classifies a two-pointer touch cluster as pan, zoom-in, or zoom-out.
+/// Classifies a multi-pointer touch cluster as pan, zoom-in, zoom-out, or swipe.
 ///
-/// Zoom wins when the span change exceeds [kScaleSlop]. Otherwise a centroid
-/// shift of [kPanSlop] is pan. Returns null when the motion is still within
-/// slop of the cluster origin.
-InteractionGesture? classifyPointerScaleGesture({
+/// For two pointers, zoom wins when span change exceeds [kScaleSlop], otherwise
+/// shared translation is pan. For three or more pointers, shared translation
+/// past [kPanSlop] is swipe. Zoom still wins when span change exceeds slop.
+InteractionGesture? classifyMultiPointerGesture({
+  required int pointerCount,
   required double startSpan,
   required double currentSpan,
   required Offset startCentroid,
   required Offset currentCentroid,
 }) {
-  if (startSpan >= kTouchSlop) {
+  if (pointerCount >= 2 && startSpan >= kTouchSlop) {
     final spanDelta = (currentSpan - startSpan).abs();
     if (spanDelta >= kScaleSlop) {
       return currentSpan > startSpan
@@ -27,9 +28,31 @@ InteractionGesture? classifyPointerScaleGesture({
     }
   }
   if ((currentCentroid - startCentroid).distance >= kPanSlop) {
+    if (pointerCount >= 3) {
+      return InteractionGesture.swipe;
+    }
     return InteractionGesture.pan;
   }
   return null;
+}
+
+/// Classifies a two-pointer touch cluster as pan, zoom-in, or zoom-out.
+///
+/// Prefer [classifyMultiPointerGesture] for clusters that may grow past two
+/// pointers.
+InteractionGesture? classifyPointerScaleGesture({
+  required double startSpan,
+  required double currentSpan,
+  required Offset startCentroid,
+  required Offset currentCentroid,
+}) {
+  return classifyMultiPointerGesture(
+    pointerCount: 2,
+    startSpan: startSpan,
+    currentSpan: currentSpan,
+    startCentroid: startCentroid,
+    currentCentroid: currentCentroid,
+  );
 }
 
 /// Classifies a trackpad [PointerPanZoomUpdateEvent] as pan or zoom.
@@ -92,7 +115,11 @@ class InputCapture {
     _pointerIsSwipe[event.pointer] = false;
     controller.recordPointerDown(event.position, pointer: event.pointer);
     if (_pointerPositions.length >= 2) {
-      _ensureMultiPointerSession();
+      if (_multi != null) {
+        _growMultiPointerSession(event.pointer);
+      } else {
+        _ensureMultiPointerSession();
+      }
     }
   }
 
@@ -162,7 +189,7 @@ class InputCapture {
     );
     if (classified == null) return;
     _panZoomClassified = classified;
-    controller.markPendingScaleGesture(
+    controller.markPendingClusterGesture(
       pointer: event.pointer,
       gesture: classified,
       scale: event.scale,
@@ -214,17 +241,44 @@ class InputCapture {
   void _ensureMultiPointerSession() {
     if (_multi != null) return;
     if (_pointerOrder.length < 2) return;
-    final primary = _pointerOrder[0];
-    final secondary = _pointerOrder[1];
-    final first = _pointerPositions[primary];
-    final second = _pointerPositions[secondary];
-    if (first == null || second == null) return;
+    final pointers = _pointerOrder.toSet();
+    final points = <Offset>[];
+    for (final pointer in _pointerOrder) {
+      final point = _pointerPositions[pointer];
+      if (point == null) return;
+      points.add(point);
+    }
+    if (points.length < 2) return;
     _multi = _MultiPointerSession(
-      primaryPointer: primary,
-      pointers: {primary, secondary},
-      startCentroid: _centroidOf([first, second]),
-      startSpan: (first - second).distance,
+      primaryPointer: _pointerOrder.first,
+      pointers: pointers,
+      startCentroid: _centroidOf(points),
+      startSpan: _maxSpan(points),
     );
+  }
+
+  void _growMultiPointerSession(int pointer) {
+    final multi = _multi;
+    if (multi == null || !multi.pointers.add(pointer)) return;
+    controller.suppressPendingPointer(pointer);
+    _refreshMultiPointerBaseline(multi);
+    if (multi.classified == InteractionGesture.pan &&
+        multi.pointers.length >= 3) {
+      multi.classified = InteractionGesture.swipe;
+      _applyClusterClassification(multi);
+    }
+  }
+
+  void _refreshMultiPointerBaseline(_MultiPointerSession multi) {
+    final points = <Offset>[];
+    for (final activePointer in multi.pointers) {
+      final point = _pointerPositions[activePointer];
+      if (point == null) return;
+      points.add(point);
+    }
+    if (points.length < 2) return;
+    multi.startCentroid = _centroidOf(points);
+    multi.startSpan = _maxSpan(points);
   }
 
   void _classifyMultiPointer() {
@@ -238,8 +292,9 @@ class InputCapture {
     }
     if (points.length < 2) return;
     final centroid = _centroidOf(points);
-    final span = (points[0] - points[1]).distance;
-    final classified = classifyPointerScaleGesture(
+    final span = _maxSpan(points);
+    final classified = classifyMultiPointerGesture(
+      pointerCount: multi.pointers.length,
       startSpan: multi.startSpan,
       currentSpan: span,
       startCentroid: multi.startCentroid,
@@ -248,7 +303,13 @@ class InputCapture {
     if (classified == null) return;
     multi.classified = classified;
     multi.scale = multi.startSpan > 0 ? span / multi.startSpan : 1;
-    controller.markPendingScaleGesture(
+    _applyClusterClassification(multi);
+  }
+
+  void _applyClusterClassification(_MultiPointerSession multi) {
+    final classified = multi.classified;
+    if (classified == null) return;
+    controller.markPendingClusterGesture(
       pointer: multi.primaryPointer,
       gesture: classified,
       scale: multi.scale,
@@ -264,17 +325,7 @@ class InputCapture {
   void _completeMultiPointer(Offset endPosition) {
     final multi = _multi;
     if (multi == null || multi.classified == null) return;
-    controller.markPendingScaleGesture(
-      pointer: multi.primaryPointer,
-      gesture: multi.classified!,
-      scale: multi.scale,
-      pointerCount: multi.pointers.length,
-    );
-    for (final pointer in multi.pointers) {
-      if (pointer != multi.primaryPointer) {
-        controller.suppressPendingPointer(pointer);
-      }
-    }
+    _applyClusterClassification(multi);
     controller.recordPointerUp(endPosition, pointer: multi.primaryPointer);
     final pointers = Set<int>.from(multi.pointers);
     _multi = null;
@@ -303,15 +354,15 @@ class InputCapture {
 class _MultiPointerSession {
   _MultiPointerSession({
     required this.primaryPointer,
-    required this.pointers,
+    required Set<int> pointers,
     required this.startCentroid,
     required this.startSpan,
-  });
+  }) : pointers = Set<int>.from(pointers);
 
   final int primaryPointer;
   final Set<int> pointers;
-  final Offset startCentroid;
-  final double startSpan;
+  Offset startCentroid;
+  double startSpan;
   InteractionGesture? classified;
   double scale = 1;
 }
@@ -324,4 +375,15 @@ Offset _centroidOf(List<Offset> points) {
     y += point.dy;
   }
   return Offset(x / points.length, y / points.length);
+}
+
+double _maxSpan(List<Offset> points) {
+  var maxSpan = 0.0;
+  for (var i = 0; i < points.length; i++) {
+    for (var j = i + 1; j < points.length; j++) {
+      final span = (points[i] - points[j]).distance;
+      if (span > maxSpan) maxSpan = span;
+    }
+  }
+  return maxSpan;
 }

@@ -108,9 +108,21 @@ final config = TugboatReplayConfig(
 );
 ```
 
-`fromPlatform` uses `package_info_plus` and `device_info_plus` to populate app,
-device, viewport, locale, and time-zone fields. With no explicit `baseUrl`, it
-uses:
+`fromPlatform` uses `package_info_plus`, `device_info_plus`, `battery_plus`,
+`disk_space_plus`, and `connectivity_plus` to populate app, device, viewport,
+locale, and time-zone fields. On `session_start`, the `device` bag may also
+include optional runtime facts when observable:
+
+- `batteryPercent` — battery level at session start (0–100);
+- `storageFreeMb` — free internal storage in megabytes;
+- `ramMb` — physical RAM in megabytes on Android;
+- `networkType` — `wifi`, `cellular`, `ethernet`, `vpn`, `none`, or `other`.
+
+Each optional field is omitted independently when the platform cannot observe
+it. This is connection type only; HTTP request evidence remains separate via
+`TugboatReplay.beginNetworkCall`.
+
+With no explicit `baseUrl`, `fromPlatform` uses:
 
 - `https://collector.gettugboat.com` for a production profile;
 - `http://10.0.2.2:3000` for a local Android collector;

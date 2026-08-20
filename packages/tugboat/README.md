@@ -5,9 +5,19 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.6`. Session JSON writers and readers use
+The current package version is `0.8.7`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.8.7
+
+`TugboatCollectorHost.fromPlatform()` snapshots optional session-start device
+facts on `session_start`: battery percentage, free internal storage, Android
+physical RAM, and active network type. Each field is omitted when unavailable.
+
+Three-finger shared translation now publishes one canonical `swipe` with
+`payload.pointerCount: 3`. Two-finger pan/zoom and one-finger swipe are
+unchanged. OS-owned system gestures that never reach Flutter are not recorded.
 
 ## 0.8.6
 
