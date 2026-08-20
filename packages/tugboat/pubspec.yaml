@@ -1,7 +1,7 @@
 name: tugboat
 description: >-
   Screenshot-based session replay with compact interaction anchors for Tugboat.
-version: 0.8.6
+version: 0.8.7
 repository: https://github.com/blendto/tugboat-flutter
 issue_tracker: https://github.com/blendto/tugboat-flutter/issues
 homepage: https://github.com/blendto/tugboat-flutter
@@ -14,8 +14,11 @@ environment:
 resolution: workspace
 
 dependencies:
+  battery_plus: ^6.2.1
+  connectivity_plus: ^6.1.4
   crypto: ^3.0.6
-  device_info_plus: ^10.1.1
+  device_info_plus: ^11.5.0
+  disk_space_plus: ^0.2.6
   flutter:
     sdk: flutter
   http: ^1.4.0

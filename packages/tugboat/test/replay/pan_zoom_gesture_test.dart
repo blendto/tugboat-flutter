@@ -210,6 +210,104 @@ void main() {
     expect(interactions.map((event) => event.data['gesture']).toSet(), {'tap'});
   });
 
+  test('shared three-pointer translation past pan slop is swipe', () {
+    expect(
+      classifyMultiPointerGesture(
+        pointerCount: 3,
+        startSpan: 100,
+        currentSpan: 100,
+        startCentroid: const Offset(50, 50),
+        currentCentroid: const Offset(50, 100),
+      ),
+      InteractionGesture.swipe,
+    );
+  });
+
+  test('InputCapture three-finger translation records one swipe', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+    final capture = InputCapture(
+      controller: harness.controller,
+      rootKey: harness.boundaryKey,
+    );
+
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 1, position: Offset(120, 160)),
+    );
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 2, position: Offset(200, 160)),
+    );
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 3, position: Offset(280, 160)),
+    );
+    capture.handlePointerMove(
+      const PointerMoveEvent(pointer: 1, position: Offset(120, 220)),
+    );
+    capture.handlePointerMove(
+      const PointerMoveEvent(pointer: 2, position: Offset(200, 220)),
+    );
+    capture.handlePointerMove(
+      const PointerMoveEvent(pointer: 3, position: Offset(280, 220)),
+    );
+    capture.handlePointerUp(
+      const PointerUpEvent(pointer: 1, position: Offset(120, 220)),
+    );
+    capture.handlePointerUp(
+      const PointerUpEvent(pointer: 2, position: Offset(200, 220)),
+    );
+    capture.handlePointerUp(
+      const PointerUpEvent(pointer: 3, position: Offset(280, 220)),
+    );
+    await harness.flushScheduler();
+
+    final interactions = harness.controller.session!.ofType('interaction');
+    expect(interactions, hasLength(1));
+    expect(interactions.single.data['gesture'], 'swipe');
+    final payload = Map<String, Object?>.from(
+      interactions.single.data['payload']! as Map,
+    );
+    expect(payload['pointerCount'], 3);
+  });
+
+  test('stationary third finger keeps an established two-finger pan', () async {
+    final harness = ReplayCoherenceHarness();
+    await harness.setUp();
+    addTearDown(harness.dispose);
+    final capture = InputCapture(
+      controller: harness.controller,
+      rootKey: harness.boundaryKey,
+    );
+
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 1, position: Offset(120, 160)),
+    );
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 2, position: Offset(200, 160)),
+    );
+    capture.handlePointerMove(
+      const PointerMoveEvent(pointer: 1, position: Offset(120, 220)),
+    );
+    capture.handlePointerMove(
+      const PointerMoveEvent(pointer: 2, position: Offset(200, 220)),
+    );
+    capture.handlePointerDown(
+      const PointerDownEvent(pointer: 3, position: Offset(280, 220)),
+    );
+    capture.handlePointerUp(
+      const PointerUpEvent(pointer: 3, position: Offset(280, 220)),
+    );
+    await harness.flushScheduler();
+
+    final interactions = harness.controller.session!.ofType('interaction');
+    expect(interactions, hasLength(1));
+    expect(interactions.single.data['gesture'], 'pan');
+    final payload = Map<String, Object?>.from(
+      interactions.single.data['payload']! as Map,
+    );
+    expect(payload['pointerCount'], 2);
+  });
+
   test('InputCapture trackpad pinch records zoom_in', () async {
     final harness = ReplayCoherenceHarness();
     await harness.setUp();

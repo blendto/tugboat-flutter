@@ -2650,7 +2650,7 @@ class TugboatReplayController extends ChangeNotifier {
     }
   }
 
-  void markPendingScaleGesture({
+  void markPendingClusterGesture({
     required int pointer,
     required InteractionGesture gesture,
     double scale = 1,
@@ -2658,12 +2658,26 @@ class TugboatReplayController extends ChangeNotifier {
   }) {
     final pending = _interactions.pendingAt(pointer);
     if (pending == null) return;
-    pending.markScale(
+    pending.markCluster(
       gesture: gesture,
       scale: scale,
       pointerCount: pointerCount,
     );
     pending.rejectionReason ??= InteractionRejectionReason.gestureReclassified;
+  }
+
+  void markPendingScaleGesture({
+    required int pointer,
+    required InteractionGesture gesture,
+    double scale = 1,
+    int pointerCount = 2,
+  }) {
+    markPendingClusterGesture(
+      pointer: pointer,
+      gesture: gesture,
+      scale: scale,
+      pointerCount: pointerCount,
+    );
   }
 
   /// Drops a pending pointer without publishing an interaction.

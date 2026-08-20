@@ -36,6 +36,18 @@ class TugboatCollectorScreenSize {
   Map<String, Object?> toJson() => {'width': width, 'height': height};
 }
 
+/// Closed vocabulary for the active network connection at session start.
+///
+/// This is connection type only. HTTP request evidence remains separate.
+abstract final class TugboatCollectorNetworkType {
+  static const wifi = 'wifi';
+  static const cellular = 'cellular';
+  static const ethernet = 'ethernet';
+  static const vpn = 'vpn';
+  static const none = 'none';
+  static const other = 'other';
+}
+
 /// Host-provided device metadata required by the standalone HTTP collector.
 class TugboatCollectorDeviceInfo {
   const TugboatCollectorDeviceInfo({
@@ -48,6 +60,10 @@ class TugboatCollectorDeviceInfo {
     this.manufacturer,
     this.model,
     this.osVersion,
+    this.batteryPercent,
+    this.storageFreeMb,
+    this.ramMb,
+    this.networkType,
   });
 
   final String id;
@@ -60,12 +76,28 @@ class TugboatCollectorDeviceInfo {
   final String? model;
   final String? osVersion;
 
+  /// Battery percentage at session start (0–100). Omitted when unavailable.
+  final int? batteryPercent;
+
+  /// Free internal storage in megabytes at session start.
+  final int? storageFreeMb;
+
+  /// Total physical RAM in megabytes when the platform exposes it.
+  final int? ramMb;
+
+  /// Active connection type at session start.
+  final String? networkType;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'platform': platform,
     if (manufacturer != null) 'manufacturer': manufacturer,
     if (model != null) 'model': model,
     if (osVersion != null) 'osVersion': osVersion,
+    if (batteryPercent != null) 'batteryPercent': batteryPercent,
+    if (storageFreeMb != null) 'storageFreeMb': storageFreeMb,
+    if (ramMb != null) 'ramMb': ramMb,
+    if (networkType != null) 'networkType': networkType,
     'screenSize': screenSize.toJson(),
     'screenDensity': screenDensity,
     'screenDpi': screenDpi,

@@ -198,7 +198,7 @@ void _writeTravelGesturePayload(
       }
     }
   }
-  if (tx.gesture != InteractionGesture.swipe && tx.pointerCount > 1) {
+  if (tx.pointerCount > 1) {
     gesturePayload['pointerCount'] = tx.pointerCount;
   }
   if (tx.gesture == InteractionGesture.zoomIn ||
@@ -302,19 +302,28 @@ class InteractionTransaction {
     gesture = InteractionGesture.swipe;
   }
 
-  void markScale({
+  void markCluster({
     required InteractionGesture gesture,
     required double scale,
     required int pointerCount,
   }) {
     if (gesture != InteractionGesture.pan &&
         gesture != InteractionGesture.zoomIn &&
-        gesture != InteractionGesture.zoomOut) {
+        gesture != InteractionGesture.zoomOut &&
+        gesture != InteractionGesture.swipe) {
       return;
     }
     this.gesture = gesture;
     this.scale = scale;
     this.pointerCount = pointerCount;
+  }
+
+  void markScale({
+    required InteractionGesture gesture,
+    required double scale,
+    required int pointerCount,
+  }) {
+    markCluster(gesture: gesture, scale: scale, pointerCount: pointerCount);
   }
 }
 

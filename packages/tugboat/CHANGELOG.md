@@ -1,3 +1,24 @@
+## 0.8.7
+
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.7`.
+
+### Added
+
+- `TugboatCollectorHost.fromPlatform()` now snapshots optional session-start
+  device facts on `session_start`: `batteryPercent`, `storageFreeMb` (free
+  internal storage), `ramMb` (Android physical RAM via `device_info_plus`),
+  and `networkType` (`wifi`, `cellular`, `ethernet`, `vpn`, `none`, or
+  `other`). Each field is omitted independently when the platform cannot
+  observe it.
+- Three-finger shared translation now publishes one canonical `swipe`
+  interaction with `payload.pointerCount: 3`. Two-finger pan/zoom and
+  one-finger swipe behavior is unchanged.
+
+### Changed
+
+- Bumped `device_info_plus` to `^11.5.0` so Android RAM can be observed for
+  the session-start snapshot.
+
 ## 0.8.6
 
 This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.6`.

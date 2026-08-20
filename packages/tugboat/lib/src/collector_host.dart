@@ -5,6 +5,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'collector_config.dart';
+import 'device_runtime_snapshot.dart';
 
 /// Builds [TugboatCollectorConfig] from the current host app and device.
 abstract final class TugboatCollectorHost {
@@ -29,6 +30,7 @@ abstract final class TugboatCollectorHost {
     String? userId,
   }) async {
     final device = await _resolveDeviceMetadata();
+    final runtime = await TugboatDeviceRuntimeSnapshot.capture();
     final appInfo = await loadAppInfo();
     final view = PlatformDispatcher.instance.views.first;
     final pixelRatio = view.devicePixelRatio;
@@ -56,6 +58,10 @@ abstract final class TugboatCollectorHost {
         screenDensity: pixelRatio,
         screenDpi: (pixelRatio * 160).round(),
         screenPixelDensity: pixelRatio,
+        batteryPercent: runtime.batteryPercent,
+        storageFreeMb: runtime.storageFreeMb,
+        ramMb: runtime.ramMb,
+        networkType: runtime.networkType,
       ),
       ipInfo: TugboatCollectorIpInfo(
         ip: Platform.isAndroid ? '10.0.2.2' : '127.0.0.1',
