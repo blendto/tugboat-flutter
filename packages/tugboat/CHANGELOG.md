@@ -1,3 +1,21 @@
+## 0.8.8
+
+This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.8`.
+
+### Added
+
+- Exploration capture now snapshots fresh target, inventory, and viewport
+  semantic evidence at primary pointer-down. It records bounded diagnostics and
+  a closed failure reason when no safe target fingerprint is available.
+- Actionable semantic nodes without a direct fingerprint link can use a
+  guarded scene-inventory fallback. Fallback fingerprints have low confidence.
+
+### Changed
+
+- A completed exploration tap reuses its pointer-down evidence. Pan, zoom,
+  scroll, cancellation, secondary pointers, production capture, and dormant
+  capture do not run or publish this tap-only path.
+
 ## 0.8.7
 
 This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.7`.
