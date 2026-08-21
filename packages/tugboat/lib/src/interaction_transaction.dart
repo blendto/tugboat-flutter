@@ -41,6 +41,8 @@ class TugboatPreTapEvidence {
     required this.inventory,
     required this.semanticMap,
     required this.semanticResolution,
+    this.semanticEncodedPayload,
+    this.semanticBuildMicros = 0,
     required this.visualObservationGeneration,
     required this.frameCompletionSequence,
     required this.buildMicros,
@@ -55,6 +57,8 @@ class TugboatPreTapEvidence {
   final TugboatSceneInventory? inventory;
   final TugboatViewportSemanticMap? semanticMap;
   final TugboatViewportSemanticResolution? semanticResolution;
+  final Map<String, Object?>? semanticEncodedPayload;
+  final int semanticBuildMicros;
   final int visualObservationGeneration;
   final int frameCompletionSequence;
   final int buildMicros;

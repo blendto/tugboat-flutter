@@ -51,6 +51,7 @@ void main() {
       route: '/home',
       keyboardOpen: false,
       modalOpen: false,
+      detectDismissibleBarrier: false,
     );
     final afterSameFrame = resolver.debugTokenMapBuildCount;
 

@@ -446,6 +446,76 @@ void main() {
     );
   });
 
+  testWidgets('actionable Flutter wrapper preserves Texture fingerprint', (
+    tester,
+  ) async {
+    final controller = await _mountController(
+      tester,
+      Scaffold(
+        body: Center(
+          child: GestureDetector(
+            key: const Key('texture-wrapper'),
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: const SizedBox(
+              width: 100,
+              height: 100,
+              child: Texture(textureId: 1),
+            ),
+          ),
+        ),
+      ),
+    );
+    controller.debugSetCurrentRoute('/video');
+
+    final point = tester.getCenter(find.byKey(const Key('texture-wrapper')));
+    controller.recordPointerDown(point);
+    controller.recordPointerUp(point);
+    await _finishInteraction(tester, controller);
+
+    final tap = _lastInteraction(controller);
+    expect(tap.data['targetFingerprint'], isNotEmpty);
+    expect(tap.data.containsKey('targetResolutionFailureReason'), isFalse);
+  });
+
+  testWidgets('dismissible barrier hit-test is gated by capture policy', (
+    tester,
+  ) async {
+    final controller = await _mountController(
+      tester,
+      Stack(
+        children: [
+          const Scaffold(body: SizedBox.expand()),
+          ModalBarrier(
+            key: const Key('test-modal-barrier'),
+            dismissible: true,
+            onDismiss: () {},
+          ),
+        ],
+      ),
+    );
+    final resolver = AnchorResolver(rootKey: controller.boundaryKey);
+    final point = tester.getCenter(find.byKey(const Key('test-modal-barrier')));
+
+    final withoutDetection = resolver.buildTapContext(
+      tapPosition: point,
+      route: '/modal',
+      keyboardOpen: false,
+      modalOpen: true,
+      detectDismissibleBarrier: false,
+    );
+    final withDetection = resolver.buildTapContext(
+      tapPosition: point,
+      route: '/modal',
+      keyboardOpen: false,
+      modalOpen: false,
+      detectDismissibleBarrier: true,
+    );
+
+    expect(withoutDetection.tapHitsDismissibleBarrier, isFalse);
+    expect(withDetection.tapHitsDismissibleBarrier, isTrue);
+  });
+
   testWidgets(
     'scroll cancel and secondary pointers do not publish tap evidence',
     (tester) async {

@@ -15,6 +15,7 @@ class _TokenMap {
     required this.structuralRouteSignature,
     required this.renderElements,
     required this.hasBlockingOverlay,
+    required this.hasDismissibleModalBarrier,
     required this.includedElements,
     required this.actionableSummary,
     required this.subLabel,
@@ -33,6 +34,7 @@ class _TokenMap {
   final String structuralRouteSignature;
   final Map<RenderObject, Element> renderElements;
   final bool hasBlockingOverlay;
+  final bool hasDismissibleModalBarrier;
   final Set<Element> includedElements;
   final Map<String, int> actionableSummary;
   final String? subLabel;
@@ -181,6 +183,7 @@ class AnchorResolver {
     required String? route,
     required bool keyboardOpen,
     required bool modalOpen,
+    required bool detectDismissibleBarrier,
   }) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
@@ -221,11 +224,14 @@ class AnchorResolver {
     return (
       inventory: inventory,
       target: target,
-      tapHitsDismissibleBarrier: _tapHitsDismissibleModalBarrier(
-        rootRender: rootRender,
-        tapPosition: tapPosition,
-        tokenMap: tokenMap,
-      ),
+      tapHitsDismissibleBarrier:
+          detectDismissibleBarrier &&
+          (modalOpen || tokenMap.hasDismissibleModalBarrier) &&
+          _tapHitsDismissibleModalBarrier(
+            rootRender: rootRender,
+            tapPosition: tapPosition,
+            tokenMap: tokenMap,
+          ),
     );
   }
 
@@ -453,6 +459,7 @@ class AnchorResolver {
     final includedElements = <Element>{};
     String? subLabel;
     var rootHasBlockingOverlay = false;
+    var hasDismissibleModalBarrier = false;
 
     _VisitAcc visit(
       Element element,
@@ -462,6 +469,9 @@ class AnchorResolver {
       bool underActionable,
     ) {
       final widget = element.widget;
+      if (widget is ModalBarrier && widget.dismissible) {
+        hasDismissibleModalBarrier = true;
+      }
       final renderObject = element.renderObject;
       if (tugboatHidesSubtree(widget) ||
           widget is TugboatInternal ||
@@ -678,6 +688,7 @@ class AnchorResolver {
       structuralRouteSignature: structuralRouteSignature,
       renderElements: renderElements,
       hasBlockingOverlay: rootHasBlockingOverlay,
+      hasDismissibleModalBarrier: hasDismissibleModalBarrier,
       includedElements: includedElements,
       actionableSummary: actionableSummary,
       subLabel: subLabel,

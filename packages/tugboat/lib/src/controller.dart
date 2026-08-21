@@ -2445,6 +2445,7 @@ class TugboatReplayController extends ChangeNotifier {
             route: tx.origin.route,
             keyboardOpen: _isKeyboardOpen(),
             modalOpen: _isModalOpen(),
+            detectDismissibleBarrier: true,
           );
           final rawTarget = tapContext.target;
           inventory = _sanitizeExplorationInventory(
@@ -2459,16 +2460,18 @@ class TugboatReplayController extends ChangeNotifier {
                 ? TugboatTargetResolutionFailureReason.opaquePlatformView
                 : TugboatTargetResolutionFailureReason.noSceneInventory;
           } else {
-            semanticSnapshot = _viewportSemantics.captureTapSnapshot(
-              position: tx.origin.startPosition,
-              resolver: resolver,
-              boundaryKey: _boundaryKey,
-              inventory: inventory,
-            );
+            final capturedSemanticSnapshot = _viewportSemantics
+                .captureTapSnapshot(
+                  position: tx.origin.startPosition,
+                  resolver: resolver,
+                  boundaryKey: _boundaryKey,
+                  inventory: inventory,
+                );
+            semanticSnapshot = capturedSemanticSnapshot;
             target = _selectExplorationTapTarget(
               rawTarget: rawTarget,
               inventory: inventory,
-              semanticResolution: semanticSnapshot.resolution,
+              semanticResolution: capturedSemanticSnapshot.resolution,
               allowDismissibleBarrierTarget:
                   tapContext.tapHitsDismissibleBarrier &&
                   !_isOpaquePlatformTarget(rawTarget),
@@ -2476,7 +2479,7 @@ class TugboatReplayController extends ChangeNotifier {
             if (target == null) {
               failureReason = _targetFailureReason(
                 rawTarget: rawTarget,
-                semanticResolution: semanticSnapshot.resolution,
+                semanticResolution: capturedSemanticSnapshot.resolution,
               );
             }
           }
@@ -2501,6 +2504,8 @@ class TugboatReplayController extends ChangeNotifier {
       inventory: inventory,
       semanticMap: semanticSnapshot?.map,
       semanticResolution: semanticSnapshot?.resolution,
+      semanticEncodedPayload: semanticSnapshot?.encodedPayload,
+      semanticBuildMicros: semanticSnapshot?.buildMicros ?? 0,
       visualObservationGeneration: _visualObservationGeneration,
       frameCompletionSequence: _frameCompletionSequence,
       buildMicros: stopwatch.elapsedMicroseconds,
@@ -2640,10 +2645,17 @@ class TugboatReplayController extends ChangeNotifier {
   bool _isOpaquePlatformTarget(TugboatTargetAnchor? target) {
     final widgetType = target?.widgetType;
     if (widgetType == null) return false;
-    return widgetType.contains('AndroidView') ||
+    final isOpaqueSurface =
+        widgetType.contains('AndroidView') ||
         widgetType.contains('UiKitView') ||
         widgetType.contains('PlatformView') ||
         widgetType.contains('Texture');
+    if (!isOpaqueSurface) return false;
+    final hasActionableFlutterWrapper =
+        target!.actions.isNotEmpty &&
+        target.fingerprint?.isNotEmpty == true &&
+        target.canonicalPath?.isNotEmpty == true;
+    return !hasActionableFlutterWrapper;
   }
 
   void _recordExplorationPreTapDiagnostic(
@@ -2708,9 +2720,9 @@ class TugboatReplayController extends ChangeNotifier {
         _viewportSemantics.publishTapSnapshot(
           TugboatViewportTapSnapshot(
             map: semanticMap,
-            encodedPayload: semanticMap.toJson(),
+            encodedPayload: evidence.semanticEncodedPayload,
             resolution: evidence.semanticResolution,
-            buildMicros: evidence.buildMicros,
+            buildMicros: evidence.semanticBuildMicros,
           ),
         );
       }
@@ -2731,6 +2743,7 @@ class TugboatReplayController extends ChangeNotifier {
         route: _currentRoute,
         keyboardOpen: _isKeyboardOpen(),
         modalOpen: _isModalOpen(),
+        detectDismissibleBarrier: false,
       );
       tx.targetAnchor = tapContext.target;
       tapInventory = tapContext.inventory;
