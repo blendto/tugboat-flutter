@@ -413,6 +413,8 @@ class TugboatViewportSemanticResolution {
     this.actions = const [],
     this.boundsNorm,
     this.linkedFingerprint,
+    this.linkedCanonicalPath,
+    this.fingerprintConfidence,
     this.enabled,
   });
 
@@ -422,6 +424,8 @@ class TugboatViewportSemanticResolution {
   final List<String> actions;
   final TugboatNormalizedBounds? boundsNorm;
   final String? linkedFingerprint;
+  final String? linkedCanonicalPath;
+  final String? fingerprintConfidence;
   final bool? enabled;
 
   Map<String, Object?> toJson() => {
@@ -431,6 +435,9 @@ class TugboatViewportSemanticResolution {
     if (actions.isNotEmpty) 'actions': actions,
     if (boundsNorm != null) 'boundsNorm': boundsNorm!.toJson(),
     if (linkedFingerprint != null) 'linkedFingerprint': linkedFingerprint,
+    if (linkedCanonicalPath != null) 'linkedCanonicalPath': linkedCanonicalPath,
+    if (fingerprintConfidence != null)
+      'fingerprintConfidence': fingerprintConfidence,
     if (enabled != null) 'enabled': enabled,
   };
 }
