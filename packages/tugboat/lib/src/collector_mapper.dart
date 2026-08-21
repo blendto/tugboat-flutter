@@ -40,6 +40,11 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
         if (data['route'] != null) 'route': data['route'],
         if (data['targetFingerprint'] != null)
           'targetFingerprint': data['targetFingerprint'],
+        if (data['fingerprintConfidence'] != null)
+          'fingerprintConfidence': data['fingerprintConfidence'],
+        if (data['targetResolutionFailureReason'] != null)
+          'targetResolutionFailureReason':
+              data['targetResolutionFailureReason'],
         if (data['gesture'] != null) 'gesture': data['gesture'],
         if (data['payload'] != null) 'payload': data['payload'],
       },

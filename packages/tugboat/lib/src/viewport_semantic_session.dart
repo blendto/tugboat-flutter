@@ -22,6 +22,21 @@ class _ScrollSemanticAccumulator {
   final Map<String, TugboatViewportSemanticMap> slices = {};
 }
 
+/// A bounded semantic map and its tap result built without publishing events.
+class TugboatViewportTapSnapshot {
+  const TugboatViewportTapSnapshot({
+    required this.map,
+    required this.encodedPayload,
+    required this.resolution,
+    required this.buildMicros,
+  });
+
+  final TugboatViewportSemanticMap? map;
+  final Map<String, Object?>? encodedPayload;
+  final TugboatViewportSemanticResolution? resolution;
+  final int buildMicros;
+}
+
 /// Owns viewport-semantic map build / emit / tap resolution for a capture
 /// session. Keeps policy branching and scroll stitching out of the controller.
 class ViewportSemanticSession {
@@ -87,6 +102,93 @@ class ViewportSemanticSession {
         '[tugboat] viewport_semantic_map build failed '
         'route=${inventory.routeKey}: '
         '$error\n$stackTrace',
+      );
+    }
+  }
+
+  /// Builds exploration tap semantics without publishing tap-only evidence.
+  /// The caller publishes the stored map only after gesture classification.
+  TugboatViewportTapSnapshot captureTapSnapshot({
+    required Offset position,
+    required AnchorResolver? resolver,
+    required GlobalKey boundaryKey,
+    required TugboatSceneInventory inventory,
+  }) {
+    if (!engineEnabled || resolver == null) {
+      return const TugboatViewportTapSnapshot(
+        map: null,
+        encodedPayload: null,
+        resolution: null,
+        buildMicros: 0,
+      );
+    }
+    final rootRender = boundaryKey.currentContext?.findRenderObject();
+    if (rootRender is! RenderBox) {
+      return const TugboatViewportTapSnapshot(
+        map: null,
+        encodedPayload: null,
+        resolution: null,
+        buildMicros: 0,
+      );
+    }
+
+    final buildStopwatch = Stopwatch()..start();
+    final rawMap = resolver.buildViewportSemanticMap(
+      inventory: inventory,
+      allowTransientSemanticsHandle: !holdPersistentSemanticsHandle,
+    );
+    if (rawMap == null) {
+      buildStopwatch.stop();
+      return TugboatViewportTapSnapshot(
+        map: null,
+        encodedPayload: null,
+        resolution: const TugboatViewportSemanticResolution(
+          status: 'outside_known_ui',
+        ),
+        buildMicros: buildStopwatch.elapsedMicroseconds,
+      );
+    }
+    final bounded = _bounded(rawMap);
+    final map = bounded?.map;
+    final resolution = map == null
+        ? const TugboatViewportSemanticResolution(status: 'outside_known_ui')
+        : resolver.resolveTapOnViewportSemanticMap(
+            tapPosition: position,
+            map: map,
+            rootRender: rootRender,
+            inventory: inventory,
+            enableInventoryFallback: true,
+          );
+    buildStopwatch.stop();
+    return TugboatViewportTapSnapshot(
+      map: map,
+      encodedPayload: bounded?.encodedJson,
+      resolution: resolution,
+      buildMicros: buildStopwatch.elapsedMicroseconds,
+    );
+  }
+
+  /// Publishes a stored exploration map after the gesture remains a tap.
+  void publishTapSnapshot(TugboatViewportTapSnapshot snapshot) {
+    final map = snapshot.map;
+    if (map == null) return;
+    _latestMap = map;
+    if (!emitEvents) return;
+
+    final dedupeKey = '${map.routeKey}|${map.mapHash}|';
+    if (!_emittedSemanticMaps.add(dedupeKey)) return;
+    addEvent(
+      TugboatEvent(
+        id: nextEventId('event'),
+        atMs: atMs(),
+        type: 'viewport_semantic_map',
+        data: snapshot.encodedPayload ?? map.toJson(),
+      ),
+    );
+    if (debugLogs) {
+      tugboatLogViewportSemanticMap(
+        map,
+        buildMs: snapshot.buildMicros ~/ Duration.microsecondsPerMillisecond,
       );
     }
   }
@@ -378,6 +480,7 @@ class ViewportSemanticSession {
       tapPosition: position,
       map: map,
       rootRender: rootRender,
+      inventory: inventory,
     );
   }
 }

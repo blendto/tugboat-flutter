@@ -14,6 +14,55 @@ const Duration tugboatDefaultReconciliationWindow = Duration(
 /// Maximum released transactions retained for delayed reconciliation.
 const int tugboatMaxReleasedInteractionTransactions = 8;
 
+/// Closed reasons for an exploration tap that has no safe app fingerprint.
+enum TugboatTargetResolutionFailureReason {
+  noTargetAtPoint('no_target_at_point'),
+  noSceneInventory('no_scene_inventory'),
+  noActionableCandidate('no_actionable_candidate'),
+  outsideCaptureBoundary('outside_capture_boundary'),
+  staleRouteGeneration('stale_route_generation'),
+  opaquePlatformView('opaque_platform_view'),
+  systemUi('system_ui'),
+  resolutionError('resolution_error');
+
+  const TugboatTargetResolutionFailureReason(this.wireName);
+
+  final String wireName;
+}
+
+/// One exploration-only snapshot built at the primary pointer-down origin.
+class TugboatPreTapEvidence {
+  const TugboatPreTapEvidence({
+    required this.route,
+    required this.routeEpoch,
+    required this.routeInstanceId,
+    required this.pointerPosition,
+    required this.targetAnchor,
+    required this.inventory,
+    required this.semanticMap,
+    required this.semanticResolution,
+    required this.visualObservationGeneration,
+    required this.frameCompletionSequence,
+    required this.buildMicros,
+    required this.failureReason,
+  });
+
+  final String? route;
+  final int routeEpoch;
+  final String? routeInstanceId;
+  final Offset pointerPosition;
+  final TugboatTargetAnchor? targetAnchor;
+  final TugboatSceneInventory? inventory;
+  final TugboatViewportSemanticMap? semanticMap;
+  final TugboatViewportSemanticResolution? semanticResolution;
+  final int visualObservationGeneration;
+  final int frameCompletionSequence;
+  final int buildMicros;
+  final TugboatTargetResolutionFailureReason? failureReason;
+
+  String? get inventoryHash => inventory?.inventoryHash;
+}
+
 /// Immutable pointer-down origin for one user gesture.
 class InteractionOrigin {
   const InteractionOrigin({
@@ -145,6 +194,21 @@ Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
   if (fingerprint != null && fingerprint.isNotEmpty) {
     envelope['targetFingerprint'] = fingerprint;
   }
+  if (tx.gesture == InteractionGesture.tap) {
+    if (tx.preTapEvidence != null) {
+      final confidence = tx.targetAnchor?.fingerprintConfidence;
+      if (fingerprint != null &&
+          fingerprint.isNotEmpty &&
+          confidence != null &&
+          confidence.isNotEmpty) {
+        envelope['fingerprintConfidence'] = confidence;
+      }
+    }
+    final failureReason = tx.targetResolutionFailureReason;
+    if ((fingerprint == null || fingerprint.isEmpty) && failureReason != null) {
+      envelope['targetResolutionFailureReason'] = failureReason.wireName;
+    }
+  }
   if (tx.gesture == InteractionGesture.cancelled) {
     return envelope;
   }
@@ -256,6 +320,10 @@ class InteractionTransaction {
   double? scale;
   int pointerCount = 1;
 
+  /// Exploration-only tap evidence captured before the widget can react.
+  TugboatPreTapEvidence? preTapEvidence;
+  TugboatTargetResolutionFailureReason? targetResolutionFailureReason;
+
   /// Resolved only after this gesture remains a tap. Pointer-down stores only
   /// origin facts so possible scrolls do not pay tap inventory costs.
   TugboatTargetAnchor? targetAnchor;
@@ -300,6 +368,7 @@ class InteractionTransaction {
   void markSwipe() {
     if (isPanOrZoom) return;
     gesture = InteractionGesture.swipe;
+    discardPreTapEvidence();
   }
 
   void markCluster({
@@ -316,6 +385,7 @@ class InteractionTransaction {
     this.gesture = gesture;
     this.scale = scale;
     this.pointerCount = pointerCount;
+    discardPreTapEvidence();
   }
 
   void markScale({
@@ -324,6 +394,11 @@ class InteractionTransaction {
     required int pointerCount,
   }) {
     markCluster(gesture: gesture, scale: scale, pointerCount: pointerCount);
+  }
+
+  void discardPreTapEvidence() {
+    preTapEvidence = null;
+    targetResolutionFailureReason = null;
   }
 }
 

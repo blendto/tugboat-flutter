@@ -921,6 +921,10 @@ class TugboatReplayController extends ChangeNotifier {
     _explorationFramesSuppressed = suppressed;
   }
 
+  @visibleForTesting
+  int get debugAnchorTokenMapBuildCount =>
+      _anchorResolver?.tokenMapBuildCount ?? 0;
+
   /// Test-only clock for capture scheduling. Defaults to [DateTime.now].
   @visibleForTesting
   DateTime Function()? debugNow;
@@ -2377,6 +2381,7 @@ class TugboatReplayController extends ChangeNotifier {
     if (_interactions.pendingAt(pointer) != null) {
       _abandonPendingPointer(pointer, gestureFinal: 'superseded');
     }
+    final isPrimaryPointer = _interactions.pending.isEmpty;
     final attachmentContext = _captureContext(TugboatFrameTrigger.tap);
     final beforeFrame = _compatibleFrameFor(attachmentContext);
     final coordinateFrame =
@@ -2406,7 +2411,269 @@ class TugboatReplayController extends ChangeNotifier {
     );
     final tx = InteractionTransaction(origin: origin, pointerId: pointer);
     _interactions.register(tx);
+    if (config.profile == TugboatCaptureProfile.exploration &&
+        isPrimaryPointer) {
+      _captureExplorationPreTapEvidence(tx);
+    }
     if (!_disposed) notifyListeners();
+  }
+
+  void _captureExplorationPreTapEvidence(InteractionTransaction tx) {
+    final stopwatch = Stopwatch()..start();
+    TugboatSceneInventory? inventory;
+    TugboatTargetAnchor? target;
+    TugboatViewportTapSnapshot? semanticSnapshot;
+    TugboatTargetResolutionFailureReason? failureReason;
+
+    try {
+      final resolver = _anchorResolver;
+      final rootRender = _boundaryKey.currentContext?.findRenderObject();
+      if (resolver == null || rootRender is! RenderBox || !rootRender.hasSize) {
+        failureReason = TugboatTargetResolutionFailureReason.resolutionError;
+      } else {
+        final localPoint = rootRender.globalToLocal(tx.origin.startPosition);
+        final boundary = Offset.zero & rootRender.size;
+        if (!boundary.contains(localPoint)) {
+          failureReason =
+              TugboatTargetResolutionFailureReason.outsideCaptureBoundary;
+        } else {
+          // Exploration accepts one synchronous rebuild for the primary
+          // pointer so delayed same-route state cannot reuse an old token map.
+          resolver.invalidateTokenMapCache();
+          final tapContext = resolver.buildTapContext(
+            tapPosition: tx.origin.startPosition,
+            route: tx.origin.route,
+            keyboardOpen: _isKeyboardOpen(),
+            modalOpen: _isModalOpen(),
+          );
+          final rawTarget = tapContext.target;
+          inventory = _sanitizeExplorationInventory(
+            tapContext.inventory,
+            rawTargetFingerprint: rawTarget?.fingerprint,
+            retainBlockingOverlayTarget:
+                tapContext.tapHitsDismissibleBarrier &&
+                !_isOpaquePlatformTarget(rawTarget),
+          );
+          if (inventory == null) {
+            failureReason = _isOpaquePlatformTarget(rawTarget)
+                ? TugboatTargetResolutionFailureReason.opaquePlatformView
+                : TugboatTargetResolutionFailureReason.noSceneInventory;
+          } else {
+            semanticSnapshot = _viewportSemantics.captureTapSnapshot(
+              position: tx.origin.startPosition,
+              resolver: resolver,
+              boundaryKey: _boundaryKey,
+              inventory: inventory,
+            );
+            target = _selectExplorationTapTarget(
+              rawTarget: rawTarget,
+              inventory: inventory,
+              semanticResolution: semanticSnapshot.resolution,
+              allowDismissibleBarrierTarget:
+                  tapContext.tapHitsDismissibleBarrier &&
+                  !_isOpaquePlatformTarget(rawTarget),
+            );
+            if (target == null) {
+              failureReason = _targetFailureReason(
+                rawTarget: rawTarget,
+                semanticResolution: semanticSnapshot.resolution,
+              );
+            }
+          }
+        }
+      }
+    } catch (error, stackTrace) {
+      failureReason = TugboatTargetResolutionFailureReason.resolutionError;
+      debugPrint(
+        '[tugboat] exploration pre-tap resolution failed: '
+        '$error\n$stackTrace',
+      );
+    } finally {
+      stopwatch.stop();
+    }
+
+    final evidence = TugboatPreTapEvidence(
+      route: tx.origin.route,
+      routeEpoch: tx.origin.routeEpoch,
+      routeInstanceId: tx.origin.routeInstanceId,
+      pointerPosition: tx.origin.startPosition,
+      targetAnchor: target,
+      inventory: inventory,
+      semanticMap: semanticSnapshot?.map,
+      semanticResolution: semanticSnapshot?.resolution,
+      visualObservationGeneration: _visualObservationGeneration,
+      frameCompletionSequence: _frameCompletionSequence,
+      buildMicros: stopwatch.elapsedMicroseconds,
+      failureReason: failureReason,
+    );
+    tx.preTapEvidence = evidence;
+    _recordExplorationPreTapDiagnostic(tx, evidence);
+  }
+
+  TugboatTargetAnchor? _selectExplorationTapTarget({
+    required TugboatTargetAnchor? rawTarget,
+    required TugboatSceneInventory inventory,
+    required TugboatViewportSemanticResolution? semanticResolution,
+    required bool allowDismissibleBarrierTarget,
+  }) {
+    if (_isOpaquePlatformTarget(rawTarget)) return null;
+    final semanticFingerprint = semanticResolution?.linkedFingerprint;
+    if (semanticResolution?.status == 'matched_inventory_fallback' &&
+        semanticFingerprint?.isNotEmpty == true) {
+      final entry = _inventoryEntryForFingerprint(
+        inventory,
+        semanticFingerprint!,
+      );
+      if (entry != null && _isTapInventoryEntry(entry)) {
+        return _targetAnchorFromInventory(
+          entry,
+          base: rawTarget,
+          confidence: 'low',
+        );
+      }
+    }
+
+    if (semanticResolution?.status == 'matched_actionable' &&
+        semanticFingerprint?.isNotEmpty == true) {
+      final entry = _inventoryEntryForFingerprint(
+        inventory,
+        semanticFingerprint!,
+      );
+      if (entry != null && _isTapInventoryEntry(entry)) {
+        if (rawTarget?.fingerprint == entry.fingerprint) return rawTarget;
+        return _targetAnchorFromInventory(entry, base: rawTarget);
+      }
+    }
+
+    final rawFingerprint = rawTarget?.fingerprint;
+    if (rawFingerprint == null || rawFingerprint.isEmpty) return null;
+    final entry = _inventoryEntryForFingerprint(inventory, rawFingerprint);
+    if (entry == null ||
+        (!_isTapInventoryEntry(entry) && !allowDismissibleBarrierTarget)) {
+      return null;
+    }
+    return rawTarget;
+  }
+
+  TugboatSceneInventoryEntry? _inventoryEntryForFingerprint(
+    TugboatSceneInventory inventory,
+    String fingerprint,
+  ) {
+    for (final entry in inventory.elements) {
+      if (entry.fingerprint == fingerprint ||
+          entry.aliases.contains(fingerprint)) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  TugboatSceneInventory? _sanitizeExplorationInventory(
+    TugboatSceneInventory? inventory, {
+    required String? rawTargetFingerprint,
+    required bool retainBlockingOverlayTarget,
+  }) {
+    if (inventory == null) return null;
+    final elements = inventory.elements
+        .where(
+          (entry) =>
+              entry.tier != 'interactive' ||
+              entry.actions.isNotEmpty ||
+              (retainBlockingOverlayTarget &&
+                  rawTargetFingerprint != null &&
+                  (entry.fingerprint == rawTargetFingerprint ||
+                      entry.aliases.contains(rawTargetFingerprint))),
+        )
+        .toList(growable: false);
+    if (elements.isEmpty) return null;
+    if (elements.length == inventory.elements.length) return inventory;
+    final fingerprints = elements.map((entry) => entry.fingerprint).toList()
+      ..sort();
+    return TugboatSceneInventory(
+      inventoryHash: tugboatLabelHash(fingerprints.join('|')),
+      routeKey: inventory.routeKey,
+      elements: elements,
+    );
+  }
+
+  bool _isTapInventoryEntry(TugboatSceneInventoryEntry entry) =>
+      entry.tier == 'interactive' &&
+      entry.enabled != false &&
+      entry.actions.isNotEmpty &&
+      !entry.actions.every((action) => action == 'scroll');
+
+  TugboatTargetAnchor _targetAnchorFromInventory(
+    TugboatSceneInventoryEntry entry, {
+    TugboatTargetAnchor? base,
+    String? confidence,
+  }) {
+    return TugboatTargetAnchor(
+      schemaVersion: base?.schemaVersion ?? 1,
+      widgetType: entry.widgetType ?? base?.widgetType,
+      role: entry.role ?? base?.role,
+      fingerprint: entry.fingerprint,
+      fingerprintConfidence: confidence ?? base?.fingerprintConfidence,
+      tagFingerprint: base?.tagFingerprint,
+      fingerprintParts: base?.fingerprint == entry.fingerprint
+          ? base?.fingerprintParts ?? const {}
+          : const {},
+      canonicalPath: entry.canonicalPath,
+      relativePosition: base?.relativePosition,
+      enabled: entry.enabled ?? base?.enabled,
+      actions: entry.actions,
+    );
+  }
+
+  TugboatTargetResolutionFailureReason _targetFailureReason({
+    required TugboatTargetAnchor? rawTarget,
+    required TugboatViewportSemanticResolution? semanticResolution,
+  }) {
+    if (_isOpaquePlatformTarget(rawTarget)) {
+      return TugboatTargetResolutionFailureReason.opaquePlatformView;
+    }
+    if (semanticResolution?.status == 'matched_actionable') {
+      return TugboatTargetResolutionFailureReason.noActionableCandidate;
+    }
+    return TugboatTargetResolutionFailureReason.noTargetAtPoint;
+  }
+
+  bool _isOpaquePlatformTarget(TugboatTargetAnchor? target) {
+    final widgetType = target?.widgetType;
+    if (widgetType == null) return false;
+    return widgetType.contains('AndroidView') ||
+        widgetType.contains('UiKitView') ||
+        widgetType.contains('PlatformView') ||
+        widgetType.contains('Texture');
+  }
+
+  void _recordExplorationPreTapDiagnostic(
+    InteractionTransaction tx,
+    TugboatPreTapEvidence evidence,
+  ) {
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: tx.origin.atMs,
+        type: 'exploration_pre_tap_diagnostic',
+        stream: TugboatEventStream.diagnostic,
+        relatedEventId: tx.id,
+        data: <String, Object?>{
+          'version': 1,
+          'outcome': evidence.failureReason?.wireName ?? 'captured',
+          'buildMicros': evidence.buildMicros,
+          'routeEpoch': evidence.routeEpoch,
+          if (evidence.route != null) 'route': evidence.route,
+          if (evidence.routeInstanceId != null)
+            'routeInstanceId': evidence.routeInstanceId,
+          'visualObservationGeneration': evidence.visualObservationGeneration,
+          'frameCompletionSequence': evidence.frameCompletionSequence,
+          if (evidence.inventoryHash != null)
+            'inventoryHash': evidence.inventoryHash,
+          if (evidence.semanticResolution != null)
+            'semanticStatus': evidence.semanticResolution!.status,
+        },
+      ),
+    );
   }
 
   /// Resolve tap-only evidence when input capture observes pointer-up. This is
@@ -2416,8 +2683,49 @@ class TugboatReplayController extends ChangeNotifier {
   /// lands on a sibling still matches the recognizer's original target.
   void _resolveTapEvidence(InteractionTransaction tx, Offset position) {
     final resolver = _anchorResolver;
+    if (config.profile == TugboatCaptureProfile.exploration) {
+      final evidence = tx.preTapEvidence;
+      if (evidence == null) {
+        tx.targetResolutionFailureReason =
+            TugboatTargetResolutionFailureReason.noTargetAtPoint;
+        return;
+      }
+      if (evidence.routeEpoch != tx.origin.routeEpoch ||
+          evidence.routeInstanceId != tx.origin.routeInstanceId ||
+          evidence.route != tx.origin.route) {
+        tx.targetResolutionFailureReason =
+            TugboatTargetResolutionFailureReason.staleRouteGeneration;
+        return;
+      }
+      tx.targetAnchor = evidence.targetAnchor;
+      tx.targetResolutionFailureReason = evidence.failureReason;
+      final inventory = evidence.inventory;
+      if (inventory != null) {
+        _emitSceneInventory(inventory, emitViewportSemanticMap: false);
+      }
+      final semanticMap = evidence.semanticMap;
+      if (semanticMap != null) {
+        _viewportSemantics.publishTapSnapshot(
+          TugboatViewportTapSnapshot(
+            map: semanticMap,
+            encodedPayload: semanticMap.toJson(),
+            resolution: evidence.semanticResolution,
+            buildMicros: evidence.buildMicros,
+          ),
+        );
+      }
+      if (evidence.semanticResolution != null &&
+          _viewportSemanticMapDebugLogsEnabled) {
+        tugboatLogViewportSemanticTapResolution(
+          position,
+          evidence.semanticResolution!,
+        );
+      }
+      return;
+    }
+    if (config.profile == TugboatCaptureProfile.dormant) return;
     TugboatSceneInventory? tapInventory;
-    if (resolver != null && config.profile != TugboatCaptureProfile.dormant) {
+    if (resolver != null) {
       final tapContext = resolver.buildTapContext(
         tapPosition: position,
         route: _currentRoute,
@@ -2429,8 +2737,6 @@ class TugboatReplayController extends ChangeNotifier {
       if (tapInventory != null) {
         _emitSceneInventory(tapInventory, emitViewportSemanticMap: false);
       }
-    } else {
-      tx.targetAnchor = resolver?.targetAt(position, route: _currentRoute);
     }
     final viewportResolution = _viewportSemantics.resolveTap(
       position: position,
@@ -3081,6 +3387,8 @@ class TugboatReplayController extends ChangeNotifier {
   void _publishCanonicalInteraction(InteractionTransaction tx) {
     if (tx.semanticPublished) return;
     tx.semanticPublished = true;
+    final payload = buildInteractionV2Payload(tx);
+    tx.discardPreTapEvidence();
     _addEvent(
       TugboatEvent(
         id: tx.id,
@@ -3089,7 +3397,7 @@ class TugboatReplayController extends ChangeNotifier {
         stream: TugboatEventStream.semantic,
         beforeFrame: tx.origin.beforeFrame,
         afterFrame: tx.afterFrame,
-        data: buildInteractionV2Payload(tx),
+        data: payload,
         explorationRunId: tx.origin.explorationRunId,
         actionId: tx.origin.actionId,
       ),

@@ -66,6 +66,7 @@ class AnchorResolver {
   RenderBox? _cachedRootRender;
   @visibleForTesting
   int debugTokenMapBuildCount = 0;
+  int get tokenMapBuildCount => debugTokenMapBuildCount;
   int _frameEpoch = 0;
   bool _frameCallbackScheduled = false;
 
@@ -170,7 +171,11 @@ class AnchorResolver {
   }
 
   /// Builds inventory and resolves a tap target from one token-map walk.
-  ({TugboatSceneInventory? inventory, TugboatTargetAnchor? target})
+  ({
+    TugboatSceneInventory? inventory,
+    TugboatTargetAnchor? target,
+    bool tapHitsDismissibleBarrier,
+  })
   buildTapContext({
     required Offset tapPosition,
     required String? route,
@@ -180,11 +185,13 @@ class AnchorResolver {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
     if (rootRender is! RenderBox || rootContext is! Element) {
-      return (inventory: null, target: null);
+      return (inventory: null, target: null, tapHitsDismissibleBarrier: false);
     }
 
     final tokenMap = _tokenMapFor(rootContext, rootRender);
-    if (tokenMap == null) return (inventory: null, target: null);
+    if (tokenMap == null) {
+      return (inventory: null, target: null, tapHitsDismissibleBarrier: false);
+    }
 
     var target = _targetAtWithTokenMap(
       tapPosition,
@@ -211,7 +218,44 @@ class AnchorResolver {
       tokenMap: tokenMap,
       rootRender: rootRender,
     );
-    return (inventory: inventory, target: target);
+    return (
+      inventory: inventory,
+      target: target,
+      tapHitsDismissibleBarrier: _tapHitsDismissibleModalBarrier(
+        rootRender: rootRender,
+        tapPosition: tapPosition,
+        tokenMap: tokenMap,
+      ),
+    );
+  }
+
+  bool _tapHitsDismissibleModalBarrier({
+    required RenderBox rootRender,
+    required Offset tapPosition,
+    required _TokenMap tokenMap,
+  }) {
+    final result = BoxHitTestResult();
+    rootRender.hitTest(result, position: rootRender.globalToLocal(tapPosition));
+    for (final hit in result.path) {
+      if (hit.target is! RenderObject) continue;
+      final element = tokenMap.renderElements[hit.target as RenderObject];
+      if (element == null) continue;
+      if (element.widget is ModalBarrier &&
+          (element.widget as ModalBarrier).dismissible) {
+        return true;
+      }
+      var found = false;
+      element.visitAncestorElements((ancestor) {
+        final widget = ancestor.widget;
+        if (widget is ModalBarrier && widget.dismissible) {
+          found = true;
+          return false;
+        }
+        return true;
+      });
+      if (found) return true;
+    }
+    return false;
   }
 
   /// Resolves a [TugboatTargetAnchor] for the [Scrollable] element that emitted

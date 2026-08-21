@@ -96,6 +96,8 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     required Offset tapPosition,
     required TugboatViewportSemanticMap map,
     required RenderBox rootRender,
+    TugboatSceneInventory? inventory,
+    bool enableInventoryFallback = false,
   }) {
     final viewport = map.viewport;
     if (viewport.width <= 0 || viewport.height <= 0) {
@@ -121,10 +123,27 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
         .where((node) => node.isActionable && node.enabled != false)
         .toList();
     if (enabledActionable.isNotEmpty) {
-      return _resolutionForNode(
-        node: _pickViewportSemanticWinner(enabledActionable),
-        status: 'matched_actionable',
-      );
+      final winner = _pickViewportSemanticWinner(enabledActionable);
+      if (enableInventoryFallback &&
+          winner.linkedFingerprint?.isNotEmpty != true &&
+          inventory != null) {
+        final fallback = _safeInventoryCandidateAtTap(
+          tapPosition: tapPosition,
+          semanticNode: winner,
+          inventory: inventory,
+          rootRender: rootRender,
+        );
+        if (fallback != null) {
+          return _resolutionForNode(
+            node: winner,
+            status: 'matched_inventory_fallback',
+            linkedFingerprint: fallback.fingerprint,
+            linkedCanonicalPath: fallback.canonicalPath,
+            fingerprintConfidence: 'low',
+          );
+        }
+      }
+      return _resolutionForNode(node: winner, status: 'matched_actionable');
     }
 
     final disabledActionable = candidates
@@ -448,6 +467,44 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     return sorted.first;
   }
 
+  /// Finds a safe inventory identity for an actionable semantic node that has
+  /// no direct fingerprint link. The inventory already excludes controls
+  /// hidden by blocking overlays. The hit-area guard also rejects a small
+  /// control under a larger surface that received the pointer.
+  TugboatSceneInventoryEntry? _safeInventoryCandidateAtTap({
+    required Offset tapPosition,
+    required TugboatViewportSemanticNode semanticNode,
+    required TugboatSceneInventory inventory,
+    required RenderBox rootRender,
+  }) {
+    final viewport = rootRender.size;
+    if (viewport.width <= 0 || viewport.height <= 0) return null;
+    final localPoint = rootRender.globalToLocal(tapPosition);
+    final nx = localPoint.dx / viewport.width;
+    final ny = localPoint.dy / viewport.height;
+    final hitAreaNorm = _hitLeafAreaNorm(rootRender, tapPosition);
+
+    TugboatSceneInventoryEntry? best;
+    var bestArea = double.infinity;
+    for (final entry in inventory.elements) {
+      if (entry.tier != 'interactive' || entry.enabled == false) continue;
+      if (entry.actions.isEmpty ||
+          !_inventoryActionsCompatible(semanticNode.actions, entry.actions)) {
+        continue;
+      }
+      final bounds = entry.boundsNorm;
+      if (!_normalizedPointInBounds(nx, ny, bounds)) continue;
+      final area = bounds.width * bounds.height;
+      if (area <= 0) continue;
+      if (hitAreaNorm != null && area < hitAreaNorm * 0.5) continue;
+      if (area < bestArea) {
+        bestArea = area;
+        best = entry;
+      }
+    }
+    return best;
+  }
+
   int _compareViewportSemanticCandidates(
     TugboatViewportSemanticNode left,
     TugboatViewportSemanticNode right,
@@ -485,6 +542,9 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
   TugboatViewportSemanticResolution _resolutionForNode({
     required TugboatViewportSemanticNode node,
     required String status,
+    String? linkedFingerprint,
+    String? linkedCanonicalPath,
+    String? fingerprintConfidence,
   }) {
     return TugboatViewportSemanticResolution(
       status: status,
@@ -492,7 +552,9 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
       role: node.role,
       actions: node.actions,
       boundsNorm: node.boundsNorm,
-      linkedFingerprint: node.linkedFingerprint,
+      linkedFingerprint: linkedFingerprint ?? node.linkedFingerprint,
+      linkedCanonicalPath: linkedCanonicalPath ?? node.linkedCanonicalPath,
+      fingerprintConfidence: fingerprintConfidence,
       enabled: node.enabled,
     );
   }
