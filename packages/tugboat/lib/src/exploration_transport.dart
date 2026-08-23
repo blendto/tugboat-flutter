@@ -67,6 +67,7 @@ class TugboatExplorationTransport {
       if (runId != null) 'explorationRunId': runId,
       'fingerprintSchemaVersion': tugboatFingerprintSchemaVersion,
       'platform': session.platform,
+      if (session.locale != null) 'locale': session.locale!.toJson(),
       'payload': session.toJson()['session'],
     });
   }

@@ -345,7 +345,14 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   void _enqueueSessionLifecycle(String eventType, DateTime triggeredAt) {
     _pendingLifecycle.add(
-      _PendingSessionLifecycle(eventType: eventType, triggeredAt: triggeredAt),
+      _PendingSessionLifecycle(
+        eventType: eventType,
+        triggeredAt: triggeredAt,
+        activeLocale:
+            eventType == TugboatCollectorSessionEventType.sessionStart.wireValue
+            ? _session?.locale
+            : null,
+      ),
     );
   }
 
@@ -370,6 +377,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final result = await _sendSessionLifecycle(
       pending.eventType,
       pending.triggeredAt,
+      pending.activeLocale,
       epoch,
     );
     if (!_isCurrentEpoch(epoch)) return;
@@ -381,6 +389,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<_SendResult> _sendSessionLifecycle(
     String eventType,
     DateTime triggeredAt,
+    TugboatLocaleInfo? activeLocale,
     int epoch,
   ) async {
     if (!_isCurrentEpoch(epoch)) return _SendResult.drop;
@@ -409,6 +418,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       userId: _userId,
       traits: includeFullTraits ? _traits : null,
       traitsId: includeFullTraits ? null : _traitsId,
+      activeLocale: activeLocale,
     );
 
     try {
@@ -669,10 +679,12 @@ class _PendingSessionLifecycle {
   const _PendingSessionLifecycle({
     required this.eventType,
     required this.triggeredAt,
+    this.activeLocale,
   });
 
   final String eventType;
   final DateTime triggeredAt;
+  final TugboatLocaleInfo? activeLocale;
 }
 
 class _PendingFrameUpload {

@@ -171,6 +171,41 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     return false;
   }
 
+  /// Replaces a nested Flutter hit-target alias with the inventory control's
+  /// primary identity. This keeps taps on different regions of one control
+  /// consistent in exploration and production capture.
+  TugboatTargetAnchor? _normalizeTargetToInventory({
+    required TugboatTargetAnchor? target,
+    required TugboatSceneInventory? inventory,
+  }) {
+    final fingerprint = target?.fingerprint;
+    if (target == null ||
+        fingerprint == null ||
+        fingerprint.isEmpty ||
+        inventory == null) {
+      return target;
+    }
+
+    for (final entry in inventory.elements) {
+      if (entry.fingerprint == fingerprint) return target;
+      if (!entry.aliases.contains(fingerprint)) continue;
+      return TugboatTargetAnchor(
+        schemaVersion: target.schemaVersion,
+        widgetType: entry.widgetType ?? target.widgetType,
+        role: entry.role ?? target.role,
+        fingerprint: entry.fingerprint,
+        fingerprintConfidence: target.fingerprintConfidence,
+        fingerprintParts: const {},
+        tagFingerprint: target.tagFingerprint,
+        canonicalPath: entry.canonicalPath,
+        relativePosition: target.relativePosition,
+        enabled: entry.enabled ?? target.enabled,
+        actions: entry.actions.isNotEmpty ? entry.actions : target.actions,
+      );
+    }
+    return target;
+  }
+
   /// When hit-testing produced a target without a canonical path (e.g. a
   /// decorated box that is not part of the token map), its fingerprint can
   /// never join the scene inventory. Re-anchor the tap to the smallest

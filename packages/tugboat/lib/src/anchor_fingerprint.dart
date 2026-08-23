@@ -2,6 +2,9 @@ part of 'anchors.dart';
 
 /// Algorithm version for canonical-tree fingerprinting (denylist, tokenization).
 ///
+/// v6: use locale-independent structural positions for list and grid items.
+/// Nested Flutter hit-target aliases normalize to the inventory primary.
+///
 /// v5: retain actionable role widgets (e.g. InkWell) even when on the wrapper
 /// denylist, and climb from untokenized hit elements to the nearest tokenized
 /// ancestor when building canonical paths.

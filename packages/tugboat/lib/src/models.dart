@@ -51,6 +51,46 @@ const String tugboatEventStreamDiagnostic = 'diagnostic';
 const int tugboatInteractionSchemaVersion = 2;
 const int tugboatRouteChangeSchemaVersion = 2;
 
+/// Active application locale captured as evidence, never as fingerprint input.
+class TugboatLocaleInfo {
+  const TugboatLocaleInfo({
+    required this.language,
+    required this.tag,
+    this.country,
+    this.script,
+  });
+
+  factory TugboatLocaleInfo.fromLocale(Locale locale) => TugboatLocaleInfo(
+    language: locale.languageCode,
+    country: locale.countryCode,
+    script: locale.scriptCode,
+    tag: locale.toLanguageTag(),
+  );
+
+  final String language;
+  final String? country;
+  final String? script;
+  final String tag;
+
+  Map<String, Object?> toJson() => {
+    'language': language,
+    if (country != null && country!.isNotEmpty) 'country': country,
+    if (script != null && script!.isNotEmpty) 'script': script,
+    'tag': tag,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is TugboatLocaleInfo &&
+      language == other.language &&
+      country == other.country &&
+      script == other.script &&
+      tag == other.tag;
+
+  @override
+  int get hashCode => Object.hash(language, country, script, tag);
+}
+
 /// Whether [event] is a default enrichment / insight candidate.
 bool tugboatEventIsEnrichmentCandidate(TugboatEvent event) {
   switch (event.stream) {
@@ -180,6 +220,7 @@ class TugboatEvent {
     this.result,
     this.relatedEventId,
     this.data = const {},
+    this.locale,
     this.explorationRunId,
     this.actionId,
   });
@@ -197,6 +238,7 @@ class TugboatEvent {
   final TugboatInteractionResult? result;
   final String? relatedEventId;
   final Map<String, Object?> data;
+  final TugboatLocaleInfo? locale;
   final String? explorationRunId;
   final String? actionId;
 
@@ -217,6 +259,7 @@ class TugboatEvent {
     if (result != null) 'result': result!.name,
     if (relatedEventId != null) 'relatedEventId': relatedEventId,
     if (data.isNotEmpty) 'data': data,
+    if (locale != null) 'locale': locale!.toJson(),
     if (explorationRunId != null) 'explorationRunId': explorationRunId,
     if (actionId != null) 'actionId': actionId,
   };
@@ -234,6 +277,7 @@ class TugboatEvent {
     TugboatInteractionResult? result,
     String? relatedEventId,
     Map<String, Object?>? data,
+    TugboatLocaleInfo? locale,
     String? explorationRunId,
     String? actionId,
   }) => TugboatEvent(
@@ -249,6 +293,7 @@ class TugboatEvent {
     result: result ?? this.result,
     relatedEventId: relatedEventId ?? this.relatedEventId,
     data: data ?? this.data,
+    locale: locale ?? this.locale,
     explorationRunId: explorationRunId ?? this.explorationRunId,
     actionId: actionId ?? this.actionId,
   );
@@ -276,6 +321,7 @@ class TugboatSession {
     required this.platform,
     required this.viewport,
     this.appInfo,
+    this.locale,
     this.activationRequestId,
     this.explorationRunId,
     this.collectorSessionId,
@@ -287,6 +333,7 @@ class TugboatSession {
   final String platform;
   final TugboatRect viewport;
   final TugboatCollectorAppInfo? appInfo;
+  TugboatLocaleInfo? locale;
 
   /// Host-supplied activation / request correlation ID.
   final String? activationRequestId;
@@ -351,6 +398,7 @@ class TugboatSession {
       'viewport': viewport.toJson(),
       'truncated': truncated,
       if (appInfo != null) 'appInfo': appInfo!.toJson(),
+      if (locale != null) 'locale': locale!.toJson(),
     },
     'frames': frames.map((frame) => frame.toJson()).toList(),
     'events': events.map((event) => event.toJson()).toList(),

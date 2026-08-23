@@ -1,5 +1,16 @@
 import 'package:tugboat/tugboat.dart';
 
+TugboatLocaleInfo? tugboatLocaleInfoFromJson(Object? raw) {
+  if (raw == null) return null;
+  final json = Map<String, dynamic>.from(raw as Map);
+  return TugboatLocaleInfo(
+    language: json['language'] as String,
+    country: json['country'] as String?,
+    script: json['script'] as String?,
+    tag: json['tag'] as String,
+  );
+}
+
 /// Test-only deserializers. The runtime SDK only emits JSON.
 extension TugboatNormalizedBoundsTestJson on TugboatNormalizedBounds {
   static TugboatNormalizedBounds fromJson(Map<String, dynamic> json) =>
@@ -81,6 +92,7 @@ extension TugboatEventTestJson on TugboatEvent {
         : TugboatInteractionResult.values.byName(json['result'] as String),
     relatedEventId: json['relatedEventId'] as String?,
     data: Map<String, Object?>.from(json['data'] as Map? ?? {}),
+    locale: tugboatLocaleInfoFromJson(json['locale']),
     explorationRunId: json['explorationRunId'] as String?,
     actionId: json['actionId'] as String?,
   );
@@ -118,6 +130,7 @@ extension TugboatSessionTestJson on TugboatSession {
               installationId: appInfoJson['installationId'] as String,
               appId: appInfoJson['appId'] as String,
             ),
+      locale: tugboatLocaleInfoFromJson(sessionJson['locale']),
       activationRequestId: sessionJson['activationRequestId'] as String?,
       explorationRunId: sessionJson['explorationRunId'] as String?,
       collectorSessionId: sessionJson['collectorSessionId'] as String?,

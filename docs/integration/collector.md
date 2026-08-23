@@ -62,11 +62,16 @@ If `appInfo` is omitted, session metadata falls back to
 The SDK sends:
 
 - `type: session`: session metadata, platform, exploration run ID when set, and
-  `fingerprintSchemaVersion`;
+  `fingerprintSchemaVersion`, plus the active app locale when available;
 - `type: event`: serialized event payload plus available session/run/action
   correlation fields;
 - `type: frame`: frame metadata followed by a binary JPEG message;
 - `type: control_ack`: acknowledgement for supported exploration commands.
+
+The optional `locale` object contains `language`, optional `country` and
+`script`, and a BCP 47 `tag`. Every SDK event carries the current locale when
+known. A `locale_changed` evidence event contains `previousLocale` when known
+and the new `locale` in its payload.
 
 Incoming JSON control messages are forwarded to the controller. The current
 controller understands `set_action_window`, `clear_action_window`,
@@ -110,7 +115,9 @@ final config = TugboatReplayConfig(
 
 `fromPlatform` uses `package_info_plus`, `device_info_plus`, `battery_plus`,
 `disk_space_plus`, and `connectivity_plus` to populate app, device, viewport,
-locale, and time-zone fields. On `session_start`, the `device` bag may also
+platform locale, and time-zone fields. The active Flutter app locale overrides
+the platform locale in `session_start` when the capture root can observe it.
+On `session_start`, the `device` bag may also
 include optional runtime facts when observable:
 
 - `batteryPercent` — battery level at session start (0–100);

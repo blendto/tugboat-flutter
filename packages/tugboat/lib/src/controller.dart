@@ -811,6 +811,7 @@ class TugboatReplayController extends ChangeNotifier {
   final List<TugboatCaptureSink> _builtinSinks = [];
   String? _activeExplorationRunId;
   String? _activeActionId;
+  TugboatLocaleInfo? _currentLocale;
 
   int _id = 0;
   String? _currentRoute;
@@ -1398,7 +1399,7 @@ class TugboatReplayController extends ChangeNotifier {
     _capturePaused = paused;
   }
 
-  void start(Size viewport, String platform) {
+  void start(Size viewport, String platform, {TugboatLocaleInfo? locale}) {
     _cancelActiveTapSettles('session_replacement');
     _cancelActiveRouteCapture('session_replacement');
     _invalidateCaptureWork('session_replacement');
@@ -1416,12 +1417,15 @@ class TugboatReplayController extends ChangeNotifier {
     _clock
       ..reset()
       ..start();
+    final effectiveLocale = locale ?? _currentLocale;
+    _currentLocale = effectiveLocale;
     _session = TugboatSession(
       id: 'session-${DateTime.now().microsecondsSinceEpoch}',
       startedAt: DateTime.now(),
       platform: platform,
       viewport: TugboatRect(0, 0, viewport.width, viewport.height),
       appInfo: config.appInfo ?? config.collector?.appInfo,
+      locale: effectiveLocale,
       activationRequestId: activationRequestId,
       explorationRunId: config.explorationRunId,
     );
@@ -1487,6 +1491,30 @@ class TugboatReplayController extends ChangeNotifier {
     start(
       Size(current.viewport.width, current.viewport.height),
       current.platform,
+      locale: _currentLocale,
+    );
+  }
+
+  /// Records the active app locale as evidence without changing identity.
+  void recordLocale(TugboatLocaleInfo locale) {
+    if (locale == _currentLocale) return;
+    final previous = _currentLocale;
+    _currentLocale = locale;
+    final session = _session;
+    if (session == null) return;
+    session.locale = locale;
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'locale_changed',
+        stream: TugboatEventStream.evidence,
+        locale: locale,
+        data: {
+          if (previous != null) 'previousLocale': previous.toJson(),
+          'locale': locale.toJson(),
+        },
+      ),
     );
   }
 
@@ -2406,6 +2434,7 @@ class TugboatReplayController extends ChangeNotifier {
       startPosition: position,
       pointerGeneration: ++_pointerGeneration,
       captureSessionId: _session?.id,
+      locale: _currentLocale,
       explorationRunId: _activeExplorationRunId ?? config.explorationRunId,
       actionId: _activeActionId,
     );
@@ -3411,6 +3440,7 @@ class TugboatReplayController extends ChangeNotifier {
         beforeFrame: tx.origin.beforeFrame,
         afterFrame: tx.afterFrame,
         data: payload,
+        locale: tx.origin.locale,
         explorationRunId: tx.origin.explorationRunId,
         actionId: tx.origin.actionId,
       ),
@@ -4526,25 +4556,28 @@ class TugboatReplayController extends ChangeNotifier {
   void _addEvent(TugboatEvent event, {bool attachActionContext = true}) {
     final session = _session;
     if (session == null) return;
+    final localeEvent = event.locale == null && _currentLocale != null
+        ? event.copyWith(locale: _currentLocale)
+        : event;
     final enriched = attachActionContext
-        ? event.withExplorationContext(
+        ? localeEvent.withExplorationContext(
             captureSessionId: session.id,
             activationRequestId:
                 session.activationRequestId ?? activationRequestId,
             explorationRunId:
-                event.explorationRunId ??
+                localeEvent.explorationRunId ??
                 _activeExplorationRunId ??
                 config.explorationRunId,
-            actionId: event.actionId ?? _activeActionId,
+            actionId: localeEvent.actionId ?? _activeActionId,
           )
-        : event.copyWith(
-            captureSessionId: event.captureSessionId ?? session.id,
+        : localeEvent.copyWith(
+            captureSessionId: localeEvent.captureSessionId ?? session.id,
             activationRequestId:
-                event.activationRequestId ??
+                localeEvent.activationRequestId ??
                 session.activationRequestId ??
                 activationRequestId,
             explorationRunId:
-                event.explorationRunId ?? session.explorationRunId,
+                localeEvent.explorationRunId ?? session.explorationRunId,
           );
     session.events.add(enriched);
     _sinkHub?.recordEvent(enriched);

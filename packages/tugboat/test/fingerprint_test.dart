@@ -4,42 +4,112 @@ import 'package:tugboat/tugboat.dart';
 import 'package:tugboat/src/anchors.dart';
 
 void main() {
-  testWidgets(
-    'list row taps without discriminator share low-confidence fingerprint',
-    (tester) async {
-      final rootKey = GlobalKey();
+  testWidgets('structural positions distinguish dynamic list rows', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
 
-      Future<TugboatTargetAnchor?> tapRow(int index) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: RepaintBoundary(
-              key: rootKey,
-              child: Scaffold(
-                body: ListView(
-                  children: [
-                    for (var i = 0; i < 7; i++)
-                      ListTile(title: Text('Dynamic user $i'), onTap: () {}),
-                  ],
-                ),
+    Future<TugboatTargetAnchor?> tapRow(int index) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RepaintBoundary(
+            key: rootKey,
+            child: Scaffold(
+              body: ListView(
+                children: [
+                  for (var i = 0; i < 7; i++)
+                    ListTile(title: Text('Dynamic user $i'), onTap: () {}),
+                ],
               ),
             ),
           ),
-        );
-        await tester.pump();
-        final center = tester.getCenter(find.text('Dynamic user $index'));
-        return AnchorResolver(
-          rootKey: rootKey,
-        ).targetAt(center, route: '/feed');
-      }
+        ),
+      );
+      await tester.pump();
+      final center = tester.getCenter(find.text('Dynamic user $index'));
+      return AnchorResolver(rootKey: rootKey).targetAt(center, route: '/feed');
+    }
 
-      final row1 = await tapRow(1);
-      final row4 = await tapRow(4);
-      expect(row1?.fingerprint, row4?.fingerprint);
-      expect(row1?.fingerprintConfidence, 'low');
-    },
-  );
+    final row1 = await tapRow(1);
+    final row4 = await tapRow(4);
+    expect(row1?.fingerprint, isNot(row4?.fingerprint));
+    expect(row1?.canonicalPath, contains('[item:1]'));
+    expect(row4?.canonicalPath, contains('[item:4]'));
+  });
 
-  testWidgets('static discriminators distinguish list items', (tester) async {
+  testWidgets('lazy list tokens use semantic item indices', (tester) async {
+    final rootKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: ListView.builder(
+              itemCount: 30,
+              itemExtent: 80,
+              itemBuilder: (context, index) =>
+                  ListTile(title: Text('Row $index'), onTap: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.text('Row 12'),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump();
+
+    final anchor = AnchorResolver(
+      rootKey: rootKey,
+    ).targetAt(tester.getCenter(find.text('Row 12')), route: '/feed');
+
+    expect(anchor?.canonicalPath, contains('[item:12]'));
+  });
+
+  testWidgets('lazy list slots stay stable without semantic indexes', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    final scrollController = ScrollController(initialScrollOffset: 600);
+    addTearDown(scrollController.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: ListView.builder(
+              controller: scrollController,
+              addSemanticIndexes: false,
+              itemCount: 30,
+              itemExtent: 80,
+              itemBuilder: (context, index) =>
+                  ListTile(title: Text('Row $index'), onTap: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    TugboatTargetAnchor? anchorForRow12() => AnchorResolver(
+      rootKey: rootKey,
+    ).targetAt(tester.getCenter(find.text('Row 12')), route: '/feed');
+
+    final before = anchorForRow12();
+    scrollController.jumpTo(800);
+    await tester.pump();
+    final after = anchorForRow12();
+
+    expect(before?.canonicalPath, contains('[item:12]'));
+    expect(after?.canonicalPath, contains('[item:12]'));
+    expect(after?.fingerprint, before?.fingerprint);
+  });
+
+  testWidgets('structural positions distinguish short-label list items', (
+    tester,
+  ) async {
     final rootKey = GlobalKey();
 
     Future<TugboatTargetAnchor?> tapPlan(String label) async {
@@ -69,6 +139,187 @@ void main() {
     expect(pro?.fingerprintConfidence, isNot('low'));
     expect(pro?.canonicalPath, isNot(contains('Pro')));
     expect(basic?.canonicalPath, isNot(contains('Basic')));
+  });
+
+  testWidgets('grid fingerprints stay stable across localized text', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+
+    Future<List<TugboatTargetAnchor>> capture(List<String> labels) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RepaintBoundary(
+            key: rootKey,
+            child: Scaffold(
+              body: GridView.count(
+                crossAxisCount: 3,
+                children: [
+                  for (var index = 0; index < labels.length; index++)
+                    InkWell(
+                      onTap: () {},
+                      child: Column(
+                        children: [
+                          Text(labels[index]),
+                          const Expanded(
+                            child: Icon(Icons.add_photo_alternate),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final resolver = AnchorResolver(rootKey: rootKey);
+      return [
+        for (final label in labels)
+          resolver.targetAt(
+            tester.getCenter(find.text(label)),
+            route: '/create',
+          )!,
+      ];
+    }
+
+    final english = await capture(const [
+      'Change background',
+      'Add text',
+      'Upload media',
+      'Create shape',
+      'Add sticker',
+      'Draw freely',
+    ]);
+    final spanish = await capture(const [
+      'Cambiar el fondo',
+      'Agregar texto',
+      'Subir contenido',
+      'Crear forma',
+      'Agregar pegatina',
+      'Dibujar libremente',
+    ]);
+
+    expect(
+      english.map((anchor) => anchor.fingerprint).toList(),
+      spanish.map((anchor) => anchor.fingerprint).toList(),
+    );
+    expect(english.map((anchor) => anchor.fingerprint).toSet(), hasLength(6));
+    expect(spanish.map((anchor) => anchor.fingerprint).toSet(), hasLength(6));
+  });
+
+  testWidgets('grid fingerprints ignore icon changes', (tester) async {
+    final rootKey = GlobalKey();
+
+    Future<List<String?>> capture(List<IconData> icons) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RepaintBoundary(
+            key: rootKey,
+            child: Scaffold(
+              body: GridView.count(
+                crossAxisCount: 2,
+                children: [
+                  for (var index = 0; index < icons.length; index++)
+                    InkWell(
+                      onTap: () {},
+                      child: Column(
+                        children: [
+                          Expanded(child: Icon(icons[index])),
+                          Text('Item $index'),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final resolver = AnchorResolver(rootKey: rootKey);
+      return [
+        for (var index = 0; index < icons.length; index++)
+          resolver
+              .targetAt(
+                tester.getCenter(find.text('Item $index')),
+                route: '/tools',
+              )
+              ?.fingerprint,
+      ];
+    }
+
+    final first = await capture(const [Icons.image, Icons.text_fields]);
+    final second = await capture(const [Icons.photo, Icons.title]);
+
+    expect(first, second);
+    expect(first.toSet(), hasLength(2));
+  });
+
+  testWidgets('image and text taps resolve to one grid control', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: GridView.count(
+              crossAxisCount: 2,
+              children: [
+                InkWell(
+                  onTap: () {},
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Image.asset('test/assets/red_square.png'),
+                      ),
+                      const Text('Change background'),
+                    ],
+                  ),
+                ),
+                for (var index = 1; index < 6; index++)
+                  InkWell(onTap: () {}, child: Text('Item $index')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final resolver = AnchorResolver(rootKey: rootKey);
+    final imageContext = resolver.buildTapContext(
+      tapPosition: tester.getCenter(find.byType(Image)),
+      route: '/create',
+      keyboardOpen: false,
+      modalOpen: false,
+      detectDismissibleBarrier: false,
+    );
+    final textContext = resolver.buildTapContext(
+      tapPosition: tester.getCenter(find.text('Change background')),
+      route: '/create',
+      keyboardOpen: false,
+      modalOpen: false,
+      detectDismissibleBarrier: false,
+    );
+
+    expect(
+      imageContext.target?.fingerprint,
+      textContext.target?.fingerprint,
+      reason:
+          'image=${imageContext.target?.canonicalPath}; '
+          'text=${textContext.target?.canonicalPath}',
+    );
+    expect(imageContext.target?.fingerprint, isNotEmpty);
+    expect(
+      imageContext.inventory?.elements.any(
+        (entry) => entry.fingerprint == imageContext.target?.fingerprint,
+      ),
+      isTrue,
+    );
   });
 
   testWidgets('TugboatTag adds an alias without changing structural identity', (
