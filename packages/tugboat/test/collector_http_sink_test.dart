@@ -179,12 +179,16 @@ void main() {
     );
   }
 
-  TugboatSession createSession({String id = 'session-local'}) {
+  TugboatSession createSession({
+    String id = 'session-local',
+    TugboatLocaleInfo? locale,
+  }) {
     return TugboatSession(
       id: id,
       startedAt: DateTime.utc(2026, 6, 19),
       platform: 'ios',
       viewport: const TugboatRect(0, 0, 390, 844),
+      locale: locale,
     );
   }
 
@@ -244,12 +248,23 @@ void main() {
 
   test('posts session_start and batches events after 10 records', () async {
     final sink = CollectorHttpSink(config: configForServer());
-    final session = createSession();
+    final session = createSession(
+      locale: const TugboatLocaleInfo(
+        language: 'es',
+        country: 'ES',
+        tag: 'es-ES',
+      ),
+    );
     sink.startSession(session);
 
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(sessionPosts, hasLength(1));
     expect(sessionPosts.first['eventType'], 'session_start');
+    expect(sessionPosts.first['locale'], {
+      'language': 'es',
+      'country': 'ES',
+      'tag': 'es-ES',
+    });
 
     for (var i = 0; i < 9; i++) {
       sink.recordEvent(createEvent(i));

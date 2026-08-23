@@ -409,6 +409,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       userId: _userId,
       traits: includeFullTraits ? _traits : null,
       traitsId: includeFullTraits ? null : _traitsId,
+      activeLocale: session.locale,
     );
 
     try {

@@ -11,6 +11,7 @@ import 'external_event.dart';
 import 'health.dart';
 import 'input_capture.dart';
 import 'lifecycle.dart';
+import 'models.dart';
 import 'network_observer.dart';
 
 export 'capture_profile.dart' show TugboatCaptureProfile;
@@ -43,6 +44,7 @@ class TugboatReplay {
   static String? _pendingTraitsId;
   static String? _pendingUserId;
   static bool _pendingUserIdSet = false;
+  static TugboatLocaleInfo? _localeOverride;
 
   /// Convenience root [NavigatorObserver]. Prefer this for the app's primary
   /// Navigator.
@@ -116,6 +118,17 @@ class TugboatReplay {
     if (controller == null) return;
     await controller.setUserId(userId);
     _pendingTraitsId = controller.collectorTraitsId ?? _pendingTraitsId;
+  }
+
+  /// Overrides automatic app-locale observation and emits later changes.
+  ///
+  /// Standard `MaterialApp.builder` and `CupertinoApp.builder` installation
+  /// does not need this call. Use it when Tugboat wraps the app above
+  /// [Localizations] or when the host owns a separate locale state.
+  static void setLocale(Locale locale) {
+    final info = TugboatLocaleInfo.fromLocale(locale);
+    _localeOverride = info;
+    _controller?.recordLocale(info);
   }
 
   /// Pending traits bag applied when the next [CollectorHttpSink] is created.
@@ -258,6 +271,7 @@ class TugboatReplay {
     _pendingTraitsId = null;
     _pendingUserId = null;
     _pendingUserIdSet = false;
+    _localeOverride = null;
   }
 }
 
@@ -456,6 +470,7 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
   InputCapture? inputCapture;
   Timer? _backgroundFlushTimer;
   bool _started = false;
+  TugboatLocaleInfo? _observedLocale;
 
   @override
   void initState() {
@@ -499,6 +514,35 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
     }
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _observeLocale();
+  }
+
+  @override
+  void didChangeLocales(List<Locale>? locales) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _observeLocale();
+    });
+  }
+
+  TugboatLocaleInfo _activeLocale() {
+    final override = TugboatReplay._localeOverride;
+    if (override != null) return override;
+    final locale =
+        Localizations.maybeLocaleOf(context) ??
+        WidgetsBinding.instance.platformDispatcher.locale;
+    return TugboatLocaleInfo.fromLocale(locale);
+  }
+
+  void _observeLocale() {
+    final locale = _activeLocale();
+    if (locale == _observedLocale) return;
+    _observedLocale = locale;
+    if (_started) controller.recordLocale(locale);
+  }
+
   void _scheduleBackgroundFlush() {
     _backgroundFlushTimer?.cancel();
     _backgroundFlushTimer = Timer(_backgroundFlushDelay, () {
@@ -524,7 +568,13 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
       if (!mounted) return;
       controller.navigatorContext =
           TugboatReplay.navigatorObserver.navigator?.context;
-      controller.start(viewport, Platform.isIOS ? 'ios' : 'android');
+      final locale = _observedLocale ?? _activeLocale();
+      _observedLocale = locale;
+      controller.start(
+        viewport,
+        Platform.isIOS ? 'ios' : 'android',
+        locale: locale,
+      );
       _started = true;
       TugboatReplay._lifecycle.markActive(widget.sessionEpoch);
       if (widget.config.enableGlobalPointerCapture) {

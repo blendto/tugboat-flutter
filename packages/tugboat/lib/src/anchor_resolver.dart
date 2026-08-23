@@ -5,8 +5,6 @@ class _TokenMap {
     required this.tokens,
     required this.retainedParents,
     required this.tagIds,
-    required this.labelAnnotations,
-    required this.hasBareItem,
     required this.isActionable,
     required this.hasActionableDescendant,
     required this.hasTokenizedActionableDescendant,
@@ -24,8 +22,6 @@ class _TokenMap {
   final Map<Element, String> tokens;
   final Map<Element, Element?> retainedParents;
   final Map<Element, String> tagIds;
-  final Map<Element, String> labelAnnotations;
-  final Map<Element, bool> hasBareItem;
   final Map<Element, bool> isActionable;
   final Map<Element, bool> hasActionableDescendant;
   final Map<Element, bool> hasTokenizedActionableDescendant;
@@ -213,6 +209,7 @@ class AnchorResolver {
       tapPosition: tapPosition,
       rootRender: rootRender,
     );
+    target = _normalizeTargetToInventory(target: target, inventory: inventory);
     inventory = _injectTapTargetIntoInventory(
       inventory: inventory,
       target: target,
@@ -420,10 +417,10 @@ class AnchorResolver {
       if (tagId != null) 'tag': tagId,
     };
 
-    // A target is well-identified if it (or any retained ancestor, e.g. its
-    // list row) carries a meaningful static discriminator.
-    final hasDiscriminator = _hasInheritedDiscriminator(fpElement, tokenMap);
-    final pathConfidence = hasDiscriminator ? 'medium' : 'low';
+    // A structural list position keeps sibling controls distinct without
+    // making visible copy or icon data part of their identity.
+    final hasItemPosition = _hasInheritedItemPosition(fpElement, tokenMap);
+    final pathConfidence = hasItemPosition ? 'medium' : 'low';
 
     return TugboatTargetAnchor(
       schemaVersion: tugboatFingerprintSchemaVersion,
@@ -447,8 +444,6 @@ class AnchorResolver {
     final tokens = <Element, String>{};
     final retainedParents = <Element, Element?>{};
     final tagIds = <Element, String>{};
-    final labelAnnotations = <Element, String>{};
-    final hasBareItem = <Element, bool>{};
     final isActionable = <Element, bool>{};
     final hasActionableDescendant = <Element, bool>{};
     final hasTokenizedActionableDescendant = <Element, bool>{};
@@ -465,10 +460,15 @@ class AnchorResolver {
       Element element,
       Element? retainedParent,
       bool inList,
+      int? listItemIndex,
       bool sensitive,
       bool underActionable,
     ) {
       final widget = element.widget;
+      var effectiveListItemIndex = listItemIndex;
+      if (inList && widget is IndexedSemantics) {
+        effectiveListItemIndex = widget.index;
+      }
       if (widget is ModalBarrier && widget.dismissible) {
         hasDismissibleModalBarrier = true;
       }
@@ -502,35 +502,24 @@ class AnchorResolver {
               : null);
       Element? newRetainedParent = retainedParent;
       String? token;
-      var bareItem = false;
+      var emittedListItem = false;
 
       if (retainType != null) {
         if (inList) {
-          // Collapse the row's positional index to `[item]`, but bake any safe
-          // static discriminator into the token so descendants inherit it via
-          // their path (e.g. `[item:a1b2]/ListTile#0`).
-          bareItem = true;
-          final discriminator = _safeStaticDiscriminatorForItem(
-            element,
-            isSensitive,
-          );
-          if (discriminator != null) {
-            token = '[item:$discriminator]';
-            labelAnnotations[element] = discriminator;
-            bareItem = false;
-          } else {
-            token = '[item]';
-          }
-          hasBareItem[element] = bareItem;
+          emittedListItem = true;
+          final counterKey = Object.hash(retainedParent, '[item]');
+          final fallbackOrdinal = ordinalCounters[counterKey] ?? 0;
+          ordinalCounters[counterKey] = fallbackOrdinal + 1;
+          final structuralIndex = effectiveListItemIndex ?? fallbackOrdinal;
+          token = '[item:$structuralIndex]';
         } else {
           final counterKey = Object.hash(retainedParent, retainType);
           final ordinal = ordinalCounters[counterKey] ?? 0;
           ordinalCounters[counterKey] = ordinal + 1;
           token = '$retainType#$ordinal';
 
-          // Discriminators are only embedded for list rows (`[item]`) and via
-          // explicit tags. Container nodes are left as bare `Type#ordinal` to
-          // avoid leaking dynamic descendant text into the path.
+          // Explicit tags remain aliases. Container nodes stay as bare
+          // `Type#ordinal` tokens and never include descendant display data.
           final tagId = _tagIdFromWidget(widget);
           if (tagId != null) {
             tagIds[element] = tagId;
@@ -550,10 +539,10 @@ class AnchorResolver {
       final childUnderActionable =
           underActionable || tugboatIsActionableWidget(widget);
 
-      // Once we emit an `[item]` token we are inside a single list entry, so
+      // Once we emit an item token we are inside a single list entry, so
       // descendants resume normal tokenization (and only a *nested* list
       // container re-enters list mode). This prevents `[item]/[item]/...` chains.
-      final childInList = token == '[item]'
+      final childInList = emittedListItem
           ? false
           : (inList || _isListContainer(widget));
 
@@ -568,6 +557,7 @@ class AnchorResolver {
           child,
           newRetainedParent ?? retainedParent,
           childInList,
+          emittedListItem ? null : effectiveListItemIndex,
           isSensitive,
           childUnderActionable,
         );
@@ -590,8 +580,6 @@ class AnchorResolver {
               tokens.remove(key);
               retainedParents.remove(key);
               tagIds.remove(key);
-              labelAnnotations.remove(key);
-              hasBareItem.remove(key);
               isActionable.remove(key);
               hasActionableDescendant.remove(key);
               hasTokenizedActionableDescendant.remove(key);
@@ -651,7 +639,7 @@ class AnchorResolver {
     // Visit the full element tree (not only onstage) so OverlayPortal/Tooltip
     // subtrees stay addressable for hit testing, matching pre-merge inclusion.
     rootElement.visitChildElements(
-      (child) => visit(child, null, false, false, false),
+      (child) => visit(child, null, false, null, false, false),
     );
     // Always include the capture root so hit mapping stays consistent.
     includedElements.add(rootElement);
@@ -678,8 +666,6 @@ class AnchorResolver {
       tokens: tokens,
       retainedParents: retainedParents,
       tagIds: tagIds,
-      labelAnnotations: labelAnnotations,
-      hasBareItem: hasBareItem,
       isActionable: isActionable,
       hasActionableDescendant: hasActionableDescendant,
       hasTokenizedActionableDescendant: hasTokenizedActionableDescendant,
@@ -730,12 +716,11 @@ class AnchorResolver {
   String _pathFor(Element element, _TokenMap tokenMap) =>
       _pathForMaps(element, tokenMap.tokens, tokenMap.retainedParents);
 
-  /// Whether [element] or any of its retained ancestors carries a meaningful
-  /// static discriminator (a row label such as `Pro`, or a labelled control).
-  bool _hasInheritedDiscriminator(Element element, _TokenMap tokenMap) {
+  /// Whether [element] or a retained ancestor has a structural item position.
+  bool _hasInheritedItemPosition(Element element, _TokenMap tokenMap) {
     Element? current = element;
     while (current != null) {
-      if (tokenMap.labelAnnotations[current] != null) return true;
+      if (tokenMap.tokens[current]?.startsWith('[item:') == true) return true;
       current = tokenMap.retainedParents[current];
     }
     return false;
@@ -812,69 +797,6 @@ class AnchorResolver {
       'PopupRoute',
     ];
     return anonymousFragments.any(route.contains);
-  }
-
-  String? _safeStaticDiscriminatorForItem(Element element, bool sensitive) {
-    if (sensitive) return null;
-
-    String? label;
-    void visit(Element node, bool nodeSensitive) {
-      if (label != null) return;
-      final nodeWidget = node.widget;
-      if (tugboatHidesSubtree(nodeWidget) || nodeWidget is TugboatInternal) {
-        return;
-      }
-      final isNodeSensitive = nodeSensitive || nodeWidget is TugboatSensitive;
-      if (isNodeSensitive) return;
-
-      if (nodeWidget is Text) {
-        final data = nodeWidget.data ?? nodeWidget.textSpan?.toPlainText();
-        if (data != null && _isSafeStaticLabel(data)) {
-          label = data;
-          return;
-        }
-      }
-      if (nodeWidget is Icon && nodeWidget.icon != null) {
-        label = tugboatIconLabel(nodeWidget.icon!);
-        return;
-      }
-      node.debugVisitOnstageChildren((child) => visit(child, isNodeSensitive));
-    }
-
-    visit(element, sensitive);
-    return label == null ? null : tugboatLabelHash(label!);
-  }
-
-  bool _isSafeStaticLabel(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty || trimmed.length > 24) return false;
-    if (trimmed.contains('\n')) return false;
-    if (RegExp(r'\d').hasMatch(trimmed)) return false;
-    if (_hasDynamicMarkers(trimmed)) return false;
-    if (_isNumericHeavy(trimmed)) return false;
-    return true;
-  }
-
-  bool _hasDynamicMarkers(String value) {
-    final lower = value.toLowerCase();
-    if (value.contains('@')) return true;
-    if (lower.contains('http://') || lower.contains('https://')) return true;
-    if (RegExp(
-      r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
-      caseSensitive: false,
-    ).hasMatch(value)) {
-      return true;
-    }
-    return false;
-  }
-
-  bool _isNumericHeavy(String value) {
-    final digits = RegExp(r'\d').allMatches(value).length;
-    if (digits == 0) return false;
-    if (digits / value.length > 0.5) return true;
-    if (RegExp(r'\d{1,3}([.,]\d{3})+').hasMatch(value)) return true;
-    if (RegExp(r'\d+[/\-]\d+').hasMatch(value)) return true;
-    return false;
   }
 
   String? _normalizedWidgetTypeName(Widget widget) {

@@ -360,16 +360,17 @@ Available mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
 stay visible; other custom-painted or decorated image surfaces are not
 classified by this mode, so wrap them in `TugboatSensitive` when needed).
 
-The structural telemetry does not retain arbitrary `Text`, accessibility,
-tooltip, or icon label strings. Dynamic list discriminators are hashed before
-they enter canonical paths. Telemetry does include developer-authored routing
-and identity strings where applicable:
+The structural telemetry does not use or retain arbitrary `Text`,
+accessibility, tooltip, or icon label strings as target identity. List and grid
+items use structural positions. Telemetry does include developer-authored
+routing and identity strings where applicable:
 
 - route names in `route_change.data` and anchor `routeKey` fields;
 - `TugboatSubView.label` in state/scroll context;
 - `TugboatTag.id` in `targetAnchor.fingerprintParts.tag` (and its hashed
   `tagFingerprint`);
 - widget type names and canonical structural paths;
+- active app locale language, country, script, and BCP 47 tag when available;
 - normalized bounds, pointer coordinates, scroll metrics, and screenshot
   pixels after the configured masking policy is applied.
 
@@ -451,9 +452,8 @@ remain the primary gesture-level visual evidence.
 
 Fingerprint schema v6 derives target identity from route plus a normalized
 canonical widget path. Wrapper widgets are filtered, same-type siblings receive
-ordinals, list positions collapse to `[item]`, and conservative static list
-discriminators are hashed. `TugboatTag` adds an alias without changing the
-structural fingerprint:
+ordinals, and list or grid items receive structural `[item:index]` tokens.
+`TugboatTag` adds an alias without changing the structural fingerprint:
 
 ```dart
 TugboatTag(
@@ -466,6 +466,22 @@ TugboatTag(
 and scroll attribution. `widgetNames` can replace runtime type names used in
 canonical paths, which is particularly useful when an obfuscated build needs a
 generated stable-name map.
+
+Locale is evidence, not identity. When `wrapApp` is installed in
+`MaterialApp.builder` or `CupertinoApp.builder`, the SDK observes the active
+`Localizations` locale. Session metadata and every event carry the current
+locale. A change emits a `locale_changed` evidence event with the previous and
+current locale. Exploration WebSocket sessions carry the same locale metadata.
+
+Apps that mount Tugboat above `Localizations`, or own a separate locale state,
+can report it explicitly:
+
+```dart
+TugboatReplay.setLocale(const Locale('es', 'ES'));
+```
+
+Atlas can use the locale tag to select locale-specific enrichment. It must keep
+build identity and target fingerprint as the control identity key.
 
 ## Lifecycle
 

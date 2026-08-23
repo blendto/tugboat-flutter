@@ -43,6 +43,11 @@ void main() {
       stream: TugboatEventStream.semantic,
       beforeFrame: 'frame-34',
       afterFrame: 'frame-35',
+      locale: const TugboatLocaleInfo(
+        language: 'es',
+        country: 'ES',
+        tag: 'es-ES',
+      ),
       data: {
         'interactionSchema': tugboatInteractionSchemaVersion,
         'route': '/home',
@@ -74,6 +79,11 @@ void main() {
     expect(mapped.containsKey('position'), isFalse);
     expect(mapped['beforeFrame'], 'frame-34');
     expect(mapped['afterFrame'], 'frame-35');
+    expect(mapped['locale'], {
+      'language': 'es',
+      'country': 'ES',
+      'tag': 'es-ES',
+    });
     expect(mapped.containsKey('result'), isFalse);
     expect(mapped.containsKey('targetAnchor'), isFalse);
     expect(mapped.containsKey('stateAnchor'), isFalse);
@@ -286,6 +296,11 @@ void main() {
       sessionId: 'sess_123',
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
+      activeLocale: const TugboatLocaleInfo(
+        language: 'es',
+        country: 'ES',
+        tag: 'es-ES',
+      ),
     );
 
     expect(mapped['sessionId'], 'sess_123');
@@ -297,7 +312,12 @@ void main() {
     expect((mapped['appInfo'] as Map)['packageName'], 'com.example.app');
     expect((mapped['device'] as Map)['platform'], 'ios');
     expect((mapped['ipInfo'] as Map)['ip'], '127.0.0.1');
-    expect((mapped['locale'] as Map)['language'], 'en');
+    expect(mapped['locale'], {
+      'timezone': 'America/New_York',
+      'language': 'es',
+      'country': 'ES',
+      'tag': 'es-ES',
+    });
     expect(mapped.containsKey('platform'), isFalse);
     expect(mapped.containsKey('fingerprintSchemaVersion'), isFalse);
     expect(mapped.containsKey('traits'), isFalse);

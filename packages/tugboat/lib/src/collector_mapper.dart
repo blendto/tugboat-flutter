@@ -90,6 +90,7 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
     if (event.explorationRunId != null)
       'explorationRunId': event.explorationRunId,
     if (event.actionId != null) 'actionId': event.actionId,
+    if (event.locale != null) 'locale': event.locale!.toJson(),
     if (event.beforeFrame != null) 'beforeFrame': event.beforeFrame,
     if (event.afterFrame != null) 'afterFrame': event.afterFrame,
     if (traitsId != null) 'traitsId': traitsId,
@@ -127,6 +128,7 @@ Map<String, Object?> _collectorFlatEnvelope({
     if (event.explorationRunId != null)
       'explorationRunId': event.explorationRunId,
     if (event.actionId != null) 'actionId': event.actionId,
+    if (event.locale != null) 'locale': event.locale!.toJson(),
     if (traitsId != null) 'traitsId': traitsId,
     'build': collectorEventBuildIdentity(collectorConfig),
   };
@@ -153,6 +155,7 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   String? userId,
   Map<String, dynamic>? traits,
   String? traitsId,
+  TugboatLocaleInfo? activeLocale,
 }) {
   final isSessionStart =
       eventType == TugboatCollectorSessionEventType.sessionStart.wireValue;
@@ -180,11 +183,20 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
     final appInfo = Map<String, Object?>.from(config.appInfo.toJson())
       ..remove('installationId')
       ..remove('name');
+    final locale = Map<String, Object?>.from(config.locale.toJson());
+    if (activeLocale != null) {
+      locale
+        ..remove('language')
+        ..remove('country')
+        ..remove('script')
+        ..remove('tag')
+        ..addAll(activeLocale.toJson());
+    }
     body.addAll({
       'appInfo': appInfo,
       'device': config.deviceInfo.toJson(),
       'ipInfo': config.ipInfo.toJson(),
-      'locale': config.locale.toJson(),
+      'locale': locale,
     });
   }
   if (carriesTraits) {

@@ -16,6 +16,7 @@ arbitrary visible text as structural identity.
 - State and target identity are deterministic within one build and fingerprint
   schema version.
 - Exploration and production profiles use the same fingerprint algorithm.
+- Locale is emitted as session and event evidence but never enters identity.
 - Developer tags strengthen matching but are optional.
 - Screenshots remain visual evidence and are masked before leaving the app.
 - Capture failures and sink failures must not interrupt the host app.
@@ -180,8 +181,8 @@ frame-scoped token map that:
 3. retains salient and actionable widgets, including actionable widgets such
    as `InkWell` even when their type is otherwise denylisted;
 4. assigns same-type sibling ordinals after filtering;
-5. collapses repeating list positions to `[item]` while preserving a hashed,
-   conservative static discriminator when available;
+5. gives repeating list and grid items structural `[item:index]` tokens from
+   `IndexedSemantics.index`, with traversal order as a fallback;
 6. resolves a route key from a non-anonymous route name or a structural
    fallback;
 7. caches the token map only for the current Flutter frame so tap resolution,
@@ -196,6 +197,21 @@ fingerprint parts for diagnosis.
 `tagFingerprint`. A tag is transparent to structural identity: adding it does
 not change the target fingerprint. `TugboatSubView` adds a developer-owned
 subview label for route-internal state and scroll attribution.
+
+### Locale evidence
+
+The capture root observes the active Flutter `Localizations` locale when the
+SDK is installed in the app builder. Sessions and events carry a normalized
+locale object with `language`, optional `country` and `script`, and a BCP 47
+`tag`. A runtime transition emits `locale_changed` on the evidence stream.
+
+The exploration WebSocket session message and the HTTP collector
+`session_start` carry the initial active app locale. Later events carry the
+current locale directly. `TugboatReplay.setLocale(...)` supports hosts where
+the capture root cannot observe `Localizations`.
+
+Atlas may use locale to select labels or group observations. Locale must not
+namespace or alter the structural fingerprint.
 
 ### State identity
 
@@ -218,9 +234,8 @@ corroborate low-confidence matches rather than treating them as ground truth.
 
 ### What is and is not retained
 
-The structural pipeline does not serialize arbitrary `Text`, accessibility,
-tooltip, or icon-label strings. Candidate static labels are inspected only to
-decide whether a hashed discriminator is safe.
+The structural pipeline does not use or serialize arbitrary `Text`,
+accessibility, tooltip, or icon-label strings as target identity.
 
 Developer-authored identity strings can still be emitted:
 
@@ -346,7 +361,7 @@ HTTP delivery and exploration WebSocket queues remain process-local. See
 ## Verified implementation coverage
 
 The package test suite covers deterministic fingerprints, list-length and
-scroll stability, dynamic-label exclusion, static list discriminators, tag
+scroll stability, locale-independent structural item positions, tag
 transparency, route separation, modal/visibility filtering, generated widget
 names, actionable `InkWell` paths, dormant activation without rebuild,
 screenshot mask defaults, route payloads, scroll/swipe attribution, schema-v10

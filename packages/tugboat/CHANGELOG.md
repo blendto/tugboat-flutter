@@ -9,12 +9,18 @@ This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.8`.
   a closed failure reason when no safe target fingerprint is available.
 - Actionable semantic nodes without a direct fingerprint link can use a
   guarded scene-inventory fallback. Fallback fingerprints have low confidence.
+- Capture sessions and events now carry the active app locale. The SDK observes
+  `Localizations`, emits `locale_changed` evidence, includes locale in
+  exploration sessions, and supports `TugboatReplay.setLocale(...)`.
 
 ### Changed
 
 - A completed exploration tap reuses its pointer-down evidence. Pan, zoom,
   scroll, cancellation, secondary pointers, production capture, and dormant
   capture do not run or publish this tap-only path.
+- Fingerprint schema 6 now uses structural list and grid positions instead of
+  visible text or icon data. Nested Flutter hit targets normalize to the same
+  primary inventory control in exploration and production capture.
 
 ## 0.8.7
 

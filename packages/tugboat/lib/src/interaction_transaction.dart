@@ -82,6 +82,7 @@ class InteractionOrigin {
     required this.startPosition,
     required this.pointerGeneration,
     required this.captureSessionId,
+    this.locale,
     this.explorationRunId,
     this.actionId,
   });
@@ -98,6 +99,7 @@ class InteractionOrigin {
   final Offset startPosition;
   final int pointerGeneration;
   final String? captureSessionId;
+  final TugboatLocaleInfo? locale;
   final String? explorationRunId;
   final String? actionId;
 }
