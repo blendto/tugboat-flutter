@@ -797,6 +797,41 @@ void main() {
     sink.dispose();
   });
 
+  test('session_start retries keep the initial locale', () async {
+    sessionStatus = 503;
+    final sink = CollectorHttpSink(config: configForServer());
+    final session = createSession(
+      locale: const TugboatLocaleInfo(
+        language: 'en',
+        country: 'US',
+        tag: 'en-US',
+      ),
+    );
+    sink.startSession(session);
+
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    session.locale = const TugboatLocaleInfo(
+      language: 'es',
+      country: 'ES',
+      tag: 'es-ES',
+    );
+    sessionStatus = 202;
+    await sink.flush();
+
+    final starts = sessionPosts.where(
+      (post) => post['eventType'] == 'session_start',
+    );
+    expect(starts, hasLength(greaterThanOrEqualTo(2)));
+    for (final start in starts) {
+      expect(start['locale'], {
+        'language': 'en',
+        'country': 'US',
+        'tag': 'en-US',
+      });
+    }
+    sink.dispose();
+  });
+
   test(
     'endSession drains session_end after session_start advances mid-drain',
     () async {

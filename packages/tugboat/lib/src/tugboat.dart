@@ -568,7 +568,9 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
       if (!mounted) return;
       controller.navigatorContext =
           TugboatReplay.navigatorObserver.navigator?.context;
-      final locale = _observedLocale ?? _activeLocale();
+      // Re-read the override after initialization. setLocale can run while
+      // the async session-start callback is waiting for initialize().
+      final locale = _activeLocale();
       _observedLocale = locale;
       controller.start(
         viewport,

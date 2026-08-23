@@ -68,6 +68,45 @@ void main() {
     expect(anchor?.canonicalPath, contains('[item:12]'));
   });
 
+  testWidgets('lazy list slots stay stable without semantic indexes', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    final scrollController = ScrollController(initialScrollOffset: 600);
+    addTearDown(scrollController.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: ListView.builder(
+              controller: scrollController,
+              addSemanticIndexes: false,
+              itemCount: 30,
+              itemExtent: 80,
+              itemBuilder: (context, index) =>
+                  ListTile(title: Text('Row $index'), onTap: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    TugboatTargetAnchor? anchorForRow12() => AnchorResolver(
+      rootKey: rootKey,
+    ).targetAt(tester.getCenter(find.text('Row 12')), route: '/feed');
+
+    final before = anchorForRow12();
+    scrollController.jumpTo(800);
+    await tester.pump();
+    final after = anchorForRow12();
+
+    expect(before?.canonicalPath, contains('[item:12]'));
+    expect(after?.canonicalPath, contains('[item:12]'));
+    expect(after?.fingerprint, before?.fingerprint);
+  });
+
   testWidgets('structural positions distinguish short-label list items', (
     tester,
   ) async {

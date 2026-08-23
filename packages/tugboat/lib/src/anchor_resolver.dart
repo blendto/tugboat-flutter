@@ -466,6 +466,14 @@ class AnchorResolver {
     ) {
       final widget = element.widget;
       var effectiveListItemIndex = listItemIndex;
+      if (inList && effectiveListItemIndex == null) {
+        final slot = element.slot;
+        if (slot is int && slot >= 0) {
+          effectiveListItemIndex = slot;
+        } else if (slot is IndexedSlot && slot.index >= 0) {
+          effectiveListItemIndex = slot.index;
+        }
+      }
       if (inList && widget is IndexedSemantics) {
         effectiveListItemIndex = widget.index;
       }
