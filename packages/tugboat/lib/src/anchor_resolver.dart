@@ -466,14 +466,6 @@ class AnchorResolver {
     ) {
       final widget = element.widget;
       var effectiveListItemIndex = listItemIndex;
-      if (inList && effectiveListItemIndex == null) {
-        final slot = element.slot;
-        if (slot is int && slot >= 0) {
-          effectiveListItemIndex = slot;
-        } else if (slot is IndexedSlot && slot.index >= 0) {
-          effectiveListItemIndex = slot.index;
-        }
-      }
       if (inList && widget is IndexedSemantics) {
         effectiveListItemIndex = widget.index;
       }
@@ -561,11 +553,20 @@ class AnchorResolver {
       var childHasTokenizedActionable = false;
       final childElements = <Element>{};
       element.visitChildElements((child) {
+        var childListItemIndex = emittedListItem
+            ? null
+            : effectiveListItemIndex;
+        if (childInList && element is SliverMultiBoxAdaptorElement) {
+          // This element owns the lazy sliver index. Other int/IndexedSlot
+          // values describe unrelated ancestor or descendant child order.
+          final slot = child.slot;
+          if (slot is int && slot >= 0) childListItemIndex = slot;
+        }
         final childResult = visit(
           child,
           newRetainedParent ?? retainedParent,
           childInList,
-          emittedListItem ? null : effectiveListItemIndex,
+          childListItemIndex,
           isSensitive,
           childUnderActionable,
         );
