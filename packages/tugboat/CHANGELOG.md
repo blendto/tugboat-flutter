@@ -1,3 +1,13 @@
+## Unreleased
+
+### Fixed
+
+- Keep a classified touch gesture open until all contacts lift. Replacement
+  fingers join the same gesture, and zoom scale continues across contact changes.
+- Detect pinches that start with contacts closer than the touch slop.
+- Keep stationary third-finger taps until movement confirms a shared gesture.
+- Include trackpad pan travel in `endPosition` and `delta`.
+
 ## 0.8.8
 
 This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.8`.

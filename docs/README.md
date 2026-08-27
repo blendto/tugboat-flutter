@@ -11,6 +11,7 @@ should be verified in their own repositories.
 - [SDK README](../packages/tugboat/README.md) — install, public API, configuration, and limits
 - [Collector integration](integration/collector.md) — Flutter WebSocket and HTTP wire behavior
 - [Production replay acceptance](integration/production-replay-acceptance.md) — release, Blend canary, and manual production replay gate
+- [Blend gesture check, 2026-08-26](integration/blend-gesture-check-2026-08-26.md) — local Android pinch/pan evidence and remaining recorder gaps
 - [Example exploration brief](exploration/example-brief.md) — goals and constraints for the demo app
 
 ## Design
