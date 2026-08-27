@@ -503,10 +503,12 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
+        inputCapture?.reset();
         _scheduleBackgroundFlush();
       case AppLifecycleState.resumed:
         _cancelBackgroundFlush();
       case AppLifecycleState.detached:
+        inputCapture?.reset();
         _cancelBackgroundFlush();
         unawaited(controller.endSession());
       case AppLifecycleState.inactive:

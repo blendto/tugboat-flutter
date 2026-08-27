@@ -19,7 +19,7 @@ InteractionGesture? classifyMultiPointerGesture({
   required Offset startCentroid,
   required Offset currentCentroid,
 }) {
-  if (pointerCount >= 2 && startSpan >= kTouchSlop) {
+  if (pointerCount >= 2 && startSpan > 0) {
     final spanDelta = (currentSpan - startSpan).abs();
     if (spanDelta >= kScaleSlop) {
       return currentSpan > startSpan
@@ -95,6 +95,7 @@ class InputCapture {
   _MultiPointerSession? _multi;
   int? _panZoomPointer;
   InteractionGesture? _panZoomClassified;
+  Offset? _panZoomEndPosition;
 
   void install() {
     if (_installed) return;
@@ -103,9 +104,21 @@ class InputCapture {
   }
 
   void dispose() {
-    if (!_installed) return;
-    GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointer);
+    if (_installed) {
+      GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointer);
+    }
     _installed = false;
+    reset();
+  }
+
+  /// Clears contacts when the controller abandons input on a lifecycle change.
+  void reset() {
+    _multi = null;
+    _clearPanZoom();
+    _pointerDownPositions.clear();
+    _pointerPositions.clear();
+    _pointerOrder.clear();
+    _pointerIsSwipe.clear();
   }
 
   void handlePointerDown(PointerDownEvent event) {
@@ -124,9 +137,12 @@ class InputCapture {
   }
 
   void handlePointerMove(PointerMoveEvent event) {
+    if (!_pointerDownPositions.containsKey(event.pointer)) return;
+    final previousPosition = _pointerPositions[event.pointer]!;
     _pointerPositions[event.pointer] = event.position;
     final multi = _multi;
     if (multi != null && multi.pointers.contains(event.pointer)) {
+      _updateMultiPointerTravel(multi, event, previousPosition);
       _classifyMultiPointer();
       return;
     }
@@ -134,22 +150,32 @@ class InputCapture {
   }
 
   void handlePointerUp(PointerUpEvent event) {
+    if (!_pointerDownPositions.containsKey(event.pointer)) return;
+    final previousPosition = _pointerPositions[event.pointer]!;
     _pointerPositions[event.pointer] = event.position;
     final multi = _multi;
     if (multi != null && multi.pointers.contains(event.pointer)) {
+      _updateMultiPointerTravel(multi, event, previousPosition);
+      if (previousPosition != event.position) {
+        _classifyMultiPointer();
+      }
       if (multi.classified != null) {
-        final endPosition = primaryPointerEndPosition(
-          primaryPointer: multi.primaryPointer,
-          pointerPositions: _pointerPositions,
-          fallback: event.position,
-        );
-        _completeMultiPointer(endPosition);
+        multi.pointers.remove(event.pointer);
+        _clearPointer(event.pointer);
+        if (multi.pointers.isEmpty) {
+          _completeMultiPointer(multi.endPosition);
+        } else {
+          // Keep the transaction until every contact lifts. A replacement
+          // finger must join this gesture, not start a separate swipe.
+          _refreshMultiPointerBaseline(multi);
+        }
         return;
       }
       _multi = null;
     }
     controller.recordPointerUp(event.position, pointer: event.pointer);
     _clearPointer(event.pointer);
+    _ensureMultiPointerSession();
   }
 
   void handlePointerCancel(PointerCancelEvent event) {
@@ -179,10 +205,13 @@ class InputCapture {
   void handlePanZoomStart(PointerPanZoomStartEvent event) {
     _panZoomPointer = event.pointer;
     _panZoomClassified = null;
+    _panZoomEndPosition = event.position;
     controller.recordPointerDown(event.position, pointer: event.pointer);
   }
 
   void handlePanZoomUpdate(PointerPanZoomUpdateEvent event) {
+    if (_panZoomPointer != event.pointer) return;
+    _panZoomEndPosition = event.position + event.pan;
     final classified = classifyTrackpadPanZoom(
       scale: event.scale,
       pan: event.pan,
@@ -198,10 +227,14 @@ class InputCapture {
   }
 
   void handlePanZoomEnd(PointerPanZoomEndEvent event) {
+    if (_panZoomPointer != event.pointer) return;
     if (_panZoomClassified == null) {
       controller.recordPointerCancel(event.position, pointer: event.pointer);
     } else {
-      controller.recordPointerUp(event.position, pointer: event.pointer);
+      controller.recordPointerUp(
+        _panZoomEndPosition ?? event.position,
+        pointer: event.pointer,
+      );
     }
     _clearPanZoom();
     _clearPointer(event.pointer);
@@ -251,6 +284,7 @@ class InputCapture {
     if (points.length < 2) return;
     _multi = _MultiPointerSession(
       primaryPointer: _pointerOrder.first,
+      endPosition: points.first,
       pointers: pointers,
       startCentroid: _centroidOf(points),
       startSpan: _maxSpan(points),
@@ -260,11 +294,32 @@ class InputCapture {
   void _growMultiPointerSession(int pointer) {
     final multi = _multi;
     if (multi == null || !multi.pointers.add(pointer)) return;
-    controller.suppressPendingPointer(pointer);
+    if (multi.classified != null) {
+      controller.suppressPendingPointer(pointer);
+    }
     _refreshMultiPointerBaseline(multi);
   }
 
+  void _updateMultiPointerTravel(
+    _MultiPointerSession multi,
+    PointerEvent event,
+    Offset previousPosition,
+  ) {
+    if (event.pointer == multi.primaryPointer) {
+      multi.endPosition = event.position;
+    } else if (!multi.pointers.contains(multi.primaryPointer)) {
+      // Continue from the primary's last point using active-centroid travel.
+      // Only movement contributes: joining/lifting contacts cannot add jumps.
+      multi.endPosition +=
+          (event.position - previousPosition) /
+          multi.pointers.length.toDouble();
+    }
+  }
+
   void _refreshMultiPointerBaseline(_MultiPointerSession multi) {
+    // A contact change alters the span without scaling the content. Preserve
+    // the scale so later movement continues from the last classified segment.
+    multi.baseScale = multi.scale;
     final points = <Offset>[];
     for (final activePointer in multi.pointers) {
       final point = _pointerPositions[activePointer];
@@ -274,6 +329,9 @@ class InputCapture {
     if (points.length < 2) return;
     multi.startCentroid = _centroidOf(points);
     multi.startSpan = _maxSpan(points);
+    if (multi.classified == null) {
+      multi.initialSpan = multi.startSpan;
+    }
   }
 
   void _classifyMultiPointer() {
@@ -288,17 +346,20 @@ class InputCapture {
     if (points.length < 2) return;
     final centroid = _centroidOf(points);
     final span = _maxSpan(points);
+    final scale = multi.startSpan > 0
+        ? multi.baseScale * span / multi.startSpan
+        : 1.0;
     final classified = classifyMultiPointerGesture(
       pointerCount: multi.pointers.length,
-      startSpan: multi.startSpan,
-      currentSpan: span,
+      startSpan: multi.initialSpan,
+      currentSpan: multi.initialSpan * scale,
       startCentroid: multi.startCentroid,
       currentCentroid: centroid,
     );
     if (classified == null) return;
     multi.classified = classified;
     multi.classifiedPointerCount = multi.pointers.length;
-    multi.scale = multi.startSpan > 0 ? span / multi.startSpan : 1;
+    multi.scale = scale;
     _applyClusterClassification(multi);
   }
 
@@ -331,6 +392,7 @@ class InputCapture {
   void _clearPanZoom() {
     _panZoomPointer = null;
     _panZoomClassified = null;
+    _panZoomEndPosition = null;
   }
 
   void _clearPointer(int pointer) {
@@ -350,18 +412,23 @@ class InputCapture {
 class _MultiPointerSession {
   _MultiPointerSession({
     required this.primaryPointer,
+    required this.endPosition,
     required Set<int> pointers,
     required this.startCentroid,
     required this.startSpan,
-  }) : pointers = Set<int>.from(pointers);
+  }) : pointers = Set<int>.from(pointers),
+       initialSpan = startSpan;
 
   final int primaryPointer;
   final Set<int> pointers;
+  double initialSpan;
+  Offset endPosition;
   Offset startCentroid;
   double startSpan;
   InteractionGesture? classified;
   int classifiedPointerCount = 1;
   double scale = 1;
+  double baseScale = 1;
 }
 
 Offset _centroidOf(List<Offset> points) {

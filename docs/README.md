@@ -11,6 +11,8 @@ should be verified in their own repositories.
 - [SDK README](../packages/tugboat/README.md) — install, public API, configuration, and limits
 - [Collector integration](integration/collector.md) — Flutter WebSocket and HTTP wire behavior
 - [Production replay acceptance](integration/production-replay-acceptance.md) — release, Blend canary, and manual production replay gate
+- [Blend gesture check, 2026-08-26](integration/blend-gesture-check-2026-08-26.md) — local Android pinch/pan evidence and remaining recorder gaps
+- [Gesture PR review, 2026-08-27](integration/gesture-pr-review-2026-08-27.md) — Cursor review, follow-up fixes, tests, and device limits
 - [Example exploration brief](exploration/example-brief.md) — goals and constraints for the demo app
 
 ## Design
@@ -28,8 +30,8 @@ should be verified in their own repositories.
 
 ## Current compatibility
 
-- package version: `0.8.6`;
-- release line: `0.8.x` (`0.8.6` follows `0.8.0`);
+- package version: `0.8.9`;
+- release line: `0.8.x` (`0.8.9` is a patch after `0.8.8`);
 - session JSON schema: `10`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;

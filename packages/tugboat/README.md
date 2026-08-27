@@ -5,9 +5,19 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.8`. Session JSON writers and readers use
+The current package version is `0.8.9`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.8.9
+
+Pinch and pan stay in one interaction until all contacts lift. Replacement
+fingers preserve the gesture and cumulative zoom scale. Pinches can start with
+contacts closer than the touch slop. Trackpad pan includes its travel in
+`endPosition` and `delta`. Stationary third-finger taps remain taps until
+movement confirms a shared gesture. Travel continues after the primary finger
+lifts. Pause, hide, and detach clear old input contacts. One-finger canvas pan
+remains `swipe`.
 
 ## 0.8.8
 
@@ -75,7 +85,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.8.8
+  tugboat_dio: ^0.8.9
 ```
 
 See `packages/tugboat_dio/README.md`.
@@ -393,8 +403,8 @@ host-supplied analytics records via `TugboatReplay.eventHook` (see
 Emitted inferred event types currently include:
 
 - canonical: `interaction` (`stream: semantic`) — one finalized gesture
-  (`tap`, `swipe`, `scroll`, or `cancelled`) with gesture-specific facts under
-  `payload` (omitted for `cancelled`);
+  (`tap`, `swipe`, `scroll`, `pan`, `zoom_in`, `zoom_out`, or `cancelled`) with
+  gesture-specific facts under `payload` (omitted for `cancelled`);
 - lifecycle: `session_start`, `session_identify`, `session_end`;
 - navigation evidence (`stream: evidence`): `route_change`;
 - diagnostics: `capture_diagnostic` (`stream: diagnostic`; exploration profiles only;
@@ -403,6 +413,31 @@ Emitted inferred event types currently include:
   `action_window_cleared`;
 - semantic-map modes: `viewport_semantic_map`,
   `scroll_semantic_snapshot`.
+
+Pinch and pan records keep `eventType: interaction`. Read the `gesture` field
+to identify the movement:
+
+| Observed movement | `gesture` |
+| --- | --- |
+| Fingers move apart, or trackpad scale increases | `zoom_in` |
+| Fingers move together, or trackpad scale decreases | `zoom_out` |
+| Two fingers move together in one direction, or trackpad pan | `pan` |
+| Three or more fingers move together in one direction | `swipe` |
+| Drag with an observed Flutter scroll | `scroll` |
+| Single-finger drag without an observed Flutter scroll | `swipe` |
+
+Classification requires movement above the gesture threshold. A classified
+touch gesture ends when all contacts lift. A replacement finger joins the
+active gesture. The payload includes `pointerCount` for multiple contacts
+and `scale` for zoom. Single-finger canvas pan intentionally records `swipe`.
+Observed Flutter scrolling remains `scroll`.
+
+Touch travel follows the primary contact while that contact is down. After it
+lifts, `endPosition` continues from its last point using movement of the active
+contacts' centroid. Contact joins and lifts do not add travel by themselves.
+Touch `scale` is the cumulative ratio of contact spans across contact changes.
+It is not a measurement of the host widget's transform or proof of a visible
+resize.
 
 Default enrichment and insight selection should use inferred events:
 `stream: semantic` `interaction` records (`enrichmentCandidate: true` on
@@ -417,7 +452,8 @@ requests can coalesce. When the capture boundary has not painted since the
 last accepted frame, the SDK reuses that frame without GPU readback. Otherwise
 it uses a small dHash (Hamming distance ≤ 2) to avoid JPEG encoding for
 near-identical content, and finally deduplicates encoded frames by content hash.
-Each completed tap, swipe, and scroll requests a post-interaction observation.
+Each completed tap, swipe, scroll, pan, and zoom requests a post-interaction
+observation.
 An already encoded route frame can satisfy that observation even when route
 causality is unknown. The frame records only what was visible later. It does
 not prove that the interaction caused the observed UI or navigation.
