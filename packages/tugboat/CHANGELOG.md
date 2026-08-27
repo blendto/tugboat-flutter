@@ -9,9 +9,14 @@ Patch release after `0.8.8`.
 - Detect pinches that start with contacts closer than the touch slop.
 - Keep stationary third-finger taps until movement confirms a shared gesture.
 - Include trackpad pan travel in `endPosition` and `delta`.
+- Continue touch travel after the primary finger lifts. Later contact movement
+  updates `endPosition` and `delta` without jumps when fingers join or lift.
+- Clear input contacts on pause, hide, and detach, even when Flutter does not
+  deliver pointer cancellation. A later swipe starts a new gesture.
 
 One-finger canvas pan remains `swipe`. Observed Flutter scrolling remains
 `scroll`. This patch does not change the event or fingerprint schemas.
+Touch `scale` describes contact-span ratios, not the host widget's transform.
 
 ## 0.8.8
 

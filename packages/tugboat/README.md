@@ -14,7 +14,10 @@ version `6`.
 Pinch and pan stay in one interaction until all contacts lift. Replacement
 fingers preserve the gesture and cumulative zoom scale. Pinches can start with
 contacts closer than the touch slop. Trackpad pan includes its travel in
-`endPosition` and `delta`. One-finger canvas pan remains `swipe`.
+`endPosition` and `delta`. Stationary third-finger taps remain taps until
+movement confirms a shared gesture. Travel continues after the primary finger
+lifts. Pause, hide, and detach clear old input contacts. One-finger canvas pan
+remains `swipe`.
 
 ## 0.8.8
 
@@ -428,6 +431,13 @@ touch gesture ends when all contacts lift. A replacement finger joins the
 active gesture. The payload includes `pointerCount` for multiple contacts
 and `scale` for zoom. Single-finger canvas pan intentionally records `swipe`.
 Observed Flutter scrolling remains `scroll`.
+
+Touch travel follows the primary contact while that contact is down. After it
+lifts, `endPosition` continues from its last point using movement of the active
+contacts' centroid. Contact joins and lifts do not add travel by themselves.
+Touch `scale` is the cumulative ratio of contact spans across contact changes.
+It is not a measurement of the host widget's transform or proof of a visible
+resize.
 
 Default enrichment and insight selection should use inferred events:
 `stream: semantic` `interaction` records (`enrichmentCandidate: true` on

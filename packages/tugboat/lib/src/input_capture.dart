@@ -104,9 +104,21 @@ class InputCapture {
   }
 
   void dispose() {
-    if (!_installed) return;
-    GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointer);
+    if (_installed) {
+      GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointer);
+    }
     _installed = false;
+    reset();
+  }
+
+  /// Clears contacts when the controller abandons input on a lifecycle change.
+  void reset() {
+    _multi = null;
+    _clearPanZoom();
+    _pointerDownPositions.clear();
+    _pointerPositions.clear();
+    _pointerOrder.clear();
+    _pointerIsSwipe.clear();
   }
 
   void handlePointerDown(PointerDownEvent event) {
@@ -126,12 +138,11 @@ class InputCapture {
 
   void handlePointerMove(PointerMoveEvent event) {
     if (!_pointerDownPositions.containsKey(event.pointer)) return;
+    final previousPosition = _pointerPositions[event.pointer]!;
     _pointerPositions[event.pointer] = event.position;
     final multi = _multi;
     if (multi != null && multi.pointers.contains(event.pointer)) {
-      if (event.pointer == multi.primaryPointer) {
-        multi.primaryEndPosition = event.position;
-      }
+      _updateMultiPointerTravel(multi, event, previousPosition);
       _classifyMultiPointer();
       return;
     }
@@ -140,13 +151,11 @@ class InputCapture {
 
   void handlePointerUp(PointerUpEvent event) {
     if (!_pointerDownPositions.containsKey(event.pointer)) return;
-    final previousPosition = _pointerPositions[event.pointer];
+    final previousPosition = _pointerPositions[event.pointer]!;
     _pointerPositions[event.pointer] = event.position;
     final multi = _multi;
     if (multi != null && multi.pointers.contains(event.pointer)) {
-      if (event.pointer == multi.primaryPointer) {
-        multi.primaryEndPosition = event.position;
-      }
+      _updateMultiPointerTravel(multi, event, previousPosition);
       if (previousPosition != event.position) {
         _classifyMultiPointer();
       }
@@ -154,7 +163,7 @@ class InputCapture {
         multi.pointers.remove(event.pointer);
         _clearPointer(event.pointer);
         if (multi.pointers.isEmpty) {
-          _completeMultiPointer(multi.primaryEndPosition);
+          _completeMultiPointer(multi.endPosition);
         } else {
           // Keep the transaction until every contact lifts. A replacement
           // finger must join this gesture, not start a separate swipe.
@@ -275,7 +284,7 @@ class InputCapture {
     if (points.length < 2) return;
     _multi = _MultiPointerSession(
       primaryPointer: _pointerOrder.first,
-      primaryEndPosition: points.first,
+      endPosition: points.first,
       pointers: pointers,
       startCentroid: _centroidOf(points),
       startSpan: _maxSpan(points),
@@ -289,6 +298,22 @@ class InputCapture {
       controller.suppressPendingPointer(pointer);
     }
     _refreshMultiPointerBaseline(multi);
+  }
+
+  void _updateMultiPointerTravel(
+    _MultiPointerSession multi,
+    PointerEvent event,
+    Offset previousPosition,
+  ) {
+    if (event.pointer == multi.primaryPointer) {
+      multi.endPosition = event.position;
+    } else if (!multi.pointers.contains(multi.primaryPointer)) {
+      // Continue from the primary's last point using active-centroid travel.
+      // Only movement contributes: joining/lifting contacts cannot add jumps.
+      multi.endPosition +=
+          (event.position - previousPosition) /
+          multi.pointers.length.toDouble();
+    }
   }
 
   void _refreshMultiPointerBaseline(_MultiPointerSession multi) {
@@ -387,7 +412,7 @@ class InputCapture {
 class _MultiPointerSession {
   _MultiPointerSession({
     required this.primaryPointer,
-    required this.primaryEndPosition,
+    required this.endPosition,
     required Set<int> pointers,
     required this.startCentroid,
     required this.startSpan,
@@ -397,7 +422,7 @@ class _MultiPointerSession {
   final int primaryPointer;
   final Set<int> pointers;
   double initialSpan;
-  Offset primaryEndPosition;
+  Offset endPosition;
   Offset startCentroid;
   double startSpan;
   InteractionGesture? classified;

@@ -185,10 +185,15 @@ void main() {
   });
 
   for (final liftedPointer in [1, 2]) {
-    test('pinch survives replacement of pointer $liftedPointer', () async {
-      final harness = ReplayCoherenceHarness();
-      await harness.setUp();
+    testWidgets('pinch survives replacement of pointer $liftedPointer', (
+      tester,
+    ) async {
+      final harness = ReplayCoherenceHarness(
+        profile: TugboatCaptureProfile.productionLean,
+      );
+      await harness.setUpWidgetBacked(tester);
       addTearDown(harness.dispose);
+      harness.seedRouteState(route: '/pinch');
       final capture = InputCapture(
         controller: harness.controller,
         rootKey: harness.boundaryKey,
@@ -246,7 +251,88 @@ void main() {
       final payload = interactions.single.data['payload'] as Map;
       expect(payload['pointerCount'], 2);
       expect(payload['scale'], closeTo(3, 0.001));
+      final size = tester.getSize(find.byKey(harness.boundaryKey));
+      final delta = payload['delta'] as Map;
+      final end = payload['endPosition'] as Map;
+      final continuedTravel = liftedPointer == 1 ? 50.0 : 0.0;
+      expect(delta['xNorm'], closeTo(continuedTravel / size.width, 0.001));
+      expect(delta['yNorm'], closeTo(0, 0.001));
+      expect(
+        end['xNorm'],
+        closeTo((100 + continuedTravel) / size.width, 0.001),
+      );
     });
+  }
+
+  for (final replaceContact in [false, true]) {
+    testWidgets(
+      'pan travel continues after primary lift, replace=$replaceContact',
+      (tester) async {
+        final harness = ReplayCoherenceHarness(
+          profile: TugboatCaptureProfile.productionLean,
+        );
+        await harness.setUpWidgetBacked(tester);
+        addTearDown(harness.dispose);
+        harness.seedRouteState(route: '/pan');
+        final capture = InputCapture(
+          controller: harness.controller,
+          rootKey: harness.boundaryKey,
+        );
+        capture.handlePointerDown(
+          const PointerDownEvent(pointer: 1, position: Offset(100, 100)),
+        );
+        capture.handlePointerDown(
+          const PointerDownEvent(pointer: 2, position: Offset(200, 100)),
+        );
+        capture.handlePointerMove(
+          const PointerMoveEvent(pointer: 1, position: Offset(100, 140)),
+        );
+        capture.handlePointerMove(
+          const PointerMoveEvent(pointer: 2, position: Offset(200, 140)),
+        );
+        capture.handlePointerUp(
+          const PointerUpEvent(pointer: 1, position: Offset(100, 140)),
+        );
+        capture.handlePointerMove(
+          const PointerMoveEvent(pointer: 2, position: Offset(200, 180)),
+        );
+        if (replaceContact) {
+          // Contact membership changes must not add a coordinate jump.
+          capture.handlePointerDown(
+            const PointerDownEvent(pointer: 3, position: Offset(400, 180)),
+          );
+          capture.handlePointerMove(
+            const PointerMoveEvent(pointer: 2, position: Offset(200, 200)),
+          );
+          capture.handlePointerMove(
+            const PointerMoveEvent(pointer: 3, position: Offset(400, 200)),
+          );
+          capture.handlePointerUp(
+            const PointerUpEvent(pointer: 2, position: Offset(200, 200)),
+          );
+          capture.handlePointerUp(
+            const PointerUpEvent(pointer: 3, position: Offset(400, 220)),
+          );
+        } else {
+          capture.handlePointerUp(
+            const PointerUpEvent(pointer: 2, position: Offset(200, 220)),
+          );
+        }
+        await harness.flushScheduler();
+
+        final interactions = harness.controller.session!.ofType('interaction');
+        expect(interactions, hasLength(1));
+        expect(interactions.single.data['gesture'], 'pan');
+        final payload = interactions.single.data['payload'] as Map;
+        final size = tester.getSize(find.byKey(harness.boundaryKey));
+        final delta = payload['delta'] as Map;
+        final end = payload['endPosition'] as Map;
+        expect(delta['xNorm'], closeTo(0, 0.001));
+        expect(delta['yNorm'], closeTo(120 / size.height, 0.001));
+        expect(end['xNorm'], closeTo(100 / size.width, 0.001));
+        expect(end['yNorm'], closeTo(220 / size.height, 0.001));
+      },
+    );
   }
 
   test('stationary three-finger contact records three taps', () async {
@@ -672,6 +758,72 @@ void main() {
     tearDown(TugboatReplay.resetForTest);
 
     for (final globalCapture in [true, false]) {
+      for (final state in [
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+      ]) {
+        testWidgets(
+          'new swipe after $state without pointer cancel, global=$globalCapture',
+          (tester) async {
+            TugboatReplay.debugConfigureControllerForTest = (controller) {
+              controller.debugExecuteCapture =
+                  ({required trigger, required force}) async =>
+                      controller.debugSeedFrame(trigger: trigger);
+            };
+            await tester.pumpWidget(
+              MaterialApp(
+                builder: (context, child) => TugboatReplay.wrapApp(
+                  config: TugboatReplayConfig(
+                    profile: TugboatCaptureProfile.productionLean,
+                    enableGlobalPointerCapture: globalCapture,
+                    settleDelay: Duration.zero,
+                    interactionClaimWindow: Duration.zero,
+                  ),
+                  child: child!,
+                ),
+                home: const Scaffold(body: ColoredBox(color: Colors.blue)),
+              ),
+            );
+            await tester.pump();
+            final controller = TugboatReplay.controller!;
+            final first = await tester.startGesture(
+              const Offset(100, 100),
+              pointer: 1,
+            );
+            final second = await tester.startGesture(
+              const Offset(200, 100),
+              pointer: 2,
+            );
+            await first.moveTo(const Offset(100, 140));
+            await second.moveTo(const Offset(200, 140));
+
+            // Do not send PointerCancel: lifecycle must clear capture's contacts.
+            tester.binding.handleAppLifecycleStateChanged(state);
+            await tester.pump();
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.resumed,
+            );
+            await tester.pump();
+            final third = await tester.startGesture(
+              const Offset(150, 300),
+              pointer: 3,
+            );
+            await third.moveTo(const Offset(150, 380));
+            await third.up();
+            await first.up();
+            await second.up();
+            await tester.pump();
+            await controller.drainPointerQueue();
+
+            final gestures = controller.session!.events
+                .where((event) => event.type == 'interaction')
+                .map((event) => event.data['gesture']);
+            // Lifecycle finalization retains the already classified pan.
+            expect(gestures, ['pan', 'swipe']);
+            await tester.pumpWidget(const SizedBox.shrink());
+          },
+        );
+      }
       for (final gesture in ['zoom_in', 'zoom_out', 'pan']) {
         testWidgets('$gesture through global capture=$globalCapture', (
           tester,
