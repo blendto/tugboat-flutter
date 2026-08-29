@@ -24,6 +24,12 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     final semanticsAlreadyEnabled =
         initialPipelineOwner.semanticsOwner != null ||
         RendererBinding.instance.rootPipelineOwner.semanticsOwner != null;
+    final scheduler = SchedulerBinding.instance;
+    final canFlushNewSemanticsTree =
+        !semanticsAlreadyEnabled &&
+        allowTransientSemanticsHandle &&
+        scheduler.schedulerPhase == SchedulerPhase.idle &&
+        !scheduler.hasScheduledFrame;
     final semanticsHandle =
         semanticsAlreadyEnabled || !allowTransientSemanticsHandle
         ? null
@@ -37,10 +43,14 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
           pipelineOwner.semanticsOwner ??
           RendererBinding.instance.rootPipelineOwner.semanticsOwner;
       if (semanticsOwner != null) {
-        // Flutter flushes semantics after layout and paint. Forcing a flush
-        // here can assert when a scroll or animation has dirty layout state.
-        // Read the last stable tree and let inventory fallback cover nodes
-        // that are not available until the next pipeline flush.
+        // A transient handle needs one synchronous flush before it is disposed.
+        // Only do that when no frame was pending before semantics were enabled.
+        // A pending frame can contain dirty layout or paint state, where forcing
+        // a semantics flush can assert. In that case, read the last stable tree
+        // and let inventory fallback cover nodes until Flutter's next flush.
+        if (semanticsHandle != null && canFlushNewSemanticsTree) {
+          pipelineOwner.flushSemantics();
+        }
         rootNode = semanticsOwner.rootSemanticsNode;
       }
       void walk(SemanticsNode node, {required Matrix4 transformToRoot}) {

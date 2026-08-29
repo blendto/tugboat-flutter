@@ -16,9 +16,10 @@ The current SDK release candidate is **0.8.10**, which writes session schema
 **v10**. It preserves structural interaction replay while no longer emitting
 `controlValue`, `controlValueTransition`, `semanticAnnotation`, `stateAnchor`,
 or `stateSignature` in new writer output. It also does not emit `state_change`.
-This patch follows `0.8.9`. It avoids forced semantics flushes during dirty
-layout and makes release-gate screenshot tests wait for controller capture
-work. It also documents collector support for all schema-v2 gesture names.
+This patch follows `0.8.9`. It flushes a newly enabled semantics tree only when
+no frame is pending. It also makes release-gate screenshot tests wait for
+controller capture work and documents collector support for all schema-v2
+gesture names.
 One-finger canvas pan remains `swipe`. It does not change the event or
 fingerprint schemas. Treat the absence of the fields above as the expected
 privacy boundary, not as missing capture evidence. Keep the collector

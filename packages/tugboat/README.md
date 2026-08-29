@@ -11,11 +11,11 @@ version `6`.
 
 ## 0.8.10
 
-Viewport semantic capture reads Flutter's last stable semantics tree. It no
-longer forces a semantics flush while layout can be dirty. Inventory fallback
-covers nodes that Flutter has not committed yet. Release-gate screenshot tests
-now wait for controller capture work instead of a fixed delay. Collector
-contract coverage includes pan and both zoom directions.
+Viewport semantic capture flushes a newly enabled semantics tree only when no
+frame is pending. During dirty layout or paint, it reads Flutter's last stable
+tree and uses inventory fallback. Release-gate screenshot tests now wait for
+controller capture work instead of a fixed delay. Collector contract coverage
+includes pan and both zoom directions.
 
 ## 0.8.9
 
