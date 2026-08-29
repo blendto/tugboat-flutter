@@ -789,6 +789,84 @@ void main() {
     expect(resolution.linkedFingerprint, isNotEmpty);
   });
 
+  testWidgets('resolver does not flush semantics while layout is dirty', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: FilledButton(onPressed: () {}, child: const Text('Go')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final resolver = AnchorResolver(rootKey: rootKey);
+    final inventory = resolver.buildSceneInventory(
+      route: '/home',
+      keyboardOpen: false,
+      modalOpen: false,
+    );
+    expect(inventory, isNotNull);
+
+    tester.renderObject(find.text('Go')).markNeedsLayout();
+    expect(
+      () => resolver.buildViewportSemanticMap(inventory: inventory!),
+      returnsNormally,
+    );
+  });
+
+  testWidgets('resolver flushes a new semantics tree when the frame is clean', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: Column(
+              children: [
+                Semantics(
+                  button: true,
+                  onTap: () {},
+                  child: const SizedBox(width: 80, height: 40),
+                ),
+                FilledButton(onPressed: () {}, child: const Text('Context')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final resolver = AnchorResolver(rootKey: rootKey);
+    final inventory = resolver.buildSceneInventory(
+      route: '/home',
+      keyboardOpen: false,
+      modalOpen: false,
+    );
+    expect(inventory, isNotNull);
+    expect(WidgetsBinding.instance.hasScheduledFrame, isFalse);
+
+    final map = resolver.buildViewportSemanticMap(inventory: inventory!);
+    expect(map, isNotNull);
+    expect(
+      map!.nodes.where(
+        (node) =>
+            node.source == 'semantic' &&
+            node.role == 'button' &&
+            node.actions.contains('tap'),
+      ),
+      hasLength(2),
+    );
+  });
+
   testWidgets('unavailable scroll start still resets semantic accumulation', (
     tester,
   ) async {

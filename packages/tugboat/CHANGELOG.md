@@ -1,3 +1,23 @@
+## 0.8.10
+
+Patch release after `0.8.9`.
+
+### Fixed
+
+- Flush a newly enabled Flutter semantics tree only when no frame is pending.
+  During dirty layout or paint, read the last stable tree and use scene
+  inventory fallback instead of forcing an unsafe semantics flush.
+- Replace fixed screenshot waits in release-gate widget tests with a bounded
+  controller-idle wait. The full SDK suite now covers real screenshot encoding,
+  masking, interaction action windows, and production-masked modal ownership.
+- Align the workspace lockfile with the checked-in Flutter 3.35.7 and Dart
+  3.9.2 toolchain.
+
+### Compatibility
+
+- Document and verify that collector mapping preserves schema-v2 `pan`,
+  `zoom_in`, and `zoom_out` facts, including `pointerCount` and zoom `scale`.
+
 ## 0.8.9
 
 Patch release after `0.8.8`.

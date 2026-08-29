@@ -168,27 +168,30 @@ void main() {
     expect(pan['gesture'], 'pan');
     expect((pan['payload'] as Map)['pointerCount'], 2);
 
-    final zoom = mapTugboatEventToCollectorEvent(
-      event: TugboatEvent(
-        id: 'evt_zoom_1',
-        atMs: 3000,
-        type: 'interaction',
-        stream: TugboatEventStream.semantic,
-        data: const {
-          'interactionSchema': tugboatInteractionSchemaVersion,
-          'gesture': 'zoom_in',
-          'payload': {
-            'position': {'xNorm': 0.5, 'yNorm': 0.5},
-            'scale': 1.4,
-            'pointerCount': 2,
+    for (final entry in {'zoom_in': 1.4, 'zoom_out': 0.7}.entries) {
+      final zoom = mapTugboatEventToCollectorEvent(
+        event: TugboatEvent(
+          id: 'evt_${entry.key}',
+          atMs: 3000,
+          type: 'interaction',
+          stream: TugboatEventStream.semantic,
+          data: {
+            'interactionSchema': tugboatInteractionSchemaVersion,
+            'gesture': entry.key,
+            'payload': {
+              'position': {'xNorm': 0.5, 'yNorm': 0.5},
+              'scale': entry.value,
+              'pointerCount': 2,
+            },
           },
-        },
-      ),
-      sessionStartedAt: DateTime.utc(2026, 6, 19),
-      collectorConfig: collectorConfig,
-    );
-    expect(zoom['gesture'], 'zoom_in');
-    expect((zoom['payload'] as Map)['scale'], 1.4);
+        ),
+        sessionStartedAt: DateTime.utc(2026, 6, 19),
+        collectorConfig: collectorConfig,
+      );
+      expect(zoom['gesture'], entry.key);
+      expect((zoom['payload'] as Map)['scale'], entry.value);
+      expect((zoom['payload'] as Map)['pointerCount'], 2);
+    }
   });
 
   test('maps route_change events to facts-only schema v2', () {

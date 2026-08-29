@@ -12,15 +12,18 @@ database receipt alone as proof that a replay is correct.
 
 ## Current acceptance status
 
-The current SDK release candidate is **0.8.9**, which writes session schema
+The current SDK release candidate is **0.8.10**, which writes session schema
 **v10**. It preserves structural interaction replay while no longer emitting
 `controlValue`, `controlValueTransition`, `semanticAnnotation`, `stateAnchor`,
 or `stateSignature` in new writer output. It also does not emit `state_change`.
-This patch follows `0.8.8` and fixes pinch/pan contact grouping, close-start
-pinches, and trackpad pan coordinates. One-finger canvas pan remains `swipe`.
-It does not change the event or fingerprint schemas. Treat the absence of the
-fields above as the expected privacy boundary, not as missing capture evidence.
-Keep the collector compatible with the existing schema-v10 contract.
+This patch follows `0.8.9`. It flushes a newly enabled semantics tree only when
+no frame is pending. It also makes release-gate screenshot tests wait for
+controller capture work and documents collector support for all schema-v2
+gesture names.
+One-finger canvas pan remains `swipe`. It does not change the event or
+fingerprint schemas. Treat the absence of the fields above as the expected
+privacy boundary, not as missing capture evidence. Keep the collector
+compatible with the existing schema-v10 contract.
 
 The [local Blend gesture check](blend-gesture-check-2026-08-26.md) covers the
 gesture fix before the version bump. It does not satisfy the production replay
@@ -174,7 +177,7 @@ flows share a session, list the event IDs or timestamps that delimit each flow.
 
 Wait until the collector session has finalized and the replay is available in
 the production website. Filter to the recorded Blend build and SDK version
-under test (`0.8.9` for this release), then open every recorded session.
+under test (`0.8.10` for this release), then open every recorded session.
 
 For each interaction, inspect the actual replay UI and verify:
 

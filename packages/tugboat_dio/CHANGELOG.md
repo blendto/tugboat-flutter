@@ -1,3 +1,10 @@
+## 0.8.10
+
+### Changed
+
+- Compatibility release for `tugboat` 0.8.10. The Dio adapter has no runtime
+  behavior change.
+
 ## 0.8.9
 
 ### Changed

@@ -2,13 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 
-Future<void> _waitForCaptures(WidgetTester tester) async {
-  await tester.pump();
-  await tester.runAsync(() async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-  });
-  await tester.pump();
-}
+import '../helpers/widget_capture_wait.dart';
 
 /// Release-compatibility matrix fixtures (U7).
 void main() {
@@ -46,12 +40,12 @@ void main() {
       ),
     );
 
-    await _waitForCaptures(tester);
+    await waitForTugboatCaptureWork(tester);
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
-    await _waitForCaptures(tester);
+    await waitForTugboatCaptureWork(tester);
     await tester.pump(const Duration(milliseconds: 400));
-    await _waitForCaptures(tester);
+    await waitForTugboatCaptureWork(tester);
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(seconds: 1));
     });
@@ -97,12 +91,12 @@ void main() {
         ),
       ),
     );
-    await _waitForCaptures(tester);
+    await waitForTugboatCaptureWork(tester);
     await tester.tap(find.text('Go'));
     await tester.pumpAndSettle();
-    await _waitForCaptures(tester);
+    await waitForTugboatCaptureWork(tester);
     await tester.pump(const Duration(milliseconds: 400));
-    await _waitForCaptures(tester);
+    await waitForTugboatCaptureWork(tester);
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(seconds: 1));
     });
@@ -146,7 +140,7 @@ void main() {
       activationRequestId: 'matrix-req',
       profile: TugboatCaptureProfile.exploration,
     );
-    await _waitForCaptures(tester);
+    await waitForTugboatCaptureWork(tester);
     expect(TugboatReplay.controller, isNotNull);
     expect(TugboatReplay.health.activationRequestId, 'matrix-req');
     expect(TugboatReplay.health.captureSessionId, isNotNull);
@@ -202,10 +196,10 @@ void main() {
           ),
         ),
       );
-      await _waitForCaptures(tester);
+      await waitForTugboatCaptureWork(tester);
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
-      await _waitForCaptures(tester);
+      await waitForTugboatCaptureWork(tester);
 
       final session = TugboatReplay.controller!.session!;
       final push = session.events.lastWhere(

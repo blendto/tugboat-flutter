@@ -30,8 +30,8 @@ should be verified in their own repositories.
 
 ## Current compatibility
 
-- package version: `0.8.9`;
-- release line: `0.8.x` (`0.8.9` is a patch after `0.8.8`);
+- package version: `0.8.10`;
+- release line: `0.8.x` (`0.8.10` is a patch after `0.8.9`);
 - session JSON schema: `10`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;
