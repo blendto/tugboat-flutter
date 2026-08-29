@@ -228,6 +228,20 @@ Event payloads contain:
 - build identity: app ID, platform, version name, build number, and fingerprint
   schema version.
 
+The collector must accept all SDK schema-v2 gesture names: `tap`, `swipe`,
+`scroll`, `pan`, `zoom_in`, `zoom_out`, and `cancelled`. The mapper preserves
+these names. It does not rename zoom to swipe or scroll.
+Pan and zoom can carry `pointerCount` in the nested `payload`. Zoom can also
+carry `scale`, a positive contact-span ratio. This is not a measured canvas
+or layer transform. A multi-contact swipe can carry `pointerCount` too.
+
+Collector versions that accept only the older four gesture names reject a
+mixed batch containing pan or zoom with HTTP `400`. The SDK drops that batch
+without retrying, including other events in the batch. Frame uploads remain
+separate, so visible frame changes do not prove event acceptance. Deploy
+collector contract support before testing a production session with these
+gestures. Check both zoom directions and the stored `pointerCount` and `scale`.
+
 For schema-v2 interactions, `afterFrame` is a temporal visual observation. It
 does not assert that the interaction caused that frame, route, or UI state.
 

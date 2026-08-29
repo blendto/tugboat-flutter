@@ -789,6 +789,39 @@ void main() {
     expect(resolution.linkedFingerprint, isNotEmpty);
   });
 
+  testWidgets('resolver does not flush semantics while layout is dirty', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final rootKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: rootKey,
+          child: Scaffold(
+            body: FilledButton(onPressed: () {}, child: const Text('Go')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final resolver = AnchorResolver(rootKey: rootKey);
+    final inventory = resolver.buildSceneInventory(
+      route: '/home',
+      keyboardOpen: false,
+      modalOpen: false,
+    );
+    expect(inventory, isNotNull);
+
+    tester.renderObject(find.text('Go')).markNeedsLayout();
+    expect(
+      () => resolver.buildViewportSemanticMap(inventory: inventory!),
+      returnsNormally,
+    );
+    semantics.dispose();
+  });
+
   testWidgets('unavailable scroll start still resets semantic accumulation', (
     tester,
   ) async {

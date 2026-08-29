@@ -118,8 +118,9 @@ void main() {
 
   testWidgets('names-only policy omits parameter values', (tester) async {
     await _pumpCapture(tester);
-    TugboatReplay.eventHook(parameterPolicy: TugboatParameterPolicy.namesOnly)
-        .record('SEARCH', parameters: {'query': 'chicken soup'});
+    TugboatReplay.eventHook(
+      parameterPolicy: TugboatParameterPolicy.namesOnly,
+    ).record('SEARCH', parameters: {'query': 'chicken soup'});
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (e) => e.type == 'external_event',
@@ -170,8 +171,9 @@ void main() {
       ),
     );
 
-    TugboatReplay.eventHook(parameterPolicy: TugboatParameterPolicy.allowAll)
-        .record('SEARCH', parameters: {'query': 'private search'});
+    TugboatReplay.eventHook(
+      parameterPolicy: TugboatParameterPolicy.allowAll,
+    ).record('SEARCH', parameters: {'query': 'private search'});
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (event) => event.type == 'external_event',
@@ -216,8 +218,9 @@ void main() {
   ) async {
     await _pumpCapture(tester);
 
-    TugboatReplay.eventHook(parameterPolicy: TugboatParameterPolicy.allowAll)
-        .record('SEARCH', parameters: {'query': 'private search'});
+    TugboatReplay.eventHook(
+      parameterPolicy: TugboatParameterPolicy.allowAll,
+    ).record('SEARCH', parameters: {'query': 'private search'});
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
       (event) => event.type == 'external_event',

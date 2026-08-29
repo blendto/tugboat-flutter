@@ -14,6 +14,7 @@ import 'package:tugboat/src/perceptual_hash.dart'
 import 'package:tugboat/src/screenshot_encode.dart';
 
 import 'helpers/json_roundtrip.dart';
+import 'helpers/widget_capture_wait.dart';
 
 const _testConfig = TugboatReplayConfig(
   profile: TugboatCaptureProfile.exploration,
@@ -26,11 +27,7 @@ const _testConfig = TugboatReplayConfig(
 );
 
 Future<void> _waitForCaptures(WidgetTester tester) async {
-  await tester.pump();
-  await tester.runAsync(() async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-  });
-  await tester.pump();
+  await waitForTugboatCaptureWork(tester);
 }
 
 void _useSeededCaptures() {
@@ -1228,7 +1225,7 @@ void main() {
         home: const Scaffold(body: Text('Disabled')),
       ),
     );
-    await _waitForCaptures(tester);
+    await tester.pump();
 
     expect(TugboatReplay.isEnabled, isFalse);
     expect(TugboatReplay.controller, isNull);

@@ -246,6 +246,69 @@ void main() {
     );
   });
 
+  test('posts mixed pan and zoom facts without renaming gestures', () async {
+    final sink = CollectorHttpSink(config: configForServer());
+    addTearDown(sink.dispose);
+    sink.startSession(createSession());
+    await sink.flush();
+
+    const facts = [
+      {
+        'gesture': 'tap',
+        'payload': {
+          'position': {'xNorm': 0.5, 'yNorm': 0.5},
+        },
+      },
+      {
+        'gesture': 'swipe',
+        'payload': {
+          'pointerCount': 3,
+          'delta': {'xNorm': 0.1, 'yNorm': 0.2},
+        },
+      },
+      {
+        'gesture': 'pan',
+        'payload': {
+          'pointerCount': 2,
+          'delta': {'xNorm': 0.1, 'yNorm': 0.2},
+        },
+      },
+      {
+        'gesture': 'zoom_in',
+        'payload': {'pointerCount': 2, 'scale': 1.4},
+      },
+      {
+        'gesture': 'zoom_out',
+        'payload': {'pointerCount': 2, 'scale': 0.7},
+      },
+    ];
+    for (var i = 0; i < facts.length; i++) {
+      sink.recordEvent(
+        TugboatEvent(
+          id: 'sdk-gesture-$i',
+          atMs: i,
+          type: 'interaction',
+          stream: TugboatEventStream.semantic,
+          data: {'interactionSchema': 2, 'route': '/canvas', ...facts[i]},
+        ),
+      );
+    }
+    await sink.flush();
+
+    expect(batchPosts, hasLength(1));
+    expect(batchPosts.single, hasLength(facts.length));
+    for (var i = 0; i < facts.length; i++) {
+      expect(
+        batchPosts.single[i],
+        containsPair('gesture', facts[i]['gesture']),
+      );
+      expect(batchPosts.single[i]['payload'], facts[i]['payload']);
+      expect(batchPosts.single[i]['interactionSchema'], 2);
+      expect(batchPosts.single[i]['route'], '/canvas');
+      expect(batchPosts.single[i]['sessionId'], 'sess_server');
+    }
+  });
+
   test('posts session_start and batches events after 10 records', () async {
     final sink = CollectorHttpSink(config: configForServer());
     final session = createSession(

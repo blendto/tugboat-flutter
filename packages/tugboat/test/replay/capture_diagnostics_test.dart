@@ -20,7 +20,9 @@ void main() {
       await harness.setUp();
       addTearDown(harness.dispose);
       harness.seedRouteState(route: '/home', signature: 'home');
-      final healthStart = harness.controller.healthSnapshot().captureDiagnostics;
+      final healthStart = harness.controller
+          .healthSnapshot()
+          .captureDiagnostics;
 
       final request = harness.controller.debugRequestCapture(force: true);
       await harness.pumpMicrotasks();

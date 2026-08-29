@@ -37,7 +37,10 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
           pipelineOwner.semanticsOwner ??
           RendererBinding.instance.rootPipelineOwner.semanticsOwner;
       if (semanticsOwner != null) {
-        pipelineOwner.flushSemantics();
+        // Flutter flushes semantics after layout and paint. Forcing a flush
+        // here can assert when a scroll or animation has dirty layout state.
+        // Read the last stable tree and let inventory fallback cover nodes
+        // that are not available until the next pipeline flush.
         rootNode = semanticsOwner.rootSemanticsNode;
       }
       void walk(SemanticsNode node, {required Matrix4 transformToRoot}) {
