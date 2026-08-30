@@ -581,9 +581,7 @@ class CoherenceInvariants {
     final destination = frameProvenanceFor(destinationFrameId);
     if (destination == null) return false;
 
-    final origin = originFrameId == null
-        ? null
-        : frameProvenanceFor(originFrameId);
+    final origin = _frameProvenanceOrNull(originFrameId, frameProvenanceFor);
     final frameIds = <String>[
       if (action.beforeFrame != null) action.beforeFrame!,
       if (action.afterFrame != null) action.afterFrame!,
@@ -593,20 +591,33 @@ class CoherenceInvariants {
     for (final frameId in frameIds) {
       final provenance = frameProvenanceFor(frameId);
       if (provenance == null) return false;
-      if (provenance.route != destination.route ||
-          provenance.routeEpoch != destination.routeEpoch) {
-        return false;
-      }
-      if (origin != null &&
-          provenance.route == origin.route &&
-          provenance.routeEpoch == origin.routeEpoch &&
-          (destination.route != origin.route ||
-              destination.routeEpoch != origin.routeEpoch)) {
-        return false;
-      }
+      if (!_matchesDestination(provenance, destination)) return false;
+      if (_matchesRejectedOrigin(provenance, origin, destination)) return false;
     }
     return true;
   }
+
+  static HarnessFrameProvenance? _frameProvenanceOrNull(
+    String? frameId,
+    HarnessFrameProvenance? Function(String? frameId) lookup,
+  ) => frameId == null ? null : lookup(frameId);
+
+  static bool _matchesDestination(
+    HarnessFrameProvenance frame,
+    HarnessFrameProvenance destination,
+  ) =>
+      frame.route == destination.route &&
+      frame.routeEpoch == destination.routeEpoch;
+
+  static bool _matchesRejectedOrigin(
+    HarnessFrameProvenance frame,
+    HarnessFrameProvenance? origin,
+    HarnessFrameProvenance destination,
+  ) =>
+      origin != null &&
+      frame.route == origin.route &&
+      frame.routeEpoch == origin.routeEpoch &&
+      !_matchesDestination(origin, destination);
 
   static bool navigationInteractionHasRouteEvidence({
     required List<TugboatEvent> events,

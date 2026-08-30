@@ -10,18 +10,18 @@ void tugboatLogViewportSemanticMap(
   final scroll = map.scrollContext;
   debugPrint(
     '[tugboat] viewport_semantic_map route=${map.routeKey} '
-    'buildMs=${buildMs ?? '?'} '
+    'buildMs=${_orPlaceholder(buildMs)} '
     'nodes=${map.summary['totalNodes']} '
     'actionable=${map.summary['actionableCount']} '
     'linked=${map.summary['linkedCount']} '
     'semantic=${map.summary['semanticCount']} '
     'inventory=${map.summary['inventoryCount']} '
     'scrollable=${map.summary['scrollableCount']} '
-    'filtered=${map.summary['filteredCount'] ?? 0} '
-    'truncated=${map.summary['truncatedCount'] ?? 0} '
-    'scroll=${scroll?.trigger ?? 'none'} '
-    'scrollFp=${scroll?.scrollableFingerprint ?? 'none'} '
-    'offsetNorm=${scroll?.offsetNorm?.toStringAsFixed(3) ?? 'none'} '
+    'filtered=${_orZero(map.summary['filteredCount'])} '
+    'truncated=${_orZero(map.summary['truncatedCount'])} '
+    'scroll=${_orNone(scroll?.trigger)} '
+    'scrollFp=${_orNone(scroll?.scrollableFingerprint)} '
+    'offsetNorm=${_orNone(scroll?.offsetNorm?.toStringAsFixed(3))} '
     'hash=${map.mapHash}',
   );
   for (final node in map.nodes.take(12)) {
@@ -39,6 +39,10 @@ void tugboatLogViewportSemanticMap(
     );
   }
 }
+
+Object _orPlaceholder(Object? value) => value ?? '?';
+Object _orZero(Object? value) => value ?? 0;
+String _orNone(String? value) => value ?? 'none';
 
 void tugboatLogScrollSemanticSnapshot(TugboatScrollSemanticSnapshot snapshot) {
   debugPrint(

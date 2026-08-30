@@ -240,144 +240,184 @@ class ScreenshotCapturer {
     bool Function()? isCurrent,
     Future<void>? cancelled,
   }) async {
-    if (isCurrent != null && !isCurrent()) {
-      return const ScreenshotCaptureAttempt(
-        failure: ScreenshotCaptureFailure.cancelled,
-      );
-    }
-    final requestedObject = boundaryKey.currentContext?.findRenderObject();
-    final requestedBoundary = requestedObject is RenderRepaintBoundary
-        ? requestedObject
-        : null;
-    final beforeWaitFailure = _boundaryFailure(requestedBoundary);
-    if (beforeWaitFailure != null) {
-      return ScreenshotCaptureAttempt(failure: beforeWaitFailure);
-    }
-
-    final paintGeneration = requestedBoundary is TugboatCaptureRenderBoundary
-        ? requestedBoundary.paintGeneration
-        : null;
-    if (requireFreshPaint) {
-      if (requestedBoundary is! TugboatCaptureRenderBoundary) {
-        return const ScreenshotCaptureAttempt(
-          failure: ScreenshotCaptureFailure.paintNotAdvanced,
-        );
-      }
-      final paintFailure = _boundaryFailure(requestedBoundary);
-      if (paintFailure != null) {
-        return ScreenshotCaptureAttempt(failure: paintFailure);
-      }
-      try {
-        requestedBoundary.markNeedsPaint();
-        SchedulerBinding.instance.ensureVisualUpdate();
-      } on FlutterError {
-        return const ScreenshotCaptureAttempt(
-          failure: ScreenshotCaptureFailure.boundaryDetached,
-        );
-      }
-    }
-
+    final prepared = _prepareCaptureAttempt(requireFreshPaint, isCurrent);
+    if (prepared.failure != null) return _failedAttempt(prepared.failure!);
     var frameWaitMicros = 0;
-    if (waitForFrame || requireFreshPaint) {
+    if (_shouldWaitForCaptureFrame(waitForFrame, requireFreshPaint)) {
       final waitClock = Stopwatch()..start();
-      final waitOutcome = await _waitForFrameBudget(
+      final outcome = await _waitForFrameBudget(
         timeout: frameTimeout,
         cancelled: cancelled,
       );
       waitClock.stop();
       frameWaitMicros = waitClock.elapsedMicroseconds;
-      if (waitOutcome == _FrameWaitOutcome.cancelled) {
-        return ScreenshotCaptureAttempt(
-          failure: ScreenshotCaptureFailure.cancelled,
-          frameWaitMicros: frameWaitMicros,
-        );
-      }
-      if (waitOutcome == _FrameWaitOutcome.timedOut) {
-        return ScreenshotCaptureAttempt(
-          failure: ScreenshotCaptureFailure.paintTimedOut,
-          frameWaitMicros: frameWaitMicros,
-        );
-      }
+      final failure = _frameWaitFailure(outcome);
+      if (failure != null) return _failedAttempt(failure, frameWaitMicros);
     }
-    if (isCurrent != null && !isCurrent()) {
-      return ScreenshotCaptureAttempt(
-        failure: ScreenshotCaptureFailure.cancelled,
-        frameWaitMicros: frameWaitMicros,
-      );
-    }
-
-    final afterWaitFailure = _boundaryFailure(requestedBoundary);
+    final afterWaitFailure = _afterWaitFailure(
+      prepared,
+      requireFreshPaint,
+      isCurrent,
+    );
     if (afterWaitFailure != null) {
-      return ScreenshotCaptureAttempt(
-        failure: afterWaitFailure,
-        frameWaitMicros: frameWaitMicros,
+      return _failedAttempt(afterWaitFailure, frameWaitMicros);
+    }
+    final context = boundaryKey.currentContext;
+    if (context is! Element) {
+      return _failedAttempt(
+        ScreenshotCaptureFailure.boundaryDetached,
+        frameWaitMicros,
       );
     }
-    if (requireFreshPaint) {
-      final currentBoundary = boundaryKey.currentContext?.findRenderObject();
-      final advanced = currentBoundary is TugboatCaptureRenderBoundary
-          ? paintGeneration != null &&
-                currentBoundary.paintGeneration > paintGeneration
-          : false;
-      if (!advanced) {
-        return ScreenshotCaptureAttempt(
-          failure: ScreenshotCaptureFailure.paintNotAdvanced,
-          frameWaitMicros: frameWaitMicros,
-        );
-      }
+    final boundary = prepared.boundary!;
+    if (!identical(context.findRenderObject(), boundary)) {
+      return _failedAttempt(
+        ScreenshotCaptureFailure.boundaryReplaced,
+        frameWaitMicros,
+      );
     }
-
     try {
-      // Reacquire after the async boundary check. The identity check above
-      // proves this is the same mounted boundary we observed before waiting.
-      final currentContext = boundaryKey.currentContext;
-      if (currentContext is! Element) {
-        return ScreenshotCaptureAttempt(
-          failure: ScreenshotCaptureFailure.boundaryDetached,
-          frameWaitMicros: frameWaitMicros,
-        );
-      }
-      final currentBoundary =
-          currentContext.findRenderObject() as RenderRepaintBoundary;
       final result = await _captureReadyBoundary(
-        // This Element was reacquired after the async wait and validated
-        // against the original boundary identity immediately above.
+        // The identity check immediately above validates this boundary context.
         // ignore: use_build_context_synchronously
-        currentContext,
-        currentBoundary,
+        context,
+        boundary,
         force: force,
         allowPaintGenerationSkip: allowPaintGenerationSkip,
         degraded: degraded,
         isCurrent: isCurrent,
       );
-      if (isCurrent != null && !isCurrent()) {
-        return ScreenshotCaptureAttempt(
-          failure: ScreenshotCaptureFailure.cancelled,
-          frameWaitMicros: frameWaitMicros,
-        );
-      }
-      if (result == null) {
-        return ScreenshotCaptureAttempt(
-          failure: ScreenshotCaptureFailure.encodingFailed,
-          frameWaitMicros: frameWaitMicros,
-        );
-      }
-      return ScreenshotCaptureAttempt(
-        result: result,
-        frameWaitMicros: frameWaitMicros,
-      );
+      return _captureAttemptForResult(result, isCurrent, frameWaitMicros);
     } on _ScreenshotCaptureException catch (error) {
-      return ScreenshotCaptureAttempt(
-        failure: error.failure,
-        frameWaitMicros: frameWaitMicros,
-      );
+      return _failedAttempt(error.failure, frameWaitMicros);
     } catch (_) {
-      return ScreenshotCaptureAttempt(
-        failure: ScreenshotCaptureFailure.readbackFailed,
-        frameWaitMicros: frameWaitMicros,
+      return _failedAttempt(
+        ScreenshotCaptureFailure.readbackFailed,
+        frameWaitMicros,
       );
     }
   }
+
+  ({
+    RenderRepaintBoundary? boundary,
+    int? generation,
+    ScreenshotCaptureFailure? failure,
+  })
+  _prepareCaptureAttempt(bool requireFreshPaint, bool Function()? isCurrent) {
+    if (isCurrent != null && !isCurrent()) {
+      return (
+        boundary: null,
+        generation: null,
+        failure: ScreenshotCaptureFailure.cancelled,
+      );
+    }
+    final object = boundaryKey.currentContext?.findRenderObject();
+    final boundary = object is RenderRepaintBoundary ? object : null;
+    final failure = _boundaryFailure(boundary);
+    if (failure != null) {
+      return (boundary: null, generation: null, failure: failure);
+    }
+    if (!requireFreshPaint) {
+      return (boundary: boundary, generation: null, failure: null);
+    }
+    final generation = boundary is TugboatCaptureRenderBoundary
+        ? boundary.paintGeneration
+        : null;
+    return _prepareFreshPaint(boundary!, generation);
+  }
+
+  ({
+    RenderRepaintBoundary? boundary,
+    int? generation,
+    ScreenshotCaptureFailure? failure,
+  })
+  _prepareFreshPaint(RenderRepaintBoundary boundary, int? generation) {
+    if (boundary is! TugboatCaptureRenderBoundary) {
+      return (
+        boundary: null,
+        generation: null,
+        failure: ScreenshotCaptureFailure.paintNotAdvanced,
+      );
+    }
+    final failure = _boundaryFailure(boundary);
+    if (failure != null) {
+      return (boundary: null, generation: null, failure: failure);
+    }
+    try {
+      boundary.markNeedsPaint();
+      SchedulerBinding.instance.ensureVisualUpdate();
+      return (boundary: boundary, generation: generation, failure: null);
+    } on FlutterError {
+      return (
+        boundary: null,
+        generation: null,
+        failure: ScreenshotCaptureFailure.boundaryDetached,
+      );
+    }
+  }
+
+  bool _shouldWaitForCaptureFrame(bool waitForFrame, bool requireFreshPaint) =>
+      waitForFrame || requireFreshPaint;
+
+  ScreenshotCaptureFailure? _frameWaitFailure(_FrameWaitOutcome outcome) =>
+      switch (outcome) {
+        _FrameWaitOutcome.completed => null,
+        _FrameWaitOutcome.cancelled => ScreenshotCaptureFailure.cancelled,
+        _FrameWaitOutcome.timedOut => ScreenshotCaptureFailure.paintTimedOut,
+      };
+
+  ScreenshotCaptureFailure? _afterWaitFailure(
+    ({
+      RenderRepaintBoundary? boundary,
+      int? generation,
+      ScreenshotCaptureFailure? failure,
+    })
+    prepared,
+    bool requireFreshPaint,
+    bool Function()? isCurrent,
+  ) {
+    if (isCurrent != null && !isCurrent()) {
+      return ScreenshotCaptureFailure.cancelled;
+    }
+    final failure = _boundaryFailure(prepared.boundary);
+    if (failure != null || !requireFreshPaint) return failure;
+    final current = boundaryKey.currentContext?.findRenderObject();
+    return current is TugboatCaptureRenderBoundary &&
+            current.paintGeneration > prepared.generation!
+        ? null
+        : ScreenshotCaptureFailure.paintNotAdvanced;
+  }
+
+  ScreenshotCaptureAttempt _captureAttemptForResult(
+    ScreenshotCaptureResult? result,
+    bool Function()? isCurrent,
+    int frameWaitMicros,
+  ) {
+    if (isCurrent != null && !isCurrent()) {
+      return _failedAttempt(
+        ScreenshotCaptureFailure.cancelled,
+        frameWaitMicros,
+      );
+    }
+    if (result == null) {
+      return _failedAttempt(
+        ScreenshotCaptureFailure.encodingFailed,
+        frameWaitMicros,
+      );
+    }
+    return ScreenshotCaptureAttempt(
+      result: result,
+      frameWaitMicros: frameWaitMicros,
+    );
+  }
+
+  ScreenshotCaptureAttempt _failedAttempt(
+    ScreenshotCaptureFailure failure, [
+    int frameWaitMicros = 0,
+  ]) => ScreenshotCaptureAttempt(
+    failure: failure,
+    frameWaitMicros: frameWaitMicros,
+  );
 
   Future<ScreenshotCaptureResult?> capture({
     bool force = false,
@@ -413,11 +453,12 @@ class ScreenshotCapturer {
         .ceil()
         .clamp(1, 1 << 20);
 
-    if (allowPaintGenerationSkip &&
-        !force &&
-        paintSignature != null &&
-        identical(boundary, _lastAcceptedBoundary) &&
-        paintSignature == _lastAcceptedPaintSignature) {
+    if (_shouldSkipPaintGeneration(
+      boundary,
+      paintSignature,
+      force,
+      allowPaintGenerationSkip,
+    )) {
       return ScreenshotCaptureResult(
         bytes: Uint8List(0),
         contentHash: '',
@@ -455,7 +496,7 @@ class ScreenshotCapturer {
     } finally {
       readbackClock.stop();
     }
-    if (isCurrent != null && !isCurrent()) {
+    if (_captureWasCancelled(isCurrent)) {
       image.dispose();
       throw const _ScreenshotCaptureException(
         ScreenshotCaptureFailure.cancelled,
@@ -529,6 +570,21 @@ class ScreenshotCapturer {
     }
   }
 
+  bool _shouldSkipPaintGeneration(
+    RenderRepaintBoundary boundary,
+    int? paintSignature,
+    bool force,
+    bool allowPaintGenerationSkip,
+  ) =>
+      allowPaintGenerationSkip &&
+      !force &&
+      paintSignature != null &&
+      identical(boundary, _lastAcceptedBoundary) &&
+      paintSignature == _lastAcceptedPaintSignature;
+
+  bool _captureWasCancelled(bool Function()? isCurrent) =>
+      isCurrent != null && !isCurrent();
+
   double _capturePixelRatio(Size logicalSize, {required bool degraded}) {
     var ratio = pixelRatio;
     final widthLimit = maxWidth;
@@ -559,23 +615,44 @@ class ScreenshotCapturer {
   ) {
     if (explicitlySensitive) return true;
 
-    final isText = renderObject is RenderParagraph;
-    final isTextInput = widget is EditableText;
-    final isMedia = renderObject is RenderImage;
-    final isSensitiveInput =
-        widget is EditableText && tugboatIsSensitiveInput(widget);
+    final flags = _maskFlags(widget, renderObject);
+    return _maskPredicates[maskLevel.index](element, flags, actionable);
+  }
 
-    return switch (maskLevel) {
-      TugboatScreenshotMaskLevel.explicitOnly => false,
-      TugboatScreenshotMaskLevel.allTextAndMedia =>
-        isText || isTextInput || isMedia,
-      TugboatScreenshotMaskLevel.allText => isText || isTextInput,
-      TugboatScreenshotMaskLevel.allTextExceptActionable =>
-        isSensitiveInput || ((isText || isTextInput) && !actionable),
-      TugboatScreenshotMaskLevel.sensitiveInputsOnly => isSensitiveInput,
-      TugboatScreenshotMaskLevel.nonAssetImagesOnly =>
-        isSensitiveInput || (isMedia && _isNonAssetImageWidget(element)),
-    };
+  late final _maskPredicates =
+      <
+        bool Function(
+          Element,
+          ({
+            bool isText,
+            bool isTextInput,
+            bool isMedia,
+            bool isSensitiveInput,
+          }),
+          bool,
+        )
+      >[
+        (_, _, _) => false,
+        (_, flags, _) => flags.isText || flags.isTextInput || flags.isMedia,
+        (_, flags, _) => flags.isText || flags.isTextInput,
+        (_, flags, actionable) =>
+            flags.isSensitiveInput ||
+            ((flags.isText || flags.isTextInput) && !actionable),
+        (_, flags, _) => flags.isSensitiveInput,
+        (element, flags, _) =>
+            flags.isSensitiveInput ||
+            (flags.isMedia && _isNonAssetImageWidget(element)),
+      ];
+
+  ({bool isText, bool isTextInput, bool isMedia, bool isSensitiveInput})
+  _maskFlags(Widget widget, RenderBox renderObject) {
+    final isTextInput = widget is EditableText;
+    return (
+      isText: renderObject is RenderParagraph,
+      isTextInput: isTextInput,
+      isMedia: renderObject is RenderImage,
+      isSensitiveInput: isTextInput && tugboatIsSensitiveInput(widget),
+    );
   }
 
   /// Image provenance for `nonAssetImagesOnly`: whether the

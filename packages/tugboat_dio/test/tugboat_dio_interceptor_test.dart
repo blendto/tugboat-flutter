@@ -244,6 +244,45 @@ void main() {
     expect(events.single.data.containsKey('errorResponseBody'), isFalse);
   });
 
+  testWidgets('retry outside evidence admission keeps its attempt count', (
+    tester,
+  ) async {
+    await _pumpCapture(tester);
+    final dio = Dio();
+    var attempts = 0;
+    dio.httpClientAdapter = _ScriptedAdapter((options) async {
+      attempts += 1;
+      if (attempts == 1) {
+        return ResponseBody.fromString('unauthorized', 401);
+      }
+      TugboatReplay.lifecycle.setDisabled(false);
+      return ResponseBody.fromString('ok', 200);
+    });
+    dio.interceptors.add(
+      QueuedInterceptorsWrapper(
+        onError: (err, handler) async {
+          if (err.response?.statusCode == 401) {
+            TugboatReplay.lifecycle.setDisabled(true);
+            final response = await dio.fetch<dynamic>(err.requestOptions);
+            handler.resolve(response);
+            return;
+          }
+          handler.next(err);
+        },
+      ),
+    );
+    TugboatDioInterceptor.install(dio, routeResolver: (_) => '/secure');
+
+    final response = await _runAsync(tester, () => dio.get<dynamic>('/secure'));
+    expect(response.statusCode, 200);
+    expect(attempts, 2);
+    final events = TugboatReplay.controller!.session!.events
+        .where((event) => event.type == 'network_call')
+        .toList();
+    expect(events, hasLength(1));
+    expect(events.single.data['attemptCount'], 1);
+  });
+
   testWidgets('accepted HTTP error still retains its response body', (
     tester,
   ) async {

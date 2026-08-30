@@ -157,16 +157,9 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   String? traitsId,
   TugboatLocaleInfo? activeLocale,
 }) {
-  final isSessionStart =
-      eventType == TugboatCollectorSessionEventType.sessionStart.wireValue;
-  final carriesUserId =
-      isSessionStart ||
-      eventType == TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
-      eventType == TugboatCollectorSessionEventType.userChanged.wireValue;
-  final carriesTraits =
-      isSessionStart ||
-      eventType == TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
-      eventType == TugboatCollectorSessionEventType.traitsUpdated.wireValue;
+  final isSessionStart = _isSessionStart(eventType);
+  final carriesUserId = _carriesUserId(eventType);
+  final carriesTraits = _carriesTraits(eventType);
 
   final body = <String, Object?>{
     'sessionId': sessionId,
@@ -206,6 +199,19 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   }
   return body;
 }
+
+bool _isSessionStart(String eventType) =>
+    eventType == TugboatCollectorSessionEventType.sessionStart.wireValue;
+
+bool _carriesUserId(String eventType) =>
+    _isSessionStart(eventType) ||
+    eventType == TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
+    eventType == TugboatCollectorSessionEventType.userChanged.wireValue;
+
+bool _carriesTraits(String eventType) =>
+    _isSessionStart(eventType) ||
+    eventType == TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
+    eventType == TugboatCollectorSessionEventType.traitsUpdated.wireValue;
 
 /// Trailing digits from a tugboat frame id (`frame-12` → `12`).
 /// Returns null when the id does not end in digits.

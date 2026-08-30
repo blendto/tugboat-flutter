@@ -16,6 +16,13 @@ void expectInteractionV2Contract(TugboatEvent event) {
   expect(event.result, isNull);
   expect(event.targetAnchor, isNull);
   final data = event.data;
+  _expectInteractionEnvelope(data);
+  _expectInteractionPayload(data);
+  final encoded = utf8.encode(jsonEncode(event.toJson()));
+  expect(encoded.length, lessThan(700));
+}
+
+void _expectInteractionEnvelope(Map<String, Object?> data) {
   expect(data['interactionSchema'], tugboatInteractionSchemaVersion);
   expect(data.containsKey('origin'), isFalse);
   expect(data.containsKey('result'), isFalse);
@@ -28,43 +35,61 @@ void expectInteractionV2Contract(TugboatEvent event) {
   if (data.containsKey('targetFingerprint')) {
     expect(data['targetFingerprint'], isA<String>());
   }
+}
+
+void _expectInteractionPayload(Map<String, Object?> data) {
   final gesture = data['gesture'];
   if (gesture == 'cancelled') {
     expect(data.containsKey('payload'), isFalse);
-  } else if (data.containsKey('payload')) {
-    final payload = Map<String, Object?>.from(data['payload']! as Map);
-    if (payload.containsKey('position')) {
-      final position = Map<String, Object?>.from(payload['position']! as Map);
-      expect(position['xNorm'], isA<num>());
-      expect(position['yNorm'], isA<num>());
-      expect(position.containsKey('normalizedX'), isFalse);
-    }
-    if (gesture == 'swipe' ||
-        gesture == 'pan' ||
-        gesture == 'zoom_in' ||
-        gesture == 'zoom_out') {
-      if (payload.containsKey('delta')) {
-        final delta = Map<String, Object?>.from(payload['delta']! as Map);
-        expect(delta['xNorm'], isA<num>());
-        expect(delta['yNorm'], isA<num>());
-      }
-    }
-    if (gesture == 'zoom_in' || gesture == 'zoom_out') {
-      if (payload.containsKey('scale')) {
-        expect(payload['scale'], isA<num>());
-      }
-    }
-    if (gesture == 'scroll') {
-      if (payload.containsKey('startOffset')) {
-        expect(payload['startOffset'], isA<num>());
-      }
-      if (payload.containsKey('endOffset')) {
-        expect(payload['endOffset'], isA<num>());
-      }
-    }
+    return;
   }
-  final encoded = utf8.encode(jsonEncode(event.toJson()));
-  expect(encoded.length, lessThan(700));
+  if (data.containsKey('payload')) {
+    _expectPayloadForGesture(
+      gesture,
+      Map<String, Object?>.from(data['payload']! as Map),
+    );
+  }
+}
+
+void _expectPayloadForGesture(Object? gesture, Map<String, Object?> payload) {
+  _expectPayloadPosition(payload);
+  if (_isMotionGesture(gesture)) _expectPayloadDelta(payload);
+  if (_isZoomGesture(gesture)) _expectPayloadScale(payload);
+  if (gesture == 'scroll') _expectPayloadScrollOffsets(payload);
+}
+
+void _expectPayloadPosition(Map<String, Object?> payload) {
+  if (!payload.containsKey('position')) return;
+  final position = Map<String, Object?>.from(payload['position']! as Map);
+  expect(position['xNorm'], isA<num>());
+  expect(position['yNorm'], isA<num>());
+  expect(position.containsKey('normalizedX'), isFalse);
+}
+
+bool _isMotionGesture(Object? gesture) =>
+    gesture == 'swipe' || gesture == 'pan' || _isZoomGesture(gesture);
+
+bool _isZoomGesture(Object? gesture) =>
+    gesture == 'zoom_in' || gesture == 'zoom_out';
+
+void _expectPayloadDelta(Map<String, Object?> payload) {
+  if (!payload.containsKey('delta')) return;
+  final delta = Map<String, Object?>.from(payload['delta']! as Map);
+  expect(delta['xNorm'], isA<num>());
+  expect(delta['yNorm'], isA<num>());
+}
+
+void _expectPayloadScale(Map<String, Object?> payload) {
+  if (payload.containsKey('scale')) expect(payload['scale'], isA<num>());
+}
+
+void _expectPayloadScrollOffsets(Map<String, Object?> payload) {
+  if (payload.containsKey('startOffset')) {
+    expect(payload['startOffset'], isA<num>());
+  }
+  if (payload.containsKey('endOffset')) {
+    expect(payload['endOffset'], isA<num>());
+  }
 }
 
 extension on TugboatSession {

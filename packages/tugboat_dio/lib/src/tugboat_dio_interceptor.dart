@@ -112,31 +112,21 @@ class TugboatDioInterceptor extends Interceptor {
 
   void _ensureToken(RequestOptions options) {
     if (!TugboatReplay.isAcceptingEvidence) return;
-
-    final existing = options.extra[_extraCallKey];
-    if (existing is _TugboatDioCallState) {
+    final existing = _existingCallState(options);
+    if (existing != null) {
       existing.attemptCount += 1;
       return;
     }
-    if (options.extra.containsKey(_extraCallKey)) {
+    if (!_mayStartCall(options)) {
       // A host owns this key. Fail open without invoking its resolver or
       // changing metadata that does not belong to this interceptor.
       return;
     }
-
     final controller = TugboatReplay.controller;
     final session = controller?.session;
     if (controller == null || session == null) return;
-
-    String? route;
-    try {
-      route = routeResolver(options);
-    } catch (_) {
-      route = null;
-    }
-    if (!TugboatReplay.isAcceptingEvidence ||
-        !identical(TugboatReplay.controller, controller) ||
-        !identical(controller.session, session)) {
+    final route = _resolveRoute(options);
+    if (!_isCurrentCallOwner(controller, session)) {
       return;
     }
 
@@ -148,6 +138,28 @@ class TugboatDioInterceptor extends Interceptor {
       ),
     );
   }
+
+  _TugboatDioCallState? _existingCallState(RequestOptions options) {
+    final existing = options.extra[_extraCallKey];
+    return existing is _TugboatDioCallState ? existing : null;
+  }
+
+  bool _mayStartCall(RequestOptions options) =>
+      TugboatReplay.isAcceptingEvidence &&
+      !options.extra.containsKey(_extraCallKey);
+
+  String? _resolveRoute(RequestOptions options) {
+    try {
+      return routeResolver(options);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _isCurrentCallOwner(Object controller, Object session) =>
+      TugboatReplay.isAcceptingEvidence &&
+      identical(TugboatReplay.controller, controller) &&
+      identical((controller as dynamic).session, session);
 
   TugboatNetworkCall? _tokenOf(RequestOptions options) {
     final value = options.extra[_extraCallKey];

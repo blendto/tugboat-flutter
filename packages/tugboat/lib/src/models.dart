@@ -280,23 +280,21 @@ class TugboatEvent {
     TugboatLocaleInfo? locale,
     String? explorationRunId,
     String? actionId,
-  }) => TugboatEvent(
-    id: id ?? this.id,
-    atMs: atMs ?? this.atMs,
-    type: type ?? this.type,
-    stream: stream ?? this.stream,
-    captureSessionId: captureSessionId ?? this.captureSessionId,
-    activationRequestId: activationRequestId ?? this.activationRequestId,
-    targetAnchor: targetAnchor ?? this.targetAnchor,
-    beforeFrame: beforeFrame ?? this.beforeFrame,
-    afterFrame: afterFrame ?? this.afterFrame,
-    result: result ?? this.result,
-    relatedEventId: relatedEventId ?? this.relatedEventId,
-    data: data ?? this.data,
-    locale: locale ?? this.locale,
-    explorationRunId: explorationRunId ?? this.explorationRunId,
-    actionId: actionId ?? this.actionId,
-  );
+  }) {
+    final core = _copyEventCore(this, id, atMs, type, stream, data, locale);
+    return _copyEventContext(
+      core,
+      captureSessionId,
+      activationRequestId,
+      targetAnchor,
+      beforeFrame,
+      afterFrame,
+      result,
+      relatedEventId,
+      explorationRunId,
+      actionId,
+    );
+  }
 
   TugboatEvent withData(Map<String, Object?> updates) =>
       copyWith(data: {...data, ...updates});
@@ -313,6 +311,61 @@ class TugboatEvent {
     actionId: actionId ?? this.actionId,
   );
 }
+
+TugboatEvent _copyEventCore(
+  TugboatEvent source,
+  String? id,
+  int? atMs,
+  String? type,
+  TugboatEventStream? stream,
+  Map<String, Object?>? data,
+  TugboatLocaleInfo? locale,
+) => TugboatEvent(
+  id: id ?? source.id,
+  atMs: atMs ?? source.atMs,
+  type: type ?? source.type,
+  stream: stream ?? source.stream,
+  captureSessionId: source.captureSessionId,
+  activationRequestId: source.activationRequestId,
+  targetAnchor: source.targetAnchor,
+  beforeFrame: source.beforeFrame,
+  afterFrame: source.afterFrame,
+  result: source.result,
+  relatedEventId: source.relatedEventId,
+  data: data ?? source.data,
+  locale: locale ?? source.locale,
+  explorationRunId: source.explorationRunId,
+  actionId: source.actionId,
+);
+
+TugboatEvent _copyEventContext(
+  TugboatEvent source,
+  String? captureSessionId,
+  String? activationRequestId,
+  TugboatTargetAnchor? targetAnchor,
+  String? beforeFrame,
+  String? afterFrame,
+  TugboatInteractionResult? result,
+  String? relatedEventId,
+  String? explorationRunId,
+  String? actionId,
+) => TugboatEvent(
+  id: source.id,
+  atMs: source.atMs,
+  type: source.type,
+  stream: source.stream,
+  captureSessionId: captureSessionId ?? source.captureSessionId,
+  activationRequestId: activationRequestId ?? source.activationRequestId,
+  targetAnchor: targetAnchor ?? source.targetAnchor,
+  beforeFrame: beforeFrame ?? source.beforeFrame,
+  afterFrame: afterFrame ?? source.afterFrame,
+  result: result ?? source.result,
+  relatedEventId: relatedEventId ?? source.relatedEventId,
+  data: source.data,
+  locale: source.locale,
+  explorationRunId: explorationRunId ?? source.explorationRunId,
+  actionId: actionId ?? source.actionId,
+);
 
 class TugboatSession {
   TugboatSession({

@@ -440,6 +440,72 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('pop without a destination uses the remaining stack top', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    final navigatorKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        home: RepaintBoundary(
+          key: rootKey,
+          child: const SizedBox(width: 390, height: 844),
+        ),
+      ),
+    );
+    final controller = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: rootKey,
+    );
+    controller.debugExecuteCapture =
+        ({required trigger, required force}) async =>
+            controller.debugSeedFrame(trigger: trigger);
+    controller.start(const Size(390, 844), 'test');
+
+    PageRoute<void> route(String name) => PageRouteBuilder<void>(
+      settings: RouteSettings(name: name),
+      transitionDuration: Duration.zero,
+      pageBuilder: (_, _, _) => const SizedBox.shrink(),
+    );
+
+    final firstRoute = route('/a');
+    final secondRoute = route('/b');
+    await tester.runAsync(() async {
+      final navigator = navigatorKey.currentState!;
+      await controller.route(
+        'route_push',
+        firstRoute,
+        navigatorState: navigator,
+      );
+      await controller.route(
+        'route_push',
+        secondRoute,
+        navigatorState: navigator,
+      );
+      await controller.route(
+        'route_pop',
+        null,
+        navigatorState: navigator,
+        departingRoute: secondRoute,
+      );
+    });
+
+    final changes = controller.session!.events
+        .where((event) => event.type == 'route_change')
+        .toList();
+    expect(changes, hasLength(3));
+    expect(
+      changes[2].data['routeInstanceId'],
+      changes[0].data['routeInstanceId'],
+    );
+    expect(
+      changes[2].data['fromRouteInstanceId'],
+      changes[1].data['routeInstanceId'],
+    );
+    controller.dispose();
+  });
+
   testWidgets('skips route_remove when visible route is unchanged', (
     tester,
   ) async {

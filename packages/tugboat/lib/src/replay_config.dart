@@ -202,44 +202,71 @@ class TugboatReplayConfig {
     TugboatScreenshotBudgetConfig? screenshotBudget,
   }) {
     return TugboatReplayConfig(
-      profile: profile ?? this.profile,
-      settleDelay: settleDelay ?? this.settleDelay,
-      scrollEndCaptureDelay:
-          scrollEndCaptureDelay ?? this.scrollEndCaptureDelay,
-      interactionClaimWindow:
-          interactionClaimWindow ?? this.interactionClaimWindow,
-      maxFrames: maxFrames ?? this.maxFrames,
-      maxEvents: maxEvents ?? this.maxEvents,
-      scrollCaptureInterval:
-          scrollCaptureInterval ?? this.scrollCaptureInterval,
-      captureScrollSamples: captureScrollSamples ?? this.captureScrollSamples,
-      captureScrollScreenshots:
-          captureScrollScreenshots ?? this.captureScrollScreenshots,
-      capturePixelRatio: capturePixelRatio ?? this.capturePixelRatio,
+      profile: _or(profile, this.profile),
+      settleDelay: _or(settleDelay, this.settleDelay),
+      scrollEndCaptureDelay: _or(
+        scrollEndCaptureDelay,
+        this.scrollEndCaptureDelay,
+      ),
+      interactionClaimWindow: _or(
+        interactionClaimWindow,
+        this.interactionClaimWindow,
+      ),
+      maxFrames: _or(maxFrames, this.maxFrames),
+      maxEvents: _or(maxEvents, this.maxEvents),
+      scrollCaptureInterval: _or(
+        scrollCaptureInterval,
+        this.scrollCaptureInterval,
+      ),
+      captureScrollSamples: _or(
+        captureScrollSamples,
+        this.captureScrollSamples,
+      ),
+      captureScrollScreenshots: _or(
+        captureScrollScreenshots,
+        this.captureScrollScreenshots,
+      ),
+      capturePixelRatio: _or(capturePixelRatio, this.capturePixelRatio),
       captureMaxWidth: clearCaptureMaxWidth
           ? null
-          : captureMaxWidth ?? this.captureMaxWidth,
+          : _or(captureMaxWidth, this.captureMaxWidth),
       captureMaxHeight: clearCaptureMaxHeight
           ? null
-          : captureMaxHeight ?? this.captureMaxHeight,
-      degradedCaptureScale: degradedCaptureScale ?? this.degradedCaptureScale,
-      enableGlobalPointerCapture:
-          enableGlobalPointerCapture ?? this.enableGlobalPointerCapture,
-      explorationCollectorUrl:
-          explorationCollectorUrl ?? this.explorationCollectorUrl,
-      explorationRunId: explorationRunId ?? this.explorationRunId,
-      userId: userId ?? this.userId,
-      appInfo: appInfo ?? this.appInfo,
-      collector: collector ?? this.collector,
-      screenshotMaskLevel: screenshotMaskLevel ?? this.screenshotMaskLevel,
-      widgetNames: widgetNames ?? this.widgetNames,
-      viewportSemanticMode: viewportSemanticMode ?? this.viewportSemanticMode,
-      viewportSemanticMapMaxNodes:
-          viewportSemanticMapMaxNodes ?? this.viewportSemanticMapMaxNodes,
-      viewportSemanticMapMaxBytes:
-          viewportSemanticMapMaxBytes ?? this.viewportSemanticMapMaxBytes,
-      sinkFactories: sinkFactories ?? this.sinkFactories,
-      screenshotBudget: screenshotBudget ?? this.screenshotBudget,
+          : _or(captureMaxHeight, this.captureMaxHeight),
+      degradedCaptureScale: _or(
+        degradedCaptureScale,
+        this.degradedCaptureScale,
+      ),
+      enableGlobalPointerCapture: _or(
+        enableGlobalPointerCapture,
+        this.enableGlobalPointerCapture,
+      ),
+      explorationCollectorUrl: _or(
+        explorationCollectorUrl,
+        this.explorationCollectorUrl,
+      ),
+      explorationRunId: _or(explorationRunId, this.explorationRunId),
+      userId: _or(userId, this.userId),
+      appInfo: _or(appInfo, this.appInfo),
+      collector: _or(collector, this.collector),
+      screenshotMaskLevel: _or(screenshotMaskLevel, this.screenshotMaskLevel),
+      widgetNames: _or(widgetNames, this.widgetNames),
+      viewportSemanticMode: _or(
+        viewportSemanticMode,
+        this.viewportSemanticMode,
+      ),
+      viewportSemanticMapMaxNodes: _or(
+        viewportSemanticMapMaxNodes,
+        this.viewportSemanticMapMaxNodes,
+      ),
+      viewportSemanticMapMaxBytes: _or(
+        viewportSemanticMapMaxBytes,
+        this.viewportSemanticMapMaxBytes,
+      ),
+      sinkFactories: _or(sinkFactories, this.sinkFactories),
+      screenshotBudget: _or(screenshotBudget, this.screenshotBudget),
     );
   }
 }
+
+T _or<T>(T? override, T current) => override ?? current;

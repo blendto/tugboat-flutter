@@ -52,6 +52,356 @@ class _VisitAcc {
   final bool hasTokenizedActionableDescendant;
 }
 
+class _TokenMapChildState {
+  _TokenMapChildState({required this.pendingBlocker});
+
+  bool pendingBlocker;
+  bool hasBlockingOverlay = false;
+  bool hasActionable = false;
+  bool hasTokenizedActionable = false;
+  final Set<Element> elements = <Element>{};
+}
+
+class _TokenMapVisitor {
+  _TokenMapVisitor(
+    this.resolver,
+    this.rootRender, {
+    required this.tokens,
+    required this.retainedParents,
+    required this.tagIds,
+    required this.isActionable,
+    required this.hasActionableDescendant,
+    required this.hasTokenizedActionableDescendant,
+    required this.isSensitive,
+    required this.underActionable,
+    required this.ordinalCounters,
+    required this.renderElements,
+    required this.includedElements,
+  });
+
+  final AnchorResolver resolver;
+  final RenderBox rootRender;
+  final Map<Element, String> tokens;
+  final Map<Element, Element?> retainedParents;
+  final Map<Element, String> tagIds;
+  final Map<Element, bool> isActionable;
+  final Map<Element, bool> hasActionableDescendant;
+  final Map<Element, bool> hasTokenizedActionableDescendant;
+  final Map<Element, bool> isSensitive;
+  final Map<Element, bool> underActionable;
+  final Map<Object, int> ordinalCounters;
+  final Map<RenderObject, Element> renderElements;
+  final Set<Element> includedElements;
+  String? subLabel;
+  bool rootHasBlockingOverlay = false;
+  bool hasDismissibleModalBarrier = false;
+
+  _VisitAcc visit(
+    Element element,
+    Element? retainedParent,
+    bool inList,
+    int? listItemIndex,
+    bool sensitive,
+    bool underActionable,
+  ) {
+    final widget = element.widget;
+    final renderObject = element.renderObject;
+    final effectiveListItemIndex = _effectiveListItemIndex(
+      widget,
+      inList,
+      listItemIndex,
+    );
+    _noteDismissibleModalBarrier(widget);
+    if (_shouldSkip(widget, renderObject)) return const _VisitAcc();
+    _noteElement(element, widget, renderObject, sensitive, underActionable);
+    final candidate = _candidateFor(
+      element,
+      retainedParent,
+      inList,
+      effectiveListItemIndex,
+      sensitive,
+      underActionable,
+    );
+    final children = _visitChildren(element, candidate);
+    return _completeVisit(element, children, candidate.elementIsActionable);
+  }
+
+  bool _shouldSkip(Widget widget, RenderObject? renderObject) =>
+      tugboatHidesSubtree(widget) ||
+      widget is TugboatInternal ||
+      tugboatHidesRenderObject(renderObject) ||
+      _excludesSemantics(renderObject);
+
+  bool _excludesSemantics(RenderObject? renderObject) =>
+      renderObject is RenderExcludeSemantics && renderObject.excluding;
+
+  int? _effectiveListItemIndex(
+    Widget widget,
+    bool inList,
+    int? listItemIndex,
+  ) => inList && widget is IndexedSemantics ? widget.index : listItemIndex;
+
+  void _noteDismissibleModalBarrier(Widget widget) {
+    if (widget is ModalBarrier && widget.dismissible) {
+      hasDismissibleModalBarrier = true;
+    }
+  }
+
+  void _noteElement(
+    Element element,
+    Widget widget,
+    RenderObject? renderObject,
+    bool sensitive,
+    bool actionable,
+  ) {
+    final elementSensitive = sensitive || widget is TugboatSensitive;
+    isSensitive[element] = elementSensitive;
+    underActionable[element] = actionable;
+    if (renderObject != null) renderElements[renderObject] = element;
+    if (widget is TugboatSubView && subLabel == null) subLabel = widget.label;
+  }
+
+  ({
+    Element? retainedParent,
+    bool elementIsActionable,
+    bool childInList,
+    int? listItemIndex,
+    bool isSensitive,
+    bool childUnderActionable,
+  })
+  _candidateFor(
+    Element element,
+    Element? retainedParent,
+    bool inList,
+    int? listItemIndex,
+    bool sensitive,
+    bool underActionable,
+  ) {
+    final widget = element.widget;
+    final elementSensitive = sensitive || widget is TugboatSensitive;
+    final retainable = resolver._isRetainable(element, rootRender);
+    final role = retainable ? tugboatRoleForWidget(widget) : null;
+    final retainType = _retainType(widget, retainable, role);
+    final tokenized = _recordCandidateToken(
+      element,
+      retainedParent,
+      inList,
+      listItemIndex,
+      retainType,
+    );
+    final elementIsActionable =
+        role != null && role.enabled != false && tokens.containsKey(element);
+    if (elementIsActionable) isActionable[element] = true;
+    return (
+      retainedParent: tokenized.parent,
+      elementIsActionable: elementIsActionable,
+      childInList: tokenized.emittedListItem
+          ? false
+          : inList || resolver._isListContainer(widget),
+      listItemIndex: tokenized.emittedListItem ? null : listItemIndex,
+      isSensitive: elementSensitive,
+      childUnderActionable:
+          underActionable || tugboatIsActionableWidget(widget),
+    );
+  }
+
+  String? _retainType(Widget widget, bool retainable, dynamic role) =>
+      retainable
+      ? resolver._canonicalType(widget) ??
+            (role != null && role.enabled != false
+                ? resolver._actionableTypeName(widget)
+                : null)
+      : null;
+
+  ({Element? parent, bool emittedListItem}) _recordCandidateToken(
+    Element element,
+    Element? retainedParent,
+    bool inList,
+    int? listItemIndex,
+    String? retainType,
+  ) {
+    if (retainType == null) {
+      return (parent: retainedParent, emittedListItem: false);
+    }
+    final token = inList
+        ? _listItemToken(retainedParent, listItemIndex)
+        : _ordinalToken(element, retainedParent, retainType);
+    tokens[element] = token;
+    retainedParents[element] = retainedParent;
+    return (parent: element, emittedListItem: inList);
+  }
+
+  String _listItemToken(Element? retainedParent, int? listItemIndex) {
+    final counterKey = Object.hash(retainedParent, '[item]');
+    final fallbackOrdinal = ordinalCounters[counterKey] ?? 0;
+    ordinalCounters[counterKey] = fallbackOrdinal + 1;
+    return '[item:${listItemIndex ?? fallbackOrdinal}]';
+  }
+
+  String _ordinalToken(Element element, Element? parent, String retainType) {
+    final counterKey = Object.hash(parent, retainType);
+    final ordinal = ordinalCounters[counterKey] ?? 0;
+    ordinalCounters[counterKey] = ordinal + 1;
+    final tagId = resolver._tagIdFromWidget(element.widget);
+    if (tagId != null) tagIds[element] = tagId;
+    return '$retainType#$ordinal';
+  }
+
+  _TokenMapChildState _visitChildren(
+    Element element,
+    ({
+      Element? retainedParent,
+      bool elementIsActionable,
+      bool childInList,
+      int? listItemIndex,
+      bool isSensitive,
+      bool childUnderActionable,
+    })
+    candidate,
+  ) {
+    final renderObject = element.renderObject;
+    final state = _TokenMapChildState(
+      pendingBlocker:
+          renderObject is RenderBlockSemantics && renderObject.blocking,
+    );
+    element.visitChildElements((child) {
+      final childListItemIndex = _childListItemIndex(
+        element,
+        child,
+        candidate.childInList,
+        candidate.listItemIndex,
+      );
+      _absorbChild(
+        element,
+        state,
+        visit(
+          child,
+          candidate.retainedParent,
+          candidate.childInList,
+          childListItemIndex,
+          candidate.isSensitive,
+          candidate.childUnderActionable,
+        ),
+      );
+    });
+    return state;
+  }
+
+  int? _childListItemIndex(
+    Element element,
+    Element child,
+    bool childInList,
+    int? inheritedIndex,
+  ) {
+    if (!childInList || element is! SliverMultiBoxAdaptorElement) {
+      return inheritedIndex;
+    }
+    final slot = child.slot;
+    return slot is int && slot >= 0 ? slot : inheritedIndex;
+  }
+
+  void _absorbChild(
+    Element element,
+    _TokenMapChildState state,
+    _VisitAcc child,
+  ) {
+    if (child.pendingBlocker && resolver._isOverlayLevel(element)) {
+      _replaceWithBlockingChild(element, child, state);
+    }
+    state.elements.addAll(child.elements);
+    state.pendingBlocker = state.pendingBlocker || child.pendingBlocker;
+    state.hasBlockingOverlay =
+        state.hasBlockingOverlay || child.hasBlockingOverlay;
+    state.hasActionable = state.hasActionable || child.hasActionableDescendant;
+    state.hasTokenizedActionable =
+        state.hasTokenizedActionable || child.hasTokenizedActionableDescendant;
+  }
+
+  void _replaceWithBlockingChild(
+    Element element,
+    _VisitAcc child,
+    _TokenMapChildState state,
+  ) {
+    state.elements
+      ..clear()
+      ..add(element);
+    _removeShadowedElements(element, child.elements);
+    state.pendingBlocker = false;
+    state.hasBlockingOverlay = true;
+    rootHasBlockingOverlay = true;
+  }
+
+  void _removeShadowedElements(Element element, Set<Element> childElements) {
+    for (final previous in [...includedElements]) {
+      if (!identical(previous, element)) includedElements.remove(previous);
+    }
+    _removeShadowedMapEntries(element, childElements);
+    _removeShadowedRenderEntries(element, childElements);
+  }
+
+  void _removeShadowedMapEntries(Element element, Set<Element> childElements) {
+    for (final key in [...tokens.keys]) {
+      if (identical(key, element) || childElements.contains(key)) continue;
+      tokens.remove(key);
+      retainedParents.remove(key);
+      tagIds.remove(key);
+      isActionable.remove(key);
+      hasActionableDescendant.remove(key);
+      hasTokenizedActionableDescendant.remove(key);
+      isSensitive.remove(key);
+      underActionable.remove(key);
+    }
+  }
+
+  void _removeShadowedRenderEntries(
+    Element element,
+    Set<Element> childElements,
+  ) {
+    for (final entry in [...renderElements.entries]) {
+      if (!identical(entry.value, element) &&
+          !childElements.contains(entry.value)) {
+        renderElements.remove(entry.key);
+      }
+    }
+  }
+
+  _VisitAcc _completeVisit(
+    Element element,
+    _TokenMapChildState children,
+    bool elementIsActionable,
+  ) {
+    if (children.hasBlockingOverlay) rootHasBlockingOverlay = true;
+    includedElements.add(element);
+    includedElements.addAll(children.elements);
+    final actionable = _hasActionableChild(
+      children.elements,
+      children.hasActionable,
+    );
+    final tokenized = _hasTokenizedActionableChild(
+      children.elements,
+      children.hasTokenizedActionable,
+    );
+    hasActionableDescendant[element] = actionable;
+    hasTokenizedActionableDescendant[element] = tokenized;
+    return _VisitAcc(
+      elements: {element, ...children.elements},
+      pendingBlocker: children.pendingBlocker,
+      hasBlockingOverlay: children.hasBlockingOverlay,
+      hasActionableDescendant: actionable || elementIsActionable,
+      hasTokenizedActionableDescendant: tokenized || elementIsActionable,
+    );
+  }
+
+  bool _hasActionableChild(Set<Element> children, bool hasActionable) =>
+      hasActionable || children.any((child) => isActionable[child] == true);
+
+  bool _hasTokenizedActionableChild(Set<Element> children, bool hasTokenized) =>
+      hasTokenized ||
+      children.any(
+        (child) => isActionable[child] == true && tokens.containsKey(child),
+      );
+}
+
 /// Builds target anchors from hit-test results.
 class AnchorResolver {
   AnchorResolver({required this.rootKey, this.widgetNames = const {}});
@@ -95,35 +445,51 @@ class AnchorResolver {
     final masks = <Rect>[];
     final maskedRenderObjects = <RenderObject>{};
     for (final element in tokenMap.includedElements) {
-      final widget = element.widget;
-      final renderObject = element.renderObject;
-      if (renderObject is! RenderBox ||
-          !renderObject.attached ||
-          !renderObject.hasSize) {
-        continue;
-      }
-      final sensitive = tokenMap.isSensitive[element] == true;
-      final actionable =
-          tokenMap.underActionable[element] == true ||
-          tugboatIsActionableWidget(widget);
-      if (!shouldMask(element, widget, renderObject, sensitive, actionable)) {
-        continue;
-      }
-      if (!maskedRenderObjects.add(renderObject)) continue;
-      try {
-        final transformed = MatrixUtils.transformRect(
-          renderObject.getTransformTo(rootRender),
-          renderObject.paintBounds,
-        );
-        final rect = transformed.intersect(rootRender.paintBounds);
-        if (rect.width > 0 && rect.height > 0) {
-          masks.add(rect);
-        }
-      } catch (_) {
-        // Detached render object can race capture; omit its mask safely.
-      }
+      _addMaskRect(
+        element,
+        tokenMap,
+        rootRender,
+        shouldMask,
+        maskedRenderObjects,
+        masks,
+      );
     }
     return masks;
+  }
+
+  void _addMaskRect(
+    Element element,
+    _TokenMap tokenMap,
+    RenderBox rootRender,
+    bool Function(Element, Widget, RenderBox, bool, bool) shouldMask,
+    Set<RenderObject> maskedRenderObjects,
+    List<Rect> masks,
+  ) {
+    final widget = element.widget;
+    final renderObject = element.renderObject;
+    if (renderObject is! RenderBox ||
+        !renderObject.attached ||
+        !renderObject.hasSize) {
+      return;
+    }
+    final sensitive = tokenMap.isSensitive[element] == true;
+    final actionable =
+        tokenMap.underActionable[element] == true ||
+        tugboatIsActionableWidget(widget);
+    if (!shouldMask(element, widget, renderObject, sensitive, actionable)) {
+      return;
+    }
+    if (!maskedRenderObjects.add(renderObject)) return;
+    try {
+      final transformed = MatrixUtils.transformRect(
+        renderObject.getTransformTo(rootRender),
+        renderObject.paintBounds,
+      );
+      final rect = transformed.intersect(rootRender.paintBounds);
+      if (rect.width > 0 && rect.height > 0) masks.add(rect);
+    } catch (_) {
+      // Detached render object can race capture; omit its mask safely.
+    }
   }
 
   void _scheduleFrameCacheInvalidation() {
@@ -377,19 +743,7 @@ class AnchorResolver {
 
     final anchorElement = boundsElement ?? hitElement;
 
-    Rect? bounds;
-    final render = anchorElement.renderObject;
-    if (render is RenderBox && render.attached && render.hasSize) {
-      try {
-        bounds = MatrixUtils.transformRect(
-          render.getTransformTo(rootRender),
-          render.paintBounds,
-        );
-      } catch (_) {
-        // A scroll/layout update can detach or invalidate a hit render box
-        // between hit testing and anchor construction. Bounds are optional.
-      }
-    }
+    final bounds = _rawBoundsForElement(anchorElement, rootRender);
 
     final relativePosition = _relativePosition(bounds, viewport);
     final sortedActions = actions.toList()..sort();
@@ -439,6 +793,21 @@ class AnchorResolver {
     );
   }
 
+  Rect? _rawBoundsForElement(Element element, RenderBox rootRender) {
+    final render = element.renderObject;
+    if (render is! RenderBox || !render.attached || !render.hasSize) {
+      return null;
+    }
+    try {
+      return MatrixUtils.transformRect(
+        render.getTransformTo(rootRender),
+        render.paintBounds,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   _TokenMap _buildTokenMap(Element rootElement, RenderBox rootRender) {
     debugTokenMapBuildCount++;
     final tokens = <Element, String>{};
@@ -452,9 +821,21 @@ class AnchorResolver {
     final ordinalCounters = <Object, int>{};
     final renderElements = <RenderObject, Element>{};
     final includedElements = <Element>{};
-    String? subLabel;
-    var rootHasBlockingOverlay = false;
-    var hasDismissibleModalBarrier = false;
+    final visitor = _TokenMapVisitor(
+      this,
+      rootRender,
+      tokens: tokens,
+      retainedParents: retainedParents,
+      tagIds: tagIds,
+      isActionable: isActionable,
+      hasActionableDescendant: hasActionableDescendant,
+      hasTokenizedActionableDescendant: hasTokenizedActionableDescendant,
+      isSensitive: isSensitiveMap,
+      underActionable: underActionableMap,
+      ordinalCounters: ordinalCounters,
+      renderElements: renderElements,
+      includedElements: includedElements,
+    );
 
     _VisitAcc visit(
       Element element,
@@ -464,184 +845,13 @@ class AnchorResolver {
       bool sensitive,
       bool underActionable,
     ) {
-      final widget = element.widget;
-      var effectiveListItemIndex = listItemIndex;
-      if (inList && widget is IndexedSemantics) {
-        effectiveListItemIndex = widget.index;
-      }
-      if (widget is ModalBarrier && widget.dismissible) {
-        hasDismissibleModalBarrier = true;
-      }
-      final renderObject = element.renderObject;
-      if (tugboatHidesSubtree(widget) ||
-          widget is TugboatInternal ||
-          tugboatHidesRenderObject(renderObject)) {
-        return const _VisitAcc();
-      }
-      if (renderObject is RenderExcludeSemantics && renderObject.excluding) {
-        return const _VisitAcc();
-      }
-
-      final isSensitive = sensitive || widget is TugboatSensitive;
-      isSensitiveMap[element] = isSensitive;
-      underActionableMap[element] = underActionable;
-      if (renderObject != null) renderElements[renderObject] = element;
-      if (widget is TugboatSubView && subLabel == null) {
-        subLabel = widget.label;
-      }
-
-      final retainable = _isRetainable(element, rootRender);
-      final canonical = retainable ? _canonicalType(widget) : null;
-      final role = retainable ? tugboatRoleForWidget(widget) : null;
-      // Salient-node retention: actionable widgets must appear in the path even
-      // when they sit on the wrapper denylist (e.g. InkWell, InkResponse).
-      final retainType =
-          canonical ??
-          (role != null && role.enabled != false
-              ? _actionableTypeName(widget)
-              : null);
-      Element? newRetainedParent = retainedParent;
-      String? token;
-      var emittedListItem = false;
-
-      if (retainType != null) {
-        if (inList) {
-          emittedListItem = true;
-          final counterKey = Object.hash(retainedParent, '[item]');
-          final fallbackOrdinal = ordinalCounters[counterKey] ?? 0;
-          ordinalCounters[counterKey] = fallbackOrdinal + 1;
-          final structuralIndex = effectiveListItemIndex ?? fallbackOrdinal;
-          token = '[item:$structuralIndex]';
-        } else {
-          final counterKey = Object.hash(retainedParent, retainType);
-          final ordinal = ordinalCounters[counterKey] ?? 0;
-          ordinalCounters[counterKey] = ordinal + 1;
-          token = '$retainType#$ordinal';
-
-          // Explicit tags remain aliases. Container nodes stay as bare
-          // `Type#ordinal` tokens and never include descendant display data.
-          final tagId = _tagIdFromWidget(widget);
-          if (tagId != null) {
-            tagIds[element] = tagId;
-          }
-        }
-
-        tokens[element] = token;
-        retainedParents[element] = retainedParent;
-        newRetainedParent = element;
-      }
-
-      final elementIsActionable =
-          role != null && role.enabled != false && tokens.containsKey(element);
-      if (elementIsActionable) {
-        isActionable[element] = true;
-      }
-      final childUnderActionable =
-          underActionable || tugboatIsActionableWidget(widget);
-
-      // Once we emit an item token we are inside a single list entry, so
-      // descendants resume normal tokenization (and only a *nested* list
-      // container re-enters list mode). This prevents `[item]/[item]/...` chains.
-      final childInList = emittedListItem
-          ? false
-          : (inList || _isListContainer(widget));
-
-      var pendingBlocker =
-          renderObject is RenderBlockSemantics && renderObject.blocking;
-      var hasBlockingOverlay = false;
-      var childHasActionable = false;
-      var childHasTokenizedActionable = false;
-      final childElements = <Element>{};
-      element.visitChildElements((child) {
-        var childListItemIndex = emittedListItem
-            ? null
-            : effectiveListItemIndex;
-        if (childInList && element is SliverMultiBoxAdaptorElement) {
-          // This element owns the lazy sliver index. Other int/IndexedSlot
-          // values describe unrelated ancestor or descendant child order.
-          final slot = child.slot;
-          if (slot is int && slot >= 0) childListItemIndex = slot;
-        }
-        final childResult = visit(
-          child,
-          newRetainedParent ?? retainedParent,
-          childInList,
-          childListItemIndex,
-          isSensitive,
-          childUnderActionable,
-        );
-        // Overlay-level BlockSemantics (modal barrier) replaces previously
-        // collected sibling routes with the blocking child's subtree. Regular
-        // OverlayPortal content (Tooltip) does not set pendingBlocker.
-        if (childResult.pendingBlocker && _isOverlayLevel(element)) {
-          childElements
-            ..clear()
-            ..add(element);
-          // Drop sibling routes from shared maps so hit-tests cannot rejoin them.
-          for (final previous in [...includedElements]) {
-            if (!identical(previous, element)) {
-              includedElements.remove(previous);
-            }
-          }
-          for (final key in [...tokens.keys]) {
-            if (!identical(key, element) &&
-                !childResult.elements.contains(key)) {
-              tokens.remove(key);
-              retainedParents.remove(key);
-              tagIds.remove(key);
-              isActionable.remove(key);
-              hasActionableDescendant.remove(key);
-              hasTokenizedActionableDescendant.remove(key);
-              isSensitiveMap.remove(key);
-              underActionableMap.remove(key);
-            }
-          }
-          for (final entry in [...renderElements.entries]) {
-            final mapped = entry.value;
-            if (!identical(mapped, element) &&
-                !childResult.elements.contains(mapped)) {
-              renderElements.remove(entry.key);
-            }
-          }
-          pendingBlocker = false;
-          hasBlockingOverlay = true;
-          rootHasBlockingOverlay = true;
-        }
-        childElements.addAll(childResult.elements);
-        pendingBlocker = pendingBlocker || childResult.pendingBlocker;
-        hasBlockingOverlay =
-            hasBlockingOverlay || childResult.hasBlockingOverlay;
-        childHasActionable =
-            childHasActionable || childResult.hasActionableDescendant;
-        childHasTokenizedActionable =
-            childHasTokenizedActionable ||
-            childResult.hasTokenizedActionableDescendant;
-      });
-
-      if (hasBlockingOverlay) {
-        rootHasBlockingOverlay = true;
-      }
-
-      includedElements.add(element);
-      includedElements.addAll(childElements);
-      final actionableInSubtree =
-          childHasActionable ||
-          childElements.any((child) => isActionable[child] == true);
-      final tokenizedActionableInSubtree =
-          childHasTokenizedActionable ||
-          childElements.any(
-            (child) => isActionable[child] == true && tokens.containsKey(child),
-          );
-      hasActionableDescendant[element] = actionableInSubtree;
-      hasTokenizedActionableDescendant[element] = tokenizedActionableInSubtree;
-
-      return _VisitAcc(
-        elements: {element, ...childElements},
-        pendingBlocker: pendingBlocker,
-        hasBlockingOverlay: hasBlockingOverlay,
-        hasActionableDescendant: actionableInSubtree || elementIsActionable,
-        hasTokenizedActionableDescendant:
-            tokenizedActionableInSubtree || elementIsActionable,
+      return visitor.visit(
+        element,
+        retainedParent,
+        inList,
+        listItemIndex,
+        sensitive,
+        underActionable,
       );
     }
 
@@ -682,11 +892,11 @@ class AnchorResolver {
       underActionable: underActionableMap,
       structuralRouteSignature: structuralRouteSignature,
       renderElements: renderElements,
-      hasBlockingOverlay: rootHasBlockingOverlay,
-      hasDismissibleModalBarrier: hasDismissibleModalBarrier,
+      hasBlockingOverlay: visitor.rootHasBlockingOverlay,
+      hasDismissibleModalBarrier: visitor.hasDismissibleModalBarrier,
       includedElements: includedElements,
       actionableSummary: actionableSummary,
-      subLabel: subLabel,
+      subLabel: visitor.subLabel,
     );
   }
 

@@ -14,22 +14,7 @@ String computeDHashFromRgba(Uint8List rgba, int width, int height) {
     final y0 = (y * height / hashHeight).floor();
     final y1 = ((y + 1) * height / hashHeight).floor().clamp(y0 + 1, height);
     for (var x = 0; x < hashWidth; x++) {
-      final x0 = (x * width / hashWidth).floor();
-      final x1 = ((x + 1) * width / hashWidth).floor().clamp(x0 + 1, width);
-      var sum = 0;
-      var count = 0;
-      for (var sy = y0; sy < y1; sy++) {
-        for (var sx = x0; sx < x1; sx++) {
-          final offset = (sy * width + sx) * 4;
-          if (offset + 2 >= rgba.length) continue;
-          final r = rgba[offset];
-          final g = rgba[offset + 1];
-          final b = rgba[offset + 2];
-          sum += ((r * 299 + g * 587 + b * 114) ~/ 1000);
-          count++;
-        }
-      }
-      pixels[y * hashWidth + x] = count == 0 ? 0 : sum ~/ count;
+      pixels[y * hashWidth + x] = _sampleGray(rgba, width, x, y0, y1);
     }
   }
 
@@ -42,6 +27,31 @@ String computeDHashFromRgba(Uint8List rgba, int width, int height) {
     }
   }
   return bits.toString();
+}
+
+int _sampleGray(Uint8List rgba, int width, int x, int y0, int y1) {
+  final startX = (x * width / 9).floor();
+  final endX = ((x + 1) * width / 9).floor().clamp(startX + 1, width);
+  var sum = 0;
+  var count = 0;
+  for (var sy = y0; sy < y1; sy++) {
+    for (var sx = startX; sx < endX; sx++) {
+      final gray = _grayAt(rgba, (sy * width + sx) * 4);
+      if (gray != null) {
+        sum += gray;
+        count++;
+      }
+    }
+  }
+  return count == 0 ? 0 : sum ~/ count;
+}
+
+int? _grayAt(Uint8List rgba, int offset) {
+  if (offset + 2 >= rgba.length) return null;
+  return (rgba[offset] * 299 +
+          rgba[offset + 1] * 587 +
+          rgba[offset + 2] * 114) ~/
+      1000;
 }
 
 /// Hamming distance between two equal-length bit strings.

@@ -183,22 +183,42 @@ enum _CaptureOutcome {
 }
 
 extension on _CaptureOutcome {
-  String get wireName => switch (this) {
-    _CaptureOutcome.freshAccepted => 'fresh_accepted',
-    _CaptureOutcome.exactContentReused => 'exact_content_reused',
-    _CaptureOutcome.perceptualHashCoalesced => 'perceptual_hash_coalesced',
-    _CaptureOutcome.paintGenerationUnchanged => 'paint_generation_unchanged',
-    _CaptureOutcome.screenshotBudgetSkip => 'screenshot_budget_skip',
-    _CaptureOutcome.capturePressureDrop => 'capture_pressure_drop',
-    _CaptureOutcome.noFrameAvailable => 'no_frame_available',
-    _CaptureOutcome.noCompatibleFrame => 'no_compatible_frame',
-    _CaptureOutcome.paintReadinessTimeout => 'paint_readiness_timeout',
-    _CaptureOutcome.boundaryUnavailable => 'boundary_unavailable',
-    _CaptureOutcome.captureProcessingFailed => 'capture_processing_failed',
-    _CaptureOutcome.cancelled => 'cancelled',
-    _CaptureOutcome.supersededRoute => 'superseded_route_epoch',
-  };
+  String get wireName => _captureOutcomeWireNames[index];
 }
+
+const _captureOutcomeWireNames = <String>[
+  'fresh_accepted',
+  'exact_content_reused',
+  'perceptual_hash_coalesced',
+  'paint_generation_unchanged',
+  'screenshot_budget_skip',
+  'capture_pressure_drop',
+  'no_frame_available',
+  'no_compatible_frame',
+  'paint_readiness_timeout',
+  'boundary_unavailable',
+  'capture_processing_failed',
+  'cancelled',
+  'superseded_route_epoch',
+];
+
+const _paintReadinessFailures = <ScreenshotCaptureFailure>{
+  ScreenshotCaptureFailure.paintTimedOut,
+  ScreenshotCaptureFailure.paintNotAdvanced,
+};
+
+const _boundaryFailures = <ScreenshotCaptureFailure>{
+  ScreenshotCaptureFailure.boundaryDetached,
+  ScreenshotCaptureFailure.boundaryUnavailable,
+  ScreenshotCaptureFailure.boundaryReplaced,
+  ScreenshotCaptureFailure.layoutUnavailable,
+};
+
+const _processingFailures = <ScreenshotCaptureFailure>{
+  ScreenshotCaptureFailure.readbackFailed,
+  ScreenshotCaptureFailure.maskFailed,
+  ScreenshotCaptureFailure.encodingFailed,
+};
 
 /// Immutable terminal evidence for one logical request. A coalesced physical
 /// capture produces one of these per waiter, preserving each caller's route,
@@ -260,6 +280,22 @@ class _CaptureExecution {
   final ScreenshotCaptureFailure? failure;
   final String? cancellationReason;
   final String? reuseReason;
+}
+
+/// The outcome of the physical capture retry phase. It separates a terminal
+/// execution from an accepted screenshot attempt without using an untyped
+/// nullable pair at the capture boundary.
+class _PhysicalCaptureAttemptResolution {
+  const _PhysicalCaptureAttemptResolution.execution(this.execution)
+    : attempt = null,
+      result = null;
+
+  const _PhysicalCaptureAttemptResolution.captured(this.attempt, this.result)
+    : execution = null;
+
+  final _CaptureExecution? execution;
+  final ScreenshotCaptureAttempt? attempt;
+  final ScreenshotCaptureResult? result;
 }
 
 enum _CaptureFreshness { reusable, freshPaint }
@@ -1741,24 +1777,19 @@ class TugboatReplayController extends ChangeNotifier {
   _CaptureOutcome _diagnosticOutcomeForFailure(
     ScreenshotCaptureFailure? failure,
   ) {
-    switch (failure) {
-      case ScreenshotCaptureFailure.paintTimedOut:
-      case ScreenshotCaptureFailure.paintNotAdvanced:
-        return _CaptureOutcome.paintReadinessTimeout;
-      case ScreenshotCaptureFailure.boundaryDetached:
-      case ScreenshotCaptureFailure.boundaryUnavailable:
-      case ScreenshotCaptureFailure.boundaryReplaced:
-      case ScreenshotCaptureFailure.layoutUnavailable:
-        return _CaptureOutcome.boundaryUnavailable;
-      case ScreenshotCaptureFailure.readbackFailed:
-      case ScreenshotCaptureFailure.maskFailed:
-      case ScreenshotCaptureFailure.encodingFailed:
-        return _CaptureOutcome.captureProcessingFailed;
-      case ScreenshotCaptureFailure.cancelled:
-        return _CaptureOutcome.cancelled;
-      case null:
-        return _CaptureOutcome.noFrameAvailable;
+    if (_paintReadinessFailures.contains(failure)) {
+      return _CaptureOutcome.paintReadinessTimeout;
     }
+    if (_boundaryFailures.contains(failure)) {
+      return _CaptureOutcome.boundaryUnavailable;
+    }
+    if (_processingFailures.contains(failure)) {
+      return _CaptureOutcome.captureProcessingFailed;
+    }
+    if (failure == ScreenshotCaptureFailure.cancelled) {
+      return _CaptureOutcome.cancelled;
+    }
+    return _CaptureOutcome.noFrameAvailable;
   }
 
   _CaptureExecution _cancelledCaptureExecution(String reason) {
@@ -1831,43 +1862,22 @@ class TugboatReplayController extends ChangeNotifier {
     final bypassesExplorationSuppression =
         bypassExplorationSuppression ||
         trigger == TugboatFrameTrigger.interaction;
-    if (_disposed ||
-        _capturePaused ||
-        _skipCapture ||
-        (_shouldSuppressFrameCapture && !bypassesExplorationSuppression)) {
-      _maybeEmitSceneInventory();
-      _completeCaptureWaiter(
+    if (_requestCaptureIsSuppressed(bypassesExplorationSuppression)) {
+      return _completeRejectedCaptureRequest(
         waiter,
-        executionId: _nextId('capture_execution'),
-        execution: _cancelledCaptureExecution(_captureSuppressionReason()),
-      );
-      return (
-        done: waiter.completer.future.then((value) => value.frameId),
-        resolution: waiter.completer.future,
-        cancel: ([String reason = 'manual']) {},
+        _cancelledCaptureExecution(_captureSuppressionReason()),
       );
     }
 
-    if (dropWhenBusy && (_captureInFlight || _scheduledCapture != null)) {
-      _screenshotBudget.record(
-        queueWaitMicros: 0,
-        readbackMicros: 0,
-        encodeMicros: 0,
-        encodedBytes: 0,
-        dropReason: 'capture_pressure',
-      );
-      _completeCaptureWaiter(
+    if (dropWhenBusy && _captureQueueIsBusy) {
+      _recordCapturePressureDrop();
+      return _completeRejectedCaptureRequest(
         waiter,
-        executionId: _nextId('capture_execution'),
-        execution: const _CaptureExecution(
+        const _CaptureExecution(
           outcome: _CaptureOutcome.capturePressureDrop,
           cancellationReason: 'capture_pressure',
         ),
-      );
-      return (
-        done: waiter.completer.future.then((value) => value.frameId),
-        resolution: waiter.completer.future,
-        cancel: ([String reason = 'manual']) {},
+        emitSceneInventory: false,
       );
     }
 
@@ -1884,52 +1894,100 @@ class TugboatReplayController extends ChangeNotifier {
       context: context,
     )..waiters.add(waiter);
 
-    final scheduled = _scheduledCapture;
-    if (scheduled == null) {
-      _scheduledCapture = incoming;
-    } else {
-      var tail = scheduled;
-      while (tail.next != null) {
-        tail = tail.next!;
-      }
-      // Only adjacent compatible work can coalesce: preserving order prevents
-      // an incompatible route capture from being silently dropped.
-      if (tail.canAbsorb(incoming)) {
-        tail.absorb(incoming);
-      } else {
-        tail.next = incoming;
-      }
-    }
+    _queueScheduledCapture(incoming);
 
     _ensureCapturePumpScheduled();
     return (
       done: waiter.completer.future.then((value) => value.frameId),
       resolution: waiter.completer.future,
-      cancel: ([String reason = 'manual']) {
-        var scheduled = _scheduledCapture;
-        _ScheduledCapture? previous;
-        while (scheduled != null) {
-          scheduled.waiters.remove(waiter);
-          final next = scheduled.next;
-          if (scheduled.waiters.isEmpty) {
-            if (previous == null) {
-              _scheduledCapture = next;
-            } else {
-              previous.next = next;
-            }
-          } else {
-            previous = scheduled;
-          }
-          scheduled = next;
-        }
-        _activeScheduledCapture?.waiters.remove(waiter);
-        _completeCaptureWaiter(
-          waiter,
-          executionId: _nextId('capture_execution'),
-          execution: _cancelledCaptureExecution(reason),
-        );
-      },
+      cancel: ([String reason = 'manual']) =>
+          _cancelCaptureWaiter(waiter, reason),
     );
+  }
+
+  bool _requestCaptureIsSuppressed(bool bypass) =>
+      _disposed ||
+      _capturePaused ||
+      _skipCapture ||
+      _explorationCaptureIsSuppressed(bypass);
+
+  bool get _captureQueueIsBusy => _captureInFlight || _scheduledCapture != null;
+
+  ({
+    Future<String?> done,
+    Future<_CaptureResolution> resolution,
+    void Function([String reason]) cancel,
+  })
+  _completeRejectedCaptureRequest(
+    _CaptureWaiter waiter,
+    _CaptureExecution execution, {
+    bool emitSceneInventory = true,
+  }) {
+    if (emitSceneInventory) _maybeEmitSceneInventory();
+    _completeCaptureWaiter(
+      waiter,
+      executionId: _nextId('capture_execution'),
+      execution: execution,
+    );
+    return (
+      done: waiter.completer.future.then((value) => value.frameId),
+      resolution: waiter.completer.future,
+      cancel: ([String reason = 'manual']) {},
+    );
+  }
+
+  void _recordCapturePressureDrop() => _screenshotBudget.record(
+    queueWaitMicros: 0,
+    readbackMicros: 0,
+    encodeMicros: 0,
+    encodedBytes: 0,
+    dropReason: 'capture_pressure',
+  );
+
+  void _queueScheduledCapture(_ScheduledCapture incoming) {
+    final scheduled = _scheduledCapture;
+    if (scheduled == null) {
+      _scheduledCapture = incoming;
+      return;
+    }
+    var tail = scheduled;
+    while (tail.next != null) {
+      tail = tail.next!;
+    }
+    if (tail.canAbsorb(incoming)) {
+      tail.absorb(incoming);
+    } else {
+      tail.next = incoming;
+    }
+  }
+
+  void _cancelCaptureWaiter(_CaptureWaiter waiter, String reason) {
+    _removeCaptureWaiterFromQueue(waiter);
+    _activeScheduledCapture?.waiters.remove(waiter);
+    _completeCaptureWaiter(
+      waiter,
+      executionId: _nextId('capture_execution'),
+      execution: _cancelledCaptureExecution(reason),
+    );
+  }
+
+  void _removeCaptureWaiterFromQueue(_CaptureWaiter waiter) {
+    var scheduled = _scheduledCapture;
+    _ScheduledCapture? previous;
+    while (scheduled != null) {
+      scheduled.waiters.remove(waiter);
+      final next = scheduled.next;
+      if (scheduled.waiters.isEmpty) {
+        if (previous == null) {
+          _scheduledCapture = next;
+        } else {
+          previous.next = next;
+        }
+      } else {
+        previous = scheduled;
+      }
+      scheduled = next;
+    }
   }
 
   void _completeCaptureWaiter(
@@ -1964,76 +2022,98 @@ class TugboatReplayController extends ChangeNotifier {
     _capturePumpScheduled = false;
     while (!_disposed && _scheduledCapture != null) {
       final scheduled = _scheduledCapture!;
-      final wait = scheduled.notBefore.difference(_now());
-      if (wait > Duration.zero) {
-        await _delay(wait);
-      }
+      final schedulerWait = _scheduledCaptureWait(scheduled);
+      if (schedulerWait != null) await _delay(schedulerWait);
       if (_disposed) break;
-
-      if (!identical(scheduled, _scheduledCapture)) {
-        continue;
-      }
-
       if (_captureInFlight) {
         await _waitForCaptureIdle();
         continue;
       }
+      if (!_canRunScheduledCapture(scheduled)) continue;
+      final execution = await _runScheduledCapture(scheduled);
+      _completeScheduledCaptureWaiters(scheduled, execution);
+    }
+  }
 
-      final queueWaitMicros = _now()
-          .difference(scheduled.enqueuedAt)
-          .inMicroseconds;
-      _scheduledCapture = scheduled.next;
-      scheduled.next = null;
-      _activeScheduledCapture = scheduled;
-      _CaptureExecution execution = const _CaptureExecution(
+  Duration? _scheduledCaptureWait(_ScheduledCapture scheduled) {
+    final wait = scheduled.notBefore.difference(_now());
+    return wait > Duration.zero ? wait : null;
+  }
+
+  bool _canRunScheduledCapture(_ScheduledCapture scheduled) =>
+      !_disposed &&
+      identical(scheduled, _scheduledCapture) &&
+      !_captureInFlight;
+
+  Future<_CaptureExecution> _runScheduledCapture(
+    _ScheduledCapture scheduled,
+  ) async {
+    final queueWaitMicros = _now()
+        .difference(scheduled.enqueuedAt)
+        .inMicroseconds;
+    _scheduledCapture = scheduled.next;
+    scheduled.next = null;
+    _activeScheduledCapture = scheduled;
+    try {
+      return await _executeCapture(
+        trigger: scheduled.trigger,
+        force: scheduled.force,
+        bypassExplorationSuppression: scheduled.bypassesExplorationSuppression,
+        freshness: scheduled.freshness,
+        context: scheduled.context.withTrigger(scheduled.trigger),
+        queueWaitMicros: queueWaitMicros,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[tugboat] capture failed: $error\n$stackTrace');
+      return const _CaptureExecution(
         outcome: _CaptureOutcome.captureProcessingFailed,
       );
-      final executionId = _nextId('capture_execution');
-      try {
-        execution = await _executeCapture(
-          trigger: scheduled.trigger,
-          force: scheduled.force,
-          bypassExplorationSuppression:
-              scheduled.bypassesExplorationSuppression,
-          freshness: scheduled.freshness,
-          context: scheduled.context.withTrigger(scheduled.trigger),
-          queueWaitMicros: queueWaitMicros,
-        );
-      } catch (error, stackTrace) {
-        // A capture failure must not kill the pump loop or strand waiters:
-        // stranded waiters would freeze the controller queue permanently.
-        debugPrint('[tugboat] capture failed: $error\n$stackTrace');
-        execution = const _CaptureExecution(
-          outcome: _CaptureOutcome.captureProcessingFailed,
-        );
-      }
-      for (final waiter in scheduled.waiters) {
-        final frameId = execution.frameId;
-        final compatible =
-            frameId != null && _isFrameCompatible(frameId, waiter.context);
-        _completeCaptureWaiter(
-          waiter,
-          executionId: executionId,
-          execution: _CaptureExecution(
-            outcome: compatible
-                ? execution.outcome
-                : (execution.frameId == null
-                      ? execution.outcome
-                      : (_unavailableAttachmentReason(waiter.context) ==
-                                'no_frame_available'
-                            ? _CaptureOutcome.noFrameAvailable
-                            : _CaptureOutcome.noCompatibleFrame)),
-            frameId: compatible ? frameId : null,
-            failure: execution.failure,
-            cancellationReason: execution.cancellationReason,
-            reuseReason: execution.reuseReason,
-          ),
-        );
-      }
-      if (identical(_activeScheduledCapture, scheduled)) {
-        _activeScheduledCapture = null;
-      }
     }
+  }
+
+  void _completeScheduledCaptureWaiters(
+    _ScheduledCapture scheduled,
+    _CaptureExecution execution,
+  ) {
+    final executionId = _nextId('capture_execution');
+    for (final waiter in scheduled.waiters) {
+      _completeCaptureWaiter(
+        waiter,
+        executionId: executionId,
+        execution: _executionForCaptureWaiter(execution, waiter),
+      );
+    }
+    if (identical(_activeScheduledCapture, scheduled)) {
+      _activeScheduledCapture = null;
+    }
+  }
+
+  _CaptureExecution _executionForCaptureWaiter(
+    _CaptureExecution execution,
+    _CaptureWaiter waiter,
+  ) {
+    final frameId = execution.frameId;
+    final compatible =
+        frameId != null && _isFrameCompatible(frameId, waiter.context);
+    return _CaptureExecution(
+      outcome: compatible
+          ? execution.outcome
+          : _incompatibleWaiterOutcome(execution, waiter),
+      frameId: compatible ? frameId : null,
+      failure: execution.failure,
+      cancellationReason: execution.cancellationReason,
+      reuseReason: execution.reuseReason,
+    );
+  }
+
+  _CaptureOutcome _incompatibleWaiterOutcome(
+    _CaptureExecution execution,
+    _CaptureWaiter waiter,
+  ) {
+    if (execution.frameId == null) return execution.outcome;
+    return _unavailableAttachmentReason(waiter.context) == 'no_frame_available'
+        ? _CaptureOutcome.noFrameAvailable
+        : _CaptureOutcome.noCompatibleFrame;
   }
 
   Future<void> _waitForCaptureIdle() async {
@@ -2102,39 +2182,9 @@ class TugboatReplayController extends ChangeNotifier {
     final captureCancellation = _captureCancellation.future;
     final captureSession = _session;
     final requiresFreshPaint = freshness == _CaptureFreshness.freshPaint;
-    final debugOutcome = debugNextCaptureOutcome;
-    if (debugOutcome != null) {
-      debugNextCaptureOutcome = null;
-      final debugFrameId = debugNextCaptureFrameId;
-      debugNextCaptureFrameId = null;
-      final outcome = _CaptureOutcome.values.firstWhere(
-        (candidate) => candidate.wireName == debugOutcome,
-        orElse: () => throw ArgumentError.value(
-          debugOutcome,
-          'debugNextCaptureOutcome',
-          'unsupported capture outcome',
-        ),
-      );
-      return _CaptureExecution(
-        outcome: outcome,
-        frameId: debugFrameId,
-        cancellationReason: outcome == _CaptureOutcome.cancelled
-            ? 'debug'
-            : null,
-        reuseReason: outcome == _CaptureOutcome.exactContentReused
-            ? 'content_hash'
-            : outcome == _CaptureOutcome.perceptualHashCoalesced
-            ? 'dhash'
-            : outcome == _CaptureOutcome.paintGenerationUnchanged
-            ? 'paint_generation'
-            : null,
-      );
-    }
-    if (_disposed ||
-        _capturePaused ||
-        _skipCapture ||
-        (_shouldSuppressFrameCapture && !bypassExplorationSuppression) ||
-        _captureInFlight) {
+    final debugExecution = _takeDebugCaptureExecution();
+    if (debugExecution != null) return debugExecution;
+    if (_captureExecutionIsSuppressed(bypassExplorationSuppression)) {
       return _cancelledCaptureExecution(
         _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
       );
@@ -2148,12 +2198,7 @@ class TugboatReplayController extends ChangeNotifier {
     final compatibleFrame = _compatibleFrameFor(context);
     final hasCompatibleFrame = compatibleFrame != null;
 
-    final eligibleToSkip =
-        freshness == _CaptureFreshness.reusable &&
-        trigger != TugboatFrameTrigger.initial &&
-        trigger != TugboatFrameTrigger.lifecycle &&
-        config.screenshotBudget.skipEligibleWhenDegraded &&
-        _screenshotBudget.shouldSkipEligible;
+    final eligibleToSkip = _isEligibleForBudgetSkip(freshness, trigger);
     if (eligibleToSkip && hasCompatibleFrame) {
       return _reuseWithoutCapture(
         context: context,
@@ -2167,217 +2212,107 @@ class TugboatReplayController extends ChangeNotifier {
 
     final captureOverride = debugExecuteCapture;
     if (captureOverride != null) {
-      _beginCapture();
-      try {
-        final frameId = await captureOverride(trigger: trigger, force: force);
-        if (!_captureContextStillCurrent(
-          context,
-          captureGeneration,
-          captureSession,
-        )) {
-          return const _CaptureExecution(
-            outcome: _CaptureOutcome.supersededRoute,
-          );
-        }
-        if (frameId != null && _frameProvenance.containsKey(frameId)) {
-          _latestFrameId = frameId;
-        }
-        _maybeEmitSceneInventory();
-        final resolved = frameId != null && _isFrameCompatible(frameId, context)
-            ? frameId
-            : (requiresFreshPaint ? null : _compatibleFrameFor(context));
-        return _CaptureExecution(
-          outcome: resolved == null
-              ? (_unavailableAttachmentReason(context) == 'no_frame_available'
-                    ? _CaptureOutcome.noFrameAvailable
-                    : _CaptureOutcome.noCompatibleFrame)
-              : _CaptureOutcome.freshAccepted,
-          frameId: resolved,
-        );
-      } finally {
-        _endCapture();
-        if (_scheduledCapture != null) {
-          _ensureCapturePumpScheduled();
-        }
-      }
+      return _executeCaptureOverride(
+        captureOverride,
+        trigger,
+        force,
+        context,
+        captureGeneration,
+        captureSession,
+        requiresFreshPaint,
+      );
     }
 
+    return _executePhysicalCapture(
+      trigger: trigger,
+      force: force,
+      freshness: freshness,
+      context: context,
+      queueWaitMicros: queueWaitMicros,
+      captureGeneration: captureGeneration,
+      captureSession: captureSession,
+      session: session,
+      capturer: capturer,
+      hasCompatibleFrame: hasCompatibleFrame,
+      requiresFreshPaint: requiresFreshPaint,
+      captureCancellation: captureCancellation,
+    );
+  }
+
+  bool _captureExecutionIsSuppressed(bool bypassExplorationSuppression) =>
+      _disposed ||
+      _capturePaused ||
+      _skipCapture ||
+      _captureInFlight ||
+      _explorationCaptureIsSuppressed(bypassExplorationSuppression);
+
+  bool _explorationCaptureIsSuppressed(bool bypass) =>
+      _shouldSuppressFrameCapture && !bypass;
+
+  bool _isEligibleForBudgetSkip(
+    _CaptureFreshness freshness,
+    TugboatFrameTrigger trigger,
+  ) =>
+      freshness == _CaptureFreshness.reusable &&
+      _isBudgetSkippableTrigger(trigger) &&
+      config.screenshotBudget.skipEligibleWhenDegraded &&
+      _screenshotBudget.shouldSkipEligible;
+
+  bool _isBudgetSkippableTrigger(TugboatFrameTrigger trigger) =>
+      trigger != TugboatFrameTrigger.initial &&
+      trigger != TugboatFrameTrigger.lifecycle;
+
+  Future<_CaptureExecution> _executePhysicalCapture({
+    required TugboatFrameTrigger trigger,
+    required bool force,
+    required _CaptureFreshness freshness,
+    required _CaptureRequestContext context,
+    required int queueWaitMicros,
+    required int captureGeneration,
+    required TugboatSession? captureSession,
+    required TugboatSession session,
+    required ScreenshotCapturer capturer,
+    required bool hasCompatibleFrame,
+    required bool requiresFreshPaint,
+    required Future<void> captureCancellation,
+  }) async {
     _beginCapture();
     try {
-      var allowPaintSkip =
-          trigger != TugboatFrameTrigger.initial && hasCompatibleFrame;
-      var captureForce = force || requiresFreshPaint || !hasCompatibleFrame;
-      late ScreenshotCaptureAttempt attempt;
-      late ScreenshotCaptureResult result;
-
-      for (var paintRetry = 0; paintRetry < 2; paintRetry++) {
-        attempt = await capturer.captureAttempt(
-          // A freshness-sensitive request needs a new logical observation even
-          // when its pixels match. Reusing the old frame would also reuse its
-          // old completion-state provenance.
-          force: captureForce,
-          waitForFrame: true,
-          requireFreshPaint: requiresFreshPaint,
-          allowPaintGenerationSkip: allowPaintSkip,
-          degraded: _screenshotBudget.shouldSkipEligible,
-          cancelled: captureCancellation,
-          isCurrent: () =>
-              _captureContextStillCurrent(
-                context,
-                captureGeneration,
-                captureSession,
-              ) &&
-              !_capturePaused &&
-              !_skipCapture,
-        );
-        final attemptResult = attempt.result;
-        if (attemptResult == null ||
-            _disposed ||
-            !_captureContextStillCurrent(context, captureGeneration, session)) {
-          _lastCaptureFailure = attempt.failure;
-          if (attempt.failure != ScreenshotCaptureFailure.cancelled &&
-              _captureContextStillCurrent(
-                context,
-                captureGeneration,
-                captureSession,
-              )) {
-            _screenshotBudget.record(
-              queueWaitMicros: queueWaitMicros,
-              frameWaitMicros: attempt.frameWaitMicros,
-              readbackMicros: 0,
-              encodeMicros: 0,
-              encodedBytes: 0,
-              dropReason: attempt.failure?.name ?? 'capture_failed',
-            );
-          }
-          return _CaptureExecution(
-            outcome:
-                !_captureContextStillCurrent(
-                  context,
-                  captureGeneration,
-                  captureSession,
-                )
-                ? _CaptureOutcome.supersededRoute
-                : _diagnosticOutcomeForFailure(attempt.failure),
-            failure: attempt.failure,
-            cancellationReason:
-                attempt.failure == ScreenshotCaptureFailure.cancelled
-                ? 'superseded_route'
-                : null,
-          );
-        }
-        _lastCaptureFailure = null;
-
-        if (attemptResult.skippedByPaintGeneration) {
-          final reuseExecution = _reuseWithoutCapture(
-            context: context,
-            outcome: _CaptureOutcome.paintGenerationUnchanged,
-            reuseReason: 'paint_generation',
-          );
-          if (reuseExecution.outcome == _CaptureOutcome.noCompatibleFrame &&
-              paintRetry == 0) {
-            allowPaintSkip = false;
-            captureForce = true;
-            continue;
-          }
-          return reuseExecution;
-        }
-
-        result = attemptResult;
-        break;
-      }
-
-      final activeSession = session;
-
-      _screenshotBudget.record(
+      final resolved = await _resolvePhysicalCaptureAttempt(
+        capturer: capturer,
+        context: context,
+        captureGeneration: captureGeneration,
+        captureSession: captureSession,
+        session: session,
+        hasCompatibleFrame: hasCompatibleFrame,
+        force: force,
+        requiresFreshPaint: requiresFreshPaint,
+        captureCancellation: captureCancellation,
         queueWaitMicros: queueWaitMicros,
-        frameWaitMicros: attempt.frameWaitMicros,
-        readbackMicros: result.captureMicros,
-        maskMicros: result.maskMicros,
-        encodeMicros: result.encodeMicros,
-        encodedBytes: result.bytes.length,
-        coalescedCapture: result.skippedByDHash,
-      );
-
-      if (result.skippedByDHash) {
-        final compatible = _compatibleFrameFor(context);
-        final reused = compatible == null
-            ? null
-            : _reuseCompatibleFrame(compatible, context, 'dhash');
-        if (reused != null) {
-          capturer.commitAcceptedPaintGeneration(result.paintGeneration);
-          capturer.commitAcceptedDHash(result.dHash);
-        }
-        return _CaptureExecution(
-          outcome: reused == null
-              ? _CaptureOutcome.noCompatibleFrame
-              : _CaptureOutcome.perceptualHashCoalesced,
-          frameId: reused,
-          reuseReason: reused == null ? null : 'dhash',
-        );
-      }
-
-      final existingId = _hashToFrameId[result.contentHash];
-      if (!force &&
-          !requiresFreshPaint &&
-          existingId != null &&
-          _isFrameCompatible(existingId, context)) {
-        _reuseCompatibleFrame(existingId, context, 'content_hash');
-        capturer.commitAcceptedPaintGeneration(result.paintGeneration);
-        capturer.commitAcceptedDHash(result.dHash);
-        _maybeEmitSceneInventory();
-        return _CaptureExecution(
-          outcome: _CaptureOutcome.exactContentReused,
-          frameId: existingId,
-          reuseReason: 'content_hash',
-        );
-      }
-
-      final frameId = _nextId('frame');
-      final frame = TugboatFrame(
-        id: frameId,
-        atMs: atMs,
-        width: result.width,
-        height: result.height,
-        contentHash: result.contentHash,
-        masked: result.masked,
         trigger: trigger,
-        byteLength: result.bytes.length,
-        captureMicros:
-            attempt.frameWaitMicros +
-            result.captureMicros +
-            result.maskMicros +
-            result.encodeMicros,
-        captureSessionId: activeSession.id,
       );
-      activeSession.frames.add(frame);
-      activeSession.frameBytes[frameId] = result.bytes;
-      _hashToFrameId[result.contentHash] = frameId;
-      _latestFrameId = frameId;
-      final boundary = _observeBoundaryTransform(result.boundaryLogicalRect);
-      final frameContext = context.withBoundaryTransform(
-        logicalRect: result.boundaryLogicalRect,
-        generation: boundary.generation,
+      final execution = resolved.execution;
+      if (execution != null) {
+        return execution;
+      }
+      final attempt = resolved.attempt!;
+      final result = resolved.result!;
+      _recordPhysicalCaptureBudget(queueWaitMicros, attempt, result);
+      final reused = _reusePhysicalCaptureResult(
+        capturer: capturer,
+        context: context,
+        result: result,
+        force: force,
+        requiresFreshPaint: requiresFreshPaint,
       );
-      _frameProvenance[frameId] = _FrameProvenance(
-        context: frameContext,
-        completedAtMs: atMs,
-        sequence: ++_frameCompletionSequence,
-      );
-      capturer.commitAcceptedPaintGeneration(result.paintGeneration);
-      capturer.commitAcceptedDHash(result.dHash);
-      _maybeEmitSceneInventory();
-      _sinkHub?.recordFrame(
-        frame,
-        result.bytes,
-        sessionId: activeSession.id,
-        actionId: _activeActionId,
-      );
-      _trim();
-      if (!_disposed) notifyListeners();
-      return _CaptureExecution(
-        outcome: _CaptureOutcome.freshAccepted,
-        frameId: frameId,
+      if (reused != null) return reused;
+      return _publishPhysicalCaptureResult(
+        trigger: trigger,
+        session: session,
+        context: context,
+        attempt: attempt,
+        result: result,
+        capturer: capturer,
       );
     } finally {
       _endCapture();
@@ -2386,6 +2321,376 @@ class TugboatReplayController extends ChangeNotifier {
       }
     }
   }
+
+  Future<_PhysicalCaptureAttemptResolution> _resolvePhysicalCaptureAttempt({
+    required ScreenshotCapturer capturer,
+    required _CaptureRequestContext context,
+    required int captureGeneration,
+    required TugboatSession? captureSession,
+    required TugboatSession session,
+    required bool hasCompatibleFrame,
+    required bool force,
+    required bool requiresFreshPaint,
+    required Future<void> captureCancellation,
+    required int queueWaitMicros,
+    required TugboatFrameTrigger trigger,
+  }) async {
+    var allowPaintSkip =
+        trigger != TugboatFrameTrigger.initial && hasCompatibleFrame;
+    var captureForce = force || requiresFreshPaint || !hasCompatibleFrame;
+    for (var retry = 0; retry < 2; retry++) {
+      final attempt = await _capturePhysicalAttempt(
+        capturer,
+        context,
+        captureGeneration,
+        captureSession,
+        captureForce,
+        requiresFreshPaint,
+        allowPaintSkip,
+        captureCancellation,
+      );
+      final failed = _failedPhysicalCaptureExecution(
+        attempt,
+        context,
+        captureGeneration,
+        captureSession,
+        session,
+        queueWaitMicros,
+      );
+      if (failed != null) {
+        return _PhysicalCaptureAttemptResolution.execution(failed);
+      }
+      _lastCaptureFailure = null;
+      final result = attempt.result!;
+      if (!result.skippedByPaintGeneration) {
+        return _PhysicalCaptureAttemptResolution.captured(attempt, result);
+      }
+      final reuse = _reuseWithoutCapture(
+        context: context,
+        outcome: _CaptureOutcome.paintGenerationUnchanged,
+        reuseReason: 'paint_generation',
+      );
+      if (reuse.outcome != _CaptureOutcome.noCompatibleFrame || retry == 1) {
+        return _PhysicalCaptureAttemptResolution.execution(reuse);
+      }
+      allowPaintSkip = false;
+      captureForce = true;
+    }
+    return const _PhysicalCaptureAttemptResolution.execution(
+      _CaptureExecution(outcome: _CaptureOutcome.captureProcessingFailed),
+    );
+  }
+
+  Future<ScreenshotCaptureAttempt> _capturePhysicalAttempt(
+    ScreenshotCapturer capturer,
+    _CaptureRequestContext context,
+    int generation,
+    TugboatSession? session,
+    bool force,
+    bool requiresFreshPaint,
+    bool allowPaintSkip,
+    Future<void> cancelled,
+  ) => capturer.captureAttempt(
+    force: force,
+    waitForFrame: true,
+    requireFreshPaint: requiresFreshPaint,
+    allowPaintGenerationSkip: allowPaintSkip,
+    degraded: _screenshotBudget.shouldSkipEligible,
+    cancelled: cancelled,
+    isCurrent: () => _isPhysicalAttemptCurrent(context, generation, session),
+  );
+
+  bool _isPhysicalAttemptCurrent(
+    _CaptureRequestContext context,
+    int generation,
+    TugboatSession? session,
+  ) =>
+      _captureContextStillCurrent(context, generation, session) &&
+      !_capturePaused &&
+      !_skipCapture;
+
+  _CaptureExecution? _failedPhysicalCaptureExecution(
+    ScreenshotCaptureAttempt attempt,
+    _CaptureRequestContext context,
+    int generation,
+    TugboatSession? captureSession,
+    TugboatSession session,
+    int queueWaitMicros,
+  ) {
+    if (_physicalAttemptIsUsable(attempt, context, generation, session)) {
+      return null;
+    }
+    _lastCaptureFailure = attempt.failure;
+    _recordFailedPhysicalCaptureBudget(
+      attempt,
+      context,
+      generation,
+      captureSession,
+      queueWaitMicros,
+    );
+    return _CaptureExecution(
+      outcome: _physicalFailureOutcome(
+        attempt,
+        context,
+        generation,
+        captureSession,
+      ),
+      failure: attempt.failure,
+      cancellationReason: _physicalFailureCancellationReason(attempt),
+    );
+  }
+
+  bool _physicalAttemptIsUsable(
+    ScreenshotCaptureAttempt attempt,
+    _CaptureRequestContext context,
+    int generation,
+    TugboatSession session,
+  ) =>
+      attempt.result != null &&
+      !_disposed &&
+      _captureContextStillCurrent(context, generation, session);
+
+  void _recordFailedPhysicalCaptureBudget(
+    ScreenshotCaptureAttempt attempt,
+    _CaptureRequestContext context,
+    int generation,
+    TugboatSession? session,
+    int queueWaitMicros,
+  ) {
+    if (attempt.failure == ScreenshotCaptureFailure.cancelled ||
+        !_captureContextStillCurrent(context, generation, session)) {
+      return;
+    }
+    _screenshotBudget.record(
+      queueWaitMicros: queueWaitMicros,
+      frameWaitMicros: attempt.frameWaitMicros,
+      readbackMicros: 0,
+      encodeMicros: 0,
+      encodedBytes: 0,
+      dropReason: attempt.failure?.name ?? 'capture_failed',
+    );
+  }
+
+  _CaptureOutcome _physicalFailureOutcome(
+    ScreenshotCaptureAttempt attempt,
+    _CaptureRequestContext context,
+    int generation,
+    TugboatSession? session,
+  ) => _captureContextStillCurrent(context, generation, session)
+      ? _diagnosticOutcomeForFailure(attempt.failure)
+      : _CaptureOutcome.supersededRoute;
+
+  String? _physicalFailureCancellationReason(
+    ScreenshotCaptureAttempt attempt,
+  ) => attempt.failure == ScreenshotCaptureFailure.cancelled
+      ? 'superseded_route'
+      : null;
+
+  void _recordPhysicalCaptureBudget(
+    int queueWaitMicros,
+    ScreenshotCaptureAttempt attempt,
+    ScreenshotCaptureResult result,
+  ) {
+    _screenshotBudget.record(
+      queueWaitMicros: queueWaitMicros,
+      frameWaitMicros: attempt.frameWaitMicros,
+      readbackMicros: result.captureMicros,
+      maskMicros: result.maskMicros,
+      encodeMicros: result.encodeMicros,
+      encodedBytes: result.bytes.length,
+      coalescedCapture: result.skippedByDHash,
+    );
+  }
+
+  _CaptureExecution? _reusePhysicalCaptureResult({
+    required ScreenshotCapturer capturer,
+    required _CaptureRequestContext context,
+    required ScreenshotCaptureResult result,
+    required bool force,
+    required bool requiresFreshPaint,
+  }) {
+    if (result.skippedByDHash) {
+      return _reuseDHashCaptureResult(capturer, context, result);
+    }
+    final existingId = _hashToFrameId[result.contentHash];
+    if (!_canReuseContentHash(existingId, context, force, requiresFreshPaint)) {
+      return null;
+    }
+    _reuseCompatibleFrame(existingId!, context, 'content_hash');
+    capturer.commitAcceptedPaintGeneration(result.paintGeneration);
+    capturer.commitAcceptedDHash(result.dHash);
+    _maybeEmitSceneInventory();
+    return _CaptureExecution(
+      outcome: _CaptureOutcome.exactContentReused,
+      frameId: existingId,
+      reuseReason: 'content_hash',
+    );
+  }
+
+  _CaptureExecution _reuseDHashCaptureResult(
+    ScreenshotCapturer capturer,
+    _CaptureRequestContext context,
+    ScreenshotCaptureResult result,
+  ) {
+    final compatible = _compatibleFrameFor(context);
+    final reused = compatible == null
+        ? null
+        : _reuseCompatibleFrame(compatible, context, 'dhash');
+    if (reused != null) {
+      capturer.commitAcceptedPaintGeneration(result.paintGeneration);
+      capturer.commitAcceptedDHash(result.dHash);
+    }
+    return _CaptureExecution(
+      outcome: reused == null
+          ? _CaptureOutcome.noCompatibleFrame
+          : _CaptureOutcome.perceptualHashCoalesced,
+      frameId: reused,
+      reuseReason: reused == null ? null : 'dhash',
+    );
+  }
+
+  bool _canReuseContentHash(
+    String? frameId,
+    _CaptureRequestContext context,
+    bool force,
+    bool requiresFreshPaint,
+  ) =>
+      !force &&
+      !requiresFreshPaint &&
+      frameId != null &&
+      _isFrameCompatible(frameId, context);
+
+  _CaptureExecution _publishPhysicalCaptureResult({
+    required TugboatFrameTrigger trigger,
+    required TugboatSession session,
+    required _CaptureRequestContext context,
+    required ScreenshotCaptureAttempt attempt,
+    required ScreenshotCaptureResult result,
+    required ScreenshotCapturer capturer,
+  }) {
+    final frameId = _nextId('frame');
+    final frame = TugboatFrame(
+      id: frameId,
+      atMs: atMs,
+      width: result.width,
+      height: result.height,
+      contentHash: result.contentHash,
+      masked: result.masked,
+      trigger: trigger,
+      byteLength: result.bytes.length,
+      captureMicros:
+          attempt.frameWaitMicros +
+          result.captureMicros +
+          result.maskMicros +
+          result.encodeMicros,
+      captureSessionId: session.id,
+    );
+    session.frames.add(frame);
+    session.frameBytes[frameId] = result.bytes;
+    _hashToFrameId[result.contentHash] = frameId;
+    _latestFrameId = frameId;
+    final boundary = _observeBoundaryTransform(result.boundaryLogicalRect);
+    _frameProvenance[frameId] = _FrameProvenance(
+      context: context.withBoundaryTransform(
+        logicalRect: result.boundaryLogicalRect,
+        generation: boundary.generation,
+      ),
+      completedAtMs: atMs,
+      sequence: ++_frameCompletionSequence,
+    );
+    capturer.commitAcceptedPaintGeneration(result.paintGeneration);
+    capturer.commitAcceptedDHash(result.dHash);
+    _maybeEmitSceneInventory();
+    _sinkHub?.recordFrame(
+      frame,
+      result.bytes,
+      sessionId: session.id,
+      actionId: _activeActionId,
+    );
+    _trim();
+    if (!_disposed) notifyListeners();
+    return _CaptureExecution(
+      outcome: _CaptureOutcome.freshAccepted,
+      frameId: frameId,
+    );
+  }
+
+  Future<_CaptureExecution> _executeCaptureOverride(
+    Future<String?> Function({
+      required TugboatFrameTrigger trigger,
+      required bool force,
+    })
+    override,
+    TugboatFrameTrigger trigger,
+    bool force,
+    _CaptureRequestContext context,
+    int generation,
+    TugboatSession? session,
+    bool requiresFreshPaint,
+  ) async {
+    _beginCapture();
+    try {
+      final frameId = await override(trigger: trigger, force: force);
+      if (!_captureContextStillCurrent(context, generation, session)) {
+        return const _CaptureExecution(
+          outcome: _CaptureOutcome.supersededRoute,
+        );
+      }
+      if (frameId != null && _frameProvenance.containsKey(frameId)) {
+        _latestFrameId = frameId;
+      }
+      _maybeEmitSceneInventory();
+      final resolved = frameId != null && _isFrameCompatible(frameId, context)
+          ? frameId
+          : (requiresFreshPaint ? null : _compatibleFrameFor(context));
+      return _overrideExecutionForFrame(context, resolved);
+    } finally {
+      _endCapture();
+      if (_scheduledCapture != null) _ensureCapturePumpScheduled();
+    }
+  }
+
+  _CaptureExecution _overrideExecutionForFrame(
+    _CaptureRequestContext context,
+    String? frameId,
+  ) => _CaptureExecution(
+    outcome: frameId == null
+        ? (_unavailableAttachmentReason(context) == 'no_frame_available'
+              ? _CaptureOutcome.noFrameAvailable
+              : _CaptureOutcome.noCompatibleFrame)
+        : _CaptureOutcome.freshAccepted,
+    frameId: frameId,
+  );
+
+  _CaptureExecution? _takeDebugCaptureExecution() {
+    final debugOutcome = debugNextCaptureOutcome;
+    if (debugOutcome == null) return null;
+    debugNextCaptureOutcome = null;
+    final frameId = debugNextCaptureFrameId;
+    debugNextCaptureFrameId = null;
+    final outcome = _CaptureOutcome.values.firstWhere(
+      (candidate) => candidate.wireName == debugOutcome,
+      orElse: () => throw ArgumentError.value(
+        debugOutcome,
+        'debugNextCaptureOutcome',
+        'unsupported capture outcome',
+      ),
+    );
+    return _CaptureExecution(
+      outcome: outcome,
+      frameId: frameId,
+      cancellationReason: outcome == _CaptureOutcome.cancelled ? 'debug' : null,
+      reuseReason: _debugCaptureReuseReason(outcome),
+    );
+  }
+
+  String? _debugCaptureReuseReason(_CaptureOutcome outcome) =>
+      switch (outcome) {
+        _CaptureOutcome.exactContentReused => 'content_hash',
+        _CaptureOutcome.perceptualHashCoalesced => 'dhash',
+        _CaptureOutcome.paintGenerationUnchanged => 'paint_generation',
+        _ => null,
+      };
 
   bool get _acceptsPointerInput =>
       !_disposed &&
@@ -2457,19 +2762,21 @@ class TugboatReplayController extends ChangeNotifier {
     try {
       final resolver = _anchorResolver;
       final rootRender = _boundaryKey.currentContext?.findRenderObject();
-      if (resolver == null || rootRender is! RenderBox || !rootRender.hasSize) {
+      if (!_canResolveExplorationTap(resolver, rootRender)) {
         failureReason = TugboatTargetResolutionFailureReason.resolutionError;
       } else {
-        final localPoint = rootRender.globalToLocal(tx.origin.startPosition);
-        final boundary = Offset.zero & rootRender.size;
+        final activeResolver = resolver!;
+        final captureRoot = rootRender as RenderBox;
+        final localPoint = captureRoot.globalToLocal(tx.origin.startPosition);
+        final boundary = Offset.zero & captureRoot.size;
         if (!boundary.contains(localPoint)) {
           failureReason =
               TugboatTargetResolutionFailureReason.outsideCaptureBoundary;
         } else {
           // Exploration accepts one synchronous rebuild for the primary
           // pointer so delayed same-route state cannot reuse an old token map.
-          resolver.invalidateTokenMapCache();
-          final tapContext = resolver.buildTapContext(
+          activeResolver.invalidateTokenMapCache();
+          final tapContext = activeResolver.buildTapContext(
             tapPosition: tx.origin.startPosition,
             route: tx.origin.route,
             keyboardOpen: _isKeyboardOpen(),
@@ -2544,6 +2851,11 @@ class TugboatReplayController extends ChangeNotifier {
     _recordExplorationPreTapDiagnostic(tx, evidence);
   }
 
+  bool _canResolveExplorationTap(
+    AnchorResolver? resolver,
+    RenderObject? rootRender,
+  ) => resolver != null && rootRender is RenderBox && rootRender.hasSize;
+
   TugboatTargetAnchor? _selectExplorationTapTarget({
     required TugboatTargetAnchor? rawTarget,
     required TugboatSceneInventory inventory,
@@ -2551,33 +2863,12 @@ class TugboatReplayController extends ChangeNotifier {
     required bool allowDismissibleBarrierTarget,
   }) {
     if (_isOpaquePlatformTarget(rawTarget)) return null;
-    final semanticFingerprint = semanticResolution?.linkedFingerprint;
-    if (semanticResolution?.status == 'matched_inventory_fallback' &&
-        semanticFingerprint?.isNotEmpty == true) {
-      final entry = _inventoryEntryForFingerprint(
-        inventory,
-        semanticFingerprint!,
-      );
-      if (entry != null && _isTapInventoryEntry(entry)) {
-        return _targetAnchorFromInventory(
-          entry,
-          base: rawTarget,
-          confidence: 'low',
-        );
-      }
-    }
-
-    if (semanticResolution?.status == 'matched_actionable' &&
-        semanticFingerprint?.isNotEmpty == true) {
-      final entry = _inventoryEntryForFingerprint(
-        inventory,
-        semanticFingerprint!,
-      );
-      if (entry != null && _isTapInventoryEntry(entry)) {
-        if (rawTarget?.fingerprint == entry.fingerprint) return rawTarget;
-        return _targetAnchorFromInventory(entry, base: rawTarget);
-      }
-    }
+    final semanticTarget = _semanticExplorationTapTarget(
+      rawTarget,
+      inventory,
+      semanticResolution,
+    );
+    if (semanticTarget != null) return semanticTarget;
 
     final rawFingerprint = rawTarget?.fingerprint;
     if (rawFingerprint == null || rawFingerprint.isEmpty) return null;
@@ -2587,6 +2878,28 @@ class TugboatReplayController extends ChangeNotifier {
       return null;
     }
     return rawTarget;
+  }
+
+  TugboatTargetAnchor? _semanticExplorationTapTarget(
+    TugboatTargetAnchor? rawTarget,
+    TugboatSceneInventory inventory,
+    TugboatViewportSemanticResolution? resolution,
+  ) {
+    final fingerprint = resolution?.linkedFingerprint;
+    if (fingerprint?.isEmpty != false) return null;
+    final entry = _inventoryEntryForFingerprint(inventory, fingerprint!);
+    if (entry == null || !_isTapInventoryEntry(entry)) return null;
+    if (resolution?.status == 'matched_inventory_fallback') {
+      return _targetAnchorFromInventory(
+        entry,
+        base: rawTarget,
+        confidence: 'low',
+      );
+    }
+    if (resolution?.status != 'matched_actionable') return null;
+    return rawTarget?.fingerprint == entry.fingerprint
+        ? rawTarget
+        : _targetAnchorFromInventory(entry, base: rawTarget);
   }
 
   TugboatSceneInventoryEntry? _inventoryEntryForFingerprint(
@@ -2725,43 +3038,7 @@ class TugboatReplayController extends ChangeNotifier {
   void _resolveTapEvidence(InteractionTransaction tx, Offset position) {
     final resolver = _anchorResolver;
     if (config.profile == TugboatCaptureProfile.exploration) {
-      final evidence = tx.preTapEvidence;
-      if (evidence == null) {
-        tx.targetResolutionFailureReason =
-            TugboatTargetResolutionFailureReason.noTargetAtPoint;
-        return;
-      }
-      if (evidence.routeEpoch != tx.origin.routeEpoch ||
-          evidence.routeInstanceId != tx.origin.routeInstanceId ||
-          evidence.route != tx.origin.route) {
-        tx.targetResolutionFailureReason =
-            TugboatTargetResolutionFailureReason.staleRouteGeneration;
-        return;
-      }
-      tx.targetAnchor = evidence.targetAnchor;
-      tx.targetResolutionFailureReason = evidence.failureReason;
-      final inventory = evidence.inventory;
-      if (inventory != null) {
-        _emitSceneInventory(inventory, emitViewportSemanticMap: false);
-      }
-      final semanticMap = evidence.semanticMap;
-      if (semanticMap != null) {
-        _viewportSemantics.publishTapSnapshot(
-          TugboatViewportTapSnapshot(
-            map: semanticMap,
-            encodedPayload: evidence.semanticEncodedPayload,
-            resolution: evidence.semanticResolution,
-            buildMicros: evidence.semanticBuildMicros,
-          ),
-        );
-      }
-      if (evidence.semanticResolution != null &&
-          _viewportSemanticMapDebugLogsEnabled) {
-        tugboatLogViewportSemanticTapResolution(
-          position,
-          evidence.semanticResolution!,
-        );
-      }
+      _resolveExplorationTapEvidence(tx, position);
       return;
     }
     if (config.profile == TugboatCaptureProfile.dormant) return;
@@ -2788,6 +3065,61 @@ class TugboatReplayController extends ChangeNotifier {
     );
     if (viewportResolution != null && _viewportSemanticMapDebugLogsEnabled) {
       tugboatLogViewportSemanticTapResolution(position, viewportResolution);
+    }
+  }
+
+  void _resolveExplorationTapEvidence(
+    InteractionTransaction tx,
+    Offset position,
+  ) {
+    final evidence = tx.preTapEvidence;
+    if (evidence == null) {
+      tx.targetResolutionFailureReason =
+          TugboatTargetResolutionFailureReason.noTargetAtPoint;
+      return;
+    }
+    if (!_explorationEvidenceMatchesOrigin(evidence, tx)) {
+      tx.targetResolutionFailureReason =
+          TugboatTargetResolutionFailureReason.staleRouteGeneration;
+      return;
+    }
+    tx.targetAnchor = evidence.targetAnchor;
+    tx.targetResolutionFailureReason = evidence.failureReason;
+    _publishExplorationTapEvidence(evidence);
+    _logExplorationTapResolution(position, evidence.semanticResolution);
+  }
+
+  bool _explorationEvidenceMatchesOrigin(
+    TugboatPreTapEvidence evidence,
+    InteractionTransaction tx,
+  ) =>
+      evidence.routeEpoch == tx.origin.routeEpoch &&
+      evidence.routeInstanceId == tx.origin.routeInstanceId &&
+      evidence.route == tx.origin.route;
+
+  void _publishExplorationTapEvidence(TugboatPreTapEvidence evidence) {
+    final inventory = evidence.inventory;
+    if (inventory != null) {
+      _emitSceneInventory(inventory, emitViewportSemanticMap: false);
+    }
+    final semanticMap = evidence.semanticMap;
+    if (semanticMap == null) return;
+    _viewportSemantics.publishTapSnapshot(
+      TugboatViewportTapSnapshot(
+        map: semanticMap,
+        encodedPayload: evidence.semanticEncodedPayload,
+        resolution: evidence.semanticResolution,
+        buildMicros: evidence.semanticBuildMicros,
+      ),
+    );
+  }
+
+  void _logExplorationTapResolution(
+    Offset position,
+    TugboatViewportSemanticResolution? resolution,
+  ) {
+    if (resolution != null && _viewportSemanticMapDebugLogsEnabled) {
+      tugboatLogViewportSemanticTapResolution(position, resolution);
     }
   }
 
@@ -3047,38 +3379,8 @@ class TugboatReplayController extends ChangeNotifier {
     pending.releasedAtMs = atMs;
     pending.releasedFrameSequence = _frameCompletionSequence;
 
-    if (pending.isPanOrZoom) {
-      final isZoom =
-          pending.gesture == InteractionGesture.zoomIn ||
-          pending.gesture == InteractionGesture.zoomOut;
-      if (isZoom || pending.scrollStartEventIds.isEmpty) {
-        pending.endPosition = position;
-        _clearCausalRouteState(pending.id);
-        _publishCompletedGestureAfterCapture(pending);
-        if (!_disposed) notifyListeners();
-        return;
-      }
-    }
-
-    if (pending.skipsTapSettlement) {
-      final scrollStartEventId = pending.scrollStartEventIds.isNotEmpty
-          ? pending.scrollStartEventIds.first
-          : null;
-      final scrolled = scrollStartEventId != null;
-      pending.gesture = scrolled
-          ? InteractionGesture.scroll
-          : InteractionGesture.swipe;
-      pending.endPosition = position;
-      _clearCausalRouteState(pending.id);
-      if (scrollStartEventId == null) {
-        _publishCompletedGestureAfterCapture(pending);
-      } else {
-        _scrollInteractions[scrollStartEventId] = pending;
-        _publishResolvedScrollInteraction(scrollStartEventId);
-      }
-      if (!_disposed) notifyListeners();
-      return;
-    }
+    if (_completePanOrZoomPointerUp(pending, position)) return;
+    if (_completeSkippedTapPointerUp(pending, position)) return;
 
     _resolveTapEvidence(pending, pending.origin.startPosition);
     // Keep the single-use claim alive through the pointer-up turn so sync
@@ -3090,6 +3392,53 @@ class TugboatReplayController extends ChangeNotifier {
     unawaited(_resolveTapSettle(work, pending, position, _activeRouteCapture));
   }
 
+  bool _completePanOrZoomPointerUp(
+    InteractionTransaction pending,
+    Offset position,
+  ) {
+    if (!pending.isPanOrZoom || !_panOrZoomCanComplete(pending)) return false;
+    _completePointerGesture(pending, position);
+    return true;
+  }
+
+  bool _panOrZoomCanComplete(InteractionTransaction pending) =>
+      pending.gesture == InteractionGesture.zoomIn ||
+      pending.gesture == InteractionGesture.zoomOut ||
+      pending.scrollStartEventIds.isEmpty;
+
+  bool _completeSkippedTapPointerUp(
+    InteractionTransaction pending,
+    Offset position,
+  ) {
+    if (!pending.skipsTapSettlement) return false;
+    final scrollId = pending.scrollStartEventIds.isEmpty
+        ? null
+        : pending.scrollStartEventIds.first;
+    pending.gesture = scrollId == null
+        ? InteractionGesture.swipe
+        : InteractionGesture.scroll;
+    pending.endPosition = position;
+    _clearCausalRouteState(pending.id);
+    if (scrollId == null) {
+      _publishCompletedGestureAfterCapture(pending);
+    } else {
+      _scrollInteractions[scrollId] = pending;
+      _publishResolvedScrollInteraction(scrollId);
+    }
+    if (!_disposed) notifyListeners();
+    return true;
+  }
+
+  void _completePointerGesture(
+    InteractionTransaction pending,
+    Offset position,
+  ) {
+    pending.endPosition = position;
+    _clearCausalRouteState(pending.id);
+    _publishCompletedGestureAfterCapture(pending);
+    if (!_disposed) notifyListeners();
+  }
+
   Future<void> _resolveTapSettle(
     _TapSettleWork work,
     InteractionTransaction pending,
@@ -3097,221 +3446,330 @@ class TugboatReplayController extends ChangeNotifier {
     _RouteCaptureWork? routeCaptureAtPointerUp,
   ) async {
     try {
-      final initialRouteCapture =
-          routeCaptureAtPointerUp?.change.causeEventId == pending.id
-          ? routeCaptureAtPointerUp
-          : null;
-      // Give a callback immediately after pointer-up the same settle boundary.
-      if (initialRouteCapture == null && config.settleDelay > Duration.zero) {
-        final deadline = _scheduleDelay(config.settleDelay);
-        work.attachDeadlineCancellation(deadline.cancel);
-        await deadline.done;
-      }
-      if (!_isActiveTapSettle(work)) return;
-      // Hold finalization open through the reconciliation window so a delayed
-      // route/modal can claim before we publish unknown/unchanged.
-      if (config.interactionClaimWindow > Duration.zero &&
-          !pending.claimed &&
-          pending.reconciliationDeadlineMs != null) {
-        final remainingMs = pending.reconciliationDeadlineMs! - atMs;
-        if (remainingMs > 0) {
-          final deadline = _scheduleDelay(Duration(milliseconds: remainingMs));
-          work.attachDeadlineCancellation(deadline.cancel);
-          await pending.awaitSuccessorOrDeadline(deadline.done);
-          deadline.cancel();
-        }
-      }
+      final initialRouteCapture = _initialTapRouteCapture(
+        routeCaptureAtPointerUp,
+        pending,
+      );
+      await _waitForTapSettleWindow(work, pending, initialRouteCapture);
       if (!_isActiveTapSettle(work)) return;
       // A tap may only inherit a route barrier that was causally claimed by
       // that exact tap. In particular, an automatic navigation that starts
       // while this tap is waiting to settle is independent evidence: joining
       // it would incorrectly copy its destination frame and route event ID
       // onto the tap.
-      final interactionRouteEpoch = pending.origin.routeEpoch;
-      final interactionRoute = pending.origin.route;
-      var currentRouteCapture = _activeRouteCapture;
-      var routeCapture =
-          initialRouteCapture ??
-          (currentRouteCapture?.change.causeEventId == pending.id
-              ? currentRouteCapture
-              : _causalRouteCaptures[pending.id]);
-      if (routeCapture == null && config.settleDelay <= Duration.zero) {
-        // Flutter delivers some gesture callbacks, such as ModalBarrier
-        // dismissal, after pointer-up. Yield one microtask before starting a
-        // standalone screenshot so a synchronous route claim can own its
-        // forced route frame without leaving a pending timer in widget tests.
-        await Future<void>.microtask(() {});
-        if (!_isActiveTapSettle(work)) return;
-        currentRouteCapture = _activeRouteCapture;
-        routeCapture = currentRouteCapture?.change.causeEventId == pending.id
-            ? currentRouteCapture
-            : _causalRouteCaptures[pending.id];
-      }
+      final routeCapture = await _tapRouteCaptureAfterSettle(
+        work,
+        pending,
+        initialRouteCapture,
+      );
+      if (!_isActiveTapSettle(work)) return;
       _TapSettleObservation observation;
       if (routeCapture != null) {
-        _causalRouteCaptures.remove(pending.id);
-        final routeBarrier = await _awaitRouteCaptureBarrier(
+        final routeObservation = await _tapObservationForRouteCapture(
+          work,
+          pending,
           routeCapture,
-          expectedCauseEventId: pending.id,
         );
-        if (!_isActiveTapSettle(work)) return;
-        // The route capture is a forced fresh frame and belongs to this
-        // claimed interaction. Reuse it here instead of scheduling a second
-        // interaction capture that can delay later route ownership.
-        final barrierWasSupersededByAutomatic =
-            routeBarrier.result.outcome == _RouteCaptureOutcome.cancelled &&
-            routeBarrier.work.change.causeEventId == pending.id &&
-            routeBarrier.work.supersededBy?.change.causeEventId != pending.id;
-        if (barrierWasSupersededByAutomatic) {
-          // The claimed route did not settle, but a later route frame remains
-          // a truthful temporal observation after this interaction. Follow the
-          // visual successor without assigning its route event as causal.
-          final successor = routeBarrier.work.supersededBy;
-          String? temporalAfterFrame;
-          String? temporalCaptureRequestId;
-          if (successor != null) {
-            final temporalBarrier = await _awaitRouteCaptureBarrier(successor);
-            temporalAfterFrame = _temporalAfterFrame(
-              pending,
-              temporalBarrier.result.frameId,
-            );
-            if (temporalAfterFrame != null) {
-              temporalCaptureRequestId =
-                  temporalBarrier.result.captureRequestId;
-            }
-          }
-          if (!_isActiveTapSettle(work)) return;
-          observation = _TapSettleObservation(
-            routeEpoch: _routeEpoch,
-            route: _currentRoute,
-            afterFrame: temporalAfterFrame,
-            navigationOutcome: 'navigation_unavailable',
-            captureOutcome: 'superseded_route_epoch',
-            captureFailure: 'superseded_route_epoch',
-            captureRequestId: temporalCaptureRequestId,
-          );
-        } else {
-          observation = _tapObservationFromRouteBarrier(pending, routeBarrier);
-        }
+        if (routeObservation == null) return;
+        observation = routeObservation;
       } else {
-        final requestedRouteEpoch = _routeEpoch;
-        final requestedRoute = _currentRoute;
-        final routeChangedFromOrigin =
-            requestedRouteEpoch != interactionRouteEpoch ||
-            requestedRoute != interactionRoute ||
-            _causalRouteSupersededInteractions.contains(pending.id);
-        final capture = _requestCaptureCancellable(
-          trigger: TugboatFrameTrigger.interaction,
-          force: true,
-          settleDelay: Duration.zero,
-          relatedEventId: pending.id,
+        final standaloneObservation = await _tapObservationForStandaloneCapture(
+          work,
+          pending,
         );
-        work.attachCaptureCancellation((reason) => capture.cancel(reason));
-        final captureResolution = await capture.resolution;
-        final afterFrame = captureResolution.frameId;
-        if (!_isActiveTapSettle(work)) return;
-        final provenance = afterFrame == null
-            ? null
-            : _frameProvenance[afterFrame];
-        // A standalone interaction capture belongs to the immutable
-        // pointer-down route epoch. A later automatic route can be a useful
-        // visual successor, but it cannot supply this interaction's evidence.
-        final frameMatchesOrigin =
-            afterFrame != null &&
-            provenance != null &&
-            provenance.context.routeEpoch == interactionRouteEpoch &&
-            provenance.context.route == interactionRoute;
-        final replacementRoute = _activeRouteCapture;
-        final replacementIsCausal =
-            replacementRoute?.change.causeEventId == pending.id;
-        final captureWasSuperseded =
-            routeChangedFromOrigin ||
-            (!frameMatchesOrigin &&
-                captureResolution.outcome == _CaptureOutcome.supersededRoute);
-        if (!frameMatchesOrigin &&
-            replacementRoute != null &&
-            replacementRoute.epoch != requestedRouteEpoch) {
-          final routeBarrier = await _awaitRouteCaptureBarrier(
-            replacementRoute,
-            expectedCauseEventId: replacementIsCausal ? pending.id : null,
-          );
-          if (!_isActiveTapSettle(work)) return;
-          final successor = _tapObservationFromRouteBarrier(
-            pending,
-            routeBarrier,
-            navigationOutcome: replacementIsCausal
-                ? 'navigated'
-                : 'visual_successor',
-          );
-          // The successor frame is a temporal post-interaction observation.
-          // Only routeEventId remains gated by causal ownership.
-          observation = _TapSettleObservation(
-            routeEpoch: successor.routeEpoch,
-            route: successor.route,
-            afterFrame: _temporalAfterFrame(pending, successor.afterFrame),
-            navigationOutcome: successor.navigationOutcome,
-            captureOutcome: replacementIsCausal
-                ? captureResolution.outcome.wireName
-                : 'superseded_route_epoch',
-            captureFailure: replacementIsCausal
-                ? captureResolution.outcome.wireName
-                : 'superseded_route_epoch',
-            routeEventId: replacementIsCausal ? successor.routeEventId : null,
-            captureRequestId: captureResolution.requestId,
-          );
-        } else {
-          final temporalAfterFrame =
-              frameMatchesOrigin && !routeChangedFromOrigin
-              ? afterFrame
-              : _temporalAfterFrame(pending, _latestFrameId);
-          observation = _TapSettleObservation(
-            routeEpoch: requestedRouteEpoch,
-            route: requestedRoute,
-            afterFrame: temporalAfterFrame,
-            navigationOutcome: 'same_route',
-            captureOutcome: frameMatchesOrigin && !routeChangedFromOrigin
-                ? 'captured'
-                : captureWasSuperseded
-                ? 'superseded_route_epoch'
-                : 'failed',
-            captureFailure: frameMatchesOrigin && !routeChangedFromOrigin
-                ? null
-                : captureWasSuperseded
-                ? 'superseded_route_epoch'
-                : captureResolution.outcome.wireName,
-            captureRequestId: captureResolution.requestId,
-          );
-        }
+        if (standaloneObservation == null) return;
+        observation = standaloneObservation;
       }
-      Future<void> writeSettle() async {
-        if (!_isActiveTapSettle(work)) return;
-        final afterFrame = observation.afterFrame;
-        pending.gesture = InteractionGesture.tap;
-        pending.afterFrame = afterFrame;
-        _publishCanonicalInteraction(pending);
-
-        if (!_disposed) notifyListeners();
-      }
-
-      // Route barriers may time out while the ordinary event queue is blocked.
-      // Publish that one degraded, frame-less observation immediately rather
-      // than letting it be replaced by unrelated later route state.
-      if (observation.isDegraded) {
-        try {
-          await writeSettle();
-        } catch (error, stackTrace) {
-          debugPrint(
-            '[tugboat] interaction settle failed: $error\n$stackTrace',
-          );
-        }
-      } else {
-        await _enqueue('interaction_settle', writeSettle);
-      }
+      await _publishTapSettleObservation(work, pending, observation);
     } finally {
       _activeTapSettles.remove(work);
       _clearCausalRouteState(pending.id);
       work.complete();
     }
+  }
+
+  _RouteCaptureWork? _initialTapRouteCapture(
+    _RouteCaptureWork? routeCapture,
+    InteractionTransaction pending,
+  ) => routeCapture?.change.causeEventId == pending.id ? routeCapture : null;
+
+  Future<void> _waitForTapSettleWindow(
+    _TapSettleWork work,
+    InteractionTransaction pending,
+    _RouteCaptureWork? initialRouteCapture,
+  ) async {
+    if (initialRouteCapture == null && config.settleDelay > Duration.zero) {
+      final deadline = _scheduleDelay(config.settleDelay);
+      work.attachDeadlineCancellation(deadline.cancel);
+      await deadline.done;
+    }
+    if (_isActiveTapSettle(work)) {
+      await _waitForTapClaimWindow(work, pending);
+    }
+  }
+
+  Future<void> _waitForTapClaimWindow(
+    _TapSettleWork work,
+    InteractionTransaction pending,
+  ) async {
+    final deadlineMs = pending.reconciliationDeadlineMs;
+    if (!_hasTapClaimWindow(pending, deadlineMs)) return;
+    final remainingMs = deadlineMs! - atMs;
+    if (remainingMs <= 0) return;
+    final deadline = _scheduleDelay(Duration(milliseconds: remainingMs));
+    work.attachDeadlineCancellation(deadline.cancel);
+    await pending.awaitSuccessorOrDeadline(deadline.done);
+    deadline.cancel();
+  }
+
+  bool _hasTapClaimWindow(InteractionTransaction pending, int? deadlineMs) =>
+      config.interactionClaimWindow > Duration.zero &&
+      !pending.claimed &&
+      deadlineMs != null;
+
+  Future<_RouteCaptureWork?> _tapRouteCaptureAfterSettle(
+    _TapSettleWork work,
+    InteractionTransaction pending,
+    _RouteCaptureWork? initialRouteCapture,
+  ) async {
+    final routeCapture = initialRouteCapture ?? _causalRouteCaptureFor(pending);
+    if (routeCapture != null || config.settleDelay > Duration.zero) {
+      return routeCapture;
+    }
+    await Future<void>.microtask(() {});
+    if (!_isActiveTapSettle(work)) return null;
+    return _causalRouteCaptureFor(pending);
+  }
+
+  _RouteCaptureWork? _causalRouteCaptureFor(InteractionTransaction pending) {
+    final active = _activeRouteCapture;
+    if (active?.change.causeEventId == pending.id) return active;
+    return _causalRouteCaptures[pending.id];
+  }
+
+  Future<_TapSettleObservation?> _tapObservationForRouteCapture(
+    _TapSettleWork work,
+    InteractionTransaction pending,
+    _RouteCaptureWork routeCapture,
+  ) async {
+    _causalRouteCaptures.remove(pending.id);
+    final barrier = await _awaitRouteCaptureBarrier(
+      routeCapture,
+      expectedCauseEventId: pending.id,
+    );
+    if (!_isActiveTapSettle(work)) return null;
+    if (!_routeBarrierWasSupersededByAutomatic(barrier, pending)) {
+      return _tapObservationFromRouteBarrier(pending, barrier);
+    }
+    return _supersededRouteTapObservation(work, pending, barrier);
+  }
+
+  bool _routeBarrierWasSupersededByAutomatic(
+    ({_RouteCaptureWork work, _RouteCaptureResult result}) barrier,
+    InteractionTransaction pending,
+  ) =>
+      barrier.result.outcome == _RouteCaptureOutcome.cancelled &&
+      barrier.work.change.causeEventId == pending.id &&
+      barrier.work.supersededBy?.change.causeEventId != pending.id;
+
+  Future<_TapSettleObservation?> _supersededRouteTapObservation(
+    _TapSettleWork work,
+    InteractionTransaction pending,
+    ({_RouteCaptureWork work, _RouteCaptureResult result}) barrier,
+  ) async {
+    final successor = barrier.work.supersededBy;
+    final temporalBarrier = successor == null
+        ? null
+        : await _awaitRouteCaptureBarrier(successor);
+    if (!_isActiveTapSettle(work)) return null;
+    final afterFrame = temporalBarrier == null
+        ? null
+        : _temporalAfterFrame(pending, temporalBarrier.result.frameId);
+    return _TapSettleObservation(
+      routeEpoch: _routeEpoch,
+      route: _currentRoute,
+      afterFrame: afterFrame,
+      navigationOutcome: 'navigation_unavailable',
+      captureOutcome: 'superseded_route_epoch',
+      captureFailure: 'superseded_route_epoch',
+      captureRequestId: afterFrame == null
+          ? null
+          : temporalBarrier!.result.captureRequestId,
+    );
+  }
+
+  Future<_TapSettleObservation?> _tapObservationForStandaloneCapture(
+    _TapSettleWork work,
+    InteractionTransaction pending,
+  ) async {
+    final requestedRouteEpoch = _routeEpoch;
+    final requestedRoute = _currentRoute;
+    final routeChanged = _tapRouteChangedFromOrigin(
+      pending,
+      requestedRouteEpoch,
+      requestedRoute,
+    );
+    final capture = _requestCaptureCancellable(
+      trigger: TugboatFrameTrigger.interaction,
+      force: true,
+      settleDelay: Duration.zero,
+      relatedEventId: pending.id,
+    );
+    work.attachCaptureCancellation((reason) => capture.cancel(reason));
+    final resolution = await capture.resolution;
+    if (!_isActiveTapSettle(work)) return null;
+    if (_standaloneCaptureHasReplacementRoute(
+      pending,
+      resolution,
+      requestedRouteEpoch,
+    )) {
+      return _standaloneTapSuccessorObservation(
+        work,
+        pending,
+        resolution,
+        _activeRouteCapture!,
+      );
+    }
+    return _standaloneTapSameRouteObservation(
+      pending,
+      resolution,
+      requestedRouteEpoch,
+      requestedRoute,
+      routeChanged,
+    );
+  }
+
+  bool _tapRouteChangedFromOrigin(
+    InteractionTransaction pending,
+    int requestedEpoch,
+    String? requestedRoute,
+  ) =>
+      requestedEpoch != pending.origin.routeEpoch ||
+      requestedRoute != pending.origin.route ||
+      _causalRouteSupersededInteractions.contains(pending.id);
+
+  bool _standaloneCaptureHasReplacementRoute(
+    InteractionTransaction pending,
+    _CaptureResolution resolution,
+    int requestedRouteEpoch,
+  ) {
+    final frameMatches = _frameMatchesTapOrigin(pending, resolution.frameId);
+    final replacement = _activeRouteCapture;
+    return !frameMatches &&
+        replacement != null &&
+        replacement.epoch != requestedRouteEpoch;
+  }
+
+  bool _frameMatchesTapOrigin(InteractionTransaction pending, String? frameId) {
+    final provenance = frameId == null ? null : _frameProvenance[frameId];
+    return provenance != null &&
+        provenance.context.routeEpoch == pending.origin.routeEpoch &&
+        provenance.context.route == pending.origin.route;
+  }
+
+  Future<_TapSettleObservation?> _standaloneTapSuccessorObservation(
+    _TapSettleWork work,
+    InteractionTransaction pending,
+    _CaptureResolution resolution,
+    _RouteCaptureWork replacementRoute,
+  ) async {
+    final causal = replacementRoute.change.causeEventId == pending.id;
+    final barrier = await _awaitRouteCaptureBarrier(
+      replacementRoute,
+      expectedCauseEventId: causal ? pending.id : null,
+    );
+    if (!_isActiveTapSettle(work)) return null;
+    final successor = _tapObservationFromRouteBarrier(
+      pending,
+      barrier,
+      navigationOutcome: causal ? 'navigated' : 'visual_successor',
+    );
+    return _successorTapObservation(pending, resolution, successor, causal);
+  }
+
+  _TapSettleObservation _successorTapObservation(
+    InteractionTransaction pending,
+    _CaptureResolution resolution,
+    _TapSettleObservation successor,
+    bool causal,
+  ) => _TapSettleObservation(
+    routeEpoch: successor.routeEpoch,
+    route: successor.route,
+    afterFrame: _temporalAfterFrame(pending, successor.afterFrame),
+    navigationOutcome: successor.navigationOutcome,
+    captureOutcome: causal
+        ? resolution.outcome.wireName
+        : 'superseded_route_epoch',
+    captureFailure: causal
+        ? resolution.outcome.wireName
+        : 'superseded_route_epoch',
+    routeEventId: causal ? successor.routeEventId : null,
+    captureRequestId: resolution.requestId,
+  );
+
+  _TapSettleObservation _standaloneTapSameRouteObservation(
+    InteractionTransaction pending,
+    _CaptureResolution resolution,
+    int requestedRouteEpoch,
+    String? requestedRoute,
+    bool routeChanged,
+  ) {
+    final matchesOrigin = _frameMatchesTapOrigin(pending, resolution.frameId);
+    final superseded =
+        routeChanged || _captureWasSuperseded(resolution, matchesOrigin);
+    final captured = matchesOrigin && !routeChanged;
+    return _TapSettleObservation(
+      routeEpoch: requestedRouteEpoch,
+      route: requestedRoute,
+      afterFrame: captured
+          ? resolution.frameId
+          : _temporalAfterFrame(pending, _latestFrameId),
+      navigationOutcome: 'same_route',
+      captureOutcome: captured
+          ? 'captured'
+          : (superseded ? 'superseded_route_epoch' : 'failed'),
+      captureFailure: captured
+          ? null
+          : (superseded
+                ? 'superseded_route_epoch'
+                : resolution.outcome.wireName),
+      captureRequestId: resolution.requestId,
+    );
+  }
+
+  bool _captureWasSuperseded(
+    _CaptureResolution resolution,
+    bool matchesOrigin,
+  ) => !matchesOrigin && resolution.outcome == _CaptureOutcome.supersededRoute;
+
+  Future<void> _publishTapSettleObservation(
+    _TapSettleWork work,
+    InteractionTransaction pending,
+    _TapSettleObservation observation,
+  ) async {
+    Future<void> write() =>
+        _writeTapSettleObservation(work, pending, observation);
+    if (observation.isDegraded) {
+      try {
+        await write();
+      } catch (error, stackTrace) {
+        debugPrint('[tugboat] interaction settle failed: $error\n$stackTrace');
+      }
+      return;
+    }
+    await _enqueue('interaction_settle', write);
+  }
+
+  Future<void> _writeTapSettleObservation(
+    _TapSettleWork work,
+    InteractionTransaction pending,
+    _TapSettleObservation observation,
+  ) async {
+    if (!_isActiveTapSettle(work)) return;
+    pending.gesture = InteractionGesture.tap;
+    pending.afterFrame = observation.afterFrame;
+    _publishCanonicalInteraction(pending);
+    if (!_disposed) notifyListeners();
   }
 
   /// Returns a frame only as a temporal observation made after [interaction].
@@ -3381,12 +3839,11 @@ class TugboatReplayController extends ChangeNotifier {
     final routeResult = routeBarrier.result;
     final frameId = routeResult.frameId;
     final provenance = frameId == null ? null : _frameProvenance[frameId];
-    final validFrame =
-        frameId != null &&
-        provenance != null &&
-        provenance.context.captureSessionId == _session?.id &&
-        provenance.context.routeEpoch == settledRoute.epoch &&
-        provenance.context.route == settledRoute.change.destinationRoute;
+    final validFrame = _isValidRouteBarrierFrame(
+      frameId,
+      provenance,
+      settledRoute,
+    );
     return _TapSettleObservation(
       routeEpoch: settledRoute.epoch,
       route: settledRoute.change.destinationRoute,
@@ -3404,6 +3861,17 @@ class TugboatReplayController extends ChangeNotifier {
       captureRequestId: routeResult.captureRequestId,
     );
   }
+
+  bool _isValidRouteBarrierFrame(
+    String? frameId,
+    _FrameProvenance? provenance,
+    _RouteCaptureWork route,
+  ) =>
+      frameId != null &&
+      provenance != null &&
+      provenance.context.captureSessionId == _session?.id &&
+      provenance.context.routeEpoch == route.epoch &&
+      provenance.context.route == route.change.destinationRoute;
 
   void _cancelActiveTapSettles([String reason = 'manual']) {
     for (final work in List<_TapSettleWork>.from(_activeTapSettles)) {
@@ -3623,27 +4091,35 @@ class TugboatReplayController extends ChangeNotifier {
     required _ScrollTracker tracker,
     double? endOffset,
   }) {
-    final maxExtent = metrics.maxScrollExtent;
-    final offsetNorm = maxExtent > 0 ? metrics.pixels / maxExtent : null;
-    final startNorm = maxExtent > 0 ? tracker.startOffset / maxExtent : null;
-    final endNorm = maxExtent > 0
-        ? (endOffset ?? metrics.pixels) / maxExtent
-        : null;
+    final normalized = _normalizedScrollOffsets(metrics, tracker, endOffset);
     return TugboatViewportSemanticScrollContext(
       trigger: trigger,
       scrollableFingerprint: tracker.targetAnchor?.fingerprint,
       axis: metrics.axis.name,
       offset: metrics.pixels,
-      offsetNorm: offsetNorm,
+      offsetNorm: normalized.offset,
       startOffset: tracker.startOffset,
       endOffset: endOffset,
       depth: tracker.depth,
-      observedTopNorm: startNorm != null && endNorm != null
-          ? (startNorm < endNorm ? startNorm : endNorm)
-          : offsetNorm,
-      observedBottomNorm: startNorm != null && endNorm != null
-          ? (startNorm > endNorm ? startNorm : endNorm)
-          : offsetNorm,
+      observedTopNorm: normalized.top,
+      observedBottomNorm: normalized.bottom,
+    );
+  }
+
+  ({double? offset, double? top, double? bottom}) _normalizedScrollOffsets(
+    ScrollMetrics metrics,
+    _ScrollTracker tracker,
+    double? endOffset,
+  ) {
+    final extent = metrics.maxScrollExtent;
+    if (extent <= 0) return (offset: null, top: null, bottom: null);
+    final offset = metrics.pixels / extent;
+    final start = tracker.startOffset / extent;
+    final end = (endOffset ?? metrics.pixels) / extent;
+    return (
+      offset: offset,
+      top: start < end ? start : end,
+      bottom: start > end ? start : end,
     );
   }
 
@@ -3724,42 +4200,8 @@ class TugboatReplayController extends ChangeNotifier {
     if (session == null || _capturePaused) return;
 
     final now = DateTime.now();
-    final sampleDue =
-        config.captureScrollSamples &&
-        (tracker.lastSampleAt == null ||
-            now.difference(tracker.lastSampleAt!) >=
-                config.scrollCaptureInterval);
-    if (sampleDue) {
-      tracker.lastSampleAt = now;
-      session.scrollSamples.add(
-        TugboatScrollSample(
-          atMs: atMs,
-          offset: metrics.pixels,
-          beforeFrame: tracker.beforeFrame,
-          scrollableFingerprint: tracker.targetAnchor?.fingerprint,
-          axis: metrics.axis.name,
-          offsetNorm: metrics.maxScrollExtent > 0
-              ? metrics.pixels / metrics.maxScrollExtent
-              : null,
-        ),
-      );
-      _trimScrollSamples();
-    }
-
-    final screenshotDue =
-        config.captureScrollScreenshots &&
-        (tracker.lastScreenshotAt == null ||
-            now.difference(tracker.lastScreenshotAt!) >=
-                config.scrollCaptureInterval);
-    if (screenshotDue) {
-      tracker.lastScreenshotAt = now;
-      unawaited(
-        _requestCaptureCancellable(
-          trigger: TugboatFrameTrigger.scroll,
-          dropWhenBusy: true,
-        ).done,
-      );
-    }
+    final sampleDue = _recordScrollSampleIfDue(session, tracker, metrics, now);
+    final screenshotDue = _captureScrollScreenshotIfDue(tracker, now);
     if (!sampleDue && !screenshotDue) return;
     // Debounce semantic/inventory rebuilds during continuous scroll. Scroll
     // metrics are independent from visual capture; scroll_end forces the final
@@ -3778,6 +4220,52 @@ class TugboatReplayController extends ChangeNotifier {
       ),
     );
   }
+
+  bool _recordScrollSampleIfDue(
+    TugboatSession session,
+    _ScrollTracker tracker,
+    ScrollMetrics metrics,
+    DateTime now,
+  ) {
+    if (!_scrollSampleIsDue(tracker, now)) return false;
+    tracker.lastSampleAt = now;
+    session.scrollSamples.add(
+      TugboatScrollSample(
+        atMs: atMs,
+        offset: metrics.pixels,
+        beforeFrame: tracker.beforeFrame,
+        scrollableFingerprint: tracker.targetAnchor?.fingerprint,
+        axis: metrics.axis.name,
+        offsetNorm: metrics.maxScrollExtent > 0
+            ? metrics.pixels / metrics.maxScrollExtent
+            : null,
+      ),
+    );
+    _trimScrollSamples();
+    return true;
+  }
+
+  bool _scrollSampleIsDue(_ScrollTracker tracker, DateTime now) =>
+      config.captureScrollSamples &&
+      _scrollIntervalHasElapsed(tracker.lastSampleAt, now);
+
+  bool _captureScrollScreenshotIfDue(_ScrollTracker tracker, DateTime now) {
+    if (!config.captureScrollScreenshots ||
+        !_scrollIntervalHasElapsed(tracker.lastScreenshotAt, now)) {
+      return false;
+    }
+    tracker.lastScreenshotAt = now;
+    unawaited(
+      _requestCaptureCancellable(
+        trigger: TugboatFrameTrigger.scroll,
+        dropWhenBusy: true,
+      ).done,
+    );
+    return true;
+  }
+
+  bool _scrollIntervalHasElapsed(DateTime? last, DateTime now) =>
+      last == null || now.difference(last) >= config.scrollCaptureInterval;
 
   void recordScrollOverscroll({required BuildContext? scrollContext}) {
     final scrollableElement = _scrollableElementFor(scrollContext);
@@ -3837,84 +4325,127 @@ class TugboatReplayController extends ChangeNotifier {
     // Scroll-end capture is deliberately outside the controller task queue.
     // It may wait for the viewport to settle, but must not delay pointer, route,
     // or interaction work that arrives meanwhile.
-    unawaited(() async {
-      await idleDeadline.done;
-      final wasPending =
-          _pendingScrollEndDelayCancellations.remove(tracker.startEventId) !=
-          null;
-      if (!wasPending || completion.resolved) return;
-      if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
-        return;
-      }
-      if (tracker.routeEpoch != _routeEpoch) {
-        // Make the interaction capture attempt. A later route frame can be a
-        // temporal observation, but it does not make the route scroll-caused.
-        final afterCapture = _requestCaptureCancellable(
-          trigger: TugboatFrameTrigger.interaction,
-          force: true,
-          settleDelay: Duration.zero,
-          relatedEventId: tracker.startEventId,
-        );
-        final afterResolution = await afterCapture.resolution;
-        if (!_isCaptureLifecycleCurrent(
-          captureSession,
-          captureLifecycleEpoch,
-        )) {
-          return;
-        }
-        completion
-          ..captureResolution = afterResolution
-          ..captureOutcome = 'superseded_route_epoch'
-          ..resolved = true;
-        _publishResolvedScrollInteraction(tracker.startEventId);
-        if (!_disposed) notifyListeners();
-        return;
-      }
-      final afterCapture = _requestCaptureCancellable(
-        trigger: TugboatFrameTrigger.interaction,
-        force: true,
-        settleDelay: Duration.zero,
-        relatedEventId: tracker.startEventId,
+    unawaited(
+      _completePointerLinkedScrollEnd(
+        tracker,
+        completion,
+        idleDeadline.done,
+        captureSession,
+        captureLifecycleEpoch,
+        metrics,
+      ),
+    );
+  }
+
+  Future<void> _completePointerLinkedScrollEnd(
+    _ScrollTracker tracker,
+    _PendingScrollCompletion completion,
+    Future<void> deadline,
+    TugboatSession? session,
+    int lifecycleEpoch,
+    ScrollMetrics metrics,
+  ) async {
+    await deadline;
+    final wasPending =
+        _pendingScrollEndDelayCancellations.remove(tracker.startEventId) !=
+        null;
+    if (!wasPending ||
+        completion.resolved ||
+        !_isCaptureLifecycleCurrent(session, lifecycleEpoch)) {
+      return;
+    }
+    if (tracker.routeEpoch != _routeEpoch) {
+      await _completeSupersededScrollEnd(
+        tracker,
+        completion,
+        session,
+        lifecycleEpoch,
       );
-      final afterResolution = await afterCapture.resolution;
-      if (!_isCaptureLifecycleCurrent(captureSession, captureLifecycleEpoch)) {
-        return;
-      }
-      final afterFrame =
-          afterResolution.outcome == _CaptureOutcome.freshAccepted
-          ? afterResolution.frameId
-          : null;
-      if (config.captureScrollSamples &&
-          _session != null &&
-          _session!.scrollSamples.isNotEmpty) {
-        final last = _session!.scrollSamples.last;
-        _session!.scrollSamples[_session!.scrollSamples.length -
-            1] = TugboatScrollSample(
-          atMs: last.atMs,
-          offset: metrics.pixels,
-          beforeFrame: last.beforeFrame,
-          afterFrame: afterFrame,
-          scrollableFingerprint: last.scrollableFingerprint,
-          axis: last.axis,
-          offsetNorm: last.offsetNorm,
-        );
-      }
-      _maybeEmitSceneInventory(
-        scrollContext: _scrollSemanticContext(
-          trigger: 'scroll_end',
-          metrics: metrics,
-          tracker: tracker,
-          endOffset: metrics.pixels,
-        ),
+      return;
+    }
+    await _completeCurrentScrollEnd(
+      tracker,
+      completion,
+      session,
+      lifecycleEpoch,
+      metrics,
+    );
+  }
+
+  Future<void> _completeSupersededScrollEnd(
+    _ScrollTracker tracker,
+    _PendingScrollCompletion completion,
+    TugboatSession? session,
+    int lifecycleEpoch,
+  ) async {
+    // Make the interaction capture attempt. A later route frame can be a
+    // temporal observation, but it does not make the route scroll-caused.
+    final afterCapture = _requestCaptureCancellable(
+      trigger: TugboatFrameTrigger.interaction,
+      force: true,
+      settleDelay: Duration.zero,
+      relatedEventId: tracker.startEventId,
+    );
+    final afterResolution = await afterCapture.resolution;
+    if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch)) return;
+    completion
+      ..captureResolution = afterResolution
+      ..captureOutcome = 'superseded_route_epoch'
+      ..resolved = true;
+    _publishResolvedScrollInteraction(tracker.startEventId);
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> _completeCurrentScrollEnd(
+    _ScrollTracker tracker,
+    _PendingScrollCompletion completion,
+    TugboatSession? session,
+    int lifecycleEpoch,
+    ScrollMetrics metrics,
+  ) async {
+    final afterCapture = _requestCaptureCancellable(
+      trigger: TugboatFrameTrigger.interaction,
+      force: true,
+      settleDelay: Duration.zero,
+      relatedEventId: tracker.startEventId,
+    );
+    final afterResolution = await afterCapture.resolution;
+    if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch)) {
+      return;
+    }
+    final afterFrame = afterResolution.outcome == _CaptureOutcome.freshAccepted
+        ? afterResolution.frameId
+        : null;
+    if (config.captureScrollSamples &&
+        _session != null &&
+        _session!.scrollSamples.isNotEmpty) {
+      final last = _session!.scrollSamples.last;
+      _session!.scrollSamples[_session!.scrollSamples.length -
+          1] = TugboatScrollSample(
+        atMs: last.atMs,
+        offset: metrics.pixels,
+        beforeFrame: last.beforeFrame,
+        afterFrame: afterFrame,
+        scrollableFingerprint: last.scrollableFingerprint,
+        axis: last.axis,
+        offsetNorm: last.offsetNorm,
       );
-      completion
-        ..afterFrame = afterFrame
-        ..captureResolution = afterResolution
-        ..captureOutcome = afterResolution.outcome.wireName
-        ..resolved = true;
-      _publishResolvedScrollInteraction(tracker.startEventId);
-      if (!_disposed) notifyListeners();
-    }());
+    }
+    _maybeEmitSceneInventory(
+      scrollContext: _scrollSemanticContext(
+        trigger: 'scroll_end',
+        metrics: metrics,
+        tracker: tracker,
+        endOffset: metrics.pixels,
+      ),
+    );
+    completion
+      ..afterFrame = afterFrame
+      ..captureResolution = afterResolution
+      ..captureOutcome = afterResolution.outcome.wireName
+      ..resolved = true;
+    _publishResolvedScrollInteraction(tracker.startEventId);
+    if (!_disposed) notifyListeners();
   }
 
   bool _isCaptureLifecycleCurrent(
@@ -3933,7 +4464,7 @@ class TugboatReplayController extends ChangeNotifier {
     NavigatorState? navigatorState,
     Route<dynamic>? departingRoute,
   }) {
-    if (_disposed || _session == null || _endSessionFuture != null) {
+    if (_routeCaptureIsUnavailable) {
       return Future<void>.value();
     }
     final transition = _parseRouteTransition(type, route);
@@ -3945,17 +4476,43 @@ class TugboatReplayController extends ChangeNotifier {
     );
     if (change == null) return Future<void>.value();
 
-    if (change.updatesRoute) {
-      _currentRoute = change.destinationRoute;
-      _currentNavigatorId = change.navigatorId;
-      _currentRouteInstanceId = change.routeInstanceId;
-    }
+    _applyVisibleRouteChange(change);
 
     final captureKey = _routeCaptureKey(change.navigatorId);
     final prior = _activeRouteCaptures[captureKey];
+    _replacePriorRouteCapture(captureKey, prior);
+    final work = _RouteCaptureWork(
+      epoch: ++_routeEpoch,
+      change: change,
+      deadline: _routeCaptureDeadline(transition, change),
+    );
+    _activeRouteCaptures[captureKey] = work;
+    _latestRouteCaptureKey = captureKey;
+    prior?.supersededBy = work;
+    _updateRouteCaptureCausality(prior, change, work);
+    _skipCapture = transition.transitionDuration > Duration.zero;
+    _startRouteBarrierTimeout(work);
+    // Wake a reconciliation-pending settle only after this capture is visible
+    // in `_activeRouteCaptures`, otherwise settle can miss the causal barrier.
+    _signalRouteCause(change);
+    _scheduleRouteCaptureFinalization(work);
+    return work.done.then<void>((_) {});
+  }
+
+  bool get _routeCaptureIsUnavailable =>
+      _disposed || _session == null || _endSessionFuture != null;
+
+  void _applyVisibleRouteChange(_VisibleRouteChange change) {
+    if (!change.updatesRoute) return;
+    _currentRoute = change.destinationRoute;
+    _currentNavigatorId = change.navigatorId;
+    _currentRouteInstanceId = change.routeInstanceId;
+  }
+
+  void _replacePriorRouteCapture(String key, _RouteCaptureWork? prior) {
     if (prior != null) {
-      _activeRouteCaptures.remove(captureKey);
-      if (_latestRouteCaptureKey == captureKey) {
+      _activeRouteCaptures.remove(key);
+      if (_latestRouteCaptureKey == key) {
         _latestRouteCaptureKey = _activeRouteCaptures.keys.isEmpty
             ? null
             : _activeRouteCaptures.keys.last;
@@ -3963,45 +4520,45 @@ class TugboatReplayController extends ChangeNotifier {
       prior.cancel('superseded_route');
       _cancelScheduledCaptureWaiters('superseded_route');
       _advanceCaptureGeneration();
-    } else if (_activeRouteCaptures.isEmpty) {
-      // A new visible route must also wake any unrelated in-flight frame wait.
-      _advanceCaptureGeneration();
+      return;
     }
-    final work = _RouteCaptureWork(
-      epoch: ++_routeEpoch,
-      change: change,
-      deadline:
-          transition.transitionDuration +
-          (_shouldSuppressFrameCapture && change.causeEventId == null
-              ? Duration.zero
-              : config.settleDelay),
-    );
-    _activeRouteCaptures[captureKey] = work;
-    _latestRouteCaptureKey = captureKey;
-    prior?.supersededBy = work;
-    final priorCauseEventId = prior?.change.causeEventId;
-    if (priorCauseEventId != null && priorCauseEventId != change.causeEventId) {
-      // A later, unclaimed route superseded this interaction's route. It is
-      // independent evidence and cannot supply the interaction's after-frame.
-      _causalRouteCaptures.remove(priorCauseEventId);
-      _causalRouteSupersededInteractions.add(priorCauseEventId);
+    if (_activeRouteCaptures.isEmpty) _advanceCaptureGeneration();
+  }
+
+  Duration _routeCaptureDeadline(
+    _RouteTransition transition,
+    _VisibleRouteChange change,
+  ) =>
+      transition.transitionDuration +
+      (_shouldSuppressFrameCapture && change.causeEventId == null
+          ? Duration.zero
+          : config.settleDelay);
+
+  void _updateRouteCaptureCausality(
+    _RouteCaptureWork? prior,
+    _VisibleRouteChange change,
+    _RouteCaptureWork work,
+  ) {
+    final previousCause = prior?.change.causeEventId;
+    if (previousCause != null && previousCause != change.causeEventId) {
+      _causalRouteCaptures.remove(previousCause);
+      _causalRouteSupersededInteractions.add(previousCause);
     }
-    if (change.causeEventId != null) {
-      _causalRouteCaptures[change.causeEventId!] = work;
-    }
-    _skipCapture = transition.transitionDuration > Duration.zero;
-    _startRouteBarrierTimeout(work);
-    // Wake a reconciliation-pending settle only after this capture is visible
-    // in `_activeRouteCaptures`, otherwise settle can miss the causal barrier.
-    if (change.causeEventId != null) {
-      _interactions.byId(change.causeEventId!)?.signalSuccessorClaimed();
-    }
+    final cause = change.causeEventId;
+    if (cause != null) _causalRouteCaptures[cause] = work;
+  }
+
+  void _signalRouteCause(_VisibleRouteChange change) {
+    final cause = change.causeEventId;
+    if (cause != null) _interactions.byId(cause)?.signalSuccessorClaimed();
+  }
+
+  void _scheduleRouteCaptureFinalization(_RouteCaptureWork work) {
     if (work.deadline <= Duration.zero) {
       unawaited(_enqueue('route_change', () => _finalizeRouteCapture(work)));
     } else {
       _startRouteDeadline(work);
     }
-    return work.done.then<void>((_) {});
   }
 
   bool _isActiveRouteCapture(_RouteCaptureWork work) {
@@ -4173,11 +4730,7 @@ class TugboatReplayController extends ChangeNotifier {
     try {
       if (!_isActiveRouteCapture(work)) return;
       final change = work.change;
-      if (change.updatesRoute) {
-        _currentRoute = change.destinationRoute;
-        _currentNavigatorId = change.navigatorId;
-        _currentRouteInstanceId = change.routeInstanceId;
-      }
+      _applyVisibleRouteChange(change);
       final capture = _requestCaptureCancellable(
         trigger: TugboatFrameTrigger.route,
         force: true,
@@ -4190,24 +4743,16 @@ class TugboatReplayController extends ChangeNotifier {
       work.attachCaptureCancellation((reason) => capture.cancel(reason));
       final captureResult = await _awaitRouteReadback(work, capture.resolution);
       captureRequestId = captureResult.captureRequestId;
-      if (captureResult.outcome == _RouteCaptureOutcome.failed) {
-        if (!_isActiveRouteCapture(work)) return;
+      final failure = _finalizeFailedRouteResult(
+        work,
+        change,
+        captureResult,
+        captureRequestId,
+      );
+      if (failure.stop) {
         outcome = _RouteCaptureOutcome.failed;
-        captureFailure = _lastCaptureFailure?.name;
-        routeEventId = _nextId('event');
-        _attachCauseInteractionEvidence(change.causeEventId);
-        _emitRouteChange(
-          routeEventId: routeEventId,
-          change: change,
-          result: TugboatInteractionResult.navigated,
-          extraData: {
-            'captureOutcome': 'failed',
-            if (captureResult.captureFailure != null)
-              'captureFailure': captureResult.captureFailure,
-            if (captureRequestId != null) 'captureRequestId': captureRequestId,
-          },
-        );
-        if (!_disposed) notifyListeners();
+        captureFailure = failure.captureFailure;
+        routeEventId = failure.routeEventId;
         return;
       }
       if (captureResult.outcome != _RouteCaptureOutcome.captured) return;
@@ -4219,49 +4764,132 @@ class TugboatReplayController extends ChangeNotifier {
         captureFailure = _lastCaptureFailure?.name;
       }
       if (!_isActiveRouteCapture(work)) return;
-      routeEventId = _nextId('event');
-      _attachCauseInteractionEvidence(
-        change.causeEventId,
-        afterFrame: afterFrame,
-      );
-      _emitRouteChange(
-        routeEventId: routeEventId,
-        change: change,
-        afterFrame: afterFrame,
-        result: TugboatInteractionResult.navigated,
-        extraData: {
-          if (captureRequestId != null) 'captureRequestId': captureRequestId,
-          if (outcome == _RouteCaptureOutcome.failed)
-            'captureOutcome': 'failed',
-          if (outcome == _RouteCaptureOutcome.failed &&
-              captureResult.captureFailure != null)
-            'captureFailure': captureResult.captureFailure,
-        },
+      routeEventId = _emitCompletedRouteCapture(
+        change,
+        captureResult,
+        captureRequestId,
+        afterFrame,
+        outcome,
       );
       _maybeEmitSceneInventory();
       if (!_disposed) notifyListeners();
     } finally {
-      final key = _routeCaptureKey(work.change.navigatorId);
-      if (identical(_activeRouteCaptures[key], work)) {
-        _activeRouteCaptures.remove(key);
-        if (_latestRouteCaptureKey == key) {
-          _latestRouteCaptureKey = _activeRouteCaptures.keys.isEmpty
-              ? null
-              : _activeRouteCaptures.keys.last;
-        }
-        _skipCapture = false;
-      }
-      work.complete(
-        _RouteCaptureResult(
-          outcome,
-          frameId: afterFrame,
-          routeEventId: routeEventId,
-          captureFailure: captureFailure,
-          captureRequestId: captureRequestId,
-        ),
+      _completeFinalizedRouteCapture(
+        work,
+        outcome,
+        afterFrame,
+        routeEventId,
+        captureFailure,
+        captureRequestId,
       );
     }
   }
+
+  ({bool stop, String? captureFailure, String? routeEventId})
+  _finalizeFailedRouteResult(
+    _RouteCaptureWork work,
+    _VisibleRouteChange change,
+    _RouteCaptureResult result,
+    String? requestId,
+  ) {
+    if (result.outcome != _RouteCaptureOutcome.failed) {
+      return (stop: false, captureFailure: null, routeEventId: null);
+    }
+    if (!_isActiveRouteCapture(work)) {
+      return (stop: true, captureFailure: null, routeEventId: null);
+    }
+    final eventId = _emitFailedRouteCapture(change, result, requestId);
+    if (!_disposed) notifyListeners();
+    return (
+      stop: true,
+      captureFailure: _lastCaptureFailure?.name,
+      routeEventId: eventId,
+    );
+  }
+
+  void _completeFinalizedRouteCapture(
+    _RouteCaptureWork work,
+    _RouteCaptureOutcome outcome,
+    String? afterFrame,
+    String? eventId,
+    String? failure,
+    String? requestId,
+  ) {
+    _removeFinalizedRouteCapture(work);
+    work.complete(
+      _RouteCaptureResult(
+        outcome,
+        frameId: afterFrame,
+        routeEventId: eventId,
+        captureFailure: failure,
+        captureRequestId: requestId,
+      ),
+    );
+  }
+
+  void _removeFinalizedRouteCapture(_RouteCaptureWork work) {
+    final key = _routeCaptureKey(work.change.navigatorId);
+    if (!identical(_activeRouteCaptures[key], work)) return;
+    _activeRouteCaptures.remove(key);
+    if (_latestRouteCaptureKey == key) {
+      _latestRouteCaptureKey = _activeRouteCaptures.keys.isEmpty
+          ? null
+          : _activeRouteCaptures.keys.last;
+    }
+    _skipCapture = false;
+  }
+
+  String _emitFailedRouteCapture(
+    _VisibleRouteChange change,
+    _RouteCaptureResult result,
+    String? requestId,
+  ) {
+    final eventId = _nextId('event');
+    _attachCauseInteractionEvidence(change.causeEventId);
+    _emitRouteChange(
+      routeEventId: eventId,
+      change: change,
+      result: TugboatInteractionResult.navigated,
+      extraData: _failedRouteCaptureData(result.captureFailure, requestId),
+    );
+    return eventId;
+  }
+
+  Map<String, Object?> _failedRouteCaptureData(
+    String? failure,
+    String? requestId,
+  ) => {
+    'captureOutcome': 'failed',
+    if (failure != null) 'captureFailure': failure,
+    if (requestId != null) 'captureRequestId': requestId,
+  };
+
+  String _emitCompletedRouteCapture(
+    _VisibleRouteChange change,
+    _RouteCaptureResult result,
+    String? requestId,
+    String? afterFrame,
+    _RouteCaptureOutcome outcome,
+  ) {
+    final eventId = _nextId('event');
+    _attachCauseInteractionEvidence(
+      change.causeEventId,
+      afterFrame: afterFrame,
+    );
+    _emitRouteChange(
+      routeEventId: eventId,
+      change: change,
+      afterFrame: afterFrame,
+      result: TugboatInteractionResult.navigated,
+      extraData: outcome == _RouteCaptureOutcome.failed
+          ? _failedRouteCaptureData(result.captureFailure, requestId)
+          : _routeRequestIdData(requestId),
+    );
+    return eventId;
+  }
+
+  Map<String, Object?> _routeRequestIdData(String? requestId) =>
+      requestId == null ? const {} : {'captureRequestId': requestId};
 
   /// Joins readback to the route's absolute terminal barrier. A timeout or
   /// cancellation wakes an already-admitted finalizer immediately instead of
@@ -4386,8 +5014,7 @@ class TugboatReplayController extends ChangeNotifier {
     NavigatorState? navigatorState,
   }) {
     final routeName = transition.routeName;
-    if (transition.kind == _RouteNavigationKind.remove &&
-        (routeName == null || routeName == _currentRoute)) {
+    if (_isInvisibleRouteRemoval(transition, routeName)) {
       return null;
     }
     // Pop/remove callbacks carry the route that becomes visible; without one
@@ -4397,63 +5024,27 @@ class TugboatReplayController extends ChangeNotifier {
         transition.kind == _RouteNavigationKind.replace ||
         routeName != null;
 
-    String? navigatorId;
-    String? parentNavigatorId;
-    String? routeInstanceId;
-    String? fromRouteInstanceId;
-    var stackRevision = 0;
-    if (navigatorState != null) {
-      navigatorId = _surfaces.idForNavigator(navigatorState);
-      parentNavigatorId = _surfaces.parentOf(navigatorId);
-      switch (transition.kind) {
-        case _RouteNavigationKind.push:
-          if (destinationRoute != null) {
-            routeInstanceId = _surfaces.idForRoute(destinationRoute);
-            stackRevision = _surfaces.push(navigatorId, routeInstanceId);
-          }
-          fromRouteInstanceId = _currentRouteInstanceId;
-        case _RouteNavigationKind.replace:
-          if (destinationRoute != null) {
-            routeInstanceId = _surfaces.idForRoute(destinationRoute);
-            stackRevision = _surfaces.replaceTop(navigatorId, routeInstanceId);
-          }
-          fromRouteInstanceId =
-              _surfaces.peekRouteId(departingRoute) ?? _currentRouteInstanceId;
-        case _RouteNavigationKind.pop:
-        case _RouteNavigationKind.remove:
-          fromRouteInstanceId =
-              _surfaces.peekRouteId(departingRoute) ?? _currentRouteInstanceId;
-          stackRevision = _surfaces.pop(
-            navigatorId,
-            departingInstanceId: fromRouteInstanceId,
-          );
-          if (destinationRoute != null) {
-            routeInstanceId = _surfaces.idForRoute(destinationRoute);
-          } else {
-            routeInstanceId = _surfaces.top(navigatorId);
-          }
-      }
-    } else if (destinationRoute != null) {
-      // Test harness / direct controller.route calls without a NavigatorState.
-      routeInstanceId = _surfaces.idForRoute(destinationRoute);
-      fromRouteInstanceId = _currentRouteInstanceId;
-      stackRevision = (_currentRouteInstanceId == null ? 1 : 2);
-    }
+    final surface = _resolveRouteSurface(
+      transition,
+      destinationRoute,
+      departingRoute,
+      navigatorState,
+    );
 
     _visualObservationGeneration++;
     final claimed = _tryClaimInteractionCause(
-      navigatorId: navigatorId ?? _currentNavigatorId,
+      navigatorId: surface.navigatorId ?? _currentNavigatorId,
     );
     return _VisibleRouteChange(
       previousRoute: _currentRoute,
       destinationRoute: updatesRoute ? routeName : _currentRoute,
       navigation: transition.kind.wireName,
       updatesRoute: updatesRoute,
-      navigatorId: navigatorId ?? _currentNavigatorId,
-      parentNavigatorId: parentNavigatorId,
-      routeInstanceId: routeInstanceId ?? _currentRouteInstanceId,
-      fromRouteInstanceId: fromRouteInstanceId,
-      stackRevision: stackRevision,
+      navigatorId: surface.navigatorId ?? _currentNavigatorId,
+      parentNavigatorId: surface.parentNavigatorId,
+      routeInstanceId: surface.routeInstanceId ?? _currentRouteInstanceId,
+      fromRouteInstanceId: surface.fromRouteInstanceId,
+      stackRevision: surface.stackRevision,
       overlayKind: transition.overlayKind,
       visualObservationGeneration: _visualObservationGeneration,
       navigationOrigin: claimed == null
@@ -4464,32 +5055,186 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
+  bool _isInvisibleRouteRemoval(
+    _RouteTransition transition,
+    String? routeName,
+  ) =>
+      transition.kind == _RouteNavigationKind.remove &&
+      (routeName == null || routeName == _currentRoute);
+
+  ({
+    String? navigatorId,
+    String? parentNavigatorId,
+    String? routeInstanceId,
+    String? fromRouteInstanceId,
+    int stackRevision,
+  })
+  _resolveRouteSurface(
+    _RouteTransition transition,
+    Route<dynamic>? destinationRoute,
+    Route<dynamic>? departingRoute,
+    NavigatorState? navigatorState,
+  ) {
+    if (navigatorState == null) {
+      return _resolveUnboundRouteSurface(destinationRoute);
+    }
+    final navigatorId = _surfaces.idForNavigator(navigatorState);
+    final parentNavigatorId = _surfaces.parentOf(navigatorId);
+    return _resolveBoundRouteSurface(
+      transition,
+      navigatorId,
+      parentNavigatorId,
+      destinationRoute,
+      departingRoute,
+    );
+  }
+
+  ({
+    String? navigatorId,
+    String? parentNavigatorId,
+    String? routeInstanceId,
+    String? fromRouteInstanceId,
+    int stackRevision,
+  })
+  _resolveUnboundRouteSurface(Route<dynamic>? destinationRoute) {
+    if (destinationRoute == null) {
+      return (
+        navigatorId: null,
+        parentNavigatorId: null,
+        routeInstanceId: null,
+        fromRouteInstanceId: null,
+        stackRevision: 0,
+      );
+    }
+    return (
+      navigatorId: null,
+      parentNavigatorId: null,
+      routeInstanceId: _surfaces.idForRoute(destinationRoute),
+      fromRouteInstanceId: _currentRouteInstanceId,
+      stackRevision: _currentRouteInstanceId == null ? 1 : 2,
+    );
+  }
+
+  ({
+    String? navigatorId,
+    String? parentNavigatorId,
+    String? routeInstanceId,
+    String? fromRouteInstanceId,
+    int stackRevision,
+  })
+  _resolveBoundRouteSurface(
+    _RouteTransition transition,
+    String navigatorId,
+    String? parentNavigatorId,
+    Route<dynamic>? destinationRoute,
+    Route<dynamic>? departingRoute,
+  ) => switch (transition.kind) {
+    _RouteNavigationKind.push => _pushRouteSurface(
+      navigatorId,
+      parentNavigatorId,
+      destinationRoute,
+    ),
+    _RouteNavigationKind.replace => _replaceRouteSurface(
+      navigatorId,
+      parentNavigatorId,
+      destinationRoute,
+      departingRoute,
+    ),
+    _RouteNavigationKind.pop || _RouteNavigationKind.remove => _popRouteSurface(
+      navigatorId,
+      parentNavigatorId,
+      destinationRoute,
+      departingRoute,
+    ),
+  };
+
+  ({
+    String? navigatorId,
+    String? parentNavigatorId,
+    String? routeInstanceId,
+    String? fromRouteInstanceId,
+    int stackRevision,
+  })
+  _pushRouteSurface(
+    String navigatorId,
+    String? parentNavigatorId,
+    Route<dynamic>? route,
+  ) {
+    final id = route == null ? null : _surfaces.idForRoute(route);
+    return (
+      navigatorId: navigatorId,
+      parentNavigatorId: parentNavigatorId,
+      routeInstanceId: id,
+      fromRouteInstanceId: _currentRouteInstanceId,
+      stackRevision: id == null ? 0 : _surfaces.push(navigatorId, id),
+    );
+  }
+
+  ({
+    String? navigatorId,
+    String? parentNavigatorId,
+    String? routeInstanceId,
+    String? fromRouteInstanceId,
+    int stackRevision,
+  })
+  _replaceRouteSurface(
+    String navigatorId,
+    String? parentNavigatorId,
+    Route<dynamic>? route,
+    Route<dynamic>? departing,
+  ) {
+    final id = route == null ? null : _surfaces.idForRoute(route);
+    final from = _surfaces.peekRouteId(departing) ?? _currentRouteInstanceId;
+    return (
+      navigatorId: navigatorId,
+      parentNavigatorId: parentNavigatorId,
+      routeInstanceId: id,
+      fromRouteInstanceId: from,
+      stackRevision: id == null ? 0 : _surfaces.replaceTop(navigatorId, id),
+    );
+  }
+
+  ({
+    String? navigatorId,
+    String? parentNavigatorId,
+    String? routeInstanceId,
+    String? fromRouteInstanceId,
+    int stackRevision,
+  })
+  _popRouteSurface(
+    String navigatorId,
+    String? parentNavigatorId,
+    Route<dynamic>? route,
+    Route<dynamic>? departing,
+  ) {
+    final from = _surfaces.peekRouteId(departing) ?? _currentRouteInstanceId;
+    final revision = _surfaces.pop(navigatorId, departingInstanceId: from);
+    final id = route == null
+        ? _surfaces.top(navigatorId)
+        : _surfaces.idForRoute(route);
+    return (
+      navigatorId: navigatorId,
+      parentNavigatorId: parentNavigatorId,
+      routeInstanceId: id,
+      fromRouteInstanceId: from,
+      stackRevision: revision,
+    );
+  }
+
   /// Observer-time single-use claim. Returns the transaction only when exactly
   /// one unambiguous active pointer is eligible for this navigator/session.
   ///
   /// The route writer retains the claim until terminal publication, so a
   /// causeEventId remains stable across route and gesture settlement.
   InteractionTransaction? _tryClaimInteractionCause({String? navigatorId}) {
-    if (!_captureLifecycleActive || _endSessionFuture != null) return null;
+    if (!_claimingIsAvailable) return null;
     final eligible = _interactions.eligibleForClaim(
       nowMs: atMs,
       sessionId: _session?.id,
     );
-    if (eligible.length != 1) {
-      if (eligible.length > 1) {
-        for (final tx in eligible) {
-          tx.rejectionReason ??= InteractionRejectionReason.competingPointer;
-        }
-      }
-      return null;
-    }
+    if (eligible.length != 1) return _rejectAmbiguousClaim(eligible);
     final tx = eligible.single;
-    if (navigatorId != null &&
-        tx.origin.navigatorId != null &&
-        tx.origin.navigatorId != navigatorId) {
-      tx.rejectionReason ??= InteractionRejectionReason.navigatorMismatch;
-      return null;
-    }
+    if (_navigatorDoesNotMatchClaim(tx, navigatorId)) return null;
     tx.claimed = true;
     final windowActive = config.interactionClaimWindow > Duration.zero;
     final isPending = _interactions.pendingAt(tx.pointerId) != null;
@@ -4497,6 +5242,34 @@ class TugboatReplayController extends ChangeNotifier {
         ? InteractionAttribution.direct
         : InteractionAttribution.delayedLikely;
     return tx;
+  }
+
+  bool get _claimingIsAvailable =>
+      _captureLifecycleActive && _endSessionFuture == null;
+
+  InteractionTransaction? _rejectAmbiguousClaim(
+    List<InteractionTransaction> eligible,
+  ) {
+    if (eligible.length > 1) {
+      for (final tx in eligible) {
+        tx.rejectionReason ??= InteractionRejectionReason.competingPointer;
+      }
+    }
+    return null;
+  }
+
+  bool _navigatorDoesNotMatchClaim(
+    InteractionTransaction tx,
+    String? navigatorId,
+  ) {
+    final mismatch =
+        navigatorId != null &&
+        tx.origin.navigatorId != null &&
+        tx.origin.navigatorId != navigatorId;
+    if (mismatch) {
+      tx.rejectionReason ??= InteractionRejectionReason.navigatorMismatch;
+    }
+    return mismatch;
   }
 
   void _maybeEmitSceneInventory({
@@ -4562,26 +5335,42 @@ class TugboatReplayController extends ChangeNotifier {
     final enriched = attachActionContext
         ? localeEvent.withExplorationContext(
             captureSessionId: session.id,
-            activationRequestId:
-                session.activationRequestId ?? activationRequestId,
-            explorationRunId:
-                localeEvent.explorationRunId ??
-                _activeExplorationRunId ??
-                config.explorationRunId,
-            actionId: localeEvent.actionId ?? _activeActionId,
+            activationRequestId: _firstDefined([
+              session.activationRequestId,
+              activationRequestId,
+            ]),
+            explorationRunId: _firstDefined([
+              localeEvent.explorationRunId,
+              _activeExplorationRunId,
+              config.explorationRunId,
+            ]),
+            actionId: _firstDefined([localeEvent.actionId, _activeActionId]),
           )
         : localeEvent.copyWith(
-            captureSessionId: localeEvent.captureSessionId ?? session.id,
-            activationRequestId:
-                localeEvent.activationRequestId ??
-                session.activationRequestId ??
-                activationRequestId,
-            explorationRunId:
-                localeEvent.explorationRunId ?? session.explorationRunId,
+            captureSessionId: _firstDefined([
+              localeEvent.captureSessionId,
+              session.id,
+            ]),
+            activationRequestId: _firstDefined([
+              localeEvent.activationRequestId,
+              session.activationRequestId,
+              activationRequestId,
+            ]),
+            explorationRunId: _firstDefined([
+              localeEvent.explorationRunId,
+              session.explorationRunId,
+            ]),
           );
     session.events.add(enriched);
     _sinkHub?.recordEvent(enriched);
     _trim();
+  }
+
+  String? _firstDefined(List<String?> values) {
+    for (final value in values) {
+      if (value != null) return value;
+    }
+    return null;
   }
 
   /// Same-turn fence for [TugboatReplay.deactivate] without full session end.

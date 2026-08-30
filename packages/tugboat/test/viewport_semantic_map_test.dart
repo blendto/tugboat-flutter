@@ -948,6 +948,8 @@ void main() {
         scrollableFingerprint: 'fp-list',
         axis: 'vertical',
         offsetNorm: 0.6,
+        observedTopNorm: 0.4,
+        observedBottomNorm: 0.6,
       ),
     );
     semanticSession.maybeEmit(
@@ -958,6 +960,8 @@ void main() {
         scrollableFingerprint: 'fp-list',
         axis: 'vertical',
         offsetNorm: 0.8,
+        observedTopNorm: 0.2,
+        observedBottomNorm: 0.9,
       ),
     );
 
@@ -967,6 +971,8 @@ void main() {
         .toList();
     expect(newSnapshots, isNotEmpty);
     expect(newSnapshots.first.data['observedSliceCount'], 2);
+    expect(newSnapshots.first.data['observedTopNorm'], 0.2);
+    expect(newSnapshots.first.data['observedBottomNorm'], 0.9);
 
     final snapshotCount = firstSnapshotCount + newSnapshots.length;
     semanticSession.maybeEmit(

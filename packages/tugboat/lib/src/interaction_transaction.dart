@@ -186,45 +186,67 @@ Map<String, double>? interactionNormalizedPoint(
 
 /// Facts-only interaction schema v2 fields stored in [TugboatEvent.data].
 Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
+  final envelope = _interactionEnvelope(tx);
+  if (tx.gesture == InteractionGesture.cancelled) return envelope;
+  final gesturePayload = _buildGesturePayload(tx);
+  if (gesturePayload.isNotEmpty) envelope['payload'] = gesturePayload;
+  return envelope;
+}
+
+Map<String, Object?> _interactionEnvelope(InteractionTransaction tx) {
   final envelope = <String, Object?>{
     'interactionSchema': tugboatInteractionSchemaVersion,
     'gesture': tx.gesture.wireName,
   };
   final route = tx.origin.route;
-  if (route != null && route.isNotEmpty) {
-    envelope['route'] = route;
-  }
-  final fingerprint = tx.gesture == InteractionGesture.scroll
-      ? (tx.scrollTargetAnchor?.fingerprint ?? tx.targetAnchor?.fingerprint)
-      : tx.targetAnchor?.fingerprint;
+  if (route != null && route.isNotEmpty) envelope['route'] = route;
+  final fingerprint = _interactionFingerprint(tx);
   if (fingerprint != null && fingerprint.isNotEmpty) {
     envelope['targetFingerprint'] = fingerprint;
   }
   if (tx.gesture == InteractionGesture.tap) {
-    if (tx.preTapEvidence != null) {
-      final confidence = tx.targetAnchor?.fingerprintConfidence;
-      if (fingerprint != null &&
-          fingerprint.isNotEmpty &&
-          confidence != null &&
-          confidence.isNotEmpty) {
-        envelope['fingerprintConfidence'] = confidence;
-      }
-    }
-    final failureReason = tx.targetResolutionFailureReason;
-    if ((fingerprint == null || fingerprint.isEmpty) && failureReason != null) {
-      envelope['targetResolutionFailureReason'] = failureReason.wireName;
-    }
+    _writeTapResolutionPayload(envelope, tx, fingerprint);
   }
-  if (tx.gesture == InteractionGesture.cancelled) {
-    return envelope;
-  }
+  return envelope;
+}
 
+String? _interactionFingerprint(InteractionTransaction tx) =>
+    tx.gesture == InteractionGesture.scroll
+    ? tx.scrollTargetAnchor?.fingerprint ?? tx.targetAnchor?.fingerprint
+    : tx.targetAnchor?.fingerprint;
+
+void _writeTapResolutionPayload(
+  Map<String, Object?> envelope,
+  InteractionTransaction tx,
+  String? fingerprint,
+) {
+  final confidence = tx.targetAnchor?.fingerprintConfidence;
+  if (tx.preTapEvidence != null &&
+      fingerprint != null &&
+      fingerprint.isNotEmpty &&
+      confidence != null &&
+      confidence.isNotEmpty) {
+    envelope['fingerprintConfidence'] = confidence;
+  }
+  final failureReason = tx.targetResolutionFailureReason;
+  if ((fingerprint == null || fingerprint.isEmpty) && failureReason != null) {
+    envelope['targetResolutionFailureReason'] = failureReason.wireName;
+  }
+}
+
+Map<String, Object?> _buildGesturePayload(InteractionTransaction tx) {
   final gesturePayload = <String, Object?>{};
   final position = interactionNormalizedPosition(tx.origin.captureCoordinate);
-  if (position != null) {
-    gesturePayload['position'] = position;
-  }
+  if (position != null) gesturePayload['position'] = position;
+  _writeGesturePayload(gesturePayload, tx, position);
+  return gesturePayload;
+}
 
+void _writeGesturePayload(
+  Map<String, Object?> gesturePayload,
+  InteractionTransaction tx,
+  Map<String, double>? position,
+) {
   switch (tx.gesture) {
     case InteractionGesture.tap:
       break;
@@ -240,11 +262,6 @@ Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
     case InteractionGesture.cancelled:
       break;
   }
-
-  if (gesturePayload.isNotEmpty) {
-    envelope['payload'] = gesturePayload;
-  }
-  return envelope;
 }
 
 void _writeTravelGesturePayload(

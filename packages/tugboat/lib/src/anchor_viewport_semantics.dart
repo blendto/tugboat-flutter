@@ -17,23 +17,30 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
 
     final viewport = rootRender.size;
     if (viewport.width <= 0 || viewport.height <= 0) return null;
+    return _buildViewportSemanticMap(
+      rootContext: rootContext,
+      rootRender: rootRender,
+      viewport: viewport,
+      inventory: inventory,
+      allowTransientSemanticsHandle: allowTransientSemanticsHandle,
+    );
+  }
+
+  TugboatViewportSemanticMap? _buildViewportSemanticMap({
+    required Element rootContext,
+    required RenderBox rootRender,
+    required Size viewport,
+    required TugboatSceneInventory inventory,
+    required bool allowTransientSemanticsHandle,
+  }) {
     final devicePixelRatio = View.maybeOf(rootContext)?.devicePixelRatio ?? 1.0;
 
-    final initialPipelineOwner =
-        rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
-    final semanticsAlreadyEnabled =
-        initialPipelineOwner.semanticsOwner != null ||
-        RendererBinding.instance.rootPipelineOwner.semanticsOwner != null;
-    final scheduler = SchedulerBinding.instance;
-    final canFlushNewSemanticsTree =
-        !semanticsAlreadyEnabled &&
-        allowTransientSemanticsHandle &&
-        scheduler.schedulerPhase == SchedulerPhase.idle &&
-        !scheduler.hasScheduledFrame;
-    final semanticsHandle =
-        semanticsAlreadyEnabled || !allowTransientSemanticsHandle
-        ? null
-        : SemanticsBinding.instance.ensureSemantics();
+    final semantics = _transientSemanticsSetup(
+      rootRender,
+      allowTransientSemanticsHandle,
+    );
+    final semanticsHandle = semantics.handle;
+    final canFlushNewSemanticsTree = semantics.canFlush;
     try {
       final pipelineOwner =
           rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
@@ -101,6 +108,30 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     } finally {
       semanticsHandle?.dispose();
     }
+  }
+
+  ({SemanticsHandle? handle, bool canFlush}) _transientSemanticsSetup(
+    RenderBox rootRender,
+    bool allowTransient,
+  ) {
+    final alreadyEnabled = _semanticsAlreadyEnabled(rootRender);
+    final scheduler = SchedulerBinding.instance;
+    final canFlush =
+        !alreadyEnabled &&
+        allowTransient &&
+        scheduler.schedulerPhase == SchedulerPhase.idle &&
+        !scheduler.hasScheduledFrame;
+    final handle = alreadyEnabled || !allowTransient
+        ? null
+        : SemanticsBinding.instance.ensureSemantics();
+    return (handle: handle, canFlush: canFlush);
+  }
+
+  bool _semanticsAlreadyEnabled(RenderBox rootRender) {
+    final owner =
+        rootRender.owner ?? RendererBinding.instance.rootPipelineOwner;
+    return owner.semanticsOwner != null ||
+        RendererBinding.instance.rootPipelineOwner.semanticsOwner != null;
   }
 
   /// Resolves a tap point against [map], preferring enabled actionable nodes,
@@ -194,17 +225,7 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     // disabled; treating them as disabled skews tap resolution.
     final bool? enabled = semanticsEnabledFromFlags(data.flagsCollection);
     final scrollable = _semanticsNodeIsScrollable(data);
-    final hasReadableContent =
-        data.label.isNotEmpty || data.value.isNotEmpty || data.hint.isNotEmpty;
-    if (actions.isEmpty &&
-        role == null &&
-        !scrollable &&
-        !data.flagsCollection.isHeader &&
-        !data.flagsCollection.isImage &&
-        !data.flagsCollection.isTextField &&
-        !hasReadableContent) {
-      return null;
-    }
+    if (!_hasSemanticContent(data, actions, role, scrollable)) return null;
 
     final boundsNorm = _bestSemanticBoundsCandidate(
       rawRect: node.rect,
@@ -237,6 +258,23 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
       linkedCanonicalPath: link?.canonicalPath,
     );
   }
+
+  bool _hasSemanticContent(
+    SemanticsData data,
+    List<String> actions,
+    String? role,
+    bool scrollable,
+  ) =>
+      actions.isNotEmpty ||
+      role != null ||
+      scrollable ||
+      data.flagsCollection.isHeader ||
+      data.flagsCollection.isImage ||
+      data.flagsCollection.isTextField ||
+      _hasReadableSemanticContent(data);
+
+  bool _hasReadableSemanticContent(SemanticsData data) =>
+      data.label.isNotEmpty || data.value.isNotEmpty || data.hint.isNotEmpty;
 
   void _addInventoryFallbackSemanticNodes(
     List<TugboatViewportSemanticNode> nodes,
@@ -286,18 +324,26 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
   ) {
     if (node.linkedFingerprint?.isNotEmpty == true) return false;
     if (clampedBounds.width <= 0 || clampedBounds.height <= 0) return true;
-    final original = node.boundsNorm;
-    final touchesEdge =
-        original.left < 0 ||
-        original.top < 0 ||
-        original.left + original.width > 1 ||
-        original.top + original.height > 1;
-    final tinyArea = clampedBounds.width * clampedBounds.height < 0.002;
-    final tinyHeight = clampedBounds.height < 0.015;
-    if (touchesEdge && (tinyArea || tinyHeight)) return true;
+    if (_isTinyEdgeNode(node.boundsNorm, clampedBounds)) return true;
     if (node.isActionable && node.enabled != false) return false;
     return false;
   }
+
+  bool _isTinyEdgeNode(
+    TugboatNormalizedBounds original,
+    TugboatNormalizedBounds clamped,
+  ) =>
+      _touchesViewportEdge(original) &&
+      (_boundsArea(clamped) < 0.002 || clamped.height < 0.015);
+
+  bool _touchesViewportEdge(TugboatNormalizedBounds bounds) =>
+      bounds.left < 0 ||
+      bounds.top < 0 ||
+      bounds.left + bounds.width > 1 ||
+      bounds.top + bounds.height > 1;
+
+  double _boundsArea(TugboatNormalizedBounds bounds) =>
+      bounds.width * bounds.height;
 
   bool _inventoryEntryCoveredBySemanticNode(
     TugboatSceneInventoryEntry entry,
@@ -398,15 +444,13 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     TugboatSceneInventoryEntry? best;
     var bestOverlap = 0.0;
     for (final entry in inventory.elements) {
-      if (actions.isEmpty && entry.actions.isNotEmpty) continue;
-      if ((role == 'text' || role == 'display') &&
-          entry.tier == 'interactive') {
-        continue;
-      }
-      final overlap = _boundsOverlapRatio(boundsNorm, entry.boundsNorm);
-      if (overlap < 0.5) continue;
-      if (!_inventoryRoleCompatible(role, entry.role)) continue;
-      if (!_inventoryActionsCompatible(actions, entry.actions)) continue;
+      final overlap = _semanticInventoryOverlap(
+        role,
+        actions,
+        boundsNorm,
+        entry,
+      );
+      if (overlap == null) continue;
       if (overlap > bestOverlap) {
         bestOverlap = overlap;
         best = entry;
@@ -414,6 +458,26 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     }
     return best;
   }
+
+  double? _semanticInventoryOverlap(
+    String? role,
+    List<String> actions,
+    TugboatNormalizedBounds boundsNorm,
+    TugboatSceneInventoryEntry entry,
+  ) {
+    if (actions.isEmpty && entry.actions.isNotEmpty) return null;
+    if (_semanticRoleExcludesInteractiveEntry(role, entry)) return null;
+    final overlap = _boundsOverlapRatio(boundsNorm, entry.boundsNorm);
+    if (overlap < 0.5) return null;
+    if (!_inventoryRoleCompatible(role, entry.role)) return null;
+    if (!_inventoryActionsCompatible(actions, entry.actions)) return null;
+    return overlap;
+  }
+
+  bool _semanticRoleExcludesInteractiveEntry(
+    String? role,
+    TugboatSceneInventoryEntry entry,
+  ) => (role == 'text' || role == 'display') && entry.tier == 'interactive';
 
   bool _inventoryRoleCompatible(String? semanticRole, String? inventoryRole) {
     if (semanticRole == null || inventoryRole == null) return true;
@@ -500,11 +564,7 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     TugboatSceneInventoryEntry? best;
     var bestArea = double.infinity;
     for (final entry in inventory.elements) {
-      if (entry.tier != 'interactive' || entry.enabled == false) continue;
-      if (entry.actions.isEmpty ||
-          !_inventoryActionsCompatible(semanticNode.actions, entry.actions)) {
-        continue;
-      }
+      if (!_isSafeTapCandidate(entry, semanticNode.actions)) continue;
       final bounds = entry.boundsNorm;
       if (!_normalizedPointInBounds(nx, ny, bounds)) continue;
       final area = bounds.width * bounds.height;
@@ -517,6 +577,15 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     }
     return best;
   }
+
+  bool _isSafeTapCandidate(
+    TugboatSceneInventoryEntry entry,
+    List<String> semanticActions,
+  ) =>
+      entry.tier == 'interactive' &&
+      entry.enabled != false &&
+      entry.actions.isNotEmpty &&
+      _inventoryActionsCompatible(semanticActions, entry.actions);
 
   int _compareViewportSemanticCandidates(
     TugboatViewportSemanticNode left,
@@ -541,16 +610,21 @@ extension TugboatViewportSemanticsApi on AnchorResolver {
     if (leftLeft != 0) return leftLeft;
     final depthCompare = left.depth.compareTo(right.depth);
     if (depthCompare != 0) return depthCompare;
-    final siblingCompare = (left.siblingIndex ?? -1).compareTo(
-      right.siblingIndex ?? -1,
-    );
+    final siblingCompare = _sortIndex(
+      left.siblingIndex,
+    ).compareTo(_sortIndex(right.siblingIndex));
     if (siblingCompare != 0) return siblingCompare;
-    final roleCompare = (left.role ?? '').compareTo(right.role ?? '');
+    final roleCompare = _sortString(
+      left.role,
+    ).compareTo(_sortString(right.role));
     if (roleCompare != 0) return roleCompare;
-    return (left.linkedFingerprint ?? '').compareTo(
-      right.linkedFingerprint ?? '',
-    );
+    return _sortString(
+      left.linkedFingerprint,
+    ).compareTo(_sortString(right.linkedFingerprint));
   }
+
+  int _sortIndex(int? value) => value ?? -1;
+  String _sortString(String? value) => value ?? '';
 
   TugboatViewportSemanticResolution _resolutionForNode({
     required TugboatViewportSemanticNode node,
