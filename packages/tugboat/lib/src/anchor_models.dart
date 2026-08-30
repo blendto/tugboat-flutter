@@ -104,14 +104,21 @@ class TugboatTargetAnchor {
 
   @override
   bool operator ==(Object other) =>
-      other is TugboatTargetAnchor &&
+      other is TugboatTargetAnchor && _hasSameFields(other);
+
+  bool _hasSameFields(TugboatTargetAnchor other) =>
+      _hasSameIdentity(other) && _hasSamePresentation(other);
+
+  bool _hasSameIdentity(TugboatTargetAnchor other) =>
       schemaVersion == other.schemaVersion &&
       widgetType == other.widgetType &&
       role == other.role &&
       fingerprint == other.fingerprint &&
       fingerprintConfidence == other.fingerprintConfidence &&
       tagFingerprint == other.tagFingerprint &&
-      _mapEquals(fingerprintParts, other.fingerprintParts) &&
+      _mapEquals(fingerprintParts, other.fingerprintParts);
+
+  bool _hasSamePresentation(TugboatTargetAnchor other) =>
       canonicalPath == other.canonicalPath &&
       relativePosition == other.relativePosition &&
       enabled == other.enabled &&

@@ -5,9 +5,15 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.10`. Session JSON writers and readers use
+The current package version is `0.8.11`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.8.11
+
+The SDK now enforces a maximum cyclomatic complexity of 10. Internal helpers
+keep capture, replay, semantic, and network behavior unchanged while making
+control flow easier to test and maintain.
 
 ## 0.8.10
 
@@ -93,7 +99,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.8.10
+  tugboat_dio: ^0.8.11
 ```
 
 See `packages/tugboat_dio/README.md`.

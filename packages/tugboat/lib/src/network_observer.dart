@@ -165,61 +165,101 @@ TugboatNetworkErrorBodySnapshot? snapshotNetworkErrorResponseBody(Object? raw) {
   Object? value, {
   required int depth,
 }) {
-  if (value == null || value is bool || value is String) {
-    return (value: value, supported: true, truncated: false);
-  }
-  if (value is num) {
-    if (value is double && !value.isFinite) {
-      return (value: null, supported: false, truncated: true);
-    }
-    return (value: value, supported: true, truncated: false);
-  }
+  final primitive = _copyNetworkPrimitive(value);
+  if (primitive.handled) return primitive.result;
   if (depth >= TugboatNetworkLimits.maxErrorResponseBodyDepth) {
     return (value: null, supported: false, truncated: true);
   }
   if (value is List) {
-    final copied = <Object?>[];
-    var truncated =
-        value.length > TugboatNetworkLimits.maxErrorResponseBodyCollectionItems;
-    for (final item in value.take(
-      TugboatNetworkLimits.maxErrorResponseBodyCollectionItems,
-    )) {
-      final normalized = _copyJsonValue(item, depth: depth + 1);
-      if (!normalized.supported) {
-        truncated = true;
-        continue;
-      }
+    return _copyNetworkList(value, depth);
+  }
+  if (value is Map) {
+    return _copyNetworkMap(value, depth);
+  }
+  return (value: null, supported: false, truncated: true);
+}
+
+({bool handled, ({Object? value, bool supported, bool truncated}) result})
+_copyNetworkPrimitive(Object? value) {
+  if (value == null || value is bool || value is String) {
+    return (
+      handled: true,
+      result: (value: value, supported: true, truncated: false),
+    );
+  }
+  if (value is num) {
+    final supported = value is! double || value.isFinite;
+    return (
+      handled: true,
+      result: (
+        value: supported ? value : null,
+        supported: supported,
+        truncated: !supported,
+      ),
+    );
+  }
+  return (
+    handled: false,
+    result: (value: null, supported: false, truncated: true),
+  );
+}
+
+({Object? value, bool supported, bool truncated}) _copyNetworkList(
+  List value,
+  int depth,
+) {
+  final copied = <Object?>[];
+  var truncated =
+      value.length > TugboatNetworkLimits.maxErrorResponseBodyCollectionItems;
+  for (final item in value.take(
+    TugboatNetworkLimits.maxErrorResponseBodyCollectionItems,
+  )) {
+    final normalized = _copyJsonValue(item, depth: depth + 1);
+    if (!normalized.supported) {
+      truncated = true;
+    } else {
       copied.add(normalized.value);
       truncated = truncated || normalized.truncated;
     }
-    return (value: copied, supported: true, truncated: truncated);
   }
-  if (value is Map) {
-    final copied = <String, Object?>{};
-    var truncated =
-        value.length > TugboatNetworkLimits.maxErrorResponseBodyCollectionItems;
-    var visited = 0;
-    for (final entry in value.entries) {
-      if (visited >= TugboatNetworkLimits.maxErrorResponseBodyCollectionItems) {
-        truncated = true;
-        break;
-      }
-      visited += 1;
-      if (entry.key is! String) {
-        truncated = true;
-        continue;
-      }
-      final normalized = _copyJsonValue(entry.value, depth: depth + 1);
-      if (!normalized.supported) {
-        truncated = true;
-        continue;
-      }
-      copied[entry.key as String] = normalized.value;
-      truncated = truncated || normalized.truncated;
+  return (value: copied, supported: true, truncated: truncated);
+}
+
+({Object? value, bool supported, bool truncated}) _copyNetworkMap(
+  Map value,
+  int depth,
+) {
+  final copied = <String, Object?>{};
+  var truncated =
+      value.length > TugboatNetworkLimits.maxErrorResponseBodyCollectionItems;
+  var visited = 0;
+  for (final entry in value.entries) {
+    if (visited >= TugboatNetworkLimits.maxErrorResponseBodyCollectionItems) {
+      truncated = true;
+      break;
     }
-    return (value: copied, supported: true, truncated: truncated);
+    visited += 1;
+    final normalized = _copyNetworkMapEntry(entry, depth);
+    truncated = truncated || normalized.truncated;
+    if (normalized.key case final String key when normalized.supported) {
+      copied[key] = normalized.value;
+    }
   }
-  return (value: null, supported: false, truncated: true);
+  return (value: copied, supported: true, truncated: truncated);
+}
+
+({String? key, Object? value, bool supported, bool truncated})
+_copyNetworkMapEntry(MapEntry entry, int depth) {
+  if (entry.key is! String) {
+    return (key: null, value: null, supported: false, truncated: true);
+  }
+  final normalized = _copyJsonValue(entry.value, depth: depth + 1);
+  return (
+    key: entry.key as String,
+    value: normalized.value,
+    supported: normalized.supported,
+    truncated: normalized.truncated || !normalized.supported,
+  );
 }
 
 String? normalizeNetworkMethod(String method) {

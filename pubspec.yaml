@@ -10,6 +10,7 @@ workspace:
   - packages/tugboat_dio
 
 dev_dependencies:
+  dallow: ^0.2.1
   melos: ^7.8.2
 
 melos:
@@ -20,6 +21,9 @@ melos:
     analyze:
       run: dart analyze .
       description: Analyze every package in the workspace.
+    complexity:
+      run: dart run dallow complexity --recursive --max-complexity 10 --fail-on warning .
+      description: Reject functions with cyclomatic complexity above 10.
     test:
       run: cd packages/tugboat && flutter test -j 1 . && cd ../tugboat_dio && flutter test -j 1 .
       description: Run all package tests with each package's asset bundle.

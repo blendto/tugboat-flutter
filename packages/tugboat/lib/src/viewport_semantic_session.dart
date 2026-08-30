@@ -22,6 +22,14 @@ class _ScrollSemanticAccumulator {
   final Map<String, TugboatViewportSemanticMap> slices = {};
 }
 
+class _ScrollSemanticSnapshotStats {
+  final Set<String> nodeKeys = <String>{};
+  int actionableCount = 0;
+  int linkedCount = 0;
+  double? observedTop;
+  double? observedBottom;
+}
+
 /// A bounded semantic map and its tap result built without publishing events.
 class TugboatViewportTapSnapshot {
   const TugboatViewportTapSnapshot({
@@ -221,33 +229,11 @@ class ViewportSemanticSession {
     required AnchorResolver? resolver,
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
-    if (scrollContext?.trigger == 'scroll_start') {
-      _beginScrollSemanticGesture(
-        routeKey: inventory.routeKey,
-        scroll: scrollContext!,
-      );
-    }
+    _beginScrollGestureIfNeeded(inventory, scrollContext);
     if (!engineEnabled || resolver == null) return;
-
-    final buildStopwatch = Stopwatch()..start();
-    // Exploration holds a persistent SemanticsHandle for the session.
-    // Production must be allowed to acquire a transient handle per build.
-    final rawMap = resolver.buildViewportSemanticMap(
-      inventory: inventory,
-      allowTransientSemanticsHandle: !holdPersistentSemanticsHandle,
-    );
-    buildStopwatch.stop();
-    if (rawMap == null) {
-      if (debugLogs) {
-        debugPrint(
-          '[tugboat] viewport_semantic_map skipped '
-          'route=${inventory.routeKey} '
-          'reason=empty_or_unavailable_semantics',
-        );
-      }
-      return;
-    }
-    final mapWithContext = rawMap.copyWith(scrollContext: scrollContext);
+    final built = _buildViewportMap(resolver, inventory, scrollContext);
+    if (built == null) return;
+    final mapWithContext = built.map;
     final bounded = _bounded(mapWithContext);
     if (bounded == null) return;
     final map = bounded.map;
@@ -269,15 +255,54 @@ class ViewportSemanticSession {
         ),
       );
       if (debugLogs) {
-        tugboatLogViewportSemanticMap(
-          map,
-          buildMs: buildStopwatch.elapsedMilliseconds,
-        );
+        tugboatLogViewportSemanticMap(map, buildMs: built.buildMs);
       }
     }
     // A new scroll gesture can revisit a slice that was already published.
     // Keep gesture accumulation independent from event-level map deduplication.
     _recordScrollSemanticSlice(map);
+  }
+
+  void _beginScrollGestureIfNeeded(
+    TugboatSceneInventory inventory,
+    TugboatViewportSemanticScrollContext? scroll,
+  ) {
+    if (scroll?.trigger == 'scroll_start') {
+      _beginScrollSemanticGesture(
+        routeKey: inventory.routeKey,
+        scroll: scroll!,
+      );
+    }
+  }
+
+  ({TugboatViewportSemanticMap map, int buildMs})? _buildViewportMap(
+    AnchorResolver resolver,
+    TugboatSceneInventory inventory,
+    TugboatViewportSemanticScrollContext? scrollContext,
+  ) {
+    final stopwatch = Stopwatch()..start();
+    final rawMap = resolver.buildViewportSemanticMap(
+      inventory: inventory,
+      allowTransientSemanticsHandle: !holdPersistentSemanticsHandle,
+    );
+    stopwatch.stop();
+    if (rawMap == null) {
+      _logUnavailableViewportMap(inventory);
+      return null;
+    }
+    return (
+      map: rawMap.copyWith(scrollContext: scrollContext),
+      buildMs: stopwatch.elapsedMilliseconds,
+    );
+  }
+
+  void _logUnavailableViewportMap(TugboatSceneInventory inventory) {
+    if (debugLogs) {
+      debugPrint(
+        '[tugboat] viewport_semantic_map skipped '
+        'route=${inventory.routeKey} reason=empty_or_unavailable_semantics',
+      );
+    }
   }
 
   ({TugboatViewportSemanticMap map, Map<String, Object?>? encodedJson})?
@@ -382,49 +407,11 @@ class ViewportSemanticSession {
   TugboatScrollSemanticSnapshot _buildScrollSemanticSnapshot(
     _ScrollSemanticAccumulator accumulator,
   ) {
-    final nodeKeys = <String>{};
-    var actionableCount = 0;
-    var linkedCount = 0;
-    double? observedTop;
-    double? observedBottom;
+    final stats = _ScrollSemanticSnapshotStats();
     for (final map in accumulator.slices.values) {
-      final scroll = map.scrollContext;
-      if (scroll?.observedTopNorm != null) {
-        observedTop = observedTop == null
-            ? scroll!.observedTopNorm
-            : (observedTop < scroll!.observedTopNorm!
-                  ? observedTop
-                  : scroll.observedTopNorm);
-      }
-      if (scroll?.observedBottomNorm != null) {
-        observedBottom = observedBottom == null
-            ? scroll!.observedBottomNorm
-            : (observedBottom > scroll!.observedBottomNorm!
-                  ? observedBottom
-                  : scroll.observedBottomNorm);
-      }
-      for (final node in map.nodes) {
-        if (node.isActionable) actionableCount++;
-        if (node.linkedFingerprint?.isNotEmpty == true) linkedCount++;
-        final bounds = node.boundsNorm;
-        nodeKeys.add(
-          node.linkedFingerprint?.isNotEmpty == true
-              ? 'fp:${node.linkedFingerprint}'
-              : [
-                  'node',
-                  node.source,
-                  node.role ?? '',
-                  node.actions.join(','),
-                  bounds.left.toStringAsFixed(2),
-                  bounds.top.toStringAsFixed(2),
-                  bounds.width.toStringAsFixed(2),
-                  bounds.height.toStringAsFixed(2),
-                  map.scrollContext?.offsetNorm?.toStringAsFixed(2) ?? '',
-                ].join('|'),
-        );
-      }
+      _collectScrollSemanticSlice(stats, map);
     }
-    final sortedKeys = nodeKeys.toList()..sort();
+    final sortedKeys = stats.nodeKeys.toList()..sort();
     final hash = tugboatLabelHash(
       [
         accumulator.routeKey,
@@ -440,12 +427,71 @@ class ViewportSemanticSession {
       axis: accumulator.axis,
       observedSliceCount: accumulator.slices.length,
       observedNodeCount: sortedKeys.length,
-      observedActionableCount: actionableCount,
-      linkedNodeCount: linkedCount,
-      observedTopNorm: observedTop,
-      observedBottomNorm: observedBottom,
+      observedActionableCount: stats.actionableCount,
+      linkedNodeCount: stats.linkedCount,
+      observedTopNorm: stats.observedTop,
+      observedBottomNorm: stats.observedBottom,
       snapshotHash: hash,
     );
+  }
+
+  void _collectScrollSemanticSlice(
+    _ScrollSemanticSnapshotStats stats,
+    TugboatViewportSemanticMap map,
+  ) {
+    _observeScrollBounds(stats, map.scrollContext);
+    for (final node in map.nodes) {
+      _observeScrollSemanticNode(stats, node, map.scrollContext);
+    }
+  }
+
+  void _observeScrollBounds(
+    _ScrollSemanticSnapshotStats stats,
+    TugboatViewportSemanticScrollContext? scroll,
+  ) {
+    final top = scroll?.observedTopNorm;
+    if (top != null) stats.observedTop = _minimum(stats.observedTop, top);
+    final bottom = scroll?.observedBottomNorm;
+    if (bottom != null) {
+      stats.observedBottom = _maximum(stats.observedBottom, bottom);
+    }
+  }
+
+  double _minimum(double? current, double next) =>
+      current == null || current > next ? next : current;
+
+  double _maximum(double? current, double next) =>
+      current == null || current < next ? next : current;
+
+  void _observeScrollSemanticNode(
+    _ScrollSemanticSnapshotStats stats,
+    TugboatViewportSemanticNode node,
+    TugboatViewportSemanticScrollContext? scroll,
+  ) {
+    if (node.isActionable) stats.actionableCount++;
+    final linked = node.linkedFingerprint?.isNotEmpty == true;
+    if (linked) stats.linkedCount++;
+    stats.nodeKeys.add(_scrollSemanticNodeKey(node, scroll, linked));
+  }
+
+  String _scrollSemanticNodeKey(
+    TugboatViewportSemanticNode node,
+    TugboatViewportSemanticScrollContext? scroll,
+    bool linked,
+  ) {
+    if (linked) return 'fp:${node.linkedFingerprint}';
+    final bounds = node.boundsNorm;
+    return [
+      'node',
+      node.source,
+      node.role ?? '',
+      node.actions.join(','),
+      bounds.left.toStringAsFixed(2),
+      bounds.top.toStringAsFixed(2),
+      bounds.width.toStringAsFixed(2),
+      bounds.height.toStringAsFixed(2),
+      scroll?.offsetNorm?.toStringAsFixed(2) ?? '',
+    ].join('|');
   }
 
   TugboatViewportSemanticResolution? _resolveTapUnsafe({

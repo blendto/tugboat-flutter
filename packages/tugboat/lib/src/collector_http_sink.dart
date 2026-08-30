@@ -266,16 +266,18 @@ class CollectorHttpSink implements TugboatCaptureSink {
   }
 
   DateTime _coalescedIdentityTriggeredAt() {
-    if (_userDirty && _traitsDirty) {
-      final userAt = _userTriggeredAt;
-      final traitsAt = _traitsTriggeredAt;
-      if (userAt != null && traitsAt != null) {
-        return userAt.isAfter(traitsAt) ? userAt : traitsAt;
-      }
-      return userAt ?? traitsAt ?? DateTime.now();
-    }
+    if (_userDirty && _traitsDirty) return _latestIdentityTrigger();
     if (_userDirty) return _userTriggeredAt ?? DateTime.now();
     return _traitsTriggeredAt ?? DateTime.now();
+  }
+
+  DateTime _latestIdentityTrigger() {
+    final userAt = _userTriggeredAt;
+    final traitsAt = _traitsTriggeredAt;
+    if (userAt != null && traitsAt != null) {
+      return userAt.isAfter(traitsAt) ? userAt : traitsAt;
+    }
+    return userAt ?? traitsAt ?? DateTime.now();
   }
 
   void _enqueueCoalescedIdentityUpdate() {
@@ -396,19 +398,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final session = _session;
     if (session == null) return _SendResult.accepted;
 
-    // session_start uses the local id; later lifecycle uses the collector id when known.
-    final sessionId =
-        eventType == TugboatCollectorSessionEventType.sessionStart.wireValue
-        ? session.id
-        : (_collectorSessionId ?? session.id);
-
-    final includeFullTraits =
-        _traits != null &&
-        (eventType == TugboatCollectorSessionEventType.sessionStart.wireValue ||
-            eventType ==
-                TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
-            eventType ==
-                TugboatCollectorSessionEventType.traitsUpdated.wireValue);
+    final sessionId = _sessionIdForLifecycle(eventType, session.id);
+    final includeFullTraits = _includesFullTraits(eventType);
 
     final body = mapTugboatSessionLifecycleToCollectorSession(
       eventType: eventType,
@@ -429,41 +420,71 @@ class CollectorHttpSink implements TugboatCaptureSink {
       );
 
       final result = _classifyResponse(response.statusCode);
-      // Status alone decides acceptance (same as events/frames). Body is
-      // optional enrichment; empty or non-JSON must not turn 202 into retry.
       if (result == _SendResult.accepted && _isCurrentEpoch(epoch)) {
-        final raw = response.body.trim();
-        if (raw.isEmpty) {
-          if (eventType ==
-              TugboatCollectorSessionEventType.sessionStart.wireValue) {
-            _collectorSessionId ??= session.id;
-          }
-        } else {
-          try {
-            final decoded = jsonDecode(raw) as Map<String, dynamic>;
-            if (eventType ==
-                TugboatCollectorSessionEventType.sessionStart.wireValue) {
-              final serverId = decoded['sessionId'] as String?;
-              _collectorSessionId = (serverId != null && serverId.isNotEmpty)
-                  ? serverId
-                  : session.id;
-            }
-            final responseTraitsId = decoded['traitsId'] as String?;
-            if (responseTraitsId != null && responseTraitsId.isNotEmpty) {
-              _traitsId = responseTraitsId;
-            }
-          } on Object {
-            if (eventType ==
-                TugboatCollectorSessionEventType.sessionStart.wireValue) {
-              _collectorSessionId ??= session.id;
-            }
-          }
-        }
+        _applyLifecycleResponse(eventType, response.body, session.id);
       }
       return result;
     } catch (_) {
       return _SendResult.retry;
     }
+  }
+
+  String _sessionIdForLifecycle(String eventType, String localSessionId) =>
+      _isSessionStart(eventType)
+      ? localSessionId
+      : _collectorSessionId ?? localSessionId;
+
+  bool _includesFullTraits(String eventType) =>
+      _traits != null &&
+      (_isSessionStart(eventType) ||
+          eventType ==
+              TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
+          eventType ==
+              TugboatCollectorSessionEventType.traitsUpdated.wireValue);
+
+  bool _isSessionStart(String eventType) =>
+      eventType == TugboatCollectorSessionEventType.sessionStart.wireValue;
+
+  void _applyLifecycleResponse(
+    String eventType,
+    String responseBody,
+    String localSessionId,
+  ) {
+    final raw = responseBody.trim();
+    if (raw.isEmpty) {
+      _useLocalSessionIdForStart(eventType, localSessionId);
+      return;
+    }
+    try {
+      _applyDecodedLifecycleResponse(
+        eventType,
+        jsonDecode(raw) as Map<String, dynamic>,
+        localSessionId,
+      );
+    } on Object {
+      _useLocalSessionIdForStart(eventType, localSessionId);
+    }
+  }
+
+  void _applyDecodedLifecycleResponse(
+    String eventType,
+    Map<String, dynamic> decoded,
+    String localSessionId,
+  ) {
+    if (_isSessionStart(eventType)) {
+      final serverId = decoded['sessionId'] as String?;
+      _collectorSessionId = serverId != null && serverId.isNotEmpty
+          ? serverId
+          : localSessionId;
+    }
+    final responseTraitsId = decoded['traitsId'] as String?;
+    if (responseTraitsId != null && responseTraitsId.isNotEmpty) {
+      _traitsId = responseTraitsId;
+    }
+  }
+
+  void _useLocalSessionIdForStart(String eventType, String localSessionId) {
+    if (_isSessionStart(eventType)) _collectorSessionId ??= localSessionId;
   }
 
   Future<void> _flushEventBatch() async {
@@ -567,6 +588,22 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (!_isCurrentEpoch(epoch)) {
       return;
     }
+    final request = _frameUploadRequest(sessionId, uploads);
+
+    try {
+      final streamed = await _client.send(request);
+      final response = await http.Response.fromStream(streamed);
+      if (!_isCurrentEpoch(epoch)) return;
+      _recordFrameUploadResponse(response, uploads);
+    } catch (_) {
+      _recordFrameUploadFailure(epoch, uploads);
+    }
+  }
+
+  http.MultipartRequest _frameUploadRequest(
+    String sessionId,
+    List<_PendingFrameUpload> uploads,
+  ) {
     final request = http.MultipartRequest(
       'POST',
       _baseUri.resolve('/v1/frames'),
@@ -575,7 +612,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
     request.fields['frameNos'] = uploads
         .map((upload) => upload.frameNo.toString())
         .join(',');
-
     for (final upload in uploads) {
       request.files.add(
         http.MultipartFile.fromBytes(
@@ -586,21 +622,22 @@ class CollectorHttpSink implements TugboatCaptureSink {
         ),
       );
     }
+    return request;
+  }
 
-    try {
-      final streamed = await _client.send(request);
-      final response = await http.Response.fromStream(streamed);
-      if (!_isCurrentEpoch(epoch)) return;
-      final result = _classifyResponse(response.statusCode);
-      _framesNeedRetry = result == _SendResult.retry;
-      if (_framesNeedRetry) {
-        _requeueFailedUploads(uploads);
-      }
-    } catch (_) {
-      if (!_isCurrentEpoch(epoch)) return;
-      _framesNeedRetry = true;
-      _requeueFailedUploads(uploads);
-    }
+  void _recordFrameUploadResponse(
+    http.Response response,
+    List<_PendingFrameUpload> uploads,
+  ) {
+    _framesNeedRetry =
+        _classifyResponse(response.statusCode) == _SendResult.retry;
+    if (_framesNeedRetry) _requeueFailedUploads(uploads);
+  }
+
+  void _recordFrameUploadFailure(int epoch, List<_PendingFrameUpload> uploads) {
+    if (!_isCurrentEpoch(epoch)) return;
+    _framesNeedRetry = true;
+    _requeueFailedUploads(uploads);
   }
 
   void _requeueFailedUploads(List<_PendingFrameUpload> uploads) {

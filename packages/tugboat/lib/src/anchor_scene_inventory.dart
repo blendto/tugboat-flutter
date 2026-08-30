@@ -40,59 +40,17 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     final hitCache = <String, TugboatTargetAnchor?>{};
 
     for (final element in tokenMap.includedElements) {
-      if (!tokenMap.tokens.containsKey(element)) continue;
-
-      final widget = element.widget;
-      final isImage = widget is Image;
-      final isLargeText =
-          widget is Text &&
-          _isLargeTextBounds(_boundsForElement(element, rootRender, viewport));
-      final isActionable = tokenMap.isActionable[element] == true;
-      if (!isActionable && !isImage && !isLargeText) continue;
-
-      final structuralPath = _pathFor(element, tokenMap);
-      final bounds = _boundsForElement(element, rootRender, viewport);
-      if (bounds == null) continue;
-
-      if (isActionable) {
-        final result = _interactiveInventoryEntry(
-          element: element,
-          widget: widget,
-          structuralPath: structuralPath,
-          bounds: bounds,
-          routeKey: routeKey,
-          route: route,
-          tokenMap: tokenMap,
-          rootRender: rootRender,
-          viewport: viewport,
-          hitCache: hitCache,
-        );
-        if (result == null) continue;
-        _accumulateInteractiveEntry(
-          interactiveByFingerprint,
-          result.entry,
-          result.structuralFingerprint,
-        );
-        continue;
-      }
-
-      final fingerprint = _fingerprintForParts({
-        'routeKey': routeKey,
-        'path': structuralPath,
-      });
-      if (fingerprint.isEmpty || !seenContentFingerprints.add(fingerprint)) {
-        continue;
-      }
-
-      contentEntries.add(
-        TugboatSceneInventoryEntry(
-          fingerprint: fingerprint,
-          canonicalPath: structuralPath,
-          widgetType: _widgetName(widget),
-          role: 'display',
-          boundsNorm: bounds,
-          tier: 'content',
-        ),
+      _addInventoryElement(
+        element: element,
+        tokenMap: tokenMap,
+        rootRender: rootRender,
+        viewport: viewport,
+        route: route,
+        routeKey: routeKey,
+        hitCache: hitCache,
+        contentEntries: contentEntries,
+        interactiveByFingerprint: interactiveByFingerprint,
+        seenContentFingerprints: seenContentFingerprints,
       );
     }
 
@@ -100,6 +58,104 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     if (elements.isEmpty) return null;
 
     return _inventoryFromElements(routeKey: routeKey, elements: elements);
+  }
+
+  void _addInventoryElement({
+    required Element element,
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
+    required Size viewport,
+    required String? route,
+    required String routeKey,
+    required Map<String, TugboatTargetAnchor?> hitCache,
+    required List<TugboatSceneInventoryEntry> contentEntries,
+    required Map<String, TugboatSceneInventoryEntry> interactiveByFingerprint,
+    required Set<String> seenContentFingerprints,
+  }) {
+    if (!tokenMap.tokens.containsKey(element)) return;
+    final widget = element.widget;
+    final actionable = tokenMap.isActionable[element] == true;
+    if (!_isInventoryCandidate(
+      widget,
+      actionable,
+      element,
+      rootRender,
+      viewport,
+    )) {
+      return;
+    }
+    final structuralPath = _pathFor(element, tokenMap);
+    final bounds = _boundsForElement(element, rootRender, viewport);
+    if (bounds == null) return;
+    if (actionable) {
+      final result = _interactiveInventoryEntry(
+        element: element,
+        widget: widget,
+        structuralPath: structuralPath,
+        bounds: bounds,
+        routeKey: routeKey,
+        route: route,
+        tokenMap: tokenMap,
+        rootRender: rootRender,
+        viewport: viewport,
+        hitCache: hitCache,
+      );
+      if (result != null) {
+        _accumulateInteractiveEntry(
+          interactiveByFingerprint,
+          result.entry,
+          result.structuralFingerprint,
+        );
+      }
+      return;
+    }
+    _addContentInventoryEntry(
+      contentEntries,
+      seenContentFingerprints,
+      widget,
+      structuralPath,
+      bounds,
+      routeKey,
+    );
+  }
+
+  bool _isInventoryCandidate(
+    Widget widget,
+    bool actionable,
+    Element element,
+    RenderBox rootRender,
+    Size viewport,
+  ) =>
+      actionable ||
+      widget is Image ||
+      (widget is Text &&
+          _isLargeTextBounds(_boundsForElement(element, rootRender, viewport)));
+
+  void _addContentInventoryEntry(
+    List<TugboatSceneInventoryEntry> contentEntries,
+    Set<String> seenContentFingerprints,
+    Widget widget,
+    String structuralPath,
+    TugboatNormalizedBounds bounds,
+    String routeKey,
+  ) {
+    final fingerprint = _fingerprintForParts({
+      'routeKey': routeKey,
+      'path': structuralPath,
+    });
+    if (fingerprint.isEmpty || !seenContentFingerprints.add(fingerprint)) {
+      return;
+    }
+    contentEntries.add(
+      TugboatSceneInventoryEntry(
+        fingerprint: fingerprint,
+        canonicalPath: structuralPath,
+        widgetType: _widgetName(widget),
+        role: 'display',
+        boundsNorm: bounds,
+        tier: 'content',
+      ),
+    );
   }
 
   TugboatSceneInventory _inventoryFromElements({
@@ -179,32 +235,50 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required TugboatSceneInventory? inventory,
   }) {
     final fingerprint = target?.fingerprint;
-    if (target == null ||
-        fingerprint == null ||
-        fingerprint.isEmpty ||
-        inventory == null) {
+    if (!_canNormalizeInventoryTarget(target, fingerprint, inventory)) {
       return target;
     }
-
-    for (final entry in inventory.elements) {
-      if (entry.fingerprint == fingerprint) return target;
-      if (!entry.aliases.contains(fingerprint)) continue;
-      return TugboatTargetAnchor(
-        schemaVersion: target.schemaVersion,
-        widgetType: entry.widgetType ?? target.widgetType,
-        role: entry.role ?? target.role,
-        fingerprint: entry.fingerprint,
-        fingerprintConfidence: target.fingerprintConfidence,
-        fingerprintParts: const {},
-        tagFingerprint: target.tagFingerprint,
-        canonicalPath: entry.canonicalPath,
-        relativePosition: target.relativePosition,
-        enabled: entry.enabled ?? target.enabled,
-        actions: entry.actions.isNotEmpty ? entry.actions : target.actions,
-      );
-    }
-    return target;
+    final entry = _inventoryAliasEntry(inventory!, fingerprint!);
+    return entry == null ? target : _targetForInventoryEntry(target!, entry);
   }
+
+  bool _canNormalizeInventoryTarget(
+    TugboatTargetAnchor? target,
+    String? fingerprint,
+    TugboatSceneInventory? inventory,
+  ) =>
+      target != null &&
+      fingerprint != null &&
+      fingerprint.isNotEmpty &&
+      inventory != null;
+
+  TugboatSceneInventoryEntry? _inventoryAliasEntry(
+    TugboatSceneInventory inventory,
+    String fingerprint,
+  ) {
+    for (final entry in inventory.elements) {
+      if (entry.fingerprint == fingerprint) return null;
+      if (entry.aliases.contains(fingerprint)) return entry;
+    }
+    return null;
+  }
+
+  TugboatTargetAnchor _targetForInventoryEntry(
+    TugboatTargetAnchor target,
+    TugboatSceneInventoryEntry entry,
+  ) => TugboatTargetAnchor(
+    schemaVersion: target.schemaVersion,
+    widgetType: entry.widgetType ?? target.widgetType,
+    role: entry.role ?? target.role,
+    fingerprint: entry.fingerprint,
+    fingerprintConfidence: target.fingerprintConfidence,
+    fingerprintParts: const {},
+    tagFingerprint: target.tagFingerprint,
+    canonicalPath: entry.canonicalPath,
+    relativePosition: target.relativePosition,
+    enabled: entry.enabled ?? target.enabled,
+    actions: entry.actions.isNotEmpty ? entry.actions : target.actions,
+  );
 
   /// When hit-testing produced a target without a canonical path (e.g. a
   /// decorated box that is not part of the token map), its fingerprint can
@@ -225,55 +299,83 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required Offset tapPosition,
     required RenderBox rootRender,
   }) {
-    if (target == null || inventory == null) return target;
-    final hasPath = target.canonicalPath?.isNotEmpty ?? false;
-    if (hasPath) return target;
+    if (!_canSnapPathlessTarget(target, inventory, rootRender)) return target;
+    final best = _smallestSnapCandidate(inventory!, tapPosition, rootRender);
+    return best == null ? target : _anchorForSnapCandidate(target!, best);
+  }
+
+  bool _canSnapPathlessTarget(
+    TugboatTargetAnchor? target,
+    TugboatSceneInventory? inventory,
+    RenderBox rootRender,
+  ) =>
+      target != null &&
+      inventory != null &&
+      !(target.canonicalPath?.isNotEmpty ?? false) &&
+      rootRender.size.width > 0 &&
+      rootRender.size.height > 0;
+
+  TugboatSceneInventoryEntry? _smallestSnapCandidate(
+    TugboatSceneInventory inventory,
+    Offset tapPosition,
+    RenderBox rootRender,
+  ) {
     final viewport = rootRender.size;
-    if (viewport.width <= 0 || viewport.height <= 0) return target;
-
-    final nx = tapPosition.dx / viewport.width;
-    final ny = tapPosition.dy / viewport.height;
-    final hitAreaNorm = _hitLeafAreaNorm(rootRender, tapPosition);
-
+    final tap = (
+      x: tapPosition.dx / viewport.width,
+      y: tapPosition.dy / viewport.height,
+    );
+    final hitArea = _hitLeafAreaNorm(rootRender, tapPosition);
     TugboatSceneInventoryEntry? best;
     var bestArea = double.infinity;
     for (final entry in inventory.elements) {
-      if (entry.tier != 'interactive') continue;
-      if (entry.role == null && entry.actions.isEmpty) continue;
-      final b = entry.boundsNorm;
-      final within =
-          nx >= b.left &&
-          nx <= b.left + b.width &&
-          ny >= b.top &&
-          ny <= b.top + b.height;
-      if (!within) continue;
-      final area = b.width * b.height;
-      // Reject candidates far smaller than the surface the pointer actually
-      // landed on: they are occluded content, not the tapped element.
-      if (hitAreaNorm != null && area < hitAreaNorm * 0.5) continue;
+      if (!_isPathlessSnapCandidate(entry, tap, hitArea)) continue;
+      final area = entry.boundsNorm.width * entry.boundsNorm.height;
       if (area < bestArea) {
         bestArea = area;
         best = entry;
       }
     }
-    if (best == null) return target;
-
-    return TugboatTargetAnchor(
-      schemaVersion: target.schemaVersion,
-      widgetType: best.widgetType ?? target.widgetType,
-      role: best.role ?? target.role,
-      fingerprint: best.fingerprint,
-      fingerprintConfidence: 'low',
-      // The fingerprint now describes the inventory element, so the original
-      // anchor's parts would be stale; inventory entries carry no parts.
-      fingerprintParts: const {},
-      tagFingerprint: target.tagFingerprint,
-      canonicalPath: best.canonicalPath,
-      relativePosition: target.relativePosition,
-      enabled: best.enabled ?? target.enabled,
-      actions: best.actions.isNotEmpty ? best.actions : target.actions,
-    );
+    return best;
   }
+
+  TugboatTargetAnchor _anchorForSnapCandidate(
+    TugboatTargetAnchor target,
+    TugboatSceneInventoryEntry best,
+  ) => TugboatTargetAnchor(
+    schemaVersion: target.schemaVersion,
+    widgetType: best.widgetType ?? target.widgetType,
+    role: best.role ?? target.role,
+    fingerprint: best.fingerprint,
+    fingerprintConfidence: 'low',
+    // The fingerprint now describes the inventory element, so the original
+    // anchor's parts would be stale; inventory entries carry no parts.
+    fingerprintParts: const {},
+    tagFingerprint: target.tagFingerprint,
+    canonicalPath: best.canonicalPath,
+    relativePosition: target.relativePosition,
+    enabled: best.enabled ?? target.enabled,
+    actions: best.actions.isNotEmpty ? best.actions : target.actions,
+  );
+
+  bool _isPathlessSnapCandidate(
+    TugboatSceneInventoryEntry entry,
+    ({double x, double y}) tap,
+    double? hitAreaNorm,
+  ) {
+    if (entry.tier != 'interactive') return false;
+    if (entry.role == null && entry.actions.isEmpty) return false;
+    final bounds = entry.boundsNorm;
+    if (!_pointIsInBounds(tap.x, tap.y, bounds)) return false;
+    return hitAreaNorm == null ||
+        bounds.width * bounds.height >= hitAreaNorm * 0.5;
+  }
+
+  bool _pointIsInBounds(double x, double y, TugboatNormalizedBounds bounds) =>
+      x >= bounds.left &&
+      x <= bounds.left + bounds.width &&
+      y >= bounds.top &&
+      y <= bounds.top + bounds.height;
 
   /// Normalized area of the deepest render box the pointer actually hit.
   /// Used to keep the pathless-tap snap from re-anchoring to occluded
@@ -408,45 +510,25 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       'path': structuralPath,
     });
 
-    final center = Offset(
-      (bounds.left + bounds.width / 2) * viewport.width,
-      (bounds.top + bounds.height / 2) * viewport.height,
-    );
-    final cacheKey = '${center.dx}|${center.dy}';
+    final center = _inventoryEntryCenter(bounds, viewport);
     // Hit-test once per distinct center (cached). Wrappers that resolve to the
     // same actionable descendant still run through so their structural
     // fingerprints become aliases for edge taps that land on the wrapper.
-    final resolved = hitCache.putIfAbsent(
-      cacheKey,
-      () => _targetAtWithTokenMap(
-        center,
-        route: route,
-        tokenMap: tokenMap,
-        rootRender: rootRender,
-      ),
+    final resolved = _cachedInventoryTarget(
+      center,
+      route,
+      tokenMap,
+      rootRender,
+      hitCache,
     );
-
-    final resolvedFingerprint = resolved?.fingerprint;
-    final resolvedPath = resolved?.canonicalPath;
-    if (resolvedFingerprint != null &&
-        resolvedFingerprint.isNotEmpty &&
-        resolvedPath != null &&
-        resolvedPath.isNotEmpty &&
-        _pathsOnSameChain(structuralPath, resolvedPath)) {
-      return (
-        entry: TugboatSceneInventoryEntry(
-          fingerprint: resolvedFingerprint,
-          canonicalPath: resolvedPath,
-          widgetType: resolved?.widgetType ?? _widgetName(widget),
-          role: resolved?.role,
-          actions: resolved?.actions ?? const [],
-          enabled: resolved?.enabled,
-          boundsNorm: bounds,
-          tier: 'interactive',
-        ),
-        structuralFingerprint: structuralFingerprint,
-      );
-    }
+    final resolvedEntry = _resolvedInteractiveInventoryEntry(
+      resolved,
+      structuralPath,
+      widget,
+      bounds,
+      structuralFingerprint,
+    );
+    if (resolvedEntry != null) return resolvedEntry;
 
     // Skip wrappers that already expose a tokenized actionable child, but only
     // after the same-chain path above had a chance to contribute aliases.
@@ -471,6 +553,65 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       structuralFingerprint: structuralFingerprint,
     );
   }
+
+  Offset _inventoryEntryCenter(TugboatNormalizedBounds bounds, Size viewport) =>
+      Offset(
+        (bounds.left + bounds.width / 2) * viewport.width,
+        (bounds.top + bounds.height / 2) * viewport.height,
+      );
+
+  TugboatTargetAnchor? _cachedInventoryTarget(
+    Offset center,
+    String? route,
+    _TokenMap tokenMap,
+    RenderBox rootRender,
+    Map<String, TugboatTargetAnchor?> hitCache,
+  ) => hitCache.putIfAbsent(
+    '${center.dx}|${center.dy}',
+    () => _targetAtWithTokenMap(
+      center,
+      route: route,
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+    ),
+  );
+
+  ({TugboatSceneInventoryEntry entry, String structuralFingerprint})?
+  _resolvedInteractiveInventoryEntry(
+    TugboatTargetAnchor? resolved,
+    String structuralPath,
+    Widget widget,
+    TugboatNormalizedBounds bounds,
+    String structuralFingerprint,
+  ) {
+    final fingerprint = resolved?.fingerprint;
+    final path = resolved?.canonicalPath;
+    if (!_resolvedPathMatches(fingerprint, path, structuralPath)) return null;
+    return (
+      entry: TugboatSceneInventoryEntry(
+        fingerprint: fingerprint!,
+        canonicalPath: path!,
+        widgetType: resolved?.widgetType ?? _widgetName(widget),
+        role: resolved?.role,
+        actions: resolved?.actions ?? const [],
+        enabled: resolved?.enabled,
+        boundsNorm: bounds,
+        tier: 'interactive',
+      ),
+      structuralFingerprint: structuralFingerprint,
+    );
+  }
+
+  bool _resolvedPathMatches(
+    String? fingerprint,
+    String? path,
+    String structuralPath,
+  ) =>
+      fingerprint != null &&
+      fingerprint.isNotEmpty &&
+      path != null &&
+      path.isNotEmpty &&
+      _pathsOnSameChain(structuralPath, path);
 
   bool _pathsOnSameChain(String leftPath, String rightPath) {
     return leftPath.startsWith(rightPath) || rightPath.startsWith(leftPath);

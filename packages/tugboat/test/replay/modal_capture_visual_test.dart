@@ -508,14 +508,11 @@ class _ModalVisualFixture {
     final x1 = (image.width * 3) ~/ 4;
     for (var y = startY; y < endY; y += 2) {
       for (var x = x0; x < x1; x += 4) {
-        final p = image.getPixel(x, y);
-        final r = p.r.toInt();
-        final g = p.g.toInt();
-        final b = p.b.toInt();
-        if (r > g + 40 && r > b + 40) red++;
-        if (g > r + 40 && g > b + 40) green++;
-        if (b > r + 40 && b > g + 40) blue++;
-        if (g > r + 40 && b > r + 40) teal++;
+        final counts = _colorCounts(image.getPixel(x, y));
+        red += counts.red;
+        green += counts.green;
+        blue += counts.blue;
+        teal += counts.teal;
       }
     }
     return _ColorDominance(
@@ -525,6 +522,30 @@ class _ModalVisualFixture {
       tealDominant: teal,
     );
   }
+
+  ({int red, int green, int blue, int teal}) _colorCounts(img.Pixel pixel) {
+    final red = pixel.r.toInt();
+    final green = pixel.g.toInt();
+    final blue = pixel.b.toInt();
+    return (
+      red: _isRed(red, green, blue) ? 1 : 0,
+      green: _isGreen(red, green, blue) ? 1 : 0,
+      blue: _isBlue(red, green, blue) ? 1 : 0,
+      teal: _isTeal(red, green, blue) ? 1 : 0,
+    );
+  }
+
+  bool _isRed(int red, int green, int blue) =>
+      red > green + 40 && red > blue + 40;
+
+  bool _isGreen(int red, int green, int blue) =>
+      green > red + 40 && green > blue + 40;
+
+  bool _isBlue(int red, int green, int blue) =>
+      blue > red + 40 && blue > green + 40;
+
+  bool _isTeal(int red, int green, int blue) =>
+      green > red + 40 && blue > red + 40;
 
   img.Image _decode(String frameId) {
     final bytes = session.frameBytes[frameId];

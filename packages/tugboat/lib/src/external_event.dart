@@ -158,81 +158,103 @@ TugboatParameterSnapshot snapshotExternalParameters({
     );
   }
 
+  final state = _ParameterSnapshotState();
+  final entries = raw.entries.take(TugboatParameterLimits.maxTopLevelKeys);
+  if (raw.length > TugboatParameterLimits.maxTopLevelKeys) {
+    state.addDropped(raw.length - TugboatParameterLimits.maxTopLevelKeys);
+  }
+  _snapshotParameterEntries(policy, entries, state);
+  final parametersOut = _boundedParametersOut(policy, state);
+
+  return TugboatParameterSnapshot(
+    parameterKeys: List<String>.unmodifiable(state.keys),
+    parameters: parametersOut,
+    captureValues: policy.captureValues,
+    truncated: state.truncated,
+    droppedCount: state.dropped,
+  );
+}
+
+class _ParameterSnapshotState {
+  final keys = <String>[];
+  final retained = <String, Object?>{};
   var dropped = 0;
   var truncated = false;
   var collectionItems = 0;
-  final keys = <String>[];
-  final retained = <String, Object?>{};
 
-  final entries = raw.entries.take(TugboatParameterLimits.maxTopLevelKeys);
-  if (raw.length > TugboatParameterLimits.maxTopLevelKeys) {
+  void addDropped(int count) {
+    dropped += count;
     truncated = true;
-    dropped += raw.length - TugboatParameterLimits.maxTopLevelKeys;
   }
 
-  for (final entry in entries) {
-    final key = entry.key;
-    if (key.isEmpty || key.length > TugboatParameterLimits.maxKeyLength) {
-      dropped += 1;
+  void incrementDropped(int count) {
+    dropped += count;
+  }
+
+  bool acceptCollectionItem() {
+    collectionItems += 1;
+    if (collectionItems > TugboatParameterLimits.maxCollectionItems) {
       truncated = true;
+      return false;
+    }
+    return true;
+  }
+}
+
+void _snapshotParameterEntries(
+  TugboatParameterPolicy policy,
+  Iterable<MapEntry<String, Object?>> entries,
+  _ParameterSnapshotState state,
+) {
+  for (final entry in entries) {
+    if (!_isSnapshotKeyValid(entry.key)) {
+      state.addDropped(1);
       continue;
     }
-    keys.add(key);
-
-    switch (_decideTopLevelValue(policy, key, entry.value)) {
-      case _SkipValue():
-        continue;
-      case _DropValue():
-        dropped += 1;
-        continue;
-      case _KeepValue(:final value):
-        switch (_copyJsonSafe(
-          value,
-          depth: 1,
-          seen: <Object>{},
-          dropped: (count) {
-            dropped += count;
-            truncated = true;
-          },
-          onCollectionItem: () {
-            collectionItems += 1;
-            if (collectionItems > TugboatParameterLimits.maxCollectionItems) {
-              truncated = true;
-              return false;
-            }
-            return true;
-          },
-        )) {
-          case _CopyUnsupported():
-            continue;
-          case _CopyOk(:final value):
-            retained[key] = value;
-        }
-    }
+    state.keys.add(entry.key);
+    _retainSnapshotValue(policy, entry, state);
   }
+}
 
-  Map<String, Object?>? parametersOut;
-  if (policy.mode != TugboatParameterCaptureMode.namesOnly &&
-      retained.isNotEmpty) {
-    parametersOut = Map<String, Object?>.unmodifiable(retained);
-    final encodedLength = utf8.encode(jsonEncode(parametersOut)).length;
-    if (encodedLength > TugboatParameterLimits.maxEncodedBytes) {
-      // Drop values entirely when the bounded payload still exceeds the budget.
-      // Keys remain so the event stays observable without retaining oversize
-      // content.
-      truncated = true;
-      dropped += retained.length;
-      parametersOut = null;
-    }
+bool _isSnapshotKeyValid(String key) =>
+    key.isNotEmpty && key.length <= TugboatParameterLimits.maxKeyLength;
+
+void _retainSnapshotValue(
+  TugboatParameterPolicy policy,
+  MapEntry<String, Object?> entry,
+  _ParameterSnapshotState state,
+) {
+  final decision = _decideTopLevelValue(policy, entry.key, entry.value);
+  if (decision case _DropValue()) {
+    state.incrementDropped(1);
+    return;
   }
-
-  return TugboatParameterSnapshot(
-    parameterKeys: List<String>.unmodifiable(keys),
-    parameters: parametersOut,
-    captureValues: policy.captureValues,
-    truncated: truncated,
-    droppedCount: dropped,
+  if (decision case _SkipValue()) return;
+  final copied = _copyJsonSafe(
+    (decision as _KeepValue).value,
+    depth: 1,
+    seen: <Object>{},
+    dropped: state.addDropped,
+    onCollectionItem: state.acceptCollectionItem,
   );
+  if (copied case _CopyOk(:final value)) state.retained[entry.key] = value;
+}
+
+Map<String, Object?>? _boundedParametersOut(
+  TugboatParameterPolicy policy,
+  _ParameterSnapshotState state,
+) {
+  if (policy.mode == TugboatParameterCaptureMode.namesOnly ||
+      state.retained.isEmpty) {
+    return null;
+  }
+  final output = Map<String, Object?>.unmodifiable(state.retained);
+  if (utf8.encode(jsonEncode(output)).length <=
+      TugboatParameterLimits.maxEncodedBytes) {
+    return output;
+  }
+  state.addDropped(state.retained.length);
+  return null;
 }
 
 sealed class _ValueDecision {
@@ -315,80 +337,103 @@ _CopyResult _copyJsonSafe(
     dropped(1);
     return const _CopyUnsupported();
   }
-  if (value == null || value is bool) return _CopyOk(value);
-  if (value is num) {
-    if (value.isFinite) return _CopyOk(value);
-    dropped(1);
-    return const _CopyUnsupported();
-  }
-  if (value is String) {
-    if (value.length <= TugboatParameterLimits.maxStringLength) {
-      return _CopyOk(value);
-    }
-    dropped(1);
-    return const _CopyUnsupported();
-  }
+  final primitive = _copyJsonPrimitive(value, dropped);
+  if (primitive.handled) return primitive.result;
   if (value is Map) {
-    if (!seen.add(value)) {
-      dropped(1);
-      return const _CopyUnsupported();
-    }
-    final out = <String, Object?>{};
-    for (final entry in value.entries) {
-      final key = entry.key;
-      if (key is! String ||
-          key.isEmpty ||
-          key.length > TugboatParameterLimits.maxKeyLength) {
-        dropped(1);
-        continue;
-      }
-      if (!onCollectionItem()) {
-        dropped(1);
-        break;
-      }
-      switch (_copyJsonSafe(
-        entry.value,
-        depth: depth + 1,
-        seen: seen,
-        dropped: dropped,
-        onCollectionItem: onCollectionItem,
-      )) {
-        case _CopyUnsupported():
-          continue;
-        case _CopyOk(:final value):
-          out[key] = value;
-      }
-    }
-    seen.remove(value);
-    return _CopyOk(out);
+    return _copyJsonMap(value, depth, seen, dropped, onCollectionItem);
   }
   if (value is Iterable) {
-    if (!seen.add(value)) {
-      dropped(1);
-      return const _CopyUnsupported();
-    }
-    final out = <Object?>[];
-    for (final item in value) {
-      if (!onCollectionItem()) {
-        dropped(1);
-        break;
-      }
-      switch (_copyJsonSafe(
-        item,
-        depth: depth + 1,
-        seen: seen,
-        dropped: dropped,
-        onCollectionItem: onCollectionItem,
-      )) {
-        case _CopyUnsupported():
-          continue;
-        case _CopyOk(:final value):
-          out.add(value);
-      }
-    }
-    seen.remove(value);
-    return _CopyOk(out);
+    return _copyJsonIterable(value, depth, seen, dropped, onCollectionItem);
   }
+  dropped(1);
+  return const _CopyUnsupported();
+}
+
+({bool handled, _CopyResult result}) _copyJsonPrimitive(
+  Object? value,
+  void Function(int count) dropped,
+) {
+  if (value == null || value is bool) {
+    return (handled: true, result: _CopyOk(value));
+  }
+  if (value is num) {
+    return value.isFinite
+        ? (handled: true, result: _CopyOk(value))
+        : (handled: true, result: _dropUnsupported(dropped));
+  }
+  if (value is String) {
+    return value.length <= TugboatParameterLimits.maxStringLength
+        ? (handled: true, result: _CopyOk(value))
+        : (handled: true, result: _dropUnsupported(dropped));
+  }
+  return (handled: false, result: const _CopyUnsupported());
+}
+
+_CopyResult _copyJsonMap(
+  Map value,
+  int depth,
+  Set<Object> seen,
+  void Function(int count) dropped,
+  bool Function() onCollectionItem,
+) {
+  if (!seen.add(value)) return _dropUnsupported(dropped);
+  final out = <String, Object?>{};
+  for (final entry in value.entries) {
+    final key = entry.key;
+    if (!_isValidParameterKey(key)) {
+      dropped(1);
+      continue;
+    }
+    if (!onCollectionItem()) {
+      dropped(1);
+      break;
+    }
+    final result = _copyJsonSafe(
+      entry.value,
+      depth: depth + 1,
+      seen: seen,
+      dropped: dropped,
+      onCollectionItem: onCollectionItem,
+    );
+    if (result case _CopyOk(:final value)) out[key as String] = value;
+  }
+  seen.remove(value);
+  return _CopyOk(out);
+}
+
+_CopyResult _copyJsonIterable(
+  Iterable value,
+  int depth,
+  Set<Object> seen,
+  void Function(int count) dropped,
+  bool Function() onCollectionItem,
+) {
+  if (!seen.add(value)) return _dropUnsupported(dropped);
+  final out = <Object?>[];
+  for (final item in value) {
+    if (!onCollectionItem()) {
+      dropped(1);
+      break;
+    }
+    final result = _copyJsonSafe(
+      item,
+      depth: depth + 1,
+      seen: seen,
+      dropped: dropped,
+      onCollectionItem: onCollectionItem,
+    );
+    if (result case _CopyOk(:final value)) out.add(value);
+  }
+  seen.remove(value);
+  return _CopyOk(out);
+}
+
+bool _isValidParameterKey(Object? key) =>
+    key is String &&
+    key.isNotEmpty &&
+    key.length <= TugboatParameterLimits.maxKeyLength;
+
+_CopyResult _dropUnsupported(void Function(int count) dropped) {
   dropped(1);
   return const _CopyUnsupported();
 }

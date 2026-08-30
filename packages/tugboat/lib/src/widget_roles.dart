@@ -46,200 +46,155 @@ bool tugboatIsSensitiveInput(EditableText widget) {
 
 /// Returns role metadata when [widget] is an interactive control; otherwise null.
 WidgetRole? tugboatRoleForWidget(Widget widget) {
-  if (widget is ButtonStyleButton) {
-    return WidgetRole(
-      'button',
-      widget.onPressed != null,
-      actions: widget.onPressed != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is IconButton) {
-    return WidgetRole(
-      'button',
-      widget.onPressed != null,
-      actions: widget.onPressed != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is CupertinoButton) {
-    return WidgetRole(
-      'button',
-      widget.onPressed != null,
-      actions: widget.onPressed != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is MaterialButton) {
-    return WidgetRole(
-      'button',
-      widget.onPressed != null,
-      actions: widget.onPressed != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is FloatingActionButton) {
-    return WidgetRole(
-      'button',
-      widget.onPressed != null,
-      actions: widget.onPressed != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is PopupMenuButton) {
-    return WidgetRole(
-      'button',
-      widget.enabled,
-      actions: widget.enabled ? const ['tap'] : const [],
-    );
-  }
-  if (widget is PopupMenuItem) {
-    return WidgetRole(
-      'button',
-      widget.enabled,
-      actions: widget.enabled ? const ['tap'] : const [],
-    );
-  }
-  if (widget is ExpansionTile) {
-    return WidgetRole(
-      'button',
-      widget.enabled,
-      actions: widget.enabled ? const ['tap'] : const [],
-    );
-  }
-  if (widget is InkWell) {
-    return WidgetRole(
-      'button',
-      widget.onTap != null,
-      actions: widget.onTap != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is InkResponse) {
-    return WidgetRole(
-      'button',
-      widget.onTap != null,
-      actions: widget.onTap != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is ListTile &&
-      (widget.onTap != null || widget.onLongPress != null)) {
-    final actions = <String>[];
-    if (widget.enabled && widget.onTap != null) actions.add('tap');
-    if (widget.enabled && widget.onLongPress != null) {
-      actions.add('longPress');
-    }
-    return WidgetRole('button', widget.enabled, actions: actions);
-  }
-  if (widget is GestureDetector) {
-    final actions = <String>[];
-    if (widget.onTap != null) actions.add('tap');
-    if (widget.onDoubleTap != null) actions.add('doubleTap');
-    if (widget.onLongPress != null) actions.add('longPress');
-    if (actions.isNotEmpty) return WidgetRole('button', true, actions: actions);
-  }
-  if (widget is InputChip ||
-      widget is ActionChip ||
-      widget is FilterChip ||
-      widget is ChoiceChip) {
-    final enabled = switch (widget) {
-      InputChip w => w.onPressed != null || w.onSelected != null,
-      ActionChip w => w.onPressed != null,
-      FilterChip w => w.onSelected != null,
-      ChoiceChip w => w.onSelected != null,
-      _ => false,
-    };
-    return WidgetRole(
-      'button',
-      enabled,
-      actions: enabled ? const ['tap'] : const [],
-    );
-  }
-  if (widget is Scrollable) {
-    return const WidgetRole('scrollable', null, actions: ['scroll']);
-  }
-  if (widget is Checkbox) {
-    return WidgetRole(
-      'checkbox',
-      widget.onChanged != null,
-      actions: widget.onChanged != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is CheckboxListTile) {
-    return WidgetRole(
-      'checkbox',
-      widget.onChanged != null,
-      actions: widget.onChanged != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is Switch) {
-    return WidgetRole(
-      'switch',
-      widget.onChanged != null,
-      actions: widget.onChanged != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is CupertinoSwitch) {
-    return WidgetRole(
-      'switch',
-      widget.onChanged != null,
-      actions: widget.onChanged != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is SwitchListTile) {
-    return WidgetRole(
-      'switch',
-      widget.onChanged != null,
-      actions: widget.onChanged != null ? const ['tap'] : const [],
-    );
-  }
-  if (widget is Radio || widget is RadioListTile) {
-    // Reading a generic Radio or RadioListTile callback through the promoted
-    // `<dynamic>` view can cast a typed callback to `void Function(dynamic)`,
-    // which is not a valid runtime cast. Keep this inspection dynamic so role
-    // detection works for typed radio controls.
-    final enabled = (widget as dynamic).onChanged != null;
-    return WidgetRole(
-      'radio',
-      enabled,
-      actions: enabled ? const ['tap'] : const [],
-    );
-  }
-  if (widget is Slider || widget is RangeSlider || widget is CupertinoSlider) {
-    final enabled = switch (widget) {
-      Slider w => w.onChanged != null,
-      RangeSlider w => w.onChanged != null,
-      CupertinoSlider w => w.onChanged != null,
-      _ => false,
-    };
-    return WidgetRole(
-      'slider',
-      enabled,
-      actions: enabled ? const ['slide'] : const [],
-    );
-  }
-  if (widget is DropdownButton) {
-    // Reading a generic DropdownButton callback through the promoted
-    // DropdownButton<dynamic> view can cast a typed async callback to
-    // void Function(dynamic), which is not a valid runtime cast. Keep this
-    // inspection dynamic so role detection never invokes that cast.
-    final enabled = (widget as dynamic).onChanged != null;
-    return WidgetRole(
-      'dropdown',
-      enabled,
-      actions: enabled ? const ['tap'] : const [],
-    );
-  }
-  if (widget is EditableText ||
-      widget is TextField ||
-      widget is TextFormField) {
-    final enabled = switch (widget) {
-      TextField w => w.enabled ?? true,
-      TextFormField w => w.enabled,
-      EditableText w => !w.readOnly,
-      _ => true,
-    };
-    return WidgetRole(
-      'textField',
-      enabled,
-      actions: enabled ? const ['input'] : const [],
-    );
+  for (final resolver in _widgetRoleResolvers) {
+    final role = resolver(widget);
+    if (role != null) return role;
   }
   return null;
+}
+
+final _widgetRoleResolvers = <WidgetRole? Function(Widget)>[
+  _buttonRoleForWidget,
+  _menuRoleForWidget,
+  _inkRoleForWidget,
+  _listTileRoleForWidget,
+  _gestureRoleForWidget,
+  _chipRoleForWidget,
+  _scrollableRoleForWidget,
+  _checkboxRoleForWidget,
+  _switchRoleForWidget,
+  _radioRoleForWidget,
+  _sliderRoleForWidget,
+  _dropdownRoleForWidget,
+  _textFieldRoleForWidget,
+];
+
+WidgetRole _tapRole(String name, bool enabled) =>
+    WidgetRole(name, enabled, actions: enabled ? const ['tap'] : const []);
+
+WidgetRole? _buttonRoleForWidget(Widget widget) {
+  if (widget is ButtonStyleButton) {
+    return _tapRole('button', widget.onPressed != null);
+  }
+  if (widget is IconButton) return _tapRole('button', widget.onPressed != null);
+  if (widget is CupertinoButton) {
+    return _tapRole('button', widget.onPressed != null);
+  }
+  if (widget is MaterialButton) {
+    return _tapRole('button', widget.onPressed != null);
+  }
+  if (widget is FloatingActionButton) {
+    return _tapRole('button', widget.onPressed != null);
+  }
+  return null;
+}
+
+WidgetRole? _menuRoleForWidget(Widget widget) {
+  if (widget is PopupMenuButton) return _tapRole('button', widget.enabled);
+  if (widget is PopupMenuItem) return _tapRole('button', widget.enabled);
+  if (widget is ExpansionTile) return _tapRole('button', widget.enabled);
+  return null;
+}
+
+WidgetRole? _inkRoleForWidget(Widget widget) {
+  if (widget is InkWell) return _tapRole('button', widget.onTap != null);
+  if (widget is InkResponse) return _tapRole('button', widget.onTap != null);
+  return null;
+}
+
+WidgetRole? _listTileRoleForWidget(Widget widget) {
+  if (widget is! ListTile ||
+      (widget.onTap == null && widget.onLongPress == null)) {
+    return null;
+  }
+  final actions = <String>[];
+  if (widget.enabled && widget.onTap != null) actions.add('tap');
+  if (widget.enabled && widget.onLongPress != null) actions.add('longPress');
+  return WidgetRole('button', widget.enabled, actions: actions);
+}
+
+WidgetRole? _gestureRoleForWidget(Widget widget) {
+  if (widget is! GestureDetector) return null;
+  final actions = <String>[];
+  if (widget.onTap != null) actions.add('tap');
+  if (widget.onDoubleTap != null) actions.add('doubleTap');
+  if (widget.onLongPress != null) actions.add('longPress');
+  return actions.isEmpty ? null : WidgetRole('button', true, actions: actions);
+}
+
+WidgetRole? _chipRoleForWidget(Widget widget) {
+  final enabled = switch (widget) {
+    InputChip w => w.onPressed != null || w.onSelected != null,
+    ActionChip w => w.onPressed != null,
+    FilterChip w => w.onSelected != null,
+    ChoiceChip w => w.onSelected != null,
+    _ => null,
+  };
+  return enabled == null ? null : _tapRole('button', enabled);
+}
+
+WidgetRole? _scrollableRoleForWidget(Widget widget) => widget is Scrollable
+    ? const WidgetRole('scrollable', null, actions: ['scroll'])
+    : null;
+
+WidgetRole? _checkboxRoleForWidget(Widget widget) {
+  if (widget is Checkbox) return _tapRole('checkbox', widget.onChanged != null);
+  if (widget is CheckboxListTile) {
+    return _tapRole('checkbox', widget.onChanged != null);
+  }
+  return null;
+}
+
+WidgetRole? _switchRoleForWidget(Widget widget) {
+  if (widget is Switch) return _tapRole('switch', widget.onChanged != null);
+  if (widget is CupertinoSwitch) {
+    return _tapRole('switch', widget.onChanged != null);
+  }
+  if (widget is SwitchListTile) {
+    return _tapRole('switch', widget.onChanged != null);
+  }
+  return null;
+}
+
+WidgetRole? _radioRoleForWidget(Widget widget) {
+  if (widget is! Radio && widget is! RadioListTile) return null;
+  return _tapRole('radio', (widget as dynamic).onChanged != null);
+}
+
+WidgetRole? _sliderRoleForWidget(Widget widget) {
+  final enabled = switch (widget) {
+    Slider w => w.onChanged != null,
+    RangeSlider w => w.onChanged != null,
+    CupertinoSlider w => w.onChanged != null,
+    _ => null,
+  };
+  return enabled == null
+      ? null
+      : WidgetRole(
+          'slider',
+          enabled,
+          actions: enabled ? const ['slide'] : const [],
+        );
+}
+
+WidgetRole? _dropdownRoleForWidget(Widget widget) => widget is DropdownButton
+    ? _tapRole('dropdown', (widget as dynamic).onChanged != null)
+    : null;
+
+WidgetRole? _textFieldRoleForWidget(Widget widget) {
+  final enabled = switch (widget) {
+    TextField w => w.enabled ?? true,
+    TextFormField w => w.enabled,
+    EditableText w => !w.readOnly,
+    _ => null,
+  };
+  return enabled == null
+      ? null
+      : WidgetRole(
+          'textField',
+          enabled,
+          actions: enabled ? const ['input'] : const [],
+        );
 }
 
 bool tugboatIsActionableWidget(Widget widget) {

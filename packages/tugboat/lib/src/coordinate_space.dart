@@ -128,52 +128,77 @@ class TugboatCaptureCoordinate {
 
   factory TugboatCaptureCoordinate.fromJson(Map<String, Object?> json) {
     final reason = json['unavailableReason'] as String?;
-    final sourceName = json['sourceSpace'] as String? ?? 'globalLogical';
-    final source = TugboatCoordinateSourceSpace.values.firstWhere(
-      (value) => value.name == sourceName,
-      orElse: () => TugboatCoordinateSourceSpace.globalLogical,
-    );
+    final source = _coordinateSourceFromJson(json);
     if (reason != null) {
-      return TugboatCaptureCoordinate.unavailable(
-        unavailableReason: reason,
-        sourceSpace: source,
-        boundaryOriginX: (json['boundaryOriginX'] as num?)?.toDouble() ?? 0,
-        boundaryOriginY: (json['boundaryOriginY'] as num?)?.toDouble() ?? 0,
-        boundaryWidth: (json['boundaryWidth'] as num?)?.toDouble() ?? 0,
-        boundaryHeight: (json['boundaryHeight'] as num?)?.toDouble() ?? 0,
-        localX: (json['localX'] as num?)?.toDouble() ?? 0,
-        localY: (json['localY'] as num?)?.toDouble() ?? 0,
-        normalizedX: (json['normalizedX'] as num?)?.toDouble() ?? 0,
-        normalizedY: (json['normalizedY'] as num?)?.toDouble() ?? 0,
-        framePixelWidth: (json['framePixelWidth'] as num?)?.toInt() ?? 0,
-        framePixelHeight: (json['framePixelHeight'] as num?)?.toInt() ?? 0,
-        effectiveScaleX: (json['effectiveScaleX'] as num?)?.toDouble() ?? 0,
-        effectiveScaleY: (json['effectiveScaleY'] as num?)?.toDouble() ?? 0,
-        frameId: json['frameId'] as String?,
-        boundaryTransformGeneration:
-            (json['boundaryTransformGeneration'] as num?)?.toInt() ?? 0,
-      );
+      return _unavailableCoordinateFromJson(json, reason, source);
     }
-    return TugboatCaptureCoordinate(
-      sourceSpace: source,
-      boundaryOriginX: (json['boundaryOriginX'] as num).toDouble(),
-      boundaryOriginY: (json['boundaryOriginY'] as num).toDouble(),
-      boundaryWidth: (json['boundaryWidth'] as num).toDouble(),
-      boundaryHeight: (json['boundaryHeight'] as num).toDouble(),
-      localX: (json['localX'] as num).toDouble(),
-      localY: (json['localY'] as num).toDouble(),
-      normalizedX: (json['normalizedX'] as num).toDouble(),
-      normalizedY: (json['normalizedY'] as num).toDouble(),
-      framePixelWidth: (json['framePixelWidth'] as num).toInt(),
-      framePixelHeight: (json['framePixelHeight'] as num).toInt(),
-      effectiveScaleX: (json['effectiveScaleX'] as num).toDouble(),
-      effectiveScaleY: (json['effectiveScaleY'] as num).toDouble(),
-      frameId: json['frameId'] as String?,
-      boundaryTransformGeneration: (json['boundaryTransformGeneration'] as num)
-          .toInt(),
-    );
+    return _availableCoordinateFromJson(json, source);
   }
 }
+
+TugboatCoordinateSourceSpace _coordinateSourceFromJson(
+  Map<String, Object?> json,
+) {
+  final sourceName = json['sourceSpace'] as String? ?? 'globalLogical';
+  return TugboatCoordinateSourceSpace.values.firstWhere(
+    (value) => value.name == sourceName,
+    orElse: () => TugboatCoordinateSourceSpace.globalLogical,
+  );
+}
+
+TugboatCaptureCoordinate _unavailableCoordinateFromJson(
+  Map<String, Object?> json,
+  String reason,
+  TugboatCoordinateSourceSpace source,
+) => TugboatCaptureCoordinate.unavailable(
+  unavailableReason: reason,
+  sourceSpace: source,
+  boundaryOriginX: _jsonDoubleOrZero(json, 'boundaryOriginX'),
+  boundaryOriginY: _jsonDoubleOrZero(json, 'boundaryOriginY'),
+  boundaryWidth: _jsonDoubleOrZero(json, 'boundaryWidth'),
+  boundaryHeight: _jsonDoubleOrZero(json, 'boundaryHeight'),
+  localX: _jsonDoubleOrZero(json, 'localX'),
+  localY: _jsonDoubleOrZero(json, 'localY'),
+  normalizedX: _jsonDoubleOrZero(json, 'normalizedX'),
+  normalizedY: _jsonDoubleOrZero(json, 'normalizedY'),
+  framePixelWidth: _jsonIntOrZero(json, 'framePixelWidth'),
+  framePixelHeight: _jsonIntOrZero(json, 'framePixelHeight'),
+  effectiveScaleX: _jsonDoubleOrZero(json, 'effectiveScaleX'),
+  effectiveScaleY: _jsonDoubleOrZero(json, 'effectiveScaleY'),
+  frameId: json['frameId'] as String?,
+  boundaryTransformGeneration: _jsonIntOrZero(
+    json,
+    'boundaryTransformGeneration',
+  ),
+);
+
+TugboatCaptureCoordinate _availableCoordinateFromJson(
+  Map<String, Object?> json,
+  TugboatCoordinateSourceSpace source,
+) => TugboatCaptureCoordinate(
+  sourceSpace: source,
+  boundaryOriginX: (json['boundaryOriginX'] as num).toDouble(),
+  boundaryOriginY: (json['boundaryOriginY'] as num).toDouble(),
+  boundaryWidth: (json['boundaryWidth'] as num).toDouble(),
+  boundaryHeight: (json['boundaryHeight'] as num).toDouble(),
+  localX: (json['localX'] as num).toDouble(),
+  localY: (json['localY'] as num).toDouble(),
+  normalizedX: (json['normalizedX'] as num).toDouble(),
+  normalizedY: (json['normalizedY'] as num).toDouble(),
+  framePixelWidth: (json['framePixelWidth'] as num).toInt(),
+  framePixelHeight: (json['framePixelHeight'] as num).toInt(),
+  effectiveScaleX: (json['effectiveScaleX'] as num).toDouble(),
+  effectiveScaleY: (json['effectiveScaleY'] as num).toDouble(),
+  frameId: json['frameId'] as String?,
+  boundaryTransformGeneration: (json['boundaryTransformGeneration'] as num)
+      .toInt(),
+);
+
+double _jsonDoubleOrZero(Map<String, Object?> json, String key) =>
+    (json[key] as num?)?.toDouble() ?? 0;
+
+int _jsonIntOrZero(Map<String, Object?> json, String key) =>
+    (json[key] as num?)?.toInt() ?? 0;
 
 /// Builds a capture coordinate from boundary geometry and frame raster size.
 ///
@@ -196,42 +221,69 @@ TugboatCaptureCoordinate buildCaptureCoordinate({
       unavailableReason: 'invalid_boundary',
     );
   }
+  return _buildCoordinateForUsableBoundary(
+    globalX: globalX,
+    globalY: globalY,
+    boundaryOriginX: boundaryOriginX,
+    boundaryOriginY: boundaryOriginY,
+    boundaryWidth: boundaryWidth,
+    boundaryHeight: boundaryHeight,
+    framePixelWidth: framePixelWidth,
+    framePixelHeight: framePixelHeight,
+    frameId: frameId,
+    boundaryTransformGeneration: boundaryTransformGeneration,
+  );
+}
+
+TugboatCaptureCoordinate _buildCoordinateForUsableBoundary({
+  required double globalX,
+  required double globalY,
+  required double boundaryOriginX,
+  required double boundaryOriginY,
+  required double boundaryWidth,
+  required double boundaryHeight,
+  required int framePixelWidth,
+  required int framePixelHeight,
+  required String? frameId,
+  required int boundaryTransformGeneration,
+}) {
   if (framePixelWidth <= 0 || framePixelHeight <= 0 || frameId == null) {
-    final localX = globalX - boundaryOriginX;
-    final localY = globalY - boundaryOriginY;
-    if (localX < 0 ||
-        localY < 0 ||
-        localX > boundaryWidth ||
-        localY > boundaryHeight) {
-      return TugboatCaptureCoordinate.unavailable(
-        unavailableReason: 'outside_boundary',
-        sourceSpace: TugboatCoordinateSourceSpace.boundaryLocalLogical,
-        boundaryOriginX: boundaryOriginX,
-        boundaryOriginY: boundaryOriginY,
-        boundaryWidth: boundaryWidth,
-        boundaryHeight: boundaryHeight,
-        localX: localX,
-        localY: localY,
-        boundaryTransformGeneration: boundaryTransformGeneration,
-      );
-    }
-    final normalizedX = (localX / boundaryWidth).clamp(0.0, 1.0);
-    final normalizedY = (localY / boundaryHeight).clamp(0.0, 1.0);
-    return TugboatCaptureCoordinate.unavailable(
-      unavailableReason: 'missing_frame',
-      sourceSpace: TugboatCoordinateSourceSpace.boundaryLocalLogical,
-      boundaryOriginX: boundaryOriginX,
-      boundaryOriginY: boundaryOriginY,
-      boundaryWidth: boundaryWidth,
-      boundaryHeight: boundaryHeight,
-      localX: localX,
-      localY: localY,
-      normalizedX: normalizedX,
-      normalizedY: normalizedY,
-      boundaryTransformGeneration: boundaryTransformGeneration,
+    return _missingFrameCoordinate(
+      globalX,
+      globalY,
+      boundaryOriginX,
+      boundaryOriginY,
+      boundaryWidth,
+      boundaryHeight,
+      boundaryTransformGeneration,
     );
   }
+  return _availableFrameCoordinate(
+    globalX,
+    globalY,
+    boundaryOriginX,
+    boundaryOriginY,
+    boundaryWidth,
+    boundaryHeight,
+    framePixelWidth,
+    framePixelHeight,
+    frameId,
+    boundaryTransformGeneration,
+  );
+}
 
+TugboatCaptureCoordinate _availableFrameCoordinate(
+  double globalX,
+  double globalY,
+  double boundaryOriginX,
+  double boundaryOriginY,
+  double boundaryWidth,
+  double boundaryHeight,
+  int framePixelWidth,
+  int framePixelHeight,
+  String frameId,
+  int boundaryTransformGeneration,
+) {
   final localX = globalX - boundaryOriginX;
   final localY = globalY - boundaryOriginY;
   if (localX < 0 ||
@@ -276,3 +328,45 @@ TugboatCaptureCoordinate buildCaptureCoordinate({
     boundaryTransformGeneration: boundaryTransformGeneration,
   );
 }
+
+TugboatCaptureCoordinate _missingFrameCoordinate(
+  double globalX,
+  double globalY,
+  double boundaryOriginX,
+  double boundaryOriginY,
+  double boundaryWidth,
+  double boundaryHeight,
+  int boundaryTransformGeneration,
+) {
+  final localX = globalX - boundaryOriginX;
+  final localY = globalY - boundaryOriginY;
+  if (_isOutsideBoundary(localX, localY, boundaryWidth, boundaryHeight)) {
+    return TugboatCaptureCoordinate.unavailable(
+      unavailableReason: 'outside_boundary',
+      sourceSpace: TugboatCoordinateSourceSpace.boundaryLocalLogical,
+      boundaryOriginX: boundaryOriginX,
+      boundaryOriginY: boundaryOriginY,
+      boundaryWidth: boundaryWidth,
+      boundaryHeight: boundaryHeight,
+      localX: localX,
+      localY: localY,
+      boundaryTransformGeneration: boundaryTransformGeneration,
+    );
+  }
+  return TugboatCaptureCoordinate.unavailable(
+    unavailableReason: 'missing_frame',
+    sourceSpace: TugboatCoordinateSourceSpace.boundaryLocalLogical,
+    boundaryOriginX: boundaryOriginX,
+    boundaryOriginY: boundaryOriginY,
+    boundaryWidth: boundaryWidth,
+    boundaryHeight: boundaryHeight,
+    localX: localX,
+    localY: localY,
+    normalizedX: (localX / boundaryWidth).clamp(0.0, 1.0),
+    normalizedY: (localY / boundaryHeight).clamp(0.0, 1.0),
+    boundaryTransformGeneration: boundaryTransformGeneration,
+  );
+}
+
+bool _isOutsideBoundary(double x, double y, double width, double height) =>
+    x < 0 || y < 0 || x > width || y > height;

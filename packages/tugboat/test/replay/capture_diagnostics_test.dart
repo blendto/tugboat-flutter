@@ -133,6 +133,9 @@ void main() {
       final critical = harness.controller.debugRequestCapture(force: true);
       await harness.pumpMicrotasks();
       expect(harness.controller.debugCaptureInFlight, isTrue);
+      final inventoryCountBeforeDrop = harness.controller.session!.events
+          .where((event) => event.type == 'scene_inventory')
+          .length;
 
       final lowPriority = harness.controller.debugRequestCapture(
         trigger: TugboatFrameTrigger.scroll,
@@ -145,6 +148,12 @@ void main() {
       expect(
         harness.controller.healthSnapshot().screenshots.lastDropReason,
         'capture_pressure',
+      );
+      expect(
+        harness.controller.session!.events.where(
+          (event) => event.type == 'scene_inventory',
+        ),
+        hasLength(inventoryCountBeforeDrop),
       );
 
       harness.capturer.completeBlocked();
