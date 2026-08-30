@@ -1,3 +1,11 @@
+## 0.8.11
+
+### Changed
+
+- Refactor interceptor control flow to keep cyclomatic complexity at or below
+  10 without changing network evidence behavior.
+- Require `tugboat` 0.8.11.
+
 ## 0.8.10
 
 ### Changed

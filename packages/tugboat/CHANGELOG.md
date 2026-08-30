@@ -1,3 +1,15 @@
+## 0.8.11
+
+Patch release after `0.8.10`.
+
+### Changed
+
+- Refactor capture, replay, semantic, model, and network paths to keep each
+  function at or below a cyclomatic complexity of 10.
+- Add a workspace complexity check that fails on warnings.
+- Preserve locale-independent fingerprints and the 0.8.10 capture reliability
+  behavior during the refactor.
+
 ## 0.8.10
 
 Patch release after `0.8.9`.
