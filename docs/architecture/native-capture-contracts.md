@@ -54,7 +54,7 @@ fallback — do not encode.
 | `coverage` | enum | Closed list below. Absent on non-ok / non-skip statuses. |
 | `jpeg` | bytes | Masked JPEG only. Empty on `skippedByDHash`. Never raw pixels. |
 | `width`, `height` | int | Bitmap pixels. |
-| `dHash` | 64-char `'0'/'1'` or empty | Bit-for-bit with `packages/tugboat/lib/src/perceptual_hash.dart` on the masked RGBA buffer. |
+| `dHash` | 64-char `'0'/'1'` or empty | Bit-for-bit with `sdks/flutter/packages/tugboat/lib/src/perceptual_hash.dart` on the masked RGBA buffer. |
 | `contentHash` | lowercase hex SHA-256 of JPEG | Empty on skip. |
 | `timings` | int microseconds | Stages in the clock table. Missing keys are zero. |
 | `renderMode` | `surfaceView` / `textureView` / `hybrid` / `unknown` | Diagnostic only. |

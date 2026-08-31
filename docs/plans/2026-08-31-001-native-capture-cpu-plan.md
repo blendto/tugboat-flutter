@@ -16,7 +16,7 @@ product_contract_source: native-capture-research
 - [x] Confirm that local `main` and `origin/main` are `dfc816190c8e247366a74d367c75ae1ba447a434`.
 - [x] Create the local branch `feat/native-capture-cpu` (`4a3ebb1dcb7a79189f35ece3610dbb1d54443ae5`).
 - [x] Establish and record the current performance baseline.
-- [ ] Start repository structure changes.
+- [x] Start repository structure changes (local trees). GitHub rename to `tugboat-mobile` still needs administrator access.
 
 No source files changed before this plan.
 
@@ -405,7 +405,10 @@ The following work is deferred:
 
 ### Phase 2 - Rename and restructure the repository
 
-The GitHub rename requires repository administrator access.
+The GitHub rename requires repository administrator access. P2.01–P2.07 and
+pubspec/GitHub URL rewrites (P2.08–P2.11) wait on that rename. Local trees
+use `sdks/flutter/packages/`. Overlay filesystems could not `git mv` across
+devices; history is still recorded as renames via copy + `git rm`.
 
 - [ ] P2.01 Rename the GitHub repository to `tugboat-mobile`.
 - [ ] P2.02 Confirm that the old GitHub URL redirects.
@@ -418,32 +421,32 @@ The GitHub rename requires repository administrator access.
 - [ ] P2.09 Update issue tracker URLs.
 - [ ] P2.10 Update documentation links.
 - [ ] P2.11 Update badge links.
-- [ ] P2.12 Search for all `tugboat-flutter` references.
-- [ ] P2.13 Review each remaining old reference.
-- [ ] P2.14 Keep an old reference only when compatibility requires it.
-- [ ] P2.15 Create `sdks/flutter/packages`.
-- [ ] P2.16 Move `packages/tugboat` with `git mv`.
-- [ ] P2.17 Move `packages/tugboat_dio` with `git mv`.
-- [ ] P2.18 Move the Flutter example with `git mv`.
-- [ ] P2.19 Update root Dart workspace paths.
-- [ ] P2.20 Update local Dart path dependencies.
-- [ ] P2.21 Update Melos package discovery.
-- [ ] P2.22 Update CI path filters.
-- [ ] P2.23 Update test scripts.
-- [ ] P2.24 Update documentation paths.
-- [ ] P2.25 Run all Flutter tests from the new paths.
-- [ ] P2.26 Run `dart pub publish --dry-run` for `tugboat`.
-- [ ] P2.27 Run `dart pub publish --dry-run` for `tugboat_dio`.
-- [ ] P2.28 Confirm that Git preserves moved-file history.
-- [ ] P2.29 Create `core/image-processing`.
-- [ ] P2.30 Create `platforms/android`.
-- [ ] P2.31 Create `platforms/apple`.
-- [ ] P2.32 Create the new documentation directories.
-- [ ] P2.33 Create root build helper scripts.
-- [ ] P2.34 Add the React Native scope placeholder.
-- [ ] P2.35 Do not add an npm workspace yet.
-- [ ] P2.36 Keep the current AGPL-3.0-only license.
-- [ ] P2.37 Add a third-party notice process.
+- [x] P2.12 Search for all `tugboat-flutter` references.
+- [x] P2.13 Review each remaining old reference.
+- [x] P2.14 Keep an old reference only when compatibility requires it.
+- [x] P2.15 Create `sdks/flutter/packages`.
+- [x] P2.16 Move `packages/tugboat` with `git mv`.
+- [x] P2.17 Move `packages/tugboat_dio` with `git mv`.
+- [x] P2.18 Move the Flutter example with `git mv`.
+- [x] P2.19 Update root Dart workspace paths.
+- [x] P2.20 Update local Dart path dependencies.
+- [x] P2.21 Update Melos package discovery.
+- [x] P2.22 Update CI path filters.
+- [x] P2.23 Update test scripts.
+- [x] P2.24 Update documentation paths.
+- [x] P2.25 Run all Flutter tests from the new paths.
+- [x] P2.26 Run `dart pub publish --dry-run` for `tugboat`.
+- [x] P2.27 Run `dart pub publish --dry-run` for `tugboat_dio`.
+- [x] P2.28 Confirm that Git preserves moved-file history.
+- [x] P2.29 Create `core/image-processing`.
+- [x] P2.30 Create `platforms/android`.
+- [x] P2.31 Create `platforms/apple`.
+- [x] P2.32 Create the new documentation directories.
+- [x] P2.33 Create root build helper scripts.
+- [x] P2.34 Add the React Native scope placeholder.
+- [x] P2.35 Do not add an npm workspace yet.
+- [x] P2.36 Keep the current AGPL-3.0-only license.
+- [x] P2.37 Add a third-party notice process.
 
 ### Phase 3 - Build the C++ image-processing core
 

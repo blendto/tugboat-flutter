@@ -1,7 +1,7 @@
 # Capture and fingerprint architecture
 
 Status: current implementation audit (2026-07-26)
-Scope: `packages/tugboat` in this repository
+Scope: `sdks/flutter/packages/tugboat` in this repository
 
 This document describes what the Flutter SDK implements today. It deliberately
 does not specify the internals of the CLI, collector, dashboard, or Atlas
@@ -330,7 +330,7 @@ still performs readback, fill, and hash; JPEG and SHA-256 are omitted, but
 `TugboatScreenshotBudgetTracker.record` accepts `encodedBytes` and discards
 it. JPEG size is stored only as `TugboatFrame.byteLength`. Test ceilings for
 the rolling budget live in
-`packages/tugboat/benchmark/screenshot_budget_baseline.dart`; they are not
+`sdks/flutter/packages/tugboat/benchmark/screenshot_budget_baseline.dart`; they are not
 device-tier gates.
 
 ## Viewport semantics

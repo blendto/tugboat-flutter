@@ -1,15 +1,19 @@
-# Tugboat Flutter
+# Tugboat mobile
 
-Flutter SDK for capturing session evidence for Tugboat.
-The Tugboat CLI is maintained separately; this repository contains only Flutter and
-Dart packages.
+Mobile capture SDKs for Tugboat. This repository is becoming a monorepo
+(`core/`, `platforms/`, `sdks/`). The GitHub remote is still
+[blendto/tugboat-flutter](https://github.com/blendto/tugboat-flutter) until
+the rename to `tugboat-mobile` is applied.
 
-**Repository:** [github.com/blendto/tugboat-flutter](https://github.com/blendto/tugboat-flutter)
+The Tugboat CLI is maintained separately.
 
-## Packages
+## Flutter packages
 
-- [`tugboat`](packages/tugboat) — the Flutter SDK
-- [`tugboat/example`](packages/tugboat/example) — demo app and integration fixture (not published)
+- [`tugboat`](sdks/flutter/packages/tugboat) — the Flutter SDK
+- [`tugboat_dio`](sdks/flutter/packages/tugboat_dio) — Dio network evidence
+- [`tugboat/example`](sdks/flutter/packages/tugboat/example) — demo app (not published)
+
+Native Android and Apple runtimes and the C++ core land in later phases.
 
 ## Documentation
 

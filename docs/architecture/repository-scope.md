@@ -7,8 +7,9 @@ This repository becomes a mobile capture monorepo. Flutter remains the first
 adapter. Native runtimes and a portable C++ core are first-class products, not
 implementation details of `package:tugboat`.
 
-The GitHub rename to `tugboat-mobile` is Phase 2 and needs administrator
-access. Until then the remote may still be `tugboat-flutter`.
+The GitHub rename to `tugboat-mobile` still needs administrator access.
+Until then the remote remains `tugboat-flutter`. Local trees already use
+the monorepo layout.
 
 ## What this repository owns
 

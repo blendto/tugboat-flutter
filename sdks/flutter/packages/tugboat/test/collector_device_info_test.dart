@@ -51,7 +51,7 @@ void main() {
 
   test('session_start maps runtime snapshot fields on device bag', () {
     final config = TugboatCollectorConfig(
-      baseUrl: 'http://localhost:3000',
+      baseUrl: 'https://collector.example.test',
       apiKey: 'pmk_test',
       appInfo: const TugboatCollectorAppInfo(
         name: 'Example App',

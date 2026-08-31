@@ -7,7 +7,7 @@ import 'package:tugboat/src/models.dart';
 
 void main() {
   final collectorConfig = TugboatCollectorConfig(
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'https://collector.example.test',
     apiKey: 'pmk_test',
     appInfo: const TugboatCollectorAppInfo(
       name: 'Example App',

@@ -20,7 +20,6 @@ jobs:
       - name: Compare package version to base
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PACKAGE_PUBSPEC: packages/tugboat/pubspec.yaml
         run: |
           set -euo pipefail
 
@@ -33,8 +32,28 @@ jobs:
             grep -E '^version:' "$file" | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]'
           }
 
-          if [[ ! -f "$PACKAGE_PUBSPEC" ]]; then
-            echo "::error::$PACKAGE_PUBSPEC is missing on this branch"
+          pubspec_on_disk() {
+            if [[ -f sdks/flutter/packages/tugboat/pubspec.yaml ]]; then
+              echo sdks/flutter/packages/tugboat/pubspec.yaml
+            else
+              echo ""
+            fi
+          }
+
+          pubspec_in_git() {
+            local sha="$1"
+            if git cat-file -e "${sha}:sdks/flutter/packages/tugboat/pubspec.yaml" 2>/dev/null; then
+              echo sdks/flutter/packages/tugboat/pubspec.yaml
+            elif git cat-file -e "${sha}:packages/tugboat/pubspec.yaml" 2>/dev/null; then
+              echo packages/tugboat/pubspec.yaml
+            else
+              echo ""
+            fi
+          }
+
+          PACKAGE_PUBSPEC="$(pubspec_on_disk)"
+          if [[ -z "$PACKAGE_PUBSPEC" ]]; then
+            echo "::error::tugboat pubspec.yaml is missing on this branch"
             exit 1
           fi
 
@@ -44,26 +63,28 @@ jobs:
             exit 1
           fi
 
-          base_file="$(mktemp)"
-          if ! git show "${BASE_SHA}:${PACKAGE_PUBSPEC}" >"$base_file" 2>/dev/null; then
-            echo "Base branch has no $PACKAGE_PUBSPEC; treating as new package (ok)."
+          BASE_PUBSPEC="$(pubspec_in_git "$BASE_SHA")"
+          if [[ -z "$BASE_PUBSPEC" ]]; then
+            echo "Base branch has no tugboat pubspec; treating as new package (ok)."
             echo "PR version: $head_version"
             exit 0
           fi
 
+          base_file="$(mktemp)"
+          git show "${BASE_SHA}:${BASE_PUBSPEC}" >"$base_file"
           base_version="$(extract_version "$base_file")"
           rm -f "$base_file"
 
           if [[ -z "$base_version" ]]; then
-            echo "::error::Could not read version from base $PACKAGE_PUBSPEC"
+            echo "::error::Could not read version from base $BASE_PUBSPEC"
             exit 1
           fi
 
-          echo "Base version: $base_version"
-          echo "PR version:   $head_version"
+          echo "Base version: $base_version ($BASE_PUBSPEC)"
+          echo "PR version:   $head_version ($PACKAGE_PUBSPEC)"
 
           if [[ "$head_version" == "$base_version" ]]; then
-            echo "::error::packages/tugboat version must be bumped before merge (still $base_version)."
+            echo "::error::tugboat version must be bumped before merge (still $base_version)."
             exit 1
           fi
 

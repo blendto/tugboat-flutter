@@ -72,9 +72,9 @@ Do not start the production cohort until every item is true:
   contract, and tap coordinate transform suites pass;
 - the production dashboard deployment consumes `captureCoordinate` (canonical
   marker projection) before Blend canary sessions rely on it;
-- `flutter analyze` and the complete `packages/tugboat` test suite pass;
-- `packages/tugboat/pubspec.yaml` and
-  `packages/tugboat/lib/src/sdk_version.dart` contain the same new version;
+- `flutter analyze` and the complete `sdks/flutter/packages/tugboat` test suite pass;
+- `sdks/flutter/packages/tugboat/pubspec.yaml` and
+  `sdks/flutter/packages/tugboat/lib/src/sdk_version.dart` contain the same new version;
 - Blend is pinned to the exact merged SDK commit;
 - the deployed Blend build is available to the reviewer;
 - production collection is enabled for the test account/device;
@@ -98,7 +98,7 @@ git status --short
 git rev-parse HEAD
 ```
 
-The worktree must be clean. From `packages/tugboat` run:
+The worktree must be clean. From `sdks/flutter/packages/tugboat` run:
 
 ```sh
 flutter analyze
@@ -126,7 +126,7 @@ branch:
 tugboat:
   git:
     url: https://github.com/blendto/tugboat-flutter
-    path: packages/tugboat
+    path: sdks/flutter/packages/tugboat
     ref: <SDK_GIT_SHA>
 ```
 

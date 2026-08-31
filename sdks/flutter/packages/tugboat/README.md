@@ -108,7 +108,7 @@ dependencies:
   tugboat_dio: ^0.8.11
 ```
 
-See `packages/tugboat_dio/README.md`.
+See `../tugboat_dio/README.md`.
 
 ## Coded events and network observation
 

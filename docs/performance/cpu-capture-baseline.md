@@ -45,7 +45,7 @@ RGBA copy. See the design doc. This file has **no Dart process RSS**. The
 both backends, not a comparison against this document.
 
 JPEG envelope (quality 80, regenerate with
-`cd packages/tugboat && flutter test test/replay/jpeg_size_envelope_test.dart`):
+`cd sdks/flutter/packages/tugboat && flutter test test/replay/jpeg_size_envelope_test.dart`):
 
 | Buffer class | Pixel recipe | JPEG / RGBA |
 | --- | --- | --- |

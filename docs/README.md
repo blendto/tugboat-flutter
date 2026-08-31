@@ -8,7 +8,7 @@ should be verified in their own repositories.
 
 ## Getting started
 
-- [SDK README](../packages/tugboat/README.md) — install, public API, configuration, and limits
+- [SDK README](../sdks/flutter/packages/tugboat/README.md) — install, public API, configuration, and limits
 - [Collector integration](integration/collector.md) — Flutter WebSocket and HTTP wire behavior
 - [Production replay acceptance](integration/production-replay-acceptance.md) — release, Blend canary, and manual production replay gate
 - [Blend gesture check, 2026-08-26](integration/blend-gesture-check-2026-08-26.md) — local Android pinch/pan evidence and remaining recorder gaps
@@ -43,13 +43,20 @@ should be verified in their own repositories.
 
 | Path | Description |
 |------|-------------|
-| `packages/tugboat` | Flutter SDK (`package:tugboat`) |
-| `packages/tugboat/example` | Demo app and integration fixture (not published) |
+| `sdks/flutter/packages/tugboat` | Flutter SDK (`package:tugboat`) |
+| `sdks/flutter/packages/tugboat/example` | Demo app and integration fixture (not published) |
+| `sdks/flutter/packages/tugboat_dio` | Dio network-evidence adapter |
+| `core/image-processing` | Portable C++ CPU image core (Phase 3) |
+| `platforms/android` | Capture runtime AAR (Phase 4) |
+| `platforms/apple` | Capture runtime (milestone 2) |
+| `sdks/react-native` | Future adapter placeholder |
 | `docs/design` | Current architecture and forward-looking SDK decisions |
 | `docs/architecture` | Native capture scope and contracts |
 | `docs/decisions` | Accepted architecture decision records |
 | `docs/integration` | Host-app and transport integration contracts |
-| `docs/performance` | Measured screenshot-capture baselines |
+| `docs/privacy` | Native capture privacy contract pointers |
+| `docs/releases` | Third-party notice process |
+| `docs/roadmap` | Deferred GPU and React Native work |
 
 ## Current compatibility
 

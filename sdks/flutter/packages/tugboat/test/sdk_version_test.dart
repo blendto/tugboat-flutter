@@ -19,10 +19,10 @@ void main() {
 File _findTugboatPubspec() {
   var directory = Directory.current;
   while (true) {
-    final packagePubspec = File(
-      '${directory.path}/packages/tugboat/pubspec.yaml',
+    final nested = File(
+      '${directory.path}/sdks/flutter/packages/tugboat/pubspec.yaml',
     );
-    if (packagePubspec.existsSync()) return packagePubspec;
+    if (nested.existsSync()) return nested;
 
     final currentPubspec = File('${directory.path}/pubspec.yaml');
     if (currentPubspec.existsSync()) {
@@ -34,7 +34,7 @@ File _findTugboatPubspec() {
 
     final parent = directory.parent;
     if (parent.path == directory.path) {
-      throw StateError('Could not find packages/tugboat/pubspec.yaml');
+      throw StateError('Could not find tugboat pubspec.yaml');
     }
     directory = parent;
   }
