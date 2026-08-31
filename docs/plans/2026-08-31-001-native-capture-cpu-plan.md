@@ -508,63 +508,63 @@ devices; history is still recorded as renames via copy + `git rm`.
 Use API 24 as the initial native capture floor.
 Use the Flutter backend on older supported devices.
 
-- [ ] P4.01 Create the Android Gradle workspace.
-- [ ] P4.02 Add the `capture-runtime` Android library.
-- [ ] P4.03 Set the namespace to `com.tugboat.capture.runtime`.
-- [ ] P4.04 Set the coordinate to `com.tugboat.sdk:capture-runtime`.
-- [ ] P4.05 Configure the pinned NDK version.
-- [ ] P4.06 Connect Gradle to CMake.
-- [ ] P4.07 Compile the core for `arm64-v8a`.
-- [ ] P4.08 Compile the core for `armeabi-v7a`.
-- [ ] P4.09 Compile the core for `x86_64`.
-- [ ] P4.10 Define the Kotlin public API.
-- [ ] P4.11 Define the capability result.
-- [ ] P4.12 Define the capture request.
-- [ ] P4.13 Define the capture result.
-- [ ] P4.14 Define bounded failure codes.
-- [ ] P4.15 Add request identifiers.
-- [ ] P4.16 Add capture cancellation.
-- [ ] P4.17 Add runtime disposal.
-- [ ] P4.18 Add one serialized capture queue.
-- [ ] P4.19 Add a configurable native timeout.
-- [ ] P4.20 Accept an active `FlutterView`.
-- [ ] P4.21 Find the active `FlutterSurfaceView`.
-- [ ] P4.22 Detect `FlutterTextureView`.
-- [ ] P4.23 Report unsupported render modes.
-- [ ] P4.24 Calculate the app-content capture rectangle.
-- [ ] P4.25 Allocate a target-size mutable bitmap.
-- [ ] P4.26 Request `PixelCopy`.
-- [ ] P4.27 Handle each `PixelCopy` result code.
-- [ ] P4.28 Reject stale completion callbacks.
-- [ ] P4.29 Lock bitmap pixels through the NDK.
-- [ ] P4.30 Call the C++ processor through JNI.
-- [ ] P4.31 Unlock bitmap pixels on each code path.
-- [ ] P4.32 Skip JPEG encoding after a dHash skip.
-- [ ] P4.33 Encode JPEG with quality 80.
-- [ ] P4.34 Calculate SHA-256 over the JPEG.
-- [ ] P4.35 Return masked JPEG bytes.
-- [ ] P4.36 Return image dimensions.
-- [ ] P4.37 Return dHash.
-- [ ] P4.38 Return the content hash.
-- [ ] P4.39 Return stage timings.
-- [ ] P4.40 Return capture coverage.
-- [ ] P4.41 Clear raw bitmap references after completion.
-- [ ] P4.42 Do not log pixel data.
-- [ ] P4.43 Do not log JPEG data.
-- [ ] P4.44 Build a release AAR.
-- [ ] P4.45 Add consumer ProGuard rules.
-- [ ] P4.46 Add native symbol handling.
-- [ ] P4.47 Publish the AAR to a local Maven repository.
-- [ ] P4.48 Consume the local artifact from the sample.
-- [ ] P4.49 Add Android unit tests.
-- [ ] P4.50 Add Android instrumentation tests.
+- [x] P4.01 Create the Android Gradle workspace.
+- [x] P4.02 Add the `capture-runtime` Android library.
+- [x] P4.03 Set the namespace to `com.tugboat.capture.runtime`.
+- [x] P4.04 Set the coordinate to `com.tugboat.sdk:capture-runtime`.
+- [x] P4.05 Configure the pinned NDK version.
+- [x] P4.06 Connect Gradle to CMake.
+- [x] P4.07 Compile the core for `arm64-v8a`.
+- [x] P4.08 Compile the core for `armeabi-v7a`.
+- [x] P4.09 Compile the core for `x86_64`.
+- [x] P4.10 Define the Kotlin public API.
+- [x] P4.11 Define the capability result.
+- [x] P4.12 Define the capture request.
+- [x] P4.13 Define the capture result.
+- [x] P4.14 Define bounded failure codes.
+- [x] P4.15 Add request identifiers.
+- [x] P4.16 Add capture cancellation.
+- [x] P4.17 Add runtime disposal.
+- [x] P4.18 Add one serialized capture queue.
+- [x] P4.19 Add a configurable native timeout.
+- [x] P4.20 Accept an active `FlutterView`.
+- [x] P4.21 Find the active `FlutterSurfaceView`.
+- [x] P4.22 Detect `FlutterTextureView`.
+- [x] P4.23 Report unsupported render modes.
+- [x] P4.24 Calculate the app-content capture rectangle.
+- [x] P4.25 Allocate a target-size mutable bitmap.
+- [x] P4.26 Request `PixelCopy`.
+- [x] P4.27 Handle each `PixelCopy` result code.
+- [x] P4.28 Reject stale completion callbacks.
+- [x] P4.29 Lock bitmap pixels through the NDK.
+- [x] P4.30 Call the C++ processor through JNI.
+- [x] P4.31 Unlock bitmap pixels on each code path.
+- [x] P4.32 Skip JPEG encoding after a dHash skip.
+- [x] P4.33 Encode JPEG with quality 80.
+- [x] P4.34 Calculate SHA-256 over the JPEG.
+- [x] P4.35 Return masked JPEG bytes.
+- [x] P4.36 Return image dimensions.
+- [x] P4.37 Return dHash.
+- [x] P4.38 Return the content hash.
+- [x] P4.39 Return stage timings.
+- [x] P4.40 Return capture coverage.
+- [x] P4.41 Clear raw bitmap references after completion.
+- [x] P4.42 Do not log pixel data.
+- [x] P4.43 Do not log JPEG data.
+- [x] P4.44 Build a release AAR.
+- [x] P4.45 Add consumer ProGuard rules.
+- [x] P4.46 Add native symbol handling.
+- [x] P4.47 Publish the AAR to a local Maven repository.
+- [x] P4.48 Consume the local artifact from the sample.
+- [x] P4.49 Add Android unit tests.
+- [x] P4.50 Add Android instrumentation tests.
 - [ ] P4.51 Add API 24 tests.
 - [ ] P4.52 Add a recent Android API test.
 - [ ] P4.53 Add device-rotation tests.
 - [ ] P4.54 Add foreground and background tests.
 - [ ] P4.55 Add activity-recreation tests.
-- [ ] P4.56 Add repeated-initialization tests.
-- [ ] P4.57 Add repeated-disposal tests.
+- [x] P4.56 Add repeated-initialization tests.
+- [x] P4.57 Add repeated-disposal tests.
 
 ### Phase 5 - Convert the Flutter SDK into a plugin
 

@@ -13,6 +13,7 @@ target_compile_options(tugboat_image_core PRIVATE
 
 option(TB_IMAGE_CORE_SANITIZE "Build tests with ASan and UBSan" OFF)
 option(TB_IMAGE_CORE_FUZZ "Build libFuzzer targets (Clang)" OFF)
+option(TB_IMAGE_CORE_BUILD_TESTS "Build CTest unit tests" ON)
 
 set(_tb_sanitize_flags -fsanitize=address,undefined -fno-omit-frame-pointer)
 
@@ -29,7 +30,7 @@ if(TB_IMAGE_CORE_FUZZ)
 endif()
 
 enable_testing()
-if(NOT TB_IMAGE_CORE_FUZZ)
+if(TB_IMAGE_CORE_BUILD_TESTS AND NOT TB_IMAGE_CORE_FUZZ)
   add_executable(tb_image_core_test tests/tb_image_core_test.cpp)
   target_link_libraries(tb_image_core_test PRIVATE tugboat_image_core)
   target_compile_options(tb_image_core_test PRIVATE

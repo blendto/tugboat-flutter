@@ -7,3 +7,10 @@ coverage/
 build/
 **/build/
 **/.flutter-plugins-dependencies
+.local-maven/
+platforms/android/local.properties
+**/.gradle/
+**/.cxx/
+crash-*
+leak-*
+timeout-*
