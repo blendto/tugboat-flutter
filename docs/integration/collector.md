@@ -31,6 +31,11 @@ Without the observer, pointer and scroll evidence still works but route-change
 events and route-backed anchors are incomplete. Without the wrapper no capture
 controller or transport is installed.
 
+Screenshot JPEG frames are schema-v10 `frame` records regardless of
+`TugboatScreenshotCaptureBackend`. Switching to `nativeCpuExperimental` does
+not change collector URLs, event names, or the frame transport schema. Keep
+the default `flutterRepaintBoundary` backend for production collector cohorts.
+
 ## Local exploration WebSocket
 
 Use the exploration destination for an interactive local run:

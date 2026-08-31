@@ -10,6 +10,9 @@ Patch release after `0.8.11`.
   native CPU capture backend (`nativeCpuExperimental`). The default remains
   `flutterRepaintBoundary`, with automatic fallback when native capture is
   unavailable or fails safely.
+- Document the mobile monorepo, native capture contracts, fallback, coverage,
+  and path-aware version / license / API-surface checks. Native capture stays
+  experimental; Flutter remains on the 0.8.12 line.
 
 ## 0.8.11
 

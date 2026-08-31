@@ -17,6 +17,12 @@ in Phase 8, not as a second copy here.
 
 ## Consequences
 
-CI version-bump rules must become path-aware (Phase 8). This `0.8.12` line
-is not native-capable; `0.9.0` is the planned first adapter that may
-depend on `capture-runtime` `0.1.x`.
+CI version-bump rules are path-aware (`tool/ci/check-version-policy.sh`).
+Documentation-only and C++ test/fuzz-only changes do not bump Flutter.
+Public runtime API / C ABI changes bump `capture-runtime`. Adapter source
+changes bump `tugboat` and update
+[compatibility.md](../releases/compatibility.md).
+
+This `0.8.12` line is not the first native-capable public adapter; `0.9.0`
+is planned after privacy and performance gates, still mapped to
+`capture-runtime` `0.1.x`.

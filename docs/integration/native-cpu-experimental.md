@@ -21,6 +21,9 @@ and Flutter results are never published for the same request.
 
 Raw pixels never cross the platform channel. Do not enable this backend in
 production until the privacy and performance gates in
-[cpu-capture-baseline.md](../performance/cpu-capture-baseline.md) pass.
+[cpu-capture-baseline.md](../performance/cpu-capture-baseline.md) and
+[cpu-capture-method.md](../performance/cpu-capture-method.md) pass. Host vs
+device privacy evidence:
+[native-cpu-signoff.md](../privacy/native-cpu-signoff.md).
 
 The Apple plugin currently reports native capture as unavailable.

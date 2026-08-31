@@ -684,36 +684,36 @@ Use the Flutter backend on older supported devices.
 
 ### Phase 8 - Update documentation and release controls
 
-- [ ] P8.01 Rewrite the root README for the mobile monorepo.
-- [ ] P8.02 Update `docs/README.md`.
-- [ ] P8.03 Add a repository map.
-- [ ] P8.04 Add a common build guide.
-- [ ] P8.05 Add an Android development guide.
-- [ ] P8.06 Add an Apple development guide.
-- [ ] P8.07 Add a Flutter development guide.
-- [ ] P8.08 Add the native capture architecture document.
-- [ ] P8.09 Add the privacy pipeline document.
-- [ ] P8.10 Add the capture coverage document.
-- [ ] P8.11 Add the fallback behavior document.
-- [ ] P8.12 Add the performance method.
-- [ ] P8.13 Add the compatibility table.
-- [ ] P8.14 Add the release process.
-- [ ] P8.15 Add the React Native roadmap.
-- [ ] P8.16 Add the GPU roadmap.
-- [ ] P8.17 Update the Flutter integration guide.
-- [ ] P8.18 Update the production replay acceptance guide.
-- [ ] P8.19 Update the package changelogs.
-- [ ] P8.20 Add a repository migration note.
-- [ ] P8.21 Make version checks path-aware.
-- [ ] P8.22 Remove version-bump requirements for documentation-only changes.
-- [ ] P8.23 Remove Flutter version-bump requirements for internal C++ tests.
-- [ ] P8.24 Require a runtime version bump for public runtime API changes.
-- [ ] P8.25 Require a compatibility-table update for adapter changes.
-- [ ] P8.26 Add native artifact build checks.
-- [ ] P8.27 Add AAR API surface checks.
-- [ ] P8.28 Add Swift API surface checks.
-- [ ] P8.29 Add pub package dry-run checks.
-- [ ] P8.30 Add license checks.
+- [x] P8.01 Rewrite the root README for the mobile monorepo.
+- [x] P8.02 Update `docs/README.md`.
+- [x] P8.03 Add a repository map.
+- [x] P8.04 Add a common build guide.
+- [x] P8.05 Add an Android development guide.
+- [x] P8.06 Add an Apple development guide.
+- [x] P8.07 Add a Flutter development guide.
+- [x] P8.08 Add the native capture architecture document.
+- [x] P8.09 Add the privacy pipeline document.
+- [x] P8.10 Add the capture coverage document.
+- [x] P8.11 Add the fallback behavior document.
+- [x] P8.12 Add the performance method.
+- [x] P8.13 Add the compatibility table.
+- [x] P8.14 Add the release process.
+- [x] P8.15 Add the React Native roadmap.
+- [x] P8.16 Add the GPU roadmap.
+- [x] P8.17 Update the Flutter integration guide.
+- [x] P8.18 Update the production replay acceptance guide.
+- [x] P8.19 Update the package changelogs.
+- [x] P8.20 Add a repository migration note.
+- [x] P8.21 Make version checks path-aware.
+- [x] P8.22 Remove version-bump requirements for documentation-only changes.
+- [x] P8.23 Remove Flutter version-bump requirements for internal C++ tests.
+- [x] P8.24 Require a runtime version bump for public runtime API changes.
+- [x] P8.25 Require a compatibility-table update for adapter changes.
+- [x] P8.26 Add native artifact build checks.
+- [x] P8.27 Add AAR API surface checks.
+- [x] P8.28 Add Swift API surface checks.
+- [x] P8.29 Add pub package dry-run checks.
+- [x] P8.30 Add license checks.
 
 ### Phase 9 - Release the Android experimental path
 

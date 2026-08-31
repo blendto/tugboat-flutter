@@ -12,11 +12,16 @@ database receipt alone as proof that a replay is correct.
 
 ## Current acceptance status
 
-The current SDK release candidate is **0.8.11**, which writes session schema
-**v10**. It preserves structural interaction replay while no longer emitting
+The current SDK release candidate is **0.8.12**, which writes session schema
+**v10**. Capture, session schema, and fingerprints are unchanged from `0.8.11`.
+Native CPU screenshot capture is opt-in and **out of this production gate**
+until device privacy rows and performance gates pass. Production cohorts must
+keep `TugboatScreenshotCaptureBackend.flutterRepaintBoundary`.
+
+It preserves structural interaction replay while no longer emitting
 `controlValue`, `controlValueTransition`, `semanticAnnotation`, `stateAnchor`,
 or `stateSignature` in new writer output. It also does not emit `state_change`.
-This patch follows `0.8.9`. It flushes a newly enabled semantics tree only when
+This line follows `0.8.9`. It flushes a newly enabled semantics tree only when
 no frame is pending. It also makes release-gate screenshot tests wait for
 controller capture work and documents collector support for all schema-v2
 gesture names.

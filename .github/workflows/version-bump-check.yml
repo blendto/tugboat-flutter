@@ -9,89 +9,41 @@ permissions:
 
 jobs:
   check-tugboat-version:
-    name: Require tugboat version bump
+    name: Require path-aware version policy
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Compare package version to base
+      - name: Compare versions to base
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
+        run: bash tool/ci/check-version-policy.sh
 
-          extract_version() {
-            local file="$1"
-            if [[ ! -f "$file" ]]; then
-              echo ""
-              return
-            fi
-            grep -E '^version:' "$file" | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]'
-          }
+  license:
+    name: AGPL-3.0-only license
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check license files
+        run: bash tool/ci/check-license.sh
 
-          pubspec_on_disk() {
-            if [[ -f sdks/flutter/packages/tugboat/pubspec.yaml ]]; then
-              echo sdks/flutter/packages/tugboat/pubspec.yaml
-            else
-              echo ""
-            fi
-          }
+  android-api:
+    name: Android runtime API surface
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Diff public API dump
+        run: bash tool/ci/verify-android-runtime-api.sh
 
-          pubspec_in_git() {
-            local sha="$1"
-            if git cat-file -e "${sha}:sdks/flutter/packages/tugboat/pubspec.yaml" 2>/dev/null; then
-              echo sdks/flutter/packages/tugboat/pubspec.yaml
-            elif git cat-file -e "${sha}:packages/tugboat/pubspec.yaml" 2>/dev/null; then
-              echo packages/tugboat/pubspec.yaml
-            else
-              echo ""
-            fi
-          }
-
-          PACKAGE_PUBSPEC="$(pubspec_on_disk)"
-          if [[ -z "$PACKAGE_PUBSPEC" ]]; then
-            echo "::error::tugboat pubspec.yaml is missing on this branch"
-            exit 1
-          fi
-
-          head_version="$(extract_version "$PACKAGE_PUBSPEC")"
-          if [[ -z "$head_version" ]]; then
-            echo "::error::Could not read version from $PACKAGE_PUBSPEC"
-            exit 1
-          fi
-
-          BASE_PUBSPEC="$(pubspec_in_git "$BASE_SHA")"
-          if [[ -z "$BASE_PUBSPEC" ]]; then
-            echo "Base branch has no tugboat pubspec; treating as new package (ok)."
-            echo "PR version: $head_version"
-            exit 0
-          fi
-
-          base_file="$(mktemp)"
-          git show "${BASE_SHA}:${BASE_PUBSPEC}" >"$base_file"
-          base_version="$(extract_version "$base_file")"
-          rm -f "$base_file"
-
-          if [[ -z "$base_version" ]]; then
-            echo "::error::Could not read version from base $BASE_PUBSPEC"
-            exit 1
-          fi
-
-          echo "Base version: $base_version ($BASE_PUBSPEC)"
-          echo "PR version:   $head_version ($PACKAGE_PUBSPEC)"
-
-          if [[ "$head_version" == "$base_version" ]]; then
-            echo "::error::tugboat version must be bumped before merge (still $base_version)."
-            exit 1
-          fi
-
-          higher="$(printf '%s\n%s\n' "$base_version" "$head_version" | sort -V | tail -n 1)"
-          if [[ "$higher" != "$head_version" ]]; then
-            echo "::error::PR version ($head_version) must be greater than base ($base_version)."
-            exit 1
-          fi
-
-          echo "Version bump detected: $base_version -> $head_version"
+  swift-api:
+    name: Swift API surface
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Skip until Package.swift exists
+        run: bash tool/ci/verify-swift-api.sh

@@ -1,28 +1,47 @@
 # Tugboat mobile
 
-Mobile capture SDKs for Tugboat. This repository is becoming a monorepo
-(`core/`, `platforms/`, `sdks/`). The GitHub remote is still
-[blendto/tugboat-flutter](https://github.com/blendto/tugboat-flutter) until
-the rename to `tugboat-mobile` is applied.
+Mobile capture SDKs for Tugboat. This repository is a mobile monorepo:
+a portable C++ image core, native capture runtimes, and framework adapters.
+
+The GitHub remote is still
+[blendto/tugboat-flutter](https://github.com/blendto/tugboat-flutter) until an
+administrator renames it to `tugboat-mobile`. See
+[repository migration](docs/releases/repository-migration.md).
 
 The Tugboat CLI is maintained separately.
 
-## Flutter packages
+## Layout
 
-- [`tugboat`](sdks/flutter/packages/tugboat) — the Flutter SDK
-- [`tugboat_dio`](sdks/flutter/packages/tugboat_dio) — Dio network evidence
-- [`tugboat/example`](sdks/flutter/packages/tugboat/example) — demo app (not published)
+| Path | Product |
+| --- | --- |
+| `core/image-processing` | Portable C++ CPU core (C ABI) |
+| `platforms/android` | `com.tugboat.sdk:capture-runtime` AAR |
+| `platforms/apple` | Apple runtime (milestone 2) |
+| `sdks/flutter/packages/tugboat` | Flutter adapter / plugin |
+| `sdks/flutter/packages/tugboat_dio` | Dio network evidence |
+| `sdks/flutter/packages/tugboat/example` | Demo app (not published) |
+| `sdks/react-native` | Future adapter placeholder |
+| `docs/` | Architecture, integration, privacy, performance, releases |
+| `tool/ci` | Host test, generate, and release-control scripts |
 
-Native Android and Apple runtimes and the C++ core land in later phases.
+Do not copy the C++ core into the pub package. Flutter consumes the Android
+AAR (and later the Apple artifact) rather than vendoring native sources.
 
-## Documentation
+## Capture backends
 
-See [docs/](docs/README.md) for integration guides and design notes.
+`package:tugboat` still defaults to Flutter `RepaintBoundary` screenshots.
+Android native CPU capture is an experimental opt-in
+(`TugboatScreenshotCaptureBackend.nativeCpuExperimental`). It stays
+experimental until privacy device rows and
+[performance gates](docs/performance/cpu-capture-method.md) pass. Raw pixels
+never enter Dart. See
+[experimental native CPU capture](docs/integration/native-cpu-experimental.md).
 
 ## Requirements
 
 - Flutter 3.35.0 or newer
 - Dart 3.9.2 or newer
+- Android NDK `28.2.13676358` and CMake `3.22.1` to build the AAR
 - Git
 
 The repository uses a native Dart pub workspace for local package resolution and
@@ -35,8 +54,13 @@ From the repository root:
 ```sh
 dart pub get
 dart run melos list
-dart run melos run analyze
+bash tool/ci/run-image-core-tests.sh
+bash tool/ci/build-android-runtime.sh
+bash tool/ci/run-flutter-tests.sh
 ```
+
+The Android AAR publishes to untracked `.local-maven/`. Run the Android build
+before `flutter build apk` on the example.
 
 ## Development
 
@@ -52,12 +76,14 @@ Package-specific tests:
 dart run melos run test:sdk
 ```
 
-## Workspace conventions
+Public SDK imports use `package:tugboat/tugboat.dart`. Keep package versions
+and changelogs independent. Run dependency commands from the repository root;
+the workspace has one shared `pubspec.lock`.
 
-- Run dependency commands from the repository root. The workspace has one shared
-  `pubspec.lock`; package-level lockfiles should not be committed.
-- Public SDK imports use `package:tugboat/tugboat.dart`.
-- Keep package versions and changelogs independent.
+## Documentation
+
+See [docs/](docs/README.md) for architecture, integration, privacy, and
+release process.
 
 ## License
 
