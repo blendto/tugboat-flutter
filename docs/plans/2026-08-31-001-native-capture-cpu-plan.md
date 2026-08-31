@@ -46,6 +46,12 @@ Stop implementation if the native path cannot keep current session and frame sem
 
 ## Product and Technical Decisions
 
+Authoritative contracts are
+[repository-scope.md](../architecture/repository-scope.md),
+[native-capture-contracts.md](../architecture/native-capture-contracts.md),
+and [docs/decisions](../decisions). This plan is sequencing. If they
+disagree, the architecture files win.
+
 ### Core decisions
 
 - Use native platform code to capture pixels.
@@ -366,36 +372,36 @@ The following work is deferred:
 
 ### Phase 1 - Confirm architecture and contracts
 
-- [ ] P1.01 Write the mobile repository scope.
-- [ ] P1.02 Define the common core scope.
-- [ ] P1.03 Define the Android runtime scope.
-- [ ] P1.04 Define the Apple runtime scope.
-- [ ] P1.05 Define the Flutter adapter scope.
-- [ ] P1.06 Define the future React Native adapter scope.
-- [ ] P1.07 Define the native capture threat model.
-- [ ] P1.08 Define the raw-pixel ownership boundary.
-- [ ] P1.09 Define the mask-before-encode rule.
-- [ ] P1.10 Define the mask coordinate system.
-- [ ] P1.11 Define the capture result ownership rules.
-- [ ] P1.12 Define `engineSurface` coverage.
-- [ ] P1.13 Define `windowComposite` coverage.
-- [ ] P1.14 Document platform-view limits.
-- [ ] P1.15 Document video-surface limits.
-- [ ] P1.16 Document secure-surface limits.
-- [ ] P1.17 Define automatic fallback statuses.
-- [ ] P1.18 Define cancellation behavior.
-- [ ] P1.19 Define timeout behavior.
-- [ ] P1.20 Define duplicate-publication prevention.
-- [ ] P1.21 Define stage timing fields.
-- [ ] P1.22 Define bounded native diagnostics.
-- [ ] P1.23 Add ADR 0001 for the mobile monorepo.
-- [ ] P1.24 Add ADR 0002 for C++ instead of Rust.
-- [ ] P1.25 Add ADR 0003 for native artifact ownership.
-- [ ] P1.26 Add ADR 0004 for platform JPEG codecs.
-- [ ] P1.27 Add ADR 0005 for the opt-in Flutter rollout.
-- [ ] P1.28 Add ADR 0006 for mask coordinates.
-- [ ] P1.29 Add ADR 0007 for future GPU processing.
-- [ ] P1.30 Add ADR 0008 for independent versioning.
+- [x] P1.01 Write the mobile repository scope.
+- [x] P1.02 Define the common core scope.
+- [x] P1.03 Define the Android runtime scope.
+- [x] P1.04 Define the Apple runtime scope.
+- [x] P1.05 Define the Flutter adapter scope.
+- [x] P1.06 Define the future React Native adapter scope.
+- [x] P1.07 Define the native capture threat model.
+- [x] P1.08 Define the raw-pixel ownership boundary.
+- [x] P1.09 Define the mask-before-encode rule.
+- [x] P1.10 Define the mask coordinate system.
+- [x] P1.11 Define the capture result ownership rules.
+- [x] P1.12 Define `engineSurface` coverage.
+- [x] P1.13 Define `windowComposite` coverage.
+- [x] P1.14 Document platform-view limits.
+- [x] P1.15 Document video-surface limits.
+- [x] P1.16 Document secure-surface limits.
+- [x] P1.17 Define automatic fallback statuses.
+- [x] P1.18 Define cancellation behavior.
+- [x] P1.19 Define timeout behavior.
+- [x] P1.20 Define duplicate-publication prevention.
+- [x] P1.21 Define stage timing fields.
+- [x] P1.22 Define bounded native diagnostics.
+- [x] P1.23 Add ADR 0001 for the mobile monorepo.
+- [x] P1.24 Add ADR 0002 for C++ instead of Rust.
+- [x] P1.25 Add ADR 0003 for native artifact ownership.
+- [x] P1.26 Add ADR 0004 for platform JPEG codecs.
+- [x] P1.27 Add ADR 0005 for the opt-in Flutter rollout.
+- [x] P1.28 Add ADR 0006 for mask coordinates.
+- [x] P1.29 Add ADR 0007 for future GPU processing.
+- [x] P1.30 Add ADR 0008 for independent versioning.
 
 ### Phase 2 - Rename and restructure the repository
 

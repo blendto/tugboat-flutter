@@ -19,6 +19,22 @@ should be verified in their own repositories.
 
 - [Capture and fingerprint architecture](design/capture-and-fingerprint.md) — implemented schema-v6 identity, screenshots, inferred-event evidence, gaps, and next steps
 
+## Architecture
+
+- [Mobile repository scope](architecture/repository-scope.md) — monorepo products and what each tree may own
+- [Native capture contracts](architecture/native-capture-contracts.md) — privacy boundary, coverage, fallback, and diagnostics
+
+## Decisions
+
+- [0001 Mobile monorepo](decisions/0001-mobile-monorepo.md)
+- [0002 C++ core](decisions/0002-cpp-core.md)
+- [0003 Native artifact ownership](decisions/0003-native-artifact-ownership.md)
+- [0004 Platform JPEG codecs](decisions/0004-platform-jpeg.md)
+- [0005 Opt-in Flutter rollout](decisions/0005-opt-in-flutter-rollout.md)
+- [0006 Mask coordinates](decisions/0006-mask-coordinates.md)
+- [0007 GPU processing deferred](decisions/0007-gpu-deferred.md)
+- [0008 Independent versioning](decisions/0008-independent-versioning.md)
+
 ## Performance
 
 - [CPU capture baseline](performance/cpu-capture-baseline.md) — screenshot-capture comparison contract, toolchain pins, and JPEG size envelope
@@ -30,6 +46,8 @@ should be verified in their own repositories.
 | `packages/tugboat` | Flutter SDK (`package:tugboat`) |
 | `packages/tugboat/example` | Demo app and integration fixture (not published) |
 | `docs/design` | Current architecture and forward-looking SDK decisions |
+| `docs/architecture` | Native capture scope and contracts |
+| `docs/decisions` | Accepted architecture decision records |
 | `docs/integration` | Host-app and transport integration contracts |
 | `docs/performance` | Measured screenshot-capture baselines |
 
