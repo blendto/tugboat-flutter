@@ -27,6 +27,7 @@ class ScreenshotBackendTrace {
     this.dHashMicros = 0,
     this.jpegMicros = 0,
     this.sha256Micros = 0,
+    this.pixelReadbackMicros = 0,
     this.platformChannelMicros = 0,
   });
 
@@ -41,6 +42,7 @@ class ScreenshotBackendTrace {
        dHashMicros = 0,
        jpegMicros = 0,
        sha256Micros = 0,
+       pixelReadbackMicros = 0,
        platformChannelMicros = 0;
 
   final TugboatScreenshotCaptureBackend requested;
@@ -53,6 +55,7 @@ class ScreenshotBackendTrace {
   final int dHashMicros;
   final int jpegMicros;
   final int sha256Micros;
+  final int pixelReadbackMicros;
   final int platformChannelMicros;
 
   Map<String, Object?> toDiagnosticFields() => {
@@ -66,6 +69,7 @@ class ScreenshotBackendTrace {
     if (dHashMicros != 0) 'dHashMicros': dHashMicros,
     if (jpegMicros != 0) 'jpegMicros': jpegMicros,
     if (sha256Micros != 0) 'sha256Micros': sha256Micros,
+    if (pixelReadbackMicros != 0) 'pixelReadbackMicros': pixelReadbackMicros,
     if (platformChannelMicros != 0)
       'platformChannelMicros': platformChannelMicros,
   };

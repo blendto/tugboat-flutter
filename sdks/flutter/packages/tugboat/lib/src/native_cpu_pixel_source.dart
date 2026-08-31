@@ -108,6 +108,7 @@ class NativeCpuExperimentalPixelSource implements ScreenshotPixelSource {
         timings.dHashMicros +
         timings.jpegMicros +
         timings.sha256Micros +
+        timings.pixelReadbackMicros +
         platformChannelMicros;
   }
 
@@ -126,6 +127,7 @@ class NativeCpuExperimentalPixelSource implements ScreenshotPixelSource {
       dHashMicros: reply.timings.dHashMicros,
       jpegMicros: reply.timings.jpegMicros,
       sha256Micros: reply.timings.sha256Micros,
+      pixelReadbackMicros: reply.timings.pixelReadbackMicros,
       platformChannelMicros: platformChannelMicros,
     );
   }

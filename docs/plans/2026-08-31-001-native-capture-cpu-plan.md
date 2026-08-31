@@ -642,7 +642,7 @@ Use the Flutter backend on older supported devices.
 
 ### Phase 7 - Measure Android performance
 
-- [ ] P7.01 Add stage-level native timing.
+- [x] P7.01 Add stage-level native timing.
 - [ ] P7.02 Measure surface-copy time.
 - [ ] P7.03 Measure mask time.
 - [ ] P7.04 Measure dHash time.
@@ -680,7 +680,7 @@ Use the Flutter backend on older supported devices.
 - [ ] P7.36 Require no privacy regression.
 - [ ] P7.37 Require acceptable JPEG quality.
 - [ ] P7.38 Record each device class that fails a gate.
-- [ ] P7.39 Keep the backend experimental if any gate fails.
+- [x] P7.39 Keep the backend experimental if any gate fails. Device gates are unmeasured in this environment, so the backend stays experimental.
 
 ### Phase 8 - Update documentation and release controls
 
