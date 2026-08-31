@@ -19,6 +19,10 @@ should be verified in their own repositories.
 
 - [Capture and fingerprint architecture](design/capture-and-fingerprint.md) — implemented schema-v6 identity, screenshots, inferred-event evidence, gaps, and next steps
 
+## Performance
+
+- [CPU capture baseline](performance/cpu-capture-baseline.md) — screenshot-capture comparison contract, toolchain pins, and JPEG size envelope
+
 ## Repository layout
 
 | Path | Description |
@@ -27,11 +31,12 @@ should be verified in their own repositories.
 | `packages/tugboat/example` | Demo app and integration fixture (not published) |
 | `docs/design` | Current architecture and forward-looking SDK decisions |
 | `docs/integration` | Host-app and transport integration contracts |
+| `docs/performance` | Measured screenshot-capture baselines |
 
 ## Current compatibility
 
-- package version: `0.8.11`;
-- release line: `0.8.x` (`0.8.11` is a patch after `0.8.10`);
+- package version: `0.8.12`;
+- release line: `0.8.x` (`0.8.12` is a patch after `0.8.11`);
 - session JSON schema: `10`;
 - fingerprint schema: `6`;
 - minimum Dart SDK: `3.9.2`;

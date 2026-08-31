@@ -5,9 +5,15 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.11`. Session JSON writers and readers use
+The current package version is `0.8.12`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.8.12
+
+Capture, session schema, and fingerprints are unchanged from `0.8.11`. This
+patch records the Dart JPEG size envelope used as the native CPU capture
+baseline.
 
 ## 0.8.11
 

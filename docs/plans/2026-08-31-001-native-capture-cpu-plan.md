@@ -13,9 +13,9 @@ product_contract_source: native-capture-research
 ## Status
 
 - [x] Synchronize local `main` with `origin/main`.
-- [x] Confirm that `HEAD` and `origin/main` are `dfc816190c8e247366a74d367c75ae1ba447a434`.
-- [x] Create the local branch `feat/native-capture-cpu`.
-- [ ] Establish and record the current performance baseline.
+- [x] Confirm that local `main` and `origin/main` are `dfc816190c8e247366a74d367c75ae1ba447a434`.
+- [x] Create the local branch `feat/native-capture-cpu` (`4a3ebb1dcb7a79189f35ece3610dbb1d54443ae5`).
+- [x] Establish and record the current performance baseline.
 - [ ] Start repository structure changes.
 
 No source files changed before this plan.
@@ -343,26 +343,26 @@ The following work is deferred:
 - [x] P0.02 Fast-forward local `main`.
 - [x] P0.03 Confirm that local `main` matches `origin/main`.
 - [x] P0.04 Create `feat/native-capture-cpu`.
-- [ ] P0.05 Record the Flutter version.
-- [ ] P0.06 Record the Dart version.
-- [ ] P0.07 Record the Android Gradle Plugin version.
-- [ ] P0.08 Record the Android NDK version.
-- [ ] P0.09 Record the CMake version.
-- [ ] P0.10 Record the Xcode version.
-- [ ] P0.11 Record the current minimum Android API.
-- [ ] P0.12 Record the current minimum iOS version.
-- [ ] P0.13 Run `dart pub get`.
-- [ ] P0.14 Run the current format check.
-- [ ] P0.15 Run the current analyzer.
-- [ ] P0.16 Run the current complexity check.
-- [ ] P0.17 Run all current Dart and Flutter tests.
-- [ ] P0.18 Build the Android Flutter example in release mode.
-- [ ] P0.19 Record all existing failures.
-- [ ] P0.20 Record the current screenshot timing fields.
-- [ ] P0.21 Record the current screenshot memory behavior.
-- [ ] P0.22 Record the current JPEG output size.
-- [ ] P0.23 Save the baseline in `docs/performance/cpu-capture-baseline.md`.
-- [ ] P0.24 Confirm that baseline commands leave the branch clean.
+- [x] P0.05 Record the Flutter version.
+- [x] P0.06 Record the Dart version.
+- [x] P0.07 Record the Android Gradle Plugin version.
+- [x] P0.08 Record the Android NDK version.
+- [x] P0.09 Record the CMake version.
+- [x] P0.10 Record the Xcode version.
+- [x] P0.11 Record the current minimum Android API.
+- [x] P0.12 Record the current minimum iOS version.
+- [x] P0.13 Run `dart pub get`.
+- [x] P0.14 Run the current format check.
+- [x] P0.15 Run the current analyzer.
+- [x] P0.16 Run the current complexity check.
+- [x] P0.17 Run all current Dart and Flutter tests.
+- [x] P0.18 Build the Android Flutter example in release mode.
+- [x] P0.19 Record all existing failures.
+- [x] P0.20 Record the current screenshot timing fields.
+- [x] P0.21 Record the current screenshot memory behavior.
+- [x] P0.22 Record the current JPEG output size.
+- [x] P0.23 Save the baseline in `docs/performance/cpu-capture-baseline.md`.
+- [x] P0.24 Confirm that baseline commands leave the branch clean.
 
 ### Phase 1 - Confirm architecture and contracts
 

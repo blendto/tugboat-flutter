@@ -1,3 +1,12 @@
+## 0.8.12
+
+Patch release after `0.8.11`.
+
+### Added
+
+- Record a regenerable JPEG size envelope for the current Dart encoder so the
+  native CPU capture path can compare codec output against the same buffers.
+
 ## 0.8.11
 
 Patch release after `0.8.10`.
