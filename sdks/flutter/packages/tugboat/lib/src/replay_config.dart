@@ -1,6 +1,7 @@
 import 'capture_profile.dart';
 import 'collector_config.dart';
 import 'interaction_transaction.dart' show tugboatDefaultReconciliationWindow;
+import 'screenshot_capture_backend.dart';
 import 'screenshot_mask_level.dart';
 import 'sinks/capture_sink.dart' show TugboatCaptureSinkFactory;
 import 'viewport_semantic_mode.dart';
@@ -107,6 +108,8 @@ class TugboatReplayConfig {
     this.viewportSemanticMapMaxBytes = 48000,
     this.sinkFactories = const [],
     this.screenshotBudget = TugboatScreenshotBudgetConfig.defaults,
+    this.screenshotCaptureBackend =
+        TugboatScreenshotCaptureBackend.flutterRepaintBoundary,
   }) : assert(capturePixelRatio > 0),
        assert(captureMaxWidth == null || captureMaxWidth > 0),
        assert(captureMaxHeight == null || captureMaxHeight > 0),
@@ -156,6 +159,10 @@ class TugboatReplayConfig {
   final List<TugboatCaptureSinkFactory> sinkFactories;
   final TugboatScreenshotBudgetConfig screenshotBudget;
 
+  /// Pixel backend. [TugboatScreenshotCaptureBackend.flutterRepaintBoundary]
+  /// is the supported default. Native CPU capture is experimental opt-in.
+  final TugboatScreenshotCaptureBackend screenshotCaptureBackend;
+
   TugboatScreenshotMaskLevel get effectiveScreenshotMaskLevel =>
       screenshotMaskLevel ??
       switch (profile) {
@@ -200,6 +207,7 @@ class TugboatReplayConfig {
     int? viewportSemanticMapMaxBytes,
     List<TugboatCaptureSinkFactory>? sinkFactories,
     TugboatScreenshotBudgetConfig? screenshotBudget,
+    TugboatScreenshotCaptureBackend? screenshotCaptureBackend,
   }) {
     return TugboatReplayConfig(
       profile: _or(profile, this.profile),
@@ -265,6 +273,10 @@ class TugboatReplayConfig {
       ),
       sinkFactories: _or(sinkFactories, this.sinkFactories),
       screenshotBudget: _or(screenshotBudget, this.screenshotBudget),
+      screenshotCaptureBackend: _or(
+        screenshotCaptureBackend,
+        this.screenshotCaptureBackend,
+      ),
     );
   }
 }

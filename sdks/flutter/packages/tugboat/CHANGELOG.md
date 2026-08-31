@@ -6,6 +6,10 @@ Patch release after `0.8.11`.
 
 - Record a regenerable JPEG size envelope for the current Dart encoder so the
   native CPU capture path can compare codec output against the same buffers.
+- Convert `tugboat` into a Flutter plugin with an experimental opt-in Android
+  native CPU capture backend (`nativeCpuExperimental`). The default remains
+  `flutterRepaintBoundary`, with automatic fallback when native capture is
+  unavailable or fails safely.
 
 ## 0.8.11
 

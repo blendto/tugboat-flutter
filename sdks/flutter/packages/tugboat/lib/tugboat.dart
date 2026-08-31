@@ -59,5 +59,7 @@ export 'src/replay_config.dart'
         TugboatViewportSemanticPolicy,
         TugboatScreenshotBudgetConfig,
         resolveViewportSemanticPolicy;
+export 'src/screenshot_capture_backend.dart'
+    show TugboatScreenshotCaptureBackend;
 export 'src/tugboat.dart';
 export 'src/screenshot_mask_level.dart' show TugboatScreenshotMaskLevel;

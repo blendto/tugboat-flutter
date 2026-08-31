@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,9 +7,14 @@ import 'package:flutter/scheduler.dart';
 
 import 'anchors.dart';
 import 'capture_boundary.dart';
+import 'flutter_repaint_boundary_pixel_source.dart';
+import 'native_capture_client.dart';
+import 'native_cpu_pixel_source.dart';
+import 'screenshot_capture_backend.dart';
 import 'screenshot_encode.dart';
 import 'screenshot_encode_isolate.dart';
 import 'screenshot_mask_level.dart';
+import 'screenshot_pixel_source.dart';
 
 /// Why a screenshot request could not produce a fresh rendered observation.
 ///
@@ -72,6 +76,7 @@ class ScreenshotCaptureResult {
     this.skippedByDHash = false,
     this.skippedByPaintGeneration = false,
     this.paintGeneration,
+    this.backendTrace = const ScreenshotBackendTrace.flutter(),
   });
 
   final Uint8List bytes;
@@ -94,6 +99,7 @@ class ScreenshotCaptureResult {
   /// [ScreenshotCapturer.commitAcceptedPaintGeneration] only after accepting
   /// a new frame or successfully reusing a compatible one.
   final int? paintGeneration;
+  final ScreenshotBackendTrace backendTrace;
 }
 
 class ScreenshotCapturer {
@@ -105,11 +111,22 @@ class ScreenshotCapturer {
     this.maxWidth,
     this.maxHeight,
     this.degradedScale = 1.0,
+    this.screenshotCaptureBackend =
+        TugboatScreenshotCaptureBackend.flutterRepaintBoundary,
     @visibleForTesting Future<void> Function()? frameWaiter,
     ScreenshotEncoder? encoder,
+    NativeCaptureClient? nativeClient,
+    ScreenshotPixelSource? pixelSource,
   }) : _frameWaiter =
-           frameWaiter ?? (() => SchedulerBinding.instance.endOfFrame),
-       _encoder = encoder ?? IsolateScreenshotEncoder();
+           frameWaiter ?? (() => SchedulerBinding.instance.endOfFrame) {
+    _pixelSource =
+        pixelSource ??
+        _createPixelSource(
+          screenshotCaptureBackend,
+          nativeClient,
+          encoder ?? IsolateScreenshotEncoder(),
+        );
+  }
 
   final GlobalKey boundaryKey;
   final double pixelRatio;
@@ -117,8 +134,9 @@ class ScreenshotCapturer {
   final int? maxHeight;
   final double degradedScale;
   final TugboatScreenshotMaskLevel maskLevel;
+  final TugboatScreenshotCaptureBackend screenshotCaptureBackend;
   final Future<void> Function() _frameWaiter;
-  final ScreenshotEncoder _encoder;
+  late final ScreenshotPixelSource _pixelSource;
 
   /// Shared resolver used for frame-scoped element maps when masking.
   final AnchorResolver anchorResolver;
@@ -132,6 +150,7 @@ class ScreenshotCapturer {
     _lastDHash = null;
     _lastAcceptedPaintSignature = null;
     _lastAcceptedBoundary = null;
+    _pixelSource.resetSession();
   }
 
   /// Records the current subtree paint signature as accepted without a
@@ -485,89 +504,80 @@ class ScreenshotCapturer {
       maskClock.stop();
     }
 
-    final ui.Image image;
-    final readbackClock = Stopwatch()..start();
-    try {
-      image = await boundary.toImage(pixelRatio: capturePixelRatio);
-    } catch (_) {
-      throw const _ScreenshotCaptureException(
-        ScreenshotCaptureFailure.readbackFailed,
-      );
-    } finally {
-      readbackClock.stop();
-    }
-    if (_captureWasCancelled(isCurrent)) {
-      image.dispose();
-      throw const _ScreenshotCaptureException(
-        ScreenshotCaptureFailure.cancelled,
-      );
-    }
-    try {
-      final imageWidth = image.width;
-      final imageHeight = image.height;
+    final acquisition = await _pixelSource.acquire(
+      ScreenshotPixelRequest(
+        boundary: boundary,
+        capturePixelRatio: capturePixelRatio,
+        pixelWidth: scaledWidth,
+        pixelHeight: scaledHeight,
+        logicalSize: boundary.size,
+        maskRects: [for (final mask in maskRects) mask.rect],
+        lastDHash: _lastDHash ?? '',
+        force: force,
+        requestedBackend: screenshotCaptureBackend,
+        isCurrent: isCurrent,
+      ),
+    );
+    return _resultForAcquisition(
+      acquisition,
+      scaledWidth: scaledWidth,
+      scaledHeight: scaledHeight,
+      boundaryLogicalRect: boundaryLogicalRect,
+      maskMicros: maskClock.elapsedMicroseconds,
+      paintSignature: paintSignature,
+    );
+  }
 
-      // Scale mask rects into capture pixel space once. Mask fills are applied
-      // in the encode worker so we avoid a second full-size picture.toImage.
-      final maskClockTotal = Stopwatch()..start();
-      final scaledMasks = Float64List(maskRects.length * 4);
-      for (var i = 0; i < maskRects.length; i++) {
-        final rect = maskRects[i].rect;
-        final base = i * 4;
-        scaledMasks[base] = rect.left * capturePixelRatio;
-        scaledMasks[base + 1] = rect.top * capturePixelRatio;
-        scaledMasks[base + 2] = rect.right * capturePixelRatio;
-        scaledMasks[base + 3] = rect.bottom * capturePixelRatio;
-      }
-      maskClockTotal.stop();
-      final maskMicros =
-          maskClock.elapsedMicroseconds + maskClockTotal.elapsedMicroseconds;
-
-      final encodeClock = Stopwatch()..start();
-      try {
-        final byteData = await image.toByteData(
-          format: ui.ImageByteFormat.rawRgba,
+  ScreenshotCaptureResult? _resultForAcquisition(
+    ScreenshotPixelAcquisition acquisition, {
+    required int scaledWidth,
+    required int scaledHeight,
+    required Rect boundaryLogicalRect,
+    required int maskMicros,
+    required int? paintSignature,
+  }) {
+    switch (acquisition.disposition) {
+      case ScreenshotPixelDisposition.cancelled:
+        throw const _ScreenshotCaptureException(
+          ScreenshotCaptureFailure.cancelled,
         );
-        if (byteData == null) {
+      case ScreenshotPixelDisposition.failed:
+        throw _ScreenshotCaptureException(_failureFor(acquisition.failure));
+      case ScreenshotPixelDisposition.captured:
+      case ScreenshotPixelDisposition.skipped:
+        final bytes = acquisition.bytes;
+        if (bytes == null) {
           throw const _ScreenshotCaptureException(
             ScreenshotCaptureFailure.encodingFailed,
           );
         }
-        final encoded = await _encoder.encode(
-          ScreenshotEncodeInput(
-            rgba: byteData.buffer.asUint8List(),
-            width: imageWidth,
-            height: imageHeight,
-            maskRects: scaledMasks,
-            lastDHash: _lastDHash,
-            force: force,
-          ),
-        );
         return ScreenshotCaptureResult(
-          bytes: encoded.bytes,
-          contentHash: encoded.contentHash,
-          dHash: encoded.dHash,
-          width: imageWidth,
-          height: imageHeight,
+          bytes: bytes,
+          contentHash: acquisition.contentHash,
+          dHash: acquisition.dHash,
+          width: acquisition.width == 0 ? scaledWidth : acquisition.width,
+          height: acquisition.height == 0 ? scaledHeight : acquisition.height,
           boundaryLogicalRect: boundaryLogicalRect,
-          masked: maskRects.isNotEmpty,
-          captureMicros: readbackClock.elapsedMicroseconds,
-          encodeMicros: encodeClock.elapsedMicroseconds,
+          masked: acquisition.masked,
+          captureMicros: acquisition.captureMicros,
+          encodeMicros: acquisition.encodeMicros,
           maskMicros: maskMicros,
-          skippedByDHash: encoded.skippedByDHash,
+          skippedByDHash: acquisition.skippedByDHash,
           paintGeneration: paintSignature,
+          backendTrace: acquisition.trace,
         );
-      } on _ScreenshotCaptureException {
-        rethrow;
-      } catch (_) {
-        throw const _ScreenshotCaptureException(
-          ScreenshotCaptureFailure.encodingFailed,
-        );
-      } finally {
-        encodeClock.stop();
-      }
-    } finally {
-      image.dispose();
     }
+  }
+
+  ScreenshotCaptureFailure _failureFor(ScreenshotCaptureFailureKind? kind) {
+    return switch (kind) {
+      ScreenshotCaptureFailureKind.readbackFailed =>
+        ScreenshotCaptureFailure.readbackFailed,
+      ScreenshotCaptureFailureKind.cancelled =>
+        ScreenshotCaptureFailure.cancelled,
+      ScreenshotCaptureFailureKind.encodingFailed ||
+      null => ScreenshotCaptureFailure.encodingFailed,
+    };
   }
 
   bool _shouldSkipPaintGeneration(
@@ -581,9 +591,6 @@ class ScreenshotCapturer {
       paintSignature != null &&
       identical(boundary, _lastAcceptedBoundary) &&
       paintSignature == _lastAcceptedPaintSignature;
-
-  bool _captureWasCancelled(bool Function()? isCurrent) =>
-      isCurrent != null && !isCurrent();
 
   double _capturePixelRatio(Size logicalSize, {required bool degraded}) {
     var ratio = pixelRatio;
@@ -692,5 +699,21 @@ class ScreenshotCapturer {
     return provider is AssetBundleImageProvider;
   }
 
-  Future<void> dispose() => _encoder.dispose();
+  Future<void> dispose() => _pixelSource.dispose();
+}
+
+ScreenshotPixelSource _createPixelSource(
+  TugboatScreenshotCaptureBackend backend,
+  NativeCaptureClient? nativeClient,
+  ScreenshotEncoder encoder,
+) {
+  final flutter = FlutterRepaintBoundaryPixelSource(encoder);
+  return switch (backend) {
+    TugboatScreenshotCaptureBackend.flutterRepaintBoundary => flutter,
+    TugboatScreenshotCaptureBackend.nativeCpuExperimental =>
+      NativeCpuExperimentalPixelSource(
+        client: nativeClient ?? NativeCaptureClient(observeLifecycle: true),
+        fallback: flutter,
+      ),
+  };
 }

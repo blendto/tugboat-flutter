@@ -10,7 +10,10 @@ build/
 .local-maven/
 platforms/android/local.properties
 **/.gradle/
+**/.gradle/**
+.cxx/
 **/.cxx/
+**/.cxx/**
 crash-*
 leak-*
 timeout-*

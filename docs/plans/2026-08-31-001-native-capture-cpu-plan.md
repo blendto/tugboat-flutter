@@ -568,54 +568,54 @@ Use the Flutter backend on older supported devices.
 
 ### Phase 5 - Convert the Flutter SDK into a plugin
 
-- [ ] P5.01 Add Android plugin metadata to `tugboat`.
-- [ ] P5.02 Add Apple plugin metadata to `tugboat`.
-- [ ] P5.03 Add the Android plugin class.
-- [ ] P5.04 Add an Apple capability stub.
-- [ ] P5.05 Add Pigeon to the development toolchain.
-- [ ] P5.06 Define `getCapabilities`.
-- [ ] P5.07 Define `capture`.
-- [ ] P5.08 Define `dispose`.
-- [ ] P5.09 Generate the Dart bridge.
-- [ ] P5.10 Generate the Kotlin bridge.
-- [ ] P5.11 Generate the Swift bridge.
-- [ ] P5.12 Add generated-file verification to CI.
-- [ ] P5.13 Add `TugboatScreenshotCaptureBackend`.
-- [ ] P5.14 Add `flutterRepaintBoundary`.
-- [ ] P5.15 Add `nativeCpuExperimental`.
-- [ ] P5.16 Make `flutterRepaintBoundary` the default.
-- [ ] P5.17 Add `screenshotCaptureBackend` to replay configuration.
-- [ ] P5.18 Document the experimental status.
-- [ ] P5.19 Keep current capture-scale defaults.
-- [ ] P5.20 Keep JPEG quality 80.
-- [ ] P5.21 Keep the current dHash threshold.
-- [ ] P5.22 Keep the current frame transport schema.
-- [ ] P5.23 Add a capture backend interface.
-- [ ] P5.24 Move the current capturer behind that interface.
-- [ ] P5.25 Add the native CPU backend.
-- [ ] P5.26 Convert mask rectangles to normalized app coordinates.
-- [ ] P5.27 Send only mask metadata to native code.
-- [ ] P5.28 Send the previous dHash.
-- [ ] P5.29 Send the forced-capture flag.
-- [ ] P5.30 Receive only masked JPEG data.
-- [ ] P5.31 Convert native timings into capture diagnostics.
-- [ ] P5.32 Record the requested backend.
-- [ ] P5.33 Record the resolved backend.
-- [ ] P5.34 Record capture coverage.
-- [ ] P5.35 Record the fallback reason.
-- [ ] P5.36 Ignore stale native results.
-- [ ] P5.37 Prevent duplicate frame publication.
-- [ ] P5.38 Preserve current capture scheduling.
-- [ ] P5.39 Preserve current session semantics.
-- [ ] P5.40 Fall back when native capture is unsupported.
-- [ ] P5.41 Fall back when the render surface is unavailable.
-- [ ] P5.42 Fall back after a native timeout.
-- [ ] P5.43 Fall back after `PixelCopy` failure.
-- [ ] P5.44 Fall back after processing failure.
-- [ ] P5.45 Do not fall back after cancellation.
-- [ ] P5.46 Do not publish native and Flutter results together.
-- [ ] P5.47 Limit retries after a known native failure.
-- [ ] P5.48 Reset retry state after a lifecycle change.
+- [x] P5.01 Add Android plugin metadata to `tugboat`.
+- [x] P5.02 Add Apple plugin metadata to `tugboat`.
+- [x] P5.03 Add the Android plugin class.
+- [x] P5.04 Add an Apple capability stub.
+- [x] P5.05 Add Pigeon to the development toolchain.
+- [x] P5.06 Define `getCapabilities`.
+- [x] P5.07 Define `capture`.
+- [x] P5.08 Define `dispose`.
+- [x] P5.09 Generate the Dart bridge.
+- [x] P5.10 Generate the Kotlin bridge.
+- [x] P5.11 Generate the Swift bridge.
+- [x] P5.12 Add generated-file verification to CI.
+- [x] P5.13 Add `TugboatScreenshotCaptureBackend`.
+- [x] P5.14 Add `flutterRepaintBoundary`.
+- [x] P5.15 Add `nativeCpuExperimental`.
+- [x] P5.16 Make `flutterRepaintBoundary` the default.
+- [x] P5.17 Add `screenshotCaptureBackend` to replay configuration.
+- [x] P5.18 Document the experimental status.
+- [x] P5.19 Keep current capture-scale defaults.
+- [x] P5.20 Keep JPEG quality 80.
+- [x] P5.21 Keep the current dHash threshold.
+- [x] P5.22 Keep the current frame transport schema.
+- [x] P5.23 Add a capture backend interface.
+- [x] P5.24 Move the current capturer behind that interface.
+- [x] P5.25 Add the native CPU backend.
+- [x] P5.26 Convert mask rectangles to normalized app coordinates.
+- [x] P5.27 Send only mask metadata to native code.
+- [x] P5.28 Send the previous dHash.
+- [x] P5.29 Send the forced-capture flag.
+- [x] P5.30 Receive only masked JPEG data.
+- [x] P5.31 Convert native timings into capture diagnostics.
+- [x] P5.32 Record the requested backend.
+- [x] P5.33 Record the resolved backend.
+- [x] P5.34 Record capture coverage.
+- [x] P5.35 Record the fallback reason.
+- [x] P5.36 Ignore stale native results.
+- [x] P5.37 Prevent duplicate frame publication.
+- [x] P5.38 Preserve current capture scheduling.
+- [x] P5.39 Preserve current session semantics.
+- [x] P5.40 Fall back when native capture is unsupported.
+- [x] P5.41 Fall back when the render surface is unavailable.
+- [x] P5.42 Fall back after a native timeout.
+- [x] P5.43 Fall back after `PixelCopy` failure.
+- [x] P5.44 Fall back after processing failure.
+- [x] P5.45 Do not fall back after cancellation.
+- [x] P5.46 Do not publish native and Flutter results together.
+- [x] P5.47 Limit retries after a known native failure.
+- [x] P5.48 Reset retry state after a lifecycle change.
 
 ### Phase 6 - Validate privacy and correctness
 

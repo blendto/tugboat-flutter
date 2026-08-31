@@ -18,6 +18,7 @@ import 'interaction_transaction.dart';
 import 'models.dart';
 import 'network_observer.dart';
 import 'replay_config.dart';
+import 'screenshot_capture_backend.dart';
 import 'screenshot_capturer.dart';
 import 'screenshot_encode.dart';
 import 'viewport_semantic_session.dart';
@@ -235,6 +236,7 @@ class _CaptureResolution {
     this.reuseReason,
     this.relatedEventId,
     this.coalesced = false,
+    this.backendTrace,
   });
 
   final String requestId;
@@ -247,6 +249,7 @@ class _CaptureResolution {
   final String? reuseReason;
   final String? relatedEventId;
   final bool coalesced;
+  final ScreenshotBackendTrace? backendTrace;
 }
 
 class _CaptureWaiter {
@@ -273,6 +276,7 @@ class _CaptureExecution {
     this.failure,
     this.cancellationReason,
     this.reuseReason,
+    this.backendTrace,
   });
 
   final _CaptureOutcome outcome;
@@ -280,6 +284,7 @@ class _CaptureExecution {
   final ScreenshotCaptureFailure? failure;
   final String? cancellationReason;
   final String? reuseReason;
+  final ScreenshotBackendTrace? backendTrace;
 }
 
 /// The outcome of the physical capture retry phase. It separates a terminal
@@ -1267,6 +1272,7 @@ class TugboatReplayController extends ChangeNotifier {
       maskLevel: config.effectiveScreenshotMaskLevel,
       anchorResolver: resolver,
       encoder: debugScreenshotEncoder,
+      screenshotCaptureBackend: config.screenshotCaptureBackend,
     );
     final sinks = <TugboatCaptureSink>[];
     final collectorUrl = config.explorationCollectorUrl;
@@ -1769,6 +1775,7 @@ class TugboatReplayController extends ChangeNotifier {
           if (resolution.reuseReason != null)
             'reuseReason': resolution.reuseReason,
           if (resolution.coalesced) 'coalesced': true,
+          ...?resolution.backendTrace?.toDiagnosticFields(),
         },
       ),
     );
@@ -2007,6 +2014,7 @@ class TugboatReplayController extends ChangeNotifier {
       reuseReason: execution.reuseReason,
       relatedEventId: waiter.relatedEventId,
       coalesced: waiter.coalesced,
+      backendTrace: execution.backendTrace,
     );
     waiter.completer.complete(resolution);
     _recordCaptureDiagnostic(resolution);
@@ -2103,6 +2111,7 @@ class TugboatReplayController extends ChangeNotifier {
       failure: execution.failure,
       cancellationReason: execution.cancellationReason,
       reuseReason: execution.reuseReason,
+      backendTrace: execution.backendTrace,
     );
   }
 
@@ -2437,6 +2446,7 @@ class TugboatReplayController extends ChangeNotifier {
       ),
       failure: attempt.failure,
       cancellationReason: _physicalFailureCancellationReason(attempt),
+      backendTrace: attempt.result?.backendTrace,
     );
   }
 
@@ -2524,6 +2534,7 @@ class TugboatReplayController extends ChangeNotifier {
       outcome: _CaptureOutcome.exactContentReused,
       frameId: existingId,
       reuseReason: 'content_hash',
+      backendTrace: result.backendTrace,
     );
   }
 
@@ -2546,6 +2557,7 @@ class TugboatReplayController extends ChangeNotifier {
           : _CaptureOutcome.perceptualHashCoalesced,
       frameId: reused,
       reuseReason: reused == null ? null : 'dhash',
+      backendTrace: result.backendTrace,
     );
   }
 
@@ -2612,6 +2624,7 @@ class TugboatReplayController extends ChangeNotifier {
     return _CaptureExecution(
       outcome: _CaptureOutcome.freshAccepted,
       frameId: frameId,
+      backendTrace: result.backendTrace,
     );
   }
 
