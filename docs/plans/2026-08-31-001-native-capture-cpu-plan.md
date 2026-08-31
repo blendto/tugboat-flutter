@@ -619,26 +619,26 @@ Use the Flutter backend on older supported devices.
 
 ### Phase 6 - Validate privacy and correctness
 
-- [ ] P6.01 Add a test screen with known private regions.
-- [ ] P6.02 Capture the screen through the native backend.
-- [ ] P6.03 Decode the returned JPEG in the test.
-- [ ] P6.04 Verify that each mask is opaque.
-- [ ] P6.05 Verify mask behavior at each screen edge.
+- [x] P6.01 Add a test screen with known private regions.
+- [x] P6.02 Capture the screen through the native backend.
+- [x] P6.03 Decode the returned JPEG in the test.
+- [x] P6.04 Verify that each mask is opaque.
+- [x] P6.05 Verify mask behavior at each screen edge.
 - [ ] P6.06 Verify masks after device rotation.
 - [ ] P6.07 Verify masks at each capture scale.
 - [ ] P6.08 Verify masks after density changes.
 - [ ] P6.09 Verify masks after keyboard changes.
 - [ ] P6.10 Verify masks after system-inset changes.
-- [ ] P6.11 Verify that raw RGBA data does not cross the platform channel.
-- [ ] P6.12 Verify that raw data does not enter logs.
-- [ ] P6.13 Verify that failure diagnostics contain no image data.
-- [ ] P6.14 Verify dHash parity with the Flutter path.
-- [ ] P6.15 Verify forced capture behavior.
-- [ ] P6.16 Verify duplicate-frame suppression.
-- [ ] P6.17 Verify content hashes.
-- [ ] P6.18 Verify JPEG server compatibility.
-- [ ] P6.19 Run current replay acceptance tests.
-- [ ] P6.20 Add a formal privacy sign-off gate.
+- [x] P6.11 Verify that raw RGBA data does not cross the platform channel.
+- [x] P6.12 Verify that raw data does not enter logs.
+- [x] P6.13 Verify that failure diagnostics contain no image data.
+- [x] P6.14 Verify dHash parity with the Flutter path.
+- [x] P6.15 Verify forced capture behavior.
+- [x] P6.16 Verify duplicate-frame suppression.
+- [x] P6.17 Verify content hashes.
+- [x] P6.18 Verify JPEG server compatibility.
+- [x] P6.19 Run current replay acceptance tests.
+- [x] P6.20 Add a formal privacy sign-off gate.
 
 ### Phase 7 - Measure Android performance
 

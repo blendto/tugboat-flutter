@@ -5,6 +5,7 @@ import '../widgets/demo_widgets.dart';
 import 'browse_screen.dart';
 import 'cart_screen.dart';
 import 'catalog_screen.dart';
+import 'native_privacy_fixture_screen.dart';
 import 'profile_screen.dart';
 import 'scroll_playground_screen.dart';
 
@@ -138,13 +139,13 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               DemoNavTile(
-                title: 'Profile & settings',
-                subtitle: 'Switches, sliders, and preference chips',
-                icon: Icons.tune_outlined,
+                title: 'Native privacy fixture',
+                subtitle: 'Known private tiles for CPU-capture mask checks',
+                icon: Icons.privacy_tip_outlined,
                 onTap: () => pushDemoScreen(
                   context,
-                  routeName: '/profile',
-                  screen: const ProfileScreen(),
+                  routeName: '/native-privacy',
+                  screen: const NativePrivacyFixtureScreen(),
                 ),
               ),
             ],
