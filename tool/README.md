@@ -10,4 +10,4 @@
 - `ci/dump-android-runtime-api.py` / `verify-android-runtime-api.sh`
 - `ci/verify-swift-api.sh` — skip until `Package.swift` exists
 - `ci/pub-dry-run.sh` — `dart pub publish --dry-run` for Flutter packages
-- `release/` — artifact checksums and notes (Phase 9)
+- `release/` — unpublished local AAR notes; public tags are blocked until gates pass

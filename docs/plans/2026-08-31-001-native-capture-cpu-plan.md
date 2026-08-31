@@ -717,6 +717,10 @@ Use the Flutter backend on older supported devices.
 
 ### Phase 9 - Release the Android experimental path
 
+Public Maven/pub.dev publication, `0.9.0`, and git tags are **blocked** until
+device privacy rows and performance gates pass. See
+[tool/release/README.md](../../tool/release/README.md).
+
 - [ ] P9.01 Build the final Android AAR.
 - [ ] P9.02 Generate artifact checksums.
 - [ ] P9.03 Generate release notes.
@@ -728,7 +732,7 @@ Use the Flutter backend on older supported devices.
 - [ ] P9.09 Run final Flutter package checks.
 - [ ] P9.10 Run final Android integration tests.
 - [ ] P9.11 Publish the Flutter beta.
-- [ ] P9.12 Keep native capture opt-in.
+- [x] P9.12 Keep native capture opt-in.
 - [ ] P9.13 Monitor native failure rates.
 - [ ] P9.14 Monitor automatic fallback rates.
 - [ ] P9.15 Review measured data before changing the default.
