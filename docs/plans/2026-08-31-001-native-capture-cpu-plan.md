@@ -450,58 +450,58 @@ devices; history is still recorded as renames via copy + `git rm`.
 
 ### Phase 3 - Build the C++ image-processing core
 
-- [ ] P3.01 Select C++17 as the minimum language level.
-- [ ] P3.02 Add the CMake project.
-- [ ] P3.03 Add a static library target.
-- [ ] P3.04 Add a CTest target.
-- [ ] P3.05 Add a public C header.
-- [ ] P3.06 Keep C++ types out of the public ABI.
-- [ ] P3.07 Add `tb_image_core_version`.
-- [ ] P3.08 Add a versioned processing entry point.
-- [ ] P3.09 Define RGBA8888 input.
-- [ ] P3.10 Define BGRA8888 input.
-- [ ] P3.11 Define width limits.
-- [ ] P3.12 Define height limits.
-- [ ] P3.13 Define the maximum pixel count.
-- [ ] P3.14 Define row-stride validation.
-- [ ] P3.15 Add checked buffer-size multiplication.
-- [ ] P3.16 Reject invalid buffers.
-- [ ] P3.17 Reject unsupported pixel formats.
-- [ ] P3.18 Reject images above the pixel limit.
-- [ ] P3.19 Define integer mask rectangles.
-- [ ] P3.20 Clip masks to image bounds.
-- [ ] P3.21 Ignore empty masks.
-- [ ] P3.22 Apply opaque masks in place.
-- [ ] P3.23 Add deterministic grayscale conversion.
-- [ ] P3.24 Add the current 9-by-8 dHash algorithm.
-- [ ] P3.25 Add Hamming-distance calculation.
-- [ ] P3.26 Preserve the current skip threshold.
-- [ ] P3.27 Support forced captures.
-- [ ] P3.28 Return the calculated dHash.
-- [ ] P3.29 Return the skip decision.
-- [ ] P3.30 Return processing timings.
-- [ ] P3.31 Use explicit status codes.
-- [ ] P3.32 Prevent exceptions from crossing the C ABI.
-- [ ] P3.33 Define explicit buffer ownership.
-- [ ] P3.34 Document thread-safety requirements.
-- [ ] P3.35 Add public API documentation.
-- [ ] P3.36 Add zero-size image tests.
-- [ ] P3.37 Add invalid-stride tests.
-- [ ] P3.38 Add integer-overflow tests.
-- [ ] P3.39 Add mask-clipping tests.
-- [ ] P3.40 Add overlapping-mask tests.
-- [ ] P3.41 Add RGBA mask tests.
-- [ ] P3.42 Add BGRA mask tests.
-- [ ] P3.43 Add dHash golden tests.
-- [ ] P3.44 Compare C++ dHash output with Dart output.
-- [ ] P3.45 Add Hamming-threshold tests.
-- [ ] P3.46 Add forced-capture tests.
-- [ ] P3.47 Add deterministic repeated-run tests.
-- [ ] P3.48 Run AddressSanitizer.
-- [ ] P3.49 Run UndefinedBehaviorSanitizer.
-- [ ] P3.50 Add mask-input fuzzing.
-- [ ] P3.51 Add image-metadata fuzzing.
-- [ ] P3.52 Add the C++ tests to CI.
+- [x] P3.01 Select C++17 as the minimum language level.
+- [x] P3.02 Add the CMake project.
+- [x] P3.03 Add a static library target.
+- [x] P3.04 Add a CTest target.
+- [x] P3.05 Add a public C header.
+- [x] P3.06 Keep C++ types out of the public ABI.
+- [x] P3.07 Add `tb_image_core_version`.
+- [x] P3.08 Add a versioned processing entry point.
+- [x] P3.09 Define RGBA8888 input.
+- [x] P3.10 Define BGRA8888 input.
+- [x] P3.11 Define width limits.
+- [x] P3.12 Define height limits.
+- [x] P3.13 Define the maximum pixel count.
+- [x] P3.14 Define row-stride validation.
+- [x] P3.15 Add checked buffer-size multiplication.
+- [x] P3.16 Reject invalid buffers.
+- [x] P3.17 Reject unsupported pixel formats.
+- [x] P3.18 Reject images above the pixel limit.
+- [x] P3.19 Define integer mask rectangles.
+- [x] P3.20 Clip masks to image bounds.
+- [x] P3.21 Ignore empty masks.
+- [x] P3.22 Apply opaque masks in place.
+- [x] P3.23 Add deterministic grayscale conversion.
+- [x] P3.24 Add the current 9-by-8 dHash algorithm.
+- [x] P3.25 Add Hamming-distance calculation.
+- [x] P3.26 Preserve the current skip threshold.
+- [x] P3.27 Support forced captures.
+- [x] P3.28 Return the calculated dHash.
+- [x] P3.29 Return the skip decision.
+- [x] P3.30 Return processing timings.
+- [x] P3.31 Use explicit status codes.
+- [x] P3.32 Prevent exceptions from crossing the C ABI.
+- [x] P3.33 Define explicit buffer ownership.
+- [x] P3.34 Document thread-safety requirements.
+- [x] P3.35 Add public API documentation.
+- [x] P3.36 Add zero-size image tests.
+- [x] P3.37 Add invalid-stride tests.
+- [x] P3.38 Add integer-overflow tests.
+- [x] P3.39 Add mask-clipping tests.
+- [x] P3.40 Add overlapping-mask tests.
+- [x] P3.41 Add RGBA mask tests.
+- [x] P3.42 Add BGRA mask tests.
+- [x] P3.43 Add dHash golden tests.
+- [x] P3.44 Compare C++ dHash output with Dart output.
+- [x] P3.45 Add Hamming-threshold tests.
+- [x] P3.46 Add forced-capture tests.
+- [x] P3.47 Add deterministic repeated-run tests.
+- [x] P3.48 Run AddressSanitizer.
+- [x] P3.49 Run UndefinedBehaviorSanitizer.
+- [x] P3.50 Add mask-input fuzzing.
+- [x] P3.51 Add image-metadata fuzzing.
+- [x] P3.52 Add the C++ tests to CI.
 
 ### Phase 4 - Build the Android capture runtime
 

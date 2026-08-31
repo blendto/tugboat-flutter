@@ -64,12 +64,24 @@ The runtime does not retain JPEG or bitmap after the reply. Dart owns
 `session.frameBytes` as today.
 
 `dHash` skip uses Hamming ≤ `dHashMatchDistance` (2) unless `force`.
-BGRA input is swizzled to RGBA before that path. The core does not infer
+dHash is defined on RGBA. BGRA8888 is *sampled* as R,G,B from the BGRA
+layout; the core does not physically swizzle the buffer, so a platform
+JPEG encoder still sees native channel order. The core does not infer
 `Bitmap.Config`; the runtime declares RGBA8888 or BGRA8888 on the ABI call.
 
 Invalid buffers (zero size, bad stride, overflow, over limit) are
 `processingFailed`. Do not clamp silently — silent clamp plus mask clip
-can leave an unmasked strip. Numeric limits are Phase 3; the status is not.
+can leave an unmasked strip.
+
+C++ core numeric limits (`tb_image_core.h`):
+
+- width and height in `1..8192`
+- `width * height` ≤ `16_777_216`
+- `stride_bytes >= width * 4`, and `stride_bytes * height` must not overflow
+  `uint64`
+- formats: `RGBA8888`, `BGRA8888` only
+
+The runtime maps every core failure status onto `processingFailed`.
 
 ## Masks
 
