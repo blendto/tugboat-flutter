@@ -10,6 +10,9 @@ Patch release after `0.8.11`.
   native CPU capture backend (`nativeCpuExperimental`). The default remains
   `flutterRepaintBoundary`, with automatic fallback when native capture is
   unavailable or fails safely.
+- Native `encodeMicros` is the Pigeon capture round-trip only. Nested native
+  stage timings stay on the backend trace so `TugboatFrame.captureMicros` does
+  not double-count PixelCopy, dHash, JPEG, and SHA-256.
 - Document the mobile monorepo, native capture contracts, fallback, coverage,
   and path-aware version / license / API-surface checks. Native capture stays
   experimental; Flutter remains on the 0.8.12 line.

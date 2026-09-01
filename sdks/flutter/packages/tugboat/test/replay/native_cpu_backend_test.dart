@@ -155,6 +155,51 @@ void main() {
     },
   );
 
+  test(
+    'native encodeMicros is the platform-channel clock, not nested stages',
+    () async {
+      const nestedStages =
+          3317 + 1 + 133 + 828 + 199; // surface, mask, dHash, jpeg, sha256
+      final api = _FakeHostApi(
+        captureHandler: (request) async => nativeCaptureResult(
+          requestId: request.requestId,
+          status: NativeCaptureStatus.ok,
+          jpeg: Uint8List.fromList(const [1, 2, 3, 4]),
+          width: 8,
+          height: 8,
+          dHash: '1' * 64,
+          contentHash: 'abc',
+          coverage: NativeCaptureCoverage.engineSurface,
+          timings: NativeCaptureTimings(
+            surfaceCopyMicros: 3317,
+            maskFillMicros: 1,
+            dHashMicros: 133,
+            jpegMicros: 828,
+            sha256Micros: 199,
+            pixelReadbackMicros: 0,
+          ),
+        ),
+      );
+      final source = NativeCpuExperimentalPixelSource(
+        client: NativeCaptureClient(api: api),
+        fallback: _RecordingFallback(),
+      );
+
+      final result = await source.acquire(
+        _pixelRequest(boundary: RenderRepaintBoundary()),
+      );
+
+      expect(result.captureMicros, 0);
+      expect(result.encodeMicros, result.trace.platformChannelMicros);
+      expect(
+        result.encodeMicros,
+        isNot(nestedStages + result.trace.platformChannelMicros),
+      );
+      expect(result.trace.surfaceCopyMicros, 3317);
+      expect(result.trace.jpegMicros, 828);
+    },
+  );
+
   test('native fallback status uses Flutter path once', () async {
     final api = _FakeHostApi(
       captureHandler: (request) async => nativeCaptureResult(

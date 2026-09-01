@@ -28,7 +28,7 @@ PixelCopy into Dart `captureMicros`.
 | `sha256` | `ScreenshotBackendTrace.sha256Micros` (0 on dHash skip) |
 | `platformChannel` | `ScreenshotBackendTrace.platformChannelMicros` |
 | `dartUiIsolate` | Flutter timeline / UI-isolate CPU during capture; native path should be near zero |
-| end-to-end | Dart `TugboatFrame.captureMicros` |
+| end-to-end | Dart `TugboatFrame.captureMicros` (`frameWait + maskCollect + encodeMicros`). Native `encodeMicros` is `platformChannel` only. |
 | peak transient memory | process RSS / Java heap around one capture (both backends) |
 | process CPU | `/proc/self/stat` or Android Studio CPU profiler, capture window only |
 | dropped Flutter frames | `SchedulerBinding` / systrace `Frame` skipped count during the same window |

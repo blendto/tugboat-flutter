@@ -174,9 +174,9 @@ them.
 | `dHash` | C++ core | ABI timing |
 | `jpeg` | Runtime | 0 on dHash skip |
 | `sha256` | Runtime | 0 on dHash skip |
-| `platformChannel` | Dart | Pigeon round-trip |
+| `platformChannel` | Dart | Pigeon `capture` round-trip. This is the Dart `encodeMicros` on the native path. |
 | `dartUiIsolate` | Dart | Native path should be ~0; adapter measures |
-| end-to-end | Dart | Same as today: wait + result clocks. Not a native field named `captureMicros` |
+| end-to-end | Dart | `frameWait + maskCollect + encodeMicros`. Native `encodeMicros` is only `platformChannel`. Nested native stages are diagnostics; adding them double-counts work already inside the round-trip. |
 
 ## Diagnostics
 

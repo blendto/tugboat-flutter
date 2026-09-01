@@ -97,19 +97,11 @@ class NativeCpuExperimentalPixelSource implements ScreenshotPixelSource {
       masked: request.maskRects.isNotEmpty,
       skippedByDHash: disposition == ScreenshotPixelDisposition.skipped,
       captureMicros: 0,
-      encodeMicros: _encodeMicros(reply.timings, platformChannelMicros),
+      // Dart encodeMicros is the outer Pigeon round-trip. Nested native
+      // stages already happened inside that interval; do not add them.
+      encodeMicros: platformChannelMicros,
       trace: _nativeTrace(request, reply, platformChannelMicros),
     );
-  }
-
-  int _encodeMicros(NativeCaptureTimings timings, int platformChannelMicros) {
-    return timings.surfaceCopyMicros +
-        timings.maskFillMicros +
-        timings.dHashMicros +
-        timings.jpegMicros +
-        timings.sha256Micros +
-        timings.pixelReadbackMicros +
-        platformChannelMicros;
   }
 
   ScreenshotBackendTrace _nativeTrace(

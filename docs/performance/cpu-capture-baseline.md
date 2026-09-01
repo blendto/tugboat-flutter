@@ -32,6 +32,11 @@ Dart's `encodeMicros` and call that a comparison.
 | `platformChannel` | Not used. Capture is entirely Dart. |
 | end-to-end | `TugboatFrame.captureMicros` = frame wait + the three result clocks |
 
+On the native path, Dart `captureMicros` stays 0 and Dart `encodeMicros` is
+the Pigeon `capture` round-trip only. Nested native stages belong on
+`ScreenshotBackendTrace`. Adding them into `encodeMicros` double-counts work
+already inside `platformChannel`.
+
 Skip semantics:
 
 - Paint-generation reuse: no readback; Dart clocks are zero.
