@@ -17,14 +17,16 @@ Stop shipping the experimental backend if any row below is fail.
 | Masks are normalized CaptureBoundary space | Widget fixture → native request masks | [x] `native_privacy_contract_test.dart` | n/a |
 | Opaque fill `(0x1a,0x1a,0x1a,0xff)` after native mapping | Decode JPEG in the host test | [x] `native_privacy_contract_test.dart` | [~] API 35 emulator debug A/B (PR comment); physical release still open |
 | Edge / corner masks | Host mapping + fixture | [x] mapping unit test | [ ] after rotation |
+| Capture scale / density / landscape / insets | Host native JPEG fixture | [x] `native_privacy_contract_test.dart` | [ ] PixelCopy |
 | Force flag forwarded | Native request `force: true` | [x] | [ ] interaction frames |
 | dHash bit-for-bit with Dart | C++ goldens vs `perceptual_hash.dart` | [x] `tb_image_core_test.cpp` | [ ] live frame |
 | No pixel/JPEG logs | Plugin and runtime do not log buffers | [x] source review | [ ] logcat on device |
 | Replay acceptance still green | Default Flutter backend | [x] 379 `tugboat` tests | [ ] Android instrumentation |
 
-Device-only rows stay open until a physical Android run of
-`NativePrivacyFixtureScreen` through `nativeCpuExperimental` decodes the
-returned JPEG and confirms opaque tiles after rotation, capture-scale
-changes, keyboard, and inset changes.
+Device-only PixelCopy rows stay open until a physical Android run of
+`NativePrivacyFixtureScreen` through `nativeCpuExperimental` confirms opaque
+tiles after real rotation, keyboard, and inset changes. Host widget tests
+cover capture-scale, density, landscape layout, and view-inset mapping with
+the same floor/ceil JPEG path as P6.02.
 
 Do not make native capture the default while any device row is open.

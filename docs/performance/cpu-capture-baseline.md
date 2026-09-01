@@ -72,9 +72,9 @@ pins, not with the host desktop toolchain.
 | --- | --- |
 | Flutter default NDK | 28.2.13676358 (r28c), clang 19.0.1 |
 | Android SDK CMake | 3.22.1 |
-| AGP (example) | 8.9.1 |
-| Kotlin plugin (example) | 2.1.0 |
-| Gradle wrapper (example) | 8.12 |
+| AGP (example) | 8.11.1 |
+| Kotlin plugin (example) | 2.2.20 |
+| Gradle wrapper (example) | 8.14 |
 | Flutter min Gradle (3.47.2) | 8.14.0 |
 | Example min / compile SDK | min 24, compile/target 36 |
 | Package constraints | Dart `^3.9.2`, Flutter `>=3.35.0` |
@@ -99,9 +99,9 @@ Flutter 3.47 documents iOS 15 / macOS 12. P0 did not run Xcode.
 
 These are not native-capture comparison gates.
 
-- **Example APK:** `flutter build apk --release` fails because Gradle 8.12 is
-  below Flutter 3.47.2's 8.14.0 minimum. This blocks the official example
-  release build, not PixelCopy.
+- **Example APK:** wrapper is Gradle 8.14 / AGP 8.11.1 / Kotlin 2.2.20 to meet
+  Flutter 3.47's floor. Confirm `flutter build apk --release` on a machine
+  with that Flutter SDK. This VM may not have Flutter installed.
 - **Complexity gate:** `dallow 0.2.1` crashes on Dart 3.13
   (`Missing implementation of visitDotShorthandPropertyAccess`). `dart analyze`
   is clean; the complexity script cannot run on this toolchain until dallow

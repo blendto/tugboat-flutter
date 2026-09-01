@@ -222,4 +222,137 @@ void main() {
     expect(attempt.result!.contentHash, isNotEmpty);
     expect(attempt.result!.dHash, hasLength(64));
   });
+
+  testWidgets('native masks stay opaque at each capture scale', (tester) async {
+    for (final ratio in <double>[0.5, 0.75, 1.0, 1.5]) {
+      await _expectNativeMasks(
+        tester,
+        capturePixelRatio: ratio,
+        canvas: const Size(80, 80),
+      );
+    }
+  });
+
+  testWidgets('native masks stay opaque after density changes', (tester) async {
+    const physical = Size(240, 240);
+    for (final dpr in <double>[1.0, 2.0, 3.0]) {
+      tester.view.devicePixelRatio = dpr;
+      tester.view.physicalSize = physical;
+      await _expectNativeMasks(
+        tester,
+        capturePixelRatio: 1,
+        canvas: Size(physical.width / dpr, physical.height / dpr),
+      );
+    }
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
+  testWidgets('native masks stay opaque after a landscape layout', (
+    tester,
+  ) async {
+    await _expectNativeMasks(
+      tester,
+      capturePixelRatio: 1,
+      canvas: const Size(160, 80),
+    );
+  });
+
+  testWidgets('native masks stay opaque after keyboard-style view insets', (
+    tester,
+  ) async {
+    await _expectNativeMasks(
+      tester,
+      capturePixelRatio: 1,
+      canvas: const Size(80, 80),
+      viewInsets: const EdgeInsets.only(bottom: 24),
+    );
+  });
+}
+
+Future<void> _expectNativeMasks(
+  WidgetTester tester, {
+  required double capturePixelRatio,
+  required Size canvas,
+  EdgeInsets viewInsets = EdgeInsets.zero,
+}) async {
+  final api = _FakeHostApi((request) async => _maskedJpegReply(request));
+  final boundaryKey = GlobalKey();
+  final capturer = ScreenshotCapturer(
+    boundaryKey: boundaryKey,
+    maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
+    anchorResolver: AnchorResolver(rootKey: boundaryKey),
+    pixelRatio: capturePixelRatio,
+    screenshotCaptureBackend:
+        TugboatScreenshotCaptureBackend.nativeCpuExperimental,
+    nativeClient: NativeCaptureClient(api: api),
+    frameWaiter: () async {},
+  );
+  addTearDown(capturer.dispose);
+
+  final innerHeight = canvas.height - viewInsets.bottom;
+  final secret = canvas.shortestSide * 0.25;
+  await tester.pumpWidget(
+    MediaQuery(
+      data: MediaQueryData(
+        size: canvas,
+        viewInsets: viewInsets,
+        padding: viewInsets,
+      ),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: TugboatCaptureBoundary(
+            key: boundaryKey,
+            child: SizedBox(
+              width: canvas.width,
+              height: innerHeight,
+              child: Stack(
+                children: [
+                  const Positioned.fill(
+                    child: ColoredBox(color: Color(0xffff0000)),
+                  ),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    width: secret,
+                    height: secret,
+                    child: const TugboatSensitive(
+                      child: ColoredBox(color: Color(0xff00ff00)),
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    width: secret,
+                    height: secret,
+                    child: const TugboatSensitive(
+                      child: ColoredBox(color: Color(0xff0000ff)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  final attempt = await capturer.captureAttempt(
+    force: true,
+    waitForFrame: false,
+  );
+  expect(attempt.failure, isNull, reason: 'capturePixelRatio=$capturePixelRatio');
+  final jpeg = attempt.result!.bytes;
+  final decoded = img.decodeJpg(jpeg)!;
+  expect(decoded.width, greaterThan(0));
+  expect(decoded.height, greaterThan(0));
+  final secretPx = decoded.getPixel(1, 1);
+  final publicPx = decoded.getPixel(decoded.width ~/ 2, decoded.height ~/ 2);
+  final edgePx = decoded.getPixel(decoded.width - 2, decoded.height - 2);
+  expect(secretPx.r.toInt(), closeTo(0x1a, 2));
+  expect(secretPx.g.toInt(), closeTo(0x1a, 2));
+  expect(edgePx.r.toInt(), closeTo(0x1a, 2));
+  expect(publicPx.r.toInt(), greaterThan(200));
 }

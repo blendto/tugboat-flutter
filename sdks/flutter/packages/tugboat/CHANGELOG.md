@@ -13,6 +13,8 @@ Patch release after `0.8.11`.
 - Native `encodeMicros` is the Pigeon capture round-trip only. Nested native
   stage timings stay on the backend trace so `TugboatFrame.captureMicros` does
   not double-count PixelCopy, dHash, JPEG, and SHA-256.
+- Raise the example Android wrapper to Gradle 8.14 / AGP 8.11.1 / Kotlin 2.2.20
+  so Flutter 3.47 can build a release APK for device-lab capture gates.
 - Document the mobile monorepo, native capture contracts, fallback, coverage,
   and path-aware version / license / API-surface checks. Native capture stays
   experimental; Flutter remains on the 0.8.12 line.

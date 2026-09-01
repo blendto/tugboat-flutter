@@ -625,8 +625,8 @@ Use the Flutter backend on older supported devices.
 - [x] P6.04 Verify that each mask is opaque.
 - [x] P6.05 Verify mask behavior at each screen edge.
 - [ ] P6.06 Verify masks after device rotation.
-- [ ] P6.07 Verify masks at each capture scale.
-- [ ] P6.08 Verify masks after density changes.
+- [x] P6.07 Verify masks at each capture scale.
+- [x] P6.08 Verify masks after density changes.
 - [ ] P6.09 Verify masks after keyboard changes.
 - [ ] P6.10 Verify masks after system-inset changes.
 - [x] P6.11 Verify that raw RGBA data does not cross the platform channel.
