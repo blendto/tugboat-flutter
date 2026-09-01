@@ -9,8 +9,10 @@ gates have not passed. Do not:
 - make `nativeCpuExperimental` the default
 
 Keep `TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
-The 0.8.12 adapter may consume `capture-runtime` `0.1.0` from untracked
-`.local-maven` after `bash tool/ci/build-android-runtime.sh`.
+The 0.8.13 Flutter plugin compiles `platforms/android/capture-runtime` from
+source and does not consume `.local-maven`. That local Maven repo is only
+for the standalone native Android sample after
+`bash tool/ci/build-android-runtime.sh`.
 
 When gates pass, follow [process.md](../../docs/releases/process.md).
 

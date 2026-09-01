@@ -3,8 +3,8 @@
 /// [flutterRepaintBoundary] is the supported default. It reads pixels through
 /// Flutter's `RepaintBoundary.toImage` path.
 ///
-/// [nativeCpuExperimental] is an opt-in Android CPU capture path. It is
-/// experimental: keep [flutterRepaintBoundary] in production until native
+/// [nativeCpuExperimental] is an opt-in Android and iOS CPU capture path. It
+/// is experimental: keep [flutterRepaintBoundary] in production until native
 /// privacy and performance gates pass. Unsupported devices and native
 /// failures fall back to [flutterRepaintBoundary] for that request only.
 /// Cancellation does not fall back. Native and Flutter results are never

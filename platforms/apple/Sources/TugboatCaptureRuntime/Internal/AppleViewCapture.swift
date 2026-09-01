@@ -94,10 +94,10 @@ enum AppleViewCapture {
   ) -> Bool {
     switch coverage {
     case .engineSurface:
-      // FlutterView implements CALayerDelegate.draw(_:in:) by asking the
-      // engine to rerender its last layer tree into readable memory. Rendering
-      // the live layer preserves Flutter Metal content. A snapshotView copy
-      // loses that engine delegate and produces an empty Flutter surface.
+      // FlutterView implements CALayerDelegate. Rendering the live layer is
+      // the experimental CPU path. Core Graphics does not copy CAMetalLayer
+      // contents by itself; physical Metal coverage is a device-lab gate.
+      // snapshotView copies lose the engine delegate and go blank.
       view.layer.render(in: context)
       return false
     case .viewHierarchy:

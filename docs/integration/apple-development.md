@@ -25,11 +25,14 @@ below iOS 15.
 
 ## Capture
 
-The default runtime renders the live Flutter layer with
+The default runtime renders the live Flutter view with
 `view.layer.render(in:)` into a BGRA bitmap whose size is the Dart request
-(`pixelWidth` × `pixelHeight`). Flutter's live layer delegate rerenders the
-last Flutter layer tree, so Metal content is present. Coverage is
-`engineSurface`. Embedded UIKit platform views are not guaranteed.
+(`pixelWidth` × `pixelHeight`). FlutterView implements `CALayerDelegate`,
+which is intended to rerender the last Flutter layer tree into CPU-readable
+memory. Core Graphics does not copy `CAMetalLayer` contents by itself, so
+physical Metal coverage is still an open lab gate; simulator output is not
+that gate. Coverage is reported as `engineSurface`. Embedded UIKit platform
+views are not guaranteed.
 
 Native Apple integrations can initialize `CaptureRuntime` with
 `coverage: .viewHierarchy`. That compatibility mode uses

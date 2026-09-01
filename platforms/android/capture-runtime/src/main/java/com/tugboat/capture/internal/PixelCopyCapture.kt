@@ -43,16 +43,22 @@ internal object PixelCopyCapture {
                 guard.onCallback()
                 return@post
             }
-            PixelCopy.request(
-                surfaceView,
-                destination,
-                { result ->
-                    code.set(result)
-                    latch.countDown()
-                    guard.onCallback()
-                },
-                handler,
-            )
+            try {
+                PixelCopy.request(
+                    surfaceView,
+                    destination,
+                    { result ->
+                        code.set(result)
+                        latch.countDown()
+                        guard.onCallback()
+                    },
+                    handler,
+                )
+            } catch (_: IllegalArgumentException) {
+                code.set(PixelCopy.ERROR_SOURCE_INVALID)
+                latch.countDown()
+                guard.onCallback()
+            }
         }
         val completed =
             try {

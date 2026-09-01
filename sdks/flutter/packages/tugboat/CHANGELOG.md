@@ -9,9 +9,9 @@ Patch release after `0.8.12`.
 - The iOS plugin no longer depends on unpublished CocoaPod
   `TugboatCaptureRuntime` and keeps a deployment target of iOS 12. Native
   capture remains runtime-gated to iOS 15.
-- PixelCopy no longer recycles the destination bitmap while an outstanding
-  copy callback may still write to it. Timeout and dispose-interrupt return
-  immediately and leave recycle to the PixelCopy callback.
+- Align Android/iOS plugin packaging versions with Dart `0.8.13`.
+- Bind iOS native capture to the registrar's Flutter view instead of the
+  key window.
 
 ### Added
 

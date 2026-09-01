@@ -3,10 +3,12 @@ import UIKit
 
 public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
   private var runtime: CaptureRuntime?
+  private weak var registrar: FlutterPluginRegistrar?
   private let callbackQueue = DispatchQueue.main
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = TugboatPlugin()
+    instance.registrar = registrar
     instance.runtime = CaptureRuntime()
     NativeCaptureHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
   }
@@ -49,35 +51,10 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
   }
 
   private func flutterView() -> UIView? {
-    if let controller = flutterViewController() {
-      return findFlutterView(controller.view) ?? controller.view
-    }
-    guard let root = keyWindow()?.rootViewController?.view else {
+    guard let controller = registrar?.viewController else {
       return nil
     }
-    return findFlutterView(root)
-  }
-
-  private func flutterViewController() -> FlutterViewController? {
-    guard let root = keyWindow()?.rootViewController else {
-      return nil
-    }
-    return findFlutterViewController(root)
-  }
-
-  private func findFlutterViewController(_ controller: UIViewController) -> FlutterViewController? {
-    if let flutter = controller as? FlutterViewController {
-      return flutter
-    }
-    for child in controller.children {
-      if let found = findFlutterViewController(child) {
-        return found
-      }
-    }
-    if let presented = controller.presentedViewController {
-      return findFlutterViewController(presented)
-    }
-    return nil
+    return findFlutterView(controller.view) ?? controller.view
   }
 
   private func findFlutterView(_ view: UIView) -> UIView? {
@@ -91,15 +68,5 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
       }
     }
     return nil
-  }
-
-  private func keyWindow() -> UIWindow? {
-    if #available(iOS 13.0, *) {
-      let windows = UIApplication.shared.connectedScenes
-        .compactMap { $0 as? UIWindowScene }
-        .flatMap { $0.windows }
-      return windows.first(where: \.isKeyWindow) ?? windows.first
-    }
-    return UIApplication.shared.keyWindow
   }
 }
