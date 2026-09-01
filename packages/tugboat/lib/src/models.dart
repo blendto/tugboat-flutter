@@ -51,6 +51,71 @@ const String tugboatEventStreamDiagnostic = 'diagnostic';
 const int tugboatInteractionSchemaVersion = 2;
 const int tugboatRouteChangeSchemaVersion = 2;
 
+/// Closed set of `route_change.data.overlayKind` values.
+abstract final class TugboatOverlayKind {
+  static const page = 'page';
+  static const sheet = 'sheet';
+  static const dialog = 'dialog';
+  static const popup = 'popup';
+  static const unknown = 'unknown';
+}
+
+/// Maximum `route_change.data.routeStack` entries (bottom → top).
+const int tugboatRouteStackMaxEntries = 16;
+
+/// Split route identity for `route_change` (additive; `route` is unchanged).
+class TugboatRouteIdentity {
+  const TugboatRouteIdentity({
+    required this.routeType,
+    required this.routeNamed,
+    this.route,
+    this.routeName,
+  });
+
+  /// Wire `route` / `fromRoute`: `settings.name` if non-empty, else runtime type.
+  final String? route;
+
+  /// `settings.name` when non-empty; omit on the wire when null.
+  final String? routeName;
+
+  /// Always `route.runtimeType.toString()`.
+  final String routeType;
+
+  /// True iff `settings.name` is non-empty.
+  final bool routeNamed;
+}
+
+/// Mechanical overlay classification from the route type and `is PopupRoute`.
+String tugboatOverlayKindFor(Route<dynamic>? route) {
+  if (route == null) return TugboatOverlayKind.unknown;
+  final typeName = route.runtimeType.toString();
+  if (_routeTypeLooksLikeSheet(typeName)) return TugboatOverlayKind.sheet;
+  if (_routeTypeLooksLikeDialog(typeName)) return TugboatOverlayKind.dialog;
+  if (route is PopupRoute) return TugboatOverlayKind.popup;
+  if (route is PageRoute) return TugboatOverlayKind.page;
+  return TugboatOverlayKind.unknown;
+}
+
+TugboatRouteIdentity tugboatRouteIdentityFor(Route<dynamic>? route) {
+  if (route == null) {
+    return const TugboatRouteIdentity(routeType: 'unknown', routeNamed: false);
+  }
+  final settingsName = route.settings.name;
+  final named = settingsName != null && settingsName.isNotEmpty;
+  final typeName = route.runtimeType.toString();
+  return TugboatRouteIdentity(
+    route: named ? settingsName : typeName,
+    routeName: named ? settingsName : null,
+    routeType: typeName,
+    routeNamed: named,
+  );
+}
+
+bool _routeTypeLooksLikeSheet(String typeName) =>
+    typeName.contains('ModalBottomSheet') || typeName.contains('BottomSheet');
+
+bool _routeTypeLooksLikeDialog(String typeName) => typeName.contains('Dialog');
+
 /// Active application locale captured as evidence, never as fingerprint input.
 class TugboatLocaleInfo {
   const TugboatLocaleInfo({

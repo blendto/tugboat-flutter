@@ -60,13 +60,7 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
       sessionId: sessionId,
       userId: userId,
       traitsId: traitsId,
-      extra: {
-        'routeChangeSchema': tugboatRouteChangeSchemaVersion,
-        if (data['fromRoute'] != null) 'fromRoute': data['fromRoute'],
-        if (data['route'] != null) 'route': data['route'],
-        if (data['navigation'] != null) 'navigation': data['navigation'],
-        if (data['causeEventId'] != null) 'causeEventId': data['causeEventId'],
-      },
+      extra: _routeChangeCollectorExtra(data),
     );
   }
 
@@ -203,4 +197,48 @@ int? frameNumberFromId(String frameId) {
   final match = RegExp(r'(\d+)$').firstMatch(frameId);
   if (match == null) return null;
   return int.parse(match.group(1)!);
+}
+
+const _routeChangeCollectorKeys = <String>[
+  'fromRoute',
+  'route',
+  'navigation',
+  'causeEventId',
+  'causedByInteractionId',
+  'routeName',
+  'routeType',
+  'routeNamed',
+  'fromRouteName',
+  'fromRouteType',
+  'fromRouteNamed',
+  'overlayKind',
+  'presentedOverRoute',
+  'presentedOverRouteInstanceId',
+  'presentedOverOverlayKind',
+  'hostPageRoute',
+  'hostPageRouteInstanceId',
+  'routeStack',
+  'causeTargetFingerprint',
+  'causeGesture',
+];
+
+Map<String, Object?> _routeChangeCollectorExtra(Map<String, Object?> data) {
+  final extra = <String, Object?>{
+    'routeChangeSchema': tugboatRouteChangeSchemaVersion,
+  };
+  _copyPresentRouteChangeKeys(extra, data);
+  if (data['routeStackTruncated'] == true) {
+    extra['routeStackTruncated'] = true;
+  }
+  return extra;
+}
+
+void _copyPresentRouteChangeKeys(
+  Map<String, Object?> extra,
+  Map<String, Object?> data,
+) {
+  for (final key in _routeChangeCollectorKeys) {
+    final value = data[key];
+    if (value != null) extra[key] = value;
+  }
 }

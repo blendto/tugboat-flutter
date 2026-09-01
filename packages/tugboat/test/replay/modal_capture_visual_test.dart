@@ -47,6 +47,8 @@ void main() {
         reason: 'base frame bottom region remains the red scaffold',
       );
       expect(push.data['route'], contains('ModalBottomSheetRoute'));
+      expect(push.data['overlayKind'], TugboatOverlayKind.sheet);
+      expect(push.data['routeNamed'], isFalse);
     },
   );
 
@@ -91,6 +93,10 @@ void main() {
       final secondRoute = second.data['route'] as String;
       expect(firstRoute, contains('ModalBottomSheetRoute'));
       expect(secondRoute, contains('ModalBottomSheetRoute'));
+      expect(first.data['overlayKind'], TugboatOverlayKind.sheet);
+      expect(second.data['overlayKind'], TugboatOverlayKind.sheet);
+      expect(second.data['presentedOverRoute'], firstRoute);
+      expect(second.data['hostPageRoute'], '/root');
 
       // Opaque route-instance IDs distinguish stacked anonymous sheets even
       // when the descriptive route string collapses to the same runtime type.
@@ -182,6 +188,10 @@ void main() {
       );
       await fixture.waitForCaptures(tester);
       expect(dialog.afterFrame, isNotNull);
+      expect(dialog.data['overlayKind'], TugboatOverlayKind.dialog);
+      expect(dialog.data['routeNamed'], isTrue);
+      expect(dialog.data['presentedOverRoute'], '/root');
+      expect(dialog.data['hostPageRoute'], '/root');
       final dialogChannels = fixture.colorDominanceInCenter(dialog.afterFrame!);
       expect(
         dialogChannels.blueDominant,
@@ -204,6 +214,8 @@ void main() {
       );
       await fixture.waitForCaptures(tester);
       expect(sheet.afterFrame, isNotNull);
+      expect(sheet.data['overlayKind'], TugboatOverlayKind.sheet);
+      expect(sheet.data['routeNamed'], isTrue);
       final sheetBottom = fixture.colorDominanceInBottom(sheet.afterFrame!);
       expect(sheetBottom.greenDominant, greaterThan(20));
     },

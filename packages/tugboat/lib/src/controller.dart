@@ -453,14 +453,56 @@ class _RouteTransition {
   const _RouteTransition({
     required this.kind,
     required this.routeName,
+    required this.identity,
     required this.transitionDuration,
-    this.overlayKind = 'page',
+    this.overlayKind = TugboatOverlayKind.page,
   });
 
   final _RouteNavigationKind kind;
   final String? routeName;
+  final TugboatRouteIdentity identity;
   final Duration transitionDuration;
   final String overlayKind;
+}
+
+class _RouteSurfaceRecord {
+  const _RouteSurfaceRecord({
+    required this.instanceId,
+    required this.route,
+    required this.routeNamed,
+    required this.overlayKind,
+    required this.navigatorId,
+  });
+
+  final String instanceId;
+  final String route;
+  final bool routeNamed;
+  final String overlayKind;
+  final String navigatorId;
+
+  Map<String, Object?> toStackEntry() => {
+    'routeInstanceId': instanceId,
+    'route': route,
+    'routeNamed': routeNamed,
+    'overlayKind': overlayKind,
+    'navigatorId': navigatorId,
+  };
+}
+
+class _RoutePresentationParent {
+  const _RoutePresentationParent({
+    this.presentedOverRoute,
+    this.presentedOverRouteInstanceId,
+    this.presentedOverOverlayKind,
+    this.hostPageRoute,
+    this.hostPageRouteInstanceId,
+  });
+
+  final String? presentedOverRoute;
+  final String? presentedOverRouteInstanceId;
+  final String? presentedOverOverlayKind;
+  final String? hostPageRoute;
+  final String? hostPageRouteInstanceId;
 }
 
 /// A resolved, visible navigation: what to record and how to update
@@ -471,22 +513,43 @@ class _VisibleRouteChange {
     required this.destinationRoute,
     required this.navigation,
     required this.updatesRoute,
+    required this.routeType,
+    required this.routeNamed,
+    this.routeName,
+    this.fromRouteName,
+    this.fromRouteType,
+    this.fromRouteNamed,
     this.navigatorId,
     this.parentNavigatorId,
     this.routeInstanceId,
     this.fromRouteInstanceId,
     this.stackRevision = 0,
-    this.overlayKind = 'page',
+    this.overlayKind = TugboatOverlayKind.page,
     this.visualObservationGeneration = 0,
     this.navigationOrigin = 'automatic_or_unknown',
     this.causeEventId,
+    this.causeTargetFingerprint,
+    this.causeGesture,
     this.interactionAttribution,
+    this.presentedOverRoute,
+    this.presentedOverRouteInstanceId,
+    this.presentedOverOverlayKind,
+    this.hostPageRoute,
+    this.hostPageRouteInstanceId,
+    this.routeStack = const <Map<String, Object?>>[],
+    this.routeStackTruncated = false,
   });
 
   final String? previousRoute;
   final String? destinationRoute;
   final String navigation;
   final bool updatesRoute;
+  final String? routeName;
+  final String routeType;
+  final bool routeNamed;
+  final String? fromRouteName;
+  final String? fromRouteType;
+  final bool? fromRouteNamed;
   final String? navigatorId;
   final String? parentNavigatorId;
   final String? routeInstanceId;
@@ -496,12 +559,40 @@ class _VisibleRouteChange {
   final int visualObservationGeneration;
   final String navigationOrigin;
   final String? causeEventId;
+  final String? causeTargetFingerprint;
+  final String? causeGesture;
 
   /// Wire form is [InteractionAttribution.claimWireName] (`same_turn` /
   /// `delayed_likely`) when a claim succeeds.
   final InteractionAttribution? interactionAttribution;
+  final String? presentedOverRoute;
+  final String? presentedOverRouteInstanceId;
+  final String? presentedOverOverlayKind;
+  final String? hostPageRoute;
+  final String? hostPageRouteInstanceId;
+  final List<Map<String, Object?>> routeStack;
+  final bool routeStackTruncated;
+
+  bool get bypassesExplorationSuppression =>
+      causeEventId != null || overlayKind != TugboatOverlayKind.page;
 
   Map<String, Object?> ownershipData() => {
+    ..._routeIdentityData(),
+    ..._routeSurfaceData(),
+    ..._routeCauseData(),
+    ..._routePresentationData(),
+  };
+
+  Map<String, Object?> _routeIdentityData() => {
+    if (routeName != null) 'routeName': routeName,
+    'routeType': routeType,
+    'routeNamed': routeNamed,
+    if (fromRouteName != null) 'fromRouteName': fromRouteName,
+    if (fromRouteType != null) 'fromRouteType': fromRouteType,
+    if (fromRouteNamed != null) 'fromRouteNamed': fromRouteNamed,
+  };
+
+  Map<String, Object?> _routeSurfaceData() => {
     if (navigatorId != null) 'navigatorId': navigatorId,
     if (parentNavigatorId != null) 'parentNavigatorId': parentNavigatorId,
     if (routeInstanceId != null) 'routeInstanceId': routeInstanceId,
@@ -510,10 +601,29 @@ class _VisibleRouteChange {
     'overlayKind': overlayKind,
     'visualObservationGeneration': visualObservationGeneration,
     'navigationOrigin': navigationOrigin,
+  };
+
+  Map<String, Object?> _routeCauseData() => {
     if (causeEventId != null) 'causeEventId': causeEventId,
     if (causeEventId != null) 'causedByInteractionId': causeEventId,
+    if (causeTargetFingerprint != null)
+      'causeTargetFingerprint': causeTargetFingerprint,
+    if (causeGesture != null) 'causeGesture': causeGesture,
     if (interactionAttribution != null)
       'interactionAttribution': interactionAttribution!.claimWireName,
+  };
+
+  Map<String, Object?> _routePresentationData() => {
+    if (presentedOverRoute != null) 'presentedOverRoute': presentedOverRoute,
+    if (presentedOverRouteInstanceId != null)
+      'presentedOverRouteInstanceId': presentedOverRouteInstanceId,
+    if (presentedOverOverlayKind != null)
+      'presentedOverOverlayKind': presentedOverOverlayKind,
+    if (hostPageRoute != null) 'hostPageRoute': hostPageRoute,
+    if (hostPageRouteInstanceId != null)
+      'hostPageRouteInstanceId': hostPageRouteInstanceId,
+    if (routeStack.isNotEmpty) 'routeStack': routeStack,
+    if (routeStackTruncated) 'routeStackTruncated': true,
   };
 }
 
@@ -525,6 +635,8 @@ class _NavigatorSurfaceRegistry {
   final Map<NavigatorState, String> _navigatorIds = <NavigatorState, String>{};
   final Map<String, List<String>> _stacks = <String, List<String>>{};
   final Map<String, String?> _parentByNavigator = <String, String?>{};
+  final Map<String, _RouteSurfaceRecord> _records =
+      <String, _RouteSurfaceRecord>{};
   int _navigatorSeq = 0;
   int _routeSeq = 0;
 
@@ -532,6 +644,7 @@ class _NavigatorSurfaceRegistry {
     _navigatorIds.clear();
     _stacks.clear();
     _parentByNavigator.clear();
+    _records.clear();
     _navigatorSeq = 0;
     _routeSeq = 0;
   }
@@ -599,6 +712,98 @@ class _NavigatorSurfaceRegistry {
     final stack = stackFor(navigatorId);
     return stack.isEmpty ? null : stack.last;
   }
+
+  void remember({
+    required String instanceId,
+    required String navigatorId,
+    required TugboatRouteIdentity identity,
+    required String overlayKind,
+  }) {
+    final route = identity.route;
+    if (route == null || route.isEmpty) return;
+    _records[instanceId] = _RouteSurfaceRecord(
+      instanceId: instanceId,
+      route: route,
+      routeNamed: identity.routeNamed,
+      overlayKind: overlayKind,
+      navigatorId: navigatorId,
+    );
+  }
+
+  _RoutePresentationParent? presentationParent({
+    required String navigatorId,
+    required String instanceId,
+    required String overlayKind,
+    required bool isPush,
+  }) {
+    if (!isPush || overlayKind == TugboatOverlayKind.page) return null;
+    final presented = _presentedOver(navigatorId, instanceId);
+    final host = _hostPage(navigatorId);
+    if (presented == null && host == null) return null;
+    return _RoutePresentationParent(
+      presentedOverRoute: presented?.route,
+      presentedOverRouteInstanceId: presented?.instanceId,
+      presentedOverOverlayKind: presented?.overlayKind,
+      hostPageRoute: host?.route,
+      hostPageRouteInstanceId: host?.instanceId,
+    );
+  }
+
+  List<Map<String, Object?>> stackSnapshot(String navigatorId) {
+    final stack = _stacks[navigatorId];
+    if (stack == null || stack.isEmpty) return const [];
+    final start = _stackSnapshotStart(stack.length);
+    final entries = <Map<String, Object?>>[];
+    for (var i = start; i < stack.length; i++) {
+      final record = _records[stack[i]];
+      if (record != null) entries.add(record.toStackEntry());
+    }
+    return entries;
+  }
+
+  bool stackTruncated(String navigatorId) =>
+      (_stacks[navigatorId]?.length ?? 0) > tugboatRouteStackMaxEntries;
+
+  _RouteSurfaceRecord? _presentedOver(String navigatorId, String instanceId) {
+    final stack = _stacks[navigatorId];
+    if (stack == null || stack.length < 2 || stack.last != instanceId) {
+      return null;
+    }
+    return _records[stack[stack.length - 2]];
+  }
+
+  _RouteSurfaceRecord? _hostPage(String navigatorId) {
+    final local = _pageOnStack(navigatorId, skipTop: true);
+    if (local != null) return local;
+    var parentId = _parentByNavigator[navigatorId];
+    while (parentId != null) {
+      final page = _pageOnStack(parentId, skipTop: false);
+      if (page != null) return page;
+      parentId = _parentByNavigator[parentId];
+    }
+    return null;
+  }
+
+  _RouteSurfaceRecord? _pageOnStack(
+    String navigatorId, {
+    required bool skipTop,
+  }) {
+    final stack = _stacks[navigatorId];
+    if (stack == null || stack.isEmpty) return null;
+    final lastIndex = skipTop ? stack.length - 2 : stack.length - 1;
+    for (var i = lastIndex; i >= 0; i--) {
+      final record = _records[stack[i]];
+      if (record != null && record.overlayKind == TugboatOverlayKind.page) {
+        return record;
+      }
+    }
+    return null;
+  }
+
+  static int _stackSnapshotStart(int length) =>
+      length > tugboatRouteStackMaxEntries
+      ? length - tugboatRouteStackMaxEntries
+      : 0;
 
   static NavigatorState? _findParentNavigator(NavigatorState navigator) {
     NavigatorState? parent;
@@ -851,6 +1056,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   int _id = 0;
   String? _currentRoute;
+  TugboatRouteIdentity? _currentRouteIdentity;
   String? _currentNavigatorId;
   String? _currentRouteInstanceId;
   int _visualObservationGeneration = 0;
@@ -4505,6 +4711,12 @@ class TugboatReplayController extends ChangeNotifier {
   void _applyVisibleRouteChange(_VisibleRouteChange change) {
     if (!change.updatesRoute) return;
     _currentRoute = change.destinationRoute;
+    _currentRouteIdentity = TugboatRouteIdentity(
+      route: change.destinationRoute,
+      routeName: change.routeName,
+      routeType: change.routeType,
+      routeNamed: change.routeNamed,
+    );
     _currentNavigatorId = change.navigatorId;
     _currentRouteInstanceId = change.routeInstanceId;
   }
@@ -4530,7 +4742,7 @@ class TugboatReplayController extends ChangeNotifier {
     _VisibleRouteChange change,
   ) =>
       transition.transitionDuration +
-      (_shouldSuppressFrameCapture && change.causeEventId == null
+      (_shouldSuppressFrameCapture && !change.bypassesExplorationSuppression
           ? Duration.zero
           : config.settleDelay);
 
@@ -4734,7 +4946,7 @@ class TugboatReplayController extends ChangeNotifier {
       final capture = _requestCaptureCancellable(
         trigger: TugboatFrameTrigger.route,
         force: true,
-        bypassExplorationSuppression: change.causeEventId != null,
+        bypassExplorationSuppression: change.bypassesExplorationSuppression,
         // The route deadline already includes the configured post-route
         // settle. Scheduling it again here would delay capture twice and can
         // strand widget-backed callers waiting for route completion.
@@ -4976,27 +5188,16 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   _RouteTransition _parseRouteTransition(String type, Route<dynamic>? route) {
+    final identity = tugboatRouteIdentityFor(route);
     return _RouteTransition(
       kind: _RouteNavigationKind.parse(type),
-      routeName: route?.settings.name ?? route?.runtimeType.toString(),
+      routeName: identity.route,
+      identity: identity,
       transitionDuration: route is TransitionRoute<dynamic>
           ? route.transitionDuration
           : Duration.zero,
-      overlayKind: _overlayKindFor(route),
+      overlayKind: tugboatOverlayKindFor(route),
     );
-  }
-
-  static String _overlayKindFor(Route<dynamic>? route) {
-    if (route == null) return 'page';
-    final typeName = route.runtimeType.toString();
-    if (route is PopupRoute) {
-      if (typeName.contains('ModalBottomSheet')) return 'modal';
-      if (typeName.contains('Dialog')) return 'dialog';
-      return 'popup';
-    }
-    if (typeName.contains('ModalBottomSheet')) return 'modal';
-    if (typeName.contains('Dialog')) return 'dialog';
-    return 'page';
   }
 
   /// Resolves [transition] against [_currentRoute], or returns null when it
@@ -5013,34 +5214,81 @@ class TugboatReplayController extends ChangeNotifier {
     Route<dynamic>? departingRoute,
     NavigatorState? navigatorState,
   }) {
-    final routeName = transition.routeName;
-    if (_isInvisibleRouteRemoval(transition, routeName)) {
+    if (_isInvisibleRouteRemoval(transition, transition.routeName)) {
       return null;
     }
-    // Pop/remove callbacks carry the route that becomes visible; without one
-    // there is no destination to record, so the current route is kept.
-    final updatesRoute =
-        transition.kind == _RouteNavigationKind.push ||
-        transition.kind == _RouteNavigationKind.replace ||
-        routeName != null;
-
     final surface = _resolveRouteSurface(
       transition,
       destinationRoute,
       departingRoute,
       navigatorState,
     );
-
+    _rememberObservedRoute(transition, destinationRoute, surface);
     _visualObservationGeneration++;
-    final claimed = _tryClaimInteractionCause(
-      navigatorId: surface.navigatorId ?? _currentNavigatorId,
+    return _visibleRouteChangeFor(
+      transition,
+      surface,
+      claimed: _tryClaimInteractionCause(
+        navigatorId: surface.navigatorId ?? _currentNavigatorId,
+      ),
     );
+  }
+
+  void _rememberObservedRoute(
+    _RouteTransition transition,
+    Route<dynamic>? destinationRoute,
+    ({
+      String? navigatorId,
+      String? parentNavigatorId,
+      String? routeInstanceId,
+      String? fromRouteInstanceId,
+      int stackRevision,
+    })
+    surface,
+  ) {
+    final instanceId = surface.routeInstanceId;
+    final navigatorId = surface.navigatorId;
+    if (destinationRoute == null || instanceId == null || navigatorId == null) {
+      return;
+    }
+    _surfaces.remember(
+      instanceId: instanceId,
+      navigatorId: navigatorId,
+      identity: transition.identity,
+      overlayKind: transition.overlayKind,
+    );
+  }
+
+  _VisibleRouteChange _visibleRouteChangeFor(
+    _RouteTransition transition,
+    ({
+      String? navigatorId,
+      String? parentNavigatorId,
+      String? routeInstanceId,
+      String? fromRouteInstanceId,
+      int stackRevision,
+    })
+    surface, {
+    required InteractionTransaction? claimed,
+  }) {
+    final updatesRoute = _updatesVisibleRoute(transition);
+    final identity = transition.identity;
+    final from = _currentRouteIdentity;
+    final cause = _routeCauseFromClaim(claimed);
+    final presentation = _presentationFor(transition, surface);
+    final navigatorId = surface.navigatorId ?? _currentNavigatorId;
     return _VisibleRouteChange(
       previousRoute: _currentRoute,
-      destinationRoute: updatesRoute ? routeName : _currentRoute,
+      destinationRoute: updatesRoute ? identity.route : _currentRoute,
       navigation: transition.kind.wireName,
       updatesRoute: updatesRoute,
-      navigatorId: surface.navigatorId ?? _currentNavigatorId,
+      routeName: identity.routeName,
+      routeType: identity.routeType,
+      routeNamed: identity.routeNamed,
+      fromRouteName: from?.routeName,
+      fromRouteType: from?.routeType,
+      fromRouteNamed: from?.routeNamed,
+      navigatorId: navigatorId,
       parentNavigatorId: surface.parentNavigatorId,
       routeInstanceId: surface.routeInstanceId ?? _currentRouteInstanceId,
       fromRouteInstanceId: surface.fromRouteInstanceId,
@@ -5050,8 +5298,70 @@ class TugboatReplayController extends ChangeNotifier {
       navigationOrigin: claimed == null
           ? 'automatic_or_unknown'
           : 'interaction',
-      causeEventId: claimed?.id,
+      causeEventId: cause.id,
+      causeTargetFingerprint: cause.fingerprint,
+      causeGesture: cause.gesture,
       interactionAttribution: claimed?.attribution,
+      presentedOverRoute: presentation?.presentedOverRoute,
+      presentedOverRouteInstanceId: presentation?.presentedOverRouteInstanceId,
+      presentedOverOverlayKind: presentation?.presentedOverOverlayKind,
+      hostPageRoute: presentation?.hostPageRoute,
+      hostPageRouteInstanceId: presentation?.hostPageRouteInstanceId,
+      routeStack: _routeStackSnapshot(navigatorId),
+      routeStackTruncated: _routeStackTruncated(navigatorId),
+    );
+  }
+
+  List<Map<String, Object?>> _routeStackSnapshot(String? navigatorId) =>
+      navigatorId == null
+      ? const <Map<String, Object?>>[]
+      : _surfaces.stackSnapshot(navigatorId);
+
+  bool _routeStackTruncated(String? navigatorId) =>
+      navigatorId != null && _surfaces.stackTruncated(navigatorId);
+
+  bool _updatesVisibleRoute(_RouteTransition transition) =>
+      transition.kind == _RouteNavigationKind.push ||
+      transition.kind == _RouteNavigationKind.replace ||
+      transition.routeName != null;
+
+  ({String? id, String? fingerprint, String? gesture}) _routeCauseFromClaim(
+    InteractionTransaction? claimed,
+  ) {
+    if (claimed == null) {
+      return (id: null, fingerprint: null, gesture: null);
+    }
+    final fingerprint =
+        claimed.origin.targetAnchor?.fingerprint ??
+        claimed.targetAnchor?.fingerprint;
+    return (
+      id: claimed.id,
+      fingerprint: fingerprint == null || fingerprint.isEmpty
+          ? null
+          : fingerprint,
+      gesture: claimed.gesture.wireName,
+    );
+  }
+
+  _RoutePresentationParent? _presentationFor(
+    _RouteTransition transition,
+    ({
+      String? navigatorId,
+      String? parentNavigatorId,
+      String? routeInstanceId,
+      String? fromRouteInstanceId,
+      int stackRevision,
+    })
+    surface,
+  ) {
+    final navigatorId = surface.navigatorId;
+    final instanceId = surface.routeInstanceId;
+    if (navigatorId == null || instanceId == null) return null;
+    return _surfaces.presentationParent(
+      navigatorId: navigatorId,
+      instanceId: instanceId,
+      overlayKind: transition.overlayKind,
+      isPush: transition.kind == _RouteNavigationKind.push,
     );
   }
 
