@@ -35,8 +35,9 @@ Android native CPU capture is an experimental opt-in
 (`TugboatScreenshotCaptureBackend.nativeCpuExperimental`). iOS uses the
 same opt-in flag for a live Flutter-layer CPU path. Both stay experimental
 until privacy device rows and
-[performance gates](docs/performance/cpu-capture-method.md) pass. Raw pixels
-never enter Dart. See
+[native capture contracts](docs/architecture/native-capture-contracts.md) plus
+the [experimental native CPU](docs/integration/native-cpu-experimental.md)
+gates pass. Raw pixels never enter Dart. See
 [experimental native CPU capture](docs/integration/native-cpu-experimental.md).
 
 ## Requirements
@@ -84,8 +85,9 @@ the workspace has one shared `pubspec.lock`.
 
 ## Documentation
 
-See [docs/](docs/README.md) for architecture, integration, privacy, and
-release process.
+See [docs/](docs/README.md) for public architecture, integration, privacy, and
+release process. Working notes are not product docs; see
+[docs/publishing.md](docs/publishing.md).
 
 ## License
 

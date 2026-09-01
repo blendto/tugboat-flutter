@@ -24,11 +24,12 @@ disposal do not fall back. Native and Flutter results are never published
 for the same request.
 
 Raw pixels never cross the platform channel. Do not enable this backend in
-production until the privacy and performance gates in
-[cpu-capture-baseline.md](../performance/cpu-capture-baseline.md) and
-[cpu-capture-method.md](../performance/cpu-capture-method.md) pass. Host vs
-device privacy evidence:
-[native-cpu-signoff.md](../privacy/native-cpu-signoff.md).
+production until the comparison contract in
+[cpu-capture-baseline.md](../performance/cpu-capture-baseline.md) and the
+privacy rules in
+[native-capture-contracts.md](../architecture/native-capture-contracts.md)
+hold for the target app. Physical-device privacy and performance sign-off is
+an internal lab gate.
 
 The Apple plugin reports native capture as supported on iOS 15+. Physical
 device privacy and performance rows are still open. Do not

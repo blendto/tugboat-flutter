@@ -10,8 +10,8 @@ there is no Android device, and debug/emulator numbers are not gates.
 4. Warm up ≥ 30 captures; measure ≥ 200 per scenario.
 5. Export `capture_diagnostic` timing fields plus RSS, CPU, dropped frames,
    and JPEG byte length.
-6. Write percentiles into
-   [docs/performance/cpu-capture-results.md](../../docs/performance/cpu-capture-results.md).
+6. Write percentiles into the internal lab results note
+   (`internal/docs/lab/cpu-capture-results.md`).
 
 Do not log pixel or JPEG payloads. Compare JPEG size against the envelope in
 [cpu-capture-baseline.md](../../docs/performance/cpu-capture-baseline.md).

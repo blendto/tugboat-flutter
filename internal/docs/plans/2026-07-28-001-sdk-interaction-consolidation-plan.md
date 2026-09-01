@@ -31,7 +31,7 @@ The raw stream is also too broad for semantic enrichment: a single scroll can
 produce a provisional tap, `scroll_start`, `swipe`, and `scroll_end`; a tap can
 be represented by both `tap` and `tap_settled`; and `capture_diagnostic`
 records are mixed into normal session activity. A production 0.4.0 session
-(`session-1785242298527917`) had 570 records: 202 `tap`, 151 `tap_settled`, and
+A later Blend production session had 570 records: 202 `tap`, 151 `tap_settled`, and
 161 scroll-related records. This creates false candidates for enrichment and
 inflates insight calculations such as rage taps.
 

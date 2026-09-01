@@ -47,9 +47,9 @@ Stop implementation if the native path cannot keep current session and frame sem
 ## Product and Technical Decisions
 
 Authoritative contracts are
-[repository-scope.md](../architecture/repository-scope.md),
-[native-capture-contracts.md](../architecture/native-capture-contracts.md),
-and [docs/decisions](../decisions). This plan is sequencing. If they
+[repository-scope.md](../../../docs/architecture/repository-scope.md),
+[native-capture-contracts.md](../../../docs/architecture/native-capture-contracts.md),
+and [docs/decisions](../../../docs/decisions). This plan is sequencing. If they
 disagree, the architecture files win.
 
 ### Core decisions
@@ -722,7 +722,7 @@ Use the Flutter backend on older supported devices.
 
 Public Maven/pub.dev publication, `0.9.0`, and git tags are **blocked** until
 device privacy rows and performance gates pass. See
-[tool/release/README.md](../../tool/release/README.md).
+[tool/release/README.md](../../../tool/release/README.md).
 
 - [ ] P9.01 Build the final Android AAR.
 - [ ] P9.02 Generate artifact checksums.

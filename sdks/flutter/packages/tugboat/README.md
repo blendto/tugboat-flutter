@@ -424,9 +424,10 @@ Screenshots are the only captured surface that can contain rendered user
 content. Choose an explicit production masking policy and test custom widgets,
 platform views, and overlays in the target app before enabling production
 capture. The experimental native CPU backend still applies the same mask
-rects before JPEG; do not enable it in production until
-[native CPU sign-off](../../../docs/privacy/native-cpu-signoff.md) is complete.
-See [native-cpu-experimental.md](../../../docs/integration/native-cpu-experimental.md).
+rects before JPEG; do not enable it in production until the privacy pipeline
+and [native capture contracts](../../../docs/architecture/native-capture-contracts.md)
+are met for the target app. See
+[native-cpu-experimental.md](../../../docs/integration/native-cpu-experimental.md).
 
 ## Event and frame model
 
@@ -642,6 +643,6 @@ sink registration API has not been published.
   opt-in external events and network observations with the privacy boundaries
   described above.
 
-See [Collector integration](../../docs/integration/collector.md) and
-[Capture and fingerprint status](../../docs/design/capture-and-fingerprint.md)
+See [Collector integration](../../../docs/integration/collector.md) and
+[Capture and fingerprint status](../../../docs/design/capture-and-fingerprint.md)
 for transport details, implementation evidence, and prioritized next work.

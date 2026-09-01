@@ -9,8 +9,7 @@ The base is `da3025cc1108d4738196961952f76128a11e43d1`.
 
 The CLI used its default model, Cursor Grok 4.6 High, in read-only `ask` mode.
 It read the source, tests, exact patches, and test logs supplied by the operator.
-It did not execute tests or inspect the emulator itself. Its session ID is
-`2e0abe2f-a937-4bb1-97ab-c54fbee57644`.
+It did not execute tests or inspect the emulator itself.
 
 ## Findings and fixes
 
@@ -67,7 +66,7 @@ the paywall tap. Counts reconcile, but this is not a passing acceptance run.
 The run was not uploaded. The Flutter runner was detached.
 
 Cursor approval is a code-review result. It is not production acceptance.
-The earlier [Blend gesture report](blend-gesture-check-2026-08-26.md) used
+The earlier [Blend gesture report](../canaries/blend-gesture-check-2026-08-26.md) used
 `0.8.8` plus the original patch. It does not validate the later travel and
 lifecycle changes. PMKit host gesture-label and grouping defects remain
 outside this SDK PR.

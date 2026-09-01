@@ -1,11 +1,11 @@
 # Production replay run report: SDK 0.4.12
 
 Date: 2026-07-27
-Source: ClickHouse production tables (`pmkit.sessions`, `pmkit.raw_events`)
-Session under analysis: `session-1785142623932166`
+Source: ClickHouse production tables
+Session under analysis: redacted
 SDK version: `0.4.12`
-App: `to.blend.mobile_app`
-Blend version/build: `3.17.177+1472`
+App: Blend Android
+Blend version/build: redacted
 Device platform: Android
 
 ## Verdict
@@ -25,10 +25,10 @@ ambiguous interaction evidence.
 
 | Field | Value |
 | --- | --- |
-| Session ID | `session-1785142623932166` |
+| Session ID | redacted |
 | SDK version | `0.4.12` |
-| App ID | `to.blend.mobile_app` |
-| Blend build | `3.17.177+1472` |
+| App ID | Blend Android |
+| Blend build | redacted |
 | First event | `2026-07-27 08:57:03.932 UTC` |
 | Last event | `2026-07-27 09:02:33.456 UTC` |
 | Session received | `2026-07-27 08:57:08.619 UTC` |
@@ -36,8 +36,7 @@ ambiguous interaction evidence.
 | Unique event IDs | `249` |
 | Referenced frames | `28` |
 
-Note: a later session, `session-1785142837528027`, was present in ClickHouse but
-reported SDK `0.4.0`. It was excluded from this verdict.
+Note: a later session on SDK `0.4.0` was present and excluded from this verdict.
 
 ## Event summary
 

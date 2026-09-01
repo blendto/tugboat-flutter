@@ -15,7 +15,8 @@ Adapters and native runtimes version independently. See
 7. `BASE_SHA=<pr-base> bash tool/ci/check-version-policy.sh`
 
 Do not publish Maven Central, CocoaPods, or pub.dev until privacy and
-performance gates pass.
+performance gates pass. Production replay acceptance is an internal canary,
+not a public docs procedure.
 
 ## Version policy
 

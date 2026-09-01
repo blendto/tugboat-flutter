@@ -11,4 +11,4 @@
 There is no encode-then-cover path. A failure must not publish an unmasked
 frame. Coordinates, fill color, and stop conditions are in
 [native-capture-contracts.md](../architecture/native-capture-contracts.md).
-Host vs device evidence: [native-cpu-signoff.md](native-cpu-signoff.md).
+Device-lab sign-off is an internal gate, not a public shipping claim.

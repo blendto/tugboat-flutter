@@ -3,7 +3,7 @@
 Status: host-side checks landed; device JPEG checks remain
 
 Authoritative rules:
-[native-capture-contracts.md](../architecture/native-capture-contracts.md).
+[native-capture-contracts.md](../../../docs/architecture/native-capture-contracts.md).
 
 Stop shipping the experimental backend if any row below is fail.
 

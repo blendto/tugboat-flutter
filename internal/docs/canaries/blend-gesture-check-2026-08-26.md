@@ -19,29 +19,14 @@ This check used the local fixes, not the released SDK alone.
 | Item | Value |
 | --- | --- |
 | SDK | `0.8.8` plus the local, unreleased gesture fixes |
-| SDK base commit | `8b5442aa0c43e701548f7e5a9ba3c46d37ef68bd` |
-| Blend | `to.blend.mobile_app`, `3.17.183 (1478)` |
-| Blend commit | `4cb7172499c8c74fe80914c5f755b60b7a99142a` |
+| Host app | Blend Android (local path override, not a published pairing) |
 | Flutter | FVM `3.35.7` |
-| PMKit CLI commit | `c3c332d5d89e2d34857ecc3b7487c40fe575e3f9` |
-| Device | `emulator-5554`, `device_api35_tugboat`, Android API 35 |
-| Input screen | 1080 × 2400 physical pixels |
-| Run | `e55d7487-16d3-4e7c-b429-fd7f501c9393` |
-| SDK session | `session-1787735905652208` |
-| Run UTC range | `2026-08-26T09:19:55.815Z` to `2026-08-26T10:12:00.180Z` |
+| Device | Android API 35 emulator, 1080 × 2400 |
+| Collector | local exploration |
 
-Blend used the existing local `tugboat` and `tugboat_dio` path overrides.
-Launch command, from `/Users/chinukb/work/mobile_app`:
-
-```sh
-fvm flutter run -d emulator-5554 --dart-define=TUGBOAT_EXPLORATION=1 --dart-define=TUGBOAT_COLLECTOR_ENV=local
-```
-
-The PMKit CLI recorded passively:
-
-```sh
-bun src/cli.ts record --device emulator-5554 --package to.blend.mobile_app --settle 1200
-```
+Launch used local `tugboat` / `tugboat_dio` path overrides and a local
+collector. Host-app paths, package ids, session ids, and run ids are omitted
+from this tree.
 
 The operator sent each touch sequence through authenticated Android Emulator
 gRPC `sendTouch`. PMKit did not drive the app. Each input used continuous touch
@@ -49,13 +34,12 @@ contacts with explicit release events. The operator checked the screen between
 actions and saved before/after screenshots.
 
 The tested path was Home → Create design → Start Blank → Done → Add → Gallery
-sample → Use Original. The sample was Blend's bundled
-`assets/images/onboarding/stage_it_onboarding_before.jpg`. No private photo was
-used. All six gesture tests ran on `/canvas` with that photo selected.
+sample → Use Original. The sample was Blend's bundled onboarding asset. No
+private photo was used. All six gesture tests ran on `/canvas` with that photo
+selected.
 
 An earlier onboarding/photo flow stalled at a purchase-page loading screen.
 The operator restarted the app without clearing data. No purchase was made.
-That setup run is `b2d93716-9b63-4a5a-b1cf-78b5da39a96a`.
 
 ## Observed results
 
@@ -83,27 +67,11 @@ for those two tests and confirmed the smaller and moved photo.
 
 ## Evidence and quality check
 
-The raw run is local:
+The raw run and PNG evidence stay on the operator machine. They are not stored
+in this repository.
 
-```text
-/Users/chinukb/work/tugboat/pmkit_cli/.pmkit/runs/e55d7487-16d3-4e7c-b429-fd7f501c9393
-```
-
-The separate evidence directory contains 12 before/after PNGs, the six input
-sequences, input timestamps, extracted raw SDK events, host actions, build
-identity, and the exact SDK source/test diff used by this build:
-
-```text
-/Users/chinukb/work/tugboat/pmkit_cli/.pmkit/gesture-verifications/e55d7487-16d3-4e7c-b429-fd7f501c9393
-```
-
-The recording finished with `q`. This command passed with exit code 0:
-
-```sh
-bun src/cli.ts inspect e55d7487-16d3-4e7c-b429-fd7f501c9393 --write --json --strict
-```
-
-The inspector reports `ok`, 11 steps, 62 step SDK events, and 75 background
+The recording finished with `q`. Strict inspect passed with exit code 0. The
+inspector reports `ok`, 11 steps, 62 step SDK events, and 75 background
 events. It reports one informational event-gap notice. This is a structural
 check. It does not detect the gesture label and step-grouping errors above.
 All six gesture after-frame files exist. No run was uploaded.

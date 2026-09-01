@@ -7,10 +7,10 @@ running Blend through a similar flow to the baseline session.
 
 | Field | Value |
 | --- | --- |
-| Session | `session-1785142623932166` |
+| Session | redacted |
 | SDK | `0.4.12` |
-| App | `to.blend.mobile_app` |
-| Build | `3.17.177+1472` |
+| App | Blend Android |
+| Build | redacted |
 
 | Metric | Baseline |
 | --- | ---: |

@@ -2,7 +2,7 @@
 
 Phase 7 device gates cannot close in this environment: there is no physical
 Android device, and the example release APK currently fails Flutter 3.47's
-Gradle 8.14 floor (see [cpu-capture-baseline.md](cpu-capture-baseline.md)).
+Gradle 8.14 floor (see [cpu-capture-baseline.md](../../../docs/performance/cpu-capture-baseline.md)).
 Native CPU capture stays experimental until a device lab fills
 [cpu-capture-results.md](cpu-capture-results.md) from **release** builds.
 
@@ -11,9 +11,9 @@ Do not substitute host-only estimates, emulator numbers, or debug builds.
 ## What to measure
 
 Use the stage names in
-[native-capture-contracts.md](../architecture/native-capture-contracts.md)
+[native-capture-contracts.md](../../../docs/architecture/native-capture-contracts.md)
 (clock ownership table) and
-[cpu-capture-baseline.md](cpu-capture-baseline.md). Native must not put
+[cpu-capture-baseline.md](../../../docs/performance/cpu-capture-baseline.md). Native must not put
 PixelCopy into Dart `captureMicros`.
 
 | Stage | Where it is recorded |
@@ -66,7 +66,7 @@ device classes:
 - ≥ 60% lower Flutter UI-isolate screenshot work
 - ≥ 25% lower peak transient memory
 - no new dropped-frame regression
-- no privacy regression ([native-cpu-signoff.md](../privacy/native-cpu-signoff.md))
+- no privacy regression ([native-cpu-signoff.md](native-cpu-signoff.md))
 - JPEG quality 80, size inside the baseline envelope
 
 Processing time for the gate is end-to-end `TugboatFrame.captureMicros` on
@@ -75,4 +75,4 @@ device class that fails a gate. Do not change the default backend from a
 host-only estimate.
 
 Lab notes and the collection checklist live in
-[tool/benchmarks/README.md](../../tool/benchmarks/README.md).
+[tool/benchmarks/README.md](../../../tool/benchmarks/README.md).

@@ -1,15 +1,16 @@
 # CPU capture baseline
 
-Recorded 2026-08-31 against `main` `dfc816190c8e247366a74d367c75ae1ba447a434`
-(plan commit `4a3ebb1dcb7a79189f35ece3610dbb1d54443ae5`).
+This file is the public comparison contract (stage names, toolchain pins, JPEG
+envelope). Device-lab method and results are internal working notes, not
+shipping claims. Numbers below are not Phase 7 device p50/p95 gates.
+
+Recorded 2026-08-31 against `main` `dfc816190c8e247366a74d367c75ae1ba447a434`.
 
 Host: Linux x86_64, Flutter 3.47.2 / Dart 3.13.2. No physical Android or Apple
-device. No Xcode. Numbers here are not Phase 7 device p50/p95 gates.
+device. No Xcode.
 
 Pipeline ownership, mask policy, dHash, JPEG quality, and platform-view limits
 live in [capture-and-fingerprint.md](../design/capture-and-fingerprint.md).
-This file is only the comparison contract, the pins later phases will compile
-against, and a dated lab note.
 
 ## Comparison contract
 
