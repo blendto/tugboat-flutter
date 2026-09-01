@@ -119,9 +119,10 @@ Closed: `engineSurface | windowComposite | viewHierarchy`.
 | --- | --- |
 | `engineSurface` | Android `PixelCopy` of the active `FlutterSurfaceView`. Not the final SurfaceFlinger composition. |
 | `windowComposite` | Forbidden until that path exists. Do not report it. |
-| `viewHierarchy` | Apple milestone 2. Incomplete descendants set `incomplete=true`. Not a second coverage name. |
+| `viewHierarchy` | Apple `drawHierarchy` of the Flutter view. Incomplete descendants set `incomplete=true`. Not a second coverage name. |
 
-Apple stub (milestone 1): native unavailable, no coverage value.
+The Apple CPU path reports `viewHierarchy` on `ok` and `skippedByDHash`.
+Simulator and device confirmation are still required before publication.
 
 Not guaranteed on `engineSurface`: platform views, separate video/map
 surfaces, `FLAG_SECURE` / DRM, `FlutterTextureView`, hybrid composition.

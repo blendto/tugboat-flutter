@@ -8,6 +8,6 @@
 - `ci/check-version-policy.sh` — path-aware Flutter/runtime/compatibility bumps
 - `ci/check-license.sh` — AGPL-3.0-only
 - `ci/dump-android-runtime-api.py` / `verify-android-runtime-api.sh`
-- `ci/verify-swift-api.sh` — skip until `Package.swift` exists
+- `ci/verify-swift-api.sh` — public Swift API dump vs `platforms/apple/api.txt`
 - `ci/pub-dry-run.sh` — `dart pub publish --dry-run` for Flutter packages
 - `release/` — unpublished local AAR notes; public tags are blocked until gates pass

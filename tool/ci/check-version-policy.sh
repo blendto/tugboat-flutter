@@ -5,6 +5,8 @@
 # docs/releases/compatibility.md must change.
 # Android public Kotlin API or C ABI headers → capture-runtime version
 # must increase, and the compatibility table must change.
+# Apple public Swift API or TugboatCaptureRuntime.podspec → Apple runtime
+# version must increase, and the compatibility table must change.
 # Documentation-only and C++ test/fuzz-only changes skip the Flutter bump.
 set -euo pipefail
 
@@ -54,6 +56,7 @@ pubspec_in_git() {
 }
 
 runtime_gradle="platforms/android/capture-runtime/build.gradle.kts"
+apple_podspec="TugboatCaptureRuntime.podspec"
 compat_file="docs/releases/compatibility.md"
 head_pubspec="sdks/flutter/packages/tugboat/pubspec.yaml"
 
@@ -74,6 +77,7 @@ printf '  %s\n' "${changed[@]}"
 
 needs_flutter_bump=0
 needs_runtime_bump=0
+needs_apple_bump=0
 needs_compat=0
 
 is_flutter_adapter() {
@@ -88,6 +92,15 @@ is_flutter_adapter() {
       ;;
   esac
   return 1
+}
+
+extract_apple_version() {
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    echo ""
+    return
+  fi
+  grep -E "s\.version[[:space:]]*=" "$file" | head -1 | sed -E "s/.*['\"]([0-9][^'\"]*)['\"].*/\1/"
 }
 
 is_runtime_public_api() {
@@ -106,6 +119,22 @@ is_runtime_public_api() {
   return 1
 }
 
+is_apple_public_api() {
+  local f="$1"
+  case "$f" in
+    platforms/apple/Sources/TugboatCaptureRuntime/Internal/*)
+      return 1
+      ;;
+    platforms/apple/Sources/TugboatCaptureRuntime/*)
+      return 0
+      ;;
+    TugboatCaptureRuntime.podspec)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
 for f in "${changed[@]}"; do
   if is_flutter_adapter "$f"; then
     needs_flutter_bump=1
@@ -113,6 +142,10 @@ for f in "${changed[@]}"; do
   fi
   if is_runtime_public_api "$f"; then
     needs_runtime_bump=1
+    needs_compat=1
+  fi
+  if is_apple_public_api "$f"; then
+    needs_apple_bump=1
     needs_compat=1
   fi
 done
@@ -188,6 +221,35 @@ if [[ "$needs_runtime_bump" -eq 1 ]]; then
   fi
 else
   echo "No public runtime API / C ABI changes; skipping capture-runtime version bump."
+fi
+
+if [[ "$needs_apple_bump" -eq 1 ]]; then
+  if [[ ! -f "$apple_podspec" ]]; then
+    echo "::error::$apple_podspec is missing on this branch"
+    exit 1
+  fi
+  head_apple="$(extract_apple_version "$apple_podspec")"
+  if [[ -z "$head_apple" ]]; then
+    echo "::error::Could not read TugboatCaptureRuntime version from $apple_podspec"
+    exit 1
+  fi
+  if git cat-file -e "${BASE_SHA}:${apple_podspec}" 2>/dev/null; then
+    base_file="$(mktemp)"
+    git show "${BASE_SHA}:${apple_podspec}" >"$base_file"
+    base_apple="$(extract_apple_version "$base_file")"
+    rm -f "$base_file"
+    if [[ -z "$base_apple" ]]; then
+      echo "::error::Could not read TugboatCaptureRuntime version from base $apple_podspec"
+      exit 1
+    fi
+    echo "Base Apple runtime version: $base_apple"
+    echo "PR Apple runtime version:   $head_apple"
+    require_greater_version "TugboatCaptureRuntime" "$base_apple" "$head_apple"
+  else
+    echo "Base has no TugboatCaptureRuntime podspec; new artifact $head_apple (ok)."
+  fi
+else
+  echo "No public Apple runtime API changes; skipping TugboatCaptureRuntime version bump."
 fi
 
 if [[ "$needs_compat" -eq 1 ]]; then

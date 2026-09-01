@@ -20,8 +20,11 @@ outputs.
 
 Screenshot pixels still default to `RepaintBoundary`. Enable native CPU
 capture only through
-`TugboatScreenshotCaptureBackend.nativeCpuExperimental`. See
-[native-cpu-experimental.md](native-cpu-experimental.md).
+`TugboatScreenshotCaptureBackend.nativeCpuExperimental`. Android consumes
+the local Maven AAR. iOS consumes `TugboatCaptureRuntime` via the example
+Podfile path override. See
+[native-cpu-experimental.md](native-cpu-experimental.md) and
+[apple-development.md](apple-development.md).
 
 Widget tests that wait on `SchedulerBinding.endOfFrame` hang. Native backend
 widget tests use `waitForFrame: false` and a completed `frameWaiter`.

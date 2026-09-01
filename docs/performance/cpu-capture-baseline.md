@@ -92,8 +92,9 @@ are not the Android compile pin.
   `pubspec.lock` and injected `analyzer.exclude` / `android.newDsl=false`.
   Those mutations were reverted.
 
-Unresolved Apple floor: the example still sets iOS 13.0.
-Flutter 3.47 documents iOS 15 / macOS 12. P0 did not run Xcode.
+Unresolved Apple floor: the example now sets iOS 15.0 to match Flutter
+3.47 and the native capture floor. Simulator/device Xcode builds are still
+unrun in this environment.
 
 ## Packaging and CI debt
 

@@ -11,4 +11,5 @@ are `unsupportedRenderMode` or incomplete layers. They are never an unmasked
 substitute.
 
 `windowComposite` is forbidden until that path exists. `viewHierarchy` is
-Apple milestone 2.
+the Apple CPU path: `drawHierarchy` of the Flutter view. Incomplete
+descendants set `incomplete=true`.

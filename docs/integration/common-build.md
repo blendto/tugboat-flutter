@@ -24,3 +24,6 @@ bash tool/ci/verify-swift-api.sh
 ```
 
 `dart pub publish --dry-run` is `bash tool/ci/pub-dry-run.sh`.
+
+Apple: `Package.swift` at the repository root. Public Swift surface is
+`platforms/apple/api.txt`. Simulator/device builds need Xcode.

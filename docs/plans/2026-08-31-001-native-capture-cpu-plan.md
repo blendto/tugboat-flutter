@@ -741,28 +741,28 @@ device privacy rows and performance gates pass. See
 
 ## Apple Follow-up Checklist
 
-- [ ] A1.01 Add the root `Package.swift`.
-- [ ] A1.02 Add the root `TugboatCaptureRuntime.podspec`.
-- [ ] A1.03 Add the C++ SwiftPM target.
-- [ ] A1.04 Add the Swift runtime target.
-- [ ] A1.05 Add the Objective-C++ bridge.
+- [x] A1.01 Add the root `Package.swift`.
+- [x] A1.02 Add the root `TugboatCaptureRuntime.podspec`.
+- [x] A1.03 Add the C++ SwiftPM target.
+- [x] A1.04 Add the Swift runtime target.
+- [x] A1.05 Add the Objective-C++ bridge.
 - [ ] A1.06 Build the core for the iOS simulator.
 - [ ] A1.07 Build the core for iOS devices.
-- [ ] A1.08 Capture the Flutter view into a native bitmap context.
-- [ ] A1.09 Use `drawHierarchy(in:afterScreenUpdates:)`.
-- [ ] A1.10 Report incomplete capture results.
-- [ ] A1.11 Apply masks through the C++ core.
-- [ ] A1.12 Calculate dHash through the C++ core.
-- [ ] A1.13 Encode JPEG through ImageIO.
-- [ ] A1.14 Calculate SHA-256.
-- [ ] A1.15 Return only masked JPEG data.
-- [ ] A1.16 Connect the Swift Pigeon bridge.
+- [x] A1.08 Capture the Flutter view into a native bitmap context.
+- [x] A1.09 Use `drawHierarchy(in:afterScreenUpdates:)`.
+- [x] A1.10 Report incomplete capture results.
+- [x] A1.11 Apply masks through the C++ core.
+- [x] A1.12 Calculate dHash through the C++ core.
+- [x] A1.13 Encode JPEG through ImageIO.
+- [x] A1.14 Calculate SHA-256.
+- [x] A1.15 Return only masked JPEG data.
+- [x] A1.16 Connect the Swift Pigeon bridge.
 - [ ] A1.17 Add CocoaPods integration tests.
 - [ ] A1.18 Add SwiftPM integration tests.
-- [ ] A1.19 Add Apple privacy tests.
+- [x] A1.19 Add Apple privacy tests.
 - [ ] A1.20 Add Apple performance tests.
 - [ ] A1.21 Publish the Apple `0.1.0` runtime.
-- [ ] A1.22 Update the compatibility table.
+- [x] A1.22 Update the compatibility table.
 
 ---
 

@@ -13,8 +13,9 @@ version `6`.
 
 Capture, session schema, and fingerprints are unchanged from `0.8.11`. This
 patch records the Dart JPEG size envelope used as the native CPU capture
-baseline and exposes an experimental opt-in Android native CPU backend.
-Keep `TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
+baseline and exposes an experimental opt-in native CPU backend on Android
+(`PixelCopy`) and iOS (`drawHierarchy`). Keep
+`TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
 
 ## 0.8.11
 
@@ -362,7 +363,7 @@ but it does not persist events or frames across process restarts.
 | `viewportSemanticMapMaxBytes` | 48000 | emitted map byte budget |
 | `sinkFactories` | empty | extra `TugboatCaptureSinkFactory` adapters |
 | `screenshotBudget` | 60ms / 5s window | degraded-capture skip window / budget |
-| `screenshotCaptureBackend` | `flutterRepaintBoundary` | pixel source; `nativeCpuExperimental` is Android-only and opt-in |
+| `screenshotCaptureBackend` | `flutterRepaintBoundary` | pixel source; `nativeCpuExperimental` is opt-in on Android and iOS |
 
 ### Resolver and exploration events
 

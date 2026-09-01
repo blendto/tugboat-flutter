@@ -1,0 +1,71 @@
+## CaptureModels.swift
+public struct CaptureCapabilities
+  public var nativeCaptureSupported: Bool
+  public var apiLevel: Int
+  public var minNativeApi: Int = CaptureRuntime.minNativeApi
+  public init( nativeCaptureSupported: Bool, apiLevel: Int, minNativeApi: Int = CaptureRuntime.minNativeApi )
+public enum CaptureStatus
+  case ok
+  case skippedByDHash
+  case unsupportedApi
+  case unsupportedRenderMode
+  case surfaceUnavailable
+  case timeout
+  case pixelCopyFailed
+  case processingFailed
+  case cancelled
+  case disposed
+public enum CaptureCoverage
+  case engineSurface
+  case viewHierarchy
+public enum RenderMode
+  case surfaceView
+  case textureView
+  case hybrid
+  case unknown
+public struct NormalizedMask
+  public var x: Double
+  public var y: Double
+  public var width: Double
+  public var height: Double
+  public init(x: Double, y: Double, width: Double, height: Double)
+public struct CaptureRequest
+  public var requestId: Int64
+  public var pixelWidth: Int
+  public var pixelHeight: Int
+  public var force: Bool
+  public var lastDHash: String = ""
+  public var masks: [NormalizedMask] = []
+  public init( requestId: Int64, pixelWidth: Int, pixelHeight: Int, force: Bool, lastDHash: String = "", masks: [NormalizedMask] = [] )
+public struct CaptureTimings
+  public var surfaceCopyMicros: Int64 = 0
+  public var maskFillMicros: Int64 = 0
+  public var dHashMicros: Int64 = 0
+  public var jpegMicros: Int64 = 0
+  public var sha256Micros: Int64 = 0
+  public var pixelReadbackMicros: Int64 = 0
+  public init( surfaceCopyMicros: Int64 = 0, maskFillMicros: Int64 = 0, dHashMicros: Int64 = 0, jpegMicros: Int64 = 0, sha256Micros: Int64 = 0, pixelReadbackMicros: Int64 = 0 )
+public struct CaptureResult
+  public var requestId: Int64
+  public var status: CaptureStatus
+  public var coverage: CaptureCoverage? = nil
+  public var jpeg: Data = Data()
+  public var width: Int = 0
+  public var height: Int = 0
+  public var dHash: String = ""
+  public var contentHash: String = ""
+  public var timings: CaptureTimings = CaptureTimings()
+  public var renderMode: RenderMode = .unknown
+  public var incomplete: Bool = false
+  public init( requestId: Int64, status: CaptureStatus, coverage: CaptureCoverage? = nil, jpeg: Data = Data(), width: Int = 0, height: Int = 0, dHash: String = "", contentHash: String = "", timings: CaptureTimings = CaptureTimings(), renderMode: RenderMode = .unknown, incomplete: Bool = false )
+
+## CaptureRuntime.swift
+public final class CaptureRuntime
+  public static let minNativeApi: Int = 15
+  public static let defaultTimeoutMs: Int64 = 2_000
+  public static let jpegQuality: Int = 80
+  public init(timeoutMs: Int64 = CaptureRuntime.defaultTimeoutMs)
+  public func capabilities() -> CaptureCapabilities
+  public func capture(view: UIView, request: CaptureRequest, onComplete: @escaping (CaptureResult) -> Void)
+  public func cancel(requestId: Int64)
+  public func dispose()

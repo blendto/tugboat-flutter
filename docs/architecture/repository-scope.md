@@ -17,7 +17,7 @@ the monorepo layout.
 | --- | --- | --- |
 | `core/image-processing` | Portable C++ CPU core | Yes |
 | `platforms/android/capture-runtime` | Android AAR `com.tugboat.sdk:capture-runtime` | Yes |
-| `platforms/apple` | Swift/ObjC++ runtime | No (milestone 2) |
+| `platforms/apple` | Swift/ObjC++ runtime | Yes (experimental iOS CPU; unpublished) |
 | `sdks/flutter` | Flutter adapter (`tugboat`, `tugboat_dio`) | Yes (opt-in native Android) |
 | `sdks/react-native` | Future adapter placeholder | README only |
 
@@ -72,13 +72,14 @@ not a window composite.
 
 ## Apple runtime scope
 
-Milestone 2. Swift module / CocoaPod `TugboatCaptureRuntime` 0.1.0.
+Swift module / CocoaPod `TugboatCaptureRuntime` 0.1.0.
 `drawHierarchy(in:afterScreenUpdates:)` into a native bitmap, same C++ core,
 ImageIO JPEG, SHA-256. Root `Package.swift` and
 `TugboatCaptureRuntime.podspec` stay at the repository root.
 
-The first milestone ships an Apple *capability stub* in the Flutter plugin
-so `getCapabilities` can say native capture is unavailable.
+The first Apple path captures the Flutter view hierarchy (`viewHierarchy`
+coverage). It is experimental and unpublished. iOS 15 is the native floor;
+older OS versions report `unsupportedApi` and Flutter falls back.
 
 ## Flutter adapter scope
 
@@ -86,7 +87,7 @@ so `getCapabilities` can say native capture is unavailable.
 planned as `0.9.0`. This Phase 0/1 line is `0.8.12` and does not enable
 native capture.
 
-In scope for the Android CPU beta:
+In scope for the Android and Apple CPU betas:
 
 - Plugin metadata, Pigeon `getCapabilities` / `capture` / `dispose`
 - `TugboatScreenshotCaptureBackend`: `flutterRepaintBoundary` (default) and
@@ -94,6 +95,8 @@ In scope for the Android CPU beta:
 - Send mask metadata and previous dHash; receive masked JPEG only
 - Automatic fallback; never publish native and Flutter results for one request
 - Preserve session schema, frame transport, scheduling, and mask policy
+- Android: local Maven AAR. iOS: local CocoaPods path to
+  `TugboatCaptureRuntime`
 
 `TugboatCaptureBoundary` stays. Flutter may still supply mask geometry and
 capture scheduling.

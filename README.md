@@ -16,7 +16,7 @@ The Tugboat CLI is maintained separately.
 | --- | --- |
 | `core/image-processing` | Portable C++ CPU core (C ABI) |
 | `platforms/android` | `com.tugboat.sdk:capture-runtime` AAR |
-| `platforms/apple` | Apple runtime (milestone 2) |
+| `platforms/apple` | Apple runtime (`TugboatCaptureRuntime` 0.1.0, unpublished) |
 | `sdks/flutter/packages/tugboat` | Flutter adapter / plugin |
 | `sdks/flutter/packages/tugboat_dio` | Dio network evidence |
 | `sdks/flutter/packages/tugboat/example` | Demo app (not published) |
@@ -25,14 +25,16 @@ The Tugboat CLI is maintained separately.
 | `tool/ci` | Host test, generate, and release-control scripts |
 
 Do not copy the C++ core into the pub package. Flutter consumes the Android
-AAR (and later the Apple artifact) rather than vendoring native sources.
+AAR and the Apple CocoaPod (local path during development) rather than
+vendoring native sources.
 
 ## Capture backends
 
 `package:tugboat` still defaults to Flutter `RepaintBoundary` screenshots.
 Android native CPU capture is an experimental opt-in
-(`TugboatScreenshotCaptureBackend.nativeCpuExperimental`). It stays
-experimental until privacy device rows and
+(`TugboatScreenshotCaptureBackend.nativeCpuExperimental`). iOS uses the
+same opt-in flag for a view-hierarchy CPU path. Both stay experimental
+until privacy device rows and
 [performance gates](docs/performance/cpu-capture-method.md) pass. Raw pixels
 never enter Dart. See
 [experimental native CPU capture](docs/integration/native-cpu-experimental.md).
