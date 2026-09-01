@@ -1,3 +1,13 @@
+## 0.8.12
+
+Patch release after `0.8.11`.
+
+### Fixed
+
+- Stamp the current runtime `userId` on `traits_updated` session lifecycle
+  POSTs. Slim payloads had omitted it, so a traits-only update after start
+  reached the collector without the identified user.
+
 ## 0.8.11
 
 Patch release after `0.8.10`.
