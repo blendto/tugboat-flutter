@@ -8,8 +8,9 @@ Dart packages.
 
 ## Packages
 
-- [`tugboat`](packages/tugboat) — the Flutter SDK
-- [`tugboat/example`](packages/tugboat/example) — demo app and integration fixture (not published)
+- [`tugboat`](packages/tugboat) — the Flutter SDK, published on [pub.dev](https://pub.dev/packages/tugboat)
+- [`tugboat_dio`](packages/tugboat_dio) — optional Dio adapter, published on [pub.dev](https://pub.dev/packages/tugboat_dio)
+- [`tugboat/example`](packages/tugboat/example) — demo app and integration fixture (not a separate pub.dev package)
 
 ## Documentation
 

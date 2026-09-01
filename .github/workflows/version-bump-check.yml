@@ -74,3 +74,56 @@ jobs:
           fi
 
           echo "Version bump detected: $base_version -> $head_version"
+
+  check-tugboat-dio-lockstep:
+    name: Require tugboat_dio lockstep bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare package versions to base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          extract_version() {
+            local file="$1"
+            if [[ ! -f "$file" ]]; then
+              echo ""
+              return
+            fi
+            grep -E '^version:' "$file" | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]'
+          }
+
+          tugboat_head="$(extract_version packages/tugboat/pubspec.yaml)"
+          dio_head="$(extract_version packages/tugboat_dio/pubspec.yaml)"
+          if [[ -z "$tugboat_head" || -z "$dio_head" ]]; then
+            echo "::error::Could not read head package versions."
+            exit 1
+          fi
+          if [[ "$tugboat_head" != "$dio_head" ]]; then
+            echo "::error::tugboat ($tugboat_head) and tugboat_dio ($dio_head) must stay lockstep."
+            exit 1
+          fi
+
+          dio_base_file="$(mktemp)"
+          if ! git show "${BASE_SHA}:packages/tugboat_dio/pubspec.yaml" >"$dio_base_file" 2>/dev/null; then
+            echo "Base branch has no tugboat_dio pubspec; treating as new package (ok)."
+            echo "PR tugboat_dio version: $dio_head"
+            exit 0
+          fi
+          dio_base="$(extract_version "$dio_base_file")"
+          rm -f "$dio_base_file"
+          if [[ -z "$dio_base" ]]; then
+            echo "::error::Could not read base tugboat_dio version."
+            exit 1
+          fi
+          if [[ "$dio_head" == "$dio_base" ]]; then
+            echo "::error::packages/tugboat_dio version must be bumped before merge (still $dio_base)."
+            exit 1
+          fi
+          echo "tugboat_dio bump detected: $dio_base -> $dio_head"

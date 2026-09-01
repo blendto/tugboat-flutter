@@ -1,3 +1,13 @@
+## 0.8.12
+
+Patch release after `0.8.11`.
+
+### Changed
+
+- Publish `tugboat` and `tugboat_dio` to pub.dev from GitHub Actions when a
+  version-bump PR merges to `main`.
+- Document hosted pub.dev install so hosts do not need a GitHub git dependency.
+
 ## 0.8.11
 
 Patch release after `0.8.10`.

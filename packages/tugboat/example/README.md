@@ -1,16 +1,10 @@
-# example
+# Tugboat example
 
-A new Flutter project.
+Demo app and integration fixture for `package:tugboat`. It is included with
+the published SDK so pub.dev can show a runnable example; it is not a separate
+package.
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```sh
+cd example
+flutter run
+```

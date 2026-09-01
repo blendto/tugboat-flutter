@@ -1,10 +1,9 @@
 name: tugboat
 description: >-
   Screenshot-based session replay with compact interaction anchors for Tugboat.
-version: 0.8.11
-repository: https://github.com/blendto/tugboat-flutter
-issue_tracker: https://github.com/blendto/tugboat-flutter/issues
-homepage: https://github.com/blendto/tugboat-flutter
+version: 0.8.12
+# Repository links are omitted so hosts can depend on pub.dev after this
+# GitHub repository is private. Published source remains on pub.dev.
 license: AGPL-3.0-only
 
 environment:

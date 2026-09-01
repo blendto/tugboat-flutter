@@ -1,0 +1,180 @@
+# Publishes lockstep `tugboat` and `tugboat_dio` versions to pub.dev.
+#
+# pub.dev only accepts GitHub Actions OIDC from a tag matching v{{version}}.
+# Merging a PR does not publish by itself. This workflow:
+# 1. On push to main, creates tag v<version> and dispatches this workflow on it.
+# 2. On that tag (push or workflow_dispatch), publishes both packages.
+#
+# Configure both packages the same way:
+#   https://pub.dev/packages/tugboat/admin
+#   https://pub.dev/packages/tugboat_dio/admin
+# Repository: blendto/tugboat-flutter
+# Tag pattern: v{{version}}
+# Enable push events and workflow_dispatch events.
+name: Publish to pub.dev
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-pub-dev-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag_main:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+
+          extract_version() {
+            grep -E '^version:' "$1" | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]'
+          }
+
+          tugboat_version="$(extract_version packages/tugboat/pubspec.yaml)"
+          dio_version="$(extract_version packages/tugboat_dio/pubspec.yaml)"
+          if [[ -z "$tugboat_version" || -z "$dio_version" ]]; then
+            echo "::error::Could not read package versions."
+            exit 1
+          fi
+          if [[ "$tugboat_version" != "$dio_version" ]]; then
+            echo "::error::tugboat ($tugboat_version) and tugboat_dio ($dio_version) must stay lockstep for tag v{{version}}."
+            exit 1
+          fi
+
+          version="$tugboat_version"
+          tag="v${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Package version: ${version}"
+
+          tugboat_code="$(curl -sS -o /dev/null -w '%{http_code}' "https://pub.dev/api/packages/tugboat/versions/${version}")"
+          dio_code="$(curl -sS -o /dev/null -w '%{http_code}' "https://pub.dev/api/packages/tugboat_dio/versions/${version}")"
+          if [[ "$tugboat_code" == "200" && "$dio_code" == "200" ]]; then
+            echo "Both packages ${version} are already on pub.dev. Skipping tag."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag and dispatch publish
+        if: steps.version.outputs.should_publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          git fetch --tags origin
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" -m "tugboat ${VERSION}"
+            git push origin "${TAG}"
+          fi
+
+          # GITHUB_TOKEN tag pushes do not trigger other workflows. Dispatch on
+          # the tag so pub.dev sees refType=tag and eventName=workflow_dispatch.
+          for attempt in 1 2 3 4 5; do
+            if gh workflow run publish.yml --ref "${TAG}"; then
+              echo "Dispatched publish.yml on ${TAG}."
+              exit 0
+            fi
+            echo "Dispatch failed (attempt ${attempt}); waiting for tag to appear."
+            sleep 3
+          done
+          echo "::error::Could not dispatch publish.yml on ${TAG}."
+          exit 1
+
+  publish_tugboat:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Dart OIDC
+        uses: dart-lang/setup-dart@v1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Publish tugboat
+        working-directory: packages/tugboat
+        run: |
+          set -euo pipefail
+          version="$(grep -E '^version:' pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]')"
+          expected_tag="v${version}"
+          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
+            echo "::error::Git tag ${GITHUB_REF_NAME} must be ${expected_tag} to publish tugboat ${version}."
+            exit 1
+          fi
+          code="$(curl -sS -o /dev/null -w '%{http_code}' "https://pub.dev/api/packages/tugboat/versions/${version}")"
+          if [[ "$code" == "200" ]]; then
+            echo "tugboat ${version} is already on pub.dev."
+            exit 0
+          fi
+          dart pub get
+          dart pub publish --force
+
+  publish_tugboat_dio:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: publish_tugboat
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Dart OIDC
+        uses: dart-lang/setup-dart@v1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Publish tugboat_dio
+        working-directory: packages/tugboat_dio
+        run: |
+          set -euo pipefail
+          version="$(grep -E '^version:' pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]')"
+          expected_tag="v${version}"
+          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
+            echo "::error::Git tag ${GITHUB_REF_NAME} must be ${expected_tag} to publish tugboat_dio ${version}."
+            exit 1
+          fi
+          code="$(curl -sS -o /dev/null -w '%{http_code}' "https://pub.dev/api/packages/tugboat_dio/versions/${version}")"
+          if [[ "$code" == "200" ]]; then
+            echo "tugboat_dio ${version} is already on pub.dev."
+            exit 0
+          fi
+          dart pub get
+          dart pub publish --force

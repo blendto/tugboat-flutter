@@ -12,7 +12,7 @@ database receipt alone as proof that a replay is correct.
 
 ## Current acceptance status
 
-The current SDK release candidate is **0.8.11**, which writes session schema
+The current SDK release candidate is **0.8.12**, which writes session schema
 **v10**. It preserves structural interaction replay while no longer emitting
 `controlValue`, `controlValueTransition`, `semanticAnnotation`, `stateAnchor`,
 or `stateSignature` in new writer output. It also does not emit `state_change`.
@@ -48,13 +48,13 @@ Record these people before starting:
 
 | Role | Responsibility |
 | --- | --- |
-| SDK releaser | Lands the SDK stack and records the exact main commit |
-| Blend releaser | Pins Blend to that commit and records the app build |
+| SDK releaser | Publishes the SDK to pub.dev and records the package version |
+| Blend releaser | Pins Blend to those pub.dev versions and records the app build |
 | Replay reviewer | Executes the flow matrix and inspects production replays |
 
 The evidence record must contain:
 
-- Tugboat package version and exact Git commit;
+- Tugboat package version as published on pub.dev;
 - Blend version, build number, and Git commit;
 - device platform and OS version;
 - capture start and end timestamps in UTC;
@@ -75,16 +75,17 @@ Do not start the production cohort until every item is true:
 - `flutter analyze` and the complete `packages/tugboat` test suite pass;
 - `packages/tugboat/pubspec.yaml` and
   `packages/tugboat/lib/src/sdk_version.dart` contain the same new version;
-- Blend is pinned to the exact merged SDK commit;
+- Blend is pinned to the published pub.dev versions of `tugboat` and
+  `tugboat_dio`;
 - the deployed Blend build is available to the reviewer;
 - production collection is enabled for the test account/device;
 - the production replay website can filter or otherwise identify the SDK and
   app build cohort.
 
 The HTTP collector sends the package version as `X-Sdk-Version`. App version,
-build number, app ID, and platform are sent with the same requests. Record both
-the SDK version and exact Git commit because a version string alone cannot
-distinguish two builds made from different commits.
+build number, app ID, and platform are sent with the same requests. Record the
+published pub.dev version. Hosts must not use a GitHub git dependency; that
+would break when this repository is private.
 
 ## 1. Land and verify the SDK
 
@@ -112,32 +113,36 @@ sed -n '1,8p' pubspec.yaml
 sed -n '1,8p' lib/src/sdk_version.dart
 ```
 
-Record the main commit as `SDK_GIT_SHA`. This repository currently distributes
-the package as a Git dependency; there is no separate pub.dev release whose
-contents can substitute for that commit.
+Record the published package version from `packages/tugboat/pubspec.yaml`.
+`tugboat` and `tugboat_dio` are hosted on pub.dev (`0.8.11` was the first
+hosted release). A merge to `main` creates tag `v<version>` and publishes
+both packages. pub.dev GitHub Actions publishing must be enabled on both
+Admin tabs with repository `blendto/tugboat-flutter`, tag pattern
+`v{{version}}`, and both `push` and `workflow_dispatch` events.
 
 ## 2. Pin and deploy the Blend canary
 
 Create a Blend canary branch from its current release base. In Blend's
-`pubspec.yaml`, pin the Tugboat dependency to `SDK_GIT_SHA`, not a moving
-branch:
+`pubspec.yaml`, pin hosted pub.dev versions. Do not use a GitHub git
+dependency:
 
 ```yaml
-tugboat:
-  git:
-    url: https://github.com/blendto/tugboat-flutter
-    path: packages/tugboat
-    ref: <SDK_GIT_SHA>
+dependencies:
+  tugboat: 0.8.12
+  tugboat_dio: 0.8.12
 ```
 
-Resolve dependencies using Blend's checked-in Flutter toolchain:
+Remove any `dependency_overrides` that still point at
+`github.com/blendto/tugboat-flutter`. Resolve dependencies using Blend's
+checked-in Flutter toolchain:
 
 ```sh
 flutter pub get
 ```
 
-Verify `pubspec.lock` contains both the expected package version and
-`resolved-ref: <SDK_GIT_SHA>`. Commit the manifest and lockfile together.
+Verify `pubspec.lock` records `tugboat` and `tugboat_dio` from the hosted
+`pub.dev` source at the expected versions. Commit the manifest and lockfile
+together.
 
 Build and deploy through Blend's normal internal canary channel. Record:
 
@@ -177,7 +182,7 @@ flows share a session, list the event IDs or timestamps that delimit each flow.
 
 Wait until the collector session has finalized and the replay is available in
 the production website. Filter to the recorded Blend build and SDK version
-under test (`0.8.11` for this release), then open every recorded session.
+under test (`0.8.12` for this release), then open every recorded session.
 
 For each interaction, inspect the actual replay UI and verify:
 

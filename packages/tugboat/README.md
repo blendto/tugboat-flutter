@@ -5,9 +5,15 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.11`. Session JSON writers and readers use
+The current package version is `0.8.12`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.8.12
+
+Merging a version bump to `main` publishes this package and `tugboat_dio` to
+pub.dev. Host apps should depend on the hosted packages, not a GitHub git
+checkout. Capture behavior is unchanged from `0.8.11`.
 
 ## 0.8.11
 
@@ -87,22 +93,29 @@ events.
 
 ## Install
 
-Add `tugboat` to the host app and import the public barrel:
+```yaml
+dependencies:
+  tugboat: ^0.8.12
+```
+
+Then import the public barrel:
 
 ```dart
 import 'package:tugboat/tugboat.dart';
 ```
 
 The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
+Install from pub.dev; a GitHub checkout is not required.
 
 ### Optional Dio network evidence
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.8.11
+  tugboat: ^0.8.12
+  tugboat_dio: ^0.8.12
 ```
 
-See `packages/tugboat_dio/README.md`.
+See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.
 
 ## Coded events and network observation
 
@@ -611,6 +624,4 @@ sink registration API has not been published.
   opt-in external events and network observations with the privacy boundaries
   described above.
 
-See [Collector integration](../../docs/integration/collector.md) and
-[Capture and fingerprint status](../../docs/design/capture-and-fingerprint.md)
-for transport details, implementation evidence, and prioritized next work.
+This README is the published integration reference for `package:tugboat`.
