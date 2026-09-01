@@ -35,3 +35,10 @@ if ! cmp -s "$before" "$after"; then
   exit 1
 fi
 echo "Pigeon outputs are current."
+
+plugin="ios/Classes/TugboatPlugin.swift"
+if grep -Eq '^[[:space:]]+public func (getCapabilities|capture|cancel|dispose)' "$plugin"; then
+  echo "iOS Pigeon protocol methods must not expose internal generated types as public API." >&2
+  exit 1
+fi
+echo "iOS Pigeon protocol method visibility is valid."

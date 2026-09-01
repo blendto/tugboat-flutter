@@ -7,7 +7,7 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
     NativeCaptureHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
   }
 
-  public func getCapabilities() throws -> NativeCaptureCapabilities {
+  func getCapabilities() throws -> NativeCaptureCapabilities {
     NativeCaptureCapabilities(
       nativeCaptureSupported: false,
       apiLevel: 0,
@@ -15,7 +15,7 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
     )
   }
 
-  public func capture(
+  func capture(
     request: NativeCaptureRequest,
     completion: @escaping (Result<NativeCaptureResult, Error>) -> Void
   ) {
@@ -44,7 +44,7 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
     )
   }
 
-  public func cancel(requestId: Int64) throws {}
+  func cancel(requestId: Int64) throws {}
 
-  public func dispose() throws {}
+  func dispose() throws {}
 }
