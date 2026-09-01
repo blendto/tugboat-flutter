@@ -22,8 +22,9 @@ Do not copy the C++ core into the published pub package. Files above a
 published pub archive are not part of that archive. In this monorepo the
 Flutter plugin compiles Android and Apple runtime sources when those trees
 resolve. Published pub archives omit those trees and stub native capture as
-unsupported. Native Android apps still consume the local Maven AAR; native
-Apple apps still use the root CocoaPod / SwiftPM package.
+unsupported. Native Android apps consume the local Maven AAR or the hosted
+GitHub Packages / Maven Central coordinate; native Apple apps still use the
+root CocoaPod / SwiftPM package.
 
 Ownership rules: [repository-scope.md](repository-scope.md).
 Build commands: [common-build.md](../integration/common-build.md).

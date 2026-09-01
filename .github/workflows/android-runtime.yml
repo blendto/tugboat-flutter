@@ -9,7 +9,9 @@ on:
       - "tool/ci/build-android-runtime.sh"
       - "tool/ci/dump-android-runtime-api.py"
       - "tool/ci/verify-android-runtime-api.sh"
+      - "tool/ci/android-runtime-version.sh"
       - ".github/workflows/android-runtime.yml"
+      - ".github/workflows/publish-android.yml"
 
 permissions:
   contents: read

@@ -11,7 +11,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = providers.gradleProperty("VERSION_NAME").get()
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -23,5 +23,5 @@ android {
 }
 
 dependencies {
-    implementation("com.tugboat.sdk:capture-runtime:0.1.0")
+    implementation("com.tugboat.sdk:capture-runtime:${providers.gradleProperty("VERSION_NAME").get()}")
 }

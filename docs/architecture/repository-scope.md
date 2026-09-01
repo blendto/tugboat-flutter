@@ -60,7 +60,8 @@ In scope:
   every path
 - Skip JPEG after a dHash skip; otherwise Android JPEG quality 80 + SHA-256
 - Return only masked JPEG bytes and bounded metadata
-- Local Maven publication for the Flutter example
+- Local Maven publication for the native Android sample
+- Hosted GitHub Packages publication on `capture-runtime-v*` tags
 
 Capture scale stays Dart-owned. The adapter sends the bitmap width and
 height that the current capturer would have used. The runtime serializes
@@ -97,7 +98,8 @@ In scope for the Android and Apple CPU betas:
 - Automatic fallback; never publish native and Flutter results for one request
 - Preserve session schema, frame transport, scheduling, and mask policy
 - Android: the Flutter plugin compiles `capture-runtime` from source in the
-  monorepo. Native Android apps still use the local Maven AAR. iOS: the
+  monorepo. Native Android apps use the local Maven AAR or the hosted
+  GitHub Packages / Maven Central coordinate. iOS: the
   plugin compiles `TugboatCaptureRuntime` sources; the root CocoaPod remains
   for native Apple apps.
 

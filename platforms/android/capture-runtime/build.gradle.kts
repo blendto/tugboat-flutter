@@ -1,7 +1,7 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
-    id("maven-publish")
+    id("com.vanniktech.maven.publish")
 }
 
 android {
@@ -41,12 +41,6 @@ android {
         }
     }
 
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-        }
-    }
-
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
@@ -64,21 +58,35 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
-publishing {
-    publications {
-        register<MavenPublication>("release") {
-            groupId = "com.tugboat.sdk"
-            artifactId = "capture-runtime"
-            version = "0.1.0"
-            afterEvaluate {
-                from(components["release"])
-            }
-        }
+mavenPublishing {
+    coordinates(
+        groupId = "com.tugboat.sdk",
+        artifactId = "capture-runtime",
+        version = providers.gradleProperty("VERSION_NAME").get(),
+    )
+    if (providers.gradleProperty("tugboat.publishMavenCentral").orElse("false").get() == "true") {
+        publishToMavenCentral(automaticRelease = true)
+        signAllPublications()
     }
+}
+
+publishing {
     repositories {
         maven {
             name = "LocalCapture"
             url = uri(rootProject.projectDir.resolve("../../.local-maven"))
+        }
+        val githubUser = providers.gradleProperty("githubPackagesUsername")
+        val githubPassword = providers.gradleProperty("githubPackagesPassword")
+        if (githubUser.isPresent && githubPassword.isPresent) {
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/blendto/tugboat-flutter")
+                credentials {
+                    username = githubUser.get()
+                    password = githubPassword.get()
+                }
+            }
         }
     }
 }

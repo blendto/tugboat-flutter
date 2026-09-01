@@ -16,20 +16,29 @@ From `platforms/android` (needs Android SDK, NDK `28.2.13676358`, CMake
 ```sh
 ./gradlew :capture-runtime:test
 ./gradlew :capture-runtime:assembleRelease
-./gradlew :capture-runtime:publish
+./gradlew :capture-runtime:publishAllPublicationsToLocalCaptureRepository
 ```
 
-`publish` writes
-`.local-maven/com/tugboat/sdk/capture-runtime/0.1.0/` at the repository
+Or from the repository root: `bash tool/ci/build-android-runtime.sh`.
+
+Local publish writes
+`.local-maven/com/tugboat/sdk/capture-runtime/<version>/` at the repository
 root (gitignored). After that:
 
 ```sh
 ./gradlew :sample:assembleDebug
 ```
 
-The sample resolves `com.tugboat.sdk:capture-runtime:0.1.0` from that
-repository, not from `project()`.
+The sample resolves `com.tugboat.sdk:capture-runtime` from that repository,
+not from `project()`. Version is `VERSION_NAME` in `gradle.properties`.
 
 `connectedAndroidTest` for lifecycle and render-mode tests needs a device
 or emulator. API 24 vs recent, rotation, and activity-recreation tests wait
 on a Flutter `FlutterSurfaceView` fixture (Phase 6).
+
+## Hosted Maven
+
+Merging a version bump to `main` tags `capture-runtime-v<version>` and
+publishes GitHub Packages. Maven Central is a second job that runs when
+Central Portal secrets are configured. See
+[release process](../../docs/releases/process.md).

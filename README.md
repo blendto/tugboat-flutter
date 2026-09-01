@@ -63,9 +63,10 @@ bash tool/ci/build-android-runtime.sh
 bash tool/ci/run-flutter-tests.sh
 ```
 
-Native Android apps still consume the AAR from untracked `.local-maven/` after
-`bash tool/ci/build-android-runtime.sh`. The Flutter plugin no longer needs
-that artifact; it compiles `platforms/android/capture-runtime` from source.
+Native Android apps consume the AAR from untracked `.local-maven/` after
+`bash tool/ci/build-android-runtime.sh`, or from GitHub Packages after a
+`capture-runtime-v*` tag. The Flutter plugin compiles
+`platforms/android/capture-runtime` from source in the monorepo.
 
 ## Development
 
