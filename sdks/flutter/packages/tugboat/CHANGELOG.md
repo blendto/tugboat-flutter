@@ -1,3 +1,20 @@
+## 0.8.13
+
+Patch release after `0.8.12`.
+
+### Added
+
+- `route_change` now splits route identity (`routeName`, `routeType`,
+  `routeNamed`, and the matching `from*` fields) without changing `route`,
+  `fromRoute`, or `navigation`.
+- Overlay classification is the closed set `page | sheet | dialog | popup |
+  unknown`. Bottom sheets are `sheet` (no longer `modal`).
+- Overlay pushes include presentation parent (`presentedOver*`, `hostPage*`)
+  and a bounded same-navigator `routeStack` snapshot.
+- Claimed route changes copy `causeTargetFingerprint` and `causeGesture` from
+  the interaction. Overlay after-frames still capture under exploration
+  screenshot suppression when `overlayKind` is not `page`.
+
 ## 0.8.12
 
 Patch release after `0.8.11`.

@@ -238,6 +238,60 @@ void main() {
     expect(encoded.length, lessThan(700));
   });
 
+  test('maps overlay identity and presentation parent on route_change', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'evt_route_overlay',
+        atMs: 12000,
+        type: 'route_change',
+        stream: TugboatEventStream.evidence,
+        data: const {
+          'fromRoute': '/subscriptionPaywall',
+          'fromRouteName': '/subscriptionPaywall',
+          'fromRouteType': 'PopupRoute<dynamic>',
+          'fromRouteNamed': true,
+          'route': 'ModalBottomSheetRoute<void>',
+          'routeType': 'ModalBottomSheetRoute<void>',
+          'routeNamed': false,
+          'navigation': 'route_push',
+          'overlayKind': 'sheet',
+          'presentedOverRoute': '/subscriptionPaywall',
+          'presentedOverRouteInstanceId': 'route-14',
+          'presentedOverOverlayKind': 'popup',
+          'hostPageRoute': '/home',
+          'hostPageRouteInstanceId': 'route-2',
+          'routeStack': [
+            {
+              'routeInstanceId': 'route-2',
+              'route': '/home',
+              'routeNamed': true,
+              'overlayKind': 'page',
+              'navigatorId': 'nav-0',
+            },
+          ],
+          'causeEventId': 'event-88',
+          'causedByInteractionId': 'event-88',
+          'causeTargetFingerprint': 'a1b2c3d4e5f6a7b8',
+          'causeGesture': 'tap',
+          'navigatorId': 'nav-0',
+          'routeStackTruncated': true,
+        },
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped['routeNamed'], isFalse);
+    expect(mapped['overlayKind'], 'sheet');
+    expect(mapped['presentedOverRoute'], '/subscriptionPaywall');
+    expect(mapped['hostPageRoute'], '/home');
+    expect(mapped['causeTargetFingerprint'], 'a1b2c3d4e5f6a7b8');
+    expect(mapped['causeGesture'], 'tap');
+    expect(mapped['routeStackTruncated'], isTrue);
+    expect(mapped.containsKey('navigatorId'), isFalse);
+    expect(mapped['routeStack'], isA<List>());
+  });
+
   test('generic branch omits empty targetAnchor and payload stream', () {
     final mapped = mapTugboatEventToCollectorEvent(
       event: TugboatEvent(

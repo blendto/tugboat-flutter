@@ -5,9 +5,18 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.12`. Session JSON writers and readers use
+The current package version is `0.8.13`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.8.13
+
+`route_change` now carries split route identity (`routeName` / `routeType` /
+`routeNamed`), a closed overlay kind (`page`, `sheet`, `dialog`, `popup`,
+`unknown`), presentation-parent fields for overlay pushes, and a bounded
+same-navigator `routeStack`. `fromRoute`, `route`, and `navigation` keep their
+existing meaning. Overlay after-frames still capture under exploration
+screenshot suppression.
 
 ## 0.8.12
 
@@ -243,9 +252,13 @@ installed.
 
 The supplied observer is intended to record standard Navigator `push`, `pop`,
 `replace`, and `remove` callbacks without application code calling the replay
-controller for each navigation. Dialog and modal-bottom-sheet routes can
-participate when they use that observed Navigator. Nested navigators need their
-own observer wiring, and native/system overlays are outside the Flutter
+controller for each navigation. Dialog, sheet, and other popup routes can
+participate when they use that observed Navigator. Unnamed sheets keep their
+runtime type as `route` and set `routeNamed: false`; the SDK does not invent a
+product name from the builder widget. Overlay pushes record the route
+immediately below (`presentedOver*`) and the nearest page (`hostPage*`) when
+the same-navigator stack can resolve them. Nested navigators need their own
+observer wiring, and native/system overlays are outside the Flutter
 Navigator/repaint-boundary contract.
 
 Each visible route change creates a route epoch and waits for the transition
