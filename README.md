@@ -17,8 +17,8 @@ The Tugboat CLI is maintained separately.
 | `core/image-processing` | Portable C++ CPU core (C ABI) |
 | `platforms/android` | `com.tugboat.sdk:capture-runtime` AAR |
 | `platforms/apple` | Apple runtime (`TugboatCaptureRuntime` 0.1.0, unpublished) |
-| `sdks/flutter/packages/tugboat` | Flutter adapter / plugin |
-| `sdks/flutter/packages/tugboat_dio` | Dio network evidence |
+| `sdks/flutter/packages/tugboat` | Flutter adapter / plugin ([pub.dev](https://pub.dev/packages/tugboat)) |
+| `sdks/flutter/packages/tugboat_dio` | Dio network evidence ([pub.dev](https://pub.dev/packages/tugboat_dio)) |
 | `sdks/flutter/packages/tugboat/example` | Demo app (not published) |
 | `sdks/react-native` | Future adapter placeholder |
 | `docs/` | Architecture, integration, privacy, performance, releases |

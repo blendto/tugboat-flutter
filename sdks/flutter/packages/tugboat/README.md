@@ -106,22 +106,29 @@ events.
 
 ## Install
 
-Add `tugboat` to the host app and import the public barrel:
+```yaml
+dependencies:
+  tugboat: ^0.8.13
+```
+
+Then import the public barrel:
 
 ```dart
 import 'package:tugboat/tugboat.dart';
 ```
 
 The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
+Install from pub.dev; a GitHub checkout is not required.
 
 ### Optional Dio network evidence
 
 ```yaml
 dependencies:
+  tugboat: ^0.8.13
   tugboat_dio: ^0.8.13
 ```
 
-See `../tugboat_dio/README.md`.
+See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.
 
 ## Coded events and network observation
 

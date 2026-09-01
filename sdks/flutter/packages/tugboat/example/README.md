@@ -1,16 +1,14 @@
-# example
+# Tugboat example
 
-A new Flutter project.
+Demo app and integration fixture for `package:tugboat`. It is not a separate
+package. Run it from a clone of this repository:
 
-## Getting Started
+```sh
+cd sdks/flutter/packages/tugboat/example
+flutter run
+```
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The example is a Dart workspace member (`resolution: workspace` in
+`pubspec.yaml`), so `flutter run` needs the enclosing repo workspace. pub.dev
+includes this folder with the hosted package for illustration; unpacking that
+archive is not a standalone app.
