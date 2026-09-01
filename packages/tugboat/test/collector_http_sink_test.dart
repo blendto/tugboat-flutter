@@ -1036,7 +1036,7 @@ void main() {
     'setTraits posts traits_updated, caches traitsId, stamps next events',
     () async {
       sessionResponseTraitsId = 'trt_abc';
-      final sink = createIdentitySink();
+      final sink = createIdentitySink(initialUserId: 'user_existing');
       final session = createSession();
       sink.startSession(session);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -1048,6 +1048,7 @@ void main() {
       final traitsPost = sessionPosts.last;
       expect(traitsPost['eventType'], 'traits_updated');
       expect(traitsPost['traits'], {'plan': 'pro', 'seatCount': 3});
+      expect(traitsPost['userId'], 'user_existing');
       expect(traitsPost.containsKey('traitsId'), isFalse);
       expect(traitsPost['sessionId'], 'sess_server');
       expect(sink.traitsId, 'trt_abc');
@@ -1163,29 +1164,32 @@ void main() {
   );
 
   test(
-    'session_start sends cached traitsId without adding it to session_end',
+    'session_end repeats cached traitsId and runtime userId',
     () async {
       final sink = CollectorHttpSink(
         config: configForServer(),
         initialTraitsId: 'trt_cached',
+        initialUserId: 'user_end',
       );
       sink.startSession(createSession());
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(sessionPosts.first['eventType'], 'session_start');
       expect(sessionPosts.first['traitsId'], 'trt_cached');
+      expect(sessionPosts.first['userId'], 'user_end');
       expect(sessionPosts.first.containsKey('traits'), isFalse);
 
       await sink.endSession();
       final endPost = sessionPosts.last;
       expect(endPost['eventType'], 'session_end');
-      expect(endPost.containsKey('traitsId'), isFalse);
+      expect(endPost['userId'], 'user_end');
+      expect(endPost['traitsId'], 'trt_cached');
       expect(endPost.containsKey('traits'), isFalse);
       sink.dispose();
     },
   );
 
-  test('setUserId posts user_changed without cached traits', () async {
+  test('setUserId posts user_changed with the current traits bag', () async {
     sessionResponseTraitsId = 'trt_user';
     final sink = createIdentitySink(
       initialTraits: {'plan': 'pro'},
@@ -1200,7 +1204,7 @@ void main() {
     final changed = sessionPosts.last;
     expect(changed['eventType'], 'user_changed');
     expect(changed['userId'], 'user_b');
-    expect(changed.containsKey('traits'), isFalse);
+    expect(changed['traits'], {'plan': 'pro'});
     expect(changed.containsKey('traitsId'), isFalse);
     sink.dispose();
   });
@@ -1448,6 +1452,8 @@ void main() {
       'traits_updated',
       'session_end',
     ]);
+    expect(sessionPosts.last['userId'], isNull);
+    expect(sessionPosts.last['traits'], {'plan': 'pro'});
     sink.dispose();
   });
 }
