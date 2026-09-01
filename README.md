@@ -33,7 +33,7 @@ vendoring native sources.
 `package:tugboat` still defaults to Flutter `RepaintBoundary` screenshots.
 Android native CPU capture is an experimental opt-in
 (`TugboatScreenshotCaptureBackend.nativeCpuExperimental`). iOS uses the
-same opt-in flag for a view-hierarchy CPU path. Both stay experimental
+same opt-in flag for a live Flutter-layer CPU path. Both stay experimental
 until privacy device rows and
 [performance gates](docs/performance/cpu-capture-method.md) pass. Raw pixels
 never enter Dart. See

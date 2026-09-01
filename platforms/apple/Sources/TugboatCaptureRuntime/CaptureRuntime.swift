@@ -4,6 +4,10 @@ import UIKit
 import TugboatImageCoreBridge
 #endif
 
+// The C ABI fixes BGRA8888 to raw value 2. Swift 6.3 does not expose the
+// TBPixelFormatBGRA8888 enumerator by name through this mixed C++ target.
+private let tbBgra8888PixelFormat = TBPixelFormat(rawValue: 2)!
+
 public final class CaptureRuntime {
   public static let minNativeApi: Int = 15
   public static let defaultTimeoutMs: Int64 = 2_000
@@ -12,14 +16,19 @@ public final class CaptureRuntime {
   private static let noRequest: Int64 = -1
 
   private let timeoutMs: Int64
+  private let captureMode: AppleCaptureMode
   private let queue = DispatchQueue(label: "tugboat-capture")
   private let stateLock = NSLock()
   private var disposed = false
   private var inFlightId: Int64 = CaptureRuntime.noRequest
   private var cancelledId: Int64 = CaptureRuntime.noRequest
 
-  public init(timeoutMs: Int64 = CaptureRuntime.defaultTimeoutMs) {
+  public init(
+    timeoutMs: Int64 = CaptureRuntime.defaultTimeoutMs,
+    captureMode: AppleCaptureMode = .engineSurface
+  ) {
     self.timeoutMs = timeoutMs
+    self.captureMode = captureMode
   }
 
   public func capabilities() -> CaptureCapabilities {
@@ -75,10 +84,11 @@ public final class CaptureRuntime {
     let started = DispatchTime.now()
     var bitmap: NativeBitmap?
     let draw: () -> Void = {
-      bitmap = ViewHierarchyCapture.capture(
+      bitmap = AppleViewCapture.capture(
         view: view,
         pixelWidth: request.pixelWidth,
-        pixelHeight: request.pixelHeight
+        pixelHeight: request.pixelHeight,
+        mode: self.captureMode
       )
     }
     if Thread.isMainThread {
@@ -127,7 +137,7 @@ public final class CaptureRuntime {
       return CaptureResult(
         requestId: request.requestId,
         status: .skippedByDHash,
-        coverage: .viewHierarchy,
+        coverage: captureMode.coverage,
         width: bitmap.width,
         height: bitmap.height,
         dHash: processed.dHash,
@@ -165,7 +175,7 @@ public final class CaptureRuntime {
     return CaptureResult(
       requestId: request.requestId,
       status: .ok,
-      coverage: .viewHierarchy,
+      coverage: captureMode.coverage,
       jpeg: jpeg,
       width: bitmap.width,
       height: bitmap.height,
@@ -189,7 +199,7 @@ public final class CaptureRuntime {
         width: Int32(bitmap.width),
         height: Int32(bitmap.height),
         strideBytes: Int32(bitmap.stride),
-        format: TBPixelFormatBGRA8888,
+        format: tbBgra8888PixelFormat,
         masksPacked: pointer.baseAddress,
         maskIntCount: Int32(masks.count),
         lastDHash: request.lastDHash,
@@ -248,6 +258,15 @@ public final class CaptureRuntime {
     case 0: return .ok
     case 1: return .skippedByDHash
     default: return .processingFailed
+    }
+  }
+}
+
+private extension AppleCaptureMode {
+  var coverage: CaptureCoverage {
+    switch self {
+    case .engineSurface: return .engineSurface
+    case .viewHierarchy: return .viewHierarchy
     }
   }
 }

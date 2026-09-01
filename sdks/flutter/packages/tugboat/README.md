@@ -14,7 +14,7 @@ version `6`.
 Capture, session schema, and fingerprints are unchanged from `0.8.11`. This
 patch records the Dart JPEG size envelope used as the native CPU capture
 baseline and exposes an experimental opt-in native CPU backend on Android
-(`PixelCopy`) and iOS (`drawHierarchy`). Keep
+(`PixelCopy`) and iOS (live Flutter-layer rendering). Keep
 `TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
 
 ## 0.8.11

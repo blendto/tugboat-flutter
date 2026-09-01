@@ -18,6 +18,9 @@ public enum CaptureStatus
 public enum CaptureCoverage
   case engineSurface
   case viewHierarchy
+public enum AppleCaptureMode: Equatable
+  case engineSurface
+  case viewHierarchy
 public enum RenderMode
   case surfaceView
   case textureView
@@ -64,7 +67,7 @@ public final class CaptureRuntime
   public static let minNativeApi: Int = 15
   public static let defaultTimeoutMs: Int64 = 2_000
   public static let jpegQuality: Int = 80
-  public init(timeoutMs: Int64 = CaptureRuntime.defaultTimeoutMs)
+  public init( timeoutMs: Int64 = CaptureRuntime.defaultTimeoutMs, captureMode: AppleCaptureMode = .engineSurface )
   public func capabilities() -> CaptureCapabilities
   public func capture(view: UIView, request: CaptureRequest, onComplete: @escaping (CaptureResult) -> Void)
   public func cancel(requestId: Int64)

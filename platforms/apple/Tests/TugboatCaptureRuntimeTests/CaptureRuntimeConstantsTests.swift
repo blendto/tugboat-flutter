@@ -13,7 +13,7 @@ final class CaptureRuntimeConstantsTests: XCTestCase {
     let runtime = CaptureRuntime()
     runtime.dispose()
     runtime.dispose()
-    runtime.cancel(1)
+    runtime.cancel(requestId: 1)
   }
 
   func testRepeatedInitializationCreatesIndependentRuntimes() {

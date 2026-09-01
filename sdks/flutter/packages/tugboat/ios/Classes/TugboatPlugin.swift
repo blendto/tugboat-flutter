@@ -51,7 +51,7 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
 
   private func flutterView() -> UIView? {
     if let controller = flutterViewController() {
-      return controller.view
+      return findFlutterView(controller.view) ?? controller.view
     }
     guard let root = keyWindow()?.rootViewController?.view else {
       return nil

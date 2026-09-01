@@ -8,7 +8,7 @@ Pod::Spec.new do |s|
   s.summary          = 'Screenshot-based session replay with compact interaction anchors for Tugboat.'
   s.description      = <<-DESC
 Flutter adapter for Tugboat session replay. Native CPU capture is experimental
-opt-in on Android (PixelCopy) and iOS (view hierarchy). The default remains
+opt-in on Android (PixelCopy) and iOS (live Flutter layer). The default remains
 Flutter RepaintBoundary.
                        DESC
   s.homepage         = 'https://github.com/blendto/tugboat-flutter'

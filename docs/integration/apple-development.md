@@ -27,15 +27,23 @@ in `sdks/flutter/packages/tugboat/example/ios/Podfile`.
 
 ## Capture
 
-The runtime draws the Flutter view with
-`drawHierarchy(in:afterScreenUpdates: false)` into a BGRA bitmap whose size
-is the Dart request (`pixelWidth` × `pixelHeight`). Coverage is
-`viewHierarchy`. If `drawHierarchy` returns false, `incomplete` is true.
-Masks and dHash go through the C++ core. JPEG is ImageIO quality 80.
-SHA-256 is CryptoKit over the JPEG. Raw pixels never enter Dart.
+The default runtime renders the live Flutter layer with
+`view.layer.render(in:)` into a BGRA bitmap whose size is the Dart request
+(`pixelWidth` × `pixelHeight`). Flutter's live layer delegate rerenders the
+last Flutter layer tree, so Metal content is present. Coverage is
+`engineSurface`. Embedded UIKit platform views are not guaranteed.
 
-`drawHierarchy` runs on the main thread. Mask fill, dHash, JPEG, and SHA-256
-run on the serial `tugboat-capture` queue. Timeout is 2000 ms covering draw
+Native Apple integrations can initialize `CaptureRuntime` with
+`captureMode: .viewHierarchy`. That compatibility mode uses
+`drawHierarchy(in:afterScreenUpdates: false)`, reports `viewHierarchy`, and
+sets `incomplete` when the draw returns false. The Flutter plugin uses the
+default engine-surface mode.
+
+Masks and dHash go through the C++ core. JPEG is ImageIO quality 80. SHA-256
+is CryptoKit over the JPEG. Raw pixels never enter Dart.
+
+View capture runs on the main thread. Mask fill, dHash, JPEG, and SHA-256 run
+on the serial `tugboat-capture` queue. Timeout is 2000 ms covering readback
 plus processing. Status × fallback matches
 [native-capture-contracts.md](../architecture/native-capture-contracts.md).
 
@@ -51,5 +59,5 @@ swift test --package-path .  # needs Xcode / iOS SDK
 ```
 
 Do not publish `TugboatCaptureRuntime` 0.1.0 until device privacy rows pass.
-Do not start Metal work before the CPU baseline exists
-([gpu.md](../roadmap/gpu.md)).
+The live-layer path uses Flutter's existing Metal readback. It does not call
+private Flutter selectors directly.

@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | Flutter `tugboat` | 0.8.12 | Android `com.tugboat.sdk:capture-runtime` 0.1.x (local Maven; experimental). Apple `TugboatCaptureRuntime` 0.1.x (local CocoaPod / SwiftPM; experimental). |
 | Flutter `tugboat` | 0.9.0 (planned) | Android `capture-runtime` 0.1.x and Apple `TugboatCaptureRuntime` 0.1.x |
-| Apple `TugboatCaptureRuntime` | 0.1.0 | unpublished local CocoaPod / SwiftPM; iOS 15 view-hierarchy CPU path |
+| Apple `TugboatCaptureRuntime` | 0.1.0 | unpublished local CocoaPod / SwiftPM; iOS 15 live Flutter-layer CPU path |
 | `@tugboat/react-native` | — | not started |
 
 The first tagged pair after gates pass will be `flutter-v0.9.0` with

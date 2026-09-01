@@ -23,7 +23,7 @@ Stop shipping the experimental backend if any row below is fail.
 | No pixel/JPEG logs | Plugin and runtime do not log buffers | [x] source review | [ ] logcat on device |
 | Replay acceptance still green | Default Flutter backend | [x] 379 `tugboat` tests | [ ] Android instrumentation |
 | Apple MaskMapper floor/ceil | XCTest `MaskMapperTests` | [x] source + tests (needs Xcode to run) | n/a |
-| Apple `drawHierarchy` JPEG opacity | Device/simulator JPEG decode | [ ] | [ ] iOS 15+ |
+| Apple engine-surface JPEG opacity | Simulator decode: Flutter pixels and two opaque masks | [x] iPhone 17 Pro Simulator, iOS 26.5 | [ ] physical iOS 15+ |
 
 Device-only PixelCopy rows stay open until a physical Android run of
 `NativePrivacyFixtureScreen` through `nativeCpuExperimental` confirms opaque
@@ -31,7 +31,8 @@ tiles after real rotation, keyboard, and inset changes. Host widget tests
 cover capture-scale, density, landscape layout, and view-inset mapping with
 the same floor/ceil JPEG path as P6.02.
 
-Apple `drawHierarchy` device rows are also open: this environment has no
-Xcode.
+Apple physical-device rows remain open. The Simulator live-layer proof uses
+Flutter engine-surface coverage. It does not prove UIKit platform-view
+coverage.
 
 Do not make native capture the default while any device row is open.

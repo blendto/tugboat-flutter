@@ -11,8 +11,9 @@ Patch release after `0.8.11`.
   `flutterRepaintBoundary`, with automatic fallback when native capture is
   unavailable or fails safely.
 - Add an experimental iOS native CPU path in `TugboatCaptureRuntime` 0.1.0
-  (SwiftPM + CocoaPod): `drawHierarchy` of the Flutter view, C++ masks/dHash,
-  ImageIO JPEG. The example uses a local CocoaPods path override. Unpublished.
+  (SwiftPM + CocoaPod). It renders the live Flutter layer so Metal content is
+  present, then uses C++ masks/dHash and ImageIO JPEG. `drawHierarchy` remains
+  an optional UIKit compatibility mode. Unpublished.
 - Native `encodeMicros` is the Pigeon capture round-trip only. Nested native
   stage timings stay on the backend trace so `TugboatFrame.captureMicros` does
   not double-count PixelCopy, dHash, JPEG, and SHA-256.

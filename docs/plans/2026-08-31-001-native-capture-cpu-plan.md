@@ -116,9 +116,12 @@ An engine-surface capture does not guarantee all final SurfaceFlinger layers.
 Separate video surfaces, maps, platform views, and secure surfaces can be missing.
 The runtime must report capture coverage with each result.
 
-The first Apple path will capture the app view hierarchy.
-The path will use `drawHierarchy(in:afterScreenUpdates:)` into a native bitmap context.
-The runtime must report incomplete view-hierarchy capture.
+The first Apple implementation captured the app view hierarchy. Simulator
+work on 2026-09-01 showed that `drawHierarchy` includes Flutter Metal content
+but has a high main-thread cost. The default path now renders the live Flutter
+layer into a native bitmap and reports `engineSurface`. The runtime keeps
+`drawHierarchy(in:afterScreenUpdates:)` as an explicit compatibility mode and
+reports incomplete view-hierarchy capture for that mode.
 
 System-wide screen recording is outside this SDK scope.
 Android `MediaProjection` and Apple ScreenCaptureKit require user-visible permission flows.
@@ -749,7 +752,8 @@ device privacy rows and performance gates pass. See
 - [ ] A1.06 Build the core for the iOS simulator.
 - [ ] A1.07 Build the core for iOS devices.
 - [x] A1.08 Capture the Flutter view into a native bitmap context.
-- [x] A1.09 Use `drawHierarchy(in:afterScreenUpdates:)`.
+- [x] A1.09 Render the live Flutter layer by default; keep
+      `drawHierarchy(in:afterScreenUpdates:)` as compatibility mode.
 - [x] A1.10 Report incomplete capture results.
 - [x] A1.11 Apply masks through the C++ core.
 - [x] A1.12 Calculate dHash through the C++ core.
@@ -866,4 +870,3 @@ Assume required registry and signing access is available during release work.
 - Documentation states all known capture limitations.
 - The compatibility table identifies supported artifact versions.
 - The release can be disabled without a package rollback.
-

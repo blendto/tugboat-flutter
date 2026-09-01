@@ -34,6 +34,17 @@ public enum CaptureCoverage {
   case viewHierarchy
 }
 
+/// Selects the Apple view readback path.
+///
+/// Engine-surface capture is the default. It renders the live Flutter layer,
+/// which lets Flutter copy its Metal content into the target bitmap. View-
+/// hierarchy capture remains available when UIKit platform-view coverage is
+/// more important than capture cost.
+public enum AppleCaptureMode: Equatable {
+  case engineSurface
+  case viewHierarchy
+}
+
 public enum RenderMode {
   case surfaceView
   case textureView

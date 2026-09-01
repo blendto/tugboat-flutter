@@ -117,15 +117,17 @@ Closed: `engineSurface | windowComposite | viewHierarchy`.
 
 | Value | First milestone |
 | --- | --- |
-| `engineSurface` | Android `PixelCopy` of the active `FlutterSurfaceView`. Not the final SurfaceFlinger composition. |
+| `engineSurface` | Android `PixelCopy` of the active `FlutterSurfaceView`, or Apple rendering of the live Flutter layer. Not the final window composition. |
 | `windowComposite` | Forbidden until that path exists. Do not report it. |
-| `viewHierarchy` | Apple `drawHierarchy` of the Flutter view. Incomplete descendants set `incomplete=true`. Not a second coverage name. |
+| `viewHierarchy` | Optional Apple `drawHierarchy` compatibility mode. Incomplete descendants set `incomplete=true`. |
 
-The Apple CPU path reports `viewHierarchy` on `ok` and `skippedByDHash`.
-Simulator and device confirmation are still required before publication.
+The Flutter Apple plugin reports `engineSurface` on `ok` and
+`skippedByDHash`. Native Apple integrations can select `viewHierarchy` when
+UIKit platform-view coverage is required. Physical-device confirmation is
+still required before publication.
 
 Not guaranteed on `engineSurface`: platform views, separate video/map
-surfaces, `FLAG_SECURE` / DRM, `FlutterTextureView`, hybrid composition.
+surfaces, secure / DRM content, `FlutterTextureView`, hybrid composition.
 Those are unsupported render modes or missing layers, never an unmasked
 substitute.
 

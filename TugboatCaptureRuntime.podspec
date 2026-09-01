@@ -3,9 +3,10 @@ Pod::Spec.new do |s|
   s.version          = '0.1.0'
   s.summary          = 'Tugboat native CPU screenshot capture for Apple platforms.'
   s.description      = <<-DESC
-Experimental Apple capture runtime. Draws the Flutter view hierarchy into a
+Experimental Apple capture runtime. Renders the live Flutter layer into a
 native bitmap, applies privacy masks and dHash through the portable C++ core,
-encodes JPEG with ImageIO, and returns masked JPEG bytes only.
+encodes JPEG with ImageIO, and returns masked JPEG bytes only. A view-hierarchy
+compatibility mode remains available for UIKit platform views.
                        DESC
   s.homepage         = 'https://github.com/blendto/tugboat-flutter'
   s.license          = { :type => 'AGPL-3.0-only', :file => 'LICENSE' }

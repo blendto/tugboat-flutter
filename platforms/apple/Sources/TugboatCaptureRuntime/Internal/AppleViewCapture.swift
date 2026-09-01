@@ -11,7 +11,10 @@ final class NativeBitmap {
 
   var cgContext: CGContext? { context }
 
-  init(width: Int, height: Int, stride: Int, pixels: UnsafeMutableRawPointer, context: CGContext, incomplete: Bool) {
+  init(
+    width: Int, height: Int, stride: Int, pixels: UnsafeMutableRawPointer, context: CGContext,
+    incomplete: Bool
+  ) {
     self.width = width
     self.height = height
     self.stride = stride
@@ -26,8 +29,13 @@ final class NativeBitmap {
   }
 }
 
-enum ViewHierarchyCapture {
-  static func capture(view: UIView, pixelWidth: Int, pixelHeight: Int) -> NativeBitmap? {
+enum AppleViewCapture {
+  static func capture(
+    view: UIView,
+    pixelWidth: Int,
+    pixelHeight: Int,
+    mode: AppleCaptureMode
+  ) -> NativeBitmap? {
     let bounds = view.bounds
     if bounds.width <= 0 || bounds.height <= 0 {
       return nil
@@ -60,16 +68,28 @@ enum ViewHierarchyCapture {
       x: CGFloat(pixelWidth) / bounds.width,
       y: -CGFloat(pixelHeight) / bounds.height
     )
-    UIGraphicsPushContext(context)
-    let drawn = view.drawHierarchy(in: bounds, afterScreenUpdates: false)
-    UIGraphicsPopContext()
+    let incomplete: Bool
+    switch mode {
+    case .engineSurface:
+      // FlutterView implements CALayerDelegate.draw(_:in:) by asking the
+      // engine to rerender its last layer tree into readable memory. Rendering
+      // the live layer preserves Flutter Metal content. A snapshotView copy
+      // loses that engine delegate and produces an empty Flutter surface.
+      view.layer.render(in: context)
+      incomplete = false
+    case .viewHierarchy:
+      UIGraphicsPushContext(context)
+      let drawn = view.drawHierarchy(in: bounds, afterScreenUpdates: false)
+      UIGraphicsPopContext()
+      incomplete = !drawn
+    }
     return NativeBitmap(
       width: pixelWidth,
       height: pixelHeight,
       stride: stride,
       pixels: pixels,
       context: context,
-      incomplete: !drawn
+      incomplete: incomplete
     )
   }
 }

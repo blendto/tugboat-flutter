@@ -72,12 +72,13 @@ not a window composite.
 
 ## Apple runtime scope
 
-Swift module / CocoaPod `TugboatCaptureRuntime` 0.1.0.
-`drawHierarchy(in:afterScreenUpdates:)` into a native bitmap, same C++ core,
-ImageIO JPEG, SHA-256. Root `Package.swift` and
+Swift module / CocoaPod `TugboatCaptureRuntime` 0.1.0. The default path renders
+the live Flutter layer into a native bitmap. The compatibility path uses
+`drawHierarchy(in:afterScreenUpdates:)`. Both use the same C++ core, ImageIO
+JPEG, and SHA-256. Root `Package.swift` and
 `TugboatCaptureRuntime.podspec` stay at the repository root.
 
-The first Apple path captures the Flutter view hierarchy (`viewHierarchy`
+The Flutter Apple plugin captures the Flutter engine surface (`engineSurface`
 coverage). It is experimental and unpublished. iOS 15 is the native floor;
 older OS versions report `unsupportedApi` and Flutter falls back.
 

@@ -89,3 +89,52 @@ JPEG SHA-256:
 
 This does not close rotation / scale / density / keyboard / inset device rows
 or the production performance gate.
+
+## iOS Simulator engine-surface proof (not a gate)
+
+Recorded against PR head `e7cade4fd6471f174a85fbf6f883cb570352c206` by
+Chinmay Kabi, 2026-09-01. The test used an iPhone 17 Pro Simulator on iOS
+26.5. It called the Apple Pigeon capture API directly in a Flutter debug app.
+The direct wall time does not include the SDK frame wait or Dart mask
+collection.
+
+The live Flutter-layer path captured visible Flutter Metal content and two
+black masks. The proof JPEG was `270×586`, 21,078 bytes, with SHA-256
+`223f3f21c7c507617547a0c3a1fe21aa3cecb07b4fd4a8a3fc363fc1538ee1c0`.
+The result reported `status=ok`, `coverage=engineSurface`, and
+`incomplete=false`.
+
+Static capture used 30 warm-up captures and 200 measured captures:
+
+| Metric | Live Flutter layer |
+| --- | ---: |
+| Wall average | 7.179 ms |
+| Wall p50 | 7.134 ms |
+| Wall p95 | 7.603 ms |
+| Wall worst | 8.033 ms |
+| Surface-copy average | 5.335 ms |
+| Surface-copy p95 | 5.676 ms |
+| Failures | 0 |
+
+The scroll test moved through 5,000 rows by 12,000 points over 8 seconds. It
+made 60 captures during the scroll:
+
+| Metric | Live Flutter layer |
+| --- | ---: |
+| Capture wall average | 11.896 ms |
+| Capture wall p95 | 13.485 ms |
+| Surface-copy average | 8.192 ms |
+| Surface-copy p95 | 9.255 ms |
+| Frames | 482 |
+| Frame-time p95 | 23.731 ms |
+| Frames over 33.33 ms | 0 |
+| Capture failures | 0 |
+
+The two no-capture baselines rendered 481 and 482 frames. Their frame-time
+p95 values were 21.978 ms and 22.018 ms. The prior `drawHierarchy` stage used
+36.090 ms for static surface copy and 34.329 ms during scroll. The live-layer
+path reduced those stages by 85.2% and 76.1%.
+
+These are debug Simulator measurements. They do not close the physical-device
+release gate. The engine-surface mode also does not guarantee embedded UIKit
+platform-view content.
