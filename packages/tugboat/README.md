@@ -11,8 +11,9 @@ version `6`.
 
 ## 0.8.12
 
-`traits_updated` session lifecycle POSTs now include the current runtime
-`userId`, matching `session_start`, `session_identify`, and `user_changed`.
+Session lifecycle POSTs now stamp the current runtime `userId` and traits on
+`session_start`, `session_identify`, `traits_updated`, `user_changed`, and
+`session_end`.
 
 ## 0.8.11
 

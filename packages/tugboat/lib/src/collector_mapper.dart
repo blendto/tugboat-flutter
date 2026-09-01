@@ -158,20 +158,16 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   TugboatLocaleInfo? activeLocale,
 }) {
   final isSessionStart = _isSessionStart(eventType);
-  final carriesUserId = _carriesUserId(eventType);
-  final carriesTraits = _carriesTraits(eventType);
 
   final body = <String, Object?>{
     'sessionId': sessionId,
     'eventType': eventType,
     'triggeredAt': triggeredAt.toUtc().toIso8601String(),
-  };
-
-  if (carriesUserId) {
     // Only session_start inherits the configured startup identity. Later
     // lifecycle records send the runtime id as-is, including null.
-    body['userId'] = isSessionStart ? userId ?? config.userId : userId;
-  }
+    'userId': isSessionStart ? userId ?? config.userId : userId,
+  };
+
   if (isSessionStart) {
     final appInfo = Map<String, Object?>.from(config.appInfo.toJson())
       ..remove('installationId')
@@ -192,27 +188,14 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
       'locale': locale,
     });
   }
-  if (carriesTraits) {
-    // Full traits bag wins over traitsId pass-through.
-    if (traits != null) body['traits'] = traits;
-    if (traits == null && traitsId != null) body['traitsId'] = traitsId;
-  }
+  // Full traits bag wins over traitsId pass-through.
+  if (traits != null) body['traits'] = traits;
+  if (traits == null && traitsId != null) body['traitsId'] = traitsId;
   return body;
 }
 
 bool _isSessionStart(String eventType) =>
     eventType == TugboatCollectorSessionEventType.sessionStart.wireValue;
-
-bool _carriesUserId(String eventType) =>
-    _isSessionStart(eventType) ||
-    eventType == TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
-    eventType == TugboatCollectorSessionEventType.userChanged.wireValue ||
-    eventType == TugboatCollectorSessionEventType.traitsUpdated.wireValue;
-
-bool _carriesTraits(String eventType) =>
-    _isSessionStart(eventType) ||
-    eventType == TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
-    eventType == TugboatCollectorSessionEventType.traitsUpdated.wireValue;
 
 /// Trailing digits from a tugboat frame id (`frame-12` → `12`).
 /// Returns null when the id does not end in digits.

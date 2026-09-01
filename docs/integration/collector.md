@@ -197,15 +197,15 @@ not uploaded before this handshake completes.
 
 Session payloads may include:
 
-- `userId` — current runtime user on `session_start`, `session_identify`,
-  `user_changed`, and `traits_updated`. Omitted on `session_end`. After start,
-  `null` is an explicit identity-clear on `user_changed` / `session_identify`
-  and the current (possibly anonymous) identity on `traits_updated`;
+- `userId` — current runtime user on every session lifecycle event, including
+  `session_end`. After start, `null` is an explicit identity-clear on
+  `user_changed` / `session_identify` and the current (possibly anonymous)
+  identity on `traits_updated` and `session_end`;
 - `traits` — full traits snapshot when the host has set a bag (`session_start`,
-  `session_identify`, `traits_updated`); the collector stores the bag as-is
-  (no server-side partial merge). `user_changed` does not send traits;
+  `session_identify`, `traits_updated`, `user_changed`, `session_end`); the
+  collector stores the bag as-is (no server-side partial merge);
 - `traitsId` — pass-through of a prior collector-issued id when no new bag is
-  sent (for example `session_end`, or `session_start` after only an id is
+  sent (for example `session_end` or `session_start` after only an id is
   cached). Ignored by the collector when `traits` is present.
 
 Accepted session responses (`202`) may return `traitsId`. The SDK caches that
