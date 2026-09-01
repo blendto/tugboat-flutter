@@ -85,7 +85,7 @@ older OS versions report `unsupportedApi` and Flutter falls back.
 ## Flutter adapter scope
 
 `package:tugboat` stays the public Dart API. First native-capable version is
-planned as `0.9.0`. This Phase 0/1 line is `0.8.12` and does not enable
+planned as `0.9.0`. This Phase 0/1 line is `0.8.13` and does not enable
 native capture.
 
 In scope for the Android and Apple CPU betas:

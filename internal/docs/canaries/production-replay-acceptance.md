@@ -12,11 +12,10 @@ database receipt alone as proof that a replay is correct.
 
 ## Current acceptance status
 
-The current SDK release candidate is **0.8.12**, which writes session schema
-**v10**. Capture, session schema, and fingerprints are unchanged from `0.8.11`.
-Native CPU screenshot capture is opt-in and **out of this production gate**
-until device privacy rows and performance gates pass. Production cohorts must
-keep `TugboatScreenshotCaptureBackend.flutterRepaintBoundary`.
+The current SDK release candidate is **0.8.13**, which writes session schema
+**v10**. Native CPU screenshot capture is opt-in and **out of this production
+gate** until device privacy rows and performance gates pass. Production
+cohorts must keep `TugboatScreenshotCaptureBackend.flutterRepaintBoundary`.
 
 It preserves structural interaction replay while no longer emitting
 `controlValue`, `controlValueTransition`, `semanticAnnotation`, `stateAnchor`,
@@ -182,7 +181,7 @@ flows share a session, list the event IDs or timestamps that delimit each flow.
 
 Wait until the collector session has finalized and the replay is available in
 the production website. Filter to the recorded Blend build and SDK version
-under test (`0.8.11` for this release), then open every recorded session.
+under test (`0.8.13` for this release), then open every recorded session.
 
 For each interaction, inspect the actual replay UI and verify:
 

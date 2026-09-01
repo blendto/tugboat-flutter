@@ -11,6 +11,10 @@ version `6`.
 
 ## 0.8.13
 
+Experimental opt-in native CPU screenshot capture (`nativeCpuExperimental`) on
+Android (`PixelCopy`) and iOS (live Flutter-layer rendering). Keep
+`TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
+
 `route_change` now carries split route identity (`routeName` / `routeType` /
 `routeNamed`), a closed overlay kind (`page`, `sheet`, `dialog`, `popup`,
 `unknown`), presentation-parent fields for overlay pushes, and a bounded
@@ -20,11 +24,9 @@ screenshot suppression.
 
 ## 0.8.12
 
-Capture, session schema, and fingerprints are unchanged from `0.8.11`. This
-patch records the Dart JPEG size envelope used as the native CPU capture
-baseline and exposes an experimental opt-in native CPU backend on Android
-(`PixelCopy`) and iOS (live Flutter-layer rendering). Keep
-`TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
+Session lifecycle POSTs now stamp the current runtime `userId` and traits on
+`session_start`, `session_identify`, `traits_updated`, `user_changed`, and
+`session_end`.
 
 ## 0.8.11
 
@@ -116,7 +118,7 @@ The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 
 ```yaml
 dependencies:
-  tugboat_dio: ^0.8.11
+  tugboat_dio: ^0.8.13
 ```
 
 See `../tugboat_dio/README.md`.

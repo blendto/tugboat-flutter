@@ -79,7 +79,7 @@ pins, not with the host desktop toolchain.
 | Flutter min Gradle (3.47.2) | 8.14.0 |
 | Example min / compile SDK | min 24, compile/target 36 |
 | Package constraints | Dart `^3.9.2`, Flutter `>=3.35.0` |
-| tugboat | 0.8.12 (capture path unchanged from 0.8.11) |
+| tugboat | 0.8.13 (default Flutter capture path unchanged from 0.8.12) |
 
 Host CMake 3.28.3 and host clang 18.1.3 were present on the lab machine. They
 are not the Android compile pin.

@@ -1,6 +1,6 @@
 ## 0.8.13
 
-Patch release after `0.8.12`.
+Patch release after published `0.8.12`.
 
 ### Fixed
 
@@ -15,6 +15,20 @@ Patch release after `0.8.12`.
 
 ### Added
 
+- Convert `tugboat` into a Flutter plugin with an experimental opt-in native
+  CPU capture backend (`nativeCpuExperimental`) on Android (`PixelCopy`) and
+  iOS (live Flutter-layer rendering). The default remains
+  `flutterRepaintBoundary`, with automatic fallback when native capture is
+  unavailable or fails safely.
+- Record a regenerable JPEG size envelope for the current Dart encoder so the
+  native CPU capture path can compare codec output against the same buffers.
+- Native `encodeMicros` is the Pigeon capture round-trip only. Nested native
+  stage timings stay on the backend trace so `TugboatFrame.captureMicros` does
+  not double-count PixelCopy, dHash, JPEG, and SHA-256.
+- Published `TugboatFrame` records include `requestedBackend`,
+  `resolvedBackend`, and `fallbackReason` so production screenshots identify
+  Flutter vs native without `capture_diagnostic` events. HTTP `/v1/frames` is
+  still JPEG-only.
 - `route_change` now splits route identity (`routeName`, `routeType`,
   `routeNamed`, and the matching `from*` fields) without changing `route`,
   `fromRoute`, or `navigation`.
@@ -25,34 +39,22 @@ Patch release after `0.8.12`.
 - Claimed route changes copy `causeTargetFingerprint` and `causeGesture` from
   the interaction. Overlay after-frames still capture under exploration
   screenshot suppression when `overlayKind` is not `page`.
+- Raise the example Android wrapper to Gradle 8.14 / AGP 8.11.1 / Kotlin 2.2.20
+  so Flutter 3.47 can build a release APK for device-lab capture gates.
+- Document the mobile monorepo, native capture contracts, fallback, coverage,
+  and path-aware version / license / API-surface checks. Native capture stays
+  experimental.
 
 ## 0.8.12
 
 Patch release after `0.8.11`.
 
-### Added
+### Fixed
 
-- Record a regenerable JPEG size envelope for the current Dart encoder so the
-  native CPU capture path can compare codec output against the same buffers.
-- Convert `tugboat` into a Flutter plugin with an experimental opt-in Android
-  native CPU capture backend (`nativeCpuExperimental`). The default remains
-  `flutterRepaintBoundary`, with automatic fallback when native capture is
-  unavailable or fails safely.
-- Add an experimental iOS native CPU path in `TugboatCaptureRuntime` 0.1.0
-  (SwiftPM + CocoaPod). It renders the live Flutter layer so Metal content is
-  present, then uses C++ masks/dHash and ImageIO JPEG. `drawHierarchy` remains
-  an optional UIKit compatibility mode. Unpublished.
-- Native `encodeMicros` is the Pigeon capture round-trip only. Nested native
-  stage timings stay on the backend trace so `TugboatFrame.captureMicros` does
-  not double-count PixelCopy, dHash, JPEG, and SHA-256.
-- Published `TugboatFrame` records include `requestedBackend`, `resolvedBackend`,
-  and `fallbackReason` so production screenshots identify Flutter vs native
-  without `capture_diagnostic` events. HTTP `/v1/frames` is still JPEG-only.
-- Raise the example Android wrapper to Gradle 8.14 / AGP 8.11.1 / Kotlin 2.2.20
-  so Flutter 3.47 can build a release APK for device-lab capture gates.
-- Document the mobile monorepo, native capture contracts, fallback, coverage,
-  and path-aware version / license / API-surface checks. Native capture stays
-  experimental; Flutter remains on the 0.8.12 line.
+- Stamp the current runtime `userId` and traits snapshot on every session
+  lifecycle POST (`session_start`, `session_identify`, `traits_updated`,
+  `user_changed`, `session_end`). Slim payloads had omitted identity from
+  traits-only updates and omitted both fields from `session_end`.
 
 ## 0.8.11
 

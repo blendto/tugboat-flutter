@@ -399,7 +399,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (session == null) return _SendResult.accepted;
 
     final sessionId = _sessionIdForLifecycle(eventType, session.id);
-    final includeFullTraits = _includesFullTraits(eventType);
+    final traits = _traits;
 
     final body = mapTugboatSessionLifecycleToCollectorSession(
       eventType: eventType,
@@ -407,8 +407,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
       triggeredAt: triggeredAt,
       config: _config,
       userId: _userId,
-      traits: includeFullTraits ? _traits : null,
-      traitsId: includeFullTraits ? null : _traitsId,
+      traits: traits,
+      traitsId: traits == null ? _traitsId : null,
       activeLocale: activeLocale,
     );
 
@@ -433,14 +433,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
       _isSessionStart(eventType)
       ? localSessionId
       : _collectorSessionId ?? localSessionId;
-
-  bool _includesFullTraits(String eventType) =>
-      _traits != null &&
-      (_isSessionStart(eventType) ||
-          eventType ==
-              TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
-          eventType ==
-              TugboatCollectorSessionEventType.traitsUpdated.wireValue);
 
   bool _isSessionStart(String eventType) =>
       eventType == TugboatCollectorSessionEventType.sessionStart.wireValue;

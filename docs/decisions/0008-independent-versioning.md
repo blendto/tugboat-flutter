@@ -23,6 +23,6 @@ Public runtime API / C ABI changes bump `capture-runtime`. Adapter source
 changes bump `tugboat` and update
 [compatibility.md](../releases/compatibility.md).
 
-This `0.8.12` line is not the first native-capable public adapter; `0.9.0`
+This `0.8.13` line is not the first native-capable public adapter; `0.9.0`
 is planned after privacy and performance gates, still mapped to
 `capture-runtime` `0.1.x`.
