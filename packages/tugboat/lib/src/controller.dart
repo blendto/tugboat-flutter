@@ -606,9 +606,6 @@ class _VisibleRouteChange {
   Map<String, Object?> _routeCauseData() => {
     if (causeEventId != null) 'causeEventId': causeEventId,
     if (causeEventId != null) 'causedByInteractionId': causeEventId,
-    if (causeTargetFingerprint != null)
-      'causeTargetFingerprint': causeTargetFingerprint,
-    if (causeGesture != null) 'causeGesture': causeGesture,
     if (interactionAttribution != null)
       'interactionAttribution': interactionAttribution!.claimWireName,
   };
@@ -4914,9 +4911,26 @@ class TugboatReplayController extends ChangeNotifier {
           'navigation': change.navigation,
           ...extraData,
           ...change.ownershipData(),
+          ..._liveRouteCauseFingerprint(change),
         },
       ),
     );
+  }
+
+  Map<String, Object?> _liveRouteCauseFingerprint(_VisibleRouteChange change) {
+    final tx = change.causeEventId == null
+        ? null
+        : _interactions.byId(change.causeEventId!);
+    final fingerprint =
+        tx?.origin.targetAnchor?.fingerprint ??
+        tx?.targetAnchor?.fingerprint ??
+        change.causeTargetFingerprint;
+    final gesture = tx?.gesture.wireName ?? change.causeGesture;
+    return {
+      if (fingerprint != null && fingerprint.isNotEmpty)
+        'causeTargetFingerprint': fingerprint,
+      if (gesture != null) 'causeGesture': gesture,
+    };
   }
 
   Future<void> _awaitRouteDeadline(

@@ -96,7 +96,11 @@ void main() {
       expect(first.data['overlayKind'], TugboatOverlayKind.sheet);
       expect(second.data['overlayKind'], TugboatOverlayKind.sheet);
       expect(second.data['presentedOverRoute'], firstRoute);
-      expect(second.data['hostPageRoute'], '/root');
+      expect(
+        second.data.containsKey('hostPageRoute'),
+        isFalse,
+        reason: 'initial /root is not invented when the observer missed it',
+      );
 
       // Opaque route-instance IDs distinguish stacked anonymous sheets even
       // when the descriptive route string collapses to the same runtime type.
@@ -190,8 +194,6 @@ void main() {
       expect(dialog.afterFrame, isNotNull);
       expect(dialog.data['overlayKind'], TugboatOverlayKind.dialog);
       expect(dialog.data['routeNamed'], isTrue);
-      expect(dialog.data['presentedOverRoute'], '/root');
-      expect(dialog.data['hostPageRoute'], '/root');
       final dialogChannels = fixture.colorDominanceInCenter(dialog.afterFrame!);
       expect(
         dialogChannels.blueDominant,

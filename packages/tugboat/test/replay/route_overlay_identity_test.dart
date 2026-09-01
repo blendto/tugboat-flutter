@@ -74,15 +74,11 @@ void main() {
   testWidgets('exploration suppression still captures overlay after-frames', (
     tester,
   ) async {
-    final fixture = await _OverlayIdentityFixture.mount(
-      tester,
-      enablePointerCapture: false,
-    );
+    final fixture = await _OverlayIdentityFixture.mount(tester);
     fixture.controller.debugSetExplorationFramesSuppressed(true);
 
     var eventCursor = fixture.eventCount;
-    await tester.tap(find.byKey(_openPage));
-    await tester.pumpAndSettle();
+    await fixture.pushNamedPage(tester, '/details');
     final page = await fixture.route(
       tester,
       '/details',
@@ -98,8 +94,7 @@ void main() {
     );
 
     eventCursor = fixture.eventCount;
-    await tester.tap(find.byKey(_openUnclaimedSheet));
-    await tester.pumpAndSettle();
+    await fixture.pushUnnamedSheet(tester);
     final sheet = await fixture.routePush(tester, afterIndex: eventCursor);
     expect(sheet.data['overlayKind'], TugboatOverlayKind.sheet);
     expect(sheet.data['causeEventId'], isNull);
@@ -117,32 +112,31 @@ const _openPage = Key('identity-open-page');
 const _openUnclaimedSheet = Key('identity-open-unclaimed-sheet');
 
 class _OverlayIdentityFixture {
-  _OverlayIdentityFixture(this.controller);
+  _OverlayIdentityFixture(this.controller, this.navigatorKey);
 
   final TugboatReplayController controller;
+  final GlobalKey<NavigatorState> navigatorKey;
   int _frameSerial = 0;
 
   TugboatSession get session => controller.session!;
 
   int get eventCount => session.events.length;
 
-  static Future<_OverlayIdentityFixture> mount(
-    WidgetTester tester, {
-    bool enablePointerCapture = true,
-  }) async {
+  static Future<_OverlayIdentityFixture> mount(WidgetTester tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
     await tester.pumpWidget(
       MaterialApp(
+        navigatorKey: navigatorKey,
         initialRoute: '/home',
         navigatorObservers: <NavigatorObserver>[
           TugboatReplay.navigatorObserver,
         ],
         routes: <String, WidgetBuilder>{'/home': (_) => const _HomePage()},
         builder: (context, child) => TugboatReplay.wrapApp(
-          config: TugboatReplayConfig(
+          config: const TugboatReplayConfig(
             profile: TugboatCaptureProfile.exploration,
             settleDelay: Duration.zero,
-            interactionClaimWindow: Duration.zero,
-            enableGlobalPointerCapture: enablePointerCapture,
+            enableGlobalPointerCapture: true,
             capturePixelRatio: 1,
           ),
           child: child!,
@@ -154,7 +148,7 @@ class _OverlayIdentityFixture {
       () => TugboatReplay.controller,
       'replay controller',
     );
-    final fixture = _OverlayIdentityFixture(controller);
+    final fixture = _OverlayIdentityFixture(controller, navigatorKey);
     controller.debugExecuteCapture =
         ({required trigger, required force}) async => controller.debugSeedFrame(
           contentHash: 'identity-${trigger.name}-${fixture._frameSerial++}',
@@ -169,6 +163,7 @@ class _OverlayIdentityFixture {
       contentHash: 'identity-initial-${fixture._frameSerial++}',
       trigger: TugboatFrameTrigger.initial,
     );
+    await fixture.observeHome(tester);
     return fixture;
   }
 
@@ -200,6 +195,34 @@ class _OverlayIdentityFixture {
     }
     return null;
   }, 'route_push');
+
+  Future<void> observeHome(WidgetTester tester) async {
+    navigatorKey.currentState!.pushReplacement<void, void>(
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: '/home'),
+        builder: (_) => const _HomePage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> pushNamedPage(WidgetTester tester, String name) async {
+    navigatorKey.currentState!.push<void>(
+      MaterialPageRoute<void>(
+        settings: RouteSettings(name: name),
+        builder: (_) => const _DetailsPage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> pushUnnamedSheet(WidgetTester tester) async {
+    showModalBottomSheet<void>(
+      context: navigatorKey.currentContext!,
+      builder: (context) => const SizedBox(height: 80),
+    );
+    await tester.pumpAndSettle();
+  }
 }
 
 class _HomePage extends StatelessWidget {
