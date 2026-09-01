@@ -96,8 +96,10 @@ In scope for the Android and Apple CPU betas:
 - Send mask metadata and previous dHash; receive masked JPEG only
 - Automatic fallback; never publish native and Flutter results for one request
 - Preserve session schema, frame transport, scheduling, and mask policy
-- Android: local Maven AAR. iOS: local CocoaPods path to
-  `TugboatCaptureRuntime`
+- Android: the Flutter plugin compiles `capture-runtime` from source in the
+  monorepo. Native Android apps still use the local Maven AAR. iOS: the
+  plugin compiles `TugboatCaptureRuntime` sources; the root CocoaPod remains
+  for native Apple apps.
 
 `TugboatCaptureBoundary` stays. Flutter may still supply mask geometry and
 capture scheduling.

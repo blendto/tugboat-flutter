@@ -1,7 +1,6 @@
 import CoreGraphics
 import Foundation
 import ImageIO
-import UniformTypeIdentifiers
 
 enum JpegEncoder {
   static let quality = Double(CaptureRuntime.jpegQuality) / 100.0
@@ -9,8 +8,8 @@ enum JpegEncoder {
   static func encode(from context: CGContext) -> Data? {
     guard let image = context.makeImage() else { return nil }
     let data = NSMutableData()
-    let type = UTType.jpeg.identifier as CFString
-    guard let destination = CGImageDestinationCreateWithData(data, type, 1, nil) else {
+    guard let destination = CGImageDestinationCreateWithData(data, "public.jpeg" as CFString, 1, nil)
+    else {
       return nil
     }
     let options: [CFString: Any] = [

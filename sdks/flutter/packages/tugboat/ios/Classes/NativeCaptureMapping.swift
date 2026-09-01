@@ -1,5 +1,4 @@
 import Flutter
-import TugboatCaptureRuntime
 
 enum NativeCaptureMapping {
   static func capabilities(_ value: CaptureCapabilities) -> NativeCaptureCapabilities {

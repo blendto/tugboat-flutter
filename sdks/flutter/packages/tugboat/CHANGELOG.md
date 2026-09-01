@@ -2,6 +2,16 @@
 
 Patch release after `0.8.12`.
 
+### Fixed
+
+- The Android plugin compiles `capture-runtime` from monorepo sources instead
+  of requiring unpublished Maven `com.tugboat.sdk:capture-runtime:0.1.0`.
+- The iOS plugin no longer depends on unpublished CocoaPod
+  `TugboatCaptureRuntime` and keeps a deployment target of iOS 12. Native
+  capture remains runtime-gated to iOS 15.
+- PixelCopy no longer recycles the destination bitmap while an outstanding
+  copy callback may still write to it.
+
 ### Added
 
 - `route_change` now splits route identity (`routeName`, `routeType`,

@@ -1,6 +1,5 @@
 import Flutter
 import UIKit
-import TugboatCaptureRuntime
 
 public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
   private var runtime: CaptureRuntime?
@@ -95,9 +94,12 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
   }
 
   private func keyWindow() -> UIWindow? {
-    let windows = UIApplication.shared.connectedScenes
-      .compactMap { $0 as? UIWindowScene }
-      .flatMap { $0.windows }
-    return windows.first(where: \.isKeyWindow) ?? windows.first
+    if #available(iOS 13.0, *) {
+      let windows = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .flatMap { $0.windows }
+      return windows.first(where: \.isKeyWindow) ?? windows.first
+    }
+    return UIApplication.shared.keyWindow
   }
 }

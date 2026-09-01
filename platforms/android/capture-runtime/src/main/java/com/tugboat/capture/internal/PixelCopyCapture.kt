@@ -31,12 +31,22 @@ internal object PixelCopyCapture {
                 latch.countDown()
                 return@post
             }
-            PixelCopy.request(surfaceView, destination, { result ->
-                code.set(result)
-                latch.countDown()
-            }, handler)
+            PixelCopy.request(
+                surfaceView,
+                destination,
+                { result ->
+                    code.set(result)
+                    latch.countDown()
+                },
+                handler,
+            )
         }
         val completed = latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+        if (!completed) {
+            // PixelCopy may still write to `destination`. Block until the
+            // callback runs so CaptureRuntime's finally can recycle safely.
+            latch.await()
+        }
         if (!isCurrent()) return CaptureStatus.Cancelled
         if (!completed) return CaptureStatus.Timeout
         return when (code.get()) {

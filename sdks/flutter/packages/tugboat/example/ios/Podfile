@@ -29,9 +29,6 @@ flutter_ios_podfile_setup
 target 'Runner' do
   use_frameworks!
 
-  # Local CocoaPod for experimental native CPU capture (monorepo path).
-  pod 'TugboatCaptureRuntime', :path => File.expand_path('../../../../../../', File.dirname(__FILE__))
-
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths

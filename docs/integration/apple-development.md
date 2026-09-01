@@ -14,16 +14,14 @@ Experimental CPU path for iOS 15+. Default Flutter capture remains
 | `platforms/apple/Sources/TugboatImageCoreBridge` | Objective-C++ bridge to the C ABI |
 | `platforms/apple/Tests` | XCTest (MaskMapper, runtime constants) |
 | `platforms/apple/Sample` | Usage notes, not a full Xcode app |
-| `sdks/flutter/packages/tugboat/ios` | Pigeon plugin; depends on the CocoaPod |
+| `sdks/flutter/packages/tugboat/ios` | Pigeon plugin; compiles Apple sources via `NativeRuntime` when present |
 
-Do not copy `core/image-processing` into the pub package. The Flutter example
-uses a local CocoaPods path override:
-
-```ruby
-pod 'TugboatCaptureRuntime', :path => File.expand_path('../../../../../../', File.dirname(__FILE__))
-```
-
-in `sdks/flutter/packages/tugboat/example/ios/Podfile`.
+Do not copy `core/image-processing` into the published pub package. The
+Flutter plugin podspec does not depend on unpublished `TugboatCaptureRuntime`.
+Monorepo checkouts compile Apple runtime sources through
+`ios/NativeRuntime` (symlinks into `platforms/apple` and `core/`). The plugin
+deployment target stays iOS 12; native capture still reports unsupported
+below iOS 15.
 
 ## Capture
 

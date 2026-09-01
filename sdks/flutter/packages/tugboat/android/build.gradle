@@ -13,20 +13,22 @@ buildscript {
     }
 }
 
-def localMavenRepo = file("${project.projectDir}/../../../../../.local-maven")
-
 rootProject.allprojects {
     repositories {
         google()
         mavenCentral()
-        maven {
-            url = uri(localMavenRepo)
-        }
     }
 }
 
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
+
+def repoRoot = file("${project.projectDir}/../../../../..")
+def captureRuntimeDir = file("${repoRoot}/platforms/android/capture-runtime")
+def imageCoreDir = file("${repoRoot}/core/image-processing")
+def hasNativeRuntime =
+    file("${captureRuntimeDir}/src/main/java/com/tugboat/capture/CaptureRuntime.kt").isFile() &&
+        file("${imageCoreDir}/include/tugboat/tb_image_core.h").isFile()
 
 android {
     namespace = "com.tugboat.flutter"
@@ -43,13 +45,33 @@ android {
 
     sourceSets {
         main.java.srcDirs += "src/main/kotlin"
+        if (hasNativeRuntime) {
+            main.java.srcDirs += "${captureRuntimeDir}/src/main/java"
+        } else {
+            // Published / pub-cache checkouts do not ship platforms/android.
+            main.java.srcDirs += "src/stub/kotlin"
+        }
     }
 
     defaultConfig {
         minSdk = 21
+        if (hasNativeRuntime) {
+            consumerProguardFiles("${captureRuntimeDir}/consumer-rules.pro")
+            externalNativeBuild {
+                cmake {
+                    arguments "-DTB_IMAGE_CORE_DIR=${imageCoreDir.canonicalPath}",
+                            "-DTB_IMAGE_CORE_BUILD_TESTS=OFF",
+                            "-DANDROID_STL=c++_static"
+                }
+            }
+        }
     }
-}
 
-dependencies {
-    implementation("com.tugboat.sdk:capture-runtime:0.1.0")
+    if (hasNativeRuntime) {
+        externalNativeBuild {
+            cmake {
+                path = file("${captureRuntimeDir}/src/main/cpp/CMakeLists.txt")
+            }
+        }
+    }
 }

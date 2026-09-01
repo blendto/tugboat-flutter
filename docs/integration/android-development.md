@@ -23,6 +23,8 @@ Kotlin or C ABI change, bump the Maven version and regenerate `api.txt`:
 python3 tool/ci/dump-android-runtime-api.py > platforms/android/capture-runtime/api.txt
 ```
 
-The Flutter plugin at `sdks/flutter/packages/tugboat/android` wraps
-`CaptureRuntime` behind the Pigeon `NativeCaptureHostApi`. Do not log pixel
-or JPEG data.
+The Flutter plugin at `sdks/flutter/packages/tugboat/android` compiles
+`CaptureRuntime` from this source tree (no unpublished Maven coordinate) and
+wraps it behind the Pigeon `NativeCaptureHostApi`. Published pub checkouts
+without `platforms/android` stub native capture as unsupported. Do not log
+pixel or JPEG data.

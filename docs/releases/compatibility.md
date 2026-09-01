@@ -2,6 +2,7 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
+| Flutter `tugboat` | 0.8.13 | Android `capture-runtime` 0.1.x compiled from monorepo sources (unpublished Maven is not required). Apple `TugboatCaptureRuntime` 0.1.x compiled from monorepo sources (unpublished CocoaPod is not required). Plugin iOS floor 12; native capture still reports unsupported below iOS 15. |
 | Flutter `tugboat` | 0.8.12 | Android `com.tugboat.sdk:capture-runtime` 0.1.x (local Maven; experimental). Apple `TugboatCaptureRuntime` 0.1.x (local CocoaPod / SwiftPM; experimental). |
 | Flutter `tugboat` | 0.9.0 (planned) | Android `capture-runtime` 0.1.x and Apple `TugboatCaptureRuntime` 0.1.x |
 | Apple `TugboatCaptureRuntime` | 0.1.0 | unpublished local CocoaPod / SwiftPM; iOS 15 live Flutter-layer CPU path |

@@ -24,9 +24,10 @@ The Tugboat CLI is maintained separately.
 | `docs/` | Architecture, integration, privacy, performance, releases |
 | `tool/ci` | Host test, generate, and release-control scripts |
 
-Do not copy the C++ core into the pub package. Flutter consumes the Android
-AAR and the Apple CocoaPod (local path during development) rather than
-vendoring native sources.
+Do not copy the C++ core into the published pub package. In this monorepo the
+Flutter plugin compiles Android and Apple runtimes from `platforms/` (and
+`core/`) when those trees resolve. Published pub consumers get a stub HostApi
+that reports unsupported native capture and keep the default Flutter backend.
 
 ## Capture backends
 
@@ -62,8 +63,9 @@ bash tool/ci/build-android-runtime.sh
 bash tool/ci/run-flutter-tests.sh
 ```
 
-The Android AAR publishes to untracked `.local-maven/`. Run the Android build
-before `flutter build apk` on the example.
+Native Android apps still consume the AAR from untracked `.local-maven/` after
+`bash tool/ci/build-android-runtime.sh`. The Flutter plugin no longer needs
+that artifact; it compiles `platforms/android/capture-runtime` from source.
 
 ## Development
 

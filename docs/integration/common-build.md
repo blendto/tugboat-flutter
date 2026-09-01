@@ -10,9 +10,10 @@ bash tool/ci/run-flutter-tests.sh
 bash tool/ci/verify-native-capture-pigeon.sh
 ```
 
-The Android AAR publishes to untracked `.local-maven/`. The Flutter Android
-plugin consumes `com.tugboat.sdk:capture-runtime:0.1.0` from that repository.
-Run `build-android-runtime.sh` before `flutter build apk` on the example.
+The Android AAR publishes to untracked `.local-maven/` for native Android
+apps and the sample. The Flutter plugin compiles `capture-runtime` from
+source when `platforms/android` is present, so example APKs do not need
+that Maven artifact.
 
 Release-control scripts (also run in CI):
 
