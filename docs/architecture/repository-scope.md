@@ -16,7 +16,7 @@ the monorepo layout.
 | Tree | Product | First milestone |
 | --- | --- | --- |
 | `core/image-processing` | Portable C++ CPU core | Yes |
-| `platforms/android/capture-runtime` | Android AAR `com.tugboat.sdk:capture-runtime` | Yes |
+| `platforms/android/capture-runtime` | Android AAR `com.gettugboat.sdk:capture-runtime` | Yes |
 | `platforms/apple` | Swift/ObjC++ runtime | Yes (experimental iOS CPU; unpublished) |
 | `sdks/flutter` | Flutter adapter (`tugboat`, `tugboat_dio`) | Yes (opt-in native Android) |
 | `sdks/react-native` | Future adapter placeholder | README only |
@@ -50,7 +50,7 @@ Out of scope for the first core:
 
 Kotlin library `com.tugboat.capture` / namespace
 `com.tugboat.capture.runtime`. Artifact
-`com.tugboat.sdk:capture-runtime:0.1.0`.
+`com.gettugboat.sdk:capture-runtime:0.1.0`.
 
 In scope:
 

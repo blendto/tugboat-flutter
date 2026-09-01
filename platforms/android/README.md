@@ -1,7 +1,8 @@
 # Android capture runtime
 
-Maven artifact `com.tugboat.sdk:capture-runtime:0.1.0`.
-Namespace `com.tugboat.capture.runtime`. Kotlin runtime plus the C++ core
+Maven artifact `com.gettugboat.sdk:capture-runtime:0.1.0` (group follows
+[gettugboat.com](https://gettugboat.com)). Android namespace
+`com.tugboat.capture.runtime`. Kotlin runtime plus the C++ core
 compiled into an AAR (`arm64-v8a`, `armeabi-v7a`, `x86_64`).
 
 Native capture requires API 24. Older devices report `unsupportedApi`.
@@ -22,14 +23,14 @@ From `platforms/android` (needs Android SDK, NDK `28.2.13676358`, CMake
 Or from the repository root: `bash tool/ci/build-android-runtime.sh`.
 
 Local publish writes
-`.local-maven/com/tugboat/sdk/capture-runtime/<version>/` at the repository
+`.local-maven/com/gettugboat/sdk/capture-runtime/<version>/` at the repository
 root (gitignored). After that:
 
 ```sh
 ./gradlew :sample:assembleDebug
 ```
 
-The sample resolves `com.tugboat.sdk:capture-runtime` from that repository,
+The sample resolves `com.gettugboat.sdk:capture-runtime` from that repository,
 not from `project()`. Version is `VERSION_NAME` in `gradle.properties`.
 
 `connectedAndroidTest` for lifecycle and render-mode tests needs a device

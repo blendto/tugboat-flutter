@@ -40,7 +40,7 @@ depend on the hosted packages, not a GitHub git dependency.
 ## Android AAR (`capture-runtime`)
 
 Merging a `VERSION_NAME` bump to `main` creates tag `capture-runtime-v<version>`
-and publishes `com.tugboat.sdk:capture-runtime` from `platforms/android`.
+and publishes `com.gettugboat.sdk:capture-runtime` from `platforms/android`.
 `GITHUB_TOKEN` tag pushes do not start other workflows, so the tag job
 dispatches `publish-android.yml` on that tag (same pattern as pub.dev).
 
@@ -70,7 +70,7 @@ repositories {
     }
 }
 dependencies {
-    implementation("com.tugboat.sdk:capture-runtime:0.1.0")
+    implementation("com.gettugboat.sdk:capture-runtime:0.1.0")
 }
 ```
 
@@ -84,9 +84,9 @@ GitHub credentials.
 Required before the Flutter plugin can depend on the AAR from pub.dev.
 
 1. Create a Central Portal account at [central.sonatype.com](https://central.sonatype.com/).
-2. Verify namespace `com.tugboat` with a DNS TXT record on `tugboat.com`.
-   If that domain is not available, change `GROUP` to a verifiable namespace
-   such as `io.github.blendto` before the first Central publish.
+2. Verify namespace `com.gettugboat` with a DNS TXT record on
+   [gettugboat.com](https://gettugboat.com). That namespace covers
+   `com.gettugboat.sdk`.
 3. Generate a user token and a signing GPG key.
 4. Add repository secrets:
    - `MAVEN_CENTRAL_USERNAME`

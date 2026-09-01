@@ -1,4 +1,4 @@
-# Publishes com.tugboat.sdk:capture-runtime from platforms/android.
+# Publishes com.gettugboat.sdk:capture-runtime from platforms/android.
 #
 # Merging a PR does not publish by itself. This workflow:
 # 1. On push to main, creates tag capture-runtime-v<version> when that version
@@ -49,13 +49,13 @@ jobs:
           echo "capture-runtime version: ${version}"
 
           github_exists=false
-          if versions="$(gh api "/orgs/blendto/packages/maven/com.tugboat.sdk.capture-runtime/versions" --jq '.[].name' 2>/dev/null)"; then
+          if versions="$(gh api "/orgs/blendto/packages/maven/com.gettugboat.sdk.capture-runtime/versions" --jq '.[].name' 2>/dev/null)"; then
             if printf '%s\n' "$versions" | grep -qx "${version}"; then
               github_exists=true
             fi
           fi
           central_code="$(curl -sS -o /dev/null -w '%{http_code}' \
-            "https://repo1.maven.org/maven2/com/tugboat/sdk/capture-runtime/${version}/capture-runtime-${version}.pom")"
+            "https://repo1.maven.org/maven2/com/gettugboat/sdk/capture-runtime/${version}/capture-runtime-${version}.pom")"
           echo "GitHub Packages has ${version}: ${github_exists}"
           echo "Maven Central POM: ${central_code}"
 
@@ -148,7 +148,7 @@ jobs:
         run: |
           set -euo pipefail
           github_exists=false
-          if versions="$(gh api "/orgs/blendto/packages/maven/com.tugboat.sdk.capture-runtime/versions" --jq '.[].name' 2>/dev/null)"; then
+          if versions="$(gh api "/orgs/blendto/packages/maven/com.gettugboat.sdk.capture-runtime/versions" --jq '.[].name' 2>/dev/null)"; then
             if printf '%s\n' "$versions" | grep -qx "${VERSION}"; then
               github_exists=true
             fi
@@ -172,11 +172,11 @@ jobs:
           set -euo pipefail
           if [[ -z "${MAVEN_CENTRAL_USERNAME}" ]]; then
             echo "Maven Central secrets are not configured. Skipping Central publish."
-            echo "Add MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD, MAVEN_GPG_KEY, and MAVEN_GPG_PASSPHRASE after verifying namespace com.tugboat (tugboat.com) at https://central.sonatype.com/"
+            echo "Add MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD, MAVEN_GPG_KEY, and MAVEN_GPG_PASSPHRASE after verifying namespace com.gettugboat (gettugboat.com) at https://central.sonatype.com/"
             exit 0
           fi
           code="$(curl -sS -o /dev/null -w '%{http_code}' \
-            "https://repo1.maven.org/maven2/com/tugboat/sdk/capture-runtime/${VERSION}/capture-runtime-${VERSION}.pom")"
+            "https://repo1.maven.org/maven2/com/gettugboat/sdk/capture-runtime/${VERSION}/capture-runtime-${VERSION}.pom")"
           if [[ "$code" == "200" ]]; then
             echo "capture-runtime ${VERSION} is already on Maven Central."
             exit 0

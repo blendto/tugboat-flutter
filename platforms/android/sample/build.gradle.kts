@@ -23,5 +23,5 @@ android {
 }
 
 dependencies {
-    implementation("com.tugboat.sdk:capture-runtime:${providers.gradleProperty("VERSION_NAME").get()}")
+    implementation("com.gettugboat.sdk:capture-runtime:${providers.gradleProperty("VERSION_NAME").get()}")
 }

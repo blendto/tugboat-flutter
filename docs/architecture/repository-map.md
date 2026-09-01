@@ -3,7 +3,7 @@
 | Path | Product |
 | --- | --- |
 | `core/image-processing` | Portable C++ CPU core (C ABI) |
-| `platforms/android` | `com.tugboat.sdk:capture-runtime` AAR |
+| `platforms/android` | `com.gettugboat.sdk:capture-runtime` AAR |
 | `platforms/apple` | `TugboatCaptureRuntime` SwiftPM / CocoaPod (experimental iOS CPU) |
 | `sdks/flutter/packages/tugboat` | Flutter adapter / plugin |
 | `sdks/flutter/packages/tugboat_dio` | Dio evidence adapter |

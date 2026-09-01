@@ -60,7 +60,7 @@ dependencies {
 
 mavenPublishing {
     coordinates(
-        groupId = "com.tugboat.sdk",
+        groupId = "com.gettugboat.sdk",
         artifactId = "capture-runtime",
         version = providers.gradleProperty("VERSION_NAME").get(),
     )

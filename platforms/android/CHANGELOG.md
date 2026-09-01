@@ -2,7 +2,7 @@
 
 ## 0.1.0
 
-Initial Maven artifact `com.tugboat.sdk:capture-runtime:0.1.0`.
+Initial Maven artifact `com.gettugboat.sdk:capture-runtime:0.1.0`.
 
 - `PixelCopy` of `FlutterSurfaceView` (API 24+).
 - Portable C++ core for masks, dHash, and skip.

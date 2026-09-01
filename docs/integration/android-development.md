@@ -3,7 +3,8 @@
 The capture runtime lives in `platforms/android`.
 
 - Namespace: `com.tugboat.capture.runtime`
-- Maven: `com.tugboat.sdk:capture-runtime` (`VERSION_NAME` in
+- Maven: `com.gettugboat.sdk:capture-runtime` (group is the reverse of
+  [gettugboat.com](https://gettugboat.com); `VERSION_NAME` in
   `platforms/android/gradle.properties`)
 - Kotlin package: `com.tugboat.capture`
 - NDK: `28.2.13676358`

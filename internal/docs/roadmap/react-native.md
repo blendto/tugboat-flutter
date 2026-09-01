@@ -7,7 +7,7 @@ copy until that artifact is published.
 
 Planned identifiers: Android namespace `com.tugboat.reactnative`, npm
 `@tugboat/react-native`. The adapter will consume the same
-`com.tugboat.sdk:capture-runtime` AAR and the Apple CocoaPod. Raw pixels
+`com.gettugboat.sdk:capture-runtime` AAR and the Apple CocoaPod. Raw pixels
 stay out of JavaScript. The first npm package is a beta behind a
 compatibility-table entry.
 

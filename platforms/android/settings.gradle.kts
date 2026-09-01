@@ -35,7 +35,7 @@ val runtimeVersion =
         ?: error("VERSION_NAME is missing from platforms/android/gradle.properties")
 val localAar =
     rootDir.resolve(
-        "../../.local-maven/com/tugboat/sdk/capture-runtime/$runtimeVersion/capture-runtime-$runtimeVersion.aar",
+        "../../.local-maven/com/gettugboat/sdk/capture-runtime/$runtimeVersion/capture-runtime-$runtimeVersion.aar",
     )
 if (localAar.isFile) {
     include(":sample")

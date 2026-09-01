@@ -1,6 +1,6 @@
 # Android runtime release notes
 
-`com.tugboat.sdk:capture-runtime` publishes from GitHub Actions on tag
+`com.gettugboat.sdk:capture-runtime` publishes from GitHub Actions on tag
 `capture-runtime-v<version>`. See [process.md](../../docs/releases/process.md).
 
 Do not:
@@ -21,7 +21,7 @@ To checksum a local AAR (not a signed Central artifact):
 ```sh
 bash tool/ci/build-android-runtime.sh
 version="$(bash tool/ci/android-runtime-version.sh)"
-shasum -a 256 ".local-maven/com/tugboat/sdk/capture-runtime/${version}"/*.aar
+shasum -a 256 ".local-maven/com/gettugboat/sdk/capture-runtime/${version}"/*.aar
 ```
 
 Do not commit `.local-maven/` or treat those hashes as the signed release.
