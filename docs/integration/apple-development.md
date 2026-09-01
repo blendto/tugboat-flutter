@@ -34,10 +34,10 @@ last Flutter layer tree, so Metal content is present. Coverage is
 `engineSurface`. Embedded UIKit platform views are not guaranteed.
 
 Native Apple integrations can initialize `CaptureRuntime` with
-`captureMode: .viewHierarchy`. That compatibility mode uses
+`coverage: .viewHierarchy`. That compatibility mode uses
 `drawHierarchy(in:afterScreenUpdates: false)`, reports `viewHierarchy`, and
 sets `incomplete` when the draw returns false. The Flutter plugin uses the
-default engine-surface mode.
+default engine-surface coverage.
 
 Masks and dHash go through the C++ core. JPEG is ImageIO quality 80. SHA-256
 is CryptoKit over the JPEG. Raw pixels never enter Dart.

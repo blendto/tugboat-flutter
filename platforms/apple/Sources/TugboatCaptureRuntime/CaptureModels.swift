@@ -1,9 +1,9 @@
 import Foundation
 
 public struct CaptureCapabilities {
-  public var nativeCaptureSupported: Bool
-  public var apiLevel: Int
-  public var minNativeApi: Int = CaptureRuntime.minNativeApi
+  public let nativeCaptureSupported: Bool
+  public let apiLevel: Int
+  public let minNativeApi: Int
 
   public init(
     nativeCaptureSupported: Bool,
@@ -34,17 +34,6 @@ public enum CaptureCoverage {
   case viewHierarchy
 }
 
-/// Selects the Apple view readback path.
-///
-/// Engine-surface capture is the default. It renders the live Flutter layer,
-/// which lets Flutter copy its Metal content into the target bitmap. View-
-/// hierarchy capture remains available when UIKit platform-view coverage is
-/// more important than capture cost.
-public enum AppleCaptureMode: Equatable {
-  case engineSurface
-  case viewHierarchy
-}
-
 public enum RenderMode {
   case surfaceView
   case textureView
@@ -53,10 +42,10 @@ public enum RenderMode {
 }
 
 public struct NormalizedMask {
-  public var x: Double
-  public var y: Double
-  public var width: Double
-  public var height: Double
+  public let x: Double
+  public let y: Double
+  public let width: Double
+  public let height: Double
 
   public init(x: Double, y: Double, width: Double, height: Double) {
     self.x = x
@@ -67,12 +56,12 @@ public struct NormalizedMask {
 }
 
 public struct CaptureRequest {
-  public var requestId: Int64
-  public var pixelWidth: Int
-  public var pixelHeight: Int
-  public var force: Bool
-  public var lastDHash: String = ""
-  public var masks: [NormalizedMask] = []
+  public let requestId: Int64
+  public let pixelWidth: Int
+  public let pixelHeight: Int
+  public let force: Bool
+  public let lastDHash: String
+  public let masks: [NormalizedMask]
 
   public init(
     requestId: Int64,
@@ -92,12 +81,12 @@ public struct CaptureRequest {
 }
 
 public struct CaptureTimings {
-  public var surfaceCopyMicros: Int64 = 0
-  public var maskFillMicros: Int64 = 0
-  public var dHashMicros: Int64 = 0
-  public var jpegMicros: Int64 = 0
-  public var sha256Micros: Int64 = 0
-  public var pixelReadbackMicros: Int64 = 0
+  public let surfaceCopyMicros: Int64
+  public let maskFillMicros: Int64
+  public let dHashMicros: Int64
+  public let jpegMicros: Int64
+  public let sha256Micros: Int64
+  public let pixelReadbackMicros: Int64
 
   public init(
     surfaceCopyMicros: Int64 = 0,
@@ -117,17 +106,17 @@ public struct CaptureTimings {
 }
 
 public struct CaptureResult {
-  public var requestId: Int64
-  public var status: CaptureStatus
-  public var coverage: CaptureCoverage? = nil
-  public var jpeg: Data = Data()
-  public var width: Int = 0
-  public var height: Int = 0
-  public var dHash: String = ""
-  public var contentHash: String = ""
-  public var timings: CaptureTimings = CaptureTimings()
-  public var renderMode: RenderMode = .unknown
-  public var incomplete: Bool = false
+  public let requestId: Int64
+  public let status: CaptureStatus
+  public let coverage: CaptureCoverage?
+  public let jpeg: Data
+  public let width: Int
+  public let height: Int
+  public let dHash: String
+  public let contentHash: String
+  public let timings: CaptureTimings
+  public let renderMode: RenderMode
+  public let incomplete: Bool
 
   public init(
     requestId: Int64,

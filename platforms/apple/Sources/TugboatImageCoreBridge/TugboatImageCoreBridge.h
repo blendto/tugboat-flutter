@@ -2,10 +2,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-typedef NS_ENUM(int32_t, TBPixelFormat) {
-  TBPixelFormatRGBA8888 = 1,
-  TBPixelFormatBGRA8888 = 2,
-};
+FOUNDATION_EXPORT const int32_t TBImageCorePixelFormatRGBA8888;
+FOUNDATION_EXPORT const int32_t TBImageCorePixelFormatBGRA8888;
 
 @interface TBImageProcessResult : NSObject
 @property(nonatomic, readonly) int32_t status;
@@ -20,7 +18,7 @@ typedef NS_ENUM(int32_t, TBPixelFormat) {
                                   width:(int32_t)width
                                  height:(int32_t)height
                             strideBytes:(int32_t)strideBytes
-                                 format:(TBPixelFormat)format
+                                 format:(int32_t)format
                             masksPacked:(nullable const int32_t *)masksPacked
                            maskIntCount:(int32_t)maskIntCount
                               lastDHash:(NSString *)lastDHash

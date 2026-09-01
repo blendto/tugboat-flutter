@@ -18,6 +18,7 @@ PUBLIC_TYPES = (
 PUBLIC_MEMBERS = (
     "public func ",
     "public var ",
+    "public let ",
     "public static let ",
     "public static var ",
     "public init(",

@@ -4,26 +4,22 @@ import XCTest
 @testable import TugboatCaptureRuntime
 
 final class CaptureRuntimeModeTests: XCTestCase {
-  func testEngineSurfaceCaptureReportsEngineSurfaceCoverage() {
-    let result = capture(runtime: CaptureRuntime())
+  func testEngineSurfaceCaptureReportsEngineSurfaceCoverage() throws {
+    let result = try capture(runtime: CaptureRuntime())
 
-    guard case .engineSurface? = result.coverage else {
-      return XCTFail("expected engineSurface coverage")
-    }
+    XCTAssertEqual(result.coverage, .engineSurface)
     XCTAssertFalse(result.jpeg.isEmpty)
     XCTAssertFalse(result.incomplete)
   }
 
-  func testHierarchyCompatibilityCaptureReportsViewHierarchyCoverage() {
-    let result = capture(runtime: CaptureRuntime(captureMode: .viewHierarchy))
+  func testHierarchyCompatibilityCaptureReportsViewHierarchyCoverage() throws {
+    let result = try capture(runtime: CaptureRuntime(coverage: .viewHierarchy))
 
-    guard case .viewHierarchy? = result.coverage else {
-      return XCTFail("expected viewHierarchy coverage")
-    }
+    XCTAssertEqual(result.coverage, .viewHierarchy)
     XCTAssertFalse(result.jpeg.isEmpty)
   }
 
-  private func capture(runtime: CaptureRuntime) -> CaptureResult {
+  private func capture(runtime: CaptureRuntime) throws -> CaptureResult {
     let view = UIView(frame: CGRect(x: 0, y: 0, width: 40, height: 60))
     view.backgroundColor = .red
     let completed = expectation(description: "capture completes")
@@ -43,6 +39,6 @@ final class CaptureRuntimeModeTests: XCTestCase {
     }
 
     wait(for: [completed], timeout: 2)
-    return try! XCTUnwrap(captured)
+    return try XCTUnwrap(captured)
   }
 }

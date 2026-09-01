@@ -4,6 +4,9 @@
 
 #include <vector>
 
+const int32_t TBImageCorePixelFormatRGBA8888 = TB_PIXEL_FORMAT_RGBA8888;
+const int32_t TBImageCorePixelFormatBGRA8888 = TB_PIXEL_FORMAT_BGRA8888;
+
 @implementation TBImageProcessResult
 
 - (instancetype)initWithStatus:(int32_t)status
@@ -35,7 +38,7 @@
                                   width:(int32_t)width
                                  height:(int32_t)height
                             strideBytes:(int32_t)strideBytes
-                                 format:(TBPixelFormat)format
+                                 format:(int32_t)format
                             masksPacked:(const int32_t *)masksPacked
                            maskIntCount:(int32_t)maskIntCount
                               lastDHash:(NSString *)lastDHash
@@ -46,17 +49,8 @@
   if (maskIntCount < 0 || (maskIntCount % 4) != 0) {
     return [self fail:TB_IMAGE_INVALID_ARGUMENT];
   }
-
-  tb_pixel_format native_format;
-  switch (format) {
-    case TBPixelFormatRGBA8888:
-      native_format = TB_PIXEL_FORMAT_RGBA8888;
-      break;
-    case TBPixelFormatBGRA8888:
-      native_format = TB_PIXEL_FORMAT_BGRA8888;
-      break;
-    default:
-      return [self fail:TB_IMAGE_UNSUPPORTED_FORMAT];
+  if (format != TB_PIXEL_FORMAT_RGBA8888 && format != TB_PIXEL_FORMAT_BGRA8888) {
+    return [self fail:TB_IMAGE_UNSUPPORTED_FORMAT];
   }
 
   std::vector<tb_rect> rects;
@@ -79,7 +73,7 @@
   request.width = width;
   request.height = height;
   request.stride_bytes = strideBytes;
-  request.format = native_format;
+  request.format = static_cast<tb_pixel_format>(format);
   request.masks = rects.empty() ? nullptr : rects.data();
   request.mask_count = rects.size();
   request.last_dhash = last_chars;
