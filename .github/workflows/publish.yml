@@ -47,8 +47,8 @@ jobs:
             grep -E '^version:' "$1" | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]'
           }
 
-          tugboat_version="$(extract_version packages/tugboat/pubspec.yaml)"
-          dio_version="$(extract_version packages/tugboat_dio/pubspec.yaml)"
+          tugboat_version="$(extract_version sdks/flutter/packages/tugboat/pubspec.yaml)"
+          dio_version="$(extract_version sdks/flutter/packages/tugboat_dio/pubspec.yaml)"
           if [[ -z "$tugboat_version" || -z "$dio_version" ]]; then
             echo "::error::Could not read package versions."
             exit 1
@@ -125,7 +125,7 @@ jobs:
           channel: stable
 
       - name: Publish tugboat
-        working-directory: packages/tugboat
+        working-directory: sdks/flutter/packages/tugboat
         run: |
           set -euo pipefail
           version="$(grep -E '^version:' pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]')"
@@ -162,7 +162,7 @@ jobs:
           channel: stable
 
       - name: Publish tugboat_dio
-        working-directory: packages/tugboat_dio
+        working-directory: sdks/flutter/packages/tugboat_dio
         run: |
           set -euo pipefail
           version="$(grep -E '^version:' pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]')"

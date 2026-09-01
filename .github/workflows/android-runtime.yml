@@ -1,0 +1,37 @@
+name: Android runtime
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "platforms/android/**"
+      - "core/image-processing/**"
+      - "tool/ci/build-android-runtime.sh"
+      - "tool/ci/dump-android-runtime-api.py"
+      - "tool/ci/verify-android-runtime-api.sh"
+      - ".github/workflows/android-runtime.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  aar:
+    name: Build and publish local AAR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install NDK and CMake
+        run: |
+          yes | sdkmanager --install "ndk;28.2.13676358" "cmake;3.22.1" "platforms;android-36" "build-tools;35.0.0"
+      - name: Build runtime, tests, local Maven, sample
+        run: bash tool/ci/build-android-runtime.sh
+      - name: Verify public API dump
+        run: bash tool/ci/verify-android-runtime-api.sh

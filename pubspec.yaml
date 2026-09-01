@@ -5,9 +5,9 @@ environment:
   sdk: ^3.9.2
 
 workspace:
-  - packages/tugboat
-  - packages/tugboat/example
-  - packages/tugboat_dio
+  - sdks/flutter/packages/tugboat
+  - sdks/flutter/packages/tugboat/example
+  - sdks/flutter/packages/tugboat_dio
 
 dev_dependencies:
   dallow: ^0.2.1
@@ -25,11 +25,11 @@ melos:
       run: dart run dallow complexity --recursive --max-complexity 10 --fail-on warning .
       description: Reject functions with cyclomatic complexity above 10.
     test:
-      run: cd packages/tugboat && flutter test -j 1 . && cd ../tugboat_dio && flutter test -j 1 .
+      run: bash tool/ci/run-flutter-tests.sh
       description: Run all package tests with each package's asset bundle.
     test:sdk:
-      run: cd packages/tugboat && flutter test -j 1 .
+      run: bash tool/ci/run-flutter-tests.sh tugboat
       description: Run the Flutter SDK tests.
     test:dio:
-      run: cd packages/tugboat_dio && flutter test -j 1 .
+      run: bash tool/ci/run-flutter-tests.sh tugboat_dio
       description: Run the Dio adapter tests.

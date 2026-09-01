@@ -1,7 +1,7 @@
 # Capture and fingerprint architecture
 
 Status: current implementation audit (2026-07-26)
-Scope: `packages/tugboat` in this repository
+Scope: `sdks/flutter/packages/tugboat` in this repository
 
 This document describes what the Flutter SDK implements today. It deliberately
 does not specify the internals of the CLI, collector, dashboard, or Atlas
@@ -308,6 +308,31 @@ performance. Each completed interaction still requests a visual observation.
 A route capture can satisfy it. Events, anchors,
 inventories, and semantic evidence continue to stream. Any frames captured
 before connection are still sent.
+
+### Capture stage clocks
+
+The Dart clock names do not match processing stages. Native capture must emit
+the stages in `docs/performance/cpu-capture-baseline.md`, not impersonate
+these fields.
+
+| Dart field | What it actually measures |
+| --- | --- |
+| `ScreenshotCaptureAttempt.frameWaitMicros` | Wait for a usable frame before readback |
+| `ScreenshotCaptureResult.captureMicros` | `RenderRepaintBoundary.toImage` only |
+| `ScreenshotCaptureResult.maskMicros` | Mask-rect collection and scale into pixel space. The opaque RGBA fill is not included. |
+| `ScreenshotCaptureResult.encodeMicros` | `ui.Image.toByteData(rawRgba)` plus isolate mask fill, dHash, optional JPEG, and SHA-256 |
+| `TugboatFrame.captureMicros` | Sum of frame wait + the three result clocks |
+| `TugboatFrame.requestedBackend` / `resolvedBackend` | Closed backend names for the host request and the JPEG producer. `fallbackReason` is present only after a native-to-Flutter retry. |
+
+Paint-generation reuse records zeros and skips GPU readback. A dHash skip
+still performs readback, fill, and hash; JPEG and SHA-256 are omitted, but
+`encodeMicros` still includes the work that ran.
+
+`TugboatScreenshotBudgetTracker.record` accepts `encodedBytes` and discards
+it. JPEG size is stored only as `TugboatFrame.byteLength`. Test ceilings for
+the rolling budget live in
+`sdks/flutter/packages/tugboat/benchmark/screenshot_budget_baseline.dart`; they are not
+device-tier gates.
 
 ## Viewport semantics
 
