@@ -2596,6 +2596,9 @@ class TugboatReplayController extends ChangeNotifier {
           result.maskMicros +
           result.encodeMicros,
       captureSessionId: session.id,
+      requestedBackend: result.backendTrace.requested,
+      resolvedBackend: result.backendTrace.resolved,
+      fallbackReason: result.backendTrace.fallbackReason,
     );
     session.frames.add(frame);
     session.frameBytes[frameId] = result.bytes;

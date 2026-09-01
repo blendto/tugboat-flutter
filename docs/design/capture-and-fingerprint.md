@@ -322,6 +322,7 @@ these fields.
 | `ScreenshotCaptureResult.maskMicros` | Mask-rect collection and scale into pixel space. The opaque RGBA fill is not included. |
 | `ScreenshotCaptureResult.encodeMicros` | `ui.Image.toByteData(rawRgba)` plus isolate mask fill, dHash, optional JPEG, and SHA-256 |
 | `TugboatFrame.captureMicros` | Sum of frame wait + the three result clocks |
+| `TugboatFrame.requestedBackend` / `resolvedBackend` | Closed backend names for the host request and the JPEG producer. `fallbackReason` is present only after a native-to-Flutter retry. |
 
 Paint-generation reuse records zeros and skips GPU readback. A dHash skip
 still performs readback, fill, and hash; JPEG and SHA-256 are omitted, but

@@ -208,6 +208,17 @@ void main() {
     expect(session.averageFrameBytes, greaterThan(0));
     expect(session.frames.every((frame) => frame.captureMicros > 0), isTrue);
     expect(session.frames.every((frame) => frame.masked), isFalse);
+    expect(
+      session.frames.every(
+        (frame) =>
+            frame.requestedBackend ==
+                TugboatScreenshotCaptureBackend.flutterRepaintBoundary &&
+            frame.resolvedBackend ==
+                TugboatScreenshotCaptureBackend.flutterRepaintBoundary &&
+            frame.fallbackReason == null,
+      ),
+      isTrue,
+    );
 
     final framesBeforeTap = session.frames.length;
     await tester.tap(find.text('Continue'));
@@ -1127,6 +1138,9 @@ void main() {
         trigger: TugboatFrameTrigger.initial,
         byteLength: 1024,
         captureMicros: 12345,
+        requestedBackend: TugboatScreenshotCaptureBackend.nativeCpuExperimental,
+        resolvedBackend: TugboatScreenshotCaptureBackend.flutterRepaintBoundary,
+        fallbackReason: 'timeout',
       ),
     );
     session.events.add(
@@ -1137,12 +1151,35 @@ void main() {
     expect(json['schemaVersion'], 10);
     expect(json.containsKey('routes'), isFalse);
     expect(json['events'], [isNot(contains('route'))]);
-    expect(json['frames'], [containsPair('captureMicros', 12345)]);
+    expect(
+      json['frames'].single,
+      allOf([
+        containsPair('captureMicros', 12345),
+        containsPair(
+          'requestedBackend',
+          TugboatScreenshotCaptureBackend.nativeCpuExperimental.name,
+        ),
+        containsPair(
+          'resolvedBackend',
+          TugboatScreenshotCaptureBackend.flutterRepaintBoundary.name,
+        ),
+        containsPair('fallbackReason', 'timeout'),
+      ]),
+    );
     expect((json['session'] as Map)['appInfo'], appInfo.toJson());
     final restored = TugboatSessionTestJson.fromJson(json);
     expect(restored.appInfo?.buildNumber, '42');
     expect(restored.frames.length, 1);
     expect(restored.frames.single.captureMicros, 12345);
+    expect(
+      restored.frames.single.requestedBackend,
+      TugboatScreenshotCaptureBackend.nativeCpuExperimental,
+    );
+    expect(
+      restored.frames.single.resolvedBackend,
+      TugboatScreenshotCaptureBackend.flutterRepaintBoundary,
+    );
+    expect(restored.frames.single.fallbackReason, 'timeout');
   });
 
   test('session rejects old or missing schema versions', () {
@@ -1190,6 +1227,24 @@ void main() {
     });
 
     expect(frame.captureMicros, 0);
+    expect(frame.requestedBackend, isNull);
+    expect(frame.resolvedBackend, isNull);
+    expect(frame.fallbackReason, isNull);
+  });
+
+  test('frame JSON ignores unknown backend names', () {
+    final frame = TugboatFrameTestJson.fromJson({
+      'id': 'frame-0',
+      'atMs': 0,
+      'width': 100,
+      'height': 200,
+      'contentHash': 'abc',
+      'requestedBackend': 'futureBackend',
+      'resolvedBackend': 'alsoUnknown',
+    });
+
+    expect(frame.requestedBackend, isNull);
+    expect(frame.resolvedBackend, isNull);
   });
 
   test('target anchor round-trips through JSON', () {

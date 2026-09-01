@@ -114,6 +114,19 @@ ScreenshotPixelRequest _pixelRequest({
 }
 
 void main() {
+  test('tryParse accepts closed backend names and ignores unknown values', () {
+    expect(
+      TugboatScreenshotCaptureBackend.tryParse('flutterRepaintBoundary'),
+      TugboatScreenshotCaptureBackend.flutterRepaintBoundary,
+    );
+    expect(
+      TugboatScreenshotCaptureBackend.tryParse('nativeCpuExperimental'),
+      TugboatScreenshotCaptureBackend.nativeCpuExperimental,
+    );
+    expect(TugboatScreenshotCaptureBackend.tryParse(null), isNull);
+    expect(TugboatScreenshotCaptureBackend.tryParse('gpuExperimental'), isNull);
+  });
+
   test(
     'native success returns JPEG and does not call Flutter fallback',
     () async {
@@ -220,6 +233,14 @@ void main() {
     expect(fallback.lastFallbackReason, 'pixelCopyFailed');
     expect(result.bytes, Uint8List.fromList(const [9, 9, 9]));
     expect(result.trace.fallbackReason, 'pixelCopyFailed');
+    expect(
+      result.trace.requested,
+      TugboatScreenshotCaptureBackend.nativeCpuExperimental,
+    );
+    expect(
+      result.trace.resolved,
+      TugboatScreenshotCaptureBackend.flutterRepaintBoundary,
+    );
   });
 
   test('cancelled native result does not fall back', () async {
@@ -359,6 +380,11 @@ void main() {
       attempt.result!.backendTrace.resolved,
       TugboatScreenshotCaptureBackend.nativeCpuExperimental,
     );
+    expect(
+      attempt.result!.backendTrace.requested,
+      TugboatScreenshotCaptureBackend.nativeCpuExperimental,
+    );
+    expect(attempt.result!.backendTrace.fallbackReason, isNull);
     expect(api.capturedRequests, hasLength(1));
   });
 }

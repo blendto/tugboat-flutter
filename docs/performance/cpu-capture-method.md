@@ -36,8 +36,10 @@ PixelCopy into Dart `captureMicros`.
 | idle battery | same build, capture disabled, 10 minutes |
 | active battery | same build, capture enabled, same 10 minutes |
 
-`capture_diagnostic` events already carry the backend trace fields. Collect
-those plus process metrics; do not log JPEG or pixel buffers.
+`capture_diagnostic` events already carry the backend trace fields. Published
+`TugboatFrame` records also include `requestedBackend`, `resolvedBackend`, and
+`fallbackReason` (productionLean included). Collect those plus process metrics;
+do not log JPEG or pixel buffers.
 
 ## Protocol
 

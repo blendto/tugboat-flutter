@@ -473,7 +473,12 @@ exclude scrolls, swipes, cancellations, evidence, and
 diagnostics.
 
 Frames can be triggered by initial startup, interactions, routes, lifecycle,
-or explicit controller calls. Capture requests are serialized. Non-interaction
+or explicit controller calls. Capture requests are serialized. Each published
+frame records `requestedBackend` and `resolvedBackend` (closed names:
+`flutterRepaintBoundary` or `nativeCpuExperimental`). After a native fallback,
+`resolvedBackend` is Flutter and `fallbackReason` carries the closed token.
+These fields are on the frame even in `productionLean`; nested stage timings
+remain on exploration `capture_diagnostic` events. Non-interaction
 requests can coalesce. When the capture boundary has not painted since the
 last accepted frame, the SDK reuses that frame without GPU readback. Otherwise
 it uses a small dHash (Hamming distance ≤ 2) to avoid JPEG encoding for
@@ -563,7 +568,8 @@ Each logical capture request records one privacy-safe resolution in
 outcome). Exploration profiles also emit a `capture_diagnostic` session event
 (`stream: diagnostic`). `productionLean` profiles omit those events from the
 session and collector to reduce volume; use on-device health for capture
-telemetry in production.
+telemetry in production. Published frames still carry `requestedBackend`,
+`resolvedBackend`, and optional `fallbackReason` in every profile.
 
 Distinct request IDs with the same execution ID (and `coalesced: true`) identify
 scheduler coalescing when diagnostic events are present. Diagnostics contain only

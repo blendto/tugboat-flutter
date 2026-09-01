@@ -11,7 +11,17 @@
 /// published together for one request.
 enum TugboatScreenshotCaptureBackend {
   flutterRepaintBoundary,
-  nativeCpuExperimental,
+  nativeCpuExperimental;
+
+  /// Parses a closed-vocabulary backend name. Unknown or missing values
+  /// become null so older or newer writers cannot break session JSON.
+  static TugboatScreenshotCaptureBackend? tryParse(String? name) {
+    if (name == null) return null;
+    for (final value in values) {
+      if (value.name == name) return value;
+    }
+    return null;
+  }
 }
 
 /// Bounded native/Flutter backend metadata for capture diagnostics.

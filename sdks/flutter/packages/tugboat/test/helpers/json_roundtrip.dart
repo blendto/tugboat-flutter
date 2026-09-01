@@ -56,6 +56,13 @@ extension TugboatFrameTestJson on TugboatFrame {
     ),
     byteLength: json['byteLength'] as int? ?? 0,
     captureMicros: json['captureMicros'] as int? ?? 0,
+    requestedBackend: TugboatScreenshotCaptureBackend.tryParse(
+      json['requestedBackend'] as String?,
+    ),
+    resolvedBackend: TugboatScreenshotCaptureBackend.tryParse(
+      json['resolvedBackend'] as String?,
+    ),
+    fallbackReason: json['fallbackReason'] as String?,
   );
 }
 

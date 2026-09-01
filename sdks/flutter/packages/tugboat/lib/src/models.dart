@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
 import 'collector_config.dart';
+import 'screenshot_capture_backend.dart';
 
 /// Current session JSON schema.
 ///
@@ -148,6 +149,9 @@ class TugboatFrame {
     this.byteLength = 0,
     this.captureMicros = 0,
     this.captureSessionId,
+    this.requestedBackend,
+    this.resolvedBackend,
+    this.fallbackReason,
   });
 
   final String id;
@@ -161,6 +165,17 @@ class TugboatFrame {
   final int captureMicros;
   final String? captureSessionId;
 
+  /// Backend the host asked for. Closed vocabulary; omitted on synthetic frames.
+  final TugboatScreenshotCaptureBackend? requestedBackend;
+
+  /// Backend that produced this JPEG. Differs from [requestedBackend] after a
+  /// native fallback. Omitted on synthetic frames.
+  final TugboatScreenshotCaptureBackend? resolvedBackend;
+
+  /// Closed fallback token when native asked for a Flutter retry. Omitted when
+  /// the resolved backend matches the request.
+  final String? fallbackReason;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'atMs': atMs,
@@ -172,6 +187,9 @@ class TugboatFrame {
     'byteLength': byteLength,
     'captureMicros': captureMicros,
     if (captureSessionId != null) 'captureSessionId': captureSessionId,
+    if (requestedBackend != null) 'requestedBackend': requestedBackend!.name,
+    if (resolvedBackend != null) 'resolvedBackend': resolvedBackend!.name,
+    if (fallbackReason != null) 'fallbackReason': fallbackReason,
   };
 }
 
