@@ -169,7 +169,7 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
 
   if (carriesUserId) {
     // Only session_start inherits the configured startup identity. Later
-    // lifecycle records use null as an explicit identity-clear operation.
+    // lifecycle records send the runtime id as-is, including null.
     body['userId'] = isSessionStart ? userId ?? config.userId : userId;
   }
   if (isSessionStart) {
@@ -206,7 +206,8 @@ bool _isSessionStart(String eventType) =>
 bool _carriesUserId(String eventType) =>
     _isSessionStart(eventType) ||
     eventType == TugboatCollectorSessionEventType.sessionIdentify.wireValue ||
-    eventType == TugboatCollectorSessionEventType.userChanged.wireValue;
+    eventType == TugboatCollectorSessionEventType.userChanged.wireValue ||
+    eventType == TugboatCollectorSessionEventType.traitsUpdated.wireValue;
 
 bool _carriesTraits(String eventType) =>
     _isSessionStart(eventType) ||

@@ -1036,7 +1036,7 @@ void main() {
     'setTraits posts traits_updated, caches traitsId, stamps next events',
     () async {
       sessionResponseTraitsId = 'trt_abc';
-      final sink = createIdentitySink();
+      final sink = createIdentitySink(initialUserId: 'user_existing');
       final session = createSession();
       sink.startSession(session);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -1048,6 +1048,7 @@ void main() {
       final traitsPost = sessionPosts.last;
       expect(traitsPost['eventType'], 'traits_updated');
       expect(traitsPost['traits'], {'plan': 'pro', 'seatCount': 3});
+      expect(traitsPost['userId'], 'user_existing');
       expect(traitsPost.containsKey('traitsId'), isFalse);
       expect(traitsPost['sessionId'], 'sess_server');
       expect(sink.traitsId, 'trt_abc');
