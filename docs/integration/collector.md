@@ -31,6 +31,11 @@ Without the observer, pointer and scroll evidence still works but route-change
 events and route-backed anchors are incomplete. Without the wrapper no capture
 controller or transport is installed.
 
+Screenshot JPEG frames are schema-v10 `frame` records regardless of
+`TugboatScreenshotCaptureBackend`. Switching to `nativeCpuExperimental` does
+not change collector URLs, event names, or the frame transport schema. Keep
+the default `flutterRepaintBoundary` backend for production collector cohorts.
+
 ## Local exploration WebSocket
 
 Use the exploration destination for an interactive local run:
@@ -65,7 +70,9 @@ The SDK sends:
   `fingerprintSchemaVersion`, plus the active app locale when available;
 - `type: event`: serialized event payload plus available session/run/action
   correlation fields;
-- `type: frame`: frame metadata followed by a binary JPEG message;
+- `type: frame`: frame metadata (`captureMicros`, `byteLength`,
+  `requestedBackend`, `resolvedBackend`, optional `fallbackReason`) followed by
+  a binary JPEG message;
 - `type: control_ack`: acknowledgement for supported exploration commands.
 
 The optional `locale` object contains `language`, optional `country` and
@@ -251,6 +258,9 @@ does not assert that the interaction caused that frame, route, or UI state.
 
 Frame uploads are sorted by numeric frame suffix and sent as multipart files
 named `<frameNo>.jpg`, with `sessionId` and comma-separated `frameNos` fields.
+Backend identity (`requestedBackend` / `resolvedBackend`) lives on the in-memory
+`TugboatFrame` and exploration WebSocket frame payload, not on this multipart
+upload.
 Malformed frame IDs and frames belonging to a stale SDK session are dropped.
 Queued frames are uploaded as-is: events reference exact `beforeFrame` /
 `afterFrame` IDs, and the multipart protocol has no hash alias, so intermediate

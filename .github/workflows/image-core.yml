@@ -1,0 +1,44 @@
+name: Image core
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    paths:
+      - "core/image-processing/**"
+      - "tool/ci/run-image-core-tests.sh"
+      - ".github/workflows/image-core.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit tests with ASan/UBSan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure, build, test
+        run: bash tool/ci/run-image-core-tests.sh
+
+  fuzz:
+    name: Short libFuzzer run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-rt-dev
+      - name: Build fuzzers
+        run: |
+          cmake -S core/image-processing -B build/image-core-fuzz \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DTB_IMAGE_CORE_FUZZ=ON
+          cmake --build build/image-core-fuzz
+      - name: Fuzz masks
+        run: ./build/image-core-fuzz/tb_mask_fuzz -max_total_time=20 -timeout=5
+      - name: Fuzz metadata
+        run: ./build/image-core-fuzz/tb_metadata_fuzz -max_total_time=20 -timeout=5

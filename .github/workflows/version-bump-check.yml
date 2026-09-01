@@ -9,68 +9,41 @@ permissions:
 
 jobs:
   check-tugboat-version:
-    name: Require tugboat version bump
+    name: Require path-aware version policy
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Compare package version to base
+      - name: Compare versions to base
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PACKAGE_PUBSPEC: packages/tugboat/pubspec.yaml
-        run: |
-          set -euo pipefail
+        run: bash tool/ci/check-version-policy.sh
 
-          extract_version() {
-            local file="$1"
-            if [[ ! -f "$file" ]]; then
-              echo ""
-              return
-            fi
-            grep -E '^version:' "$file" | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]'
-          }
+  license:
+    name: AGPL-3.0-only license
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check license files
+        run: bash tool/ci/check-license.sh
 
-          if [[ ! -f "$PACKAGE_PUBSPEC" ]]; then
-            echo "::error::$PACKAGE_PUBSPEC is missing on this branch"
-            exit 1
-          fi
+  android-api:
+    name: Android runtime API surface
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Diff public API dump
+        run: bash tool/ci/verify-android-runtime-api.sh
 
-          head_version="$(extract_version "$PACKAGE_PUBSPEC")"
-          if [[ -z "$head_version" ]]; then
-            echo "::error::Could not read version from $PACKAGE_PUBSPEC"
-            exit 1
-          fi
-
-          base_file="$(mktemp)"
-          if ! git show "${BASE_SHA}:${PACKAGE_PUBSPEC}" >"$base_file" 2>/dev/null; then
-            echo "Base branch has no $PACKAGE_PUBSPEC; treating as new package (ok)."
-            echo "PR version: $head_version"
-            exit 0
-          fi
-
-          base_version="$(extract_version "$base_file")"
-          rm -f "$base_file"
-
-          if [[ -z "$base_version" ]]; then
-            echo "::error::Could not read version from base $PACKAGE_PUBSPEC"
-            exit 1
-          fi
-
-          echo "Base version: $base_version"
-          echo "PR version:   $head_version"
-
-          if [[ "$head_version" == "$base_version" ]]; then
-            echo "::error::packages/tugboat version must be bumped before merge (still $base_version)."
-            exit 1
-          fi
-
-          higher="$(printf '%s\n%s\n' "$base_version" "$head_version" | sort -V | tail -n 1)"
-          if [[ "$higher" != "$head_version" ]]; then
-            echo "::error::PR version ($head_version) must be greater than base ($base_version)."
-            exit 1
-          fi
-
-          echo "Version bump detected: $base_version -> $head_version"
+  swift-api:
+    name: Swift API surface
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Diff public API dump
+        run: bash tool/ci/verify-swift-api.sh
