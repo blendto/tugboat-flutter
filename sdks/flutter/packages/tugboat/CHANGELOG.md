@@ -10,7 +10,8 @@ Patch release after `0.8.12`.
   `TugboatCaptureRuntime` and keeps a deployment target of iOS 12. Native
   capture remains runtime-gated to iOS 15.
 - PixelCopy no longer recycles the destination bitmap while an outstanding
-  copy callback may still write to it.
+  copy callback may still write to it. Timeout and dispose-interrupt return
+  immediately and leave recycle to the PixelCopy callback.
 
 ### Added
 

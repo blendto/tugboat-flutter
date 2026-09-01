@@ -89,6 +89,7 @@ class CaptureRuntime(
         val surfaceView = surface.surfaceView
 
         var bitmap: Bitmap? = null
+        var recycleBitmap = true
         try {
             bitmap =
                 Bitmap.createBitmap(
@@ -97,10 +98,12 @@ class CaptureRuntime(
                     Bitmap.Config.ARGB_8888,
                 )
             val copyStart = System.nanoTime()
-            val copyStatus =
+            val copy =
                 PixelCopyCapture.copy(surfaceView, bitmap, timeoutMs) {
                     isCurrent(request.requestId)
                 }
+            recycleBitmap = copy.callerOwnsDestination
+            val copyStatus = copy.status
             val surfaceCopyMicros = elapsedMicros(copyStart)
             if (!isCurrent(request.requestId)) {
                 return result(request, CaptureStatus.Cancelled, surface.renderMode)
@@ -165,7 +168,9 @@ class CaptureRuntime(
                 renderMode = surface.renderMode,
             )
         } finally {
-            bitmap?.recycle()
+            if (recycleBitmap) {
+                bitmap?.recycle()
+            }
         }
     }
 

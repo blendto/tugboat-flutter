@@ -12,6 +12,11 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
+internal data class PixelCopyOutcome(
+    val status: CaptureStatus,
+    val callerOwnsDestination: Boolean = true,
+)
+
 internal object PixelCopyCapture {
     @TargetApi(Build.VERSION_CODES.N)
     fun copy(
@@ -19,16 +24,23 @@ internal object PixelCopyCapture {
         destination: Bitmap,
         timeoutMs: Long,
         isCurrent: () -> Boolean,
-    ): CaptureStatus {
+    ): PixelCopyOutcome {
         if (!surfaceView.holder.surface.isValid) {
-            return CaptureStatus.SurfaceUnavailable
+            return PixelCopyOutcome(CaptureStatus.SurfaceUnavailable)
         }
         val latch = CountDownLatch(1)
         val code = AtomicInteger(Int.MIN_VALUE)
         val handler = Handler(Looper.getMainLooper())
+        val guard =
+            PixelCopyRecycleGuard {
+                if (!destination.isRecycled) {
+                    destination.recycle()
+                }
+            }
         handler.post {
             if (!isCurrent()) {
                 latch.countDown()
+                guard.onCallback()
                 return@post
             }
             PixelCopy.request(
@@ -37,23 +49,36 @@ internal object PixelCopyCapture {
                 { result ->
                     code.set(result)
                     latch.countDown()
+                    guard.onCallback()
                 },
                 handler,
             )
         }
-        val completed = latch.await(timeoutMs, TimeUnit.MILLISECONDS)
-        if (!completed) {
-            // PixelCopy may still write to `destination`. Block until the
-            // callback runs so CaptureRuntime's finally can recycle safely.
-            latch.await()
-        }
-        if (!isCurrent()) return CaptureStatus.Cancelled
-        if (!completed) return CaptureStatus.Timeout
-        return when (code.get()) {
-            PixelCopy.SUCCESS -> CaptureStatus.Ok
-            PixelCopy.ERROR_TIMEOUT -> CaptureStatus.Timeout
-            Int.MIN_VALUE -> CaptureStatus.Timeout
-            else -> CaptureStatus.PixelCopyFailed
-        }
+        val completed =
+            try {
+                latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                false
+            }
+        val callerOwnsDestination =
+            if (completed) {
+                true
+            } else {
+                guard.callerOwnsAfterTimeout()
+            }
+        val status =
+            when {
+                !isCurrent() -> CaptureStatus.Cancelled
+                !completed -> CaptureStatus.Timeout
+                else ->
+                    when (code.get()) {
+                        PixelCopy.SUCCESS -> CaptureStatus.Ok
+                        PixelCopy.ERROR_TIMEOUT -> CaptureStatus.Timeout
+                        Int.MIN_VALUE -> CaptureStatus.Timeout
+                        else -> CaptureStatus.PixelCopyFailed
+                    }
+            }
+        return PixelCopyOutcome(status, callerOwnsDestination)
     }
 }
