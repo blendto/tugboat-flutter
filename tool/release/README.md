@@ -11,10 +11,10 @@ Do not:
 - publish Apple `TugboatCaptureRuntime` `0.1.0`
 
 Keep `TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
-The 0.8.13 Flutter plugin compiles `platforms/android/capture-runtime` from
-source and does not consume a hosted Maven coordinate. Local Maven
-(`.local-maven` after `bash tool/ci/build-android-runtime.sh`) is only
-for the standalone native Android sample.
+Flutter `0.8.14` depends on Maven Central
+`com.gettugboat.sdk:capture-runtime:0.1.0`. Local Maven (`.local-maven` after
+`bash tool/ci/build-android-runtime.sh`) is only for the standalone native
+Android sample.
 
 To checksum a local AAR (not a signed Central artifact):
 

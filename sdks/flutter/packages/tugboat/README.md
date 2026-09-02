@@ -5,9 +5,16 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.13`. Session JSON writers and readers use
+The current package version is `0.8.14`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.8.14
+
+Android native CPU capture loads `com.gettugboat.sdk:capture-runtime:0.1.0`
+from Maven Central. Native capture stays opt-in
+(`nativeCpuExperimental`). Keep
+`TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
 
 ## 0.8.13
 
@@ -108,7 +115,7 @@ events.
 
 ```yaml
 dependencies:
-  tugboat: ^0.8.13
+  tugboat: ^0.8.14
 ```
 
 Then import the public barrel:
@@ -124,8 +131,8 @@ Install from pub.dev; a GitHub checkout is not required.
 
 ```yaml
 dependencies:
-  tugboat: ^0.8.13
-  tugboat_dio: ^0.8.13
+  tugboat: ^0.8.14
+  tugboat_dio: ^0.8.14
 ```
 
 See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.

@@ -28,8 +28,8 @@ python3 tool/ci/dump-android-runtime-api.py > platforms/android/capture-runtime/
 Hosted publication (GitHub Packages, then Maven Central) is documented in
 [release process](../releases/process.md).
 
-The Flutter plugin at `sdks/flutter/packages/tugboat/android` compiles
-`CaptureRuntime` from this source tree (no unpublished Maven coordinate) and
-wraps it behind the Pigeon `NativeCaptureHostApi`. Published pub checkouts
-without `platforms/android` stub native capture as unsupported. Do not log
-pixel or JPEG data.
+The Flutter plugin at `sdks/flutter/packages/tugboat/android` depends on
+Maven Central `com.gettugboat.sdk:capture-runtime:0.1.0` and wraps it behind
+the Pigeon `NativeCaptureHostApi`. Changing `CaptureRuntime` for a Flutter
+build requires publishing a new AAR version and bumping that coordinate.
+Do not log pixel or JPEG data.

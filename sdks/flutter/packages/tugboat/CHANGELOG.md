@@ -1,3 +1,10 @@
+## 0.8.14
+
+The Android plugin depends on Maven Central
+`com.gettugboat.sdk:capture-runtime:0.1.0` instead of compiling
+`platforms/android` from source or stubbing native capture in published
+packages. Native CPU capture stays opt-in.
+
 ## 0.8.13
 
 Patch release after published `0.8.12`.

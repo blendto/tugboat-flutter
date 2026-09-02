@@ -74,10 +74,10 @@ dependencies {
 }
 ```
 
-The Flutter plugin still compiles `platforms/android/capture-runtime` from
-source in the monorepo and stubs native capture in published pub archives.
-Do not point the plugin at GitHub Packages; pub.dev hosts cannot supply
-GitHub credentials.
+The Flutter plugin depends on Maven Central
+`com.gettugboat.sdk:capture-runtime:0.1.0`. Do not point it at GitHub
+Packages; pub.dev hosts cannot supply GitHub credentials. iOS native capture
+still compiles from monorepo sources and stubs in published pub archives.
 
 ### Maven Central (public hosts)
 
@@ -99,7 +99,8 @@ Required before the Flutter plugin can depend on the AAR from pub.dev.
 
 ## After native gates pass
 
-1. Confirm `capture-runtime` `0.1.0` is on Maven Central.
-2. Point the Flutter plugin at the published coordinate.
-3. Bump Flutter to `0.9.0`, keep native capture opt-in.
+1. Confirm `capture-runtime` `0.1.0` is on Maven Central (done for 0.8.14).
+2. Point the Flutter plugin at the published coordinate (done in 0.8.14).
+3. Bump Flutter to `0.9.0`, keep native capture opt-in until gates pass, then
+   consider making native capture the default.
 4. Tag `v0.9.0` (same pattern as 0.8.x) so GitHub Actions publishes the pub packages.
