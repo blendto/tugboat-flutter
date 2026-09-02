@@ -2,80 +2,49 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 
 void main() {
-  test('resolveViewportSemanticPolicy covers profile × mode matrix', () {
+  test('resolveViewportSemanticPolicy uses explicit event capability', () {
     expect(
-      resolveViewportSemanticPolicy(
-        profile: TugboatCaptureProfile.dormant,
-        mode: TugboatViewportSemanticMode.full,
-      ),
+      resolveViewportSemanticPolicy(mode: TugboatViewportSemanticMode.off),
       TugboatViewportSemanticPolicy.off,
     );
 
-    final explorationFull = resolveViewportSemanticPolicy(
-      profile: TugboatCaptureProfile.exploration,
+    final full = resolveViewportSemanticPolicy(
       mode: TugboatViewportSemanticMode.full,
+      emitEvents: true,
     );
-    expect(explorationFull.engineEnabled, isTrue);
-    expect(explorationFull.emitEvents, isTrue);
-    expect(explorationFull.debugLogs, isFalse);
-    expect(explorationFull.holdPersistentSemanticsHandle, isTrue);
+    expect(full.engineEnabled, isTrue);
+    expect(full.emitEvents, isTrue);
+    expect(full.debugLogs, isFalse);
+    expect(full.holdPersistentSemanticsHandle, isTrue);
 
-    final explorationDebug = resolveViewportSemanticPolicy(
-      profile: TugboatCaptureProfile.exploration,
+    final debug = resolveViewportSemanticPolicy(
       mode: TugboatViewportSemanticMode.fullWithDebugLogs,
+      emitEvents: true,
     );
-    expect(explorationDebug.debugLogs, isTrue);
-    expect(explorationDebug.emitEvents, isTrue);
+    expect(debug.debugLogs, isTrue);
+    expect(debug.emitEvents, isTrue);
 
-    final explorationTapOnly = resolveViewportSemanticPolicy(
-      profile: TugboatCaptureProfile.exploration,
+    final tapOnly = resolveViewportSemanticPolicy(
       mode: TugboatViewportSemanticMode.tapResolutionOnly,
+      emitEvents: true,
     );
-    expect(explorationTapOnly.engineEnabled, isTrue);
-    expect(explorationTapOnly.emitEvents, isFalse);
+    expect(tapOnly.engineEnabled, isTrue);
+    expect(tapOnly.emitEvents, isFalse);
+    expect(tapOnly.holdPersistentSemanticsHandle, isFalse);
 
-    final productionTapOnly = resolveViewportSemanticPolicy(
-      profile: TugboatCaptureProfile.productionLean,
-      mode: TugboatViewportSemanticMode.tapResolutionOnly,
-    );
-    expect(productionTapOnly.engineEnabled, isTrue);
-    expect(productionTapOnly.emitEvents, isFalse);
-    expect(productionTapOnly.holdPersistentSemanticsHandle, isFalse);
-
-    final productionFull = resolveViewportSemanticPolicy(
-      profile: TugboatCaptureProfile.productionLean,
-      mode: TugboatViewportSemanticMode.full,
-    );
-    expect(productionFull.engineEnabled, isTrue);
-    expect(productionFull.emitEvents, isFalse);
-    expect(productionFull.debugLogs, isFalse);
-    expect(productionFull.holdPersistentSemanticsHandle, isFalse);
-
-    final productionDebug = resolveViewportSemanticPolicy(
-      profile: TugboatCaptureProfile.productionLean,
-      mode: TugboatViewportSemanticMode.fullWithDebugLogs,
-    );
-    expect(productionDebug.engineEnabled, isTrue);
-    expect(productionDebug.emitEvents, isFalse);
-    expect(productionDebug.debugLogs, isFalse);
-    expect(productionDebug.holdPersistentSemanticsHandle, isFalse);
-
-    final productionDefault = const TugboatReplayConfig(
-      profile: TugboatCaptureProfile.productionLean,
+    final defaultPolicy = const TugboatReplayConfig(
+      enabled: true,
     ).viewportSemanticPolicy;
-    expect(productionDefault.engineEnabled, isTrue);
-    expect(productionDefault.emitEvents, isFalse);
-    expect(productionDefault.holdPersistentSemanticsHandle, isFalse);
+    expect(defaultPolicy.engineEnabled, isTrue);
+    expect(defaultPolicy.emitEvents, isFalse);
+    expect(defaultPolicy.holdPersistentSemanticsHandle, isFalse);
   });
 
   test('replay config carries userId through copyWith', () {
     const config = TugboatReplayConfig(userId: 'user_1');
 
     expect(config.userId, 'user_1');
-    expect(
-      config.copyWith(profile: TugboatCaptureProfile.productionLean).userId,
-      'user_1',
-    );
+    expect(config.copyWith(enabled: true).userId, 'user_1');
     expect(config.copyWith(userId: 'user_2').userId, 'user_2');
   });
 }

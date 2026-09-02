@@ -18,7 +18,11 @@ void main() {
     final appLocale = ValueNotifier(const Locale('en', 'US'));
     addTearDown(appLocale.dispose);
     const config = TugboatReplayConfig(
-      profile: TugboatCaptureProfile.exploration,
+      enabled: true,
+      emitSceneInventory: true,
+      emitViewportSemanticMap: true,
+      emitCaptureDiagnostics: true,
+      acceptActionContext: true,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -77,7 +81,7 @@ void main() {
 
   testWidgets('setLocale covers apps outside Localizations', (tester) async {
     const config = TugboatReplayConfig(
-      profile: TugboatCaptureProfile.productionLean,
+      enabled: true,
       settleDelay: Duration.zero,
       enableGlobalPointerCapture: false,
     );
@@ -106,7 +110,11 @@ void main() {
     final appLocale = ValueNotifier(const Locale('en', 'US'));
     addTearDown(appLocale.dispose);
     const config = TugboatReplayConfig(
-      profile: TugboatCaptureProfile.exploration,
+      enabled: true,
+      emitSceneInventory: true,
+      emitViewportSemanticMap: true,
+      emitCaptureDiagnostics: true,
+      acceptActionContext: true,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,

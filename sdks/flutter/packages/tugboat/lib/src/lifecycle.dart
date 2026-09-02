@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import 'capture_profile.dart';
-
 /// Explicit capture lifecycle states owned by the SDK gate.
 enum TugboatLifecycleState { dormant, starting, active, stopping }
 
@@ -10,20 +8,12 @@ class TugboatLifecycleNotifier extends ChangeNotifier {
   TugboatLifecycleState _state = TugboatLifecycleState.dormant;
   int _requestEpoch = 0;
   String? _activationRequestId;
-  TugboatCaptureProfile? _activeProfile;
+  bool? _captureOverride;
   bool _disabled = false;
 
   TugboatLifecycleState get state => _state;
   int get requestEpoch => _requestEpoch;
   String? get activationRequestId => _activationRequestId;
-  TugboatCaptureProfile? get activeProfile {
-    final profile = _activeProfile;
-    if (profile == null || profile == TugboatCaptureProfile.dormant) {
-      return null;
-    }
-    return profile;
-  }
-
   bool get disabled => _disabled;
   bool get isActivated =>
       _activationRequestId != null &&
@@ -31,60 +21,38 @@ class TugboatLifecycleNotifier extends ChangeNotifier {
           _state == TugboatLifecycleState.active ||
           _state == TugboatLifecycleState.stopping);
 
-  /// Whether the gate should mount capture machinery for [configProfile].
-  bool shouldCapture(TugboatCaptureProfile configProfile) {
+  /// Whether the gate should mount capture machinery for [configEnabled].
+  bool shouldCapture(bool configEnabled) {
     if (_disabled) return false;
-    if (_activeProfile != null) {
-      return _activeProfile != TugboatCaptureProfile.dormant;
-    }
-    return configProfile != TugboatCaptureProfile.dormant;
+    return _captureOverride ?? configEnabled;
   }
 
-  TugboatCaptureProfile effectiveProfile(TugboatCaptureProfile configProfile) {
-    final override = _activeProfile;
-    if (override != null && override != TugboatCaptureProfile.dormant) {
-      return override;
-    }
-    if (override == TugboatCaptureProfile.dormant) {
-      return TugboatCaptureProfile.dormant;
-    }
-    return configProfile;
-  }
-
-  /// Enables capture. Identical request+profile while already capturing is
-  /// idempotent. A different request or profile while active bumps the epoch
-  /// and forces stop-then-start via a new capture key.
-  void activate({
-    required String activationRequestId,
-    TugboatCaptureProfile profile = TugboatCaptureProfile.productionLean,
-  }) {
+  /// Enables capture. An identical active request is idempotent.
+  void activate({required String activationRequestId}) {
     if (_disabled) return;
-    if (profile == TugboatCaptureProfile.dormant) return;
 
     final sameRequest =
         _activationRequestId == activationRequestId &&
-        _activeProfile == profile &&
+        _captureOverride == true &&
         (_state == TugboatLifecycleState.starting ||
             _state == TugboatLifecycleState.active);
     if (sameRequest) return;
 
     _requestEpoch += 1;
     _activationRequestId = activationRequestId;
-    _activeProfile = profile;
+    _captureOverride = true;
     _state = TugboatLifecycleState.starting;
     notifyListeners();
   }
 
   void deactivate() {
     if (_state == TugboatLifecycleState.dormant &&
-        _activeProfile == null &&
         _activationRequestId == null) {
       return;
     }
     _requestEpoch += 1;
     _activationRequestId = null;
-    // Explicit dormant override so config-active profiles also stop.
-    _activeProfile = TugboatCaptureProfile.dormant;
+    _captureOverride = false;
     _state = TugboatLifecycleState.stopping;
     notifyListeners();
   }
@@ -95,12 +63,10 @@ class TugboatLifecycleNotifier extends ChangeNotifier {
     if (value) {
       _requestEpoch += 1;
       _activationRequestId = null;
-      _activeProfile = TugboatCaptureProfile.dormant;
       _state = TugboatLifecycleState.stopping;
-    } else if (_activeProfile == TugboatCaptureProfile.dormant &&
-        _activationRequestId == null) {
-      // Re-enable: drop forced dormant so config profiles can capture again.
-      _activeProfile = null;
+    } else if (_activationRequestId == null) {
+      // Re-enable: drop the runtime override so configuration applies again.
+      _captureOverride = null;
       _state = TugboatLifecycleState.dormant;
     }
     notifyListeners();
@@ -110,10 +76,28 @@ class TugboatLifecycleNotifier extends ChangeNotifier {
   void resetForTest() {
     _disabled = false;
     _activationRequestId = null;
-    _activeProfile = null;
+    _captureOverride = null;
     _state = TugboatLifecycleState.dormant;
     _requestEpoch += 1;
     notifyListeners();
+  }
+
+  /// Called by the gate before it mounts configuration-enabled capture.
+  void markStarting(int epoch) {
+    if (_disabled || epoch != _requestEpoch) return;
+    if (_state != TugboatLifecycleState.dormant) return;
+    _state = TugboatLifecycleState.starting;
+    notifyListeners();
+  }
+
+  /// Advances the session epoch while the gate rebuilds for changed grants.
+  ///
+  /// The gate is already rebuilding, so [markActive] sends the next lifecycle
+  /// notification after the replacement session starts.
+  int beginCapabilityRemount() {
+    _requestEpoch += 1;
+    _state = TugboatLifecycleState.starting;
+    return _requestEpoch;
   }
 
   /// Called by the gate when capture machinery is fully up.
@@ -135,8 +119,7 @@ class TugboatLifecycleNotifier extends ChangeNotifier {
       return;
     }
     if (epoch != _requestEpoch) return;
-    if (_activeProfile != null &&
-        _activeProfile != TugboatCaptureProfile.dormant) {
+    if (_captureOverride == true) {
       // Replacement still requested under this epoch — stay starting/active.
       if (_state == TugboatLifecycleState.stopping) {
         _state = TugboatLifecycleState.starting;
@@ -145,7 +128,6 @@ class TugboatLifecycleNotifier extends ChangeNotifier {
       return;
     }
     _state = TugboatLifecycleState.dormant;
-    _activeProfile = null;
     notifyListeners();
   }
 }

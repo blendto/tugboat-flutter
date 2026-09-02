@@ -189,7 +189,8 @@ void main() {
       tester,
     ) async {
       final harness = ReplayCoherenceHarness(
-        profile: TugboatCaptureProfile.productionLean,
+        enabled: true,
+        emitViewportSemanticMap: false,
       );
       await harness.setUpWidgetBacked(tester);
       addTearDown(harness.dispose);
@@ -269,7 +270,8 @@ void main() {
       'pan travel continues after primary lift, replace=$replaceContact',
       (tester) async {
         final harness = ReplayCoherenceHarness(
-          profile: TugboatCaptureProfile.productionLean,
+          enabled: true,
+          emitViewportSemanticMap: false,
         );
         await harness.setUpWidgetBacked(tester);
         addTearDown(harness.dispose);
@@ -616,7 +618,8 @@ void main() {
     tester,
   ) async {
     final harness = ReplayCoherenceHarness(
-      profile: TugboatCaptureProfile.productionLean,
+      enabled: true,
+      emitViewportSemanticMap: false,
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -774,7 +777,7 @@ void main() {
               MaterialApp(
                 builder: (context, child) => TugboatReplay.wrapApp(
                   config: TugboatReplayConfig(
-                    profile: TugboatCaptureProfile.productionLean,
+                    enabled: true,
                     enableGlobalPointerCapture: globalCapture,
                     settleDelay: Duration.zero,
                     interactionClaimWindow: Duration.zero,
@@ -839,7 +842,7 @@ void main() {
             MaterialApp(
               builder: (context, child) => TugboatReplay.wrapApp(
                 config: TugboatReplayConfig(
-                  profile: TugboatCaptureProfile.productionLean,
+                  enabled: true,
                   enableGlobalPointerCapture: globalCapture,
                   settleDelay: Duration.zero,
                   interactionClaimWindow: Duration.zero,

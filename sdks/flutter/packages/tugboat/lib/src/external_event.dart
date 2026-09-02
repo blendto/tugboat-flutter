@@ -1,23 +1,17 @@
 import 'dart:convert';
 
-import 'capture_profile.dart';
-
 /// Closed vocabulary for how external-event parameter values were retained.
 enum TugboatParameterCaptureMode {
   namesOnly,
   allowList,
   transform,
-  allowAll,
-  allowAllInProduction;
+  allowAll;
 
   String get wireName => switch (this) {
     TugboatParameterCaptureMode.namesOnly => 'names_only',
     TugboatParameterCaptureMode.allowList => 'allow_list',
     TugboatParameterCaptureMode.transform => 'transform',
-    // Both retain-all modes share the wire label; production scope is carried
-    // by the mode itself, not a parallel flag.
-    TugboatParameterCaptureMode.allowAll ||
-    TugboatParameterCaptureMode.allowAllInProduction => 'allow_all',
+    TugboatParameterCaptureMode.allowAll => 'allow_all',
   };
 }
 
@@ -29,11 +23,9 @@ class TugboatParameterDrop {
 
 /// Policy controlling which external-event parameter values are retained.
 ///
-/// The default policy is [allowAllInProduction]: event name, parameter keys,
-/// and JSON-safe values are retained within hard limits in every capture
-/// profile. [namesOnly] keeps keys without values. Values can also be limited
-/// through an allow-list, a transform, or the exploration-only [allowAll]
-/// escape hatch.
+/// The default policy is [allowAll]: event name, parameter keys, and JSON-safe
+/// values are retained within hard limits. [namesOnly] keeps keys without
+/// values. Values can also be limited through an allow-list or a transform.
 class TugboatParameterPolicy {
   const TugboatParameterPolicy._({
     required this.mode,
@@ -64,27 +56,13 @@ class TugboatParameterPolicy {
     valueTransform: transform,
   );
 
-  /// Exploration-only escape hatch that retains all JSON-safe values within
-  /// hard limits. Can capture feedback text, search terms, IDs, and other user
-  /// content. Do not use as the default production example.
+  /// Retains all JSON-safe values within hard limits.
   ///
-  /// Outside [TugboatCaptureProfile.exploration], [effectiveFor] downgrades
-  /// this to [namesOnly].
-  static const allowAll = TugboatParameterPolicy._(
-    mode: TugboatParameterCaptureMode.allowAll,
-  );
-
-  /// Default policy. Retains all JSON-safe values within hard limits,
-  /// including in production capture profiles.
-  ///
-  /// This can capture feedback, search terms, URLs, IDs, and other user
+  /// This can capture feedback text, search terms, IDs, and other user
   /// content. Hosts that must not retain values should use [namesOnly], an
   /// allow-list, or a transform.
-  ///
-  /// Unlike [allowAll], this policy retains values in production capture
-  /// profiles. It still applies all parameter safety and size limits.
-  static const allowAllInProduction = TugboatParameterPolicy._(
-    mode: TugboatParameterCaptureMode.allowAllInProduction,
+  static const allowAll = TugboatParameterPolicy._(
+    mode: TugboatParameterCaptureMode.allowAll,
   );
 
   /// Sentinel for transform callbacks.
@@ -96,15 +74,6 @@ class TugboatParameterPolicy {
 
   /// Wire label for capture metadata (`names_only`, `allow_list`, …).
   String get captureValues => mode.wireName;
-
-  /// Resolves exploration-only escape hatches against the active profile.
-  TugboatParameterPolicy effectiveFor(TugboatCaptureProfile profile) {
-    if (mode == TugboatParameterCaptureMode.allowAll &&
-        profile != TugboatCaptureProfile.exploration) {
-      return namesOnly;
-    }
-    return this;
-  }
 }
 
 /// Hard limits applied when snapshotting external-event parameters.
@@ -303,8 +272,7 @@ _ValueDecision _decideTopLevelValue(
       key,
       value,
     ),
-    TugboatParameterCaptureMode.allowAll ||
-    TugboatParameterCaptureMode.allowAllInProduction => _KeepValue(value),
+    TugboatParameterCaptureMode.allowAll => _KeepValue(value),
   };
 }
 

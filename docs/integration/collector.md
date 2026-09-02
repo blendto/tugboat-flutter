@@ -14,8 +14,8 @@ Transport failures are isolated from the host app.
 
 ## Required app integration
 
-Install the wrapper and navigator observer. Capture is dormant by default, so
-select an active profile for startup capture:
+Install the wrapper and navigator observer. Capture is disabled by default.
+Set `enabled: true` for startup capture, or call `TugboatReplay.activate` later:
 
 ```dart
 MaterialApp(
@@ -26,6 +26,10 @@ MaterialApp(
   ),
 );
 ```
+
+The default configuration masks all text and media. Optional inventory,
+semantic-map, diagnostic, and action-context evidence stays off until the host
+enables each matching capability.
 
 Without the observer, pointer and scroll evidence still works but route-change
 events and route-backed anchors are incomplete. Without the wrapper no capture
@@ -42,7 +46,10 @@ Use the exploration destination for an interactive local run:
 
 ```dart
 const config = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+  enabled: true,
+  emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  acceptActionContext: true,
   explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
   explorationRunId: 'optional-run-id',
   appInfo: TugboatCollectorAppInfo(
@@ -115,7 +122,7 @@ final collector = await TugboatCollectorHost.fromPlatform(
 );
 
 final config = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.productionLean,
+  enabled: true,
   collector: collector,
 );
 ```
@@ -301,7 +308,10 @@ stamping or clearing a newer session's evidence.
 
 ```dart
 final config = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+  enabled: true,
+  emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  acceptActionContext: true,
   explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
   collector: productionCollectorConfig,
 );

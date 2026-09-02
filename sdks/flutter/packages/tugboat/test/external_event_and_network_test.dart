@@ -4,7 +4,11 @@ import 'package:tugboat/src/external_event.dart';
 import 'package:tugboat/tugboat.dart';
 
 const _testConfig = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+  enabled: true,
+  emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  emitCaptureDiagnostics: true,
+  acceptActionContext: true,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -134,15 +138,10 @@ void main() {
     });
   });
 
-  testWidgets('default policy retains parameter values in production capture', (
+  testWidgets('default policy retains parameter values during capture', (
     tester,
   ) async {
-    await _pumpCapture(
-      tester,
-      config: _testConfig.copyWith(
-        profile: TugboatCaptureProfile.productionLean,
-      ),
-    );
+    await _pumpCapture(tester, config: _testConfig.copyWith(enabled: true));
 
     TugboatReplay.eventHook().record(
       'SEARCH',
@@ -161,44 +160,13 @@ void main() {
     });
   });
 
-  testWidgets('production capture downgrades allow-all to names-only', (
+  testWidgets('explicit allow-all retains bounded JSON-safe parameter values', (
     tester,
   ) async {
-    await _pumpCapture(
-      tester,
-      config: _testConfig.copyWith(
-        profile: TugboatCaptureProfile.productionLean,
-      ),
-    );
+    await _pumpCapture(tester, config: _testConfig.copyWith(enabled: true));
 
     TugboatReplay.eventHook(
       parameterPolicy: TugboatParameterPolicy.allowAll,
-    ).record('SEARCH', parameters: {'query': 'private search'});
-
-    final event = TugboatReplay.controller!.session!.events.singleWhere(
-      (event) => event.type == 'external_event',
-    );
-    expect(event.data['parameterKeys'], ['query']);
-    expect(event.data.containsKey('parameters'), isFalse);
-    expect(event.data['capture'], {
-      'values': 'names_only',
-      'truncated': false,
-      'droppedCount': 0,
-    });
-  });
-
-  testWidgets('production opt-in retains bounded JSON-safe parameter values', (
-    tester,
-  ) async {
-    await _pumpCapture(
-      tester,
-      config: _testConfig.copyWith(
-        profile: TugboatCaptureProfile.productionLean,
-      ),
-    );
-
-    TugboatReplay.eventHook(
-      parameterPolicy: TugboatParameterPolicy.allowAllInProduction,
     ).record('SEARCH', parameters: {'query': 'private search', 'page': 2});
 
     final event = TugboatReplay.controller!.session!.events.singleWhere(
@@ -213,7 +181,7 @@ void main() {
     });
   });
 
-  testWidgets('exploration capture retains allow-all parameter values', (
+  testWidgets('capability capture retains allow-all parameter values', (
     tester,
   ) async {
     await _pumpCapture(tester);
@@ -234,42 +202,18 @@ void main() {
     });
   });
 
-  test('effectiveFor only downgrades exploration allowAll', () {
+  test('allowAll has one mode-free policy', () {
     expect(
-      TugboatParameterPolicy.allowAll.effectiveFor(
-        TugboatCaptureProfile.productionLean,
-      ),
-      same(TugboatParameterPolicy.namesOnly),
+      TugboatParameterPolicy.allowAll.mode,
+      TugboatParameterCaptureMode.allowAll,
     );
-    expect(
-      TugboatParameterPolicy.allowAllInProduction.effectiveFor(
-        TugboatCaptureProfile.productionLean,
-      ),
-      same(TugboatParameterPolicy.allowAllInProduction),
-    );
-    expect(
-      TugboatParameterPolicy.allowAllInProduction.mode,
-      TugboatParameterCaptureMode.allowAllInProduction,
-    );
-    expect(
-      TugboatParameterPolicy.allowAllInProduction.captureValues,
-      'allow_all',
-    );
-    expect(
-      TugboatParameterPolicy.allowAll.effectiveFor(
-        TugboatCaptureProfile.exploration,
-      ),
-      same(TugboatParameterPolicy.allowAll),
-    );
+    expect(TugboatParameterPolicy.allowAll.captureValues, 'allow_all');
   });
 
   testWidgets('external event ignores active action window', (tester) async {
     await _pumpCapture(tester);
     final controller = TugboatReplay.controller!;
-    controller.setExplorationActionWindow(
-      explorationRunId: 'run-1',
-      actionId: 'A-1',
-    );
+    controller.setActionContext(runId: 'run-1', actionId: 'A-1');
 
     TugboatReplay.eventHook(source: 'analytics').record('PING');
     final call = TugboatReplay.beginNetworkCall(

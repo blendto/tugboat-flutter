@@ -7,7 +7,6 @@ export 'src/anchors.dart'
         tugboatIconLabel,
         tugboatIconHash,
         tugboatLabelHash;
-export 'src/capture_profile.dart' show TugboatCaptureProfile;
 export 'src/capture_sink.dart'
     show
         TugboatCaptureSink,

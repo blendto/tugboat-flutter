@@ -1,4 +1,3 @@
-import 'capture_profile.dart';
 import 'external_event.dart';
 import 'health.dart';
 import 'models.dart';
@@ -15,13 +14,11 @@ class TugboatEvidenceRecorder {
     required this.appendEvidence,
     required this.nextEventId,
     required this.nowMs,
-    required this.profile,
   });
 
   final void Function(TugboatEvent event) appendEvidence;
   final String Function(String prefix) nextEventId;
   final int Function() nowMs;
-  final TugboatCaptureProfile Function() profile;
 
   static const int _maxCount = 10000;
 
@@ -66,8 +63,7 @@ class TugboatEvidenceRecorder {
     required String name,
     String? source,
     Map<String, Object?>? parameters,
-    TugboatParameterPolicy parameterPolicy =
-        TugboatParameterPolicy.allowAllInProduction,
+    TugboatParameterPolicy parameterPolicy = TugboatParameterPolicy.allowAll,
   }) {
     try {
       if (!accepting) {
@@ -91,9 +87,8 @@ class TugboatEvidenceRecorder {
         source,
         TugboatParameterLimits.maxSourceLength,
       );
-      final effectivePolicy = parameterPolicy.effectiveFor(profile());
       final snapshot = snapshotExternalParameters(
-        policy: effectivePolicy,
+        policy: parameterPolicy,
         parameters: parameters,
       );
       if (!accepting) {

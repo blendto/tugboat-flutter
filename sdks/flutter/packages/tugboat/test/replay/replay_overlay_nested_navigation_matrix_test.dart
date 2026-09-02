@@ -101,7 +101,11 @@ class _OverlayFixture {
         routes: <String, WidgetBuilder>{'/root': (_) => const _RootPage()},
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
-            profile: TugboatCaptureProfile.exploration,
+            enabled: true,
+            emitSceneInventory: true,
+            emitViewportSemanticMap: true,
+            emitCaptureDiagnostics: true,
+            acceptActionContext: true,
             settleDelay: Duration.zero,
             enableGlobalPointerCapture: true,
             capturePixelRatio: 1,

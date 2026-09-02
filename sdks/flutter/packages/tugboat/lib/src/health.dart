@@ -2,7 +2,6 @@
 class TugboatSdkHealth {
   const TugboatSdkHealth({
     required this.lifecycle,
-    required this.profile,
     this.activationRequestId,
     this.captureSessionId,
     this.sinks = const TugboatSinkHealth(),
@@ -14,7 +13,6 @@ class TugboatSdkHealth {
   });
 
   final String lifecycle;
-  final String profile;
   final String? activationRequestId;
   final String? captureSessionId;
   final TugboatSinkHealth sinks;
@@ -31,7 +29,6 @@ class TugboatSdkHealth {
 
   Map<String, Object?> toJson() => {
     'lifecycle': lifecycle,
-    'profile': profile,
     if (activationRequestId != null) 'activationRequestId': activationRequestId,
     if (captureSessionId != null) 'captureSessionId': captureSessionId,
     'sinks': sinks.toJson(),

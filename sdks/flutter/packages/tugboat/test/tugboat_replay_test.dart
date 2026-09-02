@@ -17,7 +17,12 @@ import 'helpers/json_roundtrip.dart';
 import 'helpers/widget_capture_wait.dart';
 
 const _testConfig = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+  enabled: true,
+  emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  emitCaptureDiagnostics: true,
+  acceptActionContext: true,
+  screenshotMaskLevel: TugboatScreenshotMaskLevel.explicitOnly,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -572,7 +577,11 @@ void main() {
     );
     final controller = TugboatReplayController(
       config: const TugboatReplayConfig(
-        profile: TugboatCaptureProfile.exploration,
+        enabled: true,
+        emitSceneInventory: true,
+        emitViewportSemanticMap: true,
+        emitCaptureDiagnostics: true,
+        acceptActionContext: true,
         settleDelay: Duration(milliseconds: 50),
         interactionClaimWindow: Duration.zero,
         enableGlobalPointerCapture: false,
@@ -628,7 +637,11 @@ void main() {
     );
     final controller = TugboatReplayController(
       config: const TugboatReplayConfig(
-        profile: TugboatCaptureProfile.exploration,
+        enabled: true,
+        emitSceneInventory: true,
+        emitViewportSemanticMap: true,
+        emitCaptureDiagnostics: true,
+        acceptActionContext: true,
         settleDelay: Duration(milliseconds: 50),
         interactionClaimWindow: Duration.zero,
         enableGlobalPointerCapture: false,
@@ -741,36 +754,42 @@ void main() {
     expect(session.frames.any((frame) => frame.masked), isTrue);
   });
 
-  test('mask defaults follow the capture profile', () {
+  test('mask defaults stay privacy-safe with additive capabilities', () {
     expect(
       const TugboatReplayConfig(
-        profile: TugboatCaptureProfile.exploration,
-      ).effectiveScreenshotMaskLevel,
-      TugboatScreenshotMaskLevel.explicitOnly,
-    );
-    expect(
-      const TugboatReplayConfig(
-        profile: TugboatCaptureProfile.productionLean,
+        enabled: true,
+        emitSceneInventory: true,
+        emitViewportSemanticMap: true,
+        emitCaptureDiagnostics: true,
+        acceptActionContext: true,
       ).effectiveScreenshotMaskLevel,
       TugboatScreenshotMaskLevel.allTextAndMedia,
     );
     expect(
+      const TugboatReplayConfig(enabled: true).effectiveScreenshotMaskLevel,
+      TugboatScreenshotMaskLevel.allTextAndMedia,
+    );
+    expect(
       const TugboatReplayConfig(
-        profile: TugboatCaptureProfile.productionLean,
+        enabled: true,
         screenshotMaskLevel: TugboatScreenshotMaskLevel.sensitiveInputsOnly,
       ).effectiveScreenshotMaskLevel,
       TugboatScreenshotMaskLevel.sensitiveInputsOnly,
     );
   });
 
-  testWidgets('productionLean automatically masks visible text', (
+  testWidgets('default capture automatically masks visible text', (
     tester,
   ) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
-          config: _testConfig.copyWith(
-            profile: TugboatCaptureProfile.productionLean,
+          config: const TugboatReplayConfig(
+            enabled: true,
+            settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
+            enableGlobalPointerCapture: false,
+            capturePixelRatio: 1.0,
           ),
           child: child!,
         ),
@@ -948,9 +967,7 @@ void main() {
     expect(pixel.b, closeTo(0x1a, 2));
   });
 
-  testWidgets('exploration action window annotates captured events', (
-    tester,
-  ) async {
+  testWidgets('action context annotates captured events', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
@@ -963,13 +980,10 @@ void main() {
     await _waitForCaptures(tester);
 
     final controller = TugboatReplay.controller!;
-    controller.setExplorationActionWindow(
-      explorationRunId: 'run-1',
-      actionId: 'A-1',
-    );
+    controller.setActionContext(runId: 'run-1', actionId: 'A-1');
     await tester.tap(find.text('Act'));
     await _waitForCaptures(tester);
-    controller.clearExplorationActionWindow();
+    controller.clearActionContext();
 
     final actionEvents = controller.session!.events
         .where((event) => event.actionId == 'A-1')
@@ -978,6 +992,41 @@ void main() {
     expect(
       actionEvents.every((event) => event.explorationRunId == 'run-1'),
       isTrue,
+    );
+  });
+
+  testWidgets('action context is ignored without its capability', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: const TugboatReplayConfig(
+            enabled: true,
+            settleDelay: Duration.zero,
+            interactionClaimWindow: Duration.zero,
+            enableGlobalPointerCapture: false,
+            capturePixelRatio: 1.0,
+          ),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: FilledButton(onPressed: () {}, child: const Text('Act')),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    final controller = TugboatReplay.controller!;
+    controller.setActionContext(runId: 'run-1', actionId: 'A-1');
+    await tester.tap(find.text('Act'));
+    await _waitForCaptures(tester);
+
+    expect(
+      controller.session!.events.any(
+        (event) => event.type == 'action_window_set' || event.actionId != null,
+      ),
+      isFalse,
     );
   });
 
@@ -996,15 +1045,9 @@ void main() {
     await _waitForCaptures(tester);
 
     final controller = TugboatReplay.controller!;
-    controller.setExplorationActionWindow(
-      explorationRunId: 'run-1',
-      actionId: 'A-origin',
-    );
+    controller.setActionContext(runId: 'run-1', actionId: 'A-origin');
     await tester.tap(find.text('Act'));
-    controller.setExplorationActionWindow(
-      explorationRunId: 'run-1',
-      actionId: 'A-next',
-    );
+    controller.setActionContext(runId: 'run-1', actionId: 'A-next');
     await _waitForCaptures(tester);
 
     final interaction = controller.session!.events.singleWhere(
@@ -1352,14 +1395,114 @@ void main() {
     expect(TugboatReplay.controller, isNull);
     expect(find.text('Disabled'), findsOneWidget);
 
-    TugboatReplay.activate(
-      activationRequestId: 'session-disabled',
-      profile: TugboatCaptureProfile.exploration,
-    );
+    TugboatReplay.activate(activationRequestId: 'session-disabled');
     expect(TugboatReplay.isActivated, isFalse);
   });
 
-  testWidgets('dormant profile stays inert until activated without rebuild', (
+  test('deactivate is a no-op from the initial dormant state', () {
+    addTearDown(TugboatReplay.resetForTest);
+    TugboatReplay.resetForTest();
+
+    TugboatReplay.deactivate();
+
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.dormant);
+  });
+
+  testWidgets('enabled config reaches the active lifecycle state', (
+    tester,
+  ) async {
+    addTearDown(TugboatReplay.resetForTest);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: const Scaffold(body: Text('Enabled')),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    expect(TugboatReplay.controller, isNotNull);
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.active);
+  });
+
+  testWidgets('capability changes remount the active capture session', (
+    tester,
+  ) async {
+    addTearDown(TugboatReplay.resetForTest);
+    final inventoryGrant = ValueNotifier<bool>(false);
+    addTearDown(inventoryGrant.dispose);
+
+    await tester.pumpWidget(
+      ValueListenableBuilder<bool>(
+        valueListenable: inventoryGrant,
+        builder: (context, granted, _) => MaterialApp(
+          builder: (context, child) => TugboatReplay.wrapApp(
+            config: _testConfig.copyWith(emitSceneInventory: granted),
+            child: child!,
+          ),
+          home: const Scaffold(body: Text('Capability grant')),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+    final initialController = TugboatReplay.controller!;
+    expect(initialController.config.emitSceneInventory, isFalse);
+
+    inventoryGrant.value = true;
+    await _waitForCaptures(tester);
+    final grantedController = TugboatReplay.controller!;
+    expect(grantedController, isNot(same(initialController)));
+    expect(grantedController.config.emitSceneInventory, isTrue);
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.active);
+
+    inventoryGrant.value = false;
+    await _waitForCaptures(tester);
+    final revokedController = TugboatReplay.controller!;
+    expect(revokedController, isNot(same(grantedController)));
+    expect(revokedController.config.emitSceneInventory, isFalse);
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.active);
+  });
+
+  testWidgets('runtime capture applies a combined enable and grant rebuild', (
+    tester,
+  ) async {
+    addTearDown(TugboatReplay.resetForTest);
+    final upgraded = ValueNotifier<bool>(false);
+    addTearDown(upgraded.dispose);
+
+    await tester.pumpWidget(
+      ValueListenableBuilder<bool>(
+        valueListenable: upgraded,
+        builder: (context, value, _) => MaterialApp(
+          builder: (context, child) => TugboatReplay.wrapApp(
+            config: _testConfig.copyWith(
+              enabled: value,
+              emitSceneInventory: value,
+            ),
+            child: child!,
+          ),
+          home: const Scaffold(body: Text('Combined grant')),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(TugboatReplay.controller, isNull);
+
+    TugboatReplay.activate(activationRequestId: 'combined-grant');
+    await _waitForCaptures(tester);
+    final runtimeController = TugboatReplay.controller!;
+    expect(runtimeController.config.emitSceneInventory, isFalse);
+
+    upgraded.value = true;
+    await _waitForCaptures(tester);
+    final upgradedController = TugboatReplay.controller!;
+    expect(upgradedController, isNot(same(runtimeController)));
+    expect(upgradedController.config.emitSceneInventory, isTrue);
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.active);
+  });
+
+  testWidgets('disabled config stays inert until activated without rebuild', (
     tester,
   ) async {
     addTearDown(TugboatReplay.resetForTest);
@@ -1367,7 +1510,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
-          config: _testConfig.copyWith(profile: TugboatCaptureProfile.dormant),
+          config: _testConfig.copyWith(enabled: false),
           child: child!,
         ),
         home: const Scaffold(body: Text('Dormant')),
@@ -1379,18 +1522,12 @@ void main() {
     expect(find.text('Dormant'), findsOneWidget);
     expect(TugboatReplay.boundaryKey.currentContext, isNull);
 
-    TugboatReplay.activate(
-      activationRequestId: 'request-1',
-      profile: TugboatCaptureProfile.exploration,
-    );
+    TugboatReplay.activate(activationRequestId: 'request-1');
     await _waitForCaptures(tester);
 
     expect(TugboatReplay.controller, isNotNull);
     expect(TugboatReplay.activationRequestId, 'request-1');
-    expect(
-      TugboatReplay.controller!.config.profile,
-      TugboatCaptureProfile.exploration,
-    );
+    expect(TugboatReplay.controller!.config.enabled, isTrue);
     expect(TugboatReplay.controller!.session!.activationRequestId, 'request-1');
     expect(TugboatReplay.controller!.session!.id, isNot(equals('request-1')));
   });
@@ -1403,7 +1540,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
-          config: _testConfig.copyWith(profile: TugboatCaptureProfile.dormant),
+          config: _testConfig.copyWith(enabled: false),
           child: child!,
         ),
         home: const Scaffold(body: Text('Gate')),
@@ -1411,10 +1548,7 @@ void main() {
     );
     await tester.pump();
 
-    TugboatReplay.activate(
-      activationRequestId: 'req-a',
-      profile: TugboatCaptureProfile.exploration,
-    );
+    TugboatReplay.activate(activationRequestId: 'req-a');
     await _waitForCaptures(tester);
     final firstId = TugboatReplay.controller!.session!.id;
 
@@ -1423,14 +1557,33 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(TugboatReplay.controller, isNull);
 
-    TugboatReplay.activate(
-      activationRequestId: 'req-b',
-      profile: TugboatCaptureProfile.exploration,
-    );
+    TugboatReplay.activate(activationRequestId: 'req-b');
     await _waitForCaptures(tester);
     final secondId = TugboatReplay.controller!.session!.id;
     expect(secondId, isNot(equals(firstId)));
     expect(TugboatReplay.activationRequestId, 'req-b');
+  });
+
+  testWidgets('deactivate keeps an enabled config dormant', (tester) async {
+    addTearDown(TugboatReplay.resetForTest);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: const Scaffold(body: Text('Enabled config')),
+      ),
+    );
+    await _waitForCaptures(tester);
+    expect(TugboatReplay.controller, isNotNull);
+
+    TugboatReplay.deactivate();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    expect(TugboatReplay.controller, isNull);
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.dormant);
   });
 
   testWidgets(
@@ -1480,7 +1633,7 @@ void main() {
           MaterialApp(
             builder: (context, child) => TugboatReplay.wrapApp(
               config: _testConfig.copyWith(
-                profile: TugboatCaptureProfile.dormant,
+                enabled: false,
                 userId: userId,
                 collector: collectorConfig(),
               ),
@@ -1493,10 +1646,7 @@ void main() {
       }
 
       await pumpWithUserId('user_a');
-      TugboatReplay.activate(
-        activationRequestId: 'req-user-a',
-        profile: TugboatCaptureProfile.exploration,
-      );
+      TugboatReplay.activate(activationRequestId: 'req-user-a');
       await _waitForCaptures(tester);
       expect(TugboatReplay.controller!.collectorUserId, 'user_a');
       expect(TugboatReplay.hasPendingUserIdOverride, isFalse);
@@ -1508,10 +1658,7 @@ void main() {
       expect(TugboatReplay.hasPendingUserIdOverride, isFalse);
 
       await pumpWithUserId('user_b');
-      TugboatReplay.activate(
-        activationRequestId: 'req-user-b',
-        profile: TugboatCaptureProfile.exploration,
-      );
+      TugboatReplay.activate(activationRequestId: 'req-user-b');
       await _waitForCaptures(tester);
       expect(TugboatReplay.controller!.collectorUserId, 'user_b');
       expect(TugboatReplay.hasPendingUserIdOverride, isFalse);
@@ -1565,7 +1712,7 @@ void main() {
         MaterialApp(
           builder: (context, child) => TugboatReplay.wrapApp(
             config: _testConfig.copyWith(
-              profile: TugboatCaptureProfile.dormant,
+              enabled: false,
               userId: userId,
               collector: collectorConfig(),
             ),
@@ -1578,10 +1725,7 @@ void main() {
     }
 
     await pumpWithUserId('user_a');
-    TugboatReplay.activate(
-      activationRequestId: 'req-override-a',
-      profile: TugboatCaptureProfile.exploration,
-    );
+    TugboatReplay.activate(activationRequestId: 'req-override-a');
     await _waitForCaptures(tester);
     await tester.runAsync(() => TugboatReplay.setUserId('runtime'));
     expect(TugboatReplay.controller!.collectorUserId, 'runtime');
@@ -1595,10 +1739,7 @@ void main() {
     expect(TugboatReplay.pendingUserId, 'runtime');
 
     await pumpWithUserId('user_b');
-    TugboatReplay.activate(
-      activationRequestId: 'req-override-b',
-      profile: TugboatCaptureProfile.exploration,
-    );
+    TugboatReplay.activate(activationRequestId: 'req-override-b');
     await _waitForCaptures(tester);
     expect(TugboatReplay.controller!.collectorUserId, 'runtime');
     expect(TugboatReplay.hasPendingUserIdOverride, isTrue);
@@ -1610,7 +1751,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
-          config: _testConfig.copyWith(profile: TugboatCaptureProfile.dormant),
+          config: _testConfig.copyWith(enabled: false),
           child: child!,
         ),
         home: const Scaffold(body: Text('Idempotent')),
@@ -1618,18 +1759,12 @@ void main() {
     );
     await tester.pump();
 
-    TugboatReplay.activate(
-      activationRequestId: 'same',
-      profile: TugboatCaptureProfile.exploration,
-    );
+    TugboatReplay.activate(activationRequestId: 'same');
     await _waitForCaptures(tester);
     final sessionId = TugboatReplay.controller!.session!.id;
     final epoch = TugboatReplay.lifecycle.requestEpoch;
 
-    TugboatReplay.activate(
-      activationRequestId: 'same',
-      profile: TugboatCaptureProfile.exploration,
-    );
+    TugboatReplay.activate(activationRequestId: 'same');
     await tester.pump();
     expect(TugboatReplay.lifecycle.requestEpoch, epoch);
     expect(TugboatReplay.controller!.session!.id, sessionId);

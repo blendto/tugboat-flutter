@@ -10,14 +10,12 @@ class TugboatSinkSessionContext {
     required this.sessionEpoch,
     this.activationRequestId,
     this.explorationRunId,
-    this.profileName,
   });
 
   final String captureSessionId;
   final int sessionEpoch;
   final String? activationRequestId;
   final String? explorationRunId;
-  final String? profileName;
 }
 
 /// Immutable delivery unit for sink mailboxes.

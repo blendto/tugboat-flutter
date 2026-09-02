@@ -189,7 +189,11 @@ void main() {
     'tap-time inventory matches tap state signature and fingerprint',
     (tester) async {
       const config = TugboatReplayConfig(
-        profile: TugboatCaptureProfile.exploration,
+        enabled: true,
+        emitSceneInventory: true,
+        emitViewportSemanticMap: true,
+        emitCaptureDiagnostics: true,
+        acceptActionContext: true,
         settleDelay: Duration.zero,
         interactionClaimWindow: Duration.zero,
         enableGlobalPointerCapture: false,
@@ -252,7 +256,11 @@ void main() {
     tester,
   ) async {
     const config = TugboatReplayConfig(
-      profile: TugboatCaptureProfile.exploration,
+      enabled: true,
+      emitSceneInventory: true,
+      emitViewportSemanticMap: true,
+      emitCaptureDiagnostics: true,
+      acceptActionContext: true,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -310,7 +318,11 @@ void main() {
     tester,
   ) async {
     const config = TugboatReplayConfig(
-      profile: TugboatCaptureProfile.exploration,
+      enabled: true,
+      emitSceneInventory: true,
+      emitViewportSemanticMap: true,
+      emitCaptureDiagnostics: true,
+      acceptActionContext: true,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -350,11 +362,11 @@ void main() {
     expect(afterSecondTap, afterFirstTap);
   });
 
-  testWidgets('production lean does not emit scene inventory events', (
+  testWidgets('default capture does not emit scene inventory events', (
     tester,
   ) async {
     const config = TugboatReplayConfig(
-      profile: TugboatCaptureProfile.productionLean,
+      enabled: true,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -387,7 +399,11 @@ void main() {
 
   testWidgets('scene inventory event is deduped per state', (tester) async {
     const config = TugboatReplayConfig(
-      profile: TugboatCaptureProfile.exploration,
+      enabled: true,
+      emitSceneInventory: true,
+      emitViewportSemanticMap: true,
+      emitCaptureDiagnostics: true,
+      acceptActionContext: true,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,

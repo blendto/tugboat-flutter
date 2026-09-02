@@ -5,7 +5,11 @@ import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/viewport_semantic_session.dart';
 
 const _semanticMapConfig = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+  enabled: true,
+  emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  emitCaptureDiagnostics: true,
+  acceptActionContext: true,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -14,7 +18,11 @@ const _semanticMapConfig = TugboatReplayConfig(
 );
 
 const _semanticMapConfigWithLogs = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+  enabled: true,
+  emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  emitCaptureDiagnostics: true,
+  acceptActionContext: true,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -23,7 +31,11 @@ const _semanticMapConfigWithLogs = TugboatReplayConfig(
 );
 
 const _scrollSemanticMapConfig = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+  enabled: true,
+  emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  emitCaptureDiagnostics: true,
+  acceptActionContext: true,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -342,14 +354,14 @@ void main() {
     expect(interaction.data['targetFingerprint'], isNotEmpty);
   });
 
-  testWidgets('dormant profile stays off with default semantic mode', (
+  testWidgets('disabled capture stays off with default semantic mode', (
     tester,
   ) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
-            profile: TugboatCaptureProfile.dormant,
+            enabled: false,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
@@ -383,14 +395,14 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('production default resolves taps without emitting maps', (
+  testWidgets('default capture resolves taps without emitting maps', (
     tester,
   ) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
-            profile: TugboatCaptureProfile.productionLean,
+            enabled: true,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
@@ -430,13 +442,13 @@ void main() {
   });
 
   testWidgets(
-    'production semantic map emission stays off even with full mode',
+    'semantic map emission stays off without capability even with full mode',
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           builder: (context, child) => TugboatReplay.wrapApp(
             config: const TugboatReplayConfig(
-              profile: TugboatCaptureProfile.productionLean,
+              enabled: true,
               settleDelay: Duration.zero,
               interactionClaimWindow: Duration.zero,
               enableGlobalPointerCapture: false,
@@ -481,14 +493,13 @@ void main() {
     },
   );
 
-  testWidgets('production semantic map stays off with default mode', (
-    tester,
-  ) async {
+  testWidgets('semantic map stays off with default mode', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
-            profile: TugboatCaptureProfile.productionLean,
+            enabled: true,
+            emitViewportSemanticMap: true,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
@@ -620,7 +631,7 @@ void main() {
   });
 
   testWidgets(
-    'settled exploration screen emits both scene_inventory and viewport_semantic_map',
+    'settled capable screen emits scene inventory and viewport semantic map',
     (tester) async {
       await _pumpSettledScreen(
         tester,
@@ -726,6 +737,31 @@ void main() {
       );
     },
   );
+
+  testWidgets('semantic-map capability does not emit raw inventory', (
+    tester,
+  ) async {
+    await _pumpSettledScreen(
+      tester,
+      Scaffold(
+        body: FilledButton(onPressed: () {}, child: const Text('Go')),
+      ),
+      config: const TugboatReplayConfig(
+        enabled: true,
+        settleDelay: Duration.zero,
+        enableGlobalPointerCapture: false,
+        emitViewportSemanticMap: true,
+        viewportSemanticMode: TugboatViewportSemanticMode.full,
+      ),
+    );
+
+    final events = TugboatReplay.controller!.session!.events;
+    expect(events.where((event) => event.type == 'scene_inventory'), isEmpty);
+    expect(
+      events.where((event) => event.type == 'viewport_semantic_map'),
+      isNotEmpty,
+    );
+  });
 
   testWidgets('debug log config does not change emitted payload shape', (
     tester,

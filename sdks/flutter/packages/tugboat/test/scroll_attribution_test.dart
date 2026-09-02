@@ -3,7 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 
 const _scrollTestConfig = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+  enabled: true,
+  emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  emitCaptureDiagnostics: true,
+  acceptActionContext: true,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: true,
@@ -124,7 +128,11 @@ void main() {
     'a replacement scroll keeps the completed scroll facts while dropping its delayed frame',
     (tester) async {
       const config = TugboatReplayConfig(
-        profile: TugboatCaptureProfile.exploration,
+        enabled: true,
+        emitSceneInventory: true,
+        emitViewportSemanticMap: true,
+        emitCaptureDiagnostics: true,
+        acceptActionContext: true,
         settleDelay: Duration.zero,
         scrollEndCaptureDelay: Duration(seconds: 1),
         interactionClaimWindow: Duration.zero,
@@ -267,7 +275,11 @@ void main() {
     tester,
   ) async {
     const config = TugboatReplayConfig(
-      profile: TugboatCaptureProfile.exploration,
+      enabled: true,
+      emitSceneInventory: true,
+      emitViewportSemanticMap: true,
+      emitCaptureDiagnostics: true,
+      acceptActionContext: true,
       settleDelay: Duration.zero,
       scrollEndCaptureDelay: Duration(milliseconds: 30),
       interactionClaimWindow: Duration.zero,
@@ -536,7 +548,11 @@ void main() {
     'in-motion screenshots are independent from scroll sample retention',
     (tester) async {
       const config = TugboatReplayConfig(
-        profile: TugboatCaptureProfile.exploration,
+        enabled: true,
+        emitSceneInventory: true,
+        emitViewportSemanticMap: true,
+        emitCaptureDiagnostics: true,
+        acceptActionContext: true,
         settleDelay: Duration.zero,
         interactionClaimWindow: Duration.zero,
         enableGlobalPointerCapture: true,

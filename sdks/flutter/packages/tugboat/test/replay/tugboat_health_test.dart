@@ -31,7 +31,6 @@ void main() {
   test('health snapshot stays sanitized', () {
     final health = TugboatSdkHealth(
       lifecycle: 'active',
-      profile: 'productionLean',
       activationRequestId: 'req-1',
       captureSessionId: 'cap-1',
       sinks: const TugboatSinkHealth(pending: 2, accepted: 10, dropped: 1),
