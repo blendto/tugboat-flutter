@@ -27,6 +27,9 @@ docs procedure.
 - Flutter adapter source (`lib/`, `android/`, `ios/`, `pigeons/`, `pubspec.yaml`)
   bumps `tugboat` and updates this compatibility table.
 - A runtime public API change that adapters consume also updates the table.
+- The Flutter plugin's `capture-runtime` Maven pin must not be newer than
+  `VERSION_NAME`. Changing the pin requires it to equal `VERSION_NAME`.
+  Runtime-only PRs may leave the pin lagging until Central has the new AAR.
 
 ## pub.dev (Flutter 0.8.x)
 
@@ -74,10 +77,26 @@ dependencies {
 }
 ```
 
-The Flutter plugin still compiles `platforms/android/capture-runtime` from
-source in the monorepo and stubs native capture in published pub archives.
-Do not point the plugin at GitHub Packages; pub.dev hosts cannot supply
-GitHub credentials.
+The Flutter plugin depends on Maven Central
+`com.gettugboat.sdk:capture-runtime:0.1.0`. Do not point it at GitHub
+Packages; pub.dev hosts cannot supply GitHub credentials. iOS native capture
+still compiles from monorepo sources and stubs in published pub archives.
+
+### Two-merge sequence for a new AAR
+
+1. Runtime PR: bump `VERSION_NAME` (for example `0.1.1`) and merge. Wait until
+   `publish-android.yml` has put that version on Maven Central (repo1 POM
+   returns 200).
+2. Flutter PR: pin
+   `implementation("com.gettugboat.sdk:capture-runtime:<that version>")`,
+   bump `tugboat` / `tugboat_dio`, and merge. That publishes to pub.dev.
+
+Do not merge a Flutter pin for a version that is not on repo1 yet. After a
+`capture-runtime-v*` tag publish, `publish-android.yml` waits for repo1 and
+opens `chore/pin-capture-runtime-<version>` when the plugin still lags. That
+job is a no-op if the pin already matches `VERSION_NAME` or the branch/PR
+already exists. Recovery: re-run **Publish Android runtime** on the tag.
+The repository must allow GitHub Actions to create pull requests.
 
 ### Maven Central (public hosts)
 
@@ -99,7 +118,8 @@ Required before the Flutter plugin can depend on the AAR from pub.dev.
 
 ## After native gates pass
 
-1. Confirm `capture-runtime` `0.1.0` is on Maven Central.
-2. Point the Flutter plugin at the published coordinate.
-3. Bump Flutter to `0.9.0`, keep native capture opt-in.
+1. Confirm `capture-runtime` `0.1.0` is on Maven Central (done for 0.8.14).
+2. Point the Flutter plugin at the published coordinate (done in 0.8.14).
+3. Bump Flutter to `0.9.0`, keep native capture opt-in until gates pass, then
+   consider making native capture the default.
 4. Tag `v0.9.0` (same pattern as 0.8.x) so GitHub Actions publishes the pub packages.

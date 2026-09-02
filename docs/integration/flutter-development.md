@@ -20,10 +20,11 @@ outputs.
 
 Screenshot pixels still default to `RepaintBoundary`. Enable native CPU
 capture only through
-`TugboatScreenshotCaptureBackend.nativeCpuExperimental`. In the monorepo the
-Flutter plugin compiles the Android and Apple runtimes from source. It does
-not depend on unpublished Maven or CocoaPods artifacts. Published pub
-consumers get a stub that reports native capture unsupported. See
+`TugboatScreenshotCaptureBackend.nativeCpuExperimental`. In the monorepo and
+on pub.dev, the Android plugin depends on Maven Central
+`com.gettugboat.sdk:capture-runtime:0.1.0`. The iOS plugin still compiles
+`TugboatCaptureRuntime` from source when `platforms/apple` is present;
+published pub checkouts stub iOS native capture. See
 [native-cpu-experimental.md](native-cpu-experimental.md) and
 [apple-development.md](apple-development.md).
 

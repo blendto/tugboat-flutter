@@ -62,6 +62,7 @@ In scope:
 - Return only masked JPEG bytes and bounded metadata
 - Local Maven publication for the native Android sample
 - Hosted GitHub Packages publication on `capture-runtime-v*` tags
+- Maven Central `com.gettugboat.sdk:capture-runtime` for Flutter and native apps
 
 Capture scale stays Dart-owned. The adapter sends the bitmap width and
 height that the current capturer would have used. The runtime serializes
@@ -85,9 +86,10 @@ older OS versions report `unsupportedApi` and Flutter falls back.
 
 ## Flutter adapter scope
 
-`package:tugboat` stays the public Dart API. First native-capable version is
-planned as `0.9.0`. This Phase 0/1 line is `0.8.13` and does not enable
-native capture.
+`package:tugboat` stays the public Dart API. Native Android capture is
+available as an opt-in on `0.8.14` via Maven Central `capture-runtime`
+`0.1.0`. This line does not enable native capture by default; `0.9.0` is
+still the planned native-default adapter.
 
 In scope for the Android and Apple CPU betas:
 
@@ -97,9 +99,9 @@ In scope for the Android and Apple CPU betas:
 - Send mask metadata and previous dHash; receive masked JPEG only
 - Automatic fallback; never publish native and Flutter results for one request
 - Preserve session schema, frame transport, scheduling, and mask policy
-- Android: the Flutter plugin compiles `capture-runtime` from source in the
-  monorepo. Native Android apps use the local Maven AAR or the hosted
-  GitHub Packages / Maven Central coordinate. iOS: the
+- Android: the Flutter plugin depends on Maven Central
+  `com.gettugboat.sdk:capture-runtime:0.1.0`. Native Android apps use the
+  same coordinate, or `.local-maven` for unpublished runtime work. iOS: the
   plugin compiles `TugboatCaptureRuntime` sources; the root CocoaPod remains
   for native Apple apps.
 

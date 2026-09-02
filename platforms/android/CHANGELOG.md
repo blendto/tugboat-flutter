@@ -10,7 +10,7 @@ Initial Maven artifact `com.gettugboat.sdk:capture-runtime:0.1.0`.
 - Public API recorded in `api.txt`.
 
 GitHub Actions publishes this coordinate to GitHub Packages on tag
-`capture-runtime-v0.1.0`. Maven Central waits on namespace verification.
-Flutter 0.8.13 still compiles this from monorepo sources. Local Maven
-(`.local-maven` after `tool/ci/build-android-runtime.sh`) is only for the
-standalone native Android sample.
+`capture-runtime-v0.1.0` and to Maven Central. Flutter `0.8.14` depends on
+that hosted coordinate. Local Maven (`.local-maven` after
+`tool/ci/build-android-runtime.sh`) is only for the standalone native Android
+sample.

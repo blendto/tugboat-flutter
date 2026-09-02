@@ -19,12 +19,12 @@ package references sources under `platforms/apple` and
 `core/image-processing`.
 
 Do not copy the C++ core into the published pub package. Files above a
-published pub archive are not part of that archive. In this monorepo the
-Flutter plugin compiles Android and Apple runtime sources when those trees
-resolve. Published pub archives omit those trees and stub native capture as
-unsupported. Native Android apps consume the local Maven AAR or the hosted
-GitHub Packages / Maven Central coordinate; native Apple apps still use the
-root CocoaPod / SwiftPM package.
+published pub archive are not part of that archive. The Flutter Android
+plugin depends on Maven Central `com.gettugboat.sdk:capture-runtime`. The
+iOS plugin compiles Apple runtime sources when `platforms/apple` resolves;
+published pub archives omit that tree and stub iOS native capture.
+Native Android apps consume Maven Central or the local Maven AAR; native
+Apple apps still use the root CocoaPod / SwiftPM package.
 
 Ownership rules: [repository-scope.md](repository-scope.md).
 Build commands: [common-build.md](../integration/common-build.md).

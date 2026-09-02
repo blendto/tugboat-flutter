@@ -10,11 +10,10 @@ bash tool/ci/run-flutter-tests.sh
 bash tool/ci/verify-native-capture-pigeon.sh
 ```
 
-The Android AAR publishes to untracked `.local-maven/` for native Android
-apps and the sample. Hosted GitHub Packages / Maven Central publication is
-documented in [process.md](../releases/process.md). The Flutter plugin
-compiles `capture-runtime` from source when `platforms/android` is present,
-so example APKs do not need that Maven artifact.
+The Android AAR publishes to untracked `.local-maven/` for the standalone
+native sample. Hosted Maven Central publication is documented in
+[process.md](../releases/process.md). The Flutter plugin depends on
+`com.gettugboat.sdk:capture-runtime:0.1.0` from Maven Central.
 
 Release-control scripts (also run in CI):
 
