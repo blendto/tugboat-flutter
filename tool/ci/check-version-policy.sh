@@ -8,6 +8,8 @@
 # Apple public Swift API or TugboatCaptureRuntime.podspec → Apple runtime
 # version must increase, and the compatibility table must change.
 # Documentation-only and C++ test/fuzz-only changes skip the Flutter bump.
+# Flutter's Maven pin must not be newer than capture-runtime VERSION_NAME.
+# Changing that pin requires it to equal VERSION_NAME; runtime-only PRs may lag.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -42,6 +44,17 @@ extract_runtime_version_from_text() {
       }
     }
   '
+}
+
+extract_plugin_pin_from_text() {
+  local content="$1"
+  local line
+  line="$(printf '%s\n' "$content" | grep -E 'implementation\("com\.gettugboat\.sdk:capture-runtime:[^"]+"\)' | head -1 || true)"
+  if [[ -z "$line" ]]; then
+    echo ""
+    return
+  fi
+  printf '%s\n' "$line" | sed -E 's/.*capture-runtime:([^"]+)".*/\1/'
 }
 
 extract_runtime_version() {
@@ -85,7 +98,29 @@ runtime_gradle="platforms/android/capture-runtime/build.gradle.kts"
 runtime_props="platforms/android/gradle.properties"
 apple_podspec="TugboatCaptureRuntime.podspec"
 compat_file="docs/releases/compatibility.md"
+plugin_gradle="sdks/flutter/packages/tugboat/android/build.gradle"
 head_pubspec="sdks/flutter/packages/tugboat/pubspec.yaml"
+
+plugin_pin=""
+if [[ -f "$plugin_gradle" ]]; then
+  plugin_pin="$(extract_plugin_pin_from_text "$(cat "$plugin_gradle")")"
+fi
+runtime_now="$(extract_runtime_version "$runtime_props")"
+if [[ -z "$runtime_now" ]]; then
+  runtime_now="$(extract_runtime_version "$runtime_gradle")"
+fi
+if [[ -n "$plugin_pin" && -n "$runtime_now" ]]; then
+  echo "Flutter capture-runtime pin: $plugin_pin"
+  echo "capture-runtime VERSION_NAME: $runtime_now"
+  if [[ "$plugin_pin" != "$runtime_now" ]]; then
+    higher="$(printf '%s\n%s\n' "$plugin_pin" "$runtime_now" | sort -V | tail -n 1)"
+    if [[ "$higher" == "$plugin_pin" ]]; then
+      echo "::error::Flutter plugin pins capture-runtime $plugin_pin which is newer than VERSION_NAME $runtime_now."
+      exit 1
+    fi
+    echo "Plugin pin lags VERSION_NAME; a pin PR should follow Maven Central publish."
+  fi
+fi
 
 mapfile -t changed < <(
   {
@@ -286,4 +321,20 @@ if [[ "$needs_compat" -eq 1 ]]; then
   fi
 else
   echo "No adapter/runtime API pairing change; compatibility table not required."
+fi
+
+if git diff --name-only "$BASE_SHA" | grep -qx "$plugin_gradle" \
+  || git ls-files --others --exclude-standard | grep -qx "$plugin_gradle"; then
+  if [[ -z "$plugin_pin" || -z "$runtime_now" ]]; then
+    echo "::error::Could not compare Flutter capture-runtime pin to VERSION_NAME."
+    exit 1
+  fi
+  base_pin=""
+  if git cat-file -e "${BASE_SHA}:${plugin_gradle}" 2>/dev/null; then
+    base_pin="$(extract_plugin_pin_from_text "$(git show "${BASE_SHA}:${plugin_gradle}")")"
+  fi
+  if [[ "$base_pin" != "$plugin_pin" && "$plugin_pin" != "$runtime_now" ]]; then
+    echo "::error::Flutter plugin capture-runtime pin ($plugin_pin) must match VERSION_NAME ($runtime_now) when the pin changes."
+    exit 1
+  fi
 fi

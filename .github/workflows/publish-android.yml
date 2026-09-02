@@ -4,6 +4,8 @@
 # 1. On push to main, creates tag capture-runtime-v<version> when that version
 #    is not already on GitHub Packages (or Maven Central, once configured).
 # 2. On that tag (push or workflow_dispatch), publishes the AAR.
+# 3. After a tag publish, waits for Maven Central repo1 then opens a Flutter
+#    pin PR (chore/pin-capture-runtime-<version>) if the plugin still lags.
 #
 # GitHub Packages is the default hosted registry (GITHUB_TOKEN). Maven Central
 # is optional until namespace + secrets exist; see docs/releases/process.md.
@@ -182,3 +184,21 @@ jobs:
             exit 0
           fi
           ./gradlew :capture-runtime:publishAndReleaseToMavenCentral -Ptugboat.publishMavenCentral=true
+
+  pin_flutter:
+    if: startsWith(github.ref, 'refs/tags/capture-runtime-v')
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Open Flutter pin PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tool/ci/open-flutter-runtime-pin-pr.sh
