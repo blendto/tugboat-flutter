@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'tugboat'
-  s.version          = '0.8.15'
+  s.version          = '0.8.16'
   s.summary          = 'Screenshot-based session replay with compact interaction anchors for Tugboat.'
   s.description      = <<-DESC
     Flutter adapter for Tugboat session replay. Native CPU capture is experimental
