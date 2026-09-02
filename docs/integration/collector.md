@@ -14,7 +14,7 @@ Transport failures are isolated from the host app.
 
 ## Required app integration
 
-Install the wrapper and navigator observer. Capture is dormant by default.
+Install the wrapper and navigator observer. Capture is disabled by default.
 Set `enabled: true` for startup capture, or call `TugboatReplay.activate` later:
 
 ```dart

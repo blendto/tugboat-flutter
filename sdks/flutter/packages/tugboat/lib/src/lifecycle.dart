@@ -83,6 +83,14 @@ class TugboatLifecycleNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Called by the gate before it mounts configuration-enabled capture.
+  void markStarting(int epoch) {
+    if (_disabled || epoch != _requestEpoch) return;
+    if (_state != TugboatLifecycleState.dormant) return;
+    _state = TugboatLifecycleState.starting;
+    notifyListeners();
+  }
+
   /// Called by the gate when capture machinery is fully up.
   void markActive(int epoch) {
     if (epoch != _requestEpoch) return;

@@ -411,6 +411,7 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
         _captureMounted = true;
         _mountedEpoch = epoch;
       });
+      lifecycle.markStarting(epoch);
     }
   }
 

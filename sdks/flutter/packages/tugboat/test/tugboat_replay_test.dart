@@ -1399,6 +1399,24 @@ void main() {
     expect(TugboatReplay.isActivated, isFalse);
   });
 
+  testWidgets('enabled config reaches the active lifecycle state', (
+    tester,
+  ) async {
+    addTearDown(TugboatReplay.resetForTest);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: const Scaffold(body: Text('Enabled')),
+      ),
+    );
+    await _waitForCaptures(tester);
+
+    expect(TugboatReplay.controller, isNotNull);
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.active);
+  });
+
   testWidgets('disabled config stays inert until activated without rebuild', (
     tester,
   ) async {
