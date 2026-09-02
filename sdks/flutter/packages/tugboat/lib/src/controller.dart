@@ -5647,7 +5647,7 @@ class TugboatReplayController extends ChangeNotifier {
         );
       }
     }
-    if (emitViewportSemanticMap) {
+    if (emitViewportSemanticMap && config.semanticMapEmissionEnabled) {
       _viewportSemantics.maybeEmit(
         inventory,
         resolver: _anchorResolver,

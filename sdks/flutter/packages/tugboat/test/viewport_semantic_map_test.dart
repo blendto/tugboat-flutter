@@ -499,6 +499,7 @@ void main() {
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
             enabled: true,
+            emitViewportSemanticMap: true,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
