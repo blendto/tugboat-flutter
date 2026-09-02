@@ -14,14 +14,13 @@ Experimental CPU path for iOS 15+. Default Flutter capture remains
 | `platforms/apple/Sources/TugboatImageCoreBridge` | Objective-C++ bridge to the C ABI |
 | `platforms/apple/Tests` | XCTest (MaskMapper, runtime constants) |
 | `platforms/apple/Sample` | Usage notes, not a full Xcode app |
-| `sdks/flutter/packages/tugboat/ios` | Pigeon plugin; compiles Apple sources via `NativeRuntime` when present |
+| `sdks/flutter/packages/tugboat/ios` | Pigeon plugin; depends on CocoaPods `TugboatCaptureRuntime` |
 
 Do not copy `core/image-processing` into the published pub package. The
-Flutter plugin podspec does not depend on unpublished `TugboatCaptureRuntime`.
-Monorepo checkouts compile Apple runtime sources through
-`ios/NativeRuntime` (symlinks into `platforms/apple` and `core/`). The plugin
-deployment target stays iOS 12; native capture still reports unsupported
-below iOS 15.
+Flutter plugin depends on CocoaPods `TugboatCaptureRuntime` `0.1.0` and
+requires iOS 15. The example app path-overrides the pod to this repository.
+Native capture still reports unsupported below iOS 15 on devices that somehow
+run a lower OS; hosts must set iOS 15 as the floor.
 
 ## Capture
 
@@ -59,6 +58,6 @@ Requires Xcode. This Linux CI host cannot compile for simulator or device.
 swift test --package-path .  # needs Xcode / iOS SDK
 ```
 
-Do not publish `TugboatCaptureRuntime` 0.1.0 until device privacy rows pass.
-The live-layer path uses Flutter's existing Metal readback. It does not call
-private Flutter selectors directly.
+`publish-apple.yml` pushes `TugboatCaptureRuntime` `0.1.0` to CocoaPods trunk
+when `COCOAPODS_TRUNK_TOKEN` is set. The live-layer path uses Flutter's
+existing Metal readback. It does not call private Flutter selectors directly.

@@ -17,7 +17,7 @@ the monorepo layout.
 | --- | --- | --- |
 | `core/image-processing` | Portable C++ CPU core | Yes |
 | `platforms/android/capture-runtime` | Android AAR `com.gettugboat.sdk:capture-runtime` | Yes |
-| `platforms/apple` | Swift/ObjC++ runtime | Yes (experimental iOS CPU; unpublished) |
+| `platforms/apple` | Swift/ObjC++ runtime | Yes (experimental iOS CPU; CocoaPods `0.1.0`) |
 | `sdks/flutter` | Flutter adapter (`tugboat`, `tugboat_dio`) | Yes (opt-in native Android) |
 | `sdks/react-native` | Future adapter placeholder | README only |
 
@@ -81,15 +81,15 @@ JPEG, and SHA-256. Root `Package.swift` and
 `TugboatCaptureRuntime.podspec` stay at the repository root.
 
 The Flutter Apple plugin captures the Flutter engine surface (`engineSurface`
-coverage). It is experimental and unpublished. iOS 15 is the native floor;
-older OS versions report `unsupportedApi` and Flutter falls back.
+coverage). iOS 15 is the native floor; the plugin deployment target matches.
 
 ## Flutter adapter scope
 
-`package:tugboat` stays the public Dart API. Native Android capture is
-available as an opt-in on `0.8.14` via Maven Central `capture-runtime`
-`0.1.0`. This line does not enable native capture by default; `0.9.0` is
-still the planned native-default adapter.
+`package:tugboat` stays the public Dart API. Native Android and iOS capture
+are available as an opt-in on `0.8.15` via Maven Central `capture-runtime`
+`0.1.0` and CocoaPods `TugboatCaptureRuntime` `0.1.0`. This line does not
+enable native capture by default; `0.9.0` is still the planned native-default
+adapter.
 
 In scope for the Android and Apple CPU betas:
 
@@ -102,8 +102,8 @@ In scope for the Android and Apple CPU betas:
 - Android: the Flutter plugin depends on Maven Central
   `com.gettugboat.sdk:capture-runtime:0.1.0`. Native Android apps use the
   same coordinate, or `.local-maven` for unpublished runtime work. iOS: the
-  plugin compiles `TugboatCaptureRuntime` sources; the root CocoaPod remains
-  for native Apple apps.
+  plugin depends on CocoaPods `TugboatCaptureRuntime` `0.1.0` and requires
+  iOS 15. The example app path-overrides the pod to this repository.
 
 `TugboatCaptureBoundary` stays. Flutter may still supply mask geometry and
 capture scheduling.

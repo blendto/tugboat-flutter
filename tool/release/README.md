@@ -8,13 +8,14 @@ Do not:
 - make `nativeCpuExperimental` the default until privacy and performance
   gates pass
 - point the Flutter plugin at GitHub Packages (pub.dev hosts cannot auth)
-- publish Apple `TugboatCaptureRuntime` `0.1.0`
 
 Keep `TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
-Flutter `0.8.14` depends on Maven Central
-`com.gettugboat.sdk:capture-runtime:0.1.0`. Local Maven (`.local-maven` after
+Flutter `0.8.15` depends on Maven Central
+`com.gettugboat.sdk:capture-runtime:0.1.0` and CocoaPods
+`TugboatCaptureRuntime` `0.1.0`. Local Maven (`.local-maven` after
 `bash tool/ci/build-android-runtime.sh`) is only for the standalone native
-Android sample.
+Android sample. The example iOS app path-overrides `TugboatCaptureRuntime`
+to this repository.
 
 To checksum a local AAR (not a signed Central artifact):
 

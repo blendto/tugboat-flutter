@@ -1,0 +1,26 @@
+# Lint TugboatCaptureRuntime.podspec (needs Xcode).
+name: Apple runtime
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'TugboatCaptureRuntime.podspec'
+      - 'Package.swift'
+      - 'platforms/apple/**'
+      - 'core/image-processing/**'
+      - 'tool/ci/lint-apple-runtime.sh'
+      - '.github/workflows/apple-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pod-lib-lint:
+    name: pod lib lint
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Lint TugboatCaptureRuntime
+        run: bash tool/ci/lint-apple-runtime.sh

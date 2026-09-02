@@ -21,10 +21,9 @@ package references sources under `platforms/apple` and
 Do not copy the C++ core into the published pub package. Files above a
 published pub archive are not part of that archive. The Flutter Android
 plugin depends on Maven Central `com.gettugboat.sdk:capture-runtime`. The
-iOS plugin compiles Apple runtime sources when `platforms/apple` resolves;
-published pub archives omit that tree and stub iOS native capture.
+iOS plugin depends on CocoaPods `TugboatCaptureRuntime` and requires iOS 15.
 Native Android apps consume Maven Central or the local Maven AAR; native
-Apple apps still use the root CocoaPod / SwiftPM package.
+Apple apps use the root CocoaPod / SwiftPM package.
 
 Ownership rules: [repository-scope.md](repository-scope.md).
 Build commands: [common-build.md](../integration/common-build.md).

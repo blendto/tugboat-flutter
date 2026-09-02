@@ -21,6 +21,15 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash tool/ci/check-version-policy.sh
 
+  apple-pin-published:
+    name: Flutter Apple pin is on CocoaPods trunk
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Require pinned TugboatCaptureRuntime on trunk
+        run: bash tool/ci/check-flutter-apple-pin-published.sh
+
   license:
     name: AGPL-3.0-only license
     runs-on: ubuntu-latest

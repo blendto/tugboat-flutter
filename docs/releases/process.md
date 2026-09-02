@@ -14,10 +14,10 @@ Adapters and native runtimes version independently. See
 6. `bash tool/ci/verify-android-runtime-api.sh`
 7. `BASE_SHA=<pr-base> bash tool/ci/check-version-policy.sh`
 
-Do not publish Apple `TugboatCaptureRuntime` until privacy and performance
-gates pass. Flutter `tugboat` / `tugboat_dio` `0.8.x` already publish to
-pub.dev. Production replay acceptance is an internal canary, not a public
-docs procedure.
+Do not make native capture the default until privacy and performance gates
+pass. Flutter `tugboat` / `tugboat_dio` `0.8.x` already publish to pub.dev.
+Production replay acceptance is an internal canary, not a public docs
+procedure.
 
 ## Version policy
 
@@ -30,6 +30,10 @@ docs procedure.
 - The Flutter plugin's `capture-runtime` Maven pin must not be newer than
   `VERSION_NAME`. Changing the pin requires it to equal `VERSION_NAME`.
   Runtime-only PRs may leave the pin lagging until Central has the new AAR.
+- The Flutter plugin's `TugboatCaptureRuntime` CocoaPods pin must not be
+  newer than the root podspec `s.version`. Changing the pin requires it to
+  equal that version. Runtime-only PRs may leave the pin lagging until trunk
+  has the new pod.
 
 ## pub.dev (Flutter 0.8.x)
 
@@ -80,7 +84,7 @@ dependencies {
 The Flutter plugin depends on Maven Central
 `com.gettugboat.sdk:capture-runtime:0.1.0`. Do not point it at GitHub
 Packages; pub.dev hosts cannot supply GitHub credentials. iOS native capture
-still compiles from monorepo sources and stubs in published pub archives.
+depends on CocoaPods `TugboatCaptureRuntime` `0.1.0` and requires iOS 15.
 
 ### Two-merge sequence for a new AAR
 
@@ -116,10 +120,38 @@ Required before the Flutter plugin can depend on the AAR from pub.dev.
    version bump). The job skips GitHub Packages if that version already exists
    and publishes Central when the secrets are present.
 
+## Apple CocoaPod (`TugboatCaptureRuntime`)
+
+Merging to `main` when trunk does not have the root podspec `s.version` creates
+tag `apple-runtime-v<version>` and runs `publish-apple.yml` (macOS `pod lib
+lint` + `pod trunk push`). `s.source` still clones `capture-runtime-v<version>`
+for `0.1.0` because that tag already has the Apple sources.
+
+Add repository secret `COCOAPODS_TRUNK_TOKEN` (from `pod trunk me` after
+`pod trunk register`). Without it the job lints and skips the push.
+
+The Flutter plugin depends on `TugboatCaptureRuntime` `0.1.0` from trunk and
+sets the plugin floor to iOS 15. The example app path-overrides the pod to
+this repository for unpublished runtime work.
+
+### Two-merge sequence for a new Apple runtime
+
+1. Runtime PR: bump `TugboatCaptureRuntime.podspec` `s.version` and merge.
+   Wait until trunk has that version.
+2. Flutter PR: pin `s.dependency 'TugboatCaptureRuntime', '<that version>'`,
+   bump `tugboat` / `tugboat_dio`, and merge.
+
+Do not merge a Flutter pin for a version that is not on trunk yet. After an
+`apple-runtime-v*` publish, `publish-apple.yml` waits for trunk and opens
+`chore/pin-tugboat-capture-runtime-<version>` when the plugin still lags.
+Recovery: re-run **Publish Apple runtime** on the tag or via
+`workflow_dispatch`.
+
 ## After native gates pass
 
 1. Confirm `capture-runtime` `0.1.0` is on Maven Central (done for 0.8.14).
-2. Point the Flutter plugin at the published coordinate (done in 0.8.14).
-3. Bump Flutter to `0.9.0`, keep native capture opt-in until gates pass, then
-   consider making native capture the default.
-4. Tag `v0.9.0` (same pattern as 0.8.x) so GitHub Actions publishes the pub packages.
+2. Point the Flutter Android plugin at the published coordinate (done in 0.8.14).
+3. Publish Apple `TugboatCaptureRuntime` `0.1.0` to CocoaPods (0.8.15) and keep
+   native capture opt-in until gates pass, then consider making it the default.
+4. Bump Flutter to `0.9.0` when native capture becomes the default.
+5. Tag `v0.9.0` (same pattern as 0.8.x) so GitHub Actions publishes the pub packages.

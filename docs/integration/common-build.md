@@ -13,7 +13,8 @@ bash tool/ci/verify-native-capture-pigeon.sh
 The Android AAR publishes to untracked `.local-maven/` for the standalone
 native sample. Hosted Maven Central publication is documented in
 [process.md](../releases/process.md). The Flutter plugin depends on
-`com.gettugboat.sdk:capture-runtime:0.1.0` from Maven Central.
+`com.gettugboat.sdk:capture-runtime:0.1.0` from Maven Central. The iOS plugin
+depends on CocoaPods `TugboatCaptureRuntime` `0.1.0` and requires iOS 15.
 
 Release-control scripts (also run in CI):
 
