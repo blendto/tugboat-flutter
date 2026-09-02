@@ -225,7 +225,9 @@ is_apple_public_api() {
       return 0
       ;;
     TugboatCaptureRuntime.podspec)
-      return 0
+      # s.version is enforced when Swift public API changes. Metadata-only
+      # edits (for example s.source tag) do not require an Apple version bump.
+      return 1
       ;;
   esac
   return 1

@@ -124,8 +124,10 @@ Required before the Flutter plugin can depend on the AAR from pub.dev.
 
 Merging to `main` when trunk does not have the root podspec `s.version` creates
 tag `apple-runtime-v<version>` and runs `publish-apple.yml` (macOS `pod lib
-lint` + `pod trunk push`). `s.source` still clones `capture-runtime-v<version>`
-for `0.1.0` because that tag already has the Apple sources.
+lint` + `pod trunk push`). `s.source` uses that same tag. Trunk `0.1.0` was
+published from `capture-runtime-v0.1.0` before this alignment; later versions
+clone `apple-runtime-v<version>`. The tag is still created when trunk already
+has the version so the git source exists.
 
 Add repository secret `COCOAPODS_TRUNK_TOKEN` (from `pod trunk me` after
 `pod trunk register`). Without it the job lints and skips the push.
