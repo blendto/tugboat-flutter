@@ -22,9 +22,9 @@ Screenshot pixels still default to `RepaintBoundary`. Enable native CPU
 capture only through
 `TugboatScreenshotCaptureBackend.nativeCpuExperimental`. In the monorepo and
 on pub.dev, the Android plugin depends on Maven Central
-`com.gettugboat.sdk:capture-runtime:0.1.0`. The iOS plugin still compiles
-`TugboatCaptureRuntime` from source when `platforms/apple` is present;
-published pub checkouts stub iOS native capture. See
+`com.gettugboat.sdk:capture-runtime:0.1.0`. The iOS plugin depends on
+CocoaPods `TugboatCaptureRuntime` `0.1.0` and requires iOS 15. The example
+app path-overrides that pod to this repository. See
 [native-cpu-experimental.md](native-cpu-experimental.md) and
 [apple-development.md](apple-development.md).
 

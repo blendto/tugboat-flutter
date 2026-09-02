@@ -7,7 +7,7 @@ ImageIO JPEG. Flutter's layer delegate preserves Metal content. The slower
 for UIKit platform-view compatibility.
 
 `Package.swift` and `TugboatCaptureRuntime.podspec` live at the repository
-root. Development uses a local CocoaPods path override from the Flutter
-example. Do not publish this artifact yet.
+root. The Flutter example path-overrides the CocoaPod to this repository.
+`publish-apple.yml` pushes `0.1.0` to CocoaPods trunk.
 
 See [apple-development.md](../../docs/integration/apple-development.md).

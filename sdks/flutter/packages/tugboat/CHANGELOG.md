@@ -1,3 +1,8 @@
+## 0.8.15
+
+The iOS plugin depends on CocoaPods `TugboatCaptureRuntime` `0.1.0` and
+raises the plugin floor to iOS 15. Native CPU capture stays opt-in.
+
 ## 0.8.14
 
 The Android plugin depends on Maven Central

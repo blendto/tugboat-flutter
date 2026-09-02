@@ -5,11 +5,15 @@
 - `ci/run-image-core-tests.sh` — C++ core tests with ASan/UBSan
 - `ci/build-android-runtime.sh` — Android AAR tests, release build, local Maven, sample
 - `ci/android-runtime-version.sh` — print `capture-runtime` `VERSION_NAME`
+- `ci/apple-runtime-version.sh` — print `TugboatCaptureRuntime` podspec version
 - `ci/flutter-capture-runtime-pin.sh` — print the Flutter plugin Maven pin
+- `ci/flutter-apple-runtime-pin.sh` — print the Flutter plugin CocoaPods pin
 - `ci/open-flutter-runtime-pin-pr.sh` — wait for Maven Central, open a pin PR
+- `ci/open-flutter-apple-pin-pr.sh` — wait for CocoaPods trunk, open a pin PR
+- `ci/lint-apple-runtime.sh` — `pod lib lint` for `TugboatCaptureRuntime`
 - `ci/generate-native-capture-pigeon.sh` / `verify-native-capture-pigeon.sh`
 - `ci/check-version-policy.sh` — path-aware Flutter/runtime/compatibility bumps
-  and Flutter pin vs `VERSION_NAME`
+  and Flutter pins vs Android `VERSION_NAME` / Apple podspec version
 - `ci/check-license.sh` — AGPL-3.0-only
 - `ci/dump-android-runtime-api.py` / `verify-android-runtime-api.sh`
 - `ci/verify-swift-api.sh` — public Swift API dump vs `platforms/apple/api.txt`

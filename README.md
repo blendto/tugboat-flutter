@@ -16,7 +16,7 @@ The Tugboat CLI is maintained separately.
 | --- | --- |
 | `core/image-processing` | Portable C++ CPU core (C ABI) |
 | `platforms/android` | `com.gettugboat.sdk:capture-runtime` AAR |
-| `platforms/apple` | Apple runtime (`TugboatCaptureRuntime` 0.1.0, unpublished) |
+| `platforms/apple` | Apple runtime (`TugboatCaptureRuntime` 0.1.0, CocoaPods / SwiftPM) |
 | `sdks/flutter/packages/tugboat` | Flutter adapter / plugin ([pub.dev](https://pub.dev/packages/tugboat)) |
 | `sdks/flutter/packages/tugboat_dio` | Dio network evidence ([pub.dev](https://pub.dev/packages/tugboat_dio)) |
 | `sdks/flutter/packages/tugboat/example` | Demo app (not published) |
@@ -25,9 +25,8 @@ The Tugboat CLI is maintained separately.
 | `tool/ci` | Host test, generate, and release-control scripts |
 
 Do not copy the C++ core into the published pub package. The Flutter Android
-plugin depends on Maven Central `com.gettugboat.sdk:capture-runtime`. Apple
-native capture still compiles `platforms/apple` sources in the monorepo;
-published pub checkouts without that tree stub iOS native capture.
+plugin depends on Maven Central `com.gettugboat.sdk:capture-runtime`. The iOS
+plugin depends on CocoaPods `TugboatCaptureRuntime` and requires iOS 15.
 
 ## Capture backends
 

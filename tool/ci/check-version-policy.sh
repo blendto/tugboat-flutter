@@ -10,6 +10,7 @@
 # Documentation-only and C++ test/fuzz-only changes skip the Flutter bump.
 # Flutter's Maven pin must not be newer than capture-runtime VERSION_NAME.
 # Changing that pin requires it to equal VERSION_NAME; runtime-only PRs may lag.
+# Flutter's CocoaPods pin must not be newer than TugboatCaptureRuntime s.version.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -57,6 +58,26 @@ extract_plugin_pin_from_text() {
   printf '%s\n' "$line" | sed -E 's/.*capture-runtime:([^"]+)".*/\1/'
 }
 
+extract_apple_pin_from_text() {
+  local content="$1"
+  local line
+  line="$(printf '%s\n' "$content" | grep -E "s\.dependency[[:space:]]+'TugboatCaptureRuntime'" | head -1 || true)"
+  if [[ -z "$line" ]]; then
+    echo ""
+    return
+  fi
+  printf '%s\n' "$line" | sed -E "s/.*TugboatCaptureRuntime'[[:space:]]*,[[:space:]]*'([^']+)'.*/\1/"
+}
+
+extract_apple_version() {
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    echo ""
+    return
+  fi
+  grep -E "s\.version[[:space:]]*=" "$file" | head -1 | sed -E "s/.*['\"]([0-9][^'\"]*)['\"].*/\1/"
+}
+
 extract_runtime_version() {
   local file="$1"
   if [[ ! -f "$file" ]]; then
@@ -99,6 +120,7 @@ runtime_props="platforms/android/gradle.properties"
 apple_podspec="TugboatCaptureRuntime.podspec"
 compat_file="docs/releases/compatibility.md"
 plugin_gradle="sdks/flutter/packages/tugboat/android/build.gradle"
+plugin_ios_podspec="sdks/flutter/packages/tugboat/ios/tugboat.podspec"
 head_pubspec="sdks/flutter/packages/tugboat/pubspec.yaml"
 
 plugin_pin=""
@@ -119,6 +141,27 @@ if [[ -n "$plugin_pin" && -n "$runtime_now" ]]; then
       exit 1
     fi
     echo "Plugin pin lags VERSION_NAME; a pin PR should follow Maven Central publish."
+  fi
+fi
+
+apple_pin=""
+if [[ -f "$plugin_ios_podspec" ]]; then
+  apple_pin="$(extract_apple_pin_from_text "$(cat "$plugin_ios_podspec")")"
+fi
+apple_now=""
+if [[ -f "$apple_podspec" ]]; then
+  apple_now="$(extract_apple_version "$apple_podspec")"
+fi
+if [[ -n "$apple_pin" && -n "$apple_now" ]]; then
+  echo "Flutter TugboatCaptureRuntime pin: $apple_pin"
+  echo "TugboatCaptureRuntime s.version: $apple_now"
+  if [[ "$apple_pin" != "$apple_now" ]]; then
+    apple_higher="$(printf '%s\n%s\n' "$apple_pin" "$apple_now" | sort -V | tail -n 1)"
+    if [[ "$apple_higher" == "$apple_pin" ]]; then
+      echo "::error::Flutter plugin pins TugboatCaptureRuntime $apple_pin which is newer than podspec $apple_now."
+      exit 1
+    fi
+    echo "Plugin Apple pin lags s.version; a pin PR should follow CocoaPods trunk publish."
   fi
 fi
 
@@ -156,15 +199,6 @@ is_flutter_adapter() {
   return 1
 }
 
-extract_apple_version() {
-  local file="$1"
-  if [[ ! -f "$file" ]]; then
-    echo ""
-    return
-  fi
-  grep -E "s\.version[[:space:]]*=" "$file" | head -1 | sed -E "s/.*['\"]([0-9][^'\"]*)['\"].*/\1/"
-}
-
 is_runtime_public_api() {
   local f="$1"
   case "$f" in
@@ -191,7 +225,9 @@ is_apple_public_api() {
       return 0
       ;;
     TugboatCaptureRuntime.podspec)
-      return 0
+      # s.version is enforced when Swift public API changes. Metadata-only
+      # edits (for example s.source tag) do not require an Apple version bump.
+      return 1
       ;;
   esac
   return 1
@@ -335,6 +371,22 @@ if git diff --name-only "$BASE_SHA" | grep -qx "$plugin_gradle" \
   fi
   if [[ "$base_pin" != "$plugin_pin" && "$plugin_pin" != "$runtime_now" ]]; then
     echo "::error::Flutter plugin capture-runtime pin ($plugin_pin) must match VERSION_NAME ($runtime_now) when the pin changes."
+    exit 1
+  fi
+fi
+
+if git diff --name-only "$BASE_SHA" | grep -qx "$plugin_ios_podspec" \
+  || git ls-files --others --exclude-standard | grep -qx "$plugin_ios_podspec"; then
+  if [[ -z "$apple_now" ]]; then
+    echo "::error::Could not compare Flutter TugboatCaptureRuntime pin to podspec s.version."
+    exit 1
+  fi
+  base_apple_pin=""
+  if git cat-file -e "${BASE_SHA}:${plugin_ios_podspec}" 2>/dev/null; then
+    base_apple_pin="$(extract_apple_pin_from_text "$(git show "${BASE_SHA}:${plugin_ios_podspec}")")"
+  fi
+  if [[ "$base_apple_pin" != "$apple_pin" && -n "$apple_pin" && "$apple_pin" != "$apple_now" ]]; then
+    echo "::error::Flutter plugin TugboatCaptureRuntime pin ($apple_pin) must match s.version ($apple_now) when the pin changes."
     exit 1
   fi
 fi

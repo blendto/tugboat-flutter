@@ -1,0 +1,144 @@
+# Publishes TugboatCaptureRuntime to CocoaPods trunk.
+#
+# Merging a PR does not publish by itself. This workflow:
+# 1. On push to main, dispatches itself when trunk does not have s.version.
+# 2. On workflow_dispatch or tag apple-runtime-v*, lints and pod trunk push.
+#
+# Flutter must not pin a version that is not on trunk yet. After a successful
+# push, pin_flutter waits for trunk and opens a Flutter pin PR if needed.
+name: Publish Apple runtime
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'apple-runtime-v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-apple-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag_main:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(bash tool/ci/apple-runtime-version.sh)"
+          tag="apple-runtime-v${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "TugboatCaptureRuntime version: ${version}"
+          if bash tool/ci/cocoapods-pod-has-version.sh "${version}"; then
+            echo "CocoaPods trunk already has TugboatCaptureRuntime ${version}."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Ensure apple-runtime source tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git fetch --tags origin
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "TugboatCaptureRuntime ${VERSION}"
+          git push origin "${TAG}"
+      - name: Dispatch publish
+        if: steps.version.outputs.should_publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if gh workflow run publish-apple.yml --ref "${TAG}"; then
+              echo "Dispatched publish-apple.yml on ${TAG}."
+              exit 0
+            fi
+            echo "Dispatch failed (attempt ${attempt}); waiting for tag/workflow to appear."
+            sleep 5
+          done
+          echo "::error::Could not dispatch publish-apple.yml on ${TAG}."
+          exit 1
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/apple-runtime-v')
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(bash tool/ci/apple-runtime-version.sh)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "Publishing TugboatCaptureRuntime ${version} from workflow_dispatch."
+            exit 0
+          fi
+          expected_tag="apple-runtime-v${version}"
+          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
+            echo "::error::Git tag ${GITHUB_REF_NAME} must be ${expected_tag} to publish TugboatCaptureRuntime ${version}."
+            exit 1
+          fi
+      - name: Lint podspec
+        run: bash tool/ci/lint-apple-runtime.sh
+      - name: Publish to CocoaPods trunk
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${COCOAPODS_TRUNK_TOKEN}" ]]; then
+            echo "COCOAPODS_TRUNK_TOKEN is not configured. Skipping trunk publish."
+            echo "Create a CocoaPods trunk session and add the token as a repository secret."
+            exit 0
+          fi
+          if bash tool/ci/cocoapods-pod-has-version.sh "${VERSION}"; then
+            echo "TugboatCaptureRuntime ${VERSION} is already on CocoaPods trunk."
+            exit 0
+          fi
+          pod trunk push TugboatCaptureRuntime.podspec --allow-warnings --verbose
+
+  pin_flutter:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/apple-runtime-v')
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Open Flutter Apple pin PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tool/ci/open-flutter-apple-pin-pr.sh

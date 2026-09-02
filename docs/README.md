@@ -58,9 +58,11 @@ gates, canaries) are not listed below.
 
 ## Current compatibility
 
-- package version: `0.8.14` (`0.8.x` patch; Android plugin uses Maven Central
-  `capture-runtime` `0.1.0`);
+- package version: `0.8.15` (`0.8.x` patch; Android plugin uses Maven Central
+  `capture-runtime` `0.1.0`; iOS plugin uses CocoaPods `TugboatCaptureRuntime`
+  `0.1.0` and requires iOS 15);
 - native runtime: `capture-runtime` `0.1.0` on Maven Central;
+  `TugboatCaptureRuntime` `0.1.0` on CocoaPods trunk;
 - planned first native-default adapter: Flutter `0.9.0` after privacy and performance gates;
 - session JSON schema: `10`;
 - fingerprint schema: `6`;

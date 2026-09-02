@@ -1,4 +1,5 @@
 import Flutter
+import TugboatCaptureRuntime
 import UIKit
 
 public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
