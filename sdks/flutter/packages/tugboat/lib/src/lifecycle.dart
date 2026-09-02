@@ -47,7 +47,6 @@ class TugboatLifecycleNotifier extends ChangeNotifier {
 
   void deactivate() {
     if (_state == TugboatLifecycleState.dormant &&
-        _captureOverride == false &&
         _activationRequestId == null) {
       return;
     }
@@ -89,6 +88,16 @@ class TugboatLifecycleNotifier extends ChangeNotifier {
     if (_state != TugboatLifecycleState.dormant) return;
     _state = TugboatLifecycleState.starting;
     notifyListeners();
+  }
+
+  /// Advances the session epoch while the gate rebuilds for changed grants.
+  ///
+  /// The gate is already rebuilding, so [markActive] sends the next lifecycle
+  /// notification after the replacement session starts.
+  int beginCapabilityRemount() {
+    _requestEpoch += 1;
+    _state = TugboatLifecycleState.starting;
+    return _requestEpoch;
   }
 
   /// Called by the gate when capture machinery is fully up.

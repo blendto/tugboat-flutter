@@ -30,6 +30,7 @@ void main() {
     );
     expect(tapOnly.engineEnabled, isTrue);
     expect(tapOnly.emitEvents, isFalse);
+    expect(tapOnly.holdPersistentSemanticsHandle, isFalse);
 
     final defaultPolicy = const TugboatReplayConfig(
       enabled: true,

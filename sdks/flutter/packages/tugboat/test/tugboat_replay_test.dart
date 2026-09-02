@@ -1399,6 +1399,15 @@ void main() {
     expect(TugboatReplay.isActivated, isFalse);
   });
 
+  test('deactivate is a no-op from the initial dormant state', () {
+    addTearDown(TugboatReplay.resetForTest);
+    TugboatReplay.resetForTest();
+
+    TugboatReplay.deactivate();
+
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.dormant);
+  });
+
   testWidgets('enabled config reaches the active lifecycle state', (
     tester,
   ) async {
@@ -1414,6 +1423,44 @@ void main() {
     await _waitForCaptures(tester);
 
     expect(TugboatReplay.controller, isNotNull);
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.active);
+  });
+
+  testWidgets('capability changes remount the active capture session', (
+    tester,
+  ) async {
+    addTearDown(TugboatReplay.resetForTest);
+    final inventoryGrant = ValueNotifier<bool>(false);
+    addTearDown(inventoryGrant.dispose);
+
+    await tester.pumpWidget(
+      ValueListenableBuilder<bool>(
+        valueListenable: inventoryGrant,
+        builder: (context, granted, _) => MaterialApp(
+          builder: (context, child) => TugboatReplay.wrapApp(
+            config: _testConfig.copyWith(emitSceneInventory: granted),
+            child: child!,
+          ),
+          home: const Scaffold(body: Text('Capability grant')),
+        ),
+      ),
+    );
+    await _waitForCaptures(tester);
+    final initialController = TugboatReplay.controller!;
+    expect(initialController.config.emitSceneInventory, isFalse);
+
+    inventoryGrant.value = true;
+    await _waitForCaptures(tester);
+    final grantedController = TugboatReplay.controller!;
+    expect(grantedController, isNot(same(initialController)));
+    expect(grantedController.config.emitSceneInventory, isTrue);
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.active);
+
+    inventoryGrant.value = false;
+    await _waitForCaptures(tester);
+    final revokedController = TugboatReplay.controller!;
+    expect(revokedController, isNot(same(grantedController)));
+    expect(revokedController.config.emitSceneInventory, isFalse);
     expect(TugboatReplay.lifecycleState, TugboatLifecycleState.active);
   });
 

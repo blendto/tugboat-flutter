@@ -47,7 +47,7 @@ TugboatViewportSemanticPolicy resolveViewportSemanticPolicy({
     engineEnabled: true,
     emitEvents: shouldEmitEvents,
     debugLogs: debugLogs,
-    holdPersistentSemanticsHandle: emitEvents,
+    holdPersistentSemanticsHandle: shouldEmitEvents,
   );
 }
 
