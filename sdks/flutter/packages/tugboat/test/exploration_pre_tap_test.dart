@@ -608,6 +608,37 @@ void main() {
     expect(eventTypes, isNot(contains('viewport_semantic_map')));
   });
 
+  testWidgets('inventory pre-tap work does not emit diagnostics by default', (
+    tester,
+  ) async {
+    final controller = await _mountController(
+      tester,
+      Scaffold(
+        body: FilledButton(onPressed: () {}, child: const Text('Go')),
+      ),
+      config: const TugboatReplayConfig(
+        enabled: true,
+        emitSceneInventory: true,
+        settleDelay: Duration.zero,
+        interactionClaimWindow: Duration.zero,
+        enableGlobalPointerCapture: false,
+        capturePixelRatio: 1,
+      ),
+    );
+    final point = tester.getCenter(find.text('Go'));
+    final buildsBefore = controller.debugAnchorTokenMapBuildCount;
+
+    controller.recordPointerDown(point);
+
+    expect(controller.debugAnchorTokenMapBuildCount, greaterThan(buildsBefore));
+    expect(
+      controller.session!.events.where(
+        (event) => event.type == 'exploration_pre_tap_diagnostic',
+      ),
+      isEmpty,
+    );
+  });
+
   testWidgets('disabled capture performs no pointer-down capture work', (
     tester,
   ) async {

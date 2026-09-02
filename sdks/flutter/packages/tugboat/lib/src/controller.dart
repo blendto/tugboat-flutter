@@ -3218,6 +3218,7 @@ class TugboatReplayController extends ChangeNotifier {
     InteractionTransaction tx,
     TugboatPreTapEvidence evidence,
   ) {
+    if (!config.emitCaptureDiagnostics) return;
     _addEvent(
       TugboatEvent(
         id: _nextId('event'),
