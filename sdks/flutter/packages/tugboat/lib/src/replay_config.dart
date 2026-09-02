@@ -94,7 +94,7 @@ class TugboatReplayConfig {
     this.capturePixelRatio = 0.75,
     this.captureMaxWidth,
     this.captureMaxHeight,
-    this.degradedCaptureScale = 0.67,
+    this.degradedCaptureScale = 0.80,
     this.enableGlobalPointerCapture = true,
     this.explorationCollectorUrl,
     this.explorationRunId,

@@ -428,6 +428,36 @@ void main() {
     expect(capture.result!.height, 160);
   });
 
+  testWidgets('default degraded scale retains more screenshot detail', (
+    tester,
+  ) async {
+    const config = TugboatReplayConfig();
+    final boundaryKey = GlobalKey();
+    final capturer = ScreenshotCapturer(
+      boundaryKey: boundaryKey,
+      maskLevel: TugboatScreenshotMaskLevel.explicitOnly,
+      anchorResolver: AnchorResolver(rootKey: boundaryKey),
+      pixelRatio: config.capturePixelRatio,
+      degradedScale: config.degradedCaptureScale,
+      frameWaiter: () => Future<void>.value(),
+      encoder: InlineScreenshotEncoder(),
+    );
+    addTearDown(capturer.dispose);
+    await tester.pumpWidget(_scene(boundaryKey, Colors.red));
+
+    final degraded = await tester.runAsync(
+      () => capturer.captureAttempt(force: true, degraded: true),
+    );
+
+    expect(degraded, isNotNull);
+    expect(degraded!.result, isNotNull);
+    final expectedRatio =
+        config.capturePixelRatio * config.degradedCaptureScale;
+    final expectedDimension = (80 * expectedRatio).ceil();
+    expect(degraded.result!.width, expectedDimension);
+    expect(degraded.result!.height, expectedDimension);
+  });
+
   test('copyWith can clear screenshot dimension bounds', () {
     const bounded = TugboatReplayConfig(
       captureMaxWidth: 540,
