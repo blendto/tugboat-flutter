@@ -116,11 +116,15 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
   /// so this attempt uses only the time left in the original request budget.
   private func makeHierarchyRuntime(timeoutMs: Int64) -> CaptureRuntime? {
     stateLock.lock()
-    defer { stateLock.unlock() }
-    guard !disposed else { return nil }
+    guard !disposed else {
+      stateLock.unlock()
+      return nil
+    }
     let created = CaptureRuntime(timeoutMs: timeoutMs, coverage: .viewHierarchy)
-    hierarchyRuntime?.dispose()
+    let previous = hierarchyRuntime
     hierarchyRuntime = created
+    stateLock.unlock()
+    previous?.dispose()
     return created
   }
 
