@@ -58,7 +58,7 @@ gates, canaries) are not listed below.
 
 ## Current compatibility
 
-- package version: `0.8.15` (`0.8.x` patch; Android plugin uses Maven Central
+- package version: `0.8.16` (`0.8.x` patch; Android plugin uses Maven Central
   `capture-runtime` `0.1.0`; iOS plugin uses CocoaPods `TugboatCaptureRuntime`
   `0.1.0` and requires iOS 15);
 - native runtime: `capture-runtime` `0.1.0` on Maven Central;

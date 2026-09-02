@@ -52,10 +52,34 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
   }
 
   private func flutterView() -> UIView? {
-    guard let controller = registrar?.viewController else {
+    guard let controller = hostViewController() else {
       return nil
     }
     return findFlutterView(controller.view) ?? controller.view
+  }
+
+  /// Flutter 3.38+ exposes `registrar.viewController`. The package floor is
+  /// Flutter 3.35, which does not declare that property, so look it up at
+  /// runtime and fall back to the key window.
+  private func hostViewController() -> UIViewController? {
+    if let registrar {
+      let selector = NSSelectorFromString("viewController")
+      if registrar.responds(to: selector),
+         let controller = registrar.perform(selector)?.takeUnretainedValue()
+           as? UIViewController
+      {
+        return controller
+      }
+    }
+    return keyWindowRootViewController()
+  }
+
+  private func keyWindowRootViewController() -> UIViewController? {
+    let windows = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap(\.windows)
+    let keyWindow = windows.first(where: \.isKeyWindow) ?? windows.first
+    return keyWindow?.rootViewController
   }
 
   private func findFlutterView(_ view: UIView) -> UIView? {

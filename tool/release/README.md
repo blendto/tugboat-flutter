@@ -10,7 +10,7 @@ Do not:
 - point the Flutter plugin at GitHub Packages (pub.dev hosts cannot auth)
 
 Keep `TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
-Flutter `0.8.15` depends on Maven Central
+Flutter `0.8.16` depends on Maven Central
 `com.gettugboat.sdk:capture-runtime:0.1.0` and CocoaPods
 `TugboatCaptureRuntime` `0.1.0`. Local Maven (`.local-maven` after
 `bash tool/ci/build-android-runtime.sh`) is only for the standalone native

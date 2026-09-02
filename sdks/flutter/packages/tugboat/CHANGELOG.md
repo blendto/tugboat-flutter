@@ -1,3 +1,11 @@
+## 0.8.16
+
+### Fixed
+
+- The iOS plugin compiles on Flutter 3.35. `registrar.viewController` is a
+  Flutter 3.38 API, so look it up at runtime and fall back to the key window
+  when resolving the live Flutter view for opt-in native CPU capture.
+
 ## 0.8.15
 
 The iOS plugin depends on CocoaPods `TugboatCaptureRuntime` `0.1.0` and
