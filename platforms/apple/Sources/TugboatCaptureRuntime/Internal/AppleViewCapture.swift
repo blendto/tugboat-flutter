@@ -28,20 +28,25 @@ final class NativeBitmap {
     self.incomplete = incomplete
   }
 
-  /// Reject untouched transparent buffers and the opaque white frames that the
-  /// Flutter Metal path can return when it does not copy the rendered surface.
+  /// Sample both coverage modes for visible, non-near-white content before
+  /// publishing. This rejects untouched buffers and blank Flutter Metal frames
+  /// with constant work at large capture sizes.
   var hasCapturedContent: Bool {
     let bytes = pixels.assumingMemoryBound(to: UInt8.self)
-    for y in 0..<height {
-      let row = bytes.advanced(by: y * stride)
-      for x in 0..<width {
-        let pixel = row.advanced(by: x * 4)
-        let isVisible = pixel[3] != 0
-        let isNearWhite = pixel[0] >= 250 && pixel[1] >= 250 && pixel[2] >= 250
-        if isVisible && !isNearWhite {
-          return true
-        }
+    let totalPixels = width * height
+    let sampleLimit = 4_096
+    let step = max(1, (totalPixels + sampleLimit - 1) / sampleLimit)
+    var linearIndex = 0
+    while linearIndex < totalPixels {
+      let y = linearIndex / width
+      let x = linearIndex % width
+      let pixel = bytes.advanced(by: y * stride + x * 4)
+      let isVisible = pixel[3] != 0
+      let isNearWhite = pixel[0] >= 250 && pixel[1] >= 250 && pixel[2] >= 250
+      if isVisible && !isNearWhite {
+        return true
       }
+      linearIndex += step
     }
     return false
   }
