@@ -16,7 +16,11 @@ void main() {
         navigatorObservers: [TugboatReplay.navigatorObserver],
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
-            profile: TugboatCaptureProfile.exploration,
+            enabled: true,
+            emitSceneInventory: true,
+            emitViewportSemanticMap: true,
+            emitCaptureDiagnostics: true,
+            acceptActionContext: true,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
@@ -68,7 +72,11 @@ void main() {
         navigatorObservers: [TugboatReplay.navigatorObserver],
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
-            profile: TugboatCaptureProfile.exploration,
+            enabled: true,
+            emitSceneInventory: true,
+            emitViewportSemanticMap: true,
+            emitCaptureDiagnostics: true,
+            acceptActionContext: true,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
@@ -123,7 +131,7 @@ void main() {
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
-            profile: TugboatCaptureProfile.dormant,
+            enabled: false,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: false,
@@ -136,10 +144,7 @@ void main() {
     await tester.pump();
     expect(TugboatReplay.controller, isNull);
 
-    TugboatReplay.activate(
-      activationRequestId: 'matrix-req',
-      profile: TugboatCaptureProfile.exploration,
-    );
+    TugboatReplay.activate(activationRequestId: 'matrix-req');
     await waitForTugboatCaptureWork(tester);
     expect(TugboatReplay.controller, isNotNull);
     expect(TugboatReplay.health.activationRequestId, 'matrix-req');
@@ -171,7 +176,11 @@ void main() {
           navigatorObservers: [TugboatReplay.navigatorObserver],
           builder: (context, child) => TugboatReplay.wrapApp(
             config: const TugboatReplayConfig(
-              profile: TugboatCaptureProfile.exploration,
+              enabled: true,
+              emitSceneInventory: true,
+              emitViewportSemanticMap: true,
+              emitCaptureDiagnostics: true,
+              acceptActionContext: true,
               settleDelay: Duration.zero,
               interactionClaimWindow: Duration.zero,
               enableGlobalPointerCapture: true,

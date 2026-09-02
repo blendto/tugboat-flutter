@@ -8,7 +8,7 @@ import 'package:tugboat/tugboat.dart';
 import 'package:tugboat_dio/tugboat_dio.dart';
 
 const _testConfig = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+  enabled: true,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,

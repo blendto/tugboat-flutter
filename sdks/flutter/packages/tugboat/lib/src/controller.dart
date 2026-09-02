@@ -5,7 +5,6 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
-import 'capture_profile.dart';
 import 'capture_sink.dart';
 import 'collector_http_sink.dart';
 import 'coordinate_space.dart';
@@ -1018,7 +1017,6 @@ class TugboatReplayController extends ChangeNotifier {
       appendEvidence: (event) => _addEvent(event, attachActionContext: false),
       nextEventId: _nextId,
       nowMs: () => atMs,
-      profile: () => config.profile,
     );
   }
 
@@ -1547,7 +1545,6 @@ class TugboatReplayController extends ChangeNotifier {
   TugboatSdkHealth healthSnapshot() {
     return TugboatSdkHealth(
       lifecycle: _session == null ? 'dormant' : 'active',
-      profile: config.profile.name,
       activationRequestId: activationRequestId,
       captureSessionId: _session?.id,
       sinks: TugboatSinkHealth(
@@ -1706,7 +1703,6 @@ class TugboatReplayController extends ChangeNotifier {
       sessionEpoch: sessionEpoch,
       activationRequestId: activationRequestId,
       explorationRunId: config.explorationRunId,
-      profileName: config.profile.name,
     );
     if (config.sinkFactories.isNotEmpty) {
       final all = <TugboatCaptureSink>[
@@ -1926,8 +1922,8 @@ class TugboatReplayController extends ChangeNotifier {
   /// request. This deliberately records a taxonomy value rather than the
   /// underlying exception so replay telemetry never contains app data.
   ///
-  /// [productionLean] profiles update [healthSnapshot] counters only. Session
-  /// and collector output omit `capture_diagnostic` events to reduce volume.
+  /// By default, diagnostics update [healthSnapshot] counters only. The host
+  /// must explicitly allow diagnostic event emission.
   void _recordCaptureDiagnostic(_CaptureResolution resolution) {
     final outcome = resolution.outcome.wireName;
     _captureDiagnosticTotal = (_captureDiagnosticTotal + 1).clamp(
@@ -1943,7 +1939,7 @@ class TugboatReplayController extends ChangeNotifier {
             _maxCaptureDiagnosticCount,
           );
     }
-    if (config.profile == TugboatCaptureProfile.productionLean) return;
+    if (!config.emitCaptureDiagnostics) return;
     _addEvent(
       TugboatEvent(
         id: _nextId('event'),
@@ -2964,8 +2960,7 @@ class TugboatReplayController extends ChangeNotifier {
     );
     final tx = InteractionTransaction(origin: origin, pointerId: pointer);
     _interactions.register(tx);
-    if (config.profile == TugboatCaptureProfile.exploration &&
-        isPrimaryPointer) {
+    if (config.sceneInventoryEmissionEnabled && isPrimaryPointer) {
       _captureExplorationPreTapEvidence(tx);
     }
     if (!_disposed) notifyListeners();
@@ -3256,11 +3251,10 @@ class TugboatReplayController extends ChangeNotifier {
   /// lands on a sibling still matches the recognizer's original target.
   void _resolveTapEvidence(InteractionTransaction tx, Offset position) {
     final resolver = _anchorResolver;
-    if (config.profile == TugboatCaptureProfile.exploration) {
+    if (config.sceneInventoryEmissionEnabled) {
       _resolveExplorationTapEvidence(tx, position);
       return;
     }
-    if (config.profile == TugboatCaptureProfile.dormant) return;
     TugboatSceneInventory? tapInventory;
     if (resolver != null) {
       final tapContext = resolver.buildTapContext(
@@ -4291,9 +4285,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   TugboatTargetAnchor? _resolveScrollableAnchor(Element scrollableElement) {
     final resolver = _anchorResolver;
-    if (resolver == null || config.profile == TugboatCaptureProfile.dormant) {
-      return null;
-    }
+    if (resolver == null) return null;
     return resolver.scrollableAnchorFor(
       scrollableElement,
       route: _currentRoute,
@@ -5615,7 +5607,7 @@ class TugboatReplayController extends ChangeNotifier {
   void _maybeEmitSceneInventory({
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
-    if (config.profile != TugboatCaptureProfile.exploration) return;
+    if (!config.sceneInventoryEmissionEnabled) return;
     final resolver = _anchorResolver;
     if (resolver == null || _session == null) return;
 
@@ -5634,7 +5626,7 @@ class TugboatReplayController extends ChangeNotifier {
     bool emitViewportSemanticMap = true,
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
-    if (config.profile != TugboatCaptureProfile.exploration) return;
+    if (!config.sceneInventoryEmissionEnabled) return;
     // Always emit raw scene_inventory first (when new). Semantic-map emission
     // must not replace or suppress inventory; maps are an exploration companion.
     final dedupeKey = [
@@ -5664,7 +5656,7 @@ class TugboatReplayController extends ChangeNotifier {
   /// Publishes one timeline event.
   ///
   /// When [attachActionContext] is true (default), stamps the active
-  /// exploration action window. Host app/network evidence passes false so it
+  /// active action context. Host app/network evidence passes false so it
   /// never inherits [actionId] or interaction context.
   void _addEvent(TugboatEvent event, {bool attachActionContext = true}) {
     final session = _session;
@@ -5728,8 +5720,7 @@ class TugboatReplayController extends ChangeNotifier {
     required String name,
     String? source,
     Map<String, Object?>? parameters,
-    TugboatParameterPolicy parameterPolicy =
-        TugboatParameterPolicy.allowAllInProduction,
+    TugboatParameterPolicy parameterPolicy = TugboatParameterPolicy.allowAll,
   }) {
     _evidence.recordExternalEvent(
       name: name,
@@ -5747,23 +5738,21 @@ class TugboatReplayController extends ChangeNotifier {
     return _evidence.beginNetworkCall(method: method, route: route);
   }
 
-  void setExplorationActionWindow({
-    required String explorationRunId,
-    required String actionId,
-  }) {
-    _activeExplorationRunId = explorationRunId;
+  void setActionContext({required String runId, required String actionId}) {
+    if (!config.actionContextEnabled) return;
+    _activeExplorationRunId = runId;
     _activeActionId = actionId;
     _addEvent(
       TugboatEvent(
         id: _nextId('event'),
         atMs: atMs,
         type: 'action_window_set',
-        data: {'actionId': actionId, 'explorationRunId': explorationRunId},
+        data: {'actionId': actionId, 'explorationRunId': runId},
       ),
     );
   }
 
-  void clearExplorationActionWindow() {
+  void clearActionContext() {
     final clearedActionId = _activeActionId;
     if (clearedActionId != null) {
       _addEvent(
@@ -5797,14 +5786,11 @@ class TugboatReplayController extends ChangeNotifier {
         final runId = message['explorationRunId'] as String?;
         final actionId = message['actionId'] as String?;
         if (runId != null && actionId != null) {
-          setExplorationActionWindow(
-            explorationRunId: runId,
-            actionId: actionId,
-          );
+          setActionContext(runId: runId, actionId: actionId);
           _explorationSink?.transport.acknowledge(type!, actionId: actionId);
         }
       case 'clear_action_window':
-        clearExplorationActionWindow();
+        clearActionContext();
         _explorationSink?.transport.acknowledge(
           type!,
           actionId: message['actionId'] as String?,

@@ -5,9 +5,16 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.8.16`. Session JSON writers and readers use
+The current package version is `0.9.0`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.9.0
+
+The SDK has one privacy-safe capture behavior. `enabled` controls the capture
+lifecycle. Additive capability fields control optional inventory, semantic
+map, diagnostic, and action-context evidence. The SDK no longer exports
+`TugboatCaptureProfile`.
 
 ## 0.8.16
 
@@ -131,7 +138,7 @@ events.
 
 ```yaml
 dependencies:
-  tugboat: ^0.8.16
+  tugboat: ^0.9.0
 ```
 
 Then import the public barrel:
@@ -147,8 +154,8 @@ Install from pub.dev; a GitHub checkout is not required.
 
 ```yaml
 dependencies:
-  tugboat: ^0.8.16
-  tugboat_dio: ^0.8.16
+  tugboat: ^0.9.0
+  tugboat_dio: ^0.9.0
 ```
 
 See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.
@@ -182,11 +189,10 @@ failedCall.complete(
 );
 ```
 
-Both emit on `stream: evidence` and never inherit exploration `actionId` or UI
-anchors. The default parameter policy retains JSON-safe values within hard
-limits in every capture profile, including production. `allowAll` is an
-exploration-only escape hatch; outside exploration profiles the SDK downgrades
-it to names-only at record time.
+Both emit on `stream: evidence` and never inherit an active action context or
+UI anchors. The default `allowAll` parameter policy retains JSON-safe values
+within hard limits. Use `namesOnly`, an allow-list, or a transform when the
+host needs a narrower policy.
 
 ### Omitting parameter values
 
@@ -249,8 +255,9 @@ The public `package:tugboat/tugboat.dart` barrel no longer exports:
 
 ## Minimal integration
 
-Install both the app wrapper and navigator observer. Capture is dormant by
-default, so choose an active profile when the app should record immediately:
+Install both the app wrapper and navigator observer. Capture is disabled by
+default. Set `enabled` when the app should record immediately. Enable optional
+evidence capabilities only when the host has authority for that app launch:
 
 ```dart
 MaterialApp(
@@ -258,7 +265,10 @@ MaterialApp(
   builder: (context, child) => TugboatReplay.wrapApp(
     child: child!,
     config: const TugboatReplayConfig(
-      profile: TugboatCaptureProfile.exploration,
+      enabled: true,
+      emitSceneInventory: true,
+      emitViewportSemanticMap: true,
+      acceptActionContext: true,
       explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
       viewportSemanticMode: TugboatViewportSemanticMode.full,
     ),
@@ -312,16 +322,16 @@ and publishes one canonical `interaction`. A claimed `route_change` uses that
 interaction ID as `causeEventId`. Released pointer-up claims apply only through
 the pointer-up turn. Timer or auth redirects stay `automatic_or_unknown`.
 
-## Capture profiles and runtime state
+## Capture lifecycle and optional evidence
 
-`TugboatReplayConfig.profile` controls whether the wrapper installs capture
-machinery:
+`TugboatReplayConfig.enabled` controls whether the wrapper installs capture
+machinery. An enabled SDK records the normal bounded capture stream. The
+default screenshot mask is always `allTextAndMedia`.
 
-| Profile | Current behavior | Default screenshot masking |
-| --- | --- | --- |
-| `dormant` | Lightweight gate mounted; no capture machinery until `activate` | explicit subtrees only, if activated |
-| `exploration` | full interaction capture, scene inventories, optional emitted semantic maps | `TugboatSensitive` only |
-| `productionLean` | interaction capture and sampled/deduplicated screenshots; no scene-inventory events | all text, editable fields, and images |
+Optional evidence is additive. `emitSceneInventory`,
+`emitViewportSemanticMap`, `emitCaptureDiagnostics`, and
+`acceptActionContext` are false by default. Enabling one capability does not
+change masking, limits, transport, or lifecycle behavior.
 
 The global kill switch is fully inert:
 
@@ -329,12 +339,12 @@ The global kill switch is fully inert:
 TugboatReplay.disabled = true; // deactivates and disposes the active controller
 ```
 
-Dormant builds can be activated at runtime without rebuilding `MaterialApp`:
+Disabled configurations can be activated at runtime without rebuilding
+`MaterialApp`:
 
 ```dart
 TugboatReplay.activate(
   activationRequestId: captureRequestId,
-  profile: TugboatCaptureProfile.productionLean,
 );
 ```
 
@@ -383,7 +393,7 @@ but it does not persist events or frames across process restarts.
 
 | Field | Default | Purpose |
 | --- | --- | --- |
-| `profile` | `dormant` | capture cost and exploration-only behavior |
+| `enabled` | `false` | start the privacy-safe capture lifecycle with the app |
 | `settleDelay` | 1 second | delay before post-interaction and post-route capture |
 | `scrollEndCaptureDelay` | zero | optional idle delay before a pointer-linked scroll after-frame; does not block the controller queue |
 | `interactionClaimWindow` | 1,250 ms | released-tap window for delayed route/modal attribution; `Duration.zero` keeps microtask-only same-turn claims |
@@ -394,14 +404,18 @@ but it does not persist events or frames across process restarts.
 | `captureScrollScreenshots` | `false` | request pressure-droppable visual checkpoints while scrolling; scroll metrics and the scroll-end observation remain independent |
 | `capturePixelRatio` | `0.75` | requested repaint-boundary screenshot scale; values above `1.0` are supported |
 | `captureMaxWidth` / `captureMaxHeight` | null | optional output pixel bounds applied before readback while preserving aspect ratio |
-| `degradedCaptureScale` | `0.67` | additional scale applied before readback while the screenshot budget is degraded |
+| `degradedCaptureScale` | `0.80` | additional scale applied before readback while the screenshot budget is degraded |
 | `enableGlobalPointerCapture` | `true` | use global pointer routing; `false` uses a local `Listener` |
+| `emitSceneInventory` | `false` | allow bounded `scene_inventory` events |
+| `emitViewportSemanticMap` | `false` | allow bounded semantic-map events when the semantic mode supports them |
+| `emitCaptureDiagnostics` | `false` | allow bounded `capture_diagnostic` events; health counters remain available without it |
+| `acceptActionContext` | `false` | allow external action context on captured evidence |
 | `explorationCollectorUrl` | null | local exploration WebSocket endpoint |
 | `explorationRunId` | null | optional run correlation ID |
 | `userId` | null | optional HTTP event user ID |
 | `appInfo` | null | app metadata used by exploration and as a fallback |
 | `collector` | null | HTTP collector configuration |
-| `screenshotMaskLevel` | profile default | explicit screenshot redaction policy |
+| `screenshotMaskLevel` | `allTextAndMedia` | explicit screenshot redaction policy |
 | `widgetNames` | empty | `Type` to stable-name overrides for canonical paths |
 | `viewportSemanticMode` | `tapResolutionOnly` | semantic engine and emission mode |
 | `viewportSemanticMapMaxNodes` | 120 | emitted map node budget |
@@ -410,16 +424,16 @@ but it does not persist events or frames across process restarts.
 | `screenshotBudget` | 60ms / 5s window | degraded-capture skip window / budget |
 | `screenshotCaptureBackend` | `flutterRepaintBoundary` | pixel source; `nativeCpuExperimental` is opt-in on Android and iOS |
 
-### Resolver and exploration events
+### Optional resolver and action-context events
 
-When exploration is active, the controller may emit:
+When the matching capabilities are enabled, the controller may emit:
 
 | Event | Role |
 | --- | --- |
 | `scene_inventory` | Deduped actionable/image inventory for the settled state |
 | `viewport_semantic_map` | Bounded semantic node map (mode-dependent) |
 | `scroll_semantic_snapshot` | Semantic snapshot tied to scroll checkpoints |
-| `action_window_set` / `action_window_cleared` | CLI exploration action-window fencing |
+| `action_window_set` / `action_window_cleared` | external action-context fencing |
 
 ## Privacy and payload boundary
 
@@ -479,9 +493,9 @@ Emitted inferred event types currently include:
   gesture-specific facts under `payload` (omitted for `cancelled`);
 - lifecycle: `session_start`, `session_identify`, `session_end`;
 - navigation evidence (`stream: evidence`): `route_change`;
-- diagnostics: `capture_diagnostic` (`stream: diagnostic`; exploration profiles only;
-  `productionLean` updates on-device health counters without session events);
-- exploration: `scene_inventory`, `action_window_set`,
+- diagnostics: `capture_diagnostic` (`stream: diagnostic`; only when
+  `emitCaptureDiagnostics` is true; health counters always update);
+- optional evidence: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
 - semantic-map modes: `viewport_semantic_map`,
   `scroll_semantic_snapshot`.
@@ -523,8 +537,8 @@ or explicit controller calls. Capture requests are serialized. Each published
 frame records `requestedBackend` and `resolvedBackend` (closed names:
 `flutterRepaintBoundary` or `nativeCpuExperimental`). After a native fallback,
 `resolvedBackend` is Flutter and `fallbackReason` carries the closed token.
-These fields are on the frame even in `productionLean`; nested stage timings
-remain on exploration `capture_diagnostic` events. Non-interaction
+These fields are always on the frame. Nested stage timings remain on optional
+`capture_diagnostic` events. Non-interaction
 requests can coalesce. When the capture boundary has not painted since the
 last accepted frame, the SDK reuses that frame without GPU readback. Otherwise
 it uses a small dHash (Hamming distance ≤ 2) to avoid JPEG encoding for
@@ -611,11 +625,9 @@ build identity and target fingerprint as the control identity key.
 
 Each logical capture request records one privacy-safe resolution in
 `healthSnapshot().captureDiagnostics` (bounded outcome counts and last
-outcome). Exploration profiles also emit a `capture_diagnostic` session event
-(`stream: diagnostic`). `productionLean` profiles omit those events from the
-session and collector to reduce volume; use on-device health for capture
-telemetry in production. Published frames still carry `requestedBackend`,
-`resolvedBackend`, and optional `fallbackReason` in every profile.
+outcome). The SDK emits a `capture_diagnostic` session event only when
+`emitCaptureDiagnostics` is true. Published frames still carry
+`requestedBackend`, `resolvedBackend`, and optional `fallbackReason`.
 
 Distinct request IDs with the same execution ID (and `coalesced: true`) identify
 scheduler coalescing when diagnostic events are present. Diagnostics contain only

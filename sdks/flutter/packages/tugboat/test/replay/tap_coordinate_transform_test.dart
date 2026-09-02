@@ -22,7 +22,11 @@ void main() {
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
           config: TugboatReplayConfig(
-            profile: TugboatCaptureProfile.exploration,
+            enabled: true,
+            emitSceneInventory: true,
+            emitViewportSemanticMap: true,
+            emitCaptureDiagnostics: true,
+            acceptActionContext: true,
             settleDelay: Duration.zero,
             interactionClaimWindow: Duration.zero,
             enableGlobalPointerCapture: true,

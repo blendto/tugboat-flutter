@@ -1,3 +1,10 @@
+## 0.9.0
+
+### Changed
+
+- Compatibility release for the mode-free `tugboat` 0.9.0 API. The Dio
+  adapter has no runtime behavior change.
+
 ## 0.8.17
 
 ### Changed

@@ -1,4 +1,3 @@
-import 'capture_profile.dart';
 import 'collector_config.dart';
 import 'interaction_transaction.dart' show tugboatDefaultReconciliationWindow;
 import 'screenshot_capture_backend.dart';
@@ -8,8 +7,7 @@ import 'viewport_semantic_mode.dart';
 
 export 'viewport_semantic_mode.dart' show TugboatViewportSemanticMode;
 
-/// Resolved viewport-semantics capabilities from [TugboatCaptureProfile] +
-/// [TugboatViewportSemanticMode]. Single source of truth for the controller.
+/// Resolved viewport-semantics capabilities for the controller.
 class TugboatViewportSemanticPolicy {
   const TugboatViewportSemanticPolicy({
     required this.engineEnabled,
@@ -32,34 +30,24 @@ class TugboatViewportSemanticPolicy {
 }
 
 TugboatViewportSemanticPolicy resolveViewportSemanticPolicy({
-  required TugboatCaptureProfile profile,
   required TugboatViewportSemanticMode mode,
+  bool emitEvents = false,
 }) {
   if (mode == TugboatViewportSemanticMode.off) {
     return TugboatViewportSemanticPolicy.off;
   }
-  if (profile == TugboatCaptureProfile.dormant) {
-    return TugboatViewportSemanticPolicy.off;
-  }
-
-  final exploration = profile == TugboatCaptureProfile.exploration;
-  final production = profile == TugboatCaptureProfile.productionLean;
-  if (!exploration && !production) {
-    return TugboatViewportSemanticPolicy.off;
-  }
-
   final verboseMode =
       mode == TugboatViewportSemanticMode.full ||
       mode == TugboatViewportSemanticMode.fullWithDebugLogs;
-  final emitEvents = exploration && verboseMode;
+  final shouldEmitEvents = emitEvents && verboseMode;
   final debugLogs =
-      exploration && mode == TugboatViewportSemanticMode.fullWithDebugLogs;
+      emitEvents && mode == TugboatViewportSemanticMode.fullWithDebugLogs;
 
   return TugboatViewportSemanticPolicy(
     engineEnabled: true,
-    emitEvents: emitEvents,
+    emitEvents: shouldEmitEvents,
     debugLogs: debugLogs,
-    holdPersistentSemanticsHandle: exploration,
+    holdPersistentSemanticsHandle: emitEvents,
   );
 }
 
@@ -82,7 +70,7 @@ class TugboatScreenshotBudgetConfig {
 /// Capture session configuration.
 class TugboatReplayConfig {
   const TugboatReplayConfig({
-    this.profile = TugboatCaptureProfile.dormant,
+    this.enabled = false,
     this.settleDelay = const Duration(seconds: 1),
     this.scrollEndCaptureDelay = Duration.zero,
     this.interactionClaimWindow = tugboatDefaultReconciliationWindow,
@@ -96,6 +84,10 @@ class TugboatReplayConfig {
     this.captureMaxHeight,
     this.degradedCaptureScale = 0.80,
     this.enableGlobalPointerCapture = true,
+    this.emitSceneInventory = false,
+    this.emitViewportSemanticMap = false,
+    this.emitCaptureDiagnostics = false,
+    this.acceptActionContext = false,
     this.explorationCollectorUrl,
     this.explorationRunId,
     this.userId,
@@ -115,7 +107,10 @@ class TugboatReplayConfig {
        assert(captureMaxHeight == null || captureMaxHeight > 0),
        assert(degradedCaptureScale > 0 && degradedCaptureScale <= 1);
 
-  final TugboatCaptureProfile profile;
+  /// Whether the normal privacy-safe capture lifecycle starts with the app.
+  ///
+  /// [TugboatReplay.activate] can start a disabled configuration at runtime.
+  final bool enabled;
   final Duration settleDelay;
 
   /// Delay before the optional visual observation taken after a scroll ends.
@@ -135,7 +130,7 @@ class TugboatReplayConfig {
   final bool captureScrollSamples;
 
   /// Whether to request visual checkpoints while a scroll is in progress.
-  /// Production profiles should normally keep this false and retain scroll
+  /// Most applications should keep this false and retain scroll
   /// metrics instead; a single deferred scroll-end frame is cheaper and more
   /// coherent than repeated full-screen readbacks during scrolling.
   final bool captureScrollScreenshots;
@@ -146,6 +141,19 @@ class TugboatReplayConfig {
   /// Additional scale applied while the rolling screenshot budget is degraded.
   final double degradedCaptureScale;
   final bool enableGlobalPointerCapture;
+
+  /// Allows bounded `scene_inventory` events for this app launch.
+  final bool emitSceneInventory;
+
+  /// Allows bounded viewport semantic-map events for this app launch.
+  final bool emitViewportSemanticMap;
+
+  /// Allows bounded capture diagnostic events for this app launch.
+  final bool emitCaptureDiagnostics;
+
+  /// Allows the host to attach external action context to captured events.
+  final bool acceptActionContext;
+
   final String? explorationCollectorUrl;
   final String? explorationRunId;
   final String? userId;
@@ -164,22 +172,20 @@ class TugboatReplayConfig {
   final TugboatScreenshotCaptureBackend screenshotCaptureBackend;
 
   TugboatScreenshotMaskLevel get effectiveScreenshotMaskLevel =>
-      screenshotMaskLevel ??
-      switch (profile) {
-        TugboatCaptureProfile.productionLean =>
-          TugboatScreenshotMaskLevel.allTextAndMedia,
-        TugboatCaptureProfile.dormant || TugboatCaptureProfile.exploration =>
-          TugboatScreenshotMaskLevel.explicitOnly,
-      };
+      screenshotMaskLevel ?? TugboatScreenshotMaskLevel.allTextAndMedia;
+
+  bool get sceneInventoryEmissionEnabled => emitSceneInventory;
+
+  bool get actionContextEnabled => acceptActionContext;
 
   TugboatViewportSemanticPolicy get viewportSemanticPolicy =>
       resolveViewportSemanticPolicy(
-        profile: profile,
         mode: viewportSemanticMode,
+        emitEvents: emitViewportSemanticMap,
       );
 
   TugboatReplayConfig copyWith({
-    TugboatCaptureProfile? profile,
+    bool? enabled,
     Duration? settleDelay,
     Duration? scrollEndCaptureDelay,
     Duration? interactionClaimWindow,
@@ -195,6 +201,10 @@ class TugboatReplayConfig {
     bool clearCaptureMaxHeight = false,
     double? degradedCaptureScale,
     bool? enableGlobalPointerCapture,
+    bool? emitSceneInventory,
+    bool? emitViewportSemanticMap,
+    bool? emitCaptureDiagnostics,
+    bool? acceptActionContext,
     String? explorationCollectorUrl,
     String? explorationRunId,
     String? userId,
@@ -210,7 +220,7 @@ class TugboatReplayConfig {
     TugboatScreenshotCaptureBackend? screenshotCaptureBackend,
   }) {
     return TugboatReplayConfig(
-      profile: _or(profile, this.profile),
+      enabled: _or(enabled, this.enabled),
       settleDelay: _or(settleDelay, this.settleDelay),
       scrollEndCaptureDelay: _or(
         scrollEndCaptureDelay,
@@ -249,6 +259,16 @@ class TugboatReplayConfig {
         enableGlobalPointerCapture,
         this.enableGlobalPointerCapture,
       ),
+      emitSceneInventory: _or(emitSceneInventory, this.emitSceneInventory),
+      emitViewportSemanticMap: _or(
+        emitViewportSemanticMap,
+        this.emitViewportSemanticMap,
+      ),
+      emitCaptureDiagnostics: _or(
+        emitCaptureDiagnostics,
+        this.emitCaptureDiagnostics,
+      ),
+      acceptActionContext: _or(acceptActionContext, this.acceptActionContext),
       explorationCollectorUrl: _or(
         explorationCollectorUrl,
         this.explorationCollectorUrl,

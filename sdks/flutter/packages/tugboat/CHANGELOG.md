@@ -1,3 +1,27 @@
+## 0.9.0
+
+### Changed
+
+- Replace `TugboatCaptureProfile` with one privacy-safe capture policy.
+- Use `TugboatReplayConfig.enabled` for lifecycle configuration.
+- Add explicit, additive capabilities for scene inventory, viewport semantic
+  maps, capture diagnostics, and external action context.
+- Keep `allTextAndMedia` as the default screenshot mask when capabilities are
+  enabled.
+- Make `TugboatParameterPolicy.allowAll` mode-free and remove the duplicate
+  production-specific parameter policy.
+- Remove capture-profile fields from SDK health and sink session context.
+- Rename the controller action-window API to `setActionContext` and
+  `clearActionContext`.
+
+### Migration
+
+- Replace `profile: TugboatCaptureProfile.dormant` with `enabled: false`.
+- Replace `profile: TugboatCaptureProfile.productionLean` with `enabled: true`.
+- Replace exploration mode with `enabled: true` plus only the required
+  additive capabilities.
+- Remove the `profile` argument from `TugboatReplay.activate`.
+
 ## 0.8.17
 
 ### Fixed

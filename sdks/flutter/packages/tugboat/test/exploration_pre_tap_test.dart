@@ -6,8 +6,12 @@ import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/interaction_transaction.dart';
 import 'package:tugboat/tugboat.dart';
 
-const _explorationConfig = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+const _inventoryConfig = TugboatReplayConfig(
+  enabled: true,
+  emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  emitCaptureDiagnostics: true,
+  acceptActionContext: true,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: false,
@@ -62,7 +66,7 @@ class _DelayedCtaState extends State<_DelayedCta> {
 Future<TugboatReplayController> _mountController(
   WidgetTester tester,
   Widget child, {
-  TugboatReplayConfig config = _explorationConfig,
+  TugboatReplayConfig config = _inventoryConfig,
 }) async {
   TugboatReplay.debugConfigureControllerForTest = (controller) {
     controller.debugExecuteCapture =
@@ -568,11 +572,11 @@ void main() {
     },
   );
 
-  testWidgets('production pointer-down does not use exploration capture', (
+  testWidgets('default pointer-down does not use inventory capture', (
     tester,
   ) async {
     const config = TugboatReplayConfig(
-      profile: TugboatCaptureProfile.productionLean,
+      enabled: true,
       settleDelay: Duration.zero,
       interactionClaimWindow: Duration.zero,
       enableGlobalPointerCapture: false,
@@ -604,14 +608,14 @@ void main() {
     expect(eventTypes, isNot(contains('viewport_semantic_map')));
   });
 
-  testWidgets('dormant profile performs no pointer-down capture work', (
+  testWidgets('disabled capture performs no pointer-down capture work', (
     tester,
   ) async {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => TugboatReplay.wrapApp(
           config: const TugboatReplayConfig(
-            profile: TugboatCaptureProfile.dormant,
+            enabled: false,
             enableGlobalPointerCapture: false,
           ),
           child: child!,

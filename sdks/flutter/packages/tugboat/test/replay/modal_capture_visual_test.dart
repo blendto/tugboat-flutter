@@ -369,7 +369,11 @@ const _openNestedHost = Key('modal-open-nested-host');
 const _openNestedSheet = Key('modal-open-nested-sheet');
 
 const _config = TugboatReplayConfig(
-  profile: TugboatCaptureProfile.exploration,
+  enabled: true,
+  emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  emitCaptureDiagnostics: true,
+  acceptActionContext: true,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
   enableGlobalPointerCapture: true,

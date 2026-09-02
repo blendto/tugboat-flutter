@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'capture_boundary.dart';
-import 'capture_profile.dart';
 import 'controller.dart';
 import 'external_event.dart';
 import 'health.dart';
@@ -14,7 +13,6 @@ import 'lifecycle.dart';
 import 'models.dart';
 import 'network_observer.dart';
 
-export 'capture_profile.dart' show TugboatCaptureProfile;
 export 'lifecycle.dart' show TugboatLifecycleState;
 export 'screenshot_mask_level.dart' show TugboatScreenshotMaskLevel;
 export 'markers.dart'
@@ -26,8 +24,8 @@ typedef TugboatControllerTestHook =
 /// Host-app entry point for Tugboat session capture.
 ///
 /// Install [navigatorObserver] on [MaterialApp]/[CupertinoApp] and wrap the
-/// app builder with [wrapApp]. Capture stays dormant until [activate] when
-/// using [TugboatCaptureProfile.dormant].
+/// app builder with [wrapApp]. Capture stays dormant until configuration or
+/// [activate] enables it.
 ///
 /// [wrapApp] always mounts a lightweight activation gate so [activate] and
 /// [deactivate] take effect without requiring an unrelated host rebuild.
@@ -71,8 +69,6 @@ class TugboatReplay {
   static TugboatLifecycleState get lifecycleState => _lifecycle.state;
   static bool get isActivated => _lifecycle.isActivated;
   static String? get activationRequestId => _lifecycle.activationRequestId;
-
-  static TugboatCaptureProfile? get activeProfile => _lifecycle.activeProfile;
 
   /// When `true`, the SDK is fully inert (no capture, no wrapping overhead).
   ///
@@ -177,16 +173,9 @@ class TugboatReplay {
       _lifecycle.state != TugboatLifecycleState.stopping &&
       (_controller?.acceptingEvidence ?? false);
 
-  /// Enables capture machinery for dormant builds at runtime.
-  ///
-  static void activate({
-    required String activationRequestId,
-    TugboatCaptureProfile profile = TugboatCaptureProfile.productionLean,
-  }) {
-    _lifecycle.activate(
-      activationRequestId: activationRequestId,
-      profile: profile,
-    );
+  /// Enables the normal capture lifecycle at runtime.
+  static void activate({required String activationRequestId}) {
+    _lifecycle.activate(activationRequestId: activationRequestId);
   }
 
   /// Returns the SDK to dormant mode without tearing down the host app.
@@ -203,7 +192,6 @@ class TugboatReplay {
     if (c != null) return c.healthSnapshot();
     return TugboatSdkHealth(
       lifecycle: _lifecycle.state.name,
-      profile: (_lifecycle.activeProfile ?? TugboatCaptureProfile.dormant).name,
       activationRequestId: _lifecycle.activationRequestId,
     );
   }
@@ -229,13 +217,12 @@ class TugboatReplay {
   /// dormant, disabled, or ended are safe no-ops.
   ///
   /// By default, [parameterPolicy] is
-  /// [TugboatParameterPolicy.allowAllInProduction], so JSON-safe parameter
+  /// [TugboatParameterPolicy.allowAll], so JSON-safe parameter
   /// values are retained within hard limits. Pass
   /// [TugboatParameterPolicy.namesOnly] to keep keys without values.
   static TugboatEventHook eventHook({
     String? source,
-    TugboatParameterPolicy parameterPolicy =
-        TugboatParameterPolicy.allowAllInProduction,
+    TugboatParameterPolicy parameterPolicy = TugboatParameterPolicy.allowAll,
   }) {
     return _TugboatEventHook(source: source, parameterPolicy: parameterPolicy);
   }
@@ -378,7 +365,7 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
   @override
   void didUpdateWidget(covariant _TugboatActivationGate oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.config.profile != widget.config.profile) {
+    if (oldWidget.config.enabled != widget.config.enabled) {
       _syncCaptureFlag();
     }
   }
@@ -396,7 +383,7 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
 
   void _syncCaptureFlag() {
     final lifecycle = TugboatReplay._lifecycle;
-    final should = lifecycle.shouldCapture(widget.config.profile);
+    final should = lifecycle.shouldCapture(widget.config.enabled);
     final epoch = lifecycle.requestEpoch;
 
     if (!should) {
@@ -433,10 +420,9 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
       return widget.child;
     }
     final lifecycle = TugboatReplay._lifecycle;
-    final profile = lifecycle.effectiveProfile(widget.config.profile);
     return _TugboatReplayRoot(
-      key: ValueKey('tugboat-capture-$profile-${_mountedEpoch ?? 0}'),
-      config: widget.config.copyWith(profile: profile),
+      key: ValueKey('tugboat-capture-${_mountedEpoch ?? 0}'),
+      config: widget.config.copyWith(enabled: true),
       activationRequestId: lifecycle.activationRequestId,
       sessionEpoch: _mountedEpoch ?? lifecycle.requestEpoch,
       child: widget.child,

@@ -15,12 +15,12 @@ arbitrary visible text as structural identity.
 
 - State and target identity are deterministic within one build and fingerprint
   schema version.
-- Exploration and production profiles use the same fingerprint algorithm.
+- Optional evidence capabilities use the same fingerprint algorithm.
 - Locale is emitted as session and event evidence but never enters identity.
 - Developer tags strengthen matching but are optional.
 - Screenshots remain visual evidence and are masked before leaving the app.
 - Capture failures and sink failures must not interrupt the host app.
-- Dormant and disabled modes return the host child unchanged.
+- Disabled lifecycle configuration returns the host child unchanged.
 
 Cross-build stability is not promised. Consumers should namespace identity by
 build metadata and `fingerprintSchemaVersion`; remapping identities across app
@@ -46,21 +46,20 @@ NavigatorObserver + global/local pointer input + scroll notifications
 ```
 
 `TugboatReplay.wrapApp` installs the controller, repaint boundary, input
-capture, scroll listener, and lifecycle observer only for an active profile.
+capture, scroll listener, and lifecycle observer only when capture is enabled.
 `TugboatReplay.navigatorObserver` supplies route changes and navigator context.
 Both are needed for complete capture.
 
-### Profiles and activation
+### Lifecycle and capabilities
 
-| Profile | Implemented behavior |
-| --- | --- |
-| `dormant` | Always-mounted lightweight gate; no pointer/screenshot/sink machinery until `activate` |
-| `exploration` | full interaction capture, scene inventory, and optional emitted semantic maps |
-| `productionLean` | interaction capture, no scene-inventory events, production screenshot masking by default |
+`TugboatReplayConfig.enabled` controls the capture lifecycle. Scene inventory,
+semantic-map, diagnostic, and action-context evidence use separate additive
+capabilities. All optional capabilities are false by default. The default
+screenshot mask is always `allTextAndMedia`.
 
 `TugboatReplay.disabled = true` is a global kill switch. It deactivates the
 current controller and keeps future calls to `wrapApp` inert. Runtime
-`activate(activationRequestId:, profile:)` notifies the mounted gate without
+`activate(activationRequestId:)` notifies the mounted gate without
 requiring a host rebuild. `deactivate()` tears capture down through the same
 gate. Pause/hidden flush pending delivery; detach ends the session once.
 
@@ -261,10 +260,9 @@ the SDK collects mask rectangles using the shared anchor resolver and applies
 them as opaque fills on the RGBA buffer inside the encode isolate (avoiding a
 second full-size GPU raster).
 
-The default mask policy is profile-dependent:
-
-- `exploration`: explicit `TugboatSensitive` subtrees only;
-- `productionLean`: all rendered text, editable inputs, and images.
+The default mask policy covers all rendered text, editable inputs, and images.
+Hosts can select a stricter or narrower explicit mask policy. Evidence
+capabilities never change the mask.
 
 The public mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
 `allTextExceptActionable`, and `sensitiveInputsOnly`.
@@ -336,19 +334,18 @@ device-tier gates.
 
 ## Viewport semantics
 
-`viewportSemanticMode` resolves with the capture profile:
+`viewportSemanticMode` resolves with `emitViewportSemanticMap`:
 
 | Mode | Engine | Emits map events | Debug logs |
 | --- | --- | --- | --- |
 | `off` | no | no | no |
-| `tapResolutionOnly` | yes for active profiles | no | no |
-| `full` | yes | exploration only | no |
-| `fullWithDebugLogs` | yes | exploration only | exploration only |
+| `tapResolutionOnly` | yes while enabled | no | no |
+| `full` | yes | when capability is true | no |
+| `fullWithDebugLogs` | yes | when capability is true | when capability is true |
 
-Exploration holds a persistent Flutter `SemanticsHandle` when semantics are
-enabled. Production uses transient semantics and never emits semantic-map
-events, even in `full` modes; it can still build maps locally for tap
-resolution. Emitted exploration maps are bounded by
+The SDK holds a persistent Flutter `SemanticsHandle` only while semantic-map
+emission is enabled. It can still build maps locally for tap resolution.
+Emitted maps are bounded by
 `viewportSemanticMapMaxNodes` (default `120`) and
 `viewportSemanticMapMaxBytes` (default `48000`).
 
@@ -412,7 +409,7 @@ Unit thresholds live in `benchmark/screenshot_budget_baseline.dart`. The default
 rolling budget is 60 ms per 5 s window so eligible captures skip under load
 sooner now that paint-generation / dHash coalesce replace the old post-capture
 state-signature short circuit. Record multi-tier device measurements before
-enabling more aggressive degradation in production profiles.
+enabling more aggressive degradation in normal app capture.
 
 ### 3. Deferred capture surfaces
 
