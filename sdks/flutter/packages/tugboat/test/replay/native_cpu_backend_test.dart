@@ -213,6 +213,34 @@ void main() {
     },
   );
 
+  test('native hierarchy retry reports its actual coverage', () async {
+    final api = _FakeHostApi(
+      captureHandler: (request) async => nativeCaptureResult(
+        requestId: request.requestId,
+        status: NativeCaptureStatus.ok,
+        jpeg: Uint8List.fromList(const [1, 2, 3, 4]),
+        width: 8,
+        height: 8,
+        dHash: '1' * 64,
+        contentHash: 'abc',
+        coverage: NativeCaptureCoverage.viewHierarchy,
+      ),
+    );
+    final fallback = _RecordingFallback();
+    final source = NativeCpuExperimentalPixelSource(
+      client: NativeCaptureClient(api: api),
+      fallback: fallback,
+    );
+
+    final result = await source.acquire(
+      _pixelRequest(boundary: RenderRepaintBoundary()),
+    );
+
+    expect(fallback.calls, 0);
+    expect(result.disposition, ScreenshotPixelDisposition.captured);
+    expect(result.trace.coverage, 'viewHierarchy');
+  });
+
   test('native fallback status uses Flutter path once', () async {
     final api = _FakeHostApi(
       captureHandler: (request) async => nativeCaptureResult(
