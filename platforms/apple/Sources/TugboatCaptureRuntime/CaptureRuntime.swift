@@ -74,14 +74,13 @@ public final class CaptureRuntime {
     }
 
     let started = DispatchTime.now()
-    let bitmap = drawOnMain(view: view, request: request)
+    let drawOutcome = drawOnMain(view: view, request: request)
     let copyTimings = CaptureTimings(surfaceCopyMicros: elapsedMicros(from: started))
     if let early = haltIfNeeded(request, started, copyTimings) {
       return early
     }
-    guard let bitmap else {
-      let status: CaptureStatus =
-        view.bounds.width <= 0 || view.bounds.height <= 0 ? .surfaceUnavailable : .pixelCopyFailed
+    guard let bitmap = drawOutcome.bitmap else {
+      let status: CaptureStatus = drawOutcome.hasSurface ? .pixelCopyFailed : .surfaceUnavailable
       return reply(request, status, timings: copyTimings)
     }
 
@@ -102,7 +101,7 @@ public final class CaptureRuntime {
       return reply(
         request,
         .skippedByDHash,
-        coverage: coverage,
+        coverage: bitmap.coverage,
         width: bitmap.width,
         height: bitmap.height,
         dHash: processed.dHash,
@@ -131,7 +130,7 @@ public final class CaptureRuntime {
     return reply(
       request,
       .ok,
-      coverage: coverage,
+      coverage: bitmap.coverage,
       jpeg: jpeg,
       width: bitmap.width,
       height: bitmap.height,
@@ -142,9 +141,16 @@ public final class CaptureRuntime {
     )
   }
 
-  private func drawOnMain(view: UIView, request: CaptureRequest) -> NativeBitmap? {
+  private func drawOnMain(
+    view: UIView,
+    request: CaptureRequest
+  ) -> (bitmap: NativeBitmap?, hasSurface: Bool) {
     var bitmap: NativeBitmap?
+    var hasSurface = false
     let draw = {
+      view.layoutIfNeeded()
+      hasSurface = view.bounds.width > 0 && view.bounds.height > 0
+      guard hasSurface else { return }
       bitmap = AppleViewCapture.capture(
         view: view,
         pixelWidth: request.pixelWidth,
@@ -157,7 +163,7 @@ public final class CaptureRuntime {
     } else {
       DispatchQueue.main.sync(execute: draw)
     }
-    return bitmap
+    return (bitmap, hasSurface)
   }
 
   private func haltIfNeeded(

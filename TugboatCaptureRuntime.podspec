@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'TugboatCaptureRuntime'
-  s.version          = '0.1.0'
+  s.version          = '0.1.1'
   s.summary          = 'Tugboat native CPU screenshot capture for Apple platforms.'
   s.description      = <<-DESC
 Experimental Apple capture runtime. Renders the live Flutter layer into a
