@@ -1464,6 +1464,44 @@ void main() {
     expect(TugboatReplay.lifecycleState, TugboatLifecycleState.active);
   });
 
+  testWidgets('runtime capture applies a combined enable and grant rebuild', (
+    tester,
+  ) async {
+    addTearDown(TugboatReplay.resetForTest);
+    final upgraded = ValueNotifier<bool>(false);
+    addTearDown(upgraded.dispose);
+
+    await tester.pumpWidget(
+      ValueListenableBuilder<bool>(
+        valueListenable: upgraded,
+        builder: (context, value, _) => MaterialApp(
+          builder: (context, child) => TugboatReplay.wrapApp(
+            config: _testConfig.copyWith(
+              enabled: value,
+              emitSceneInventory: value,
+            ),
+            child: child!,
+          ),
+          home: const Scaffold(body: Text('Combined grant')),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(TugboatReplay.controller, isNull);
+
+    TugboatReplay.activate(activationRequestId: 'combined-grant');
+    await _waitForCaptures(tester);
+    final runtimeController = TugboatReplay.controller!;
+    expect(runtimeController.config.emitSceneInventory, isFalse);
+
+    upgraded.value = true;
+    await _waitForCaptures(tester);
+    final upgradedController = TugboatReplay.controller!;
+    expect(upgradedController, isNot(same(runtimeController)));
+    expect(upgradedController.config.emitSceneInventory, isTrue);
+    expect(TugboatReplay.lifecycleState, TugboatLifecycleState.active);
+  });
+
   testWidgets('disabled config stays inert until activated without rebuild', (
     tester,
   ) async {

@@ -367,7 +367,8 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.config.enabled != widget.config.enabled) {
       _syncCaptureFlag();
-    } else if (_captureMounted &&
+    }
+    if (_captureMounted &&
         _capabilitiesChanged(oldWidget.config, widget.config)) {
       _mountedEpoch = TugboatReplay._lifecycle.beginCapabilityRemount();
     }
