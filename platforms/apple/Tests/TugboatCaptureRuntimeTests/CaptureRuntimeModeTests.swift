@@ -24,7 +24,7 @@ final class CaptureRuntimeModeTests: XCTestCase {
     XCTAssertFalse(result.jpeg.isEmpty)
   }
 
-  func testEngineSurfaceRetriesHierarchyWhenLayerWritesNoPixels() throws {
+  func testEngineSurfaceRejectsBlankInsteadOfBroadeningCoverage() throws {
     let view = HierarchyDrawingView(
       frame: CGRect(x: 0, y: 0, width: 40, height: 60),
       fillColor: .green
@@ -32,10 +32,9 @@ final class CaptureRuntimeModeTests: XCTestCase {
 
     let result = try capture(runtime: CaptureRuntime(), view: view)
 
-    XCTAssertEqual(result.status, .ok)
-    XCTAssertEqual(result.coverage, .viewHierarchy)
-    XCTAssertFalse(result.jpeg.isEmpty)
-    XCTAssertFalse(result.incomplete)
+    XCTAssertEqual(result.status, .pixelCopyFailed)
+    XCTAssertNil(result.coverage)
+    XCTAssertTrue(result.jpeg.isEmpty)
   }
 
   func testTransparentCaptureFailsInsteadOfPublishingBlankJpeg() throws {
@@ -44,7 +43,10 @@ final class CaptureRuntimeModeTests: XCTestCase {
       fillColor: .clear
     )
 
-    let result = try capture(runtime: CaptureRuntime(), view: view)
+    let result = try capture(
+      runtime: CaptureRuntime(coverage: .viewHierarchy),
+      view: view
+    )
 
     XCTAssertEqual(result.status, .pixelCopyFailed)
     XCTAssertNil(result.coverage)
@@ -57,7 +59,10 @@ final class CaptureRuntimeModeTests: XCTestCase {
       fillColor: .white
     )
 
-    let result = try capture(runtime: CaptureRuntime(), view: view)
+    let result = try capture(
+      runtime: CaptureRuntime(coverage: .viewHierarchy),
+      view: view
+    )
 
     XCTAssertEqual(result.status, .pixelCopyFailed)
     XCTAssertNil(result.coverage)

@@ -66,20 +66,14 @@ enum AppleViewCapture {
   ) -> NativeBitmap? {
     switch coverage {
     case .engineSurface:
-      if let bitmap = captureOnce(
+      guard let bitmap = captureOnce(
         view: view,
         pixelWidth: pixelWidth,
         pixelHeight: pixelHeight,
         coverage: .engineSurface,
         afterScreenUpdates: false
-      ), bitmap.hasCapturedContent {
-        return bitmap
-      }
-      return captureHierarchy(
-        view: view,
-        pixelWidth: pixelWidth,
-        pixelHeight: pixelHeight
-      )
+      ), bitmap.hasCapturedContent else { return nil }
+      return bitmap
     case .viewHierarchy:
       return captureHierarchy(
         view: view,
@@ -184,8 +178,8 @@ enum AppleViewCapture {
     case .engineSurface:
       // FlutterView implements CALayerDelegate. Rendering the live layer is
       // the fast CPU path. Core Graphics does not copy CAMetalLayer contents
-      // by itself. If the result is blank, capture() retries with drawHierarchy
-      // instead of publishing an empty frame.
+      // by itself. Blank output returns pixelCopyFailed so the caller can
+      // choose an explicit compatibility path.
       view.layer.render(in: context)
       return false
     case .viewHierarchy:
