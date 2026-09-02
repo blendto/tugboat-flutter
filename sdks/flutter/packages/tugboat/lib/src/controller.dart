@@ -5607,7 +5607,10 @@ class TugboatReplayController extends ChangeNotifier {
   void _maybeEmitSceneInventory({
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
-    if (!config.sceneInventoryEmissionEnabled) return;
+    if (!config.sceneInventoryEmissionEnabled &&
+        !config.semanticMapEmissionEnabled) {
+      return;
+    }
     final resolver = _anchorResolver;
     if (resolver == null || _session == null) return;
 
@@ -5626,23 +5629,22 @@ class TugboatReplayController extends ChangeNotifier {
     bool emitViewportSemanticMap = true,
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
-    if (!config.sceneInventoryEmissionEnabled) return;
-    // Always emit raw scene_inventory first (when new). Semantic-map emission
-    // must not replace or suppress inventory; maps are an exploration companion.
-    final dedupeKey = [
-      inventory.routeKey,
-      inventory.inventoryHash,
-      scrollContext?.dedupeKey ?? '',
-    ].join('|');
-    if (_emittedInventories.add(dedupeKey)) {
-      _addEvent(
-        TugboatEvent(
-          id: _nextId('event'),
-          atMs: atMs,
-          type: 'scene_inventory',
-          data: inventory.toJson(),
-        ),
-      );
+    if (config.sceneInventoryEmissionEnabled) {
+      final dedupeKey = [
+        inventory.routeKey,
+        inventory.inventoryHash,
+        scrollContext?.dedupeKey ?? '',
+      ].join('|');
+      if (_emittedInventories.add(dedupeKey)) {
+        _addEvent(
+          TugboatEvent(
+            id: _nextId('event'),
+            atMs: atMs,
+            type: 'scene_inventory',
+            data: inventory.toJson(),
+          ),
+        );
+      }
     }
     if (emitViewportSemanticMap) {
       _viewportSemantics.maybeEmit(
@@ -5655,8 +5657,8 @@ class TugboatReplayController extends ChangeNotifier {
 
   /// Publishes one timeline event.
   ///
-  /// When [attachActionContext] is true (default), stamps the active
-  /// active action context. Host app/network evidence passes false so it
+  /// When [attachActionContext] is true (default), stamps the active action
+  /// context. Host app/network evidence passes false so it
   /// never inherits [actionId] or interaction context.
   void _addEvent(TugboatEvent event, {bool attachActionContext = true}) {
     final session = _session;

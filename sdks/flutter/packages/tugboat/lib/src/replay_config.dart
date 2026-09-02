@@ -176,6 +176,8 @@ class TugboatReplayConfig {
 
   bool get sceneInventoryEmissionEnabled => emitSceneInventory;
 
+  bool get semanticMapEmissionEnabled => viewportSemanticPolicy.emitEvents;
+
   bool get actionContextEnabled => acceptActionContext;
 
   TugboatViewportSemanticPolicy get viewportSemanticPolicy =>

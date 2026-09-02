@@ -737,6 +737,31 @@ void main() {
     },
   );
 
+  testWidgets('semantic-map capability does not emit raw inventory', (
+    tester,
+  ) async {
+    await _pumpSettledScreen(
+      tester,
+      Scaffold(
+        body: FilledButton(onPressed: () {}, child: const Text('Go')),
+      ),
+      config: const TugboatReplayConfig(
+        enabled: true,
+        settleDelay: Duration.zero,
+        enableGlobalPointerCapture: false,
+        emitViewportSemanticMap: true,
+        viewportSemanticMode: TugboatViewportSemanticMode.full,
+      ),
+    );
+
+    final events = TugboatReplay.controller!.session!.events;
+    expect(events.where((event) => event.type == 'scene_inventory'), isEmpty);
+    expect(
+      events.where((event) => event.type == 'viewport_semantic_map'),
+      isNotEmpty,
+    );
+  });
+
   testWidgets('debug log config does not change emitted payload shape', (
     tester,
   ) async {
