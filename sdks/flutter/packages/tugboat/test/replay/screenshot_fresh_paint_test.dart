@@ -451,8 +451,11 @@ void main() {
 
     expect(degraded, isNotNull);
     expect(degraded!.result, isNotNull);
-    expect(degraded.result!.width, 49);
-    expect(degraded.result!.height, 49);
+    final expectedRatio =
+        config.capturePixelRatio * config.degradedCaptureScale;
+    final expectedDimension = (80 * expectedRatio).ceil();
+    expect(degraded.result!.width, expectedDimension);
+    expect(degraded.result!.height, expectedDimension);
   });
 
   test('copyWith can clear screenshot dimension bounds', () {

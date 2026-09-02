@@ -7,62 +7,103 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
   private var hierarchyRuntime: CaptureRuntime?
   private weak var registrar: FlutterPluginRegistrar?
   private let callbackQueue = DispatchQueue.main
+  private let stateLock = NSLock()
+  private var disposed = false
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = TugboatPlugin()
     instance.registrar = registrar
     instance.engineRuntime = CaptureRuntime()
-    instance.hierarchyRuntime = CaptureRuntime(coverage: .viewHierarchy)
     NativeCaptureHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
   }
 
   func getCapabilities() throws -> NativeCaptureCapabilities {
-    NativeCaptureMapping.capabilities(requireEngineRuntime().capabilities())
+    guard let runtime = engineCaptureRuntime() else {
+      return NativeCaptureCapabilities(
+        nativeCaptureSupported: false,
+        apiLevel: Int64(ProcessInfo.processInfo.operatingSystemVersion.majorVersion),
+        minNativeApi: Int64(CaptureRuntime.minNativeApi)
+      )
+    }
+    return NativeCaptureMapping.capabilities(runtime.capabilities())
   }
 
   func capture(
     request: NativeCaptureRequest,
     completion: @escaping (Result<NativeCaptureResult, Error>) -> Void
   ) {
-    guard let view = flutterView() else {
-      completion(.success(NativeCaptureMapping.failed(request, .surfaceUnavailable)))
+    guard let runtime = engineCaptureRuntime() else {
+      complete(NativeCaptureMapping.failed(request, .disposed), completion: completion)
       return
     }
+    guard let view = flutterView() else {
+      complete(
+        NativeCaptureMapping.failed(request, .surfaceUnavailable),
+        completion: completion
+      )
+      return
+    }
+    let started = DispatchTime.now()
     let nativeRequest = NativeCaptureMapping.request(request)
-    requireEngineRuntime().capture(view: view, request: nativeRequest) { result in
+    runtime.capture(view: view, request: nativeRequest) { result in
       guard result.status == .pixelCopyFailed else {
         self.complete(result, completion: completion)
         return
       }
 
-      self.requireHierarchyRuntime().capture(view: view, request: nativeRequest) { retry in
+      let remainingMs = self.remainingTimeoutMs(since: started)
+      guard remainingMs > 0 else {
+        self.complete(NativeCaptureMapping.failed(request, .timeout), completion: completion)
+        return
+      }
+      guard let hierarchyRuntime = self.makeHierarchyRuntime(timeoutMs: remainingMs) else {
+        self.complete(NativeCaptureMapping.failed(request, .disposed), completion: completion)
+        return
+      }
+      hierarchyRuntime.capture(view: view, request: nativeRequest) { retry in
         self.complete(retry, completion: completion)
       }
     }
   }
 
   func cancel(requestId: Int64) throws {
-    engineRuntime?.cancel(requestId: requestId)
-    hierarchyRuntime?.cancel(requestId: requestId)
+    let runtimes = captureRuntimes()
+    runtimes.engine?.cancel(requestId: requestId)
+    runtimes.hierarchy?.cancel(requestId: requestId)
   }
 
   func dispose() throws {
-    engineRuntime?.dispose()
-    hierarchyRuntime?.dispose()
+    stateLock.lock()
+    disposed = true
+    let engine = engineRuntime
+    let hierarchy = hierarchyRuntime
     engineRuntime = nil
     hierarchyRuntime = nil
+    stateLock.unlock()
+    engine?.dispose()
+    hierarchy?.dispose()
   }
 
   private func complete(
     _ result: CaptureResult,
     completion: @escaping (Result<NativeCaptureResult, Error>) -> Void
   ) {
+    complete(NativeCaptureMapping.result(result), completion: completion)
+  }
+
+  private func complete(
+    _ result: NativeCaptureResult,
+    completion: @escaping (Result<NativeCaptureResult, Error>) -> Void
+  ) {
     callbackQueue.async {
-      completion(.success(NativeCaptureMapping.result(result)))
+      completion(.success(result))
     }
   }
 
-  private func requireEngineRuntime() -> CaptureRuntime {
+  private func engineCaptureRuntime() -> CaptureRuntime? {
+    stateLock.lock()
+    defer { stateLock.unlock() }
+    guard !disposed else { return nil }
     if let engineRuntime {
       return engineRuntime
     }
@@ -71,13 +112,29 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
     return created
   }
 
-  private func requireHierarchyRuntime() -> CaptureRuntime {
-    if let hierarchyRuntime {
-      return hierarchyRuntime
-    }
-    let created = CaptureRuntime(coverage: .viewHierarchy)
+  /// The controller serializes capture requests. Replace the prior retry runtime
+  /// so this attempt uses only the time left in the original request budget.
+  private func makeHierarchyRuntime(timeoutMs: Int64) -> CaptureRuntime? {
+    stateLock.lock()
+    defer { stateLock.unlock() }
+    guard !disposed else { return nil }
+    let created = CaptureRuntime(timeoutMs: timeoutMs, coverage: .viewHierarchy)
+    hierarchyRuntime?.dispose()
     hierarchyRuntime = created
     return created
+  }
+
+  private func captureRuntimes() -> (engine: CaptureRuntime?, hierarchy: CaptureRuntime?) {
+    stateLock.lock()
+    defer { stateLock.unlock() }
+    return (engineRuntime, hierarchyRuntime)
+  }
+
+  private func remainingTimeoutMs(since started: DispatchTime) -> Int64 {
+    let elapsedMs = Int64(
+      (DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000
+    )
+    return max(0, CaptureRuntime.defaultTimeoutMs - elapsedMs)
   }
 
   private func flutterView() -> UIView? {
