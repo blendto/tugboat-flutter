@@ -1,0 +1,184 @@
+# Publishes com.gettugboat.sdk:capture-runtime from platforms/android.
+#
+# Merging a PR does not publish by itself. This workflow:
+# 1. On push to main, creates tag capture-runtime-v<version> when that version
+#    is not already on GitHub Packages (or Maven Central, once configured).
+# 2. On that tag (push or workflow_dispatch), publishes the AAR.
+#
+# GitHub Packages is the default hosted registry (GITHUB_TOKEN). Maven Central
+# is optional until namespace + secrets exist; see docs/releases/process.md.
+name: Publish Android runtime
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'capture-runtime-v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag_main:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+        run: |
+          set -euo pipefail
+          version="$(bash tool/ci/android-runtime-version.sh)"
+          tag="capture-runtime-v${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "capture-runtime version: ${version}"
+
+          github_exists=false
+          if versions="$(gh api "/orgs/blendto/packages/maven/com.gettugboat.sdk.capture-runtime/versions" --jq '.[].name' 2>/dev/null)"; then
+            if printf '%s\n' "$versions" | grep -qx "${version}"; then
+              github_exists=true
+            fi
+          fi
+          central_code="$(curl -sS -o /dev/null -w '%{http_code}' \
+            "https://repo1.maven.org/maven2/com/gettugboat/sdk/capture-runtime/${version}/capture-runtime-${version}.pom")"
+          echo "GitHub Packages has ${version}: ${github_exists}"
+          echo "Maven Central POM: ${central_code}"
+
+          if [[ "$github_exists" == "true" && "$central_code" == "200" ]]; then
+            echo "capture-runtime ${version} is already on GitHub Packages and Maven Central."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$github_exists" == "true" && -z "${MAVEN_CENTRAL_USERNAME}" ]]; then
+            echo "GitHub Packages already has ${version}; Maven Central is not configured."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag and dispatch publish
+        if: steps.version.outputs.should_publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          git fetch --tags origin
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" -m "capture-runtime ${VERSION}"
+            git push origin "${TAG}"
+          fi
+
+          # GITHUB_TOKEN tag pushes do not trigger other workflows. Dispatch on
+          # the tag so the publish job sees refType=tag.
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if gh workflow run publish-android.yml --ref "${TAG}"; then
+              echo "Dispatched publish-android.yml on ${TAG}."
+              exit 0
+            fi
+            echo "Dispatch failed (attempt ${attempt}); waiting for tag/workflow to appear."
+            sleep 5
+          done
+          echo "::error::Could not dispatch publish-android.yml on ${TAG}."
+          exit 1
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/capture-runtime-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK and CMake
+        run: |
+          yes | sdkmanager --install "ndk;28.2.13676358" "cmake;3.22.1" "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Verify tag
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(bash tool/ci/android-runtime-version.sh)"
+          expected_tag="capture-runtime-v${version}"
+          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
+            echo "::error::Git tag ${GITHUB_REF_NAME} must be ${expected_tag} to publish capture-runtime ${version}."
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to GitHub Packages
+        working-directory: platforms/android
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
+          ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          github_exists=false
+          if versions="$(gh api "/orgs/blendto/packages/maven/com.gettugboat.sdk.capture-runtime/versions" --jq '.[].name' 2>/dev/null)"; then
+            if printf '%s\n' "$versions" | grep -qx "${VERSION}"; then
+              github_exists=true
+            fi
+          fi
+          if [[ "$github_exists" == "true" ]]; then
+            echo "capture-runtime ${VERSION} is already on GitHub Packages."
+            exit 0
+          fi
+          ./gradlew :capture-runtime:publishAllPublicationsToGitHubPackagesRepository
+
+      - name: Publish to Maven Central
+        working-directory: platforms/android
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_GPG_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${MAVEN_CENTRAL_USERNAME}" ]]; then
+            echo "Maven Central secrets are not configured. Skipping Central publish."
+            echo "Add MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD, MAVEN_GPG_KEY, and MAVEN_GPG_PASSPHRASE after verifying namespace com.gettugboat (gettugboat.com) at https://central.sonatype.com/"
+            exit 0
+          fi
+          code="$(curl -sS -o /dev/null -w '%{http_code}' \
+            "https://repo1.maven.org/maven2/com/gettugboat/sdk/capture-runtime/${VERSION}/capture-runtime-${VERSION}.pom")"
+          if [[ "$code" == "200" ]]; then
+            echo "capture-runtime ${VERSION} is already on Maven Central."
+            exit 0
+          fi
+          ./gradlew :capture-runtime:publishAndReleaseToMavenCentral -Ptugboat.publishMavenCentral=true

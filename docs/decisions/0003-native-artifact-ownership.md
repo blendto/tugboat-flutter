@@ -17,4 +17,6 @@ are in [repository-scope.md](../architecture/repository-scope.md).
 ## Consequences
 
 The Flutter plugin stays thin: Pigeon, lifecycle, mask metadata, fallback.
-Public Maven/CocoaPods publication waits for privacy and performance gates.
+Public Maven Central / CocoaPods publication that Flutter pub hosts consume
+waits for privacy and performance gates. GitHub Packages can host the
+Android AAR for native apps sooner.

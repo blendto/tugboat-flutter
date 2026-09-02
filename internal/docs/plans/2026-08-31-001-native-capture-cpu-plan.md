@@ -133,10 +133,10 @@ These APIs are not suitable for transparent session replay capture.
 
 ### Android artifact
 
-- Maven group: `com.tugboat.sdk`
+- Maven group: `com.gettugboat.sdk`
 - Maven artifact: `capture-runtime`
 - Initial version: `0.1.0`
-- Full coordinate: `com.tugboat.sdk:capture-runtime:0.1.0`
+- Full coordinate: `com.gettugboat.sdk:capture-runtime:0.1.0`
 - Android namespace: `com.tugboat.capture.runtime`
 - Kotlin package root: `com.tugboat.capture`
 
@@ -158,8 +158,9 @@ These APIs are not suitable for transparent session replay capture.
 - Planned npm scope: `@tugboat`
 - Planned npm package: `@tugboat/react-native`
 
-The Maven group requires ownership and registry verification before public publication.
-Local Maven publication does not require the public registry step.
+The Maven group `com.gettugboat.sdk` is verified on Maven Central through
+the `gettugboat.com` domain (`com.gettugboat` namespace). Local Maven
+publication does not require the public registry step.
 
 ---
 
@@ -514,7 +515,7 @@ Use the Flutter backend on older supported devices.
 - [x] P4.01 Create the Android Gradle workspace.
 - [x] P4.02 Add the `capture-runtime` Android library.
 - [x] P4.03 Set the namespace to `com.tugboat.capture.runtime`.
-- [x] P4.04 Set the coordinate to `com.tugboat.sdk:capture-runtime`.
+- [x] P4.04 Set the coordinate to `com.gettugboat.sdk:capture-runtime`.
 - [x] P4.05 Configure the pinned NDK version.
 - [x] P4.06 Connect Gradle to CMake.
 - [x] P4.07 Compile the core for `arm64-v8a`.
@@ -728,7 +729,7 @@ device privacy rows and performance gates pass. See
 - [ ] P9.02 Generate artifact checksums.
 - [ ] P9.03 Generate release notes.
 - [ ] P9.04 Create `capture-runtime-v0.1.0`.
-- [ ] P9.05 Publish `com.tugboat.sdk:capture-runtime:0.1.0`.
+- [ ] P9.05 Publish `com.gettugboat.sdk:capture-runtime:0.1.0`.
 - [ ] P9.06 Update the Flutter dependency.
 - [ ] P9.07 Bump Flutter to `0.9.0`.
 - [ ] P9.08 Update `tugboat_dio` if required.

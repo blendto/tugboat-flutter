@@ -15,7 +15,7 @@ The Tugboat CLI is maintained separately.
 | Path | Product |
 | --- | --- |
 | `core/image-processing` | Portable C++ CPU core (C ABI) |
-| `platforms/android` | `com.tugboat.sdk:capture-runtime` AAR |
+| `platforms/android` | `com.gettugboat.sdk:capture-runtime` AAR |
 | `platforms/apple` | Apple runtime (`TugboatCaptureRuntime` 0.1.0, unpublished) |
 | `sdks/flutter/packages/tugboat` | Flutter adapter / plugin ([pub.dev](https://pub.dev/packages/tugboat)) |
 | `sdks/flutter/packages/tugboat_dio` | Dio network evidence ([pub.dev](https://pub.dev/packages/tugboat_dio)) |
@@ -63,9 +63,10 @@ bash tool/ci/build-android-runtime.sh
 bash tool/ci/run-flutter-tests.sh
 ```
 
-Native Android apps still consume the AAR from untracked `.local-maven/` after
-`bash tool/ci/build-android-runtime.sh`. The Flutter plugin no longer needs
-that artifact; it compiles `platforms/android/capture-runtime` from source.
+Native Android apps consume the AAR from untracked `.local-maven/` after
+`bash tool/ci/build-android-runtime.sh`, or from GitHub Packages after a
+`capture-runtime-v*` tag. The Flutter plugin compiles
+`platforms/android/capture-runtime` from source in the monorepo.
 
 ## Development
 

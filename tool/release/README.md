@@ -1,26 +1,27 @@
-# Unpublished Android experimental artifacts
+# Android runtime release notes
 
-Public publication is **blocked**. Device privacy rows and Phase 7 performance
-gates have not passed. Do not:
+`com.gettugboat.sdk:capture-runtime` publishes from GitHub Actions on tag
+`capture-runtime-v<version>`. See [process.md](../../docs/releases/process.md).
 
-- tag `capture-runtime-v0.1.0` or `flutter-v0.9.0`
-- publish `com.tugboat.sdk:capture-runtime` to Maven Central
-- publish `package:tugboat` `0.9.0` to pub.dev
-- make `nativeCpuExperimental` the default
+Do not:
+
+- make `nativeCpuExperimental` the default until privacy and performance
+  gates pass
+- point the Flutter plugin at GitHub Packages (pub.dev hosts cannot auth)
+- publish Apple `TugboatCaptureRuntime` `0.1.0`
 
 Keep `TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
 The 0.8.13 Flutter plugin compiles `platforms/android/capture-runtime` from
-source and does not consume `.local-maven`. That local Maven repo is only
-for the standalone native Android sample after
-`bash tool/ci/build-android-runtime.sh`.
+source and does not consume a hosted Maven coordinate. Local Maven
+(`.local-maven` after `bash tool/ci/build-android-runtime.sh`) is only
+for the standalone native Android sample.
 
-When gates pass, follow [process.md](../../docs/releases/process.md).
-
-To checksum a local AAR (not a release artifact):
+To checksum a local AAR (not a signed Central artifact):
 
 ```sh
 bash tool/ci/build-android-runtime.sh
-sha256sum .local-maven/com/tugboat/sdk/capture-runtime/0.1.0/*.aar
+version="$(bash tool/ci/android-runtime-version.sh)"
+shasum -a 256 ".local-maven/com/gettugboat/sdk/capture-runtime/${version}"/*.aar
 ```
 
 Do not commit `.local-maven/` or treat those hashes as the signed release.

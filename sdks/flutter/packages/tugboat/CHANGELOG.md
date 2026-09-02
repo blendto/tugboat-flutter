@@ -5,7 +5,7 @@ Patch release after published `0.8.12`.
 ### Fixed
 
 - The Android plugin compiles `capture-runtime` from monorepo sources instead
-  of requiring unpublished Maven `com.tugboat.sdk:capture-runtime:0.1.0`.
+  of requiring unpublished Maven `com.gettugboat.sdk:capture-runtime:0.1.0`.
 - The iOS plugin no longer depends on unpublished CocoaPod
   `TugboatCaptureRuntime` and keeps a deployment target of iOS 12. Native
   capture remains runtime-gated to iOS 15.

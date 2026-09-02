@@ -59,7 +59,8 @@ gates, canaries) are not listed below.
 ## Current compatibility
 
 - package version: `0.8.13` (`0.8.x` patch after published `0.8.12`);
-- native runtime: `capture-runtime` `0.1.0` compiled from monorepo sources (unpublished);
+- native runtime: `capture-runtime` `0.1.0` (GitHub Packages on
+  `capture-runtime-v*`; Flutter still compiles from monorepo sources);
 - planned first native-capable adapter: Flutter `0.9.0` after privacy and performance gates;
 - session JSON schema: `10`;
 - fingerprint schema: `6`;

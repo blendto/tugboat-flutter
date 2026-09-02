@@ -27,13 +27,13 @@ extract_pubspec_version() {
   grep -E '^version:' "$file" | head -1 | sed -E 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '[:space:]'
 }
 
-extract_runtime_version() {
-  local file="$1"
-  if [[ ! -f "$file" ]]; then
-    echo ""
+extract_runtime_version_from_text() {
+  local content="$1"
+  if printf '%s\n' "$content" | grep -qE '^VERSION_NAME='; then
+    printf '%s\n' "$content" | grep -E '^VERSION_NAME=' | head -1 | cut -d= -f2- | tr -d '[:space:]'
     return
   fi
-  awk '
+  printf '%s\n' "$content" | awk '
     /artifactId[[:space:]]*=[[:space:]]*"capture-runtime"/ { seen = 1 }
     seen && /version[[:space:]]*=[[:space:]]*"/ {
       if (match($0, /"[0-9][^"]*"/)) {
@@ -41,7 +41,33 @@ extract_runtime_version() {
         exit
       }
     }
-  ' "$file"
+  '
+}
+
+extract_runtime_version() {
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    echo ""
+    return
+  fi
+  extract_runtime_version_from_text "$(cat "$file")"
+}
+
+extract_runtime_version_at() {
+  local sha="$1"
+  if git cat-file -e "${sha}:platforms/android/gradle.properties" 2>/dev/null; then
+    local from_props
+    from_props="$(extract_runtime_version_from_text "$(git show "${sha}:platforms/android/gradle.properties")")"
+    if [[ -n "$from_props" ]]; then
+      printf '%s\n' "$from_props"
+      return
+    fi
+  fi
+  if git cat-file -e "${sha}:platforms/android/capture-runtime/build.gradle.kts" 2>/dev/null; then
+    extract_runtime_version_from_text "$(git show "${sha}:platforms/android/capture-runtime/build.gradle.kts")"
+  else
+    echo ""
+  fi
 }
 
 pubspec_in_git() {
@@ -56,6 +82,7 @@ pubspec_in_git() {
 }
 
 runtime_gradle="platforms/android/capture-runtime/build.gradle.kts"
+runtime_props="platforms/android/gradle.properties"
 apple_podspec="TugboatCaptureRuntime.podspec"
 compat_file="docs/releases/compatibility.md"
 head_pubspec="sdks/flutter/packages/tugboat/pubspec.yaml"
@@ -199,20 +226,16 @@ else
 fi
 
 if [[ "$needs_runtime_bump" -eq 1 ]]; then
-  head_runtime="$(extract_runtime_version "$runtime_gradle")"
+  head_runtime="$(extract_runtime_version "$runtime_props")"
   if [[ -z "$head_runtime" ]]; then
-    echo "::error::Could not read capture-runtime version from $runtime_gradle"
+    head_runtime="$(extract_runtime_version "$runtime_gradle")"
+  fi
+  if [[ -z "$head_runtime" ]]; then
+    echo "::error::Could not read capture-runtime version from $runtime_props"
     exit 1
   fi
-  if git cat-file -e "${BASE_SHA}:${runtime_gradle}" 2>/dev/null; then
-    base_file="$(mktemp)"
-    git show "${BASE_SHA}:${runtime_gradle}" >"$base_file"
-    base_runtime="$(extract_runtime_version "$base_file")"
-    rm -f "$base_file"
-    if [[ -z "$base_runtime" ]]; then
-      echo "::error::Could not read capture-runtime version from base $runtime_gradle"
-      exit 1
-    fi
+  base_runtime="$(extract_runtime_version_at "$BASE_SHA")"
+  if [[ -n "$base_runtime" ]]; then
     echo "Base runtime version: $base_runtime"
     echo "PR runtime version:   $head_runtime"
     require_greater_version "capture-runtime" "$base_runtime" "$head_runtime"
