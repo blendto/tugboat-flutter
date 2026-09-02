@@ -1,6 +1,17 @@
 ## 0.8.17
 
-Depend on CocoaPods `TugboatCaptureRuntime:0.1.1`.
+### Fixed
+
+- Reject blank iOS engine-surface captures and retry with explicit hierarchy
+  capture before falling back to Flutter capture.
+- Resolve the live `FlutterView` without selecting an unrelated controller
+  view.
+
+### Changed
+
+- Raise the default degraded capture scale from `0.67` to `0.80` to retain
+  more screenshot detail when the capture budget is degraded.
+- Depend on CocoaPods `TugboatCaptureRuntime` `0.1.1`.
 
 ## 0.8.16
 
