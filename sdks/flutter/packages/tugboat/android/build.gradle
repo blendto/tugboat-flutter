@@ -1,5 +1,5 @@
 group = "com.tugboat.flutter"
-version = "0.8.16"
+version = "0.8.17"
 
 buildscript {
     ext.kotlin_version = "2.2.20"

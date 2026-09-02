@@ -1,3 +1,7 @@
+## 0.8.17
+
+Depend on CocoaPods `TugboatCaptureRuntime:0.1.1`.
+
 ## 0.8.16
 
 ### Fixed
