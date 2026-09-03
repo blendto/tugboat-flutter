@@ -205,4 +205,22 @@ class TugboatCollectorConfig {
       maxPendingFrames: maxPendingFrames,
     );
   }
+
+  /// Returns a copy pointed at [baseUrl] (Device Farm local override).
+  TugboatCollectorConfig withBaseUrl(String baseUrl) {
+    return TugboatCollectorConfig(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      userId: userId,
+      appInfo: appInfo,
+      deviceInfo: deviceInfo,
+      ipInfo: ipInfo,
+      locale: locale,
+      eventBatchSize: eventBatchSize,
+      eventFlushInterval: eventFlushInterval,
+      maxPendingBatches: maxPendingBatches,
+      maxPendingEvents: maxPendingEvents,
+      maxPendingFrames: maxPendingFrames,
+    );
+  }
 }
