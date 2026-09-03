@@ -1,4 +1,4 @@
-## Unreleased
+## 0.10.0
 
 ### Added
 
@@ -11,6 +11,11 @@
 - `TugboatReplayConfig.withDeviceFarmOverrides()`: additive merge of launch
   capabilities plus a release-guarded, local-only collector URL override
   (`resolveTugboatCollectorBaseUrl`). Hosts collapse to a single call.
+
+### Fixed
+
+- Coalesce the back-to-back `hidden` + `paused` lifecycle callbacks into a
+  single `app_backgrounded` event instead of emitting one per state.
 
 ## 0.9.0
 
