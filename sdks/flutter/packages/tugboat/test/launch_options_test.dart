@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/launch_options.dart';
@@ -193,5 +194,37 @@ void main() {
           logLaunch: false,
         );
     expect(release.collector?.baseUrl, 'https://prod.example');
+  });
+
+  test('fromPlatform decodes the native launch payload', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const channel = MethodChannel('tugboat/launch');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          expect(call.method, 'getLaunchOptions');
+          return <String, Object?>{
+            'emitSceneInventory': '1',
+            'acceptActionContext': true,
+            'collectorBaseUrl': 'http://127.0.0.1:3000',
+          };
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final options = await TugboatLaunchOptions.fromPlatform();
+    expect(options.emitSceneInventory, isTrue);
+    expect(options.acceptActionContext, isTrue);
+    expect(options.captureRequested, isTrue);
+    expect(options.collectorBaseUrl, 'http://127.0.0.1:3000');
+  });
+
+  test('fromPlatform falls back to off without a native plugin', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const options = TugboatLaunchOptions();
+    expect(options.captureRequested, isFalse);
+    final fromEmpty = TugboatLaunchOptions.fromMap(const {});
+    expect(fromEmpty.captureRequested, isFalse);
   });
 }

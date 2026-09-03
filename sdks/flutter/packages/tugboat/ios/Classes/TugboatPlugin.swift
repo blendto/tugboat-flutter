@@ -29,15 +29,33 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
       }
       let environment = ProcessInfo.processInfo.environment
       result([
-        "emitSceneInventory":
-          environment["TUGBOAT_EMIT_SCENE_INVENTORY"] ?? NSNull(),
-        "acceptActionContext":
-          environment["TUGBOAT_ACCEPT_ACTION_CONTEXT"] ?? NSNull(),
-        "collectorBaseUrl":
-          environment["TUGBOAT_COLLECTOR_BASE_URL"] ?? NSNull(),
+        "emitSceneInventory": Self.launchValue(
+          environment,
+          key: "TUGBOAT_EMIT_SCENE_INVENTORY"
+        ),
+        "acceptActionContext": Self.launchValue(
+          environment,
+          key: "TUGBOAT_ACCEPT_ACTION_CONTEXT"
+        ),
+        "collectorBaseUrl": Self.launchValue(
+          environment,
+          key: "TUGBOAT_COLLECTOR_BASE_URL"
+        ),
       ])
     }
     NativeCaptureHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
+  }
+
+  /// Reads one raw launch value. Absent keys encode as `NSNull` (Dart reads
+  /// both as off); `TugboatLaunchParsers` owns all normalization.
+  private static func launchValue(
+    _ environment: [String: String],
+    key: String
+  ) -> Any {
+    if let value = environment[key] {
+      return value
+    }
+    return NSNull()
   }
 
   func getCapabilities() throws -> NativeCaptureCapabilities {
