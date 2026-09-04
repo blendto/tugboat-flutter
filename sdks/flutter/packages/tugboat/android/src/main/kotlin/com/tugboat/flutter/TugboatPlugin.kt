@@ -1,6 +1,7 @@
 package com.tugboat.flutter
 
 import android.app.Activity
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -18,6 +19,15 @@ import io.flutter.embedding.android.FlutterView
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
+import io.flutter.plugin.common.MethodChannel
+
+/// Device Farm launch extras read from the host `Intent`.
+///
+/// Natives pass raw strings through; all `1`/`true`/`yes` normalization and
+/// local-URL validation lives in `TugboatLaunchParsers` on the Dart side.
+const val TUGBOAT_EMIT_SCENE_INVENTORY = "tugboat_emit_scene_inventory"
+const val TUGBOAT_ACCEPT_ACTION_CONTEXT = "tugboat_accept_action_context"
+const val TUGBOAT_COLLECTOR_BASE_URL = "tugboat_collector_base_url"
 
 class TugboatPlugin :
     FlutterPlugin,
@@ -26,13 +36,25 @@ class TugboatPlugin :
     private var runtime: CaptureRuntime? = null
     private var activity: Activity? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var launchChannel: MethodChannel? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         runtime = CaptureRuntime()
         NativeCaptureHostApi.setUp(binding.binaryMessenger, this)
+        launchChannel = MethodChannel(binding.binaryMessenger, "tugboat/launch").also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                if (call.method == "getLaunchOptions") {
+                    result.success(launchOptions())
+                } else {
+                    result.notImplemented()
+                }
+            }
+        }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        launchChannel?.setMethodCallHandler(null)
+        launchChannel = null
         NativeCaptureHostApi.setUp(binding.binaryMessenger, null)
         runtime?.dispose()
         runtime = null
@@ -91,6 +113,22 @@ class TugboatPlugin :
         val root = activity?.window?.decorView?.rootView ?: return null
         return findFlutterView(root)
     }
+
+    private fun launchOptions(): Map<String, Any?> {
+        val intent = activity?.intent
+        val extras = intent?.extras
+        return mapOf(
+            "emitSceneInventory" to rawExtra(extras, TUGBOAT_EMIT_SCENE_INVENTORY),
+            "acceptActionContext" to rawExtra(extras, TUGBOAT_ACCEPT_ACTION_CONTEXT),
+            "collectorBaseUrl" to (
+                intent?.getStringExtra(TUGBOAT_COLLECTOR_BASE_URL)
+                    ?: rawExtra(extras, TUGBOAT_COLLECTOR_BASE_URL)
+                ),
+        )
+    }
+
+    private fun rawExtra(extras: Bundle?, name: String): String? =
+        extras?.get(name)?.toString()
 
     private fun findFlutterView(view: View): View? {
         if (view is FlutterView) return view

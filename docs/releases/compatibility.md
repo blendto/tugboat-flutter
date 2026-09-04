@@ -2,6 +2,7 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
+| Flutter `tugboat` | 0.10.0 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; Device Farm launch inputs owned by the SDK; `hidden` + `paused` coalesce into one `app_backgrounded`. |
 | Flutter `tugboat` | 0.9.0 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; mode-free capture API with additive evidence capabilities. |
 | Flutter `tugboat` | 0.8.17 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; blank iOS engine captures retry with explicit hierarchy coverage. |
 | Apple `TugboatCaptureRuntime` | 0.1.1 | Rejects transparent and near-white captures and validates explicit view-hierarchy capture before encoding. |

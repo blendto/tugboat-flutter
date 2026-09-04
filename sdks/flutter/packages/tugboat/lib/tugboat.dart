@@ -58,6 +58,12 @@ export 'src/replay_config.dart'
         TugboatViewportSemanticPolicy,
         TugboatScreenshotBudgetConfig,
         resolveViewportSemanticPolicy;
+export 'src/launch_options.dart'
+    show
+        TugboatLaunchOptions,
+        TugboatLaunchParsers,
+        TugboatDeviceFarmConfig,
+        resolveTugboatCollectorBaseUrl;
 export 'src/screenshot_capture_backend.dart'
     show TugboatScreenshotCaptureBackend;
 export 'src/tugboat.dart';

@@ -1,3 +1,22 @@
+## 0.10.0
+
+### Added
+
+- Device Farm launch inputs owned by the SDK: `TugboatLaunchOptions`
+  reads Android Intent extras (`tugboat_emit_scene_inventory`,
+  `tugboat_accept_action_context`, `tugboat_collector_base_url`) and iOS
+  process environment (`TUGBOAT_EMIT_SCENE_INVENTORY`,
+  `TUGBOAT_ACCEPT_ACTION_CONTEXT`, `TUGBOAT_COLLECTOR_BASE_URL`) through the
+  `tugboat/launch` plugin channel, so host apps need no native code.
+- `TugboatReplayConfig.withDeviceFarmOverrides()`: additive merge of launch
+  capabilities plus a release-guarded, local-only collector URL override
+  (`resolveTugboatCollectorBaseUrl`). Hosts collapse to a single call.
+
+### Fixed
+
+- Coalesce the back-to-back `hidden` + `paused` lifecycle callbacks into a
+  single `app_backgrounded` event instead of emitting one per state.
+
 ## 0.9.0
 
 ### Changed

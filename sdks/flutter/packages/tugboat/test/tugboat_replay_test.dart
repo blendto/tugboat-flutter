@@ -183,6 +183,39 @@ void main() {
     );
   });
 
+  testWidgets('hidden plus paused emits a single app_backgrounded', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        home: const SizedBox.expand(),
+      ),
+    );
+    await tester.pump();
+
+    final session = TugboatReplay.controller!.session!;
+    final baseline = session.events
+        .where((event) => event.type == 'app_backgrounded')
+        .length;
+    // Flutter delivers hidden + paused back-to-back on every background
+    // transition; both map to app_backgrounded and must coalesce.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+
+    expect(
+      session.events.where((event) => event.type == 'app_backgrounded'),
+      hasLength(baseline + 1),
+    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+  });
+
   testWidgets('captures initial screenshot and tap interaction anchors', (
     tester,
   ) async {

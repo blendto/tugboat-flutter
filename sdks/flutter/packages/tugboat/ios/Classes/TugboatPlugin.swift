@@ -6,6 +6,7 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
   private var engineRuntime: CaptureRuntime?
   private var hierarchyRuntime: CaptureRuntime?
   private weak var registrar: FlutterPluginRegistrar?
+  private var launchChannel: FlutterMethodChannel?
   private let callbackQueue = DispatchQueue.main
   private let stateLock = NSLock()
   private var disposed = false
@@ -14,7 +15,47 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
     let instance = TugboatPlugin()
     instance.registrar = registrar
     instance.engineRuntime = CaptureRuntime()
+    // Device Farm launch inputs from the runner's process environment.
+    // Raw strings pass through; Dart-side `TugboatLaunchParsers` normalizes.
+    let launchChannel = FlutterMethodChannel(
+      name: "tugboat/launch",
+      binaryMessenger: registrar.messenger()
+    )
+    instance.launchChannel = launchChannel
+    launchChannel.setMethodCallHandler { call, result in
+      guard call.method == "getLaunchOptions" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let environment = ProcessInfo.processInfo.environment
+      result([
+        "emitSceneInventory": Self.launchValue(
+          environment,
+          key: "TUGBOAT_EMIT_SCENE_INVENTORY"
+        ),
+        "acceptActionContext": Self.launchValue(
+          environment,
+          key: "TUGBOAT_ACCEPT_ACTION_CONTEXT"
+        ),
+        "collectorBaseUrl": Self.launchValue(
+          environment,
+          key: "TUGBOAT_COLLECTOR_BASE_URL"
+        ),
+      ])
+    }
     NativeCaptureHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
+  }
+
+  /// Reads one raw launch value. Absent keys encode as `NSNull` (Dart reads
+  /// both as off); `TugboatLaunchParsers` owns all normalization.
+  private static func launchValue(
+    _ environment: [String: String],
+    key: String
+  ) -> Any {
+    if let value = environment[key] {
+      return value
+    }
+    return NSNull()
   }
 
   func getCapabilities() throws -> NativeCaptureCapabilities {

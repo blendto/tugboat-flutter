@@ -1090,6 +1090,8 @@ class TugboatReplayController extends ChangeNotifier {
   bool _skipCapture = false;
   bool _captureLifecycleActive = true;
   int _captureLifecycleEpoch = 0;
+  AppLifecycleState? _lastLifecycleState;
+  String? _lastLifecycleEventType;
   int _routeEpoch = 0;
   final Map<String, _RouteCaptureWork> _activeRouteCaptures =
       <String, _RouteCaptureWork>{};
@@ -1655,6 +1657,8 @@ class TugboatReplayController extends ChangeNotifier {
     _clearReleasedInteractions(reason: InteractionRejectionReason.sessionEnd);
     _captureLifecycleActive = true;
     _captureLifecycleEpoch++;
+    _lastLifecycleState = null;
+    _lastLifecycleEventType = null;
     _endSessionFuture = null;
     _clock
       ..reset()
@@ -5151,6 +5155,17 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   void recordAppLifecycleState(AppLifecycleState state) {
+    final eventType = _appLifecycleEventType(state);
+    // Flutter emits hidden + paused back-to-back on every background
+    // transition (inactive -> hidden -> paused). Both map to
+    // app_backgrounded, so without dedup each background produces two
+    // identical events at the same atMs (see pmkit.raw_events). Drop exact
+    // repeats and consecutive same-type events; a new event is only emitted
+    // on an effective transition (e.g. backgrounded -> foregrounded ->
+    // backgrounded still emits twice, correctly).
+    final isDuplicate =
+        state == _lastLifecycleState ||
+        eventType == _lastLifecycleEventType;
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
@@ -5186,11 +5201,17 @@ class TugboatReplayController extends ChangeNotifier {
       case AppLifecycleState.inactive:
         break;
     }
+    _lastLifecycleState = state;
+    if (isDuplicate) {
+      _lastLifecycleEventType = eventType;
+      return;
+    }
+    _lastLifecycleEventType = eventType;
     _addEvent(
       TugboatEvent(
         id: _nextId('event'),
         atMs: atMs,
-        type: _appLifecycleEventType(state),
+        type: eventType,
         data: {'state': state.name},
       ),
     );
