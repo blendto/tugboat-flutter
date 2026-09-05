@@ -26,6 +26,8 @@ Consumers (Context Graph) match evidence within the same schema version.
 (see the controller's "structural anchor resolver"); carries the fingerprint
 into the event stream.
 
-**Mask coordinates** (ADR 0006) — decision that visible text is never part of
-structural identity; identity comes from structure, not arbitrary visible
-content.
+**Mask coordinates** (ADR 0006) — normalized CaptureBoundary mask rects sent to
+native capture, mapped with privacy-expanding integer conversion (see
+`docs/architecture/native-capture-contracts.md`). Visible text is not
+structural identity — that rule is in
+`docs/design/capture-and-fingerprint.md`.

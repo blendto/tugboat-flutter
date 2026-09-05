@@ -2,20 +2,25 @@
 
 Status: current · Last verified: 2026-09-05
 
-**Mask-before-encode** — the privacy ordering rule (`docs/privacy/pipeline.md`):
-screenshots are masked **before** any encoding/compression. The mask owner is
-the masked screenshot capturer inside `TugboatReplayController`; encoded JPEG
-bytes that leave the app are already masked.
+**Mask-before-encode** — the privacy ordering rule: screenshots are masked
+**before** any encoding/compression. The default RepaintBoundary path applies
+mask fills in the Dart encode isolate after UI-isolate RGBA readback (see
+`docs/design/capture-and-fingerprint.md`). The native CPU path applies masks
+in native/C++ before JPEG (`docs/privacy/pipeline.md`). Encoded JPEG bytes
+that leave the app are already masked.
 
-**Default mask** — `allTextAndMedia`: all visible text and media are masked in
-every screenshot. This default is always on; capabilities never weaken it.
+**Default mask** — `allTextAndMedia`: all visible text and media are masked
+in every screenshot by default. Hosts can select a narrower mask policy;
+evidence capabilities never change the mask (see
+`docs/design/capture-and-fingerprint.md`).
 
 **Raw pixels never enter Dart** — the native capture boundary: screenshots
 produced by native backends stay in native code (C++/platform) through
 processing; Dart receives only encoded, already-masked images.
 
-**Privacy device rows** — the per-device privacy facts (mask coverage, rows
-exposed to privacy review) that gate experimental capture backends; see
+**Privacy device rows** — internal lab gates (per-device privacy sign-off) for
+experimental native capture; not a public shipping claim (see
+`docs/publishing.md`). They are not specified in
 `docs/architecture/native-capture-contracts.md`.
 
 **Privacy boundary** — the authoritative contract in

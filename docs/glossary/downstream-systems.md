@@ -6,17 +6,14 @@ This repo produces evidence; these consumers own everything after it leaves
 the device. Their internals are deliberately out of scope here — this repo's
 docs describe only the contracts on the boundary.
 
-**Collector** — receives session evidence from the sink hub (HTTP, and a
-WebSocket path for exploration runs). Wire behavior:
-`docs/integration/collector.md`.
+**Collector** — standalone HTTP sink that receives session evidence from the
+sink hub. Wire behavior: `docs/integration/collector.md`. Local exploration
+runs use a separate WebSocket destination, not the collector.
 
-**Context Graph** — the service that ingests runs/sessions, builds Session
-Atlas (screens, control labels, flows), and enriches production sessions.
-Consumes this repo's fingerprints, routes, and masked screenshots. Its
-identity matching works within one `fingerprintSchemaVersion`; cross-build
-remapping is its job, not this repo's.
+**Context Graph** — downstream consumer of this repo's evidence (fingerprints,
+routes, masked screenshots). Ingestion, enrichment, and identity remapping
+across builds are its responsibility, not this repo's. See
+`docs/design/capture-and-fingerprint.md` for the boundary contract.
 
-**Session Atlas** — Context Graph's knowledge base built from exploration
-runs recorded with this SDK. Focused, complete exploration runs produce
-better Atlas corpora (routes, stable fingerprints, visible bounds, clear
-outcomes) — the SDK's capture quality directly gates Atlas quality.
+**Session Atlas** — downstream knowledge base built from exploration runs;
+this repo does not specify Atlas internals or matching behavior.

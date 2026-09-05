@@ -14,6 +14,6 @@ repo's docs. Read only the file you need.
 | [`packaging-and-distribution.md`](packaging-and-distribution.md) | AAR, CocoaPods, pub packages, versioning, pins |
 | [`downstream-systems.md`](downstream-systems.md) | Collector, Context Graph, Atlas — who consumes the evidence |
 
-Canonical deep sources: `docs/architecture/native-capture-contracts.md`
-(authoritative contracts), `docs/design/capture-and-fingerprint.md`
-(implementation audit), `docs/README.md` (current compatibility).
+Canonical deep sources: `docs/design/capture-and-fingerprint.md`
+(identity and Dart pipeline), `docs/architecture/native-capture-contracts.md`
+(native CPU contracts), `docs/releases/compatibility.md` (current compatibility).

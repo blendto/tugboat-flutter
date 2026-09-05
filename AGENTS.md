@@ -21,16 +21,20 @@ A mobile monorepo (Dart pub workspace + Melos 7), not a single package:
 - `tool/ci` — host scripts for tests, builds, pins, API dumps, release checks.
 - `docs/` — public contracts; `docs/publishing.md` rules what belongs there.
   Working notes (plans, lab gates, canaries) are not product docs.
-  `docs/architecture/native-capture-contracts.md` is authoritative for
-  identity, capture cadence, privacy, fallback, and sink behavior.
+  `docs/design/capture-and-fingerprint.md` is authoritative for identity,
+  the Dart capture pipeline, and fingerprint schema. Native CPU privacy,
+  coverage, fallback, diagnostics, and sink behavior are in
+  `docs/architecture/native-capture-contracts.md`.
 
 ## Why the contracts look this way
 
 - State and target identity are deterministic within one build + fingerprint
   schema version. **Cross-build stability is not promised** — consumers
   namespace by build metadata and `fingerprintSchemaVersion`.
-- Screenshots are masked **before encoding** (`allTextAndMedia` default);
-  raw pixels never enter Dart.
+- Screenshots are masked **before encoding** (`allTextAndMedia` default).
+  On the default RepaintBoundary path, RGBA readback and mask-fill run in
+  Dart (UI-isolate readback, encode-isolate fill). On native CPU capture,
+  raw pixels never cross into Dart before masking.
 - Locale is evidence, never identity.
 - Capture or sink failures must never interrupt the host app; disabled
   lifecycle returns the host child unchanged.
@@ -44,9 +48,10 @@ Unfamiliar terms are defined in `docs/glossary/INDEX.md`.
 
 - **dart + melos from the repo root, not per-package commands.** One shared
   `pubspec.lock` (native pub workspace). `dart pub get` first.
-- `dart run melos run format | analyze | test` — full workspace.
-  Package-scoped: `melos run test:sdk` / `test:dio`.
-- Lint gate: `melos run complexity` — `dallow` rejects cyclomatic complexity
+- `dart run melos run format`, `dart run melos run analyze`, and
+  `dart run melos run test` — full workspace. Package-scoped:
+  `dart run melos run test:sdk` / `dart run melos run test:dio`.
+- Lint gate: `dart run melos run complexity` — `dallow` rejects cyclomatic complexity
   above 10. Do not weaken it; refactor or suppress narrowly.
 - C++ core tests: `bash tool/ci/run-image-core-tests.sh`.
 - Android AAR build: `bash tool/ci/build-android-runtime.sh` (NDK

@@ -12,7 +12,7 @@ plugin depends on the Maven artifact — it never compiles `platforms/android`
 from source. Local builds land in untracked `.local-maven/`.
 
 **`TugboatCaptureRuntime` (Apple)** — CocoaPods pod (also installable via
-SwiftPM), iOS 15+, currently `0.1.0` on CocoaPods trunk.
+SwiftPM), iOS 15+, currently `0.1.1` on CocoaPods trunk.
 
 **`tugboat` / `tugboat_dio` (pub.dev)** — the published Flutter packages.
 Public SDK imports use `package:tugboat/tugboat.dart`. The C++ core is never
