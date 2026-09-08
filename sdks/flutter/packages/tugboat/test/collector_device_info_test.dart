@@ -79,6 +79,7 @@ void main() {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.sessionStart.wireValue,
       sessionId: 'sess_123',
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: config,
     );

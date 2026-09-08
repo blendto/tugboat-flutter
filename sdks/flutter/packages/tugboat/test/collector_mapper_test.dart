@@ -351,6 +351,7 @@ void main() {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.sessionStart.wireValue,
       sessionId: 'sess_123',
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
       activeLocale: const TugboatLocaleInfo(
@@ -362,6 +363,7 @@ void main() {
 
     expect(mapped['sessionId'], 'sess_123');
     expect(mapped['eventType'], 'session_start');
+    expect(mapped['atMs'], 0);
     expect(mapped['userId'], 'user_1');
     expect((mapped['appInfo'] as Map).containsKey('name'), isFalse);
     expect((mapped['appInfo'] as Map).containsKey('installationId'), isFalse);
@@ -385,6 +387,7 @@ void main() {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.traitsUpdated.wireValue,
       sessionId: 'sess_123',
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
       userId: 'user_1',
@@ -404,6 +407,7 @@ void main() {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.traitsUpdated.wireValue,
       sessionId: 'sess_123',
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
       userId: 'user_runtime',
@@ -413,6 +417,7 @@ void main() {
     expect(mapped, {
       'sessionId': 'sess_123',
       'eventType': 'traits_updated',
+      'atMs': 0,
       'triggeredAt': '2026-06-19T00:00:00.000Z',
       'userId': 'user_runtime',
       'traits': {'plan': 'pro'},
@@ -423,6 +428,7 @@ void main() {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.traitsUpdated.wireValue,
       sessionId: 'sess_123',
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
       userId: null,
@@ -437,6 +443,7 @@ void main() {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.sessionEnd.wireValue,
       sessionId: 'sess_123',
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
       userId: 'user_1',
@@ -446,6 +453,7 @@ void main() {
     expect(mapped, {
       'sessionId': 'sess_123',
       'eventType': 'session_end',
+      'atMs': 0,
       'triggeredAt': '2026-06-19T00:00:00.000Z',
       'userId': 'user_1',
       'traitsId': 'trt_cached',
@@ -456,6 +464,7 @@ void main() {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.sessionEnd.wireValue,
       sessionId: 'sess_123',
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
       userId: 'user_1',
@@ -466,6 +475,7 @@ void main() {
     expect(mapped, {
       'sessionId': 'sess_123',
       'eventType': 'session_end',
+      'atMs': 0,
       'triggeredAt': '2026-06-19T00:00:00.000Z',
       'userId': 'user_1',
       'traits': {'plan': 'pro'},
@@ -476,6 +486,7 @@ void main() {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.sessionIdentify.wireValue,
       sessionId: 'sess_123',
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
       userId: 'user_2',
@@ -485,6 +496,7 @@ void main() {
     expect(mapped, {
       'sessionId': 'sess_123',
       'eventType': 'session_identify',
+      'atMs': 0,
       'triggeredAt': '2026-06-19T00:00:00.000Z',
       'userId': 'user_2',
       'traits': {'plan': 'pro'},
@@ -495,6 +507,7 @@ void main() {
     final mapped = mapTugboatSessionLifecycleToCollectorSession(
       eventType: TugboatCollectorSessionEventType.userChanged.wireValue,
       sessionId: 'sess_123',
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
       triggeredAt: DateTime.utc(2026, 6, 19),
       config: collectorConfig,
       userId: null,
@@ -504,10 +517,25 @@ void main() {
     expect(mapped, {
       'sessionId': 'sess_123',
       'eventType': 'user_changed',
+      'atMs': 0,
       'triggeredAt': '2026-06-19T00:00:00.000Z',
       'userId': null,
       'traits': {'plan': 'pro'},
     });
+  });
+
+  test('session map stamps atMs from triggeredAt minus session start', () {
+    final mapped = mapTugboatSessionLifecycleToCollectorSession(
+      eventType: TugboatCollectorSessionEventType.sessionEnd.wireValue,
+      sessionId: 'sess_123',
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      triggeredAt: DateTime.utc(2026, 6, 19, 0, 0, 1, 250),
+      config: collectorConfig,
+      userId: 'user_1',
+    );
+
+    expect(mapped['atMs'], 1250);
+    expect(mapped['triggeredAt'], '2026-06-19T00:00:01.250Z');
   });
 
   test('event map includes optional traitsId', () {
