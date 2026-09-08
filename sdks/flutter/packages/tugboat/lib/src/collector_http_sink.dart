@@ -404,6 +404,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final body = mapTugboatSessionLifecycleToCollectorSession(
       eventType: eventType,
       sessionId: sessionId,
+      sessionStartedAt: session.startedAt,
       triggeredAt: triggeredAt,
       config: _config,
       userId: _userId,

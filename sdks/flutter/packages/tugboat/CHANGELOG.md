@@ -1,3 +1,10 @@
+## 0.10.1
+
+### Added
+
+- Include session-relative `atMs` on `POST /v1/sessions` payloads, matching
+  event batches.
+
 ## 0.10.0
 
 ### Added
