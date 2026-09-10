@@ -2,6 +2,22 @@
 
 ### Added
 
+- Map SDK `network_call` events onto the collector payload allowlist, including
+  HTTP 4xx/5xx responses with `outcome: response`.
+- Opt-in, redacted collector HTTP proof logging for Device Farm diagnostics
+  (`--dart-define=TUGBOAT_HTTP_PROOF=true` in debug builds).
+
+## 0.10.1
+
+### Added
+
+- Include session-relative `atMs` on `POST /v1/sessions` payloads, matching
+  event batches.
+
+## 0.10.0
+
+### Added
+
 - Device Farm launch inputs owned by the SDK: `TugboatLaunchOptions`
   reads Android Intent extras (`tugboat_emit_scene_inventory`,
   `tugboat_accept_action_context`, `tugboat_collector_base_url`) and iOS
@@ -11,21 +27,11 @@
 - `TugboatReplayConfig.withDeviceFarmOverrides()`: additive merge of launch
   capabilities plus a release-guarded, local-only collector URL override
   (`resolveTugboatCollectorBaseUrl`). Hosts collapse to a single call.
-- Opt-in, redacted collector HTTP proof logging for Device Farm diagnostics.
 
 ### Fixed
 
-- Emit Dio HTTP 4xx/5xx responses as `network_call` events with
-  `outcome: response`.
 - Coalesce the back-to-back `hidden` + `paused` lifecycle callbacks into a
   single `app_backgrounded` event instead of emitting one per state.
-
-## 0.10.1
-
-### Added
-
-- Include session-relative `atMs` on `POST /v1/sessions` payloads, matching
-  event batches.
 
 ## 0.9.0
 

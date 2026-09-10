@@ -11,6 +11,45 @@ import 'collector_mapper.dart';
 import 'models.dart';
 import 'sdk_version.dart';
 
+const _httpProofEnabled =
+    kDebugMode && bool.fromEnvironment('TUGBOAT_HTTP_PROOF');
+
+const _collectorHttpProofPaths = {
+  '/v1/sessions',
+  '/v1/events/batch',
+  '/v1/frames',
+};
+
+final _safeHttpProofId = RegExp(r'^[A-Za-z0-9_-]{1,128}$');
+
+/// Redacted Device Farm HTTP proof line. Never includes origins, queries,
+/// payloads, or API keys.
+@visibleForTesting
+String formatCollectorHttpProofLine({
+  required String path,
+  String? localSessionId,
+  String? returnedSessionId,
+  int? statusCode,
+  required int durationMs,
+  Object? error,
+}) {
+  final safePath = _collectorHttpProofPaths.contains(path) ? path : 'redacted';
+  final line =
+      'TUGBOAT_HTTP method=POST path=$safePath '
+      'localSessionId=${_safeHttpProofIdValue(localSessionId)} '
+      'returnedSessionId=${_safeHttpProofIdValue(returnedSessionId)} '
+      'status=${statusCode ?? 'null'} '
+      'durationMs=$durationMs';
+  if (error == null) return line;
+  return '$line exception=${error.runtimeType}';
+}
+
+String _safeHttpProofIdValue(String? value) => value == null
+    ? 'null'
+    : _safeHttpProofId.hasMatch(value)
+    ? value
+    : 'redacted';
+
 /// Best-effort HTTP sink for the standalone `tugboat-collector` service.
 class CollectorHttpSink implements TugboatCaptureSink {
   CollectorHttpSink({
@@ -99,8 +138,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_disposed) return;
     _sessionEpoch += 1;
     _session = session;
-    _client.localSessionId = session.id;
-    _client.returnedSessionId = null;
     // Clear any prior collector-issued id so a new session cannot route to the old one.
     // Traits / traitsId persist across sessions for the process lifetime.
     _collectorSessionId = null;
@@ -416,10 +453,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
     );
 
     try {
-      final response = await _client.post(
-        _baseUri.resolve('/v1/sessions'),
-        headers: _CollectorHttpClient._jsonHeaders,
-        body: jsonEncode(body),
+      final response = await _tracedResponse(
+        '/v1/sessions',
+        () => _client.post(
+          _baseUri.resolve('/v1/sessions'),
+          headers: _CollectorHttpClient._jsonHeaders,
+          body: jsonEncode(body),
+        ),
       );
 
       final result = _classifyResponse(response.statusCode);
@@ -468,13 +508,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
   ) {
     if (_isSessionStart(eventType)) {
       final serverId = decoded['sessionId'] as String?;
-      if (_CollectorHttpClient._httpProof) {
-        _client.returnedSessionId = serverId;
-        debugPrint(
-          'TUGBOAT_HTTP localSessionId=${_CollectorHttpClient._safeId(localSessionId)} '
-          'returnedSessionId=${_CollectorHttpClient._safeId(serverId)}',
-        );
-      }
       _collectorSessionId = serverId != null && serverId.isNotEmpty
           ? serverId
           : localSessionId;
@@ -541,10 +574,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
     }
 
     try {
-      final response = await _client.post(
-        _baseUri.resolve('/v1/events/batch'),
-        headers: _CollectorHttpClient._jsonHeaders,
-        body: jsonEncode({'events': events}),
+      final response = await _tracedResponse(
+        '/v1/events/batch',
+        () => _client.post(
+          _baseUri.resolve('/v1/events/batch'),
+          headers: _CollectorHttpClient._jsonHeaders,
+          body: jsonEncode({'events': events}),
+        ),
       );
 
       return _classifyResponse(response.statusCode);
@@ -593,8 +629,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final request = _frameUploadRequest(sessionId, uploads);
 
     try {
-      final streamed = await _client.send(request);
-      final response = await http.Response.fromStream(streamed);
+      final response = await _tracedResponse(
+        '/v1/frames',
+        () async => http.Response.fromStream(await _client.send(request)),
+      );
       if (!_isCurrentEpoch(epoch)) return;
       _recordFrameUploadResponse(response, uploads);
     } catch (_) {
@@ -674,6 +712,48 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   bool _shouldRetry(int statusCode) =>
       statusCode == 408 || statusCode == 429 || statusCode >= 500;
+
+  Future<http.Response> _tracedResponse(
+    String path,
+    Future<http.Response> Function() send,
+  ) async {
+    if (!_httpProofEnabled) return send();
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await send();
+      _logHttpProof(
+        path: path,
+        statusCode: response.statusCode,
+        durationMs: stopwatch.elapsedMilliseconds,
+      );
+      return response;
+    } catch (error) {
+      _logHttpProof(
+        path: path,
+        durationMs: stopwatch.elapsedMilliseconds,
+        error: error,
+      );
+      rethrow;
+    }
+  }
+
+  void _logHttpProof({
+    required String path,
+    int? statusCode,
+    required int durationMs,
+    Object? error,
+  }) {
+    debugPrint(
+      formatCollectorHttpProofLine(
+        path: path,
+        localSessionId: _session?.id,
+        returnedSessionId: _collectorSessionId,
+        statusCode: statusCode,
+        durationMs: durationMs,
+        error: error,
+      ),
+    );
+  }
 }
 
 enum _SendResult { accepted, retry, drop }
@@ -698,58 +778,16 @@ class _CollectorHttpClient extends http.BaseClient {
        };
 
   static const _jsonHeaders = {'Content-Type': 'application/json'};
-  static const _httpProof =
-      kDebugMode && bool.fromEnvironment('TUGBOAT_HTTP_PROOF');
-
-  String? localSessionId;
-  String? returnedSessionId;
-
-  static String _safeId(String? value) => value == null
-      ? 'null'
-      : RegExp(r'^[A-Za-z0-9_-]{1,128}$').hasMatch(value)
-      ? value
-      : 'redacted';
 
   final http.Client _inner;
   final Map<String, String> _defaultHeaders;
 
   @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
     for (final entry in _defaultHeaders.entries) {
       request.headers.putIfAbsent(entry.key, () => entry.value);
     }
-    if (!_httpProof) return _inner.send(request);
-
-    // Only fixed collector paths: never expose origins, queries or payloads.
-    final path =
-        const {
-          '/v1/sessions',
-          '/v1/events/batch',
-          '/v1/frames',
-        }.contains(request.url.path)
-        ? request.url.path
-        : 'redacted';
-    final method = request.method == 'POST' ? 'POST' : 'redacted';
-    final context =
-        'method=$method path=$path '
-        'localSessionId=${_safeId(localSessionId)} '
-        'returnedSessionId=${_safeId(returnedSessionId)}';
-    final stopwatch = Stopwatch()..start();
-    try {
-      final response = await _inner.send(request);
-      debugPrint(
-        'TUGBOAT_HTTP $context status=${response.statusCode} '
-        'durationMs=${stopwatch.elapsedMilliseconds}',
-      );
-      return response;
-    } catch (error) {
-      debugPrint(
-        'TUGBOAT_HTTP $context status=null '
-        'durationMs=${stopwatch.elapsedMilliseconds} '
-        'exception=${error.runtimeType}',
-      );
-      rethrow;
-    }
+    return _inner.send(request);
   }
 
   @override
