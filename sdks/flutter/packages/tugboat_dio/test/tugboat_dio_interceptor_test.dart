@@ -186,6 +186,7 @@ void main() {
       throw DioException(
         requestOptions: options,
         type: DioExceptionType.cancel,
+        response: Response<dynamic>(requestOptions: options, statusCode: 499),
       );
     });
     TugboatDioInterceptor.install(dio, routeResolver: (_) => '/long');
@@ -200,6 +201,7 @@ void main() {
       (e) => e.type == 'network_call',
     );
     expect(event.data['outcome'], 'cancelled');
+    expect(event.data.containsKey('statusCode'), isFalse);
   });
 
   testWidgets('auth retry emits one final logical event', (tester) async {

@@ -1,3 +1,10 @@
+## 0.10.1
+
+### Fixed
+
+- Cancelled Dio calls no longer forward an HTTP status code. Cancelled is not
+  an HTTP response.
+
 ## 0.10.0
 
 ### Changed

@@ -64,6 +64,21 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
     );
   }
 
+  if (event.type == 'network_call') {
+    return _collectorGenericEnvelope(
+      event: event,
+      triggeredAt: triggeredAt,
+      collectorConfig: collectorConfig,
+      sessionId: sessionId,
+      userId: userId,
+      traitsId: traitsId,
+      payload: _networkCallCollectorPayload(
+        event.data,
+        stream: event.stream.wireName,
+      ),
+    );
+  }
+
   final payload = <String, Object?>{
     ...event.data,
     if (event.relatedEventId != null) 'relatedEventId': event.relatedEventId,
@@ -72,6 +87,26 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
     if (event.actionId != null) 'actionId': event.actionId,
   };
 
+  return _collectorGenericEnvelope(
+    event: event,
+    triggeredAt: triggeredAt,
+    collectorConfig: collectorConfig,
+    sessionId: sessionId,
+    userId: userId,
+    traitsId: traitsId,
+    payload: payload,
+  );
+}
+
+Map<String, Object?> _collectorGenericEnvelope({
+  required TugboatEvent event,
+  required DateTime triggeredAt,
+  required TugboatCollectorConfig collectorConfig,
+  String? sessionId,
+  String? userId,
+  String? traitsId,
+  required Map<String, Object?> payload,
+}) {
   return {
     'id': event.id,
     'atMs': event.atMs,
@@ -94,6 +129,30 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
     'payload': payload,
     'build': collectorEventBuildIdentity(collectorConfig),
   };
+}
+
+Map<String, Object?> _networkCallCollectorPayload(
+  Map<String, Object?> data, {
+  required String stream,
+}) {
+  final outcome = data['outcome'];
+  final payload = <String, Object?>{
+    if (data['method'] is String) 'method': data['method'],
+    if (data['route'] is String) 'route': data['route'],
+    if (outcome == 'response' &&
+        data['statusCode'] is int &&
+        (data['statusCode'] as int) >= 100 &&
+        (data['statusCode'] as int) <= 599)
+      'statusCode': data['statusCode'],
+    if (outcome is String &&
+        const {'response', 'network_error', 'cancelled'}.contains(outcome))
+      'outcome': outcome,
+    if (data['durationMs'] is int) 'durationMs': data['durationMs'],
+    if (data['attemptCount'] is int && (data['attemptCount'] as int) > 0)
+      'attemptCount': data['attemptCount'],
+    'stream': stream,
+  };
+  return payload;
 }
 
 /// Shared flat collector envelope for schema-v2 production events.

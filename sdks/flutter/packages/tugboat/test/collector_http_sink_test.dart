@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/collector_http_sink.dart';
 import 'package:tugboat/src/models.dart';
@@ -200,6 +203,66 @@ void main() {
       data: {'index': index},
     );
   }
+
+  test('HTTP proof lines redact secrets and unknown paths', () {
+    expect(
+      formatCollectorHttpProofLine(
+        path: '/v1/sessions',
+        localSessionId: 'session-local',
+        returnedSessionId: 'sess_server',
+        statusCode: 422,
+        durationMs: 12,
+      ),
+      'TUGBOAT_HTTP method=POST path=/v1/sessions '
+      'localSessionId=session-local returnedSessionId=sess_server '
+      'status=422 durationMs=12',
+    );
+    expect(
+      formatCollectorHttpProofLine(
+        path: 'https://evil.example/secret?token=pmk_test',
+        localSessionId: 'http://127.0.0.1/session',
+        returnedSessionId: 'secret/response-body',
+        durationMs: 4,
+        error: StateError('secret-exception-url-token'),
+      ),
+      'TUGBOAT_HTTP method=POST path=redacted '
+      'localSessionId=redacted returnedSessionId=redacted '
+      'status=null durationMs=4 exception=StateError',
+    );
+  });
+
+  test(
+    'HTTP proof is opt-in and excludes rejection and exception secrets',
+    () async {
+      final messages = <String>[];
+      final original = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) messages.add(message);
+      };
+      var fail = false;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        client: MockClient((request) async {
+          if (fail) throw StateError('secret-exception-url-token');
+          return http.Response('secret-response-body', 422);
+        }),
+      );
+      try {
+        sink.startSession(createSession());
+        await sink.flush();
+        fail = true;
+        await sink.flush();
+        final output = messages.join('\n');
+        expect(output, isEmpty);
+        expect(output, isNot(contains('secret')));
+        expect(output, isNot(contains('pmk_test')));
+        expect(output, isNot(contains('127.0.0.1')));
+      } finally {
+        sink.dispose();
+        debugPrint = original;
+      }
+    },
+  );
 
   void expectCollectorHeaders(Map<String, String?> headers) {
     expect(headers['X-Platform'], collectorConfig.deviceInfo.platform);
@@ -1163,31 +1226,28 @@ void main() {
     },
   );
 
-  test(
-    'session_end repeats cached traitsId and runtime userId',
-    () async {
-      final sink = CollectorHttpSink(
-        config: configForServer(),
-        initialTraitsId: 'trt_cached',
-        initialUserId: 'user_end',
-      );
-      sink.startSession(createSession());
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+  test('session_end repeats cached traitsId and runtime userId', () async {
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      initialTraitsId: 'trt_cached',
+      initialUserId: 'user_end',
+    );
+    sink.startSession(createSession());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(sessionPosts.first['eventType'], 'session_start');
-      expect(sessionPosts.first['traitsId'], 'trt_cached');
-      expect(sessionPosts.first['userId'], 'user_end');
-      expect(sessionPosts.first.containsKey('traits'), isFalse);
+    expect(sessionPosts.first['eventType'], 'session_start');
+    expect(sessionPosts.first['traitsId'], 'trt_cached');
+    expect(sessionPosts.first['userId'], 'user_end');
+    expect(sessionPosts.first.containsKey('traits'), isFalse);
 
-      await sink.endSession();
-      final endPost = sessionPosts.last;
-      expect(endPost['eventType'], 'session_end');
-      expect(endPost['userId'], 'user_end');
-      expect(endPost['traitsId'], 'trt_cached');
-      expect(endPost.containsKey('traits'), isFalse);
-      sink.dispose();
-    },
-  );
+    await sink.endSession();
+    final endPost = sessionPosts.last;
+    expect(endPost['eventType'], 'session_end');
+    expect(endPost['userId'], 'user_end');
+    expect(endPost['traitsId'], 'trt_cached');
+    expect(endPost.containsKey('traits'), isFalse);
+    sink.dispose();
+  });
 
   test('setUserId posts user_changed with the current traits bag', () async {
     sessionResponseTraitsId = 'trt_user';
