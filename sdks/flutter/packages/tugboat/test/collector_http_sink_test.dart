@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/collector_http_sink.dart';
 import 'package:tugboat/src/models.dart';
@@ -200,6 +203,50 @@ void main() {
       data: {'index': index},
     );
   }
+
+  test(
+    'HTTP proof is opt-in and excludes rejection and exception secrets',
+    () async {
+      final messages = <String>[];
+      final original = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) messages.add(message);
+      };
+      var fail = false;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        client: MockClient((request) async {
+          if (fail) throw StateError('secret-exception-url-token');
+          return http.Response('secret-response-body', 422);
+        }),
+      );
+      try {
+        sink.startSession(createSession());
+        await sink.flush();
+        fail = true;
+        await sink.flush();
+        final output = messages.join('\n');
+        if (kDebugMode && const bool.fromEnvironment('TUGBOAT_HTTP_PROOF')) {
+          expect(
+            output,
+            contains('TUGBOAT_HTTP method=POST path=/v1/sessions'),
+          );
+          expect(output, contains('status=422'));
+          expect(output, contains('durationMs='));
+          expect(output, contains('localSessionId=session-local'));
+          expect(output, contains('exception=StateError'));
+        } else {
+          expect(output, isEmpty);
+        }
+        expect(output, isNot(contains('secret')));
+        expect(output, isNot(contains('pmk_test')));
+        expect(output, isNot(contains('127.0.0.1')));
+      } finally {
+        sink.dispose();
+        debugPrint = original;
+      }
+    },
+  );
 
   void expectCollectorHeaders(Map<String, String?> headers) {
     expect(headers['X-Platform'], collectorConfig.deviceInfo.platform);

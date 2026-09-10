@@ -99,6 +99,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_disposed) return;
     _sessionEpoch += 1;
     _session = session;
+    _client.localSessionId = session.id;
+    _client.returnedSessionId = null;
     // Clear any prior collector-issued id so a new session cannot route to the old one.
     // Traits / traitsId persist across sessions for the process lifetime.
     _collectorSessionId = null;
@@ -465,6 +467,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
   ) {
     if (_isSessionStart(eventType)) {
       final serverId = decoded['sessionId'] as String?;
+      if (_CollectorHttpClient._httpProof) {
+        _client.returnedSessionId = serverId;
+        debugPrint(
+          'TUGBOAT_HTTP localSessionId=${_CollectorHttpClient._safeId(localSessionId)} '
+          'returnedSessionId=${_CollectorHttpClient._safeId(serverId)}',
+        );
+      }
       _collectorSessionId = serverId != null && serverId.isNotEmpty
           ? serverId
           : localSessionId;
@@ -688,16 +697,58 @@ class _CollectorHttpClient extends http.BaseClient {
        };
 
   static const _jsonHeaders = {'Content-Type': 'application/json'};
+  static const _httpProof =
+      kDebugMode && bool.fromEnvironment('TUGBOAT_HTTP_PROOF');
+
+  String? localSessionId;
+  String? returnedSessionId;
+
+  static String _safeId(String? value) => value == null
+      ? 'null'
+      : RegExp(r'^[A-Za-z0-9_-]{1,128}$').hasMatch(value)
+      ? value
+      : 'redacted';
 
   final http.Client _inner;
   final Map<String, String> _defaultHeaders;
 
   @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) {
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
     for (final entry in _defaultHeaders.entries) {
       request.headers.putIfAbsent(entry.key, () => entry.value);
     }
-    return _inner.send(request);
+    if (!_httpProof) return _inner.send(request);
+
+    // Only fixed collector paths: never expose origins, queries or payloads.
+    final path =
+        const {
+          '/v1/sessions',
+          '/v1/events/batch',
+          '/v1/frames',
+        }.contains(request.url.path)
+        ? request.url.path
+        : 'redacted';
+    final method = request.method == 'POST' ? 'POST' : 'redacted';
+    final context =
+        'method=$method path=$path '
+        'localSessionId=${_safeId(localSessionId)} '
+        'returnedSessionId=${_safeId(returnedSessionId)}';
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await _inner.send(request);
+      debugPrint(
+        'TUGBOAT_HTTP $context status=${response.statusCode} '
+        'durationMs=${stopwatch.elapsedMilliseconds}',
+      );
+      return response;
+    } catch (error) {
+      debugPrint(
+        'TUGBOAT_HTTP $context status=null '
+        'durationMs=${stopwatch.elapsedMilliseconds} '
+        'exception=${error.runtimeType}',
+      );
+      rethrow;
+    }
   }
 
   @override

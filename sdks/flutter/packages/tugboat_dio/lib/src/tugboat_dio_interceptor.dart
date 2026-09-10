@@ -82,7 +82,6 @@ class TugboatDioInterceptor extends Interceptor {
         if (err.type == DioExceptionType.cancel) {
           call.fail(
             failure: TugboatNetworkFailure.cancelled,
-            statusCode: statusCode,
             attemptCount: attempts,
           );
         } else if (err.response != null) {

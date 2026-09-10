@@ -310,6 +310,42 @@ void main() {
     expect((mapped['payload'] as Map)['reason'], 'lifecycle');
   });
 
+  for (final statusCode in [400, 404, 500]) {
+    test('maps HTTP $statusCode as a response network_call', () {
+      final mapped = mapTugboatEventToCollectorEvent(
+        event: TugboatEvent(
+          id: 'event-network-$statusCode',
+          atMs: 100,
+          type: 'network_call',
+          stream: TugboatEventStream.evidence,
+          data: {
+            'method': 'GET',
+            'route': '/api/items',
+            'statusCode': statusCode,
+            'outcome': 'response',
+            'durationMs': 42,
+            'attemptCount': 2,
+            'errorResponseBody': 'must not cross the wire',
+            'headers': {'authorization': 'secret'},
+          },
+        ),
+        sessionStartedAt: DateTime.utc(2026, 6, 19),
+        collectorConfig: collectorConfig,
+      );
+
+      expect(mapped['eventType'], 'network_call');
+      expect(mapped['payload'], {
+        'method': 'GET',
+        'route': '/api/items',
+        'statusCode': statusCode,
+        'outcome': 'response',
+        'durationMs': 42,
+        'attemptCount': 2,
+        'stream': 'evidence',
+      });
+    });
+  }
+
   test('marks evidence as a non-enrichment candidate', () {
     final sessionStartedAt = DateTime.utc(2026, 6, 19);
     final evidence = mapTugboatEventToCollectorEvent(
