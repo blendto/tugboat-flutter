@@ -211,6 +211,7 @@ not uploaded before this handshake completes.
 
 Session payloads may include:
 
+- `atMs` — milliseconds since session start, plus absolute UTC `triggeredAt`;
 - `userId` — current runtime user on every session lifecycle event, including
   `session_end`. After start, `null` is an explicit identity-clear on
   `user_changed` / `session_identify` and the current (possibly anonymous)

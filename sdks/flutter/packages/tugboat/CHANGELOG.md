@@ -1,4 +1,4 @@
-## 0.10.0
+## 0.10.2
 
 ### Added
 
@@ -11,11 +11,21 @@
 - `TugboatReplayConfig.withDeviceFarmOverrides()`: additive merge of launch
   capabilities plus a release-guarded, local-only collector URL override
   (`resolveTugboatCollectorBaseUrl`). Hosts collapse to a single call.
+- Opt-in, redacted collector HTTP proof logging for Device Farm diagnostics.
 
 ### Fixed
 
+- Emit Dio HTTP 4xx/5xx responses as `network_call` events with
+  `outcome: response`.
 - Coalesce the back-to-back `hidden` + `paused` lifecycle callbacks into a
   single `app_backgrounded` event instead of emitting one per state.
+
+## 0.10.1
+
+### Added
+
+- Include session-relative `atMs` on `POST /v1/sessions` payloads, matching
+  event batches.
 
 ## 0.9.0
 
