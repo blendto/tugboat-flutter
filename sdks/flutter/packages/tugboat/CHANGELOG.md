@@ -1,3 +1,17 @@
+## 0.10.3
+
+### Added
+
+- Non-secret automation run correlation id on the launch plumbing:
+  `TugboatLaunchOptions.automationRunId` from the Android Intent extra
+  `tugboat_automation_run_id`, the iOS process environment
+  `TUGBOAT_AUTOMATION_RUN_ID`, and the `tugboat/launch` map key
+  `automationRunId`. Blank values decode to null and the id is echoed in
+  `toJson` (hence the `TUGBOAT_LAUNCH` debug line) only when set, so
+  automation logs correlate to one run. It MUST NOT carry Firebase custom
+  tokens, credentials, or determine entitlements/authentication; the SDK is
+  not coupled to Firebase or RevenueCat.
+
 ## 0.10.2
 
 ### Added

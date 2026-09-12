@@ -57,6 +57,36 @@ void main() {
     expect(TugboatLaunchOptions.fromMap(const {}).captureRequested, isFalse);
   });
 
+  test('fromMap trims the automation run id and drops blanks', () {
+    expect(
+      TugboatLaunchOptions.fromMap(const {
+        'automationRunId': '  run-123  ',
+      }).automationRunId,
+      'run-123',
+    );
+    expect(
+      TugboatLaunchOptions.fromMap(const {
+        'automationRunId': '   ',
+      }).automationRunId,
+      isNull,
+    );
+    expect(const TugboatLaunchOptions().automationRunId, isNull);
+  });
+
+  test('toJson carries the automation run id only when set', () {
+    expect(
+      const TugboatLaunchOptions(
+        automationRunId: 'run-123',
+      ).toJson()['automationRunId'],
+      'run-123',
+    );
+    expect(const TugboatLaunchOptions().toJson(), {
+      'captureRequested': false,
+      'emitSceneInventory': false,
+      'acceptActionContext': false,
+    });
+  });
+
   test('parseLocalCollectorUrl allows only local http hosts', () {
     expect(
       TugboatLaunchParsers.parseLocalCollectorUrl('http://127.0.0.1:3000'),
@@ -206,6 +236,7 @@ void main() {
             'emitSceneInventory': '1',
             'acceptActionContext': true,
             'collectorBaseUrl': 'http://127.0.0.1:3000',
+            'automationRunId': 'run-123',
           };
         });
     addTearDown(() {
@@ -218,6 +249,7 @@ void main() {
     expect(options.acceptActionContext, isTrue);
     expect(options.captureRequested, isTrue);
     expect(options.collectorBaseUrl, 'http://127.0.0.1:3000');
+    expect(options.automationRunId, 'run-123');
   });
 
   test('fromPlatform falls back to off without a native plugin', () async {

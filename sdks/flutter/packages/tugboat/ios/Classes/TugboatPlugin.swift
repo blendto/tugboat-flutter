@@ -41,6 +41,10 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
           environment,
           key: "TUGBOAT_COLLECTOR_BASE_URL"
         ),
+        "automationRunId": Self.launchValue(
+          environment,
+          key: "TUGBOAT_AUTOMATION_RUN_ID"
+        ),
       ])
     }
     NativeCaptureHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
