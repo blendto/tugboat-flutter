@@ -28,6 +28,7 @@ import io.flutter.plugin.common.MethodChannel
 const val TUGBOAT_EMIT_SCENE_INVENTORY = "tugboat_emit_scene_inventory"
 const val TUGBOAT_ACCEPT_ACTION_CONTEXT = "tugboat_accept_action_context"
 const val TUGBOAT_COLLECTOR_BASE_URL = "tugboat_collector_base_url"
+const val TUGBOAT_AUTOMATION_RUN_ID = "tugboat_automation_run_id"
 
 class TugboatPlugin :
     FlutterPlugin,
@@ -123,6 +124,10 @@ class TugboatPlugin :
             "collectorBaseUrl" to (
                 intent?.getStringExtra(TUGBOAT_COLLECTOR_BASE_URL)
                     ?: rawExtra(extras, TUGBOAT_COLLECTOR_BASE_URL)
+                ),
+            "automationRunId" to (
+                intent?.getStringExtra(TUGBOAT_AUTOMATION_RUN_ID)
+                    ?: rawExtra(extras, TUGBOAT_AUTOMATION_RUN_ID)
                 ),
         )
     }

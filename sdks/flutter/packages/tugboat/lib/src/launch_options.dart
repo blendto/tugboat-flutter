@@ -9,10 +9,12 @@ import 'replay_config.dart';
 /// no native code of their own:
 ///
 /// * Android: `Intent` extras `tugboat_emit_scene_inventory`,
-///   `tugboat_accept_action_context`, `tugboat_collector_base_url`
+///   `tugboat_accept_action_context`, `tugboat_collector_base_url`,
+///   `tugboat_automation_run_id`
 ///   (e.g. `adb shell am start ... -e tugboat_emit_scene_inventory 1`).
 /// * iOS: process environment `TUGBOAT_EMIT_SCENE_INVENTORY`,
-///   `TUGBOAT_ACCEPT_ACTION_CONTEXT`, `TUGBOAT_COLLECTOR_BASE_URL`
+///   `TUGBOAT_ACCEPT_ACTION_CONTEXT`, `TUGBOAT_COLLECTOR_BASE_URL`,
+///   `TUGBOAT_AUTOMATION_RUN_ID`
 ///   (set by the XCUITest/Device Farm runner).
 ///
 /// Values `1`, `true`, and `yes` (case-insensitive) enable a capability.
@@ -20,11 +22,18 @@ import 'replay_config.dart';
 /// accepted only for local `http` hosts; see
 /// [TugboatLaunchParsers.parseLocalCollectorUrl]. Release builds always use
 /// the configured production collector; the override never replaces it.
+///
+/// The automation run id is non-secret correlation metadata only (e.g. tying
+/// a `TUGBOAT_LAUNCH` log line to one automation run). It MUST NOT carry
+/// Firebase custom tokens, credentials, or anything that determines
+/// entitlements or authentication, and the SDK never interprets it beyond
+/// echoing it back. The SDK is not coupled to Firebase or RevenueCat.
 class TugboatLaunchOptions {
   const TugboatLaunchOptions({
     this.emitSceneInventory = false,
     this.acceptActionContext = false,
     this.collectorBaseUrl,
+    this.automationRunId,
   });
 
   static const MethodChannel channel = MethodChannel('tugboat/launch');
@@ -32,6 +41,7 @@ class TugboatLaunchOptions {
   static const String keyEmitSceneInventory = 'emitSceneInventory';
   static const String keyAcceptActionContext = 'acceptActionContext';
   static const String keyCollectorBaseUrl = 'collectorBaseUrl';
+  static const String keyAutomationRunId = 'automationRunId';
 
   final bool emitSceneInventory;
   final bool acceptActionContext;
@@ -40,6 +50,15 @@ class TugboatLaunchOptions {
   ///
   /// Validate with [TugboatLaunchParsers.parseLocalCollectorUrl] before use.
   final String? collectorBaseUrl;
+
+  /// Non-secret automation run correlation id from the launch environment,
+  /// if any. Blank values decode to null.
+  ///
+  /// This is correlation metadata only: it is echoed in `toJson` (and hence
+  /// the `TUGBOAT_LAUNCH` debug line) so automation logs can be tied to one
+  /// run. It MUST NOT carry Firebase custom tokens, credentials, or
+  /// determine entitlements/authentication.
+  final String? automationRunId;
 
   bool get captureRequested => emitSceneInventory || acceptActionContext;
 
@@ -63,6 +82,7 @@ class TugboatLaunchOptions {
 
   factory TugboatLaunchOptions.fromMap(Map<String, Object?> values) {
     final rawBaseUrl = values[keyCollectorBaseUrl] as String?;
+    final rawRunId = values[keyAutomationRunId] as String?;
     return TugboatLaunchOptions(
       emitSceneInventory: TugboatLaunchParsers.parseBool(
         values[keyEmitSceneInventory],
@@ -73,6 +93,9 @@ class TugboatLaunchOptions {
       collectorBaseUrl: rawBaseUrl?.trim().isEmpty == true
           ? null
           : rawBaseUrl?.trim(),
+      automationRunId: rawRunId?.trim().isEmpty == true
+          ? null
+          : rawRunId?.trim(),
     );
   }
 
@@ -80,6 +103,7 @@ class TugboatLaunchOptions {
     'captureRequested': captureRequested,
     'emitSceneInventory': emitSceneInventory,
     'acceptActionContext': acceptActionContext,
+    if (automationRunId != null) 'automationRunId': automationRunId,
   };
 }
 

@@ -2,6 +2,7 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
+| Flutter `tugboat` | 0.10.3 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; non-secret automation run correlation id on the launch plumbing. |
 | Flutter `tugboat` | 0.10.2 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; HTTP error `network_call` mapping; opt-in collector HTTP proof logging. |
 | Flutter `tugboat` | 0.10.1 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; session lifecycle posts include `atMs`. |
 | Flutter `tugboat` | 0.10.0 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; Device Farm launch inputs owned by the SDK; `hidden` + `paused` coalesce into one `app_backgrounded`. |
