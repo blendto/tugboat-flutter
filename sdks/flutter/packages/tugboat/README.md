@@ -129,7 +129,9 @@ release.
 
 Schema-v2 collector events (`interaction`, `route_change`) are flat facts-only
 records: no nested top-level `payload` on route changes, no empty
-`targetAnchor`, and no inferred interaction `result`. Interaction v2 uses a
+`targetAnchor`, and no inferred interaction `result`. Canonical `interaction`
+events include a bounded `targetAnchor` (including `canonicalPath`) when tap or
+scroll resolution succeeds. Interaction v2 uses a
 nested `payload` for gesture facts (`tap`/`swipe`/`scroll`/`pan`/`zoom_in`/`zoom_out`/`cancelled`) and
 no longer emits separate `scroll_start`, `scroll_end`, or `pointer_cancel`
 events.

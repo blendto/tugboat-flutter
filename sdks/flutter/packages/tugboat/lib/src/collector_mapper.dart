@@ -27,6 +27,7 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
 
   if (event.type == 'interaction') {
     final data = event.data;
+    final targetAnchor = _collectorInteractionTargetAnchor(event.targetAnchor);
     return _collectorFlatEnvelope(
       event: event,
       triggeredAt: triggeredAt,
@@ -47,6 +48,7 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
               data['targetResolutionFailureReason'],
         if (data['gesture'] != null) 'gesture': data['gesture'],
         if (data['payload'] != null) 'payload': data['payload'],
+        if (targetAnchor != null) 'targetAnchor': targetAnchor,
       },
     );
   }
@@ -129,6 +131,30 @@ Map<String, Object?> _collectorGenericEnvelope({
     'payload': payload,
     'build': collectorEventBuildIdentity(collectorConfig),
   };
+}
+
+Map<String, Object?>? _collectorInteractionTargetAnchor(
+  TugboatTargetAnchor? anchor,
+) {
+  if (anchor == null) return null;
+  final payload = <String, Object?>{
+    if (anchor.fingerprint != null && anchor.fingerprint!.isNotEmpty)
+      'fingerprint': anchor.fingerprint,
+    if (anchor.canonicalPath != null && anchor.canonicalPath!.isNotEmpty)
+      'canonicalPath': anchor.canonicalPath,
+    if (anchor.widgetType != null) 'widgetType': anchor.widgetType,
+    if (anchor.role != null) 'role': anchor.role,
+    if (anchor.fingerprintConfidence != null &&
+        anchor.fingerprintConfidence!.isNotEmpty)
+      'fingerprintConfidence': anchor.fingerprintConfidence,
+    if (anchor.tagFingerprint != null && anchor.tagFingerprint!.isNotEmpty)
+      'tagFingerprint': anchor.tagFingerprint,
+    if (anchor.relativePosition != null)
+      'relativePosition': anchor.relativePosition,
+    if (anchor.enabled != null) 'enabled': anchor.enabled,
+    if (anchor.actions.isNotEmpty) 'actions': anchor.actions,
+  };
+  return payload.isEmpty ? null : payload;
 }
 
 Map<String, Object?> _networkCallCollectorPayload(

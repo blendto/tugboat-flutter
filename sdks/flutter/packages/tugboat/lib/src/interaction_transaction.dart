@@ -215,6 +215,20 @@ String? _interactionFingerprint(InteractionTransaction tx) =>
     ? tx.scrollTargetAnchor?.fingerprint ?? tx.targetAnchor?.fingerprint
     : tx.targetAnchor?.fingerprint;
 
+/// Resolved target for [TugboatEvent.targetAnchor] on canonical interactions.
+TugboatTargetAnchor? interactionPublicationTargetAnchor(
+  InteractionTransaction tx,
+) {
+  final anchor = tx.gesture == InteractionGesture.scroll
+      ? tx.scrollTargetAnchor ?? tx.targetAnchor
+      : tx.targetAnchor;
+  if (anchor == null) return null;
+  final hasIdentity =
+      (anchor.fingerprint?.isNotEmpty ?? false) ||
+      (anchor.canonicalPath?.isNotEmpty ?? false);
+  return hasIdentity ? anchor : null;
+}
+
 void _writeTapResolutionPayload(
   Map<String, Object?> envelope,
   InteractionTransaction tx,

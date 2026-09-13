@@ -14,7 +14,6 @@ void expectInteractionV2Contract(TugboatEvent event) {
   expect(event.type, 'interaction');
   expect(event.stream, TugboatEventStream.semantic);
   expect(event.result, isNull);
-  expect(event.targetAnchor, isNull);
   final data = event.data;
   _expectInteractionEnvelope(data);
   _expectInteractionPayload(data);
@@ -118,6 +117,42 @@ void main() {
   });
 
   group('InteractionTransaction origin freeze (U1)', () {
+    test('publication target anchor matches scroll vs tap resolution', () {
+      const path = 'Scaffold#0/FilledButton#0';
+      const tapTarget = TugboatTargetAnchor(
+        fingerprint: 'tap-target',
+        canonicalPath: path,
+      );
+      const scrollTarget = TugboatTargetAnchor(
+        fingerprint: 'scroll-target',
+        canonicalPath: 'ListView#0',
+      );
+      const origin = InteractionOrigin(
+        interactionId: 'interaction-scroll',
+        route: '/home',
+        routeEpoch: 1,
+        routeInstanceId: 'route-1',
+        navigatorId: 'navigator-1',
+        targetAnchor: tapTarget,
+        captureCoordinate: TugboatCaptureCoordinate.unavailable(
+          unavailableReason: 'boundary_unavailable',
+        ),
+        beforeFrame: null,
+        atMs: 1,
+        startPosition: Offset.zero,
+        pointerGeneration: 1,
+        captureSessionId: 'session-1',
+      );
+
+      final tapTx = InteractionTransaction(origin: origin, pointerId: 1);
+      expect(interactionPublicationTargetAnchor(tapTx), tapTarget);
+
+      final scrollTx = InteractionTransaction(origin: origin, pointerId: 2)
+        ..gesture = InteractionGesture.scroll
+        ..scrollTargetAnchor = scrollTarget;
+      expect(interactionPublicationTargetAnchor(scrollTx), scrollTarget);
+    });
+
     test('explicit origin target supplies the interaction fingerprint', () {
       const origin = InteractionOrigin(
         interactionId: 'interaction-1',
