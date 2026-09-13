@@ -1,3 +1,11 @@
+## 0.10.4
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.4 (canonical `interaction`
+  `targetAnchor` includes `canonicalPath` on collector payloads). The Dio
+  adapter has no runtime behavior change.
+
 ## 0.10.3
 
 ### Changed
