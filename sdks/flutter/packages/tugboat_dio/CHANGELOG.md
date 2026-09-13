@@ -1,3 +1,11 @@
+## 0.10.3
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.3 (non-secret automation run
+  correlation id on the launch plumbing). The Dio adapter has no runtime
+  behavior change.
+
 ## 0.10.1
 
 ### Fixed
