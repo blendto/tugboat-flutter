@@ -1,3 +1,11 @@
+## 0.10.4
+
+### Fixed
+
+- Canonical `interaction` events now attach resolved `targetAnchor` (including
+  `canonicalPath`) on the session record and on collector payloads when identity
+  resolution succeeds.
+
 ## 0.10.3
 
 ### Added

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/collector_mapper.dart';
 import 'package:tugboat/src/models.dart';
@@ -89,6 +90,46 @@ void main() {
     expect(mapped.containsKey('stateAnchor'), isFalse);
     final encoded = utf8.encode(jsonEncode(mapped));
     expect(encoded.length, lessThan(750));
+  });
+
+  test('maps interaction targetAnchor with canonicalPath', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'evt_interaction_anchor',
+        atMs: 100,
+        type: 'interaction',
+        stream: TugboatEventStream.semantic,
+        targetAnchor: const TugboatTargetAnchor(
+          fingerprint: 'bef605389f2f5207',
+          canonicalPath: 'Scaffold#0/FilledButton#0',
+          widgetType: 'FilledButton',
+          role: 'button',
+          fingerprintParts: const {'routeKey': '/home'},
+        ),
+        data: const {
+          'interactionSchema': tugboatInteractionSchemaVersion,
+          'route': '/home',
+          'targetFingerprint': 'bef605389f2f5207',
+          'gesture': 'tap',
+          'payload': {
+            'position': {'xNorm': 0.5, 'yNorm': 0.5},
+          },
+        },
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+
+    expect(mapped['targetAnchor'], {
+      'fingerprint': 'bef605389f2f5207',
+      'canonicalPath': 'Scaffold#0/FilledButton#0',
+      'widgetType': 'FilledButton',
+      'role': 'button',
+    });
+    expect(
+      (mapped['targetAnchor'] as Map).containsKey('fingerprintParts'),
+      isFalse,
+    );
   });
 
   test('maps cancelled interactions without payload', () {

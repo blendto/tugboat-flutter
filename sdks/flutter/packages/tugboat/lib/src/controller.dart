@@ -4125,6 +4125,7 @@ class TugboatReplayController extends ChangeNotifier {
         stream: TugboatEventStream.semantic,
         beforeFrame: tx.origin.beforeFrame,
         afterFrame: tx.afterFrame,
+        targetAnchor: interactionPublicationTargetAnchor(tx),
         data: payload,
         locale: tx.origin.locale,
         explorationRunId: tx.origin.explorationRunId,
