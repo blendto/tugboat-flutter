@@ -259,4 +259,27 @@ void main() {
     final fromEmpty = TugboatLaunchOptions.fromMap(const {});
     expect(fromEmpty.captureRequested, isFalse);
   });
+
+  test('fromMap decodes launch-argument-shaped raw strings', () {
+    // iOS launch arguments arrive as raw strings (a bare flag yields
+    // "true"); the environment-vs-argument precedence itself is resolved
+    // natively before this map is built.
+    final options = TugboatLaunchOptions.fromMap(const {
+      'emitSceneInventory': 'true',
+      'acceptActionContext': 'true',
+      'collectorBaseUrl': 'http://127.0.0.1:8787',
+      'automationRunId': 'run-9',
+    });
+    expect(options.emitSceneInventory, isTrue);
+    expect(options.acceptActionContext, isTrue);
+    expect(options.captureRequested, isTrue);
+    expect(options.collectorBaseUrl, 'http://127.0.0.1:8787');
+    expect(options.automationRunId, 'run-9');
+    expect(options.toJson(), {
+      'captureRequested': true,
+      'emitSceneInventory': true,
+      'acceptActionContext': true,
+      'automationRunId': 'run-9',
+    });
+  });
 }

@@ -1,3 +1,18 @@
+## 0.10.5
+
+### Fixed
+
+- Accept the iOS launch inputs from launch arguments as well as the process
+  environment (`--tugboat-emit-scene-inventory[=value]`,
+  `--tugboat-accept-action-context[=value]`,
+  `--tugboat-collector-base-url=<url>`, `--tugboat-automation-run-id=<id>`;
+  a bare flag means true), so iOS automation hosts that can pass launch
+  arguments but not environment (e.g. agent-device `--launch-args`,
+  Appium/XCUITest) can enable capture. The environment wins when both are
+  present. Raw strings still pass through untouched; Dart
+  `TugboatLaunchParsers` owns all normalization. Android behavior is
+  unchanged.
+
 ## 0.10.4
 
 ### Fixed
