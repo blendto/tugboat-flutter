@@ -209,7 +209,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
       );
       return;
     }
-    _pendingFrames.add(_PendingFrameUpload(frameNo: frameNo, bytes: bytes));
+    _pendingFrames.add(
+      _PendingFrameUpload(
+        frameNo: frameNo,
+        bytes: bytes,
+        metadata: frame.toJson(),
+      ),
+    );
     _trimPendingFrames();
     // While a frame upload is retrying, rely on the periodic flush timer.
     if (!_framesNeedRetry) {
@@ -662,6 +668,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
         ),
       );
     }
+    request.fields['frameMetadata'] = jsonEncode(
+      uploads.map((upload) => upload.metadata).toList(),
+    );
     return request;
   }
 
@@ -807,8 +816,13 @@ class _PendingSessionLifecycle {
 }
 
 class _PendingFrameUpload {
-  const _PendingFrameUpload({required this.frameNo, required this.bytes});
+  const _PendingFrameUpload({
+    required this.frameNo,
+    required this.bytes,
+    required this.metadata,
+  });
 
   final int frameNo;
   final Uint8List bytes;
+  final Map<String, Object?> metadata;
 }
