@@ -2,6 +2,7 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
+| Flutter `tugboat` | 0.10.6 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; collector frame uploads include `frameMetadata` for `raw_frames` ingestion. |
 | Flutter `tugboat` | 0.10.5 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; iOS launch inputs also accepted from launch arguments (environment wins). |
 | Flutter `tugboat` | 0.10.4 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; canonical `interaction` events include `targetAnchor.canonicalPath` on collector payloads. |
 | Flutter `tugboat` | 0.10.3 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; non-secret automation run correlation id on the launch plumbing. |
