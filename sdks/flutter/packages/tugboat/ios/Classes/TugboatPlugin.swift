@@ -15,7 +15,8 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
     let instance = TugboatPlugin()
     instance.registrar = registrar
     instance.engineRuntime = CaptureRuntime()
-    // Device Farm launch inputs from the runner's process environment.
+    // Device Farm launch inputs from launch arguments and the runner's
+    // process environment (environment wins when both are present).
     // Raw strings pass through; Dart-side `TugboatLaunchParsers` normalizes.
     let launchChannel = FlutterMethodChannel(
       name: "tugboat/launch",
@@ -28,35 +29,52 @@ public class TugboatPlugin: NSObject, FlutterPlugin, NativeCaptureHostApi {
         return
       }
       let environment = ProcessInfo.processInfo.environment
+      let launchArgs = TugboatLaunchArguments.parse(
+        ProcessInfo.processInfo.arguments
+      )
       result([
-        "emitSceneInventory": Self.launchValue(
+        "emitSceneInventory": Self.launchInput(
           environment,
-          key: "TUGBOAT_EMIT_SCENE_INVENTORY"
+          launchArgs,
+          envKey: "TUGBOAT_EMIT_SCENE_INVENTORY",
+          mapKey: "emitSceneInventory"
         ),
-        "acceptActionContext": Self.launchValue(
+        "acceptActionContext": Self.launchInput(
           environment,
-          key: "TUGBOAT_ACCEPT_ACTION_CONTEXT"
+          launchArgs,
+          envKey: "TUGBOAT_ACCEPT_ACTION_CONTEXT",
+          mapKey: "acceptActionContext"
         ),
-        "collectorBaseUrl": Self.launchValue(
+        "collectorBaseUrl": Self.launchInput(
           environment,
-          key: "TUGBOAT_COLLECTOR_BASE_URL"
+          launchArgs,
+          envKey: "TUGBOAT_COLLECTOR_BASE_URL",
+          mapKey: "collectorBaseUrl"
         ),
-        "automationRunId": Self.launchValue(
+        "automationRunId": Self.launchInput(
           environment,
-          key: "TUGBOAT_AUTOMATION_RUN_ID"
+          launchArgs,
+          envKey: "TUGBOAT_AUTOMATION_RUN_ID",
+          mapKey: "automationRunId"
         ),
       ])
     }
     NativeCaptureHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
   }
 
-  /// Reads one raw launch value. Absent keys encode as `NSNull` (Dart reads
-  /// both as off); `TugboatLaunchParsers` owns all normalization.
-  private static func launchValue(
+  /// Merges one raw launch value. The process environment wins when both
+  /// sources are present; absent keys encode as `NSNull` (Dart reads both
+  /// as off); `TugboatLaunchParsers` owns all normalization.
+  private static func launchInput(
     _ environment: [String: String],
-    key: String
+    _ launchArgs: [String: String],
+    envKey: String,
+    mapKey: String
   ) -> Any {
-    if let value = environment[key] {
+    if let value = environment[envKey] {
+      return value
+    }
+    if let value = launchArgs[mapKey] {
       return value
     }
     return NSNull()

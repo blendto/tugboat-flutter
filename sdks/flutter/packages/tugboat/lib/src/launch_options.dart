@@ -15,7 +15,13 @@ import 'replay_config.dart';
 /// * iOS: process environment `TUGBOAT_EMIT_SCENE_INVENTORY`,
 ///   `TUGBOAT_ACCEPT_ACTION_CONTEXT`, `TUGBOAT_COLLECTOR_BASE_URL`,
 ///   `TUGBOAT_AUTOMATION_RUN_ID`
-///   (set by the XCUITest/Device Farm runner).
+///   (set by the XCUITest/Device Farm runner), or launch arguments
+///   `--tugboat-emit-scene-inventory[=value]`,
+///   `--tugboat-accept-action-context[=value]`,
+///   `--tugboat-collector-base-url=<url>`,
+///   `--tugboat-automation-run-id=<id>`
+///   (e.g. agent-device `--launch-args`; a bare flag means true).
+///   The environment wins when both are present.
 ///
 /// Values `1`, `true`, and `yes` (case-insensitive) enable a capability.
 /// Everything else — including absent — means off. The collector URL is
