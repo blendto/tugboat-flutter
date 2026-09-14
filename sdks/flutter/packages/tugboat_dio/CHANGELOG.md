@@ -1,3 +1,11 @@
+## 0.10.5
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.5 (iOS accepts the launch inputs from
+  launch arguments as well as the process environment). The Dio adapter has no
+  runtime behavior change.
+
 ## 0.10.4
 
 ### Changed
