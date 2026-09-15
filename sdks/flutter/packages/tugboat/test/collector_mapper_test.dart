@@ -352,40 +352,122 @@ void main() {
   });
 
   for (final statusCode in [400, 404, 500]) {
-    test('maps HTTP $statusCode as a response network_call', () {
-      final mapped = mapTugboatEventToCollectorEvent(
-        event: TugboatEvent(
-          id: 'event-network-$statusCode',
-          atMs: 100,
-          type: 'network_call',
-          stream: TugboatEventStream.evidence,
-          data: {
-            'method': 'GET',
-            'route': '/api/items',
-            'statusCode': statusCode,
-            'outcome': 'response',
-            'durationMs': 42,
-            'attemptCount': 2,
-            'errorResponseBody': 'must not cross the wire',
-            'headers': {'authorization': 'secret'},
-          },
-        ),
-        sessionStartedAt: DateTime.utc(2026, 6, 19),
-        collectorConfig: collectorConfig,
-      );
+    test(
+      'maps HTTP $statusCode as a response network_call with error body',
+      () {
+        final mapped = mapTugboatEventToCollectorEvent(
+          event: TugboatEvent(
+            id: 'event-network-$statusCode',
+            atMs: 100,
+            type: 'network_call',
+            stream: TugboatEventStream.evidence,
+            data: {
+              'method': 'GET',
+              'route': '/api/items',
+              'statusCode': statusCode,
+              'outcome': 'response',
+              'durationMs': 42,
+              'attemptCount': 2,
+              'errorResponseBody': const {'message': 'nope'},
+              'headers': {'authorization': 'secret'},
+            },
+          ),
+          sessionStartedAt: DateTime.utc(2026, 6, 19),
+          collectorConfig: collectorConfig,
+        );
 
-      expect(mapped['eventType'], 'network_call');
-      expect(mapped['payload'], {
-        'method': 'GET',
-        'route': '/api/items',
-        'statusCode': statusCode,
-        'outcome': 'response',
-        'durationMs': 42,
-        'attemptCount': 2,
-        'stream': 'evidence',
-      });
-    });
+        expect(mapped['eventType'], 'network_call');
+        expect(mapped['payload'], {
+          'method': 'GET',
+          'route': '/api/items',
+          'statusCode': statusCode,
+          'outcome': 'response',
+          'durationMs': 42,
+          'attemptCount': 2,
+          'errorResponseBody': const {'message': 'nope'},
+          'stream': 'evidence',
+        });
+      },
+    );
   }
+
+  test('drops error body on success network_call', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'event-network-200',
+        atMs: 100,
+        type: 'network_call',
+        stream: TugboatEventStream.evidence,
+        data: const {
+          'method': 'GET',
+          'route': '/api/items',
+          'statusCode': 200,
+          'outcome': 'response',
+          'durationMs': 42,
+          'errorResponseBody': {'message': 'must not cross the wire'},
+        },
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+
+    expect(
+      (mapped['payload'] as Map).containsKey('errorResponseBody'),
+      isFalse,
+    );
+  });
+
+  test('drops error body on transport failure network_call', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'event-network-failure',
+        atMs: 100,
+        type: 'network_call',
+        stream: TugboatEventStream.evidence,
+        data: const {
+          'method': 'GET',
+          'route': '/api/items',
+          'outcome': 'network_error',
+          'durationMs': 42,
+          'errorResponseBody': 'must not cross the wire',
+        },
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+
+    expect(
+      (mapped['payload'] as Map).containsKey('errorResponseBody'),
+      isFalse,
+    );
+  });
+
+  test('drops non-JSON error body on API error network_call', () {
+    final mapped = mapTugboatEventToCollectorEvent(
+      event: TugboatEvent(
+        id: 'event-network-500',
+        atMs: 100,
+        type: 'network_call',
+        stream: TugboatEventStream.evidence,
+        data: {
+          'method': 'GET',
+          'route': '/api/items',
+          'statusCode': 500,
+          'outcome': 'response',
+          'durationMs': 42,
+          // Unserializable host object: never wire-safe.
+          'errorResponseBody': Object(),
+        },
+      ),
+      sessionStartedAt: DateTime.utc(2026, 6, 19),
+      collectorConfig: collectorConfig,
+    );
+
+    expect(
+      (mapped['payload'] as Map).containsKey('errorResponseBody'),
+      isFalse,
+    );
+  });
 
   test('marks evidence as a non-enrichment candidate', () {
     final sessionStartedAt = DateTime.utc(2026, 6, 19);

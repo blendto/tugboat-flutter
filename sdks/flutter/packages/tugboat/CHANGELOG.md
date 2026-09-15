@@ -1,3 +1,12 @@
+## 0.10.7
+
+### Added
+
+- API error `network_call` events (`outcome: response` with a 4xx/5xx status)
+  now carry a bounded `errorResponseBody` on collector payloads, so backend
+  rejections are diagnosable without a device. Successes, transport failures,
+  and cancellations never carry one. Snapshots stay capped at 4 KiB.
+
 ## 0.10.6
 
 ### Added
