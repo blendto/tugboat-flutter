@@ -162,6 +162,12 @@ Map<String, Object?> _networkCallCollectorPayload(
   required String stream,
 }) {
   final outcome = data['outcome'];
+  final isApiError =
+      outcome == 'response' &&
+      data['statusCode'] is int &&
+      (data['statusCode'] as int) >= 400 &&
+      (data['statusCode'] as int) <= 599;
+  final errorBody = data['errorResponseBody'];
   final payload = <String, Object?>{
     if (data['method'] is String) 'method': data['method'],
     if (data['route'] is String) 'route': data['route'],
@@ -176,9 +182,24 @@ Map<String, Object?> _networkCallCollectorPayload(
     if (data['durationMs'] is int) 'durationMs': data['durationMs'],
     if (data['attemptCount'] is int && (data['attemptCount'] as int) > 0)
       'attemptCount': data['attemptCount'],
+    // Error bodies cross the wire only for API error responses
+    // (outcome `response` with a 4xx/5xx status). Successes, transport
+    // failures, and cancellations never carry one.
+    if (isApiError && _isWireErrorBody(errorBody))
+      'errorResponseBody': errorBody,
     'stream': stream,
   };
   return payload;
+}
+
+/// Wire-safe error body shapes: the bounded snapshot the recorder stores
+/// (text, JSON map/list, or JSON scalar). Anything else stays on-device.
+bool _isWireErrorBody(Object? value) {
+  return value is String ||
+      value is num ||
+      value is bool ||
+      value is Map ||
+      value is List;
 }
 
 /// Shared flat collector envelope for schema-v2 production events.

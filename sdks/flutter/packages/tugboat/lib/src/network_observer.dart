@@ -29,7 +29,11 @@ enum TugboatNetworkFailure {
 abstract final class TugboatNetworkLimits {
   static const maxMethodLength = 16;
   static const maxRouteLength = 256;
-  static const maxErrorResponseBodyBytes = 16 * 1024;
+  // Kept small on purpose: the same snapshot crosses the wire, and the
+  // collector caps a network_call payload at 16 KiB total (fields + JSON
+  // escaping included). Real API error bodies are a few hundred bytes;
+  // anything larger is truncated with an explicit flag.
+  static const maxErrorResponseBodyBytes = 4 * 1024;
   static const maxErrorResponseBodyDepth = 6;
   static const maxErrorResponseBodyCollectionItems = 128;
 }
