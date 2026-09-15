@@ -7,6 +7,15 @@
   rejections are diagnosable without a device. Successes, transport failures,
   and cancellations never carry one. Snapshots stay capped at 4 KiB.
 
+## 0.10.6
+
+### Added
+
+- `POST /v1/frames` multipart uploads include a `frameMetadata` JSON array aligned
+  with each JPEG, carrying `TugboatFrame` capture fields (`requestedBackend`,
+  `resolvedBackend`, `captureMicros`, dimensions, etc.) for collector
+  `raw_frames` ingestion.
+
 ## 0.10.5
 
 ### Fixed

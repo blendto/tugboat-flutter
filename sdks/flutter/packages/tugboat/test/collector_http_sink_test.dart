@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/collector_http_sink.dart';
 import 'package:tugboat/src/models.dart';
+import 'package:tugboat/src/screenshot_capture_backend.dart';
 import 'package:tugboat/src/sdk_version.dart';
 
 void main() {
@@ -133,12 +134,17 @@ void main() {
         );
         final bytes = bodyBytes.takeBytes();
         final encodedBody = latin1.decode(bytes);
+        final frameMetadataMatch = RegExp(
+          r'name="frameMetadata"\r?\n\r?\n(\[[\s\S]*?\])\r?\n--',
+        ).firstMatch(encodedBody);
         framePosts.add({
           'contentType': contentType?.mimeType,
           'bytes': bytes,
           'frameNos': RegExp(
             r'filename="(\d+)\.jpg"',
           ).allMatches(encodedBody).map((match) => match.group(1)).toList(),
+          if (frameMetadataMatch != null)
+            'frameMetadata': jsonDecode(frameMetadataMatch.group(1)!),
         });
         if (frameResponseDelay > Duration.zero) {
           await Future<void>.delayed(frameResponseDelay);
@@ -808,6 +814,50 @@ void main() {
       sink.dispose();
     },
   );
+
+  test('includes frameMetadata on frame uploads', () async {
+    final sink = CollectorHttpSink(config: configForServer());
+    final session = createSession();
+    sink.startSession(session);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    sink.recordFrame(
+      const TugboatFrame(
+        id: 'frame-2',
+        atMs: 5,
+        width: 100,
+        height: 200,
+        contentHash: 'abc',
+        requestedBackend: TugboatScreenshotCaptureBackend.nativeCpuExperimental,
+        resolvedBackend: TugboatScreenshotCaptureBackend.flutterRepaintBoundary,
+        fallbackReason: 'native_unavailable',
+        captureMicros: 12_000,
+      ),
+      Uint8List.fromList([1, 2, 3]),
+      sessionId: session.id,
+    );
+    await sink.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    expect(framePosts, hasLength(1));
+    final metadata = framePosts.single['frameMetadata'] as List<dynamic>;
+    expect(metadata, hasLength(1));
+    expect(metadata.single, {
+      'id': 'frame-2',
+      'atMs': 5,
+      'width': 100,
+      'height': 200,
+      'contentHash': 'abc',
+      'masked': false,
+      'trigger': 'manual',
+      'byteLength': 0,
+      'captureMicros': 12_000,
+      'requestedBackend': 'nativeCpuExperimental',
+      'resolvedBackend': 'flutterRepaintBoundary',
+      'fallbackReason': 'native_unavailable',
+    });
+    sink.dispose();
+  });
 
   test('flush timer sends partial batches', () async {
     final sink = CollectorHttpSink(
