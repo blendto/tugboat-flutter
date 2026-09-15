@@ -1,3 +1,11 @@
+## 0.10.7
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.7 (API error `network_call`
+  events carry a bounded `errorResponseBody`). The Dio adapter has no
+  runtime behavior change.
+
 ## 0.10.5
 
 ### Changed
