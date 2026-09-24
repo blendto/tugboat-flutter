@@ -460,7 +460,8 @@ class AnchorResolver {
   /// Order-sensitive signature of the visible structure in the current frame.
   ///
   /// It combines retained structural tokens, control state (see
-  /// [tugboatControlStateSignature]), blocking-overlay presence, and the
+  /// [tugboatControlStateSignature] and [ToggleableStateMixin.value]),
+  /// blocking-overlay presence, and the
   /// rounded bounds of text, editable, and image boxes. It never reads text,
   /// semantics labels, or image pixels, and it is never serialized: capture
   /// uses it only to refuse perceptual (dHash) coalescing when the tree
@@ -489,6 +490,12 @@ class AnchorResolver {
       parts
         ..add(token)
         ..add(tugboatControlStateSignature(element.widget));
+    }
+    if (element is StatefulElement) {
+      final state = element.state;
+      // Covers radios whose selection lives in a RadioGroup ancestor, and the
+      // inner toggles of list tiles, without reading any label.
+      if (state is ToggleableStateMixin) parts.add(state.value);
     }
     if (element is! RenderObjectElement) return;
     final renderObject = element.renderObject;

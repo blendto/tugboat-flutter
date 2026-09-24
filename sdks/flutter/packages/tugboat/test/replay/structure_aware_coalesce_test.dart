@@ -144,6 +144,70 @@ void main() {
       ),
     );
     expect(tugboatControlStateSignature(const Text('not a control')), isNull);
+    void onSelected(bool _) {}
+    expect(
+      tugboatControlStateSignature(
+        FilterChip(
+          label: const Text('a'),
+          selected: true,
+          onSelected: onSelected,
+        ),
+      ),
+      isNot(
+        tugboatControlStateSignature(
+          FilterChip(
+            label: const Text('a'),
+            selected: false,
+            onSelected: onSelected,
+          ),
+        ),
+      ),
+    );
+    void onSlide(double _) {}
+    expect(
+      tugboatControlStateSignature(Slider(value: 0.2, onChanged: onSlide)),
+      isNot(
+        tugboatControlStateSignature(Slider(value: 0.8, onChanged: onSlide)),
+      ),
+    );
+  });
+
+  testWidgets('structure changes when a RadioGroup selection moves', (
+    tester,
+  ) async {
+    final boundaryKey = GlobalKey();
+    Widget radios(int selected) => MaterialApp(
+      home: TugboatCaptureBoundary(
+        key: boundaryKey,
+        child: Material(
+          child: RadioGroup<int>(
+            groupValue: selected,
+            onChanged: (_) {},
+            child: const Column(
+              children: [Radio<int>(value: 1), Radio<int>(value: 2)],
+            ),
+          ),
+        ),
+      ),
+    );
+    final resolver = AnchorResolver(rootKey: boundaryKey);
+    int? signature() {
+      resolver.invalidateTokenMapCache();
+      return resolver.structureSignature(
+        rootRender:
+            boundaryKey.currentContext!.findRenderObject()! as RenderBox,
+      );
+    }
+
+    await tester.pumpWidget(radios(1));
+    await tester.pumpAndSettle();
+    final first = signature();
+    expect(first, isNotNull);
+    expect(signature(), first, reason: 'stable for an unchanged tree');
+
+    await tester.pumpWidget(radios(2));
+    await tester.pumpAndSettle();
+    expect(signature(), isNot(first));
   });
 
   testWidgets(

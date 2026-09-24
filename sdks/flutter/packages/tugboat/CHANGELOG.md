@@ -4,8 +4,9 @@
 
 - Perceptual (dHash) frame coalescing no longer hides real UI changes. A
   capture whose visible structure changed since the referenced frame (retained
-  widgets, control enabled/toggle state, blocking overlays, or the bounds of
-  text, editable, and image boxes) is always encoded instead of being
+  widgets, control enabled state and values (checkbox, switch, radio, chip
+  selection, slider), blocking overlays, or the bounds of text, editable,
+  and image boxes) is always encoded instead of being
   coalesced into a 9x8-similar frame, so masked error text, new banners, and
   toggled controls produce their own frame. The structure signature is local
   only: it reads no text or pixels and is never serialized.

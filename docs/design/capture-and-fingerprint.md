@@ -304,8 +304,8 @@ candidate never replaces it, so small successive changes cannot drift away
 from the recorded frame. The perceptual skip is offered only while the
 capture's visible-structure signature matches the referenced frame's. The
 signature is computed from the same frame-scoped token map as masking:
-retained structural tokens, control role/enabled/toggle state, blocking-overlay
-presence, and rounded bounds of text, editable, and image boxes. It reads no
+retained structural tokens, control role, enabled state, and value (toggles,
+radios, chip selection, sliders), blocking-overlay presence, and rounded bounds of text, editable, and image boxes. It reads no
 text or pixels and is never serialized. A structure change, such as masked
 error text appearing, therefore always encodes a frame. SHA-256 content
 hashing then deduplicates encoded frames with identical bytes. Capture requests are

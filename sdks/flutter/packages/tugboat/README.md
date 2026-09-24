@@ -331,8 +331,8 @@ machinery. An enabled SDK records the normal bounded capture stream. The
 default screenshot mask is always `allTextAndMedia`.
 
 Optional evidence is additive. `emitSceneInventory`,
-`emitViewportSemanticMap`, `emitCaptureDiagnostics`, and
-`acceptActionContext` are false by default. Enabling one capability does not
+`emitViewportSemanticMap`, `emitCaptureDiagnostics`, `acceptActionContext`,
+`captureFocusChanges`, and `captureSystemInput` are false by default. Enabling one capability does not
 change masking, limits, transport, or lifecycle behavior.
 
 The global kill switch is fully inert:
@@ -412,6 +412,8 @@ but it does not persist events or frames across process restarts.
 | `emitViewportSemanticMap` | `false` | allow bounded semantic-map events when the semantic mode supports them |
 | `emitCaptureDiagnostics` | `false` | allow bounded `capture_diagnostic` events; health counters remain available without it |
 | `acceptActionContext` | `false` | allow external action context on captured evidence |
+| `captureFocusChanges` | `false` | emit `focus_changed` when primary focus enters, leaves, or moves between text fields, with one observation after `settleDelay` as `afterFrame` |
+| `captureSystemInput` | `false` | emit `system_input` for system back and allowlisted hardware keys (volume, power, media), with one observation after `settleDelay` as `afterFrame`; never consumes the input |
 | `explorationCollectorUrl` | null | local exploration WebSocket endpoint |
 | `explorationRunId` | null | optional run correlation ID |
 | `userId` | null | optional HTTP event user ID |
@@ -498,7 +500,7 @@ Emitted inferred event types currently include:
 - diagnostics: `capture_diagnostic` (`stream: diagnostic`; only when
   `emitCaptureDiagnostics` is true; health counters always update);
 - optional evidence: `scene_inventory`, `action_window_set`,
-  `action_window_cleared`;
+  `action_window_cleared`, `focus_changed`, `system_input`;
 - semantic-map modes: `viewport_semantic_map`,
   `scroll_semantic_snapshot`.
 

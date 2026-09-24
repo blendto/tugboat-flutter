@@ -205,20 +205,29 @@ bool tugboatIsActionableWidget(Widget widget) {
 }
 
 /// Control state that can change without any structural change: the role of
-/// an interactive control, whether it is enabled, and, for binary toggles, its
-/// value. It is used only to decide whether two captures may be perceptually
-/// coalesced and is never serialized. Returns null for non-controls.
+/// an interactive control, whether it is enabled, and its value for toggles,
+/// selectable chips, and sliders. It is used only to decide whether two
+/// captures may be perceptually coalesced and is never serialized. Returns
+/// null for non-controls. Toggle state held by a [ToggleableStateMixin]
+/// (for example a [Radio] inside a `RadioGroup`) is read from the element by
+/// [AnchorResolver.structureSignature].
 Object? tugboatControlStateSignature(Widget widget) {
   final role = tugboatRoleForWidget(widget);
   if (role == null) return null;
-  return Object.hash(role.name, role.enabled, _toggleValue(widget));
+  return Object.hash(role.name, role.enabled, _controlValue(widget));
 }
 
-bool? _toggleValue(Widget widget) => switch (widget) {
+Object? _controlValue(Widget widget) => switch (widget) {
   Checkbox w => w.value,
   CheckboxListTile w => w.value,
   Switch w => w.value,
   SwitchListTile w => w.value,
   CupertinoSwitch w => w.value,
+  FilterChip w => w.selected,
+  ChoiceChip w => w.selected,
+  InputChip w => w.selected,
+  Slider w => w.value,
+  RangeSlider w => w.values,
+  CupertinoSlider w => w.value,
   _ => null,
 };
