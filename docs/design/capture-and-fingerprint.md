@@ -102,7 +102,8 @@ The event stream currently includes:
 - exploration control: `scene_inventory`, `action_window_set`,
   `action_window_cleared`;
 - optional semantic evidence: `viewport_semantic_map`,
-  `scroll_semantic_snapshot`.
+  `scroll_semantic_snapshot`;
+- optional input-context evidence: `focus_changed` and `system_input`.
 
 Events may carry `beforeFrame`, `afterFrame`, `targetAnchor`,
 `relatedEventId`, `explorationRunId`, `actionId`, and type-specific `data`.
@@ -138,6 +139,34 @@ to capture-boundary local coordinates only to hit-test and normalize it against
 the viewport; stored coordinates are not capture-boundary-normalized for replay
 playback, are neither device pixels nor widget-local, and can therefore produce
 fractional overlay drift.
+
+### Focus and system input
+
+Both capabilities are opt-in (`captureFocusChanges`, `captureSystemInput`)
+because the collector must accept their event types. Each records one
+evidence event and requests one reusable visual observation after
+`settleDelay`. The event is published once that observation resolves, with
+`afterFrame` naming a frame completed no earlier than the input, or, when a
+navigation the input caused suppresses the standalone capture, the route
+barrier's frame. Session end, session replacement, and backgrounding publish
+waiting events without a frame. Frames keep the `manual` trigger.
+
+- `focus_changed` fires when primary focus moves into, out of, or between
+  editable text fields, including keyboard "next" actions and programmatic
+  focus that no pointer caused. It carries only `focus` and `previousFocus`
+  (`text_input`, `other`, `none`). Focus churn between non-text nodes, such as
+  route scopes, is ignored.
+- `system_input` carries a closed `input` value. `back` is a system back
+  request that reached Flutter as a navigation pop request. It is observed by
+  a binding observer that registers when a `TugboatNavigatorObserver` is
+  constructed, which normally precedes the app's `WidgetsApp`. The observer
+  never claims the request. If it registers later, only back requests the app
+  does not handle are seen. Predictive-back transitions that the app claims
+  do not produce `back`; their pop is still a `route_change`. Allowlisted
+  hardware keys that Flutter receives (`volume_up`, `volume_down`,
+  `volume_mute`, `power`, `media_play_pause`, key-down only) are observed
+  without consuming them. iOS does not deliver hardware volume buttons to
+  Flutter. Character, editing, and navigation keys are never recorded.
 
 ### Navigator and modal routes
 
@@ -268,9 +297,18 @@ The public mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
 `allTextExceptActionable`, and `sensitiveInputsOnly`.
 
 Capture computes a 9x8 perceptual dHash from the masked RGBA buffer inside the
-encode isolate and skips JPEG encoding when the Hamming distance to the last
-accepted hash is at most 2 bits (tolerating minor anti-alias shimmer). SHA-256
-content hashing then deduplicates encoded frames. Capture requests are
+encode isolate and skips JPEG encoding when the Hamming distance to the
+baseline hash is at most 2 bits (tolerating minor anti-alias shimmer). The
+baseline is the hash of the frame that is actually referenced: a coalesced
+candidate never replaces it, so small successive changes cannot drift away
+from the recorded frame. The perceptual skip is offered only while the
+capture's visible-structure signature matches the referenced frame's. The
+signature is computed from the same frame-scoped token map as masking:
+retained structural tokens, control role, enabled state, and value (toggles,
+radios, chip selection, sliders), blocking-overlay presence, and rounded bounds of text, editable, and image boxes. It reads no
+text or pixels and is never serialized. A structure change, such as masked
+error text appearing, therefore always encodes a frame. SHA-256 content
+hashing then deduplicates encoded frames with identical bytes. Capture requests are
 serialized and compatible non-interaction requests can coalesce. When the
 capture subtree's paint signature has not
 changed since the last accepted frame (outer capture boundary paint generation

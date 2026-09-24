@@ -76,6 +76,7 @@ class ScreenshotCaptureResult {
     this.skippedByDHash = false,
     this.skippedByPaintGeneration = false,
     this.paintGeneration,
+    this.structureSignature,
     this.backendTrace = const ScreenshotBackendTrace.flutter(),
   });
 
@@ -99,6 +100,13 @@ class ScreenshotCaptureResult {
   /// [ScreenshotCapturer.commitAcceptedPaintGeneration] only after accepting
   /// a new frame or successfully reusing a compatible one.
   final int? paintGeneration;
+
+  /// Visible-structure signature observed with this attempt's mask walk (see
+  /// [AnchorResolver.structureSignature]). Null when paint-generation skipped
+  /// the walk or no token map was available. The controller commits it via
+  /// [ScreenshotCapturer.commitAcceptedStructure] after accepting a new frame
+  /// or reusing exactly identical content.
+  final int? structureSignature;
   final ScreenshotBackendTrace backendTrace;
 }
 
@@ -142,12 +150,14 @@ class ScreenshotCapturer {
   final AnchorResolver anchorResolver;
 
   String? _lastDHash;
+  int? _lastAcceptedStructure;
   int? _lastAcceptedPaintSignature;
   TugboatCaptureRenderBoundary? _lastAcceptedBoundary;
 
   /// Clears perceptual-hash and paint-signature coalesce state.
   void resetCoalesceState() {
     _lastDHash = null;
+    _lastAcceptedStructure = null;
     _lastAcceptedPaintSignature = null;
     _lastAcceptedBoundary = null;
     _pixelSource.resetSession();
@@ -178,10 +188,22 @@ class ScreenshotCapturer {
     _lastAcceptedPaintSignature = paintSignature;
   }
 
-  /// Commits [dHash] after the controller accepts or reuses a frame.
+  /// Commits [dHash] as the perceptual baseline after the controller accepts
+  /// a new frame or reuses exactly identical content.
+  ///
+  /// Do not commit a candidate that was perceptually coalesced: the baseline
+  /// must stay the hash of the frame that is actually referenced, otherwise
+  /// small successive changes drift arbitrarily far from it unrecorded.
   void commitAcceptedDHash(String? dHash) {
     if (dHash == null || dHash.isEmpty) return;
     _lastDHash = dHash;
+  }
+
+  /// Commits the visible-structure [signature] observed with an accepted or
+  /// exactly reused frame. Perceptual coalescing is only offered while the
+  /// next capture's structure still matches it.
+  void commitAcceptedStructure(int? signature) {
+    _lastAcceptedStructure = signature;
   }
 
   /// Wait for one bounded compositor opportunity.  The timeout does not try
@@ -503,6 +525,7 @@ class ScreenshotCapturer {
     } finally {
       maskClock.stop();
     }
+    final structureSignature = _structureSignature(rootRender);
 
     final acquisition = await _pixelSource.acquire(
       ScreenshotPixelRequest(
@@ -512,7 +535,7 @@ class ScreenshotCapturer {
         pixelHeight: scaledHeight,
         logicalSize: boundary.size,
         maskRects: [for (final mask in maskRects) mask.rect],
-        lastDHash: _lastDHash ?? '',
+        lastDHash: _perceptualBaselineFor(structureSignature),
         force: force,
         requestedBackend: screenshotCaptureBackend,
         isCurrent: isCurrent,
@@ -525,7 +548,29 @@ class ScreenshotCapturer {
       boundaryLogicalRect: boundaryLogicalRect,
       maskMicros: maskClock.elapsedMicroseconds,
       paintSignature: paintSignature,
+      structureSignature: structureSignature,
     );
+  }
+
+  int? _structureSignature(RenderBox rootRender) {
+    try {
+      return anchorResolver.structureSignature(rootRender: rootRender);
+    } catch (_) {
+      // An unknown structure only disables perceptual coalescing.
+      return null;
+    }
+  }
+
+  /// The dHash baseline offered to the pixel source. An empty baseline never
+  /// matches, so a frame whose visible structure changed (or is unknown) is
+  /// always encoded rather than coalesced into a frame that looks similar at
+  /// 9x8 resolution but shows a different tree.
+  String _perceptualBaselineFor(int? structureSignature) {
+    if (structureSignature == null ||
+        structureSignature != _lastAcceptedStructure) {
+      return '';
+    }
+    return _lastDHash ?? '';
   }
 
   ScreenshotCaptureResult? _resultForAcquisition(
@@ -535,6 +580,7 @@ class ScreenshotCapturer {
     required Rect boundaryLogicalRect,
     required int maskMicros,
     required int? paintSignature,
+    required int? structureSignature,
   }) {
     switch (acquisition.disposition) {
       case ScreenshotPixelDisposition.cancelled:
@@ -564,6 +610,7 @@ class ScreenshotCapturer {
           maskMicros: maskMicros,
           skippedByDHash: acquisition.skippedByDHash,
           paintGeneration: paintSignature,
+          structureSignature: structureSignature,
           backendTrace: acquisition.trace,
         );
     }
