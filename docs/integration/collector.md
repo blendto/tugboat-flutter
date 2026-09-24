@@ -261,6 +261,15 @@ separate, so visible frame changes do not prove event acceptance. Deploy
 collector contract support before testing a production session with these
 gestures. Check both zoom directions and the stored `pointerCount` and `scale`.
 
+The opt-in `focus_changed` and `system_input` evidence events
+(`TugboatReplayConfig.captureFocusChanges` / `captureSystemInput`) use the
+generic envelope with `stream: evidence`. Their `payload` is the closed
+vocabulary described in
+[Capture and fingerprint](../design/capture-and-fingerprint.md#focus-and-system-input).
+The observed frame, when present, is the envelope's `afterFrame`. Deploy
+collector acceptance for these event types before enabling either capability
+in production: a non-retryable rejection drops the whole batch.
+
 For schema-v2 interactions, `afterFrame` is a temporal visual observation. It
 does not assert that the interaction caused that frame, route, or UI state.
 

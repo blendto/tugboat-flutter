@@ -203,3 +203,22 @@ bool tugboatIsActionableWidget(Widget widget) {
   if (role.name == 'scrollable') return false;
   return role.enabled != false && role.actions.isNotEmpty;
 }
+
+/// Control state that can change without any structural change: the role of
+/// an interactive control, whether it is enabled, and, for binary toggles, its
+/// value. It is used only to decide whether two captures may be perceptually
+/// coalesced and is never serialized. Returns null for non-controls.
+Object? tugboatControlStateSignature(Widget widget) {
+  final role = tugboatRoleForWidget(widget);
+  if (role == null) return null;
+  return Object.hash(role.name, role.enabled, _toggleValue(widget));
+}
+
+bool? _toggleValue(Widget widget) => switch (widget) {
+  Checkbox w => w.value,
+  CheckboxListTile w => w.value,
+  Switch w => w.value,
+  SwitchListTile w => w.value,
+  CupertinoSwitch w => w.value,
+  _ => null,
+};

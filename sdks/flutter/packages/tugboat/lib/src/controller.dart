@@ -13,6 +13,7 @@ import 'exploration_sink.dart';
 import 'evidence_recorder.dart';
 import 'external_event.dart';
 import 'health.dart';
+import 'input_context_capture.dart';
 import 'interaction_transaction.dart';
 import 'models.dart';
 import 'network_observer.dart';
@@ -991,6 +992,16 @@ class _TapSettleObservation {
   bool get isDegraded => afterFrame == null && captureOutcome != 'captured';
 }
 
+/// A `focus_changed` / `system_input` event waiting for its visual
+/// observation. It is published exactly once: with the observed frame, or
+/// without one when the session ends, is replaced, or backgrounds first.
+class _PendingInputObservation {
+  _PendingInputObservation(this.session, this.event);
+
+  final TugboatSession session;
+  final TugboatEvent event;
+}
+
 class TugboatReplayController extends ChangeNotifier {
   // A route capture must never hold replay settlement indefinitely when the
   // platform readback callback is lost. This is deliberately private: #9 owns
@@ -1102,6 +1113,8 @@ class TugboatReplayController extends ChangeNotifier {
   final Set<String> _causalRouteSupersededInteractions = <String>{};
   String? _latestRouteCaptureKey;
   final Set<_TapSettleWork> _activeTapSettles = <_TapSettleWork>{};
+  final Set<_PendingInputObservation> _pendingInputObservations =
+      <_PendingInputObservation>{};
 
   /// Most recently started route-capture work (any Navigator).
   _RouteCaptureWork? get _activeRouteCapture {
@@ -1624,6 +1637,7 @@ class TugboatReplayController extends ChangeNotifier {
       InteractionRejectionReason.sessionEnd,
     );
     _clearScrollCompletionState();
+    _flushPendingInputObservations();
     _captureLifecycleActive = false;
 
     _addEvent(
@@ -1655,6 +1669,7 @@ class TugboatReplayController extends ChangeNotifier {
     );
     _abandonAllPendingPointers(gestureFinal: 'session_end');
     _clearReleasedInteractions(reason: InteractionRejectionReason.sessionEnd);
+    _flushPendingInputObservations();
     _captureLifecycleActive = true;
     _captureLifecycleEpoch++;
     _lastLifecycleState = null;
@@ -2732,6 +2747,7 @@ class TugboatReplayController extends ChangeNotifier {
     _reuseCompatibleFrame(existingId!, context, 'content_hash');
     capturer.commitAcceptedPaintGeneration(result.paintGeneration);
     capturer.commitAcceptedDHash(result.dHash);
+    capturer.commitAcceptedStructure(result.structureSignature);
     _maybeEmitSceneInventory();
     return _CaptureExecution(
       outcome: _CaptureOutcome.exactContentReused,
@@ -2751,8 +2767,9 @@ class TugboatReplayController extends ChangeNotifier {
         ? null
         : _reuseCompatibleFrame(compatible, context, 'dhash');
     if (reused != null) {
+      // Keep the dHash and structure baselines of the referenced frame; the
+      // coalesced candidate only matched them within tolerance.
       capturer.commitAcceptedPaintGeneration(result.paintGeneration);
-      capturer.commitAcceptedDHash(result.dHash);
     }
     return _CaptureExecution(
       outcome: reused == null
@@ -2818,6 +2835,7 @@ class TugboatReplayController extends ChangeNotifier {
     );
     capturer.commitAcceptedPaintGeneration(result.paintGeneration);
     capturer.commitAcceptedDHash(result.dHash);
+    capturer.commitAcceptedStructure(result.structureSignature);
     _maybeEmitSceneInventory();
     _sinkHub?.recordFrame(
       frame,
@@ -5155,6 +5173,122 @@ class TugboatReplayController extends ChangeNotifier {
     ]);
   }
 
+  /// Records a primary-focus transition into, out of, or between editable
+  /// text fields and requests one visual observation after
+  /// [TugboatReplayConfig.settleDelay]. The `focus_changed` event carries that
+  /// frame as `afterFrame` when one is observed. No-op unless
+  /// [TugboatReplayConfig.captureFocusChanges] is set.
+  void recordFocusChange({
+    required TugboatFocusKind focus,
+    required TugboatFocusKind previousFocus,
+  }) {
+    if (!config.captureFocusChanges) return;
+    _recordInputObservation('focus_changed', {
+      'focus': focus.wireName,
+      'previousFocus': previousFocus.wireName,
+    });
+  }
+
+  /// Records a system button or system back request and requests one visual
+  /// observation after [TugboatReplayConfig.settleDelay]. The `system_input`
+  /// event carries that frame as `afterFrame` when one is observed. No-op
+  /// unless [TugboatReplayConfig.captureSystemInput] is set.
+  void recordSystemInput(TugboatSystemInput input) {
+    if (!config.captureSystemInput) return;
+    _recordInputObservation('system_input', {'input': input.wireName});
+  }
+
+  void _recordInputObservation(String type, Map<String, Object?> data) {
+    final session = _session;
+    if (session == null || _disposed || !_captureLifecycleActive) return;
+    final pending = _PendingInputObservation(
+      session,
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: type,
+        stream: TugboatEventStream.evidence,
+        data: data,
+      ),
+    );
+    _pendingInputObservations.add(pending);
+    unawaited(_observeAfterInput(pending));
+  }
+
+  Future<void> _observeAfterInput(_PendingInputObservation pending) async {
+    String? frameId;
+    try {
+      // Let same-turn work land first (a Navigator pop after system back, a
+      // focus traversal) so the request context names the resulting surface
+      // instead of being superseded by it.
+      await _delay(Duration.zero);
+      if (_pendingInputObservations.contains(pending) &&
+          identical(_session, pending.session)) {
+        frameId = await _observeFrameAfterInput(pending);
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[tugboat] input observation failed: $error\n$stackTrace');
+    } finally {
+      _publishInputObservation(pending, afterFrame: frameId);
+    }
+  }
+
+  Future<String?> _observeFrameAfterInput(
+    _PendingInputObservation pending,
+  ) async {
+    // Frames keep the existing `manual` trigger so frame metadata stays within
+    // the collector's accepted trigger vocabulary; attribution lives on the
+    // event that references the frame.
+    final frameId = await _requestCapture(trigger: TugboatFrameTrigger.manual);
+    if (frameId != null) return frameId;
+    // A navigation the input caused (for example system back) suppresses
+    // standalone captures while its transition runs; its route barrier
+    // observes the destination instead.
+    final routeCapture = _activeRouteCapture;
+    if (routeCapture != null) {
+      final barrier = await _awaitRouteCaptureBarrier(routeCapture);
+      final routeFrame = _frameObservedAfter(pending, barrier.result.frameId);
+      if (routeFrame != null) return routeFrame;
+    }
+    return _frameObservedAfter(pending, _latestFrameId);
+  }
+
+  /// [frameId] when it belongs to [pending]'s session and completed no earlier
+  /// than the input, so `afterFrame` never names an older observation.
+  String? _frameObservedAfter(
+    _PendingInputObservation pending,
+    String? frameId,
+  ) {
+    if (frameId == null) return null;
+    final provenance = _frameProvenance[frameId];
+    if (provenance == null ||
+        !provenance.available ||
+        provenance.context.captureSessionId != pending.session.id) {
+      return null;
+    }
+    return provenance.completedAtMs >= pending.event.atMs ? frameId : null;
+  }
+
+  void _publishInputObservation(
+    _PendingInputObservation pending, {
+    String? afterFrame,
+  }) {
+    if (!_pendingInputObservations.remove(pending)) return;
+    if (!identical(_session, pending.session)) return;
+    _addEvent(
+      afterFrame == null
+          ? pending.event
+          : pending.event.copyWith(afterFrame: afterFrame),
+    );
+  }
+
+  /// Publishes every waiting input event without a frame, in input order.
+  void _flushPendingInputObservations() {
+    for (final pending in [..._pendingInputObservations]) {
+      _publishInputObservation(pending);
+    }
+  }
+
   void recordAppLifecycleState(AppLifecycleState state) {
     final eventType = _appLifecycleEventType(state);
     // Flutter emits hidden + paused back-to-back on every background
@@ -5187,6 +5321,7 @@ class TugboatReplayController extends ChangeNotifier {
           InteractionRejectionReason.lifecycle,
         );
         _clearScrollCompletionState();
+        _flushPendingInputObservations();
         _captureLifecycleActive = false;
         break;
       case AppLifecycleState.resumed:
