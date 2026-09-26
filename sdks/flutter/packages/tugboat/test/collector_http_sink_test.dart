@@ -18,6 +18,7 @@ void main() {
   final sessionPosts = <Map<String, dynamic>>[];
   final batchPosts = <List<Map<String, dynamic>>>[];
   final framePosts = <Map<String, dynamic>>[];
+  final requestOrder = <String>[];
   final headersByPath = <String, List<Map<String, String?>>>{};
   var eventStatus = 202;
   var frameStatus = 202;
@@ -61,6 +62,7 @@ void main() {
     sessionPosts.clear();
     batchPosts.clear();
     framePosts.clear();
+    requestOrder.clear();
     headersByPath.clear();
     eventStatus = 202;
     frameStatus = 202;
@@ -110,6 +112,7 @@ void main() {
           );
         }
       } else if (path == '/v1/events/batch') {
+        requestOrder.add(path);
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         final events = (body['events'] as List)
             .map((event) => Map<String, dynamic>.from(event as Map))
@@ -127,6 +130,7 @@ void main() {
             }),
           );
       } else if (path == '/v1/frames') {
+        requestOrder.add(path);
         final contentType = request.headers.contentType;
         final boundary = contentType?.parameters['boundary'];
         expect(boundary, isNotNull);
@@ -653,6 +657,48 @@ void main() {
       }).toList();
       expect(diagnostics, hasLength(1));
       expect((diagnostics.single['payload'] as Map)['statusCode'], 400);
+      sink.dispose();
+    },
+  );
+
+  test(
+    'uploads queued frames before publishing their referencing events',
+    () async {
+      sessionStatus = 503;
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      sink.recordEvent(
+        const TugboatEvent(
+          id: 'event-with-frame',
+          atMs: 0,
+          type: 'interaction',
+          afterFrame: 'frame-0',
+        ),
+      );
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-0',
+          atMs: 0,
+          width: 1,
+          height: 1,
+          contentHash: 'frame-hash',
+        ),
+        Uint8List.fromList([0]),
+        sessionId: session.id,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      requestOrder.clear();
+      sessionStatus = 202;
+      await sink.flush();
+      await sink.flush();
+
+      expect(
+        requestOrder,
+        containsAllInOrder(['/v1/frames', '/v1/events/batch']),
+      );
+      expect(framePosts, hasLength(1));
+      expect(batchPosts, hasLength(1));
       sink.dispose();
     },
   );

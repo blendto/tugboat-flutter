@@ -609,6 +609,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (!_hasCollectorSessionId) {
       return;
     }
+    // Upload visual evidence before publishing events that reference frame IDs.
+    // Session completion may trigger inspection as soon as those events arrive.
+    await _flushFrames();
     if (_retryBatches.isNotEmpty) {
       // Try the retry head once, but keep draining fresh events below.
       await _flushRetryBatches();
@@ -616,7 +619,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
     while (_pendingEvents.isNotEmpty) {
       await _flushEventBatch();
     }
-    await _flushFrames();
   }
 
   Future<void> _flushFrames() async {
