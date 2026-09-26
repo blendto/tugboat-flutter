@@ -88,6 +88,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Timer? _flushTimer;
   Future<void>? _flushInFlight;
   bool _framesNeedRetry = false;
+  bool _frameUploadFailureReported = false;
+  int _frameUploadDiagnosticSequence = 0;
+  int _droppedFrameCount = 0;
   final List<Map<String, Object?>> _pendingEvents = [];
   final List<_PendingFrameUpload> _pendingFrames = [];
   final List<List<Map<String, Object?>>> _retryBatches = [];
@@ -146,6 +149,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _retryBatches.clear();
     _pendingLifecycle.clear();
     _framesNeedRetry = false;
+    _frameUploadFailureReported = false;
+    _frameUploadDiagnosticSequence = 0;
+    _droppedFrameCount = 0;
     _cancelIdentityDebounce();
     _userDirty = false;
     _traitsDirty = false;
@@ -632,17 +638,94 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (!_isCurrentEpoch(epoch)) {
       return;
     }
-    final request = _frameUploadRequest(sessionId, uploads);
+    const batchSize = 20;
+    var droppedBatch = false;
+    for (var start = 0; start < uploads.length; start += batchSize) {
+      if (!_isCurrentEpoch(epoch)) return;
+      final end = start + batchSize < uploads.length
+          ? start + batchSize
+          : uploads.length;
+      final batch = uploads.sublist(start, end);
+      final result = await _processFrameBatch(sessionId, batch, epoch);
+      if (!_isCurrentEpoch(epoch)) return;
+      if (result.retry) {
+        _framesNeedRetry = true;
+        _requeueFailedUploads(uploads.sublist(start + result.retryOffset));
+        return;
+      }
+      droppedBatch = droppedBatch || result.dropped;
+    }
+    _framesNeedRetry = false;
+    if (_frameUploadFailureReported && !droppedBatch) {
+      _recordUploadDiagnostic('recovered', null, 0);
+      _frameUploadFailureReported = false;
+    }
+  }
 
+  Future<({bool retry, bool dropped, int retryOffset})> _processFrameBatch(
+    String sessionId,
+    List<_PendingFrameUpload> batch,
+    int epoch,
+  ) async {
+    final result = await _sendFrameBatch(sessionId, batch);
+    if (!_isCurrentEpoch(epoch)) {
+      return (retry: false, dropped: false, retryOffset: 0);
+    }
+    if (result.result == _SendResult.retry) {
+      _reportFrameUploadFailure(result.statusCode, batch.length);
+      return (retry: true, dropped: false, retryOffset: 0);
+    }
+    if (result.result == _SendResult.drop &&
+        result.statusCode == 400 &&
+        batch.length > 1) {
+      _reportFrameUploadFailure(result.statusCode, batch.length);
+      return _isolateRejectedFrames(sessionId, batch, epoch);
+    }
+    if (result.result == _SendResult.drop) {
+      _reportFrameUploadFailure(result.statusCode, batch.length);
+      return (retry: false, dropped: true, retryOffset: 0);
+    }
+    return (retry: false, dropped: false, retryOffset: 0);
+  }
+
+  Future<({bool retry, bool dropped, int retryOffset})> _isolateRejectedFrames(
+    String sessionId,
+    List<_PendingFrameUpload> batch,
+    int epoch,
+  ) async {
+    var dropped = false;
+    // A single invalid capture must not discard its valid neighbors.
+    for (var index = 0; index < batch.length; index++) {
+      final result = await _sendFrameBatch(sessionId, [batch[index]]);
+      if (!_isCurrentEpoch(epoch)) break;
+      if (result.result == _SendResult.retry) {
+        _reportFrameUploadFailure(result.statusCode, 1);
+        return (retry: true, dropped: dropped, retryOffset: index);
+      }
+      if (result.result == _SendResult.drop) {
+        dropped = true;
+        _reportFrameUploadFailure(result.statusCode, 1);
+      }
+    }
+    return (retry: false, dropped: dropped, retryOffset: 0);
+  }
+
+  Future<({_SendResult result, int? statusCode})> _sendFrameBatch(
+    String sessionId,
+    List<_PendingFrameUpload> uploads,
+  ) async {
     try {
+      final request = _frameUploadRequest(sessionId, uploads);
       final response = await _tracedResponse(
         '/v1/frames',
         () async => http.Response.fromStream(await _client.send(request)),
+      ).timeout(const Duration(seconds: 15));
+      return (
+        result: _classifyResponse(response.statusCode),
+        statusCode: response.statusCode,
       );
-      if (!_isCurrentEpoch(epoch)) return;
-      _recordFrameUploadResponse(response, uploads);
     } catch (_) {
-      _recordFrameUploadFailure(epoch, uploads);
+      return (result: _SendResult.retry, statusCode: null);
     }
   }
 
@@ -674,23 +757,41 @@ class CollectorHttpSink implements TugboatCaptureSink {
     return request;
   }
 
-  void _recordFrameUploadResponse(
-    http.Response response,
-    List<_PendingFrameUpload> uploads,
-  ) {
-    _framesNeedRetry =
-        _classifyResponse(response.statusCode) == _SendResult.retry;
-    if (_framesNeedRetry) _requeueFailedUploads(uploads);
+  void _reportFrameUploadFailure(int? statusCode, int frameCount) {
+    if (_frameUploadFailureReported) return;
+    _frameUploadFailureReported = true;
+    _recordUploadDiagnostic('failed', statusCode, frameCount);
   }
 
-  void _recordFrameUploadFailure(int epoch, List<_PendingFrameUpload> uploads) {
-    if (!_isCurrentEpoch(epoch)) return;
-    _framesNeedRetry = true;
-    _requeueFailedUploads(uploads);
+  void _recordUploadDiagnostic(String result, int? statusCode, int frameCount) {
+    final session = _session;
+    if (session == null) return;
+    final event = TugboatEvent(
+      id: 'collector-frame-upload-${_frameUploadDiagnosticSequence++}',
+      atMs: DateTime.now().difference(session.startedAt).inMilliseconds,
+      type: 'capture_diagnostic',
+      data: {
+        'component': 'collector_frame_upload',
+        'result': result,
+        if (statusCode != null) 'statusCode': statusCode,
+        'frameCount': frameCount,
+        'droppedFrameCount': _droppedFrameCount,
+      },
+    );
+    _pendingEvents.add(
+      mapTugboatEventToCollectorEvent(
+        event: event,
+        sessionStartedAt: session.startedAt,
+        collectorConfig: _config,
+        userId: _userId,
+      ),
+    );
+    _trimPendingEvents();
   }
 
   void _requeueFailedUploads(List<_PendingFrameUpload> uploads) {
-    // Events reference exact frame IDs; never drop uploads on retry.
+    // Keep failed uploads within the configured memory bound. Diagnostics
+    // record any evictions so downstream consumers can see the evidence gap.
     _pendingFrames.insertAll(0, uploads);
     _trimPendingFrames();
   }
@@ -708,6 +809,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_pendingFrames.length <= _config.maxPendingFrames) return;
     final dropped = _pendingFrames.length - _config.maxPendingFrames;
     _pendingFrames.removeRange(0, dropped);
+    _droppedFrameCount += dropped;
+    if (_droppedFrameCount == 1 ||
+        (_droppedFrameCount & (_droppedFrameCount - 1)) == 0) {
+      _recordUploadDiagnostic('dropped', null, _droppedFrameCount);
+    }
     debugPrint(
       '[tugboat] collector dropped $dropped pending frame(s) due to backpressure',
     );

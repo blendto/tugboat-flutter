@@ -1,3 +1,14 @@
+## 0.10.8
+
+### Fixed
+
+- An invalid frame in a collector upload batch no longer discards neighboring
+  valid frames: a rejected batch is retried one frame at a time.
+- Frame upload failures, memory-cap evictions, and later recovery now emit
+  bounded `capture_diagnostic` events with no image contents or credentials.
+- Frame HTTP requests time out after 15 seconds so a stalled upload does not
+  block subsequent flushes indefinitely.
+
 ## 0.10.7
 
 ### Added
