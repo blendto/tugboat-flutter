@@ -18,9 +18,11 @@ void main() {
   final sessionPosts = <Map<String, dynamic>>[];
   final batchPosts = <List<Map<String, dynamic>>>[];
   final framePosts = <Map<String, dynamic>>[];
+  final requestOrder = <String>[];
   final headersByPath = <String, List<Map<String, String?>>>{};
   var eventStatus = 202;
   var frameStatus = 202;
+  String? rejectedFrameNo;
   var sessionStatus = 202;
   var sessionFailuresRemaining = 0;
   var eventResponseDelay = Duration.zero;
@@ -60,9 +62,11 @@ void main() {
     sessionPosts.clear();
     batchPosts.clear();
     framePosts.clear();
+    requestOrder.clear();
     headersByPath.clear();
     eventStatus = 202;
     frameStatus = 202;
+    rejectedFrameNo = null;
     sessionStatus = 202;
     sessionFailuresRemaining = 0;
     eventResponseDelay = Duration.zero;
@@ -108,6 +112,7 @@ void main() {
           );
         }
       } else if (path == '/v1/events/batch') {
+        requestOrder.add(path);
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         final events = (body['events'] as List)
             .map((event) => Map<String, dynamic>.from(event as Map))
@@ -125,6 +130,7 @@ void main() {
             }),
           );
       } else if (path == '/v1/frames') {
+        requestOrder.add(path);
         final contentType = request.headers.contentType;
         final boundary = contentType?.parameters['boundary'];
         expect(boundary, isNotNull);
@@ -137,12 +143,17 @@ void main() {
         final frameMetadataMatch = RegExp(
           r'name="frameMetadata"\r?\n\r?\n(\[[\s\S]*?\])\r?\n--',
         ).firstMatch(encodedBody);
+        final frameNos = RegExp(
+          r'filename="(\d+)\.jpg"',
+        ).allMatches(encodedBody).map((match) => match.group(1)).toList();
+        final responseStatus = frameNos.contains(rejectedFrameNo)
+            ? 400
+            : frameStatus;
         framePosts.add({
           'contentType': contentType?.mimeType,
           'bytes': bytes,
-          'frameNos': RegExp(
-            r'filename="(\d+)\.jpg"',
-          ).allMatches(encodedBody).map((match) => match.group(1)).toList(),
+          'frameNos': frameNos,
+          'status': responseStatus,
           if (frameMetadataMatch != null)
             'frameMetadata': jsonDecode(frameMetadataMatch.group(1)!),
         });
@@ -150,7 +161,7 @@ void main() {
           await Future<void>.delayed(frameResponseDelay);
         }
         request.response
-          ..statusCode = frameStatus
+          ..statusCode = responseStatus
           ..write(
             jsonEncode({
               'accepted': true,
@@ -606,6 +617,91 @@ void main() {
     expect(uploaded, ['0', '1', '2']);
     sink.dispose();
   });
+
+  test(
+    'isolates a rejected frame without discarding valid batch peers',
+    () async {
+      sessionStatus = 503;
+      rejectedFrameNo = '2';
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      for (var i = 0; i < 5; i++) {
+        sink.recordFrame(
+          TugboatFrame(
+            id: 'frame-$i',
+            atMs: i,
+            width: 1,
+            height: 1,
+            contentHash: 'hash-$i',
+          ),
+          Uint8List.fromList([i]),
+          sessionId: session.id,
+        );
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      sessionStatus = 202;
+      await sink.flush();
+      await sink.flush();
+
+      final accepted = framePosts
+          .where((post) => post['status'] == 202)
+          .expand((post) => (post['frameNos'] as List).cast<String>())
+          .toSet();
+      expect(accepted, {'0', '1', '3', '4'});
+      expect(framePosts.first['frameNos'], ['0', '1', '2', '3', '4']);
+      final diagnostics = batchPosts.expand((batch) => batch).where((event) {
+        final payload = event['payload'];
+        return payload is Map &&
+            payload['component'] == 'collector_frame_upload';
+      }).toList();
+      expect(diagnostics, hasLength(1));
+      expect((diagnostics.single['payload'] as Map)['statusCode'], 400);
+      sink.dispose();
+    },
+  );
+
+  test(
+    'uploads queued frames before publishing their referencing events',
+    () async {
+      sessionStatus = 503;
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      sink.recordEvent(
+        const TugboatEvent(
+          id: 'event-with-frame',
+          atMs: 0,
+          type: 'interaction',
+          afterFrame: 'frame-0',
+        ),
+      );
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-0',
+          atMs: 0,
+          width: 1,
+          height: 1,
+          contentHash: 'frame-hash',
+        ),
+        Uint8List.fromList([0]),
+        sessionId: session.id,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      requestOrder.clear();
+      sessionStatus = 202;
+      await sink.flush();
+      await sink.flush();
+
+      expect(
+        requestOrder,
+        containsAllInOrder(['/v1/frames', '/v1/events/batch']),
+      );
+      expect(framePosts, hasLength(1));
+      expect(batchPosts, hasLength(1));
+      sink.dispose();
+    },
+  );
 
   test(
     'retries failed frame uploads without dropping earlier frames',
