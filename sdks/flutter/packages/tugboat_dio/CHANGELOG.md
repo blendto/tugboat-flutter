@@ -1,3 +1,11 @@
+## 0.10.8
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.8 (structure-aware perceptual
+  frame coalescing; opt-in `focus_changed` / `system_input` evidence). The
+  Dio adapter has no runtime behavior change.
+
 ## 0.10.7
 
 ### Changed

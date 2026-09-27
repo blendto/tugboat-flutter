@@ -9,10 +9,12 @@ import 'controller.dart';
 import 'external_event.dart';
 import 'health.dart';
 import 'input_capture.dart';
+import 'input_context_capture.dart';
 import 'lifecycle.dart';
 import 'models.dart';
 import 'network_observer.dart';
 
+export 'input_context_capture.dart' show TugboatFocusKind, TugboatSystemInput;
 export 'lifecycle.dart' show TugboatLifecycleState;
 export 'screenshot_mask_level.dart' show TugboatScreenshotMaskLevel;
 export 'markers.dart'
@@ -56,6 +58,20 @@ class TugboatReplay {
   static TugboatNavigatorObserver createNavigatorObserver() =>
       TugboatNavigatorObserver();
   static final TugboatLifecycleNotifier _lifecycle = TugboatLifecycleNotifier();
+
+  /// Process-wide system back observer. [TugboatNavigatorObserver] registers
+  /// it when constructed, which normally precedes the app's `WidgetsApp`, so
+  /// it sees every back request rather than only unhandled ones. It never
+  /// claims a request, and it records nothing unless the active capture
+  /// enables [TugboatReplayConfig.captureSystemInput].
+  static final SystemBackObserver _systemBackObserver = SystemBackObserver(
+    onBack: _recordSystemBack,
+  );
+
+  static void _recordSystemBack() {
+    if (!isAcceptingEvidence) return;
+    _controller?.recordSystemInput(TugboatSystemInput.back);
+  }
 
   /// Installs deterministic controller seams before its first post-frame
   /// session start. This exists only for widget tests: production callers
@@ -293,6 +309,10 @@ class _TugboatEventHook implements TugboatEventHook {
 /// with [TugboatReplay.createNavigatorObserver] (or `TugboatNavigatorObserver()`)
 /// and install it on that Navigator — one observer instance per Navigator.
 class TugboatNavigatorObserver extends NavigatorObserver {
+  TugboatNavigatorObserver() {
+    TugboatReplay._systemBackObserver.ensureRegistered();
+  }
+
   void _syncContext() {
     if (TugboatReplay.disabled) return;
     // Prefer the root navigator for pointer/anchor context; nested observers
@@ -381,7 +401,9 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
       previous.emitSceneInventory != current.emitSceneInventory ||
       previous.emitViewportSemanticMap != current.emitViewportSemanticMap ||
       previous.emitCaptureDiagnostics != current.emitCaptureDiagnostics ||
-      previous.acceptActionContext != current.acceptActionContext;
+      previous.acceptActionContext != current.acceptActionContext ||
+      previous.captureFocusChanges != current.captureFocusChanges ||
+      previous.captureSystemInput != current.captureSystemInput;
 
   @override
   void dispose() {
@@ -468,6 +490,8 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
 
   late final TugboatReplayController controller;
   InputCapture? inputCapture;
+  FocusChangeCapture? _focusCapture;
+  SystemKeyCapture? _systemKeyCapture;
   Timer? _backgroundFlushTimer;
   bool _started = false;
   TugboatLocaleInfo? _observedLocale;
@@ -584,7 +608,26 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
       if (widget.config.enableGlobalPointerCapture) {
         inputCapture?.install();
       }
+      _installInputContextCapture();
     });
+  }
+
+  void _installInputContextCapture() {
+    if (widget.config.captureFocusChanges) {
+      _focusCapture = FocusChangeCapture(
+        onFocusChange: (focus, previous) =>
+            controller.recordFocusChange(focus: focus, previousFocus: previous),
+      )..install();
+    }
+    if (widget.config.captureSystemInput) {
+      _systemKeyCapture = SystemKeyCapture(
+        onSystemInput: controller.recordSystemInput,
+      )..install();
+      // Fallback for hosts that never constructed a navigator observer
+      // before their app mounted: this late registration still sees back
+      // requests the app does not handle.
+      TugboatReplay._systemBackObserver.ensureRegistered();
+    }
   }
 
   Size? _captureViewportSize() {
@@ -608,6 +651,8 @@ class _TugboatReplayRootState extends State<_TugboatReplayRoot>
     _cancelBackgroundFlush();
     WidgetsBinding.instance.removeObserver(this);
     inputCapture?.dispose();
+    _focusCapture?.dispose();
+    _systemKeyCapture?.dispose();
     if (identical(TugboatReplay._controller, controller)) {
       TugboatReplay._syncIdentityFromController();
       TugboatReplay._controller = null;

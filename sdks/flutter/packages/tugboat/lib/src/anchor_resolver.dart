@@ -457,6 +457,76 @@ class AnchorResolver {
     return masks;
   }
 
+  /// Order-sensitive signature of the visible structure in the current frame.
+  ///
+  /// It combines retained structural tokens, control state (see
+  /// [tugboatControlStateSignature] and [ToggleableStateMixin.value]),
+  /// blocking-overlay presence, and the
+  /// rounded bounds of text, editable, and image boxes. It never reads text,
+  /// semantics labels, or image pixels, and it is never serialized: capture
+  /// uses it only to refuse perceptual (dHash) coalescing when the tree
+  /// changed, for example when masked error text appears. Returns null when
+  /// no token map is available for [rootRender].
+  int? structureSignature({required RenderBox rootRender}) {
+    final rootContext = rootKey.currentContext;
+    if (rootContext is! Element) return null;
+    final tokenMap = _tokenMapFor(rootContext, rootRender);
+    if (tokenMap == null) return null;
+    final parts = <Object?>[tokenMap.hasBlockingOverlay];
+    for (final element in tokenMap.includedElements) {
+      _addStructureParts(element, tokenMap, rootRender, parts);
+    }
+    return Object.hashAll(parts);
+  }
+
+  void _addStructureParts(
+    Element element,
+    _TokenMap tokenMap,
+    RenderBox rootRender,
+    List<Object?> parts,
+  ) {
+    final token = tokenMap.tokens[element];
+    if (token != null) {
+      parts
+        ..add(token)
+        ..add(tugboatControlStateSignature(element.widget));
+    }
+    if (element is StatefulElement) {
+      final state = element.state;
+      // Covers radios whose selection lives in a RadioGroup ancestor, and the
+      // inner toggles of list tiles, without reading any label.
+      if (state is ToggleableStateMixin) parts.add(state.value);
+    }
+    if (element is! RenderObjectElement) return;
+    final renderObject = element.renderObject;
+    if (renderObject is RenderParagraph ||
+        renderObject is RenderEditable ||
+        renderObject is RenderImage) {
+      parts
+        ..add(renderObject.runtimeType)
+        ..add(_roundedContentBounds(renderObject as RenderBox, rootRender));
+    }
+  }
+
+  Object? _roundedContentBounds(RenderBox renderObject, RenderBox rootRender) {
+    if (!renderObject.attached || !renderObject.hasSize) return null;
+    try {
+      final rect = MatrixUtils.transformRect(
+        renderObject.getTransformTo(rootRender),
+        renderObject.paintBounds,
+      );
+      return Object.hash(
+        rect.left.round(),
+        rect.top.round(),
+        rect.width.round(),
+        rect.height.round(),
+      );
+    } catch (_) {
+      // Detached render object can race capture; treat bounds as unknown.
+      return null;
+    }
+  }
+
   void _addMaskRect(
     Element element,
     _TokenMap tokenMap,

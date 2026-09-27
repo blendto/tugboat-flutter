@@ -88,6 +88,8 @@ class TugboatReplayConfig {
     this.emitViewportSemanticMap = false,
     this.emitCaptureDiagnostics = false,
     this.acceptActionContext = false,
+    this.captureFocusChanges = false,
+    this.captureSystemInput = false,
     this.explorationCollectorUrl,
     this.explorationRunId,
     this.userId,
@@ -154,6 +156,19 @@ class TugboatReplayConfig {
   /// Allows the host to attach external action context to captured events.
   final bool acceptActionContext;
 
+  /// Records `focus_changed` evidence when primary focus moves into, out of,
+  /// or between editable text fields (including keyboard "next" actions and
+  /// programmatic focus that no pointer caused), and requests one visual
+  /// observation after [settleDelay] so the keyboard and focus state are
+  /// captured. Off by default: the collector must accept the event type.
+  final bool captureFocusChanges;
+
+  /// Records `system_input` evidence for system buttons (Android back and the
+  /// hardware keys Flutter receives, such as volume and media keys) and
+  /// requests one visual observation after [settleDelay]. Off by default: the
+  /// collector must accept the event type.
+  final bool captureSystemInput;
+
   final String? explorationCollectorUrl;
   final String? explorationRunId;
   final String? userId;
@@ -207,6 +222,8 @@ class TugboatReplayConfig {
     bool? emitViewportSemanticMap,
     bool? emitCaptureDiagnostics,
     bool? acceptActionContext,
+    bool? captureFocusChanges,
+    bool? captureSystemInput,
     String? explorationCollectorUrl,
     String? explorationRunId,
     String? userId,
@@ -271,6 +288,8 @@ class TugboatReplayConfig {
         this.emitCaptureDiagnostics,
       ),
       acceptActionContext: _or(acceptActionContext, this.acceptActionContext),
+      captureFocusChanges: _or(captureFocusChanges, this.captureFocusChanges),
+      captureSystemInput: _or(captureSystemInput, this.captureSystemInput),
       explorationCollectorUrl: _or(
         explorationCollectorUrl,
         this.explorationCollectorUrl,

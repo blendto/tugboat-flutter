@@ -1,3 +1,37 @@
+## 0.10.8
+
+### Fixed
+
+- Perceptual (dHash) frame coalescing no longer hides real UI changes. A
+  capture whose visible structure changed since the referenced frame (retained
+  widgets, control enabled state and values (checkbox, switch, radio, chip
+  selection, slider), blocking overlays, or the bounds of text, editable,
+  and image boxes) is always encoded instead of being
+  coalesced into a 9x8-similar frame, so masked error text, new banners, and
+  toggled controls produce their own frame. The structure signature is local
+  only: it reads no text or pixels and is never serialized.
+- The dHash baseline now stays on the frame that is actually referenced. A
+  coalesced candidate no longer replaces it, so a series of small changes can
+  no longer drift arbitrarily far from the last recorded frame without a new
+  frame.
+
+### Added
+
+- Opt-in `TugboatReplayConfig.captureFocusChanges`: emits a `focus_changed`
+  evidence event (`focus` / `previousFocus`: `text_input`, `other`, `none`)
+  when primary focus moves into, out of, or between editable text fields,
+  including keyboard "next" actions and programmatic focus with no pointer,
+  and requests one visual observation after `settleDelay`, referenced as
+  `afterFrame`.
+- Opt-in `TugboatReplayConfig.captureSystemInput`: emits a `system_input`
+  evidence event (`input`: `back`, `volume_up`, `volume_down`, `volume_mute`,
+  `power`, `media_play_pause`) for system back requests and allowlisted
+  hardware keys, and requests one visual observation after `settleDelay`,
+  referenced as `afterFrame`. Key events and back requests are never consumed.
+  Other keys are never recorded.
+- Both are off by default because the collector must accept the new event
+  types first. Their frames use the existing `manual` trigger.
+
 ## 0.10.7
 
 ### Added
