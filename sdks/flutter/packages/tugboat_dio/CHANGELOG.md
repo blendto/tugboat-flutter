@@ -1,3 +1,11 @@
+## 0.10.9
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.9 (collector frame upload
+  isolation and bounded `capture_diagnostic` delivery events). The Dio
+  adapter has no runtime behavior change.
+
 ## 0.10.8
 
 ### Changed
