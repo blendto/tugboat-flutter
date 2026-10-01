@@ -16,6 +16,7 @@ import 'health.dart';
 import 'input_context_capture.dart';
 import 'interaction_transaction.dart';
 import 'models.dart';
+import 'navigator_observer_registry.dart';
 import 'network_observer.dart';
 import 'replay_config.dart';
 import 'screenshot_capture_backend.dart';
@@ -1743,6 +1744,70 @@ class TugboatReplayController extends ChangeNotifier {
         _maybeEmitSceneInventory();
       }),
     );
+    seedSessionStartRoute();
+  }
+
+  /// Seeds [_currentRoute] from the visible navigator stack and emits one
+  /// `route_change` with [tugboatNavigationSessionStart].
+  ///
+  /// Safe to call when no navigator is mounted; never throws into the host app.
+  void seedSessionStartRoute({NavigatorState? navigatorState}) {
+    try {
+      if (_routeCaptureIsUnavailable) return;
+      final navigator =
+          navigatorState ??
+          TugboatNavigatorObserverRegistry.deepestObservedNavigator() ??
+          (navigatorContext == null
+              ? null
+              : Navigator.maybeOf(navigatorContext!));
+      if (navigator == null) return;
+      final topRoute = tugboatTopPresentRoute(navigator);
+      if (topRoute == null) return;
+      final identity = tugboatRouteIdentityFor(topRoute);
+      final route = identity.route;
+      if (route == null || route.isEmpty) return;
+
+      final navigatorId = _surfaces.idForNavigator(navigator);
+      final parentNavigatorId = _surfaces.parentOf(navigatorId);
+      final instanceId = _surfaces.idForRoute(topRoute);
+      final overlayKind = tugboatOverlayKindFor(topRoute);
+      _surfaces.remember(
+        instanceId: instanceId,
+        navigatorId: navigatorId,
+        identity: identity,
+        overlayKind: overlayKind,
+      );
+      final stackRevision = _surfaces.push(navigatorId, instanceId);
+      _visualObservationGeneration++;
+
+      final change = _VisibleRouteChange(
+        previousRoute: null,
+        destinationRoute: route,
+        navigation: tugboatNavigationSessionStart,
+        updatesRoute: true,
+        routeName: identity.routeName,
+        routeType: identity.routeType,
+        routeNamed: identity.routeNamed,
+        navigatorId: navigatorId,
+        parentNavigatorId: parentNavigatorId,
+        routeInstanceId: instanceId,
+        stackRevision: stackRevision,
+        overlayKind: overlayKind,
+        visualObservationGeneration: _visualObservationGeneration,
+        routeStack: _routeStackSnapshot(navigatorId),
+        routeStackTruncated: _routeStackTruncated(navigatorId),
+      );
+
+      _applyVisibleRouteChange(change);
+      _emitRouteChange(
+        routeEventId: _nextId('event'),
+        change: change,
+        result: TugboatInteractionResult.unknown,
+      );
+      if (!_disposed) notifyListeners();
+    } catch (error, stackTrace) {
+      debugPrint('[tugboat] session route seed failed: $error\n$stackTrace');
+    }
   }
 
   void clear() {

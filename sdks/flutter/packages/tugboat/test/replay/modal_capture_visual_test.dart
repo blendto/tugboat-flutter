@@ -96,11 +96,7 @@ void main() {
       expect(first.data['overlayKind'], TugboatOverlayKind.sheet);
       expect(second.data['overlayKind'], TugboatOverlayKind.sheet);
       expect(second.data['presentedOverRoute'], firstRoute);
-      expect(
-        second.data.containsKey('hostPageRoute'),
-        isFalse,
-        reason: 'initial /root is not invented when the observer missed it',
-      );
+      expect(second.data['hostPageRoute'], '/root');
 
       // Opaque route-instance IDs distinguish stacked anonymous sheets even
       // when the descriptive route string collapses to the same runtime type.

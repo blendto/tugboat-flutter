@@ -12,6 +12,7 @@ import 'input_capture.dart';
 import 'input_context_capture.dart';
 import 'lifecycle.dart';
 import 'models.dart';
+import 'navigator_observer_registry.dart';
 import 'network_observer.dart';
 
 export 'input_context_capture.dart' show TugboatFocusKind, TugboatSystemInput;
@@ -308,10 +309,15 @@ class _TugboatEventHook implements TugboatEventHook {
 /// For nested Navigators that must be attributed, create a dedicated observer
 /// with [TugboatReplay.createNavigatorObserver] (or `TugboatNavigatorObserver()`)
 /// and install it on that Navigator — one observer instance per Navigator.
-class TugboatNavigatorObserver extends NavigatorObserver {
+class TugboatNavigatorObserver extends NavigatorObserver
+    implements TugboatObservedNavigatorSource {
   TugboatNavigatorObserver() {
+    TugboatNavigatorObserverRegistry.register(this);
     TugboatReplay._systemBackObserver.ensureRegistered();
   }
+
+  @override
+  NavigatorState? get observedNavigator => navigator;
 
   void _syncContext() {
     if (TugboatReplay.disabled) return;

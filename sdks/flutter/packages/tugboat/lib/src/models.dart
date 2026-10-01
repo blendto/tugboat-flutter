@@ -64,6 +64,10 @@ abstract final class TugboatOverlayKind {
 /// Maximum `route_change.data.routeStack` entries (bottom → top).
 const int tugboatRouteStackMaxEntries = 16;
 
+/// `route_change.data.navigation` when recording the route visible at session
+/// start (not a Navigator callback).
+const String tugboatNavigationSessionStart = 'session_start';
+
 /// Split route identity for `route_change` (additive; `route` is unchanged).
 class TugboatRouteIdentity {
   const TugboatRouteIdentity({
@@ -110,6 +114,16 @@ TugboatRouteIdentity tugboatRouteIdentityFor(Route<dynamic>? route) {
     routeType: typeName,
     routeNamed: named,
   );
+}
+
+/// Top present route on [navigator] without mutating the stack.
+Route<dynamic>? tugboatTopPresentRoute(NavigatorState navigator) {
+  Route<dynamic>? top;
+  navigator.popUntil((route) {
+    top = route;
+    return true;
+  });
+  return top;
 }
 
 bool _routeTypeLooksLikeSheet(String typeName) =>
