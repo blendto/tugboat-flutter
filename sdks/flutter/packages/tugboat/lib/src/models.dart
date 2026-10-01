@@ -116,16 +116,6 @@ TugboatRouteIdentity tugboatRouteIdentityFor(Route<dynamic>? route) {
   );
 }
 
-/// Top present route on [navigator] without mutating the stack.
-Route<dynamic>? tugboatTopPresentRoute(NavigatorState navigator) {
-  Route<dynamic>? top;
-  navigator.popUntil((route) {
-    top = route;
-    return true;
-  });
-  return top;
-}
-
 bool _routeTypeLooksLikeSheet(String typeName) =>
     typeName.contains('ModalBottomSheet') || typeName.contains('BottomSheet');
 

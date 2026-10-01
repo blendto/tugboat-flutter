@@ -270,6 +270,10 @@ class TugboatReplay {
     _controller?.dispose();
     _controller = null;
     debugConfigureControllerForTest = null;
+    TugboatNavigatorObserverRegistry.resetForTest(
+      retainRoot: navigatorObserver,
+    );
+    navigatorObserver.debugClearRetainedRouteStack();
     _lifecycle.resetForTest();
     _pendingTraits = null;
     _pendingTraitsId = null;
@@ -316,8 +320,49 @@ class TugboatNavigatorObserver extends NavigatorObserver
     TugboatReplay._systemBackObserver.ensureRegistered();
   }
 
+  final List<Route<dynamic>> _retainedRouteStack = <Route<dynamic>>[];
+
   @override
   NavigatorState? get observedNavigator => navigator;
+
+  @override
+  List<Route<dynamic>> get retainedRouteStack =>
+      List<Route<dynamic>>.unmodifiable(_retainedRouteStack);
+
+  @override
+  bool get hasRetainedRoutes => _retainedRouteStack.isNotEmpty;
+
+  @visibleForTesting
+  void debugClearRetainedRouteStack() => _retainedRouteStack.clear();
+
+  void _retainPush(Route<dynamic> route) {
+    _retainedRouteStack.add(route);
+  }
+
+  void _retainPop(Route<dynamic> popped) {
+    _retainedRouteStack.remove(popped);
+  }
+
+  void _retainReplace(Route<dynamic>? newRoute, Route<dynamic>? oldRoute) {
+    if (oldRoute != null) {
+      final index = _retainedRouteStack.indexOf(oldRoute);
+      if (index >= 0) {
+        if (newRoute == null) {
+          _retainedRouteStack.removeAt(index);
+        } else {
+          _retainedRouteStack[index] = newRoute;
+        }
+        return;
+      }
+    }
+    if (newRoute != null) {
+      _retainedRouteStack.add(newRoute);
+    }
+  }
+
+  void _retainRemove(Route<dynamic> removed) {
+    _retainedRouteStack.remove(removed);
+  }
 
   void _syncContext() {
     if (TugboatReplay.disabled) return;
@@ -335,6 +380,15 @@ class TugboatNavigatorObserver extends NavigatorObserver
   }) {
     if (TugboatReplay.disabled) return;
     _syncContext();
+    if (type == 'route_push') {
+      if (destination != null) _retainPush(destination);
+    } else if (type == 'route_pop') {
+      if (departing != null) _retainPop(departing);
+    } else if (type == 'route_replace') {
+      _retainReplace(destination, departing);
+    } else if (type == 'route_remove') {
+      if (departing != null) _retainRemove(departing);
+    }
     TugboatReplay.controller?.route(
       type,
       destination,

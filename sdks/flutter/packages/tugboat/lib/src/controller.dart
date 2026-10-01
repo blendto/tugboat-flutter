@@ -1736,6 +1736,7 @@ class TugboatReplayController extends ChangeNotifier {
     _addEvent(
       TugboatEvent(id: _nextId('event'), atMs: atMs, type: 'session_start'),
     );
+    seedSessionStartRoute();
     unawaited(
       _requestCapture(
         trigger: TugboatFrameTrigger.initial,
@@ -1744,25 +1745,34 @@ class TugboatReplayController extends ChangeNotifier {
         _maybeEmitSceneInventory();
       }),
     );
-    seedSessionStartRoute();
   }
 
-  /// Seeds [_currentRoute] from the visible navigator stack and emits one
+  /// Seeds [_currentRoute] from observer-retained stacks and emits one
   /// `route_change` with [tugboatNavigationSessionStart].
   ///
   /// Safe to call when no navigator is mounted; never throws into the host app.
-  void seedSessionStartRoute({NavigatorState? navigatorState}) {
+  void seedSessionStartRoute({TugboatObservedNavigatorSource? source}) {
     try {
       if (_routeCaptureIsUnavailable) return;
-      final navigator =
-          navigatorState ??
-          TugboatNavigatorObserverRegistry.deepestObservedNavigator() ??
-          (navigatorContext == null
-              ? null
-              : Navigator.maybeOf(navigatorContext!));
-      if (navigator == null) return;
-      final topRoute = tugboatTopPresentRoute(navigator);
-      if (topRoute == null) return;
+      final retained =
+          source ?? TugboatNavigatorObserverRegistry.seedSource();
+      if (retained == null) return;
+      final navigator = retained.observedNavigator;
+      final stack = retained.retainedRouteStack;
+      if (navigator == null || stack.isEmpty) return;
+
+      for (final route in stack) {
+        final transition = _parseRouteTransition('route_push', route);
+        final change = _resolveVisibleRouteChange(
+          transition,
+          destinationRoute: route,
+          navigatorState: navigator,
+        );
+        if (change == null) continue;
+        _applyVisibleRouteChange(change);
+      }
+
+      final topRoute = stack.last;
       final identity = tugboatRouteIdentityFor(topRoute);
       final route = identity.route;
       if (route == null || route.isEmpty) return;
@@ -1771,14 +1781,7 @@ class TugboatReplayController extends ChangeNotifier {
       final parentNavigatorId = _surfaces.parentOf(navigatorId);
       final instanceId = _surfaces.idForRoute(topRoute);
       final overlayKind = tugboatOverlayKindFor(topRoute);
-      _surfaces.remember(
-        instanceId: instanceId,
-        navigatorId: navigatorId,
-        identity: identity,
-        overlayKind: overlayKind,
-      );
-      final stackRevision = _surfaces.push(navigatorId, instanceId);
-      _visualObservationGeneration++;
+      final stackRevision = _surfaces.stackFor(navigatorId).length;
 
       final change = _VisibleRouteChange(
         previousRoute: null,

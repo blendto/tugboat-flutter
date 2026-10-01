@@ -65,13 +65,17 @@ void main() {
     expect(sessionStartRoutes.single.data['route'], '/home');
     expect(sessionStartRoutes.single.data.containsKey('fromRoute'), isFalse);
 
-    if (controller.session!.frames.isNotEmpty) {
-      final initialFrame = controller.session!.frames.first;
-      expect(
-        controller.debugFrameProvenance(initialFrame.id)?['route'],
-        '/home',
-      );
-    }
+    expect(controller.session!.frames, isNotEmpty);
+    final initialFrame = controller.session!.frames.first;
+    expect(controller.debugFrameProvenance(initialFrame.id)?['route'], '/home');
+    final initialDiagnostic = controller.session!.events
+        .where(
+          (event) =>
+              event.type == 'capture_diagnostic' &&
+              event.data['trigger'] == 'initial',
+        )
+        .first;
+    expect(initialDiagnostic.data['outcome'], isNot('superseded_route_epoch'));
 
     await tester.tap(find.text('Go'));
     await tester.pumpAndSettle();
@@ -143,6 +147,61 @@ void main() {
           .data['route'],
       '/nested/child',
     );
+  });
+
+  testWidgets('sibling tab observers seed the painting navigator route', (
+    tester,
+  ) async {
+    final tabAObserver = TugboatNavigatorObserver();
+    final tabBObserver = TugboatNavigatorObserver();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TugboatReplay.wrapApp(
+          config: _testConfig,
+          child: DefaultTabController(
+            length: 2,
+            child: Scaffold(
+              appBar: AppBar(
+                bottom: const TabBar(
+                  tabs: [Tab(text: 'A'), Tab(text: 'B')],
+                ),
+              ),
+              body: TabBarView(
+                children: [
+                  Navigator(
+                    key: const ValueKey('tab-a-nav'),
+                    observers: [tabAObserver],
+                    onGenerateRoute: (_) => MaterialPageRoute<void>(
+                      settings: const RouteSettings(name: '/tab-a'),
+                      builder: (_) => const Scaffold(body: Text('Tab A')),
+                    ),
+                  ),
+                  Navigator(
+                    key: const ValueKey('tab-b-nav'),
+                    observers: [tabBObserver],
+                    onGenerateRoute: (_) => MaterialPageRoute<void>(
+                      settings: const RouteSettings(name: '/tab-b'),
+                      builder: (_) => const Scaffold(body: Text('Tab B')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await waitForTugboatCaptureWork(tester);
+    expect(TugboatReplay.controller!.currentRoute, '/tab-a');
+
+    await tester.tap(find.text('B'));
+    await tester.pumpAndSettle();
+    await waitForTugboatCaptureWork(tester);
+
+    final controller = TugboatReplay.controller!;
+    controller.clear();
+    await waitForTugboatCaptureWork(tester);
+    expect(controller.currentRoute, '/tab-b');
   });
 
   test('start without navigator does not emit session_start route_change', () async {
