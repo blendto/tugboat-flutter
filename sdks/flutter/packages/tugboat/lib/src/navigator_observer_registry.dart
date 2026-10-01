@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 /// Sources for [NavigatorState] registered by [TugboatNavigatorObserver].
@@ -42,16 +43,12 @@ final class TugboatNavigatorObserverRegistry {
     TugboatObservedNavigatorSource? fallback;
     for (final source in leaves) {
       if (!source.hasRetainedRoutes) continue;
+      final navigator = source.observedNavigator;
+      if (navigator == null) continue;
       fallback = source;
-      final stack = source.retainedRouteStack;
-      if (stack.isEmpty) continue;
-      if (_routeIsPainting(stack.last)) return source;
+      if (_navigatorIsOnScreen(navigator)) return source;
     }
-    if (fallback != null) return fallback;
-    for (final source in leaves) {
-      if (source.hasRetainedRoutes) return source;
-    }
-    return null;
+    return fallback;
   }
 
   static List<TugboatObservedNavigatorSource> _leafSources() {
@@ -77,8 +74,63 @@ final class TugboatNavigatorObserverRegistry {
         .toList(growable: false);
   }
 
-  static bool _routeIsPainting(Route<dynamic> route) =>
-      route.isActive && route.isCurrent;
+  static bool _navigatorIsOnScreen(NavigatorState navigator) {
+    final context = navigator.context;
+    if (!_ancestorsAllowPainting(context)) return false;
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox) return false;
+    if (!renderObject.attached || !renderObject.hasSize) return false;
+    final size = renderObject.size;
+    if (size.width <= 0 || size.height <= 0) return false;
+    final rect = renderObject.localToGlobal(Offset.zero) & size;
+    final view = View.of(context);
+    final screen = Offset.zero & (view.physicalSize / view.devicePixelRatio);
+    if (!rect.overlaps(screen)) return false;
+    return _hitTestIncludesRenderObject(rect.center, context, renderObject);
+  }
+
+  static bool _hitTestIncludesRenderObject(
+    Offset globalPosition,
+    BuildContext context,
+    RenderObject target,
+  ) {
+    final result = BoxHitTestResult();
+    final viewId = View.of(context).viewId;
+    WidgetsBinding.instance.hitTestInView(result, globalPosition, viewId);
+    if (result.path.isEmpty) return false;
+    for (final entry in result.path) {
+      final hit = entry.target;
+      if (hit is! RenderObject) continue;
+      RenderObject? node = hit;
+      while (node != null) {
+        if (identical(node, target)) return true;
+        node = node.parent;
+      }
+    }
+    return false;
+  }
+
+  static bool _ancestorsAllowPainting(BuildContext context) {
+    if (context is! Element) return true;
+    var blocked = false;
+    context.visitAncestorElements((ancestor) {
+      final widget = ancestor.widget;
+      if (widget is Offstage && widget.offstage) {
+        blocked = true;
+        return false;
+      }
+      if (widget is Visibility && !widget.visible) {
+        blocked = true;
+        return false;
+      }
+      if (widget is TickerMode && !widget.enabled) {
+        blocked = true;
+        return false;
+      }
+      return true;
+    });
+    return !blocked;
+  }
 
   static bool _isDescendantNavigator(
     NavigatorState descendant,

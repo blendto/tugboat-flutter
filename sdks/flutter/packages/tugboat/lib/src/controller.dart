@@ -582,6 +582,31 @@ class _VisibleRouteChange {
   bool get bypassesExplorationSuppression =>
       causeEventId != null || overlayKind != TugboatOverlayKind.page;
 
+  _VisibleRouteChange asSessionStartWireChange() => _VisibleRouteChange(
+    previousRoute: null,
+    destinationRoute: destinationRoute,
+    navigation: tugboatNavigationSessionStart,
+    updatesRoute: updatesRoute,
+    routeName: routeName,
+    routeType: routeType,
+    routeNamed: routeNamed,
+    navigatorId: navigatorId,
+    parentNavigatorId: parentNavigatorId,
+    routeInstanceId: routeInstanceId,
+    fromRouteInstanceId: fromRouteInstanceId,
+    stackRevision: stackRevision,
+    overlayKind: overlayKind,
+    visualObservationGeneration: visualObservationGeneration,
+    navigationOrigin: navigationOrigin,
+    presentedOverRoute: presentedOverRoute,
+    presentedOverRouteInstanceId: presentedOverRouteInstanceId,
+    presentedOverOverlayKind: presentedOverOverlayKind,
+    hostPageRoute: hostPageRoute,
+    hostPageRouteInstanceId: hostPageRouteInstanceId,
+    routeStack: routeStack,
+    routeStackTruncated: routeStackTruncated,
+  );
+
   Map<String, Object?> ownershipData() => {
     ..._routeIdentityData(),
     ..._routeSurfaceData(),
@@ -1754,63 +1779,50 @@ class TugboatReplayController extends ChangeNotifier {
   void seedSessionStartRoute({TugboatObservedNavigatorSource? source}) {
     try {
       if (_routeCaptureIsUnavailable) return;
-      final retained =
-          source ?? TugboatNavigatorObserverRegistry.seedSource();
+      var retained = source;
+      if (retained == null) {
+        retained = TugboatNavigatorObserverRegistry.seedSource();
+      }
       if (retained == null) return;
       final navigator = retained.observedNavigator;
+      if (navigator == null) return;
       final stack = retained.retainedRouteStack;
-      if (navigator == null || stack.isEmpty) return;
-
-      for (final route in stack) {
-        final transition = _parseRouteTransition('route_push', route);
-        final change = _resolveVisibleRouteChange(
-          transition,
-          destinationRoute: route,
-          navigatorState: navigator,
-        );
-        if (change == null) continue;
-        _applyVisibleRouteChange(change);
-      }
-
-      final topRoute = stack.last;
-      final identity = tugboatRouteIdentityFor(topRoute);
-      final route = identity.route;
-      if (route == null || route.isEmpty) return;
-
-      final navigatorId = _surfaces.idForNavigator(navigator);
-      final parentNavigatorId = _surfaces.parentOf(navigatorId);
-      final instanceId = _surfaces.idForRoute(topRoute);
-      final overlayKind = tugboatOverlayKindFor(topRoute);
-      final stackRevision = _surfaces.stackFor(navigatorId).length;
-
-      final change = _VisibleRouteChange(
-        previousRoute: null,
-        destinationRoute: route,
-        navigation: tugboatNavigationSessionStart,
-        updatesRoute: true,
-        routeName: identity.routeName,
-        routeType: identity.routeType,
-        routeNamed: identity.routeNamed,
-        navigatorId: navigatorId,
-        parentNavigatorId: parentNavigatorId,
-        routeInstanceId: instanceId,
-        stackRevision: stackRevision,
-        overlayKind: overlayKind,
-        visualObservationGeneration: _visualObservationGeneration,
-        routeStack: _routeStackSnapshot(navigatorId),
-        routeStackTruncated: _routeStackTruncated(navigatorId),
-      );
-
-      _applyVisibleRouteChange(change);
-      _emitRouteChange(
-        routeEventId: _nextId('event'),
-        change: change,
-        result: TugboatInteractionResult.unknown,
-      );
+      if (stack.isEmpty) return;
+      final applied = _replayRetainedRouteStack(navigator, stack);
+      if (applied == null) return;
+      _emitSessionStartRouteChange(applied);
       if (!_disposed) notifyListeners();
     } catch (error, stackTrace) {
       debugPrint('[tugboat] session route seed failed: $error\n$stackTrace');
     }
+  }
+
+  _VisibleRouteChange? _replayRetainedRouteStack(
+    NavigatorState navigator,
+    List<Route<dynamic>> stack,
+  ) {
+    _VisibleRouteChange? last;
+    for (final route in stack) {
+      final transition = _parseRouteTransition('route_push', route);
+      final change = _resolveVisibleRouteChange(
+        transition,
+        destinationRoute: route,
+        navigatorState: navigator,
+      );
+      if (change == null) continue;
+      _applyVisibleRouteChange(change);
+      last = change;
+    }
+    return last;
+  }
+
+  void _emitSessionStartRouteChange(_VisibleRouteChange applied) {
+    final change = applied.asSessionStartWireChange();
+    _emitRouteChange(
+      routeEventId: _nextId('event'),
+      change: change,
+      result: TugboatInteractionResult.unknown,
+    );
   }
 
   void clear() {

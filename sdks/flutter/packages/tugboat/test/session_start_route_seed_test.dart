@@ -149,39 +149,57 @@ void main() {
     );
   });
 
-  testWidgets('sibling tab observers seed the painting navigator route', (
+  testWidgets('indexed stack siblings seed the on-screen navigator on clear', (
     tester,
   ) async {
     final tabAObserver = TugboatNavigatorObserver();
     final tabBObserver = TugboatNavigatorObserver();
+    var selectedIndex = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: TugboatReplay.wrapApp(
           config: _testConfig,
-          child: DefaultTabController(
-            length: 2,
-            child: Scaffold(
-              appBar: AppBar(
-                bottom: const TabBar(
-                  tabs: [Tab(text: 'A'), Tab(text: 'B')],
-                ),
-              ),
-              body: TabBarView(
+          child: StatefulBuilder(
+            builder: (context, setState) => Scaffold(
+              body: Column(
                 children: [
-                  Navigator(
-                    key: const ValueKey('tab-a-nav'),
-                    observers: [tabAObserver],
-                    onGenerateRoute: (_) => MaterialPageRoute<void>(
-                      settings: const RouteSettings(name: '/tab-a'),
-                      builder: (_) => const Scaffold(body: Text('Tab A')),
-                    ),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => setState(() => selectedIndex = 0),
+                        child: const Text('Show A'),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => selectedIndex = 1),
+                        child: const Text('Show B'),
+                      ),
+                    ],
                   ),
-                  Navigator(
-                    key: const ValueKey('tab-b-nav'),
-                    observers: [tabBObserver],
-                    onGenerateRoute: (_) => MaterialPageRoute<void>(
-                      settings: const RouteSettings(name: '/tab-b'),
-                      builder: (_) => const Scaffold(body: Text('Tab B')),
+                  Expanded(
+                    child: IndexedStack(
+                      index: selectedIndex,
+                      children: [
+                        Navigator(
+                          initialRoute: '/tab-a',
+                          observers: [tabAObserver],
+                          onGenerateRoute: (settings) =>
+                              MaterialPageRoute<void>(
+                                settings: settings,
+                                builder: (_) =>
+                                    const Scaffold(body: Text('Tab A')),
+                              ),
+                        ),
+                        Navigator(
+                          initialRoute: '/tab-b',
+                          observers: [tabBObserver],
+                          onGenerateRoute: (settings) =>
+                              MaterialPageRoute<void>(
+                                settings: settings,
+                                builder: (_) =>
+                                    const Scaffold(body: Text('Tab B')),
+                              ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -194,7 +212,7 @@ void main() {
     await waitForTugboatCaptureWork(tester);
     expect(TugboatReplay.controller!.currentRoute, '/tab-a');
 
-    await tester.tap(find.text('B'));
+    await tester.tap(find.text('Show B'));
     await tester.pumpAndSettle();
     await waitForTugboatCaptureWork(tester);
 
@@ -202,6 +220,48 @@ void main() {
     controller.clear();
     await waitForTugboatCaptureWork(tester);
     expect(controller.currentRoute, '/tab-b');
+  });
+
+  testWidgets('session_start on a sheet carries hostPageRoute', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        initialRoute: '/root',
+        navigatorObservers: [TugboatReplay.navigatorObserver],
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _testConfig, child: child!),
+        routes: {
+          '/root': (_) => Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  builder: (_) => const Scaffold(body: Text('Sheet')),
+                ),
+                child: const Text('Open sheet'),
+              ),
+            ),
+          ),
+        },
+      ),
+    );
+    await waitForTugboatCaptureWork(tester);
+    await tester.tap(find.text('Open sheet'));
+    await tester.pumpAndSettle();
+    await waitForTugboatCaptureWork(tester);
+
+    final controller = TugboatReplay.controller!;
+    controller.clear();
+    await waitForTugboatCaptureWork(tester);
+
+    final sessionStart = controller.session!.events
+        .where(
+          (event) =>
+              event.type == 'route_change' &&
+              event.data['navigation'] == tugboatNavigationSessionStart,
+        )
+        .single;
+    expect(sessionStart.data['route'], contains('ModalBottomSheetRoute'));
+    expect(sessionStart.data['hostPageRoute'], '/root');
   });
 
   test('start without navigator does not emit session_start route_change', () async {
