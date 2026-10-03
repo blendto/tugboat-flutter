@@ -1,3 +1,11 @@
+## 0.10.10
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.10 (the visible navigator route is
+  seeded at session start with one `route_change`, `navigation: session_start`).
+  The Dio adapter has no runtime behavior change.
+
 ## 0.10.9
 
 ### Changed
