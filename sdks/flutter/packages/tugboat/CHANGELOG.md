@@ -1,3 +1,12 @@
+## 0.10.10
+
+### Fixed
+
+- Session start now seeds the navigator's visible route and emits one
+  `route_change` with `navigation: session_start`, so the first screen and the
+  first post-start navigation retain correct route evidence (including nested
+  navigators with dedicated observers).
+
 ## 0.10.9
 
 ### Fixed

@@ -16,6 +16,7 @@ import 'health.dart';
 import 'input_context_capture.dart';
 import 'interaction_transaction.dart';
 import 'models.dart';
+import 'navigator_observer_registry.dart';
 import 'network_observer.dart';
 import 'replay_config.dart';
 import 'screenshot_capture_backend.dart';
@@ -580,6 +581,31 @@ class _VisibleRouteChange {
 
   bool get bypassesExplorationSuppression =>
       causeEventId != null || overlayKind != TugboatOverlayKind.page;
+
+  _VisibleRouteChange asSessionStartWireChange() => _VisibleRouteChange(
+    previousRoute: null,
+    destinationRoute: destinationRoute,
+    navigation: tugboatNavigationSessionStart,
+    updatesRoute: updatesRoute,
+    routeName: routeName,
+    routeType: routeType,
+    routeNamed: routeNamed,
+    navigatorId: navigatorId,
+    parentNavigatorId: parentNavigatorId,
+    routeInstanceId: routeInstanceId,
+    fromRouteInstanceId: fromRouteInstanceId,
+    stackRevision: stackRevision,
+    overlayKind: overlayKind,
+    visualObservationGeneration: visualObservationGeneration,
+    navigationOrigin: navigationOrigin,
+    presentedOverRoute: presentedOverRoute,
+    presentedOverRouteInstanceId: presentedOverRouteInstanceId,
+    presentedOverOverlayKind: presentedOverOverlayKind,
+    hostPageRoute: hostPageRoute,
+    hostPageRouteInstanceId: hostPageRouteInstanceId,
+    routeStack: routeStack,
+    routeStackTruncated: routeStackTruncated,
+  );
 
   Map<String, Object?> ownershipData() => {
     ..._routeIdentityData(),
@@ -1735,6 +1761,7 @@ class TugboatReplayController extends ChangeNotifier {
     _addEvent(
       TugboatEvent(id: _nextId('event'), atMs: atMs, type: 'session_start'),
     );
+    seedSessionStartRoute();
     unawaited(
       _requestCapture(
         trigger: TugboatFrameTrigger.initial,
@@ -1742,6 +1769,59 @@ class TugboatReplayController extends ChangeNotifier {
       ).then((_) {
         _maybeEmitSceneInventory();
       }),
+    );
+  }
+
+  /// Seeds [_currentRoute] from observer-retained stacks and emits one
+  /// `route_change` with [tugboatNavigationSessionStart].
+  ///
+  /// Safe to call when no navigator is mounted; never throws into the host app.
+  void seedSessionStartRoute({TugboatObservedNavigatorSource? source}) {
+    try {
+      if (_routeCaptureIsUnavailable) return;
+      var retained = source;
+      if (retained == null) {
+        retained = TugboatNavigatorObserverRegistry.seedSource();
+      }
+      if (retained == null) return;
+      final navigator = retained.observedNavigator;
+      if (navigator == null) return;
+      final stack = retained.retainedRouteStack;
+      if (stack.isEmpty) return;
+      final applied = _replayRetainedRouteStack(navigator, stack);
+      if (applied == null) return;
+      _emitSessionStartRouteChange(applied);
+      if (!_disposed) notifyListeners();
+    } catch (error, stackTrace) {
+      debugPrint('[tugboat] session route seed failed: $error\n$stackTrace');
+    }
+  }
+
+  _VisibleRouteChange? _replayRetainedRouteStack(
+    NavigatorState navigator,
+    List<Route<dynamic>> stack,
+  ) {
+    _VisibleRouteChange? last;
+    for (final route in stack) {
+      final transition = _parseRouteTransition('route_push', route);
+      final change = _resolveVisibleRouteChange(
+        transition,
+        destinationRoute: route,
+        navigatorState: navigator,
+      );
+      if (change == null) continue;
+      _applyVisibleRouteChange(change);
+      last = change;
+    }
+    return last;
+  }
+
+  void _emitSessionStartRouteChange(_VisibleRouteChange applied) {
+    final change = applied.asSessionStartWireChange();
+    _emitRouteChange(
+      routeEventId: _nextId('event'),
+      change: change,
+      result: TugboatInteractionResult.unknown,
     );
   }
 
