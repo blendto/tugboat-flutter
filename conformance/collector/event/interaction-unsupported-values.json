@@ -1,0 +1,80 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "interaction-unsupported-values",
+  "description": "Edge: the mapper does not validate interaction facts. An unknown gesture and interactionSchema pass through unchanged; unknown data keys and null values are dropped; an empty route string is kept; enrichmentCandidate is true for any interaction, even on the evidence stream.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "installationId": "inst-0002",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390,
+          "height": 844
+        },
+        "screenDensity": 3,
+        "screenDpi": 460,
+        "screenPixelDensity": 3
+      },
+      "ip": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "configuredUserId": null
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "event": {
+      "id": "event-90",
+      "atMs": 95000,
+      "type": "interaction",
+      "stream": "evidence",
+      "data": {
+        "interactionSchema": 99,
+        "gesture": "long_press",
+        "route": "",
+        "targetFingerprint": null,
+        "pressure": 0.8,
+        "debugLabel": "secret"
+      }
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-90",
+      "atMs": 95000,
+      "triggeredAt": "2026-06-19T00:01:35.000Z",
+      "sessionId": "collector-session-9",
+      "userId": "user-runtime",
+      "eventType": "interaction",
+      "stream": "evidence",
+      "enrichmentCandidate": true,
+      "interactionSchema": 99,
+      "route": "",
+      "gesture": "long_press",
+      "traitsId": "traits-123",
+      "build": {
+        "appId": "com.example.app",
+        "platform": "ios",
+        "versionName": "1.0.0",
+        "buildNumber": "1",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

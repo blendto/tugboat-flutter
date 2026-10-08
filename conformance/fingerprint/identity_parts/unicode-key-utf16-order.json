@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.identityParts",
+  "name": "unicode-key-utf16-order",
+  "description": "Keys are compared by UTF-16 code unit (Dart String.compareTo). U+1F600 (surrogate D83D) sorts before U+FF5A; a UTF-8 byte comparison would order them the other way.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "parts": [
+      [
+        "\uff5a",
+        "bmp"
+      ],
+      [
+        "\ud83d\ude00",
+        "astral"
+      ]
+    ]
+  },
+  "expected": {
+    "canonicalString": "\ud83d\ude00=astral|\uff5a=bmp",
+    "fingerprint": "3410541a07ba717e"
+  }
+}

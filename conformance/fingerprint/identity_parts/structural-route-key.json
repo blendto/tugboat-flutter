@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.identityParts",
+  "name": "structural-route-key",
+  "description": "Anonymous route: the adapter supplies a struct:<signature> route key. The hash treats it as an opaque string.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "parts": [
+      [
+        "routeKey",
+        "struct:5f2b9c1d0e7a4b36"
+      ],
+      [
+        "path",
+        "Scaffold#0/ListView#0/[item:3]/InkWell#0"
+      ]
+    ]
+  },
+  "expected": {
+    "canonicalString": "path=Scaffold#0/ListView#0/[item:3]/InkWell#0|routeKey=struct:5f2b9c1d0e7a4b36",
+    "fingerprint": "ca37c15397bd0819"
+  }
+}

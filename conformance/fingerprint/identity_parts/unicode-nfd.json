@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.identityParts",
+  "name": "unicode-nfd",
+  "description": "Decomposed e + U+0301 in a value. No Unicode normalization: this differs from unicode-nfc.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "parts": [
+      [
+        "routeKey",
+        "/cafe\u0301"
+      ],
+      [
+        "path",
+        "Scaffold#0"
+      ]
+    ]
+  },
+  "expected": {
+    "canonicalString": "path=Scaffold#0|routeKey=/cafe\u0301",
+    "fingerprint": "4ca4c4984582e536"
+  }
+}

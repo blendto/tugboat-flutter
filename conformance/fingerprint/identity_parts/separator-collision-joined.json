@@ -1,0 +1,22 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.identityParts",
+  "name": "separator-collision-joined",
+  "description": "One part whose value contains the '|' and '=' separators. Collides with separator-collision-split (current behavior, not a goal).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "parts": [
+      [
+        "a",
+        "1|b=2"
+      ]
+    ]
+  },
+  "expected": {
+    "canonicalString": "a=1|b=2",
+    "fingerprint": "95a180ca2b5d1603"
+  }
+}

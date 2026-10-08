@@ -1,0 +1,153 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "interaction-scroll",
+  "description": "Scroll. payload carries startOffset, endOffset (logical pixels) and overscrollCount; targetFingerprint is the scrollable's.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "2.4.0",
+        "buildNumber": "240",
+        "installationId": "inst-0001",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0001",
+        "platform": "android",
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "osVersion": "15",
+        "batteryPercent": 81,
+        "storageFreeMb": 20480,
+        "ramMb": 8192,
+        "networkType": "wifi",
+        "screenSize": {
+          "width": 412.0,
+          "height": 915.0
+        },
+        "screenDensity": 2.625,
+        "screenDpi": 420,
+        "screenPixelDensity": 2.625
+      },
+      "ip": {
+        "ip": "203.0.113.7",
+        "city": "Lisbon",
+        "region": "Lisbon",
+        "country": "PT",
+        "timezone": "Europe/Lisbon",
+        "isp": "Example ISP",
+        "org": "Example Org"
+      },
+      "locale": {
+        "language": "en",
+        "country": "US",
+        "timezone": "Europe/Lisbon"
+      },
+      "configuredUserId": "user-configured"
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "event": {
+      "id": "event-60",
+      "atMs": 72500,
+      "type": "interaction",
+      "stream": "semantic",
+      "targetAnchor": {
+        "schemaVersion": 6,
+        "widgetType": "ListView",
+        "role": "scrollable",
+        "fingerprint": "1234abcd5678ef90",
+        "fingerprintConfidence": "low",
+        "canonicalPath": "Scaffold#0/ListView#0",
+        "enabled": true,
+        "actions": [
+          "scrollDown",
+          "scrollUp"
+        ]
+      },
+      "beforeFrame": "frame-50",
+      "afterFrame": "frame-53",
+      "data": {
+        "interactionSchema": 2,
+        "gesture": "scroll",
+        "route": "/feed",
+        "targetFingerprint": "1234abcd5678ef90",
+        "payload": {
+          "position": {
+            "xNorm": 0.5,
+            "yNorm": 0.7
+          },
+          "startOffset": 0.0,
+          "endOffset": 1342.5,
+          "overscrollCount": 1
+        }
+      },
+      "locale": {
+        "language": "pt",
+        "country": "PT",
+        "tag": "pt-PT"
+      }
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-60",
+      "atMs": 72500,
+      "triggeredAt": "2026-06-19T00:01:12.500Z",
+      "sessionId": "collector-session-9",
+      "userId": "user-runtime",
+      "eventType": "interaction",
+      "stream": "semantic",
+      "enrichmentCandidate": true,
+      "interactionSchema": 2,
+      "route": "/feed",
+      "targetFingerprint": "1234abcd5678ef90",
+      "gesture": "scroll",
+      "payload": {
+        "position": {
+          "xNorm": 0.5,
+          "yNorm": 0.7
+        },
+        "startOffset": 0.0,
+        "endOffset": 1342.5,
+        "overscrollCount": 1
+      },
+      "targetAnchor": {
+        "fingerprint": "1234abcd5678ef90",
+        "canonicalPath": "Scaffold#0/ListView#0",
+        "widgetType": "ListView",
+        "role": "scrollable",
+        "fingerprintConfidence": "low",
+        "enabled": true,
+        "actions": [
+          "scrollDown",
+          "scrollUp"
+        ]
+      },
+      "beforeFrame": "frame-50",
+      "afterFrame": "frame-53",
+      "locale": {
+        "language": "pt",
+        "country": "PT",
+        "tag": "pt-PT"
+      },
+      "traitsId": "traits-123",
+      "build": {
+        "appId": "com.example.app",
+        "platform": "android",
+        "versionName": "2.4.0",
+        "buildNumber": "240",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

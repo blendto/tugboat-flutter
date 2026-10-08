@@ -1,0 +1,42 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.identityParts",
+  "name": "sort-is-code-unit-lexicographic",
+  "description": "Keys sort by code unit, not numerically or case-insensitively: uppercase before lowercase, a prefix before its extensions, '10' before '9'.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "parts": [
+      [
+        "b",
+        "4"
+      ],
+      [
+        "9",
+        "1"
+      ],
+      [
+        "a",
+        "3"
+      ],
+      [
+        "10",
+        "0"
+      ],
+      [
+        "ab",
+        "5"
+      ],
+      [
+        "B",
+        "2"
+      ]
+    ]
+  },
+  "expected": {
+    "canonicalString": "10=0|9=1|B=2|a=3|ab=5|b=4",
+    "fingerprint": "5cf67eee5740a17e"
+  }
+}
