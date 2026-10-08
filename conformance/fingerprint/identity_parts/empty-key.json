@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.identityParts",
+  "name": "empty-key",
+  "description": "An empty key is accepted and sorts first, contributing '=value'.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "parts": [
+      [
+        "routeKey",
+        "/home"
+      ],
+      [
+        "",
+        "orphan"
+      ]
+    ]
+  },
+  "expected": {
+    "canonicalString": "=orphan|routeKey=/home",
+    "fingerprint": "c99344eaca9274d6"
+  }
+}

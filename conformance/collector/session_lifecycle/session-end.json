@@ -1,0 +1,79 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.sessionLifecycle",
+  "name": "session-end",
+  "description": "session_end carries no host metadata. A null userId stays null (no configured fallback after start). The active locale is ignored. traitsId passes through when no traits bag is set.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "2.4.0",
+        "buildNumber": "240",
+        "installationId": "inst-0001",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0001",
+        "platform": "android",
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "osVersion": "15",
+        "batteryPercent": 81,
+        "storageFreeMb": 20480,
+        "ramMb": 8192,
+        "networkType": "wifi",
+        "screenSize": {
+          "width": 412.0,
+          "height": 915.0
+        },
+        "screenDensity": 2.625,
+        "screenDpi": 420,
+        "screenPixelDensity": 2.625
+      },
+      "ip": {
+        "ip": "203.0.113.7",
+        "city": "Lisbon",
+        "region": "Lisbon",
+        "country": "PT",
+        "timezone": "Europe/Lisbon",
+        "isp": "Example ISP",
+        "org": "Example Org"
+      },
+      "locale": {
+        "language": "en",
+        "country": "US",
+        "timezone": "Europe/Lisbon"
+      },
+      "configuredUserId": "user-configured"
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": null,
+      "traitsId": "traits-123"
+    },
+    "lifecycle": {
+      "eventType": "session_end",
+      "triggeredAtEpochMs": 1781827325000,
+      "activeLocale": {
+        "language": "pt",
+        "country": "PT",
+        "tag": "pt-PT"
+      }
+    }
+  },
+  "expected": {
+    "record": {
+      "sessionId": "collector-session-9",
+      "eventType": "session_end",
+      "atMs": 125000,
+      "triggeredAt": "2026-06-19T00:02:05.000Z",
+      "userId": null,
+      "traitsId": "traits-123"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.identityParts",
+  "name": "tag-fingerprint",
+  "description": "tagFingerprint: routeKey plus the developer tag id; the path is not an input.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "parts": [
+      [
+        "routeKey",
+        "/checkout"
+      ],
+      [
+        "tag",
+        "pay-button"
+      ]
+    ]
+  },
+  "expected": {
+    "canonicalString": "routeKey=/checkout|tag=pay-button",
+    "fingerprint": "25074891f3fd3105"
+  }
+}

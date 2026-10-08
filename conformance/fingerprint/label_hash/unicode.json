@@ -1,0 +1,16 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.labelHash",
+  "name": "unicode",
+  "description": "Non-ASCII input is hashed over its UTF-8 bytes.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "value": "\u65e5\u672c\u8a9e \u2713"
+  },
+  "expected": {
+    "hash": "82efc577ff540f65"
+  }
+}

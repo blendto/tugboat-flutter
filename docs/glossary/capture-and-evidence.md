@@ -50,3 +50,8 @@ identity parts, route keys, mask geometry, and input targets.
 **Toolkit** — the UI framework an anchor came from: `flutter`, `view`,
 `compose`, `uikit`, `swiftui`, or `react-native`. Namespaces identity; never a
 hash input.
+
+**Conformance fixture** — a reviewed JSON case under `conformance/` pairing
+engine inputs (identity parts, recorded events, session facts) with the exact
+expected output. Every engine implementation must match them; tests read
+them and never regenerate them.

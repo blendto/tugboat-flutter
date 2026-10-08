@@ -1,0 +1,155 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "route-change-push",
+  "description": "route_change as the Flutter controller emits it. Allow-listed keys are copied to the top level; navigator/instance bookkeeping (navigatorId, routeInstanceId, stackRevision, visualObservationGeneration, navigationOrigin, interactionAttribution) is dropped; result is dropped; routeStackTruncated true is kept.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "2.4.0",
+        "buildNumber": "240",
+        "installationId": "inst-0001",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0001",
+        "platform": "android",
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "osVersion": "15",
+        "batteryPercent": 81,
+        "storageFreeMb": 20480,
+        "ramMb": 8192,
+        "networkType": "wifi",
+        "screenSize": {
+          "width": 412.0,
+          "height": 915.0
+        },
+        "screenDensity": 2.625,
+        "screenDpi": 420,
+        "screenPixelDensity": 2.625
+      },
+      "ip": {
+        "ip": "203.0.113.7",
+        "city": "Lisbon",
+        "region": "Lisbon",
+        "country": "PT",
+        "timezone": "Europe/Lisbon",
+        "isp": "Example ISP",
+        "org": "Example Org"
+      },
+      "locale": {
+        "language": "en",
+        "country": "US",
+        "timezone": "Europe/Lisbon"
+      },
+      "configuredUserId": "user-configured"
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "event": {
+      "id": "event-42",
+      "atMs": 56400,
+      "type": "route_change",
+      "stream": "evidence",
+      "afterFrame": "frame-36",
+      "result": "navigated",
+      "relatedEventId": "event-41",
+      "data": {
+        "fromRoute": "/checkout",
+        "route": "/receipt",
+        "navigation": "push",
+        "routeName": "/receipt",
+        "routeType": "MaterialPageRoute<dynamic>",
+        "routeNamed": true,
+        "fromRouteName": "/checkout",
+        "fromRouteType": "MaterialPageRoute<dynamic>",
+        "fromRouteNamed": true,
+        "navigatorId": "nav-1",
+        "routeInstanceId": "route-5",
+        "fromRouteInstanceId": "route-4",
+        "stackRevision": 6,
+        "overlayKind": "page",
+        "visualObservationGeneration": 12,
+        "navigationOrigin": "user",
+        "causeEventId": "event-41",
+        "causedByInteractionId": "event-41",
+        "interactionAttribution": "same_turn",
+        "routeStack": [
+          "/home",
+          "/checkout",
+          "/receipt"
+        ],
+        "routeStackTruncated": true,
+        "causeTargetFingerprint": "bef605389f2f5207",
+        "causeGesture": "tap"
+      },
+      "locale": {
+        "language": "pt",
+        "country": "PT",
+        "tag": "pt-PT"
+      },
+      "explorationRunId": "run-7",
+      "actionId": "action-3"
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-42",
+      "atMs": 56400,
+      "triggeredAt": "2026-06-19T00:00:56.400Z",
+      "sessionId": "collector-session-9",
+      "userId": "user-runtime",
+      "eventType": "route_change",
+      "stream": "evidence",
+      "enrichmentCandidate": false,
+      "routeChangeSchema": 2,
+      "fromRoute": "/checkout",
+      "route": "/receipt",
+      "navigation": "push",
+      "causeEventId": "event-41",
+      "causedByInteractionId": "event-41",
+      "routeName": "/receipt",
+      "routeType": "MaterialPageRoute<dynamic>",
+      "routeNamed": true,
+      "fromRouteName": "/checkout",
+      "fromRouteType": "MaterialPageRoute<dynamic>",
+      "fromRouteNamed": true,
+      "overlayKind": "page",
+      "routeStack": [
+        "/home",
+        "/checkout",
+        "/receipt"
+      ],
+      "causeTargetFingerprint": "bef605389f2f5207",
+      "causeGesture": "tap",
+      "routeStackTruncated": true,
+      "relatedEventId": "event-41",
+      "afterFrame": "frame-36",
+      "explorationRunId": "run-7",
+      "actionId": "action-3",
+      "locale": {
+        "language": "pt",
+        "country": "PT",
+        "tag": "pt-PT"
+      },
+      "traitsId": "traits-123",
+      "build": {
+        "appId": "com.example.app",
+        "platform": "android",
+        "versionName": "2.4.0",
+        "buildNumber": "240",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}
