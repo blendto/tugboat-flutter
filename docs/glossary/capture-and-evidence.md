@@ -31,3 +31,22 @@ session evidence (see `docs/README.md` "Current compatibility").
 **Sink hub** — the failure-isolated dispatch point for evidence; consumers are
 the exploration WebSocket and the HTTP Collector. Sink failures must never
 break the host app.
+
+## SDK layers (ADR 0009, proposed)
+
+**Session engine** — the I/O-free, single-threaded state machine that owns
+the session, event sequencing, dedup decisions, collector record mapping,
+and delivery policy. One implementation in the C++ core, shared by every
+adapter.
+
+**Platform host** — the native per-OS layer (Kotlin, Swift) that drives the
+session engine and executes its effects: threads, timers, lifecycle, the
+durable outbox, and network I/O. Flutter and React Native adapters forward
+their facts to it.
+
+**Toolkit adapter** — the per-UI-toolkit layer that turns a view tree into
+identity parts, route keys, mask geometry, and input targets.
+
+**Toolkit** — the UI framework an anchor came from: `flutter`, `view`,
+`compose`, `uikit`, `swiftui`, or `react-native`. Namespaces identity; never a
+hash input.

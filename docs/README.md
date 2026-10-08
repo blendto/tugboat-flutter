@@ -40,6 +40,7 @@ gates, canaries) are not listed below.
 - [0006 Mask coordinates](decisions/0006-mask-coordinates.md)
 - [0007 GPU processing deferred](decisions/0007-gpu-deferred.md)
 - [0008 Independent versioning](decisions/0008-independent-versioning.md)
+- [0009 Shared session engine](decisions/0009-shared-session-engine.md) (proposed)
 
 ## Privacy
 
