@@ -3,6 +3,8 @@
 - `benchmarks/` — device-lab capture protocol (Phase 7; not CI)
 - `ci/run-flutter-tests.sh` — Flutter package tests
 - `ci/run-image-core-tests.sh` — C++ core tests with ASan/UBSan
+- `ci/run-session-engine-tests.sh` — C++ session engine unit and conformance
+  fixture tests with ASan/UBSan
 - `ci/build-android-runtime.sh` — Android AAR tests, release build, local Maven, sample
 - `ci/android-runtime-version.sh` — print `capture-runtime` `VERSION_NAME`
 - `ci/apple-runtime-version.sh` — print `TugboatCaptureRuntime` podspec version
