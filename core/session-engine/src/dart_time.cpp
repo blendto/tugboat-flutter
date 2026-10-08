@@ -1,6 +1,5 @@
 #include "dart_time.h"
 
-#include <cstdio>
 
 namespace tugboat {
 namespace engine {
@@ -31,19 +30,37 @@ void civil_from_days(int64_t days, int64_t* year, int* month, int* day) {
   *year = yoe + era * 400 + (*month <= 2 ? 1 : 0);
 }
 
-std::string format_year(int64_t year) {
-  char buffer[16];
-  const int64_t abs_year = year < 0 ? -year : year;
+// Appends `value` (>= 0) in decimal, left-padded with zeros to `width`.
+// Plain digit arithmetic: no buffer to size and no locale.
+void append_padded(std::string* out, uint64_t value, size_t width) {
+  char digits[20];  // UINT64_MAX has 20 decimal digits
+  size_t count = 0;
+  do {
+    digits[count++] = static_cast<char>('0' + value % 10);
+    value /= 10;
+  } while (value != 0);
+  for (size_t i = count; i < width; ++i) {
+    out->push_back('0');
+  }
+  while (count > 0) {
+    out->push_back(digits[--count]);
+  }
+}
+
+void append_year(std::string* out, int64_t year) {
+  const uint64_t abs_year = year < 0 ? 0 - static_cast<uint64_t>(year)
+                                     : static_cast<uint64_t>(year);
   if (year >= -9999 && year <= 9999) {
     // Dart _fourDigits: sign only when negative.
-    std::snprintf(buffer, sizeof(buffer), "%s%04lld", year < 0 ? "-" : "",
-                  static_cast<long long>(abs_year));
+    if (year < 0) {
+      out->push_back('-');
+    }
+    append_padded(out, abs_year, 4);
   } else {
     // Dart _sixDigits: always signed.
-    std::snprintf(buffer, sizeof(buffer), "%s%06lld", year < 0 ? "-" : "+",
-                  static_cast<long long>(abs_year));
+    out->push_back(year < 0 ? '-' : '+');
+    append_padded(out, abs_year, 6);
   }
-  return buffer;
 }
 
 }  // namespace
@@ -83,14 +100,21 @@ std::string dart_iso8601_utc(int64_t micros) {
   const auto millisecond = static_cast<int>(rest / 1000);
   const auto microsecond = static_cast<int>(rest % 1000);
 
-  char buffer[48];
-  std::snprintf(buffer, sizeof(buffer), "-%02d-%02dT%02d:%02d:%02d.%03d",
-                month, day, hour, minute, second, millisecond);
-  std::string out = format_year(year);
-  out.append(buffer);
+  std::string out;
+  out.reserve(32);
+  append_year(&out, year);
+  const auto put = [&out](char separator, int value, size_t width) {
+    out.push_back(separator);
+    append_padded(&out, static_cast<uint64_t>(value), width);
+  };
+  put('-', month, 2);
+  put('-', day, 2);
+  put('T', hour, 2);
+  put(':', minute, 2);
+  put(':', second, 2);
+  put('.', millisecond, 3);
   if (microsecond != 0) {
-    std::snprintf(buffer, sizeof(buffer), "%03d", microsecond);
-    out.append(buffer);
+    append_padded(&out, static_cast<uint64_t>(microsecond), 3);
   }
   out.push_back('Z');
   return out;
