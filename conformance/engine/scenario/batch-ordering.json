@@ -1,0 +1,344 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "batch-ordering",
+  "description": "A batch applies its messages in order in one call and returns their records concatenated in order.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "batch",
+          "messages": [
+            {
+              "type": "session.start",
+              "at": {
+                "monoUs": 5000000,
+                "wallUs": 1781827200000000
+              },
+              "input": {
+                "viewport": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "platform": "android",
+                "sessionEpoch": 0,
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                }
+              }
+            },
+            {
+              "type": "event.record",
+              "at": {
+                "monoUs": 5010000
+              },
+              "input": {
+                "eventType": "external_event",
+                "stream": "evidence",
+                "data": {
+                  "n": 1
+                },
+                "attachActionContext": false
+              }
+            },
+            {
+              "type": "app.lifecycle",
+              "at": {
+                "monoUs": 5020000
+              },
+              "input": {
+                "state": "hidden"
+              }
+            },
+            {
+              "type": "locale.set",
+              "at": {
+                "monoUs": 5030000
+              },
+              "input": {
+                "locale": {
+                  "language": "de",
+                  "tag": "de"
+                }
+              }
+            },
+            {
+              "type": "app.lifecycle",
+              "at": {
+                "monoUs": 5040000
+              },
+              "input": {
+                "state": "resumed"
+              }
+            }
+          ]
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-1",
+                "atMs": 10,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "n": 1
+                },
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 20,
+                "type": "app_backgrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "hidden"
+                },
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 30,
+                "type": "locale_changed",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "previousLocale": {
+                    "language": "en",
+                    "country": "US",
+                    "tag": "en-US"
+                  },
+                  "locale": {
+                    "language": "de",
+                    "tag": "de"
+                  }
+                },
+                "locale": {
+                  "language": "de",
+                  "tag": "de"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 40,
+                "type": "app_foregrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "resumed"
+                },
+                "locale": {
+                  "language": "de",
+                  "tag": "de"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "batch",
+          "messages": []
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        },
+        "locale": {
+          "language": "de",
+          "tag": "de"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "locale": {
+            "language": "en",
+            "country": "US",
+            "tag": "en-US"
+          }
+        },
+        {
+          "id": "event-1",
+          "atMs": 10,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "n": 1
+          },
+          "locale": {
+            "language": "en",
+            "country": "US",
+            "tag": "en-US"
+          }
+        },
+        {
+          "id": "event-2",
+          "atMs": 20,
+          "type": "app_backgrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "hidden"
+          },
+          "locale": {
+            "language": "en",
+            "country": "US",
+            "tag": "en-US"
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 30,
+          "type": "locale_changed",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "previousLocale": {
+              "language": "en",
+              "country": "US",
+              "tag": "en-US"
+            },
+            "locale": {
+              "language": "de",
+              "tag": "de"
+            }
+          },
+          "locale": {
+            "language": "de",
+            "tag": "de"
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 40,
+          "type": "app_foregrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "resumed"
+          },
+          "locale": {
+            "language": "de",
+            "tag": "de"
+          }
+        }
+      ]
+    }
+  }
+}

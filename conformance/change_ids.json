@@ -1,0 +1,18 @@
+{
+  "description": "The deliberate behaviour changes of core/session-engine/docs/stateful-engine.md section 11. The only valid ids for an engine.scenario `engineOnly` marker; both fixture runners read this list. Not a fixture.",
+  "changeIds": [
+    "C1",
+    "C2",
+    "C3",
+    "C4",
+    "C5",
+    "C6",
+    "C7",
+    "C8",
+    "C9",
+    "C10",
+    "C11",
+    "C12",
+    "C13"
+  ]
+}
