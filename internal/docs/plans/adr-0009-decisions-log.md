@@ -28,6 +28,7 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-12 | Fixtures gain `runners` (`cpp`, `dart`; default both). `engineOnly` stays strictly for section 11 change ids and implies `cpp` only. The Dart runner reports an unmodelled message as a failure, never a silent skip. | Phase 3c/3d scenarios cannot drive Dart without claiming a behaviour change |
 | 2026-10-12 | `legacy_projection` is rejected as an `event.record` stream; the engine accepts schema 10 streams (`semantic`, `evidence`, `diagnostic`) only. | Dart session schema 10 removed it; the collector's wider accepted set is not a reason to emit it |
 | 2026-10-12 | `exploration.actionWindow` (action window events and `actionId` stamping) is deferred beyond this milestone; no engine code. | Native SDKs do not use exploration |
+| 2026-10-12 | Flutter plugin compiles against `capture-runtime` 0.1.0 and 0.2.0: newer statuses (0.2.0 `SecureWindow`) map to the existing `cancelled`, `WindowComposite` to the existing Pigeon `windowComposite`; no Pigeon, Dart API or behaviour change (`tugboat` 0.10.11-dev.2). CI compiles the plugin against the pinned and the local runtime. | `cancelled` = no Dart fallback, no publish; a fallback status would let RepaintBoundary capture a screen the runtime refused. Keeps the automatic pin PR buildable after the main merge |
 
 ## Open cross-repo questions
 
