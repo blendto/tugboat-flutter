@@ -1,0 +1,442 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "event-record-enrichment",
+  "description": "event.record mints the id, computes atMs, and enriches like _addEvent: the current locale is stamped, and the capture session, activation, and exploration ids are stamped with attachActionContext true or false. stream, data, and targetAnchor pass through; empty data is omitted.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "locale": {
+              "language": "en",
+              "country": "US",
+              "tag": "en-US"
+            },
+            "activationRequestId": "activation-7",
+            "explorationRunId": "run-7"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "activationRequestId": "activation-7",
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                },
+                "explorationRunId": "run-7"
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5250000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "data": {
+              "name": "checkout_started",
+              "parameterKeys": [
+                "plan"
+              ],
+              "parameters": {
+                "plan": "pro"
+              },
+              "capture": {
+                "parameterPolicy": "allowAll"
+              }
+            },
+            "attachActionContext": false
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-1",
+                "atMs": 250,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "activationRequestId": "activation-7",
+                "data": {
+                  "name": "checkout_started",
+                  "parameterKeys": [
+                    "plan"
+                  ],
+                  "parameters": {
+                    "plan": "pro"
+                  },
+                  "capture": {
+                    "parameterPolicy": "allowAll"
+                  }
+                },
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                },
+                "explorationRunId": "run-7"
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5500000
+          },
+          "input": {
+            "eventType": "capture_diagnostic",
+            "stream": "diagnostic",
+            "data": {
+              "component": "native_capture",
+              "result": "failed",
+              "ratio": 0.5
+            },
+            "attachActionContext": true
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 500,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "activationRequestId": "activation-7",
+                "data": {
+                  "component": "native_capture",
+                  "result": "failed",
+                  "ratio": 0.5
+                },
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                },
+                "explorationRunId": "run-7"
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5750000
+          },
+          "input": {
+            "eventType": "scene_inventory",
+            "stream": "evidence",
+            "targetAnchor": {
+              "widgetType": "FilledButton",
+              "role": "button",
+              "fingerprint": "0123456789abcdef",
+              "fingerprintConfidence": "high",
+              "fingerprintParts": {
+                "routeKey": "/checkout"
+              },
+              "canonicalPath": "Scaffold/Center/FilledButton",
+              "relativePosition": "center",
+              "enabled": true,
+              "actions": [
+                "tap"
+              ]
+            },
+            "attachActionContext": true
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 750,
+                "type": "scene_inventory",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "activationRequestId": "activation-7",
+                "targetAnchor": {
+                  "widgetType": "FilledButton",
+                  "role": "button",
+                  "fingerprint": "0123456789abcdef",
+                  "fingerprintConfidence": "high",
+                  "fingerprintParts": {
+                    "routeKey": "/checkout"
+                  },
+                  "canonicalPath": "Scaffold/Center/FilledButton",
+                  "relativePosition": "center",
+                  "enabled": true,
+                  "actions": [
+                    "tap"
+                  ]
+                },
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                },
+                "explorationRunId": "run-7"
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 6000000
+          },
+          "input": {
+            "eventType": "viewport_semantic_map",
+            "stream": "semantic",
+            "attachActionContext": true
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 1000,
+                "type": "viewport_semantic_map",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "activationRequestId": "activation-7",
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                },
+                "explorationRunId": "run-7"
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "activationRequestId": "activation-7",
+        "explorationRunId": "run-7",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "tag": "en-US"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "activationRequestId": "activation-7",
+          "locale": {
+            "language": "en",
+            "country": "US",
+            "tag": "en-US"
+          },
+          "explorationRunId": "run-7"
+        },
+        {
+          "id": "event-1",
+          "atMs": 250,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "activationRequestId": "activation-7",
+          "data": {
+            "name": "checkout_started",
+            "parameterKeys": [
+              "plan"
+            ],
+            "parameters": {
+              "plan": "pro"
+            },
+            "capture": {
+              "parameterPolicy": "allowAll"
+            }
+          },
+          "locale": {
+            "language": "en",
+            "country": "US",
+            "tag": "en-US"
+          },
+          "explorationRunId": "run-7"
+        },
+        {
+          "id": "event-2",
+          "atMs": 500,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "activationRequestId": "activation-7",
+          "data": {
+            "component": "native_capture",
+            "result": "failed",
+            "ratio": 0.5
+          },
+          "locale": {
+            "language": "en",
+            "country": "US",
+            "tag": "en-US"
+          },
+          "explorationRunId": "run-7"
+        },
+        {
+          "id": "event-3",
+          "atMs": 750,
+          "type": "scene_inventory",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "activationRequestId": "activation-7",
+          "targetAnchor": {
+            "widgetType": "FilledButton",
+            "role": "button",
+            "fingerprint": "0123456789abcdef",
+            "fingerprintConfidence": "high",
+            "fingerprintParts": {
+              "routeKey": "/checkout"
+            },
+            "canonicalPath": "Scaffold/Center/FilledButton",
+            "relativePosition": "center",
+            "enabled": true,
+            "actions": [
+              "tap"
+            ]
+          },
+          "locale": {
+            "language": "en",
+            "country": "US",
+            "tag": "en-US"
+          },
+          "explorationRunId": "run-7"
+        },
+        {
+          "id": "event-4",
+          "atMs": 1000,
+          "type": "viewport_semantic_map",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "activationRequestId": "activation-7",
+          "locale": {
+            "language": "en",
+            "country": "US",
+            "tag": "en-US"
+          },
+          "explorationRunId": "run-7"
+        }
+      ]
+    }
+  }
+}

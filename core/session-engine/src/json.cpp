@@ -641,6 +641,27 @@ bool write_json(const Value& value, std::string* out, std::string* error_path) {
   return writer.write(value);
 }
 
+bool all_finite(const Value& value, const std::string& path,
+                std::string* bad_path) {
+  if (value.is_double() && !std::isfinite(value.as_double())) {
+    *bad_path = path;
+    return false;
+  }
+  size_t index = 0;
+  for (const Value& item : value.items()) {
+    if (!all_finite(item, path + "[" + std::to_string(index++) + "]",
+                    bad_path)) {
+      return false;
+    }
+  }
+  for (const Member& member : value.members()) {
+    if (!all_finite(member.value, path + "." + member.key, bad_path)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 std::string format_double(double value) {
   // The converter Dart's VM uses for double.toString() (runtime/vm/
   // double_conversion.cc): shortest round-trip digits, decimal notation for

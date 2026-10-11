@@ -1,3 +1,18 @@
+## 0.10.11-dev.1
+
+Prerelease. No change to shipped behaviour.
+
+### Internal
+
+- `TugboatReplayController` takes a test-only `debugClock` (the elapsed
+  clock behind event `atMs`, a `Stopwatch` by default) and builds the
+  session id and `startedAt` from its existing `debugNow` wall clock
+  (`DateTime.now` by default).
+- A test-only `debugRecordEvent` records a toolkit event through the
+  evidence recorder's admission and append path. The shared
+  session-engine conformance scenarios use these to run deterministically
+  against the Dart controller.
+
 ## 0.10.9
 
 ### Fixed

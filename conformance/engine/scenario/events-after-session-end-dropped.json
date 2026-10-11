@@ -1,0 +1,349 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "events-after-session-end-dropped",
+  "description": "After session_end, event-producing facts (event.record, app.lifecycle) are accepted and dropped: no record, no id. locale.set records nothing and sets the locale for the next session; identity.set and session.end are accepted; session.start begins a new session. Dart records app_backgrounded and locale_changed after session_end.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "engineOnly": [
+    "C9"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "locale": {
+              "language": "en",
+              "country": "US",
+              "tag": "en-US"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 6000000,
+            "wallUs": 1781827201000000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-1",
+                "atMs": 1000,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "locale": {
+                  "language": "en",
+                  "country": "US",
+                  "tag": "en-US"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 6100000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "data": {
+              "name": "late"
+            },
+            "attachActionContext": false
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 6200000
+          },
+          "input": {
+            "state": "hidden"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "locale.set",
+          "at": {
+            "monoUs": 6300000
+          },
+          "input": {
+            "locale": {
+              "language": "pt",
+              "country": "PT",
+              "tag": "pt-PT"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "identity.set",
+          "at": {
+            "monoUs": 6400000,
+            "wallUs": 1781827201400000
+          },
+          "input": {
+            "userId": "user-9"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 6500000,
+            "wallUs": 1781827201500000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 7000000,
+            "wallUs": 1781827202000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827202000000",
+                "locale": {
+                  "language": "pt",
+                  "country": "PT",
+                  "tag": "pt-PT"
+                }
+              },
+              "userId": "user-9"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 7100000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "data": {
+              "name": "next"
+            },
+            "attachActionContext": false
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 100,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827202000000",
+                "data": {
+                  "name": "next"
+                },
+                "locale": {
+                  "language": "pt",
+                  "country": "PT",
+                  "tag": "pt-PT"
+                }
+              },
+              "userId": "user-9"
+            }
+          ],
+          "effects": []
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827202000000",
+        "captureSessionId": "session-1781827202000000",
+        "startedAt": "2026-06-19T00:00:02.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        },
+        "locale": {
+          "language": "pt",
+          "country": "PT",
+          "tag": "pt-PT"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-2",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827202000000",
+          "locale": {
+            "language": "pt",
+            "country": "PT",
+            "tag": "pt-PT"
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 100,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827202000000",
+          "data": {
+            "name": "next"
+          },
+          "locale": {
+            "language": "pt",
+            "country": "PT",
+            "tag": "pt-PT"
+          }
+        }
+      ]
+    }
+  }
+}
