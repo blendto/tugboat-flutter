@@ -1,0 +1,25 @@
+name: A11yProbe
+options:
+  bundleIdPrefix: com.gettugboat.probe
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  A11yProbe:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    info:
+      path: Generated/Info.plist
+      properties:
+        CFBundleDisplayName: A11yProbe
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gettugboat.probe.a11y
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGNING_ALLOWED: "NO"
+    scheme: {}
