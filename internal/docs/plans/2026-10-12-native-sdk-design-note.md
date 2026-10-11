@@ -1,6 +1,6 @@
 # Native SDK design note (Android Views + Compose, SwiftUI)
 
-Status: Draft for review · 2026-10-12 · ADR 0009 milestone step 4
+Status: Approved with changes (folded in) · 2026-10-12 · ADR 0009 milestone step 4
 
 Working note, not product docs. It fixes the public API, artifacts, host
 threading, engine linking, the toolkit-adapter seam, and identity rules for
@@ -48,7 +48,16 @@ Notes:
   path".
   - Additive public API, so `VERSION_NAME` 0.1.0 → 0.2.0 (unpublished). The
     API dump and `verify-android-runtime-api.sh` are updated.
-  - The Flutter path is unchanged (logged).
+  - The Flutter path is unchanged (logged). The Flutter plugin's pinned
+    `capture-runtime` version stays unchanged.
+  - **Secure windows.** A window with `FLAG_SECURE` is never copied. The
+    runtime returns a new `secureWindow` status, and the host turns it into a
+    `capture_diagnostic` instead of an error frame. This is additive to
+    `CaptureStatus`.
+  - **Separate surfaces.** `PixelCopy.request(Window)` does not include
+    `SurfaceView` / `TextureView` layers such as video, maps, or camera. The
+    adapter masks their bounds fail-closed (section 2.1).
+    `native-capture-contracts.md` states this for `windowComposite`.
 - **Apple.** No runtime change. `CaptureRuntime(coverage: .viewHierarchy)`
   already accepts any `UIView`. The host captures the key window's root view.
 - Below the native floor (Android API 26, iOS 15), sessions carry events
@@ -58,6 +67,19 @@ Notes:
   with confidence (for example, the SwiftUI accessibility tree is
   unavailable, section 6.3), it masks the whole frame. It never sends an
   unmasked frame. The default stays `allTextAndMedia`.
+
+### 2.1 Mask sources under `allTextAndMedia`
+
+Every region below is masked. Regions marked fail-closed are masked over
+their whole bounds because the SDK cannot see inside them.
+
+| Toolkit | Text | Media | Fail-closed bounds |
+| --- | --- | --- | --- |
+| Android Views | `TextView` (includes `EditText`, buttons) | `ImageView`, `VideoView` | `WebView`, `SurfaceView`, `TextureView` |
+| Compose | nodes with `Text` or `EditableText` semantics | `Role.Image`, and nodes with only a `ContentDescription` (image-like) | `AndroidView` interop bounds; the whole frame when the semantics owner is unavailable (section 6.2) |
+| SwiftUI | accessibility elements with static-text or text-entry traits; `UITextField`, `UITextView`, `UILabel` | elements with the image trait; `UIImageView` | `WKWebView`; any `UIViewRepresentable` host view; the whole frame when the accessibility tree is empty (section 6.3) |
+
+Adapter tests assert each row (section 8).
 
 ## 3. Public API
 
@@ -140,6 +162,27 @@ that doc applies: tree reads happen at fact time and travel with the fact.
 | System input | allowlisted keys from `dispatchKeyEvent`. Predictive back cannot be observed without consuming it: a known gap. | same | none in this milestone |
 | Lifecycle | `ProcessLifecycleOwner` | same | scene and application notifications |
 
+**Wrapping `Window.Callback`.** Other SDKs (Sentry, Firebase, Datadog) wrap
+the same callback, so the wrapper must chain cleanly:
+
+- Every `Window.Callback` method delegates to the callback it replaced.
+  Tugboat only observes and never consumes events.
+- On each `onActivityResumed`, the host checks whether the window's callback
+  is still ours, possibly behind someone else's wrapper. If another SDK
+  replaced it without chaining to us, the host wraps again. It never wraps
+  its own wrapper twice: it walks a marker interface through the chain.
+- A Robolectric test installs a foreign wrapper before and after ours and
+  checks that every method reaches the original callback exactly once.
+
+**SwiftUI view-controller tracking.**
+
+- Swizzling `viewDidAppear` / `viewDidDisappear` is optional. It is enabled
+  by default, with an opt-out in `TugboatConfig`. It is installed once,
+  through a `dispatch_once`-style guard, with `method_exchangeImplementations`.
+- `.tugboatScreen` alone is enough for route keys.
+- The sample app sets `.tugboatScreen` on every screen and runs with
+  swizzling turned off, so it does not depend on swizzling.
+
 Known gaps for this milestone:
 
 - Dialog and popup windows outside an activity window are captured as
@@ -186,7 +229,8 @@ section per toolkit, in the PR that implements each adapter.
 | Rule | What it means |
 | --- | --- |
 | Token | `Role` (Button, Checkbox, Switch, RadioButton, Tab, Image, DropdownList), then `TextField` for editable nodes, `Scrollable` for nodes with a scroll range, and `Node` otherwise. |
-| Source | The merged semantics tree read through the public `ViewRootForTest.semanticsOwner`. Only nodes that are actionable, editable, scrollable, maskable, or tagged are kept. |
+| Source | The merged semantics tree read through `ViewRootForTest.semanticsOwner`. Only nodes that are actionable, editable, scrollable, maskable, or tagged are kept. |
+| Stability | `semanticsOwner` is treated as unstable API. It is reached through `runCatching`. `tugboat-compose` pins the Compose UI version range it is tested against. When the owner is unavailable, the anchor falls back to the hosting `View` identity (section 6.1, `toolkit` stays `compose`) and the frame is masked in full. |
 | Lists | `CollectionItemInfo` index, with traversal order as the fallback. |
 | Route key | The `trackNavigation` route pattern (arguments stripped), then the hosting activity. |
 | Alias | `Modifier.tugboatTag`, then `testTag`. Both are high confidence. |
@@ -222,7 +266,7 @@ stateful-engine.md section 6.
 | Kind | What |
 | --- | --- |
 | JVM unit tests | Host message plumbing, the handle table, header construction, and config validation, with a fake engine transport |
-| Robolectric | Views and Compose adapter fact extraction and canonical paths on fixture screens |
+| Robolectric | Views and Compose adapter fact extraction and canonical paths on fixture screens; mask sources per section 2.1; `Window.Callback` chaining |
 | Instrumented (emulator) | Window capture plus masks, and end-to-end fact batching |
 | XCTest | Host plumbing, the SwiftUI adapter on hosted views. Built and run by the local orchestrator. |
 | Contract tests, both platforms | Pinned against the engine's actual output: the `session_start` body shape with every required field, and `frameMetadata[].requestedBackend` / `resolvedBackend` equal to `nativeCpuExperimental` |
@@ -274,8 +318,8 @@ Other wire rules:
 - Debug builds allow cleartext to those hosts only: an Android network
   security config, and iOS `NSAllowsLocalNetworking`.
 - Script for each sample: launch → tap a button → scroll the list → swipe →
-  open the second screen → type in the text field → background → foreground
-  → stop.
+  open the second screen → type in the text field → rotate to landscape and
+  back → background → foreground → stop.
 - Expected collector rows:
   - `pmkit.sessions`: `session_start` and `session_end`.
   - `pmkit.raw_events`:
@@ -286,15 +330,24 @@ Other wire rules:
     - lifecycle events.
   - Masked frames in `pmkit.frame_captures` and S3.
   - No 400s.
-- The first Apple handoff also asks the orchestrator to check, on the
-  simulator, whether `accessibilityElements` on the SwiftUI hosting view is
-  populated without VoiceOver. The answer decides how much of section 6.3
-  relies on `tugboatTag`.
+- The SwiftUI accessibility probe was pulled forward and is a standalone
+  spike (branch `spike/swiftui-a11y-probe`). Its result decides how much of
+  section 6.3 relies on `tugboatTag`, and is recorded in the decisions log.
 
 ## 11. Order of work after approval
 
-1. Android: `capture-runtime` window capture (0.2.0) and `tugboat-android`
-   host + JNI + Views adapter, then `tugboat-compose`, then the sample.
-2. Apple, in parallel: `TugboatSessionEngine` target, host, SwiftUI adapter,
-   and sample. Hand off for an iOS build at each step.
+Platform plumbing that does not depend on engine state starts early, in
+free cloud-agent slots, while the engine phases run:
+
+- `capture-runtime` window capture (0.2.0);
+- the `TugboatSessionEngine` SwiftPM target, with an iOS build handoff;
+- the Kotlin host's JNI bridge, handle table, and HTTP executor against the
+  stateless protocol.
+
+After 3d:
+
+1. Android: `tugboat-android` host and Views adapter, then
+   `tugboat-compose`, then the sample.
+2. Apple, in parallel: host, SwiftUI adapter, and sample. Hand off for an
+   iOS build at each step.
 3. Each sample goes to the orchestrator for device testing once it builds.
