@@ -48,6 +48,38 @@ let package = Package(
       dependencies: ["TugboatImageCoreBridge"],
       path: "platforms/apple/Sources/TugboatCaptureRuntime"
     ),
+    // ADR 0009 session engine. Internal for now: the native SDK product
+    // (`Tugboat`) will depend on it; adapters never compile it themselves.
+    .target(
+      name: "TugboatSessionEngine",
+      path: "core/session-engine",
+      exclude: [
+        "CMakeLists.txt",
+        "README.md",
+        "docs",
+        "tests",
+        "fuzz",
+        "third_party/double-conversion/AUTHORS",
+        "third_party/double-conversion/LICENSE",
+      ],
+      sources: [
+        "src",
+        "third_party/double-conversion/double-conversion",
+      ],
+      publicHeadersPath: "include",
+      cxxSettings: [
+        .headerSearchPath("src"),
+        .headerSearchPath("third_party/double-conversion"),
+      ],
+      linkerSettings: [
+        .linkedLibrary("c++"),
+      ]
+    ),
+    .testTarget(
+      name: "TugboatSessionEngineTests",
+      dependencies: ["TugboatSessionEngine"],
+      path: "platforms/apple/Tests/TugboatSessionEngineTests"
+    ),
     .testTarget(
       name: "TugboatCaptureRuntimeTests",
       dependencies: ["TugboatCaptureRuntime"],
