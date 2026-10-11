@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import android.os.Build
 import com.tugboat.capture.CaptureRequest
 import com.tugboat.capture.CaptureResult
-import com.tugboat.capture.CaptureRuntime
+import com.tugboat.capture.CaptureCoverage
 import com.tugboat.capture.CaptureStatus
 import com.tugboat.capture.CaptureTimings
 import com.tugboat.capture.RenderMode
@@ -49,12 +49,12 @@ internal class CapturePipeline(
         }
         return when (val resolved = source.resolve()) {
             is SourceResolution.Rejected -> framelessResult(request, resolved.status, resolved.renderMode)
-            is SourceResolution.Ready -> copyAndProcess(source, resolved, request, isCurrent)
+            is SourceResolution.Ready -> copyAndProcess(source.coverage, resolved, request, isCurrent)
         }
     }
 
     private fun copyAndProcess(
-        source: CaptureSource,
+        coverage: CaptureCoverage,
         resolved: SourceResolution.Ready,
         request: CaptureRequest,
         isCurrent: () -> Boolean,
@@ -80,7 +80,7 @@ internal class CapturePipeline(
                 return framelessResult(request, copy.status, renderMode)
                     .copy(timings = CaptureTimings(surfaceCopyMicros = surfaceCopyMicros))
             }
-            return process(source, bitmap, request, renderMode, surfaceCopyMicros)
+            return process(coverage, bitmap, request, renderMode, surfaceCopyMicros)
         } finally {
             if (recycleBitmap) {
                 bitmap?.recycle()
@@ -89,7 +89,7 @@ internal class CapturePipeline(
     }
 
     private fun process(
-        source: CaptureSource,
+        coverage: CaptureCoverage,
         bitmap: Bitmap,
         request: CaptureRequest,
         renderMode: RenderMode,
@@ -110,7 +110,7 @@ internal class CapturePipeline(
             CaptureResult(
                 requestId = request.requestId,
                 status = coreStatus,
-                coverage = source.coverage,
+                coverage = coverage,
                 width = bitmap.width,
                 height = bitmap.height,
                 dHash = processed.dHash,
@@ -145,7 +145,7 @@ internal class CapturePipeline(
 
     private fun encodeJpeg(bitmap: Bitmap): ByteArray {
         val stream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, CaptureRuntime.JPEG_QUALITY, stream)
+        bitmap.compress(Bitmap.CompressFormat.JPEG, RuntimeConstants.JPEG_QUALITY, stream)
         return stream.toByteArray()
     }
 

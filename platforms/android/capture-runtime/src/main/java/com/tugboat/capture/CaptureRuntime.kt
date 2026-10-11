@@ -6,6 +6,7 @@ import android.view.Window
 import com.tugboat.capture.internal.CapturePipeline
 import com.tugboat.capture.internal.CaptureSource
 import com.tugboat.capture.internal.FlutterSurfaceSource
+import com.tugboat.capture.internal.RuntimeConstants
 import com.tugboat.capture.internal.WindowSource
 import com.tugboat.capture.internal.framelessResult
 import java.util.concurrent.ExecutorService
@@ -41,11 +42,19 @@ class CaptureRuntime(
     }
 
     /**
-     * `PixelCopy` of the whole app [window] (API [MIN_WINDOW_API]+; below that
-     * `UnsupportedApi`). Coverage `WindowComposite`. Masks are normalized to
-     * the window's decor view. Separate `SurfaceView` / `TextureView` layers
-     * are not in the copy. A `FLAG_SECURE` window is never copied and returns
-     * `SecureWindow`.
+     * `PixelCopy` of one app [window]'s surface (API [MIN_WINDOW_API]+; below
+     * that `UnsupportedApi`). Coverage `WindowComposite`. Masks are normalized
+     * to the window's decor view.
+     *
+     * The copy holds the views drawn into that window, `TextureView`
+     * included. It is not the full-screen composition: `SurfaceView` /
+     * `GLSurfaceView` layers (video, camera previews, maps) and every other
+     * window (dialogs, popups, dropdowns, the IME) are missing.
+     *
+     * A window flagged `FLAG_SECURE` when the copy is issued is never copied
+     * and returns `SecureWindow`. The copy is taken from a frame committed
+     * after that check, so a screen drawn while the flag was set is not
+     * copied after the flag is cleared.
      */
     fun capture(window: Window, request: CaptureRequest, onComplete: (CaptureResult) -> Unit) {
         enqueue(WindowSource(window), request, onComplete)
@@ -102,10 +111,10 @@ class CaptureRuntime(
         !disposed.get() && !isCancelled(requestId) && inFlightId.get() == requestId
 
     companion object {
-        const val MIN_NATIVE_API: Int = 24
-        const val MIN_WINDOW_API: Int = 26
+        const val MIN_NATIVE_API: Int = RuntimeConstants.MIN_NATIVE_API
+        const val MIN_WINDOW_API: Int = RuntimeConstants.MIN_WINDOW_API
         const val DEFAULT_TIMEOUT_MS: Long = 2_000
-        const val JPEG_QUALITY: Int = 80
+        const val JPEG_QUALITY: Int = RuntimeConstants.JPEG_QUALITY
         private const val NO_REQUEST: Long = -1L
     }
 }

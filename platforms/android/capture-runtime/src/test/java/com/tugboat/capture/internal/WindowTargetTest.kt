@@ -4,10 +4,15 @@ import android.app.Activity
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import android.view.PixelCopy
+import android.view.View
+import android.view.Window
 import android.view.WindowManager
 import com.tugboat.capture.CaptureStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,6 +22,8 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.ConscryptMode
 import org.robolectric.annotation.GraphicsMode
+import java.time.Duration
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(RobolectricTestRunner::class)
@@ -24,6 +31,58 @@ import java.util.concurrent.atomic.AtomicReference
 @Config(sdk = [26])
 @GraphicsMode(GraphicsMode.Mode.LEGACY)
 class WindowTargetTest {
+    /** Holds the frame continuation until the test commits a frame. */
+    private class HeldFrame : FrameWaiter {
+        var decor: View? = null
+        private var pending: Runnable? = null
+
+        override fun afterNextFrame(
+            decor: View,
+            action: Runnable,
+        ) {
+            this.decor = decor
+            pending = action
+        }
+
+        fun commit() {
+            val action = checkNotNull(pending) { "no frame was awaited" }
+            pending = null
+            action.run()
+        }
+    }
+
+    private class RecordingCopy(
+        private val onRequest: (PixelCopy.OnPixelCopyFinishedListener) -> Unit = {},
+    ) : WindowCopy {
+        var requests = 0
+
+        override fun request(
+            window: Window,
+            destination: Bitmap,
+            listener: PixelCopy.OnPixelCopyFinishedListener,
+            handler: Handler,
+        ) {
+            requests++
+            onRequest(listener)
+        }
+    }
+
+    private val frame = HeldFrame()
+    private val copy = RecordingCopy { it.onPixelCopyFinished(PixelCopy.SUCCESS) }
+    private val finished = mutableListOf<CaptureStatus>()
+
+    private fun window(): Window = Robolectric.buildActivity(Activity::class.java).setup().get().window
+
+    private fun issue(
+        window: Window,
+        isCurrent: () -> Boolean = { true },
+        windowCopy: WindowCopy = copy,
+    ) = WindowTarget(window, frame, windowCopy).issue(bitmap(), Handler(Looper.getMainLooper()), isCurrent) {
+        finished += it
+    }
+
+    private fun bitmap() = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+
     @Test
     fun windowIsAvailableOnlyOnceItsDecorIsAttached() {
         val controller = Robolectric.buildActivity(Activity::class.java).create()
@@ -35,48 +94,150 @@ class WindowTargetTest {
     }
 
     @Test
+    fun unattachedWindowIsSurfaceUnavailableAtIssue() {
+        issue(Robolectric.buildActivity(Activity::class.java).create().get().window)
+
+        assertEquals(listOf(CaptureStatus.SurfaceUnavailable), finished)
+        assertNull(frame.decor)
+    }
+
+    @Test
     fun secureFlagIsReadFromWindowAttributes() {
-        val window = Robolectric.buildActivity(Activity::class.java).setup().get().window
+        val window = window()
         assertFalse(window.isSecure())
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         assertTrue(window.isSecure())
     }
 
     @Test
-    fun secureWindowIsNeverIssuedToPixelCopy() {
-        val window = Robolectric.buildActivity(Activity::class.java).setup().get().window
+    fun secureWindowAtIssueIsNeverCopiedAndWaitsForNoFrame() {
+        val window = window()
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        var callbacks = 0
 
-        val issued =
-            WindowTarget(window).issue(
-                Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888),
-                { callbacks++ },
-                Handler(Looper.getMainLooper()),
-            )
+        issue(window)
 
-        assertEquals(CaptureStatus.SecureWindow, issued)
-        assertEquals(0, callbacks)
+        assertEquals(listOf(CaptureStatus.SecureWindow), finished)
+        assertNull(frame.decor)
+        assertEquals(0, copy.requests)
+    }
+
+    @Test
+    fun clearedSecureFlagIsCopiedOnlyAfterTheNextCommittedFrame() {
+        val window = window()
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+
+        issue(window)
+
+        assertSame(window.decorView, frame.decor)
+        assertEquals(0, copy.requests)
+        assertTrue(finished.isEmpty())
+
+        frame.commit()
+
+        assertEquals(1, copy.requests)
+        assertEquals(listOf(CaptureStatus.Ok), finished)
+    }
+
+    @Test
+    fun secureFlagSetWhileWaitingForTheFrameIsHonoured() {
+        val window = window()
+        issue(window)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+
+        frame.commit()
+
+        assertEquals(listOf(CaptureStatus.SecureWindow), finished)
+        assertEquals(0, copy.requests)
+    }
+
+    @Test
+    fun requestThatIsNoLongerCurrentAtTheFrameIsNotCopied() {
+        val current = AtomicBoolean(true)
+        issue(window(), isCurrent = current::get)
+        current.set(false)
+
+        frame.commit()
+
+        assertEquals(listOf(CaptureStatus.Cancelled), finished)
+        assertEquals(0, copy.requests)
+    }
+
+    @Test
+    fun pixelCopyCodesAndRejectionMapToStatuses() {
+        val window = window()
+        issue(window, windowCopy = RecordingCopy { it.onPixelCopyFinished(PixelCopy.ERROR_TIMEOUT) })
+        frame.commit()
+        issue(window, windowCopy = RecordingCopy { it.onPixelCopyFinished(PixelCopy.ERROR_SOURCE_NO_DATA) })
+        frame.commit()
+        issue(window, windowCopy = RecordingCopy { throw IllegalArgumentException("no surface") })
+        frame.commit()
+
+        assertEquals(
+            listOf(CaptureStatus.Timeout, CaptureStatus.PixelCopyFailed, CaptureStatus.PixelCopyFailed),
+            finished,
+        )
+    }
+
+    @Test
+    @Config(sdk = [28])
+    fun committedFrameWaiterRunsOnlyAfterLaterFrames() {
+        val decor = window().decorView
+        val ran = AtomicBoolean(false)
+
+        CommittedFrameWaiter.afterNextFrame(decor) { ran.set(true) }
+        assertFalse(ran.get())
+
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertTrue(ran.get())
     }
 
     @Test
     fun secureFlagSetAfterResolveIsHonouredOnTheMainThread() {
-        val window = Robolectric.buildActivity(Activity::class.java).setup().get().window
+        val window = window()
         val resolved = WindowSource(window).resolve() as SourceResolution.Ready
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        val bitmap = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
-        val outcome = AtomicReference<PixelCopyOutcome>()
+        val bitmap = bitmap()
 
-        val captureThread =
-            Thread { outcome.set(PixelCopyCapture.copy(resolved.target, bitmap, 5_000) { true }) }
+        val outcome = copyOnCaptureThread(resolved.target, bitmap, timeoutMs = 5_000) { true }
+
+        assertEquals(CaptureStatus.SecureWindow, outcome.status)
+        assertTrue(outcome.callerOwnsDestination)
+        assertFalse(bitmap.isRecycled)
+    }
+
+    @Test
+    fun timeoutWhileWaitingForTheFrameHandsTheBitmapToTheLateCallback() {
+        val current = AtomicBoolean(true)
+        val bitmap = bitmap()
+
+        val outcome =
+            copyOnCaptureThread(WindowTarget(window(), frame, copy), bitmap, timeoutMs = 50, isCurrent = current::get)
+
+        assertEquals(CaptureStatus.Timeout, outcome.status)
+        assertFalse(outcome.callerOwnsDestination)
+        assertFalse(bitmap.isRecycled)
+
+        current.set(false)
+        frame.commit()
+
+        assertEquals(0, copy.requests)
+        assertTrue(bitmap.isRecycled)
+    }
+
+    private fun copyOnCaptureThread(
+        target: PixelCopyTarget,
+        bitmap: Bitmap,
+        timeoutMs: Long,
+        isCurrent: () -> Boolean,
+    ): PixelCopyOutcome {
+        val outcome = AtomicReference<PixelCopyOutcome>()
+        val captureThread = Thread { outcome.set(PixelCopyCapture.copy(target, bitmap, timeoutMs, isCurrent)) }
         captureThread.start()
         while (captureThread.isAlive) {
             shadowOf(Looper.getMainLooper()).idle()
             captureThread.join(10)
         }
-
-        assertEquals(CaptureStatus.SecureWindow, outcome.get().status)
-        assertTrue(outcome.get().callerOwnsDestination)
-        assertFalse(bitmap.isRecycled)
+        return outcome.get()
     }
 }

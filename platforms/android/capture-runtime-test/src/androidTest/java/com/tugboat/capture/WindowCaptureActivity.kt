@@ -10,18 +10,30 @@ import java.util.concurrent.CountDownLatch
 class WindowCaptureActivity : Activity() {
     /** Counts down once the focused window has presented two more frames. */
     val presented = CountDownLatch(1)
+    private lateinit var content: View
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.setBackgroundDrawable(ColorDrawable(FILL))
-        setContentView(View(this).apply { setBackgroundColor(FILL) })
+        content = View(this)
+        setContentView(content)
+        fill(FILL)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (!hasFocus) return
+        if (hasFocus) afterTwoFrames { presented.countDown() }
+    }
+
+    /** Main thread. Paints the whole window [color]. */
+    fun fill(color: Int) {
+        window.setBackgroundDrawable(ColorDrawable(color))
+        content.setBackgroundColor(color)
+    }
+
+    /** Main thread. Runs [action] once the frame drawn after this call is on screen. */
+    fun afterTwoFrames(action: () -> Unit) {
         val decor = window.decorView
-        decor.postOnAnimation { decor.postOnAnimation { presented.countDown() } }
+        decor.postOnAnimation { decor.postOnAnimation(action) }
     }
 
     companion object {

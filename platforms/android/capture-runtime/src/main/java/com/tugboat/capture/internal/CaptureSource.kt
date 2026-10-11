@@ -4,7 +4,6 @@ import android.view.View
 import android.view.Window
 import android.view.WindowManager
 import com.tugboat.capture.CaptureCoverage
-import com.tugboat.capture.CaptureRuntime
 import com.tugboat.capture.CaptureStatus
 import com.tugboat.capture.RenderMode
 
@@ -39,7 +38,7 @@ internal sealed interface SourceResolution {
 internal class FlutterSurfaceSource(
     private val root: View,
 ) : CaptureSource {
-    override val minApi: Int = CaptureRuntime.MIN_NATIVE_API
+    override val minApi: Int = RuntimeConstants.MIN_NATIVE_API
     override val coverage: CaptureCoverage = CaptureCoverage.EngineSurface
 
     override fun resolve(): SourceResolution {
@@ -53,13 +52,15 @@ internal class FlutterSurfaceSource(
 }
 
 /**
- * An app window composited by `PixelCopy.request(Window, …)`. Coverage
- * `WindowComposite`. Secure windows are rejected before any copy.
+ * One app window's surface via `PixelCopy.request(Window, …)`. Coverage
+ * `WindowComposite`. The `FLAG_SECURE` read here, on the capture thread, is
+ * an advisory early exit before allocating; [WindowTarget] makes the
+ * authoritative checks on the main thread.
  */
 internal class WindowSource(
     private val window: Window,
 ) : CaptureSource {
-    override val minApi: Int = CaptureRuntime.MIN_WINDOW_API
+    override val minApi: Int = RuntimeConstants.MIN_WINDOW_API
     override val coverage: CaptureCoverage = CaptureCoverage.WindowComposite
 
     override fun resolve(): SourceResolution =

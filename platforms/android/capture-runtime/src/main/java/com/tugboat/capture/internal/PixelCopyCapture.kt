@@ -3,11 +3,9 @@ package com.tugboat.capture.internal
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
-import android.view.PixelCopy
 import com.tugboat.capture.CaptureStatus
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 internal data class PixelCopyOutcome(
@@ -36,7 +34,7 @@ internal object PixelCopyCapture : FrameCopier {
             return PixelCopyOutcome(CaptureStatus.SurfaceUnavailable)
         }
         val latch = CountDownLatch(1)
-        val code = AtomicInteger(Int.MIN_VALUE)
+        val outcome = AtomicReference<CaptureStatus?>(null)
         val handler = Handler(Looper.getMainLooper())
         val guard =
             PixelCopyRecycleGuard {
@@ -44,29 +42,14 @@ internal object PixelCopyCapture : FrameCopier {
                     destination.recycle()
                 }
             }
-        val notIssued = AtomicReference(CaptureStatus.Ok)
         handler.post {
             if (!isCurrent()) {
                 latch.countDown()
                 guard.onCallback()
                 return@post
             }
-            val issued =
-                try {
-                    target.issue(
-                        destination,
-                        { result ->
-                            code.set(result)
-                            latch.countDown()
-                            guard.onCallback()
-                        },
-                        handler,
-                    )
-                } catch (_: IllegalArgumentException) {
-                    CaptureStatus.PixelCopyFailed
-                }
-            if (issued != CaptureStatus.Ok) {
-                notIssued.set(issued)
+            target.issue(destination, handler, isCurrent) { status ->
+                outcome.compareAndSet(null, status)
                 latch.countDown()
                 guard.onCallback()
             }
@@ -88,14 +71,7 @@ internal object PixelCopyCapture : FrameCopier {
             when {
                 !isCurrent() -> CaptureStatus.Cancelled
                 !completed -> CaptureStatus.Timeout
-                notIssued.get() != CaptureStatus.Ok -> notIssued.get()
-                else ->
-                    when (code.get()) {
-                        PixelCopy.SUCCESS -> CaptureStatus.Ok
-                        PixelCopy.ERROR_TIMEOUT -> CaptureStatus.Timeout
-                        Int.MIN_VALUE -> CaptureStatus.Timeout
-                        else -> CaptureStatus.PixelCopyFailed
-                    }
+                else -> outcome.get() ?: CaptureStatus.Timeout
             }
         return PixelCopyOutcome(status, callerOwnsDestination)
     }

@@ -78,6 +78,31 @@ class WindowCaptureTest {
     }
 
     @Test
+    fun captureRightAfterClearingSecureNeverCopiesTheSecureFrame() {
+        assumeTrue(Build.VERSION.SDK_INT >= CaptureRuntime.MIN_WINDOW_API)
+        ActivityScenario.launch(WindowCaptureActivity::class.java).use { scenario ->
+            val (window, width, height) = presentedWindow(scenario)
+            val secureDrawn = CountDownLatch(1)
+            scenario.onActivity {
+                it.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                it.fill(SECRET)
+                it.afterTwoFrames { secureDrawn.countDown() }
+            }
+            assertTrue(secureDrawn.await(5, TimeUnit.SECONDS))
+            scenario.onActivity {
+                it.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                it.fill(WindowCaptureActivity.FILL)
+            }
+
+            val result = capture(window, CaptureRequest(4, width, height, force = true))
+
+            assertEquals(CaptureStatus.Ok, result.status)
+            val jpeg = requireNotNull(BitmapFactory.decodeByteArray(result.jpeg, 0, result.jpeg.size))
+            assertColorNear(WindowCaptureActivity.FILL, jpeg.at(0.5, 0.5))
+        }
+    }
+
+    @Test
     fun windowCaptureBelowApi26IsUnsupported() {
         assumeTrue(Build.VERSION.SDK_INT < CaptureRuntime.MIN_WINDOW_API)
         ActivityScenario.launch(WindowCaptureActivity::class.java).use { scenario ->
@@ -132,6 +157,9 @@ class WindowCaptureTest {
 
         /** `native-capture-contracts.md` Masks: (0x1a, 0x1a, 0x1a). */
         val MASK_FILL: Int = Color.rgb(0x1a, 0x1a, 0x1a)
+
+        /** Painted only while the window is `FLAG_SECURE`. */
+        val SECRET: Int = Color.rgb(0xC0, 0x20, 0x20)
 
         /** JPEG q80 drift on flat regions far from any edge. */
         const val TOLERANCE = 24
