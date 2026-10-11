@@ -24,7 +24,7 @@ jobs:
   connected:
     name: Instrumented tests (API ${{ matrix.api-level }})
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -71,5 +71,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: connected-reports-api-${{ matrix.api-level }}
-          path: platforms/android/capture-runtime-test/build/reports/androidTests
+          path: |
+            platforms/android/capture-runtime-test/build/reports/androidTests
+            platforms/android/capture-runtime-test/build/outputs/androidTest-results
           if-no-files-found: ignore

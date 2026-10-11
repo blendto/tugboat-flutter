@@ -13,6 +13,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.security.MessageDigest
@@ -24,6 +25,9 @@ import kotlin.math.abs
 /** `capture(window, …)` end to end: PixelCopy, C++ mask fill, JPEG. */
 @RunWith(AndroidJUnit4::class)
 class WindowCaptureTest {
+    @get:Rule
+    val timeout = MainThreadTimeout(seconds = 60)
+
     private val runtime = CaptureRuntime()
 
     @After
