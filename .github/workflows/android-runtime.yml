@@ -10,6 +10,7 @@ on:
       - "tool/ci/verify-flutter-plugin-runtime.sh"
       - "tool/ci/capture-runtime-override.init.gradle"
       - "sdks/flutter/packages/tugboat/android/**"
+      - "sdks/flutter/packages/tugboat/example/android/**"
       - "tool/ci/dump-android-runtime-api.py"
       - "tool/ci/verify-android-runtime-api.sh"
       - "tool/ci/android-runtime-version.sh"
