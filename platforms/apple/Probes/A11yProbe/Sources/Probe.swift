@@ -55,12 +55,17 @@ enum Probe {
 
     lines.append(contentsOf: hitTestLines(label: label, stats: stats))
 
+    lines.append("A11YPROBE \(label) -- layer tree under hosting views --")
+    let layerPass = LayerProbe.run(window: window, label: label)
+    lines.append(contentsOf: layerPass.lines)
+
     let wanted = ["probe.button", "probe.field", "probe.list"]
     let found = wanted.filter { stats.identifiers.contains($0) }
     let summary =
       "\(label): leaves=\(stats.leafElements) labeled=\(stats.labeledLeaves) "
       + "ids=\(found.count)/\(wanted.count) hosting=\(stats.hostingViews) "
-      + "uikitText=\(stats.uikitTextViews.count) lists=\(stats.listViews.joined(separator: ","))"
+      + "uikitText=\(stats.uikitTextViews.count) lists=\(stats.listViews.joined(separator: ",")) "
+      + layerPass.summary
     lines.append("A11YPROBE \(label) SUMMARY \(summary)")
     lines.append(
       "A11YPROBE \(label) VERDICT treePopulatedWithoutVoiceOver=\(stats.labeledLeaves >= 4) "
