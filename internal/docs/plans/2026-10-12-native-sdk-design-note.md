@@ -64,8 +64,8 @@ Notes:
   without frames. This is the existing `unsupportedApi` outcome.
 - **Masks fail closed.** The adapter computes mask rectangles on the main
   thread when it handles `capture.request`. If it cannot enumerate the screen
-  with confidence (for example, the SwiftUI accessibility tree is
-  unavailable, section 6.3), it masks the whole frame. It never sends an
+  with confidence (for example, SwiftUI on an iOS major version whose layer
+  allowlist is not verified, section 6.3), it masks the whole frame. It never sends an
   unmasked frame. The default stays `allTextAndMedia`.
 
 ### 2.1 Mask sources under `allTextAndMedia`
@@ -77,7 +77,7 @@ their whole bounds because the SDK cannot see inside them.
 | --- | --- | --- | --- |
 | Android Views | `TextView` (includes `EditText`, buttons) | `ImageView`, `VideoView` | `WebView`, `SurfaceView`, `TextureView` |
 | Compose | nodes with `Text` or `EditableText` semantics | `Role.Image`, and nodes with only a `ContentDescription` (image-like) | `AndroidView` interop bounds; the whole frame when the semantics owner is unavailable (section 6.2) |
-| SwiftUI | accessibility elements with static-text or text-entry traits; `UITextField`, `UITextView`, `UILabel` | elements with the image trait; `UIImageView` | `WKWebView`; any `UIViewRepresentable` host view; the whole frame when the accessibility tree is empty (section 6.3) |
+| SwiftUI | allowlisted SwiftUI drawing layers (section 6.3); `UITextField`, `UITextView`, `UILabel` | allowlisted SwiftUI image layers, padded; `UIImageView` | `WKWebView`; any `UIViewRepresentable` host view; any unclassified layer with `contents` inside a hosting view; the whole frame on an iOS major version without a verified allowlist (section 6.3) |
 
 Adapter tests assert each row (section 8).
 
@@ -155,7 +155,7 @@ that doc applies: tree reads happen at fact time and travel with the fact.
 | Fact | Android Views | Compose | SwiftUI |
 | --- | --- | --- | --- |
 | Pointer | `Window.Callback` wrapper on each activity window, installed from `ActivityLifecycleCallbacks` | same window callback | A `UIGestureRecognizer` on the key window. It never cancels touches, recognizes simultaneously, and needs no swizzling. |
-| Tap target | hit-test of the View tree at the down point | semantics hit-test at the down point | accessibility-element hit-test, with `tugboatTag` frames first (section 6.3) |
+| Tap target | hit-test of the View tree at the down point | semantics hit-test at the down point | `tugboatTag` frames, then UIKit hit-testing (section 6.3) |
 | Scroll | `OnScrollChangedListener`, then compare offsets of known scrollables; `RecyclerView.OnScrollListener` when found | per-frame scroll-range diff over semantics nodes during and after a gesture | KVO on `contentOffset` of `UIScrollView`s (SwiftUI `ScrollView` and `List` are backed by them) |
 | Navigation | activity and fragment lifecycle callbacks; `trackNavigation` destinations | `trackNavigation` route patterns; hosting activity as fallback | `.tugboatScreen` appear/disappear, plus view-controller appearance (swizzled, with opt-out) for hosting controllers |
 | Focus | `OnGlobalFocusChangeListener` | focused editable semantics node | `UITextField` / `UITextView` begin- and end-editing notifications |
@@ -237,14 +237,59 @@ section per toolkit, in the PR that implements each adapter.
 
 ### 6.3 SwiftUI
 
+The SwiftUI accessibility probe (branch `spike/swiftui-a11y-probe`) decided
+this section. On iOS 26.5 with VoiceOver off:
+
+- every SwiftUI hosting view reports zero accessibility elements and no
+  `accessibilityIdentifier`, so the accessibility tree cannot be used
+  in-process;
+- SwiftUI `Text`, `Button` labels, `Image`, and list-row text are not UIKit
+  views. They are drawn into separate CALayers inside the hosting views:
+
+  | Layer class | Matched | IoU |
+  | --- | --- | --- |
+  | `SwiftUI.ImageLayer` | the star image | 0.76 |
+  | the mangled private `…CGDrawingLayer` class | every text element | 0.99–1.00 |
+
+**Identity**
+
 | Rule | What it means |
 | --- | --- |
-| Token | Accessibility traits mapped to roles: button, link, searchField, adjustable, image, header, `TextField` for editable elements, `Scrollable` for scroll views. |
-| Source | The window's accessibility element tree, read in-process from the hosting views, plus `tugboatTag` frames that the modifier registers through anchor preferences. |
-| Lists | The `UICollectionView` / `UITableView` index path of the cell, written as `[item:section.row]`. |
+| Alias and tap target | `.tugboatTag` frames, which the modifier registers through anchor preferences, are hit-tested first. Tags are high confidence. |
+| Untagged targets | UIKit hit-testing at the down point: `UITextField`/`UITextView`, list cells, `HostingScrollView`, and representable hosts. The token is the UIKit role (`TextField`, `Cell`, `Scrollable`, `Representable`), plus the path of ancestor hosting views. Without a tag or an index path the confidence is `low`. |
+| Lists | `List` is a `UICollectionView` on iOS 16+ (`UpdateCoalescingCollectionView` with `ListCollectionViewCell` on iOS 26.5) and a `UITableView` on iOS 15. The cell's index path gives `[item:section.row]`. |
+| Scroll | SwiftUI `ScrollView` is a `HostingScrollView` (`UIScrollView`), so KVO on `contentOffset` works. |
 | Route key | The `.tugboatScreen` name, then the hosting controller's Swift type name. Swift type names are not obfuscated, but they are long, so they are hashed and score `medium`. |
-| Alias | `.tugboatTag`, then `accessibilityIdentifier`. Both are high confidence. |
-| Risk | The SwiftUI accessibility tree may be empty until assistive technology is active. If it is empty, targets fall back to `tugboatTag` frames and UIKit hit-testing, and masks fail closed to the whole frame. The first Apple handoff includes a simulator check of this (section 10). |
+| Not used | The accessibility tree, and drawing-layer classes. Layers are used for masking only, never for identity. |
+
+**Masking**
+
+- **What is masked.** The mask is the union of:
+  - the frames of allowlisted SwiftUI text and image layers inside hosting
+    views;
+  - UIKit text views (`UITextField`, `UITextView`, `UILabel`);
+  - `WKWebView` and `UIViewRepresentable` host bounds, fail-closed.
+- **Unclassified layers.** Any layer with `contents` inside a hosting view
+  whose class is not on the allowlist is masked fail-closed.
+- **Over-masking.** `CGDrawingLayer` is a generic drawing layer that also
+  carries shapes and custom drawing. Masking every one of them over-masks,
+  which is accepted. It is never treated as "text only".
+- **Image padding.** Image layer frames are padded by 4 pt, because the
+  probe's image layer was slightly smaller than its layout frame.
+- **Versioned allowlist.** Class names are matched as exact strings per iOS
+  major version. The `CGDrawingLayer` class is a mangled private Swift type
+  and can change between releases. Matching is read-only class-name
+  comparison and makes no private API calls.
+  - Verified: iOS 26 (`SwiftUI.ImageLayer` and
+    `_TtC7SwiftUIP33_863CCF9D49B535DAEB1C7D61BEE53B5914CGDrawingLayer`).
+  - Any iOS major version without a verified entry, including 15–25 for now,
+    masks the whole frame until it is verified. Each verification is an open
+    item in the decisions log.
+- **Regression guard.**
+  - An XCTest renders a screen known to contain text and an image, and
+    fails loudly when no allowlisted class is found.
+  - The probe is kept on its spike branch so it can be re-run on each new
+    iOS major version.
 
 ## 7. Configuration, IDs and metadata
 
@@ -268,7 +313,7 @@ stateful-engine.md section 6.
 | JVM unit tests | Host message plumbing, the handle table, header construction, and config validation, with a fake engine transport |
 | Robolectric | Views and Compose adapter fact extraction and canonical paths on fixture screens; mask sources per section 2.1; `Window.Callback` chaining |
 | Instrumented (emulator) | Window capture plus masks, and end-to-end fact batching |
-| XCTest | Host plumbing, the SwiftUI adapter on hosted views. Built and run by the local orchestrator. |
+| XCTest | Host plumbing, the SwiftUI adapter on hosted views, and the layer-allowlist regression guard (section 6.3). Built and run by the local orchestrator. |
 | Contract tests, both platforms | Pinned against the engine's actual output: the `session_start` body shape with every required field, and `frameMetadata[].requestedBackend` / `resolvedBackend` equal to `nativeCpuExperimental` |
 
 ## 9. Collector contract (fixed for this milestone)
@@ -330,9 +375,9 @@ Other wire rules:
     - lifecycle events.
   - Masked frames in `pmkit.frame_captures` and S3.
   - No 400s.
-- The SwiftUI accessibility probe was pulled forward and is a standalone
-  spike (branch `spike/swiftui-a11y-probe`). Its result decides how much of
-  section 6.3 relies on `tugboatTag`, and is recorded in the decisions log.
+- The SwiftUI accessibility probe ran on iOS 26.5 (section 6.3). The
+  device test on the simulator checks that SwiftUI frames mask text and
+  images per layer instead of the whole frame.
 
 ## 11. Order of work after approval
 

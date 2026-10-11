@@ -26,6 +26,14 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-12 | `toolkit` is emitted only on native anchors (`view`, `compose`, `swiftui`), inside `targetAnchor`; Flutter anchors keep their shipped shape. | Collector stores `targetAnchor` as free JSON; unknown top-level fields would be dropped |
 | 2026-10-12 | Native frames report `requestedBackend` / `resolvedBackend` = `nativeCpuExperimental`. | Collector treats backend as a closed enum; a new name would 400 |
 | 2026-10-12 | Apple podspec named `TugboatSDK` (module `Tugboat`). | Avoid a likely CocoaPods trunk name clash; nothing is published this milestone |
+| 2026-10-12 | SwiftUI: identity on `tugboatTag` frames, UIKit hit-testing, and list index paths; masks are the union of allowlisted SwiftUI text/image layer frames (images padded 4 pt), UIKit text views, and fail-closed web/representable hosts and unclassified layers. The allowlist is versioned per iOS major version; unverified versions mask the whole frame. | Probe on iOS 26.5: the accessibility tree is empty without VoiceOver, but text and images are separate layers (`SwiftUI.ImageLayer`, `…CGDrawingLayer`, IoU 0.76–1.00) |
+
+## Open items
+
+- **SwiftUI layer allowlist for iOS 15–25.** Only iOS 26 is verified. Re-run
+  `spike/swiftui-a11y-probe` on each older major version that the SDK must
+  support with per-layer masks; until then those versions mask the whole
+  frame.
 
 ## Open cross-repo questions
 
