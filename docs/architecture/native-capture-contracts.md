@@ -31,7 +31,9 @@ recording (`MediaProjection`, ScreenCaptureKit).
 
 Dart allocates a monotonic `requestId` (`uint64`) per plugin instance.
 Native is a FIFO of one in-flight capture. Different buffers are not
-processed in parallel.
+processed in parallel. On Android, `capture(view, …)` and
+`capture(window, …)` share that one queue and one pipeline; only the
+`PixelCopy` source differs.
 
 | Field | Type | Rule |
 | --- | --- | --- |
@@ -57,7 +59,7 @@ fallback — do not encode.
 | `dHash` | 64-char `'0'/'1'` or empty | Bit-for-bit with `sdks/flutter/packages/tugboat/lib/src/perceptual_hash.dart` on the masked RGBA buffer. |
 | `contentHash` | lowercase hex SHA-256 of JPEG | Empty on skip. |
 | `timings` | int microseconds | Stages in the clock table. Missing keys are zero. |
-| `renderMode` | `surfaceView` / `textureView` / `hybrid` / `unknown` | Diagnostic only. |
+| `renderMode` | `surfaceView` / `textureView` / `hybrid` / `unknown` | Diagnostic only. Always `unknown` on window captures. |
 | `incomplete` | bool | Only meaningful for `viewHierarchy`. |
 
 The runtime does not retain JPEG or bitmap after the reply. Dart owns
@@ -111,6 +113,11 @@ drop if right <= left or bottom <= top
 C ABI rectangles are inclusive-start exclusive-end integers. Overlaps stay
 opaque. Never round toward unmasking. A wrong origin is a privacy failure.
 
+On Android window capture (`windowComposite`), the mask space is the
+window's decor view, which is the area `PixelCopy.request(Window, …)`
+copies. Callers normalize rects against the decor view's width and height.
+The mapping rule above is unchanged.
+
 ## Coverage
 
 Closed: `engineSurface | windowComposite | viewHierarchy`.
@@ -118,7 +125,7 @@ Closed: `engineSurface | windowComposite | viewHierarchy`.
 | Value | First milestone |
 | --- | --- |
 | `engineSurface` | Android `PixelCopy` of the active `FlutterSurfaceView`, or Apple rendering of the live Flutter layer. Not the final window composition. |
-| `windowComposite` | Forbidden until that path exists. Do not report it. |
+| `windowComposite` | Android `PixelCopy` of an app window (capture-runtime 0.2.0+, API 26+). |
 | `viewHierarchy` | Optional Apple `drawHierarchy` compatibility mode. Incomplete descendants set `incomplete=true`. |
 
 The Flutter Apple plugin reports `engineSurface` on `ok` and
@@ -130,6 +137,13 @@ Not guaranteed on `engineSurface`: platform views, separate video/map
 surfaces, secure / DRM content, `FlutterTextureView`, hybrid composition.
 Those are unsupported render modes or missing layers, never an unmasked
 substitute.
+
+`windowComposite` copies the window's own surface. It excludes separate
+`SurfaceView` and `TextureView` layers (video, maps, camera): they are
+missing or stale in the copy, so callers must mask their bounds fail-closed.
+It also excludes secure windows: a window with `FLAG_SECURE` is never
+copied and returns `secureWindow`. The runtime checks the flag before
+allocating and again on the main thread immediately before `PixelCopy`.
 
 ## Status × fallback × publish
 
@@ -145,6 +159,13 @@ substitute.
 | `processingFailed` | yes | no |
 | `cancelled` | no | no |
 | `disposed` | no | no |
+| `secureWindow` | no | no |
+
+`secureWindow` is reported only by Android window capture, for a window
+with `FLAG_SECURE`. It carries no frame and no coverage. It is not a
+failure: callers record it as a diagnostic, never fall back to another
+pixel path for that window, and do not count it toward the consecutive
+failure limit below. Window capture below API 26 reports `unsupportedApi`.
 
 Fallback is one-way for that `requestId`. Do not publish native and Flutter
 together. After fallback starts, a Dart failure is the outcome; do not

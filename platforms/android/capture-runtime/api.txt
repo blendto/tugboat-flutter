@@ -14,8 +14,10 @@ enum class CaptureStatus
   ProcessingFailed
   Cancelled
   Disposed
+  SecureWindow
 enum class CaptureCoverage
   EngineSurface
+  WindowComposite
 enum class RenderMode
   SurfaceView
   TextureView
@@ -57,9 +59,11 @@ data class CaptureResult(
 class CaptureRuntime(
   fun capabilities(): CaptureCapabilities
   fun capture(view: View, request: CaptureRequest, onComplete: (CaptureResult) -> Unit)
+  fun capture(window: Window, request: CaptureRequest, onComplete: (CaptureResult) -> Unit)
   fun cancel(requestId: Long)
   fun dispose()
   companion object
   const val MIN_NATIVE_API: Int = 24
+  const val MIN_WINDOW_API: Int = 26
   const val DEFAULT_TIMEOUT_MS: Long = 2_000
   const val JPEG_QUALITY: Int = 80

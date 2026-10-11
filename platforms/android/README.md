@@ -5,9 +5,19 @@ Maven artifact `com.gettugboat.sdk:capture-runtime:0.1.0` (group follows
 `com.tugboat.capture.runtime`. Kotlin runtime plus the C++ core
 compiled into an AAR (`arm64-v8a`, `armeabi-v7a`, `x86_64`).
 
-Native capture requires API 24. Older devices report `unsupportedApi`.
-The first source is `PixelCopy` of `FlutterSurfaceView`. TextureView and
-hybrid composition return `unsupportedRenderMode`.
+`VERSION_NAME` `0.2.0` is unpublished; it adds window capture.
+
+Two `PixelCopy` sources share one queue and pipeline:
+
+- `capture(view, …)`: the active `FlutterSurfaceView` (API 24+), coverage
+  `engineSurface`. TextureView and hybrid composition return
+  `unsupportedRenderMode`.
+- `capture(window, …)`: a whole app `Window` (API 26+), coverage
+  `windowComposite`. `FLAG_SECURE` windows return `secureWindow` and are
+  never copied. Separate `SurfaceView` / `TextureView` layers are not in the
+  copy.
+
+Older devices report `unsupportedApi`.
 
 ## Build
 
@@ -33,8 +43,9 @@ root (gitignored). After that:
 The sample resolves `com.gettugboat.sdk:capture-runtime` from that repository,
 not from `project()`. Version is `VERSION_NAME` in `gradle.properties`.
 
-`connectedAndroidTest` for lifecycle and render-mode tests needs a device
-or emulator. API 24 vs recent, rotation, and activity-recreation tests wait
+`:capture-runtime-test:connectedAndroidTest` (lifecycle, render-mode, and
+window capture of a solid-colour activity with a mask) needs a device or
+emulator. API 24 vs recent, rotation, and activity-recreation tests wait
 on a Flutter `FlutterSurfaceView` fixture (Phase 6).
 
 ## Hosted Maven
