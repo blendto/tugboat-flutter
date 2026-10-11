@@ -1,15 +1,12 @@
 {
   "fixtureFormat": 1,
   "kind": "engine.scenario",
-  "name": "batch-admission-after-end",
-  "description": "Admission runs over the whole batch before anything applies: an event.record after a session.end in the same batch rejects the batch, so the session stays live and no session_end is recorded.",
+  "name": "batch-late-fact-after-end",
+  "description": "A late fact batched after session.end does not reject the batch: session_end is recorded and the late event.record is dropped, like one sent on its own afterwards.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
   },
-  "engineOnly": [
-    "C9"
-  ],
   "input": {
     "configure": {
       "host": {
@@ -109,10 +106,20 @@
           ]
         },
         "expect": {
-          "error": {
-            "status": "invalid_message",
-            "path": "$.messages[1].type"
-          }
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-1",
+                "atMs": 100,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
         }
       },
       {
@@ -125,28 +132,13 @@
             "eventType": "external_event",
             "stream": "evidence",
             "data": {
-              "name": "still-live"
+              "name": "later"
             },
             "attachActionContext": false
           }
         },
         "expect": {
-          "records": [
-            {
-              "kind": "event",
-              "event": {
-                "id": "event-1",
-                "atMs": 200,
-                "type": "external_event",
-                "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "data": {
-                  "name": "still-live"
-                }
-              },
-              "userId": null
-            }
-          ],
+          "records": [],
           "effects": []
         }
       }
@@ -187,13 +179,10 @@
         },
         {
           "id": "event-1",
-          "atMs": 200,
-          "type": "external_event",
-          "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "data": {
-            "name": "still-live"
-          }
+          "atMs": 100,
+          "type": "session_end",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
         }
       ]
     }

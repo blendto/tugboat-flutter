@@ -1,6 +1,6 @@
 // The clock model (docs/stateful-engine.md section 5): fact time stamps on
-// messages, `atMs` derivation, and host timers. The engine never reads a
-// clock; time arrives with messages and timers are effects.
+// messages, `atMs` derivation, and host timer deadlines. The engine never
+// reads a clock; time arrives with messages and timers are effects.
 // Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_CLOCK_H
 #define TUGBOAT_SESSION_ENGINE_CLOCK_H
@@ -27,7 +27,8 @@ struct At {
 
 // Which `at` fields a message type requires.
 enum class AtRule {
-  kNone,         // no `at` allowed (configuration, queries, stateless)
+  kNone,         // no `at` allowed (stateless operations)
+  kOptional,     // `at` may be sent and is validated, but not used
   kMono,         // `at.monoUs` required, `at.wallUs` optional
   kMonoAndWall,  // both required
 };
@@ -42,42 +43,28 @@ bool decode_mono_us(const ObjectReader& r, const char* key,
 
 // Event `atMs`: `floor((fact_mono_us - start_mono_us) / 1000)`, which is
 // Dart's `Stopwatch.elapsedMilliseconds`. A fact stamped before the session
-// started gets 0: one monotonic clock means `atMs` is never negative
-// (change C1).
+// started records 0 (change C13: an asynchronous seam can deliver such facts
+// late).
 int64_t elapsed_ms(int64_t start_mono_us, int64_t fact_mono_us);
 
-struct EngineState;
-
-// A module that owns timers. It is called back when its timer fires.
-class TimerOwner {
- public:
-  virtual ~TimerOwner() = default;
-  virtual void on_timer_fired(const std::string& timer_id, const At& at,
-                              EngineState* state, Output* out) = 0;
-};
-
-// Host timers, keyed by a stable timer id. Each armed timer remembers its
-// owner, so `timer.fired` is routed to the module that scheduled it.
+// Deadlines of the host timers the engine has armed, keyed by timer id. A
+// timer id starts with the prefix of the module that owns it; the module
+// registry routes `timer.fired` by that prefix.
 class Timers {
  public:
   // Arms (or re-arms) `timer_id` and emits `timer.schedule`.
-  void schedule(const std::string& timer_id, int64_t at_mono_us,
-                TimerOwner* owner, Output* out);
+  void schedule(const std::string& timer_id, int64_t at_mono_us, Output* out);
   // Disarms `timer_id` and emits `timer.cancel` when it was armed.
   void cancel(const std::string& timer_id, Output* out);
-  // Disarms `timer_id` and returns its owner when it is armed and due at
-  // `now_mono_us`. Returns nullptr for an unknown id, a cancelled timer, or a
-  // stale fire stamped before the current deadline (a host fire of a timer
-  // that was re-armed later); those are ignored (principle 4).
-  TimerOwner* take_due(const std::string& timer_id, int64_t now_mono_us);
+  // Disarms `timer_id` and returns true when it is armed and due at
+  // `now_mono_us`. False for an unknown id, a cancelled timer, or a stale
+  // fire stamped before the current deadline (a host fire of a timer that
+  // was re-armed later); those are ignored (principle 4).
+  bool take_due(const std::string& timer_id, int64_t now_mono_us);
   bool armed(const std::string& timer_id) const;
 
  private:
-  struct Armed {
-    int64_t at_mono_us = 0;
-    TimerOwner* owner = nullptr;
-  };
-  std::map<std::string, Armed> armed_;
+  std::map<std::string, int64_t> deadlines_;
 };
 
 }  // namespace engine

@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "events-before-first-session",
-  "description": "Before the first session.start nothing is recorded. event.record and locale.set mint no id. app.lifecycle mints an event id that is then dropped (Dart's recordAppLifecycleState calls _nextId before _addEvent drops the event), so session_start is event-1; a duplicate state mints nothing.",
+  "description": "Before the first session.start, event-producing facts (event.record, app.lifecycle) are accepted and dropped: no record and no id. locale.set records nothing but sets the locale the session starts with.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -96,6 +96,24 @@
       },
       {
         "send": {
+          "type": "locale.set",
+          "at": {
+            "monoUs": 4995000
+          },
+          "input": {
+            "locale": {
+              "language": "de",
+              "tag": "de"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
           "type": "session.start",
           "at": {
             "monoUs": 5000000,
@@ -115,11 +133,15 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-0",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-1781827200000000",
+                "locale": {
+                  "language": "de",
+                  "tag": "de"
+                }
               },
               "userId": null
             }
@@ -151,16 +173,24 @@
           "installationId": "inst-0001",
           "appId": "com.example.app",
           "packageName": "com.example.app"
+        },
+        "locale": {
+          "language": "de",
+          "tag": "de"
         }
       },
       "frames": [],
       "events": [
         {
-          "id": "event-1",
+          "id": "event-0",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-1781827200000000",
+          "locale": {
+            "language": "de",
+            "tag": "de"
+          }
         }
       ]
     }

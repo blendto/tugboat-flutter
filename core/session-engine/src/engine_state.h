@@ -1,6 +1,6 @@
-// Everything a stateful engine handle holds between messages. Commands read
-// and change it in `apply`; the dispatcher alone advances `admission`.
-// Later phases add their module state here. Not part of the C ABI.
+// Everything a stateful engine handle holds between messages, as plain data.
+// Each module owns one part; behaviour lives in the modules and the
+// registry, not here. Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_ENGINE_STATE_H
 #define TUGBOAT_SESSION_ENGINE_ENGINE_STATE_H
 
@@ -8,10 +8,12 @@
 
 #include "clock.h"
 #include "config.h"
+#include "delivery_state.h"
+#include "interaction_state.h"
 #include "lifecycle.h"
 #include "models.h"
+#include "navigation_state.h"
 #include "session.h"
-#include "teardown.h"
 
 namespace tugboat {
 namespace engine {
@@ -25,7 +27,7 @@ struct Identity {
 
 struct EngineState {
   Config config;
-  Admission admission;
+  LifecycleState lifecycle = LifecycleState::kIdle;
   IdCounter ids;
   Identity identity;
   // The active app locale (Dart `_currentLocale`). Survives sessions.
@@ -34,7 +36,14 @@ struct EngineState {
   // The live session, or the last one after it ended.
   std::optional<Session> session;
   Timers timers;
-  Teardown teardown;
+  DeliveryState delivery;
+  InteractionState interactions;
+  NavigationState navigation;
+
+  // The session while it is live (active or background), else null.
+  Session* live_session() {
+    return has_live_session(lifecycle) && session ? &*session : nullptr;
+  }
 };
 
 }  // namespace engine

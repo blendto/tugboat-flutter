@@ -1,8 +1,8 @@
 // Session lifecycle messages: `session.start`, `session.end`, and
 // `app.lifecycle` (docs/stateful-engine.md section 4.2). They reproduce the
 // Dart controller's `start()`, `_endSession`, and `recordAppLifecycleState`
-// plus the widget's `detached` handling, with changes C9 and C10.
-#include <cmath>
+// plus the widget's `detached` handling, with change C10. Other modules join
+// in through teardown stages and lifecycle hooks, not by editing this file.
 #include <memory>
 #include <optional>
 #include <string>
@@ -17,12 +17,15 @@ namespace engine {
 namespace {
 
 // The end sequence shared by `session.end`, `detached`, and a replacing
-// `session.start`: tear down in-flight work, then emit `session_end`.
-// Collector drain (C5) joins it in phase 3b.
-void end_session(EngineState* state, int64_t mono_us, TeardownCause cause,
-                 Output* out) {
-  state->teardown.run(cause, out);
-  record_event(state, make_event(state, "session_end", mono_us), true, out);
+// `session.start`: tear down in-flight work, run the session-ending hooks,
+// then record `session_end`.
+void end_session(const ModuleRegistry& modules, Session& session, const At& at,
+                 TeardownCause cause, EngineState* state, Output* out) {
+  modules.run_teardown(cause, state, out);
+  modules.run_hooks(LifecycleHookPoint::kSessionEnding, at, state, out);
+  record_event(state, session,
+               make_event(state, session, "session_end", at.mono_us), true,
+               out);
 }
 
 // --------------------------------------------------------- session.start
@@ -41,34 +44,38 @@ class SessionStart final : public Command {
  public:
   SessionStart(StartInput input, At at) : input_(std::move(input)), at_(at) {}
 
-  bool admit(Admission* admission, const std::string& path,
-             Error* error) const override {
-    if (!admission->host_configured) {
-      return invalid(error, path,
-                     "session.start needs host metadata: send "
-                     "engine.configure with `host` first");
-    }
-    admission->lifecycle =
-        transition(admission->lifecycle, LifecycleSignal::kSessionStart);
-    return true;
+  std::optional<LifecycleSignal> signal() const override {
+    return LifecycleSignal::kSessionStart;
   }
 
-  void apply(const Transition& transition, EngineState* state,
-             Output* out) override {
-    if (has_live_session(transition.from)) {
-      // Change C10: a replaced session ends with `session_end` first.
-      end_session(state, at_.mono_us, TeardownCause::kSessionEnd, out);
+  bool admit(Admission* admission, const std::string& path,
+             Error* error) const override {
+    if (admission->host_configured) {
+      return true;
     }
-    state->teardown.run(TeardownCause::kSessionReplacement, out);
+    return invalid(error, path,
+                   "session.start needs host metadata: send "
+                   "engine.configure with `host` first");
+  }
+
+  void apply(const ModuleRegistry& modules, EngineState* state,
+             Output* out) override {
+    if (Session* live = state->live_session()) {
+      // Change C10: a replaced session ends with `session_end` first.
+      end_session(modules, *live, at_, TeardownCause::kSessionEnd, state,
+                  out);
+    }
+    modules.run_teardown(TeardownCause::kSessionReplacement, state, out);
     state->app_lifecycle.reset();
     if (input_.locale) {
       state->locale = input_.locale;
     }
-    state->session.emplace(header(*state));
-    state->session->set_locale(state->locale);
-    record_event(state, make_event(state, "session_start", at_.mono_us), true,
-                 out);
-    // The `initial` capture request joins here in phase 3d.
+    Session& session = state->session.emplace(header(*state));
+    session.set_locale(state->locale);
+    record_event(state, session,
+                 make_event(state, session, "session_start", at_.mono_us),
+                 true, out);
+    modules.run_hooks(LifecycleHookPoint::kSessionStarted, at_, state, out);
   }
 
  private:
@@ -103,11 +110,11 @@ bool decode_viewport(const ObjectReader& r, StartInput* out, Error* error) {
       !v.req_double("height", &out->viewport_height)) {
     return false;
   }
-  if (!std::isfinite(out->viewport_width) || out->viewport_width < 0) {
-    return v.reject("width", "must be finite and not negative");
+  if (out->viewport_width < 0) {
+    return v.reject("width", "must not be negative");
   }
-  if (!std::isfinite(out->viewport_height) || out->viewport_height < 0) {
-    return v.reject("height", "must be finite and not negative");
+  if (out->viewport_height < 0) {
+    return v.reject("height", "must not be negative");
   }
   return true;
 }
@@ -135,22 +142,19 @@ std::unique_ptr<Command> decode_start(const CommandInput& in, Error* error) {
 
 // ----------------------------------------------------------- session.end
 
+// Idempotent: ending an ended (or never started) session does nothing.
 class SessionEnd final : public Command {
  public:
   SessionEnd(TeardownCause cause, At at) : cause_(cause), at_(at) {}
 
-  bool admit(Admission* admission, const std::string&,
-             Error*) const override {
-    // Idempotent: ending an ended (or never started) session does nothing.
-    admission->lifecycle =
-        transition(admission->lifecycle, LifecycleSignal::kSessionEnd);
-    return true;
+  std::optional<LifecycleSignal> signal() const override {
+    return LifecycleSignal::kSessionEnd;
   }
 
-  void apply(const Transition& transition, EngineState* state,
+  void apply(const ModuleRegistry& modules, EngineState* state,
              Output* out) override {
-    if (has_live_session(transition.from)) {
-      end_session(state, at_.mono_us, cause_, out);
+    if (Session* live = state->live_session()) {
+      end_session(modules, *live, at_, cause_, state, out);
     }
   }
 
@@ -178,46 +182,49 @@ std::unique_ptr<Command> decode_end(const CommandInput& in, Error* error) {
 
 // --------------------------------------------------------- app.lifecycle
 
+// Event-producing: without a live session the dispatcher drops it.
 class AppLifecycle final : public Command {
  public:
-  AppLifecycle(AppState app_state, At at) : app_state_(app_state), at_(at) {}
+  AppLifecycle(AppStateInfo info, At at) : info_(info), at_(at) {}
 
-  bool admit(Admission* admission, const std::string& path,
-             Error* error) const override {
-    if (!reject_after_end(*admission, path, error)) {
-      return false;
-    }
-    admission->lifecycle =
-        transition(admission->lifecycle, app_state_signal(app_state_));
-    return true;
+  std::optional<LifecycleSignal> signal() const override {
+    return info_.signal;
   }
 
-  void apply(const Transition& transition, EngineState* state,
+  void apply(const ModuleRegistry& modules, EngineState* state,
              Output* out) override {
-    if (!has_live_session(transition.from)) {
-      // Dart mints the event id before `_addEvent` drops the event for want
-      // of a session, so a non-duplicate state still consumes an id.
-      if (state->app_lifecycle.observe(app_state_)) {
-        state->ids.next("event");
-      }
-      return;
+    Session& session = *state->live_session();
+    if (info_.deactivates) {
+      modules.run_teardown(TeardownCause::kLifecycle, state, out);
     }
-    if (app_state_deactivates(app_state_)) {
-      state->teardown.run(TeardownCause::kLifecycle, out);
+    if (state->app_lifecycle.observe(info_.state)) {
+      Event event = make_event(state, session, info_.event_type, at_.mono_us);
+      event.data.set("state", Value::string(info_.name));
+      record_event(state, session, std::move(event), true, out);
     }
-    if (state->app_lifecycle.observe(app_state_)) {
-      Event event = make_event(state, app_lifecycle_event_type(app_state_),
-                               at_.mono_us);
-      event.data.set("state", Value::string(app_state_name(app_state_)));
-      record_event(state, std::move(event), true, out);
-    }
-    if (app_state_ == AppState::kDetached) {
-      end_session(state, at_.mono_us, TeardownCause::kSessionEnd, out);
-    }
+    run_transition_hooks(modules, session, state, out);
   }
 
  private:
-  AppState app_state_;
+  void run_transition_hooks(const ModuleRegistry& modules, Session& session,
+                            EngineState* state, Output* out) const {
+    switch (info_.signal) {
+      case LifecycleSignal::kBackgrounded:
+        modules.run_hooks(LifecycleHookPoint::kBackgrounded, at_, state, out);
+        break;
+      case LifecycleSignal::kForegrounded:
+        modules.run_hooks(LifecycleHookPoint::kForegrounded, at_, state, out);
+        break;
+      case LifecycleSignal::kDetached:
+        end_session(modules, session, at_, TeardownCause::kSessionEnd, state,
+                    out);
+        break;
+      default:
+        break;
+    }
+  }
+
+  AppStateInfo info_;
   At at_;
 };
 
@@ -228,21 +235,32 @@ std::unique_ptr<Command> decode_app_lifecycle(const CommandInput& in,
   if (!r.check_keys({"state"}) || !r.req_string("state", &name)) {
     return nullptr;
   }
-  const std::optional<AppState> app_state = parse_app_state(name);
-  if (!app_state) {
+  const std::optional<AppStateInfo> info = parse_app_state(name);
+  if (!info) {
     r.reject("state",
              "expected paused, hidden, inactive, resumed, or detached");
     return nullptr;
   }
-  return std::make_unique<AppLifecycle>(*app_state, *in.at);
+  return std::make_unique<AppLifecycle>(*info, *in.at);
 }
 
 }  // namespace
 
-void register_session_messages(MessageRegistry* registry) {
-  registry->add_command("session.start", AtRule::kMonoAndWall, decode_start);
-  registry->add_command("session.end", AtRule::kMonoAndWall, decode_end);
-  registry->add_command("app.lifecycle", AtRule::kMono, decode_app_lifecycle);
+void register_session_module(ModuleRegistry* registry) {
+  registry->add_command("session.start",
+                        {AtRule::kMonoAndWall, SessionPolicy::kAny,
+                         decode_start});
+  registry->add_command("session.end",
+                        {AtRule::kMonoAndWall, SessionPolicy::kAny,
+                         decode_end});
+  registry->add_command("app.lifecycle",
+                        {AtRule::kMono, SessionPolicy::kEventProducing,
+                         decode_app_lifecycle});
+  for (const char* type :
+       {"session_start", "session_end", "app_backgrounded",
+        "app_foregrounded", "app_inactive", "app_detached"}) {
+    registry->add_engine_event_type(type);
+  }
 }
 
 }  // namespace engine

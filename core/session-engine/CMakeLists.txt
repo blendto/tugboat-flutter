@@ -29,22 +29,25 @@ set(_tb_engine_sources
   src/collector.cpp
   src/config.cpp
   src/dart_time.cpp
+  src/delivery_module.cpp
   src/engine.cpp
-  src/engine_messages.cpp
-  src/evidence_messages.cpp
+  src/engine_module.cpp
+  src/evidence_module.cpp
   src/fingerprint.cpp
   src/host.cpp
+  src/interaction_module.cpp
   src/json.cpp
   src/lifecycle.cpp
-  src/messages.cpp
   src/models.cpp
+  src/module_registry.cpp
   src/modules.cpp
+  src/navigation_module.cpp
   src/output.cpp
   src/reader.cpp
   src/recorder.cpp
   src/session.cpp
-  src/session_messages.cpp
-  src/stateless_messages.cpp
+  src/session_module.cpp
+  src/stateless_module.cpp
   src/tb_session_engine.cpp
   src/teardown.cpp
   src/text.cpp)
@@ -109,6 +112,9 @@ if(TB_SESSION_ENGINE_FUZZ)
   foreach(_tb_fuzz IN ITEMS message_fuzz)
     add_executable(tb_${_tb_fuzz} fuzz/${_tb_fuzz}.cpp)
     target_link_libraries(tb_${_tb_fuzz} PRIVATE tugboat_session_engine)
+    # The fuzzer reads the module registry to cover every message type.
+    target_include_directories(tb_${_tb_fuzz} PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_compile_options(tb_${_tb_fuzz} PRIVATE
       -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer)
     target_link_options(tb_${_tb_fuzz} PRIVATE

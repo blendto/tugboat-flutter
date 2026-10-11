@@ -48,15 +48,24 @@ struct Anchor {
   std::vector<std::string> actions;
 };
 
-// TugboatEventStream plus the collector's `legacy_projection`. The Dart enum
-// has no `legacy_projection` (schema 10 removed it); only the stateful
-// `event.record` accepts it, because the collector still does.
-enum class EventStream { kSemantic, kEvidence, kDiagnostic, kLegacyProjection };
+// TugboatEventStream (session schema 10).
+enum class EventStream { kSemantic, kEvidence, kDiagnostic };
 
 const char* stream_name(EventStream stream);
-// Parses a stream name. `allow_legacy` admits `legacy_projection`.
-std::optional<EventStream> parse_stream(const std::string& name,
-                                        bool allow_legacy);
+std::optional<EventStream> parse_stream(const std::string& name);
+
+// TugboatFrameTrigger.
+enum class FrameTrigger {
+  kInitial,
+  kTap,
+  kScroll,
+  kRoute,
+  kLifecycle,
+  kManual,
+  kInteraction,
+};
+
+const char* frame_trigger_name(FrameTrigger trigger);
 
 // TugboatEvent: one recorded session event. `data` is the type-specific bag
 // the producer supplies; the engine passes it through unchanged.
@@ -78,6 +87,23 @@ struct Event {
   OptString action_id;
 };
 
+// TugboatFrame: metadata of one accepted frame. Its bytes stay in the host.
+struct Frame {
+  std::string id;
+  int64_t at_ms = 0;
+  int64_t width = 0;
+  int64_t height = 0;
+  std::string content_hash;
+  bool masked = false;
+  FrameTrigger trigger = FrameTrigger::kManual;
+  int64_t byte_length = 0;
+  int64_t capture_micros = 0;
+  OptString capture_session_id;
+  OptString requested_backend;
+  OptString resolved_backend;
+  OptString fallback_reason;
+};
+
 // Decodes locale evidence; `*out` stays empty when `json` is absent or null.
 bool decode_locale(const Value* json, const std::string& where,
                    std::optional<LocaleInfo>* out, Error* error);
@@ -94,6 +120,9 @@ Value anchor_json(const Anchor& anchor);
 
 // TugboatEvent.toJson.
 Value event_json(const Event& event);
+
+// TugboatFrame.toJson.
+Value frame_json(const Frame& frame);
 
 // Writes `value` under `key` only when present (Dart `if (x != null)`).
 void put_opt(Value* object, const char* key, const OptString& value);

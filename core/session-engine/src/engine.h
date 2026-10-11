@@ -1,11 +1,13 @@
 // The message dispatcher behind `tb_session_engine_submit_v1`: envelope
-// validation, registry lookup, `batch`, and the response document.
-// See README.md "Messages". Not part of the C ABI.
+// validation, registry lookup, `batch`, admission, and the response
+// document. See README.md "Messages". Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_ENGINE_H
 #define TUGBOAT_SESSION_ENGINE_ENGINE_H
 
 #include "engine_state.h"
 #include "json.h"
+#include "module_registry.h"
+#include "modules.h"
 #include "reader.h"
 
 namespace tugboat {
@@ -13,6 +15,9 @@ namespace engine {
 
 class Engine {
  public:
+  explicit Engine(const ModuleRegistry& modules = module_registry())
+      : modules_(modules) {}
+
   // Handles one parsed message. On success `*response` is the response
   // document; on failure `*error` says why and the engine state is
   // unchanged (a rejected batch applies none of its messages).
@@ -22,6 +27,7 @@ class Engine {
   const EngineState& state() const { return state_; }
 
  private:
+  const ModuleRegistry& modules_;
   EngineState state_;
 };
 

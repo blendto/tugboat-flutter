@@ -19,20 +19,21 @@ namespace engine {
 //   exploration ids (`withExplorationContext`);
 // - without it, those ids only where the event has none, so host evidence
 //   keeps its own context.
-// The exploration action window (`actionId`) is not part of any phase yet,
-// so the event's own `actionId` passes through unchanged.
+// The exploration action window (`actionId`) is deferred beyond this
+// milestone, so the event's own `actionId` passes through unchanged.
 Event enrich(Event event, const Session& session,
              const std::optional<LocaleInfo>& current_locale,
              bool attach_action_context);
 
-// Enriches `event`, appends it to the live session, emits its event record
-// (stamped with the runtime user id), then trims. Append order is record
-// order. The caller guarantees a session exists.
-void record_event(EngineState* state, Event event, bool attach_action_context,
-                  Output* out);
+// Enriches `event`, appends it to `session` (the live session), emits its
+// event record stamped with the runtime user id, then trims. Append order
+// is record order.
+void record_event(EngineState* state, Session& session, Event event,
+                  bool attach_action_context, Output* out);
 
 // Mints `event-N` and builds an engine-produced event at `mono_us`.
-Event make_event(EngineState* state, const char* type, int64_t mono_us);
+Event make_event(EngineState* state, const Session& session,
+                 const char* type, int64_t mono_us);
 
 }  // namespace engine
 }  // namespace tugboat

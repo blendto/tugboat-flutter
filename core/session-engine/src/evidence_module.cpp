@@ -1,6 +1,5 @@
 // Adapter and host evidence: `event.record`, `locale.set`, and
 // `identity.set` (docs/stateful-engine.md sections 4.3 and 7.2).
-#include <cmath>
 #include <memory>
 #include <optional>
 #include <string>
@@ -14,48 +13,10 @@ namespace engine {
 
 namespace {
 
-// Event types the engine mints itself. An adapter cannot record them, so the
-// session timeline cannot be forged. Later phases extend the list with the
-// types they mint (interaction, route_change, …).
-const char* const kEngineEventTypes[] = {
-    "session_start",    "session_end",       "app_backgrounded",
-    "app_foregrounded", "app_inactive",      "app_detached",
-    "locale_changed",
-};
-
-bool engine_owned(const std::string& type) {
-  for (const char* owned : kEngineEventTypes) {
-    if (type == owned) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Dart's `jsonEncode` throws on NaN and infinities; reject them on input
-// (`1e400`) so applying a command cannot fail later.
-bool check_finite(const Value& value, const std::string& path, Error* error) {
-  if (value.is_double() && !std::isfinite(value.as_double())) {
-    return invalid(error, path, "non-finite number cannot be encoded");
-  }
-  size_t index = 0;
-  for (const Value& item : value.items()) {
-    if (!check_finite(item, path + "[" + std::to_string(index++) + "]",
-                      error)) {
-      return false;
-    }
-  }
-  for (const Member& member : value.members()) {
-    if (!check_finite(member.value, path + "." + member.key, error)) {
-      return false;
-    }
-  }
-  return true;
-}
-
 // ---------------------------------------------------------- event.record
 
-// `{eventType, stream, data?, targetAnchor?, atMonoUs?, attachActionContext}`
+// `{eventType, stream, data?, targetAnchor?, atMonoUs?, attachActionContext}`.
+// Event-producing: without a live session the dispatcher drops it.
 class RecordEvent final : public Command {
  public:
   RecordEvent(Event event, int64_t fact_mono_us, bool attach_action_context)
@@ -63,21 +24,13 @@ class RecordEvent final : public Command {
         fact_mono_us_(fact_mono_us),
         attach_action_context_(attach_action_context) {}
 
-  bool admit(Admission* admission, const std::string& path,
-             Error* error) const override {
-    return reject_after_end(*admission, path, error);
-  }
-
-  void apply(const Transition& transition, EngineState* state,
+  void apply(const ModuleRegistry&, EngineState* state,
              Output* out) override {
-    if (!has_live_session(transition.from)) {
-      // Before the first session there is nothing to record into; Dart's
-      // evidence recorder drops it without minting an id.
-      return;
-    }
+    Session& session = *state->live_session();
     event_.id = state->ids.next("event");
-    event_.at_ms = state->session->at_ms(fact_mono_us_);
-    record_event(state, std::move(event_), attach_action_context_, out);
+    event_.at_ms = session.at_ms(fact_mono_us_);
+    record_event(state, session, std::move(event_), attach_action_context_,
+                 out);
   }
 
  private:
@@ -99,20 +52,16 @@ bool decode_record_fields(const ObjectReader& r, Event* event, Error* error) {
   if (event->type.empty()) {
     return r.reject("eventType", "must not be empty");
   }
-  if (engine_owned(event->type)) {
+  // Types the engine records itself cannot be forged by an adapter.
+  if (module_registry().is_engine_event_type(event->type)) {
     return r.reject("eventType", "the engine records this type itself");
   }
-  const std::optional<EventStream> parsed = parse_stream(stream, true);
+  const std::optional<EventStream> parsed = parse_stream(stream);
   if (!parsed) {
-    return r.reject("stream",
-                    "expected semantic, evidence, diagnostic, or "
-                    "legacy_projection");
+    return r.reject("stream", "expected semantic, evidence, or diagnostic");
   }
   event->stream = *parsed;
   if (data != nullptr) {
-    if (!check_finite(*data, r.child("data"), error)) {
-      return false;
-    }
     event->data = *data;
   }
   return true;
@@ -141,35 +90,32 @@ std::unique_ptr<Command> decode_record(const CommandInput& in, Error* error) {
 // ------------------------------------------------------------ locale.set
 
 // Records the active app locale (Dart `recordLocale`): dedupes, updates the
-// current locale, and emits `locale_changed` while a session is live. After
-// `session_end` it only updates the locale for the next session (C9).
+// current locale, and emits `locale_changed` while a session is live.
+// Without a live session it only updates the locale for the next one.
 class SetLocale final : public Command {
  public:
   SetLocale(LocaleInfo locale, At at) : locale_(std::move(locale)), at_(at) {}
 
-  bool admit(Admission*, const std::string&, Error*) const override {
-    return true;
-  }
-
-  void apply(const Transition& transition, EngineState* state,
+  void apply(const ModuleRegistry&, EngineState* state,
              Output* out) override {
     if (state->locale == locale_) {
       return;
     }
     const std::optional<LocaleInfo> previous = state->locale;
     state->locale = locale_;
-    if (!has_live_session(transition.from)) {
+    Session* session = state->live_session();
+    if (session == nullptr) {
       return;
     }
-    state->session->set_locale(locale_);
-    Event event = make_event(state, "locale_changed", at_.mono_us);
+    session->set_locale(locale_);
+    Event event = make_event(state, *session, "locale_changed", at_.mono_us);
     event.stream = EventStream::kEvidence;
     event.locale = locale_;
     if (previous) {
       event.data.set("previousLocale", locale_json(*previous));
     }
     event.data.set("locale", locale_json(locale_));
-    record_event(state, std::move(event), true, out);
+    record_event(state, *session, std::move(event), true, out);
   }
 
  private:
@@ -200,11 +146,7 @@ class SetIdentity final : public Command {
  public:
   explicit SetIdentity(OptString user_id) : user_id_(std::move(user_id)) {}
 
-  bool admit(Admission*, const std::string&, Error*) const override {
-    return true;
-  }
-
-  void apply(const Transition&, EngineState* state, Output*) override {
+  void apply(const ModuleRegistry&, EngineState* state, Output*) override {
     state->identity.user_id = user_id_;
     state->identity.set_explicitly = true;
   }
@@ -225,11 +167,17 @@ std::unique_ptr<Command> decode_identity(const CommandInput& in,
 
 }  // namespace
 
-void register_evidence_messages(MessageRegistry* registry) {
-  registry->add_command("event.record", AtRule::kMono, decode_record);
-  registry->add_command("locale.set", AtRule::kMono, decode_locale_set);
-  registry->add_command("identity.set", AtRule::kMonoAndWall,
-                        decode_identity);
+void register_evidence_module(ModuleRegistry* registry) {
+  registry->add_command("event.record",
+                        {AtRule::kMono, SessionPolicy::kEventProducing,
+                         decode_record});
+  registry->add_command("locale.set",
+                        {AtRule::kMono, SessionPolicy::kAny,
+                         decode_locale_set});
+  registry->add_command("identity.set",
+                        {AtRule::kMonoAndWall, SessionPolicy::kAny,
+                         decode_identity});
+  registry->add_engine_event_type("locale_changed");
 }
 
 }  // namespace engine

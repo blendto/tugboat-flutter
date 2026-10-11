@@ -116,7 +116,7 @@ with the same id is replaced.
 | Navigator / route-instance counters | `_surfaces` | `nav-N` / `route-N` are reset per session. Adapters send opaque ids; the engine maps them (section 8.1). |
 | Viewport, platform, app info, locale | `TugboatSession` | From `session.start` and `engine.configure`. |
 | User id, traits, traits id | sink plus static fields | Owned by the engine. The host persists them across sessions if needed. |
-| Exploration run id, action id | controller | `exploration.actionWindow` messages |
+| Exploration run id, action id | controller | Run id from `session.start`; the `exploration.actionWindow` action id is deferred (section 13) |
 | Events, frame metadata, scroll samples | `TugboatSession` | Same limits: maxEvents 5000, maxFrames 500, 200 scroll samples, sticky `truncated`. Frame bytes stay in the host; handles are released per section 7.6. |
 | Epochs and generations | controller | routeEpoch (never reset), capture generation, visual observation generation, frame completion sequence, boundary generation, pointer generation |
 
@@ -153,8 +153,9 @@ with the same id is replaced.
   and requests a forced `lifecycle` capture. `detached` ends the session.
 - `session.end {reason}`. Idempotent. Emits `session_end`, then drains
   delivery (section 7.7).
-- After `session_end`, the engine rejects every event-producing message with
-  `invalid_message` (change C9).
+- After `session_end`, the engine accepts event-producing facts and drops
+  them without a record, as it does before the first session (change C9). A
+  batch that carries a late fact next to `session.end` is not rejected.
 
 ### 4.3 Adapter-produced events
 
@@ -214,7 +215,8 @@ behaviour on device.
 Derived values:
 
 - Event and frame `atMs`: `floor((fact.monoUs - session.startMonoUs) / 1000)`,
-  matching Dart's `Stopwatch.elapsedMilliseconds`.
+  matching Dart's `Stopwatch.elapsedMilliseconds`. A fact stamped before
+  its session started records `0` (change C13).
 - Collector `triggeredAt`: `startedAt + atMs`. This is unchanged.
 - Lifecycle record `atMs`:
   - Today `session_end` uses wall-clock subtraction and can go negative
@@ -589,7 +591,15 @@ A new fixture kind, `engine.scenario`, under `conformance/engine/scenario/`:
 - A scenario that encodes a section 11 change carries
   `"engineOnly": ["C5"]`, listing the change ids. The Dart runner skips it;
   the C++ runner runs every scenario. `engineOnly` is valid only on
-  `engine.scenario`, and its ids must be section 11 ids.
+  `engine.scenario`, and its ids must be section 11 ids, listed once in
+  `conformance/change_ids.json` for both runners.
+- `"runners": ["cpp"]` (default both) limits a scenario to the C++ runner
+  without claiming a section 11 change. Phase 3c and 3d scenarios use it
+  where Dart cannot be driven (below). `engineOnly` implies it.
+- Until phase 3d the Dart runner compares event ids by order of first
+  appearance, because Dart's counter also mints `capture_request-N` ids the
+  engine does not mint before 3d. **Phase 3d must switch the Dart runner to
+  exact id comparison.** The C++ runner always compares exact ids.
 
 How Dart stays in step, by phase:
 
@@ -617,10 +627,11 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C6 | Delivery gaps become engine records; event-lane drops can also report gaps | Frame lane only; invisible to other sinks | new `component` values | Records: yes. Event-lane gaps: opt-in, default off |
 | C7 | Per-engine id counter and non-contiguous `frameNo` | as stated | no | Keep (no change) |
 | C8 | 202-only acceptance | 200/201/204 count as drops | no | Keep (Q3) |
-| C9 | Reject events after `session_end` | Events can follow `session_end` | yes, removes stray events | Yes |
+| C9 | Drop (no record) events after `session_end` | Events can follow `session_end` | yes, removes stray events | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C10 | `session.start` on an active session ends it first | `clear()` replacement emits no `session_end` (test-only path) | yes | Yes |
 | C11 | Per-navigator transition suppression | One global `_skipCapture` | fewer `route_transition` drops | Yes |
 | C12 | Publish a linked scroll when a still-tap pointer goes up | Completion never published | yes, recovers lost scrolls | Yes |
+| C13 | Facts stamped before session start record `atMs` 0 (async-seam skew) | Cannot happen (Dart stamps on arrival) | small: no negative `atMs` | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 
 ## 12. Open questions and decisions
 
@@ -652,6 +663,10 @@ fixtures:
 | 3c | Interactions (section 9) |
 | 3d | Navigation and capture coordination (section 8) |
 | 3e | Durable outbox (section 7.8). Out of the current milestone; waits for Q2 |
+
+Deferred beyond this milestone: the exploration action window
+(`exploration.actionWindow`, `action_window_set` / `action_window_cleared`,
+and `actionId` stamping). Native SDKs do not use exploration.
 
 After 3d:
 

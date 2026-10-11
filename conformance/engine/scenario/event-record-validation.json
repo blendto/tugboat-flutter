@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "event-record-validation",
-  "description": "Invalid event.record inputs are invalid_message with a JSON path and change nothing: an unknown stream (the collector accepts only semantic, evidence, diagnostic, and legacy_projection), a missing stream or attachActionContext, an empty or engine-owned eventType, a non-finite number in data, a negative atMonoUs, and an unknown key. The next valid event still gets the next id.",
+  "description": "Invalid event.record inputs are invalid_message with a JSON path and change nothing: an unknown stream (session schema 10 has semantic, evidence, and diagnostic; legacy_projection was removed), a missing stream or attachActionContext, an empty or engine-owned eventType, a non-finite number in data, a negative atMonoUs, and an unknown key. The next valid event still gets the next id.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -86,6 +86,25 @@
           "input": {
             "eventType": "external_event",
             "stream": "debug",
+            "attachActionContext": false
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.stream"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5015000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "legacy_projection",
             "attachActionContext": false
           }
         },

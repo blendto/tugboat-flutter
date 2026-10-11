@@ -29,7 +29,7 @@ class Configure final : public Command {
     return true;
   }
 
-  void apply(const Transition&, EngineState* state, Output*) override {
+  void apply(const ModuleRegistry&, EngineState* state, Output*) override {
     if (config_.host && !state->identity.set_explicitly) {
       state->identity.user_id = config_.host->configured_user_id;
     }
@@ -49,22 +49,16 @@ std::unique_ptr<Command> decode_configure(const CommandInput& in,
   return std::make_unique<Configure>(std::move(config));
 }
 
-// `timer.fired {timerId}`: routed to the module that armed the timer.
-// Unknown, cancelled, and stale timer ids are ignored.
+// `timer.fired {timerId}`: routed by timer-id prefix to the module that
+// armed it. Unknown, cancelled, and stale timer ids are ignored.
 class TimerFired final : public Command {
  public:
   TimerFired(std::string timer_id, At at)
       : timer_id_(std::move(timer_id)), at_(at) {}
 
-  bool admit(Admission*, const std::string&, Error*) const override {
-    return true;
-  }
-
-  void apply(const Transition&, EngineState* state, Output* out) override {
-    TimerOwner* owner = state->timers.take_due(timer_id_, at_.mono_us);
-    if (owner != nullptr) {
-      owner->on_timer_fired(timer_id_, at_, state, out);
-    }
+  void apply(const ModuleRegistry& modules, EngineState* state,
+             Output* out) override {
+    modules.fire_timer(timer_id_, at_, state, out);
   }
 
  private:
@@ -102,9 +96,13 @@ bool run_snapshot(const EngineState& state, const Value& input,
 
 }  // namespace
 
-void register_engine_messages(MessageRegistry* registry) {
-  registry->add_command("engine.configure", AtRule::kNone, decode_configure);
-  registry->add_command("timer.fired", AtRule::kMono, decode_timer_fired);
+void register_engine_module(ModuleRegistry* registry) {
+  registry->add_command("engine.configure",
+                        {AtRule::kOptional, SessionPolicy::kAny,
+                         decode_configure});
+  registry->add_command("timer.fired",
+                        {AtRule::kMono, SessionPolicy::kAny,
+                         decode_timer_fired});
   registry->add_query("session.snapshot", run_snapshot);
 }
 

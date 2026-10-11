@@ -1,6 +1,5 @@
 #include "config.h"
 
-#include <cmath>
 #include <string>
 #include <utility>
 #include <vector>
@@ -22,7 +21,7 @@ struct IntField {
   int64_t max;
 };
 
-// A finite number in (min_exclusive, max].
+// A number in (min_exclusive, max].
 struct NumberField {
   const char* key;
   double* out;
@@ -87,8 +86,7 @@ bool read_number(const ObjectReader& r, const NumberField& field) {
     return r.reject(field.key, "expected number");
   }
   const double number = value->to_double();
-  if (!std::isfinite(number) || number <= field.min_exclusive ||
-      number > field.max) {
+  if (number <= field.min_exclusive || number > field.max) {
     return r.reject(field.key, "out of range");
   }
   *field.out = number;
@@ -214,21 +212,6 @@ bool decode_host_group(const ObjectReader& r, Config* out, Error* error) {
   Host host;
   if (!decode_host(*json, r.child("host"), &host, error)) {
     return false;
-  }
-  // A session_start that cannot be encoded never reaches the collector;
-  // catch overflowing metrics (`1e400`) here instead of at send time.
-  const DeviceInfo& d = host.device;
-  const std::string device = r.child("host") + ".device";
-  const std::pair<const char*, double> metrics[] = {
-      {".screenSize.width", d.screen_width},
-      {".screenSize.height", d.screen_height},
-      {".screenDensity", d.screen_density},
-      {".screenPixelDensity", d.screen_pixel_density},
-  };
-  for (const auto& metric : metrics) {
-    if (!std::isfinite(metric.second)) {
-      return invalid(error, device + metric.first, "must be finite");
-    }
   }
   out->host = std::move(host);
   return true;

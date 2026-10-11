@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -16,6 +17,8 @@
 namespace tugboat {
 namespace engine {
 
+// ----------------------------------------------------------------- records
+
 // `{"kind": "event", "event": TugboatEvent.toJson(), "userId": …}`. `userId`
 // is the runtime user id when the event was recorded (stamped at record
 // time, design section 7.2); null when none is set.
@@ -24,8 +27,23 @@ struct EventRecord {
   OptString user_id;
 };
 
-// Later phases add frame and health records as further alternatives.
-using Record = std::variant<EventRecord>;
+// `{"kind": "frame", "handle": …, "frame": TugboatFrame.toJson()}`: a frame
+// accepted into the session. The host keeps its bytes under `handle`.
+struct FrameRecord {
+  std::string handle;
+  Frame frame;
+};
+
+// `{"kind": "health", "component": …, "counters": {name: count}}`: a change
+// to the engine's bounded health counters for one component.
+struct HealthRecord {
+  std::string component;
+  std::vector<std::pair<std::string, int64_t>> counters;
+};
+
+using Record = std::variant<EventRecord, FrameRecord, HealthRecord>;
+
+// ----------------------------------------------------------------- effects
 
 // `timer.schedule {timerId, atMonoUs}`: (re)arm the host timer `timer_id` to
 // fire at host monotonic time `at_mono_us`; an armed timer with the same id
@@ -40,13 +58,65 @@ struct TimerCancel {
   std::string timer_id;
 };
 
-// Later phases add `http.send`, `frame.release`, and `capture.request`.
-using Effect = std::variant<TimerSchedule, TimerCancel>;
+enum class HttpLane { kLifecycle, kEvents, kFrames };
+
+// One multipart part whose bytes the host resolves from a frame handle.
+struct MultipartFrame {
+  std::string handle;
+  std::string filename;
+};
+
+struct MultipartBody {
+  std::vector<std::pair<std::string, std::string>> fields;
+  std::vector<MultipartFrame> frames;
+};
+
+// `http.send {requestId, lane, path, timeoutMs, json | multipart}`. The host
+// answers with `transport.result {requestId, …}`.
+struct HttpSend {
+  std::string request_id;
+  HttpLane lane = HttpLane::kEvents;
+  std::string path;
+  int64_t timeout_ms = 0;
+  std::variant<Value, MultipartBody> body;  // json body or multipart
+};
+
+// `frame.release {handle}`: the host may drop the frame's bytes. No answer.
+struct FrameRelease {
+  std::string handle;
+};
+
+// What a capture request was made for (design section 8.2).
+struct CaptureContext {
+  int64_t route_epoch = 0;
+  OptString navigator_id;
+  OptString route_instance_id;
+  int64_t boundary_generation = 0;
+};
+
+// `capture.request {…}`: capture one frame. The host or adapter answers with
+// `capture.result {requestId, …}`.
+struct CaptureRequest {
+  std::string request_id;
+  FrameTrigger trigger = FrameTrigger::kManual;
+  bool force = false;
+  bool require_fresh_paint = false;
+  bool drop_when_busy = false;
+  int64_t not_before_mono_us = 0;
+  CaptureContext context;
+  OptString dhash_baseline;
+  double scale = 1.0;
+};
+
+using Effect = std::variant<TimerSchedule, TimerCancel, HttpSend,
+                            FrameRelease, CaptureRequest>;
 
 struct Output {
   std::vector<Record> records;
   std::vector<Effect> effects;
 };
+
+const char* http_lane_name(HttpLane lane);
 
 Value records_json(const std::vector<Record>& records);
 Value effects_json(const std::vector<Effect>& effects);

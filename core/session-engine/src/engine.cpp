@@ -6,8 +6,6 @@
 #include <variant>
 #include <vector>
 
-#include "messages.h"
-#include "modules.h"
 #include "tugboat/tb_session_engine.h"
 
 namespace tugboat {
@@ -15,10 +13,16 @@ namespace engine {
 
 namespace {
 
-// A decoded command and the JSON path of its message.
+// A decoded command, the JSON path of its message, and what admission
+// decided for it.
 struct Pending {
   std::unique_ptr<Command> command;
   std::string path;
+  SessionPolicy policy = SessionPolicy::kAny;
+  // The lifecycle state the command sees when it is applied.
+  LifecycleState lifecycle = LifecycleState::kIdle;
+  // An event-producing fact without a live session: accepted, not applied.
+  bool dropped = false;
 };
 
 bool check_contract(const ObjectReader& envelope, Error* error) {
@@ -63,15 +67,22 @@ bool decode_command(const ObjectReader& envelope, const CommandSpec& spec,
       !envelope.req_object("input", &input)) {
     return false;
   }
+  // Dart's `jsonEncode` throws on NaN and infinities, so no state-changing
+  // message may carry one (`1e400`), whether or not it reaches the output.
+  std::string bad_path;
+  if (!all_finite(*input, envelope.child("input"), &bad_path)) {
+    return invalid(error, bad_path, "non-finite number cannot be encoded");
+  }
   const CommandInput command_input{*input, envelope.child("input"), at};
   out->command = spec.decode(command_input, error);
   out->path = envelope.path();
+  out->policy = spec.policy;
   return out->command != nullptr;
 }
 
 // One element of `batch.messages`: only commands can be batched.
-bool decode_batched(const Value& message, const std::string& path,
-                    Pending* out, Error* error) {
+bool decode_batched(const ModuleRegistry& modules, const Value& message,
+                    const std::string& path, Pending* out, Error* error) {
   if (!message.is_object()) {
     return invalid(error, path, "expected object");
   }
@@ -87,7 +98,7 @@ bool decode_batched(const Value& message, const std::string& path,
       !check_contract(envelope, error)) {
     return false;
   }
-  const MessageSpec* spec = message_registry().find(type);
+  const MessageSpec* spec = modules.find(type);
   if (spec == nullptr) {
     return unsupported(envelope, error);
   }
@@ -115,17 +126,10 @@ Value result_response(const std::string& type, Value result) {
   return response;
 }
 
-// Stateless and query messages take no `at`.
-bool require_no_at(const ObjectReader& envelope, Error* error) {
-  if (envelope.get("at") != nullptr) {
-    return invalid(error, envelope.child("at"), "unknown key");
-  }
-  return true;
-}
-
 class Dispatch {
  public:
-  Dispatch(EngineState* state, Error* error) : state_(state), error_(error) {}
+  Dispatch(const ModuleRegistry& modules, EngineState* state, Error* error)
+      : modules_(modules), state_(state), error_(error) {}
 
   bool message(const Value& message, Value* response) {
     if (!message.is_object()) {
@@ -144,7 +148,7 @@ class Dispatch {
     if (envelope.get("messages") != nullptr) {
       return invalid(error_, envelope.child("messages"), "unknown key");
     }
-    const MessageSpec* spec = message_registry().find(type);
+    const MessageSpec* spec = modules_.find(type);
     if (spec == nullptr) {
       return unsupported(envelope, error_);
     }
@@ -156,12 +160,15 @@ class Dispatch {
   }
 
  private:
+  // Stateless operations take no `at`.
   bool run(const ObjectReader& envelope, const std::string& type,
            StatelessHandler handler, Value* response) {
     const Value* input = nullptr;
     Value result;
-    if (!require_no_at(envelope, error_) ||
-        !envelope.req_object("input", &input) ||
+    if (envelope.get("at") != nullptr) {
+      return invalid(error_, envelope.child("at"), "unknown key");
+    }
+    if (!envelope.req_object("input", &input) ||
         !handler(*input, &result, error_)) {
       return false;
     }
@@ -169,11 +176,14 @@ class Dispatch {
     return true;
   }
 
+  // Queries accept an `at` (validated, not used).
   bool run(const ObjectReader& envelope, const std::string& type,
            QueryHandler handler, Value* response) {
     const Value* input = nullptr;
+    std::optional<At> at;
     Value result;
-    if (!require_no_at(envelope, error_) ||
+    if (!decode_at(envelope.get("at"), AtRule::kOptional,
+                   envelope.child("at"), &at, error_) ||
         !envelope.req_object("input", &input) ||
         !handler(*state_, *input, envelope.child("input"), &result, error_)) {
       return false;
@@ -204,37 +214,44 @@ class Dispatch {
     std::vector<Pending> pending(messages->items().size());
     for (size_t i = 0; i < pending.size(); ++i) {
       const std::string path = "$.messages[" + std::to_string(i) + "]";
-      if (!decode_batched(messages->items()[i], path, &pending[i], error_)) {
+      if (!decode_batched(modules_, messages->items()[i], path, &pending[i],
+                          error_)) {
         return false;
       }
     }
     return commands("batch", &pending, response);
   }
 
-  // Admits every command against a copy of the admission state first, so a
-  // rejected command leaves the engine untouched, then applies them in
-  // order.
+  // One simulated admission pass over every command, so a rejected command
+  // leaves the engine untouched; then apply in order; then commit the
+  // lifecycle the simulation reached.
   bool commands(const std::string& type, std::vector<Pending>* pending,
                 Value* response) {
-    Admission simulated = state_->admission;
-    for (const Pending& p : *pending) {
-      if (!p.command->admit(&simulated, p.path, error_)) {
+    Admission simulated{state_->lifecycle, state_->config.host.has_value()};
+    for (Pending& p : *pending) {
+      p.lifecycle = simulated.lifecycle;
+      p.dropped = p.policy == SessionPolicy::kEventProducing &&
+                  !has_live_session(simulated.lifecycle);
+      if (!p.dropped && !p.command->admit(&simulated, p.path, error_)) {
         return false;
+      }
+      if (const std::optional<LifecycleSignal> signal = p.command->signal()) {
+        simulated.lifecycle = transition(simulated.lifecycle, *signal);
       }
     }
     Output out;
     for (Pending& p : *pending) {
-      Transition transition;
-      transition.from = state_->admission.lifecycle;
-      Error unreachable;
-      p.command->admit(&state_->admission, p.path, &unreachable);
-      transition.to = state_->admission.lifecycle;
-      p.command->apply(transition, state_, &out);
+      if (!p.dropped) {
+        state_->lifecycle = p.lifecycle;
+        p.command->apply(modules_, state_, &out);
+      }
     }
+    state_->lifecycle = simulated.lifecycle;
     *response = command_response(type, out);
     return true;
   }
 
+  const ModuleRegistry& modules_;
   EngineState* state_;
   Error* error_;
 };
@@ -242,7 +259,7 @@ class Dispatch {
 }  // namespace
 
 bool Engine::handle(const Value& message, Value* response, Error* error) {
-  return Dispatch(&state_, error).message(message, response);
+  return Dispatch(modules_, &state_, error).message(message, response);
 }
 
 }  // namespace engine

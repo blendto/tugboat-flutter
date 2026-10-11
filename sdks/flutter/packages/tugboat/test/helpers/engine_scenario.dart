@@ -5,27 +5,32 @@
 // How a scenario maps onto Dart:
 // - `engine.configure` becomes the controller's [TugboatReplayConfig]
 //   (`host.app` -> appInfo, `limits`), fixed for the controller's life.
-// - Each step's `at` drives an injected [TugboatControllerClock]: `wallUs`
-//   is the wall clock (session id, startedAt), `monoUs` the elapsed clock.
+// - Each step's `at` drives the controller's clocks: `wallUs` through
+//   `debugNow` (session id, startedAt), `monoUs` through the injected
+//   elapsed clock (`atMs`).
 // - Messages call the controller's own entry points: `start`, `endSession`,
 //   `recordAppLifecycleState` (plus `endSession` on `detached`, as the
-//   widget does), `recordLocale`, and `debugRecordEvent` (the `_addEvent`
-//   path toolkit evidence takes). `identity.set` drives a real
+//   widget does), `recordLocale`, and `debugRecordEvent` (the evidence
+//   recorder's admission and append path). `identity.set` drives a real
 //   [CollectorHttpSink], whose runtime user id is what Dart stamps at record
 //   time. `timer.fired` has no Dart counterpart; Dart owns no engine timers.
 // - Records are the events the controller publishes to its capture sinks,
 //   in order, each with the collector sink's user id at that moment.
 //
 // What is not compared:
+// - Fixtures whose `runners` exclude `dart` (including every `engineOnly`
+//   scenario) are skipped by the caller.
 // - Steps that expect an `error` pin the engine's message validation. Dart's
 //   typed API cannot express a malformed message, so those steps are not
-//   sent. Scenarios marked `engineOnly` encode a deliberate change and are
-//   skipped entirely.
-// - Event ids are compared by first appearance, not by number: Dart's id
-//   counter also mints `capture_request-N` when a session starts and on
-//   `resumed`, and the engine mints those only once it owns capture
-//   requests (phase 3d).
-// - Async work is held, never run: everything phase 3a covers happens
+//   sent.
+// - `attachActionContext`: Dart's evidence path never attaches action
+//   context; with no exploration action window (deferred beyond this
+//   milestone) both values enrich identically.
+// - NOTE (until phase 3d): event ids are compared by first appearance, not
+//   by number. Dart's id counter also mints `capture_request-N` when a
+//   session starts and on `resumed`; the engine mints those once it owns
+//   capture requests. Phase 3d must switch this runner to exact ids.
+// - Async work is held, never run: everything these scenarios cover happens
 //   synchronously in Dart, and held capture work cannot add records.
 import 'dart:async';
 import 'dart:convert';
@@ -67,12 +72,12 @@ class _HeldTimer implements Timer {
   void cancel() {}
 }
 
-class _ScenarioClock implements TugboatControllerClock {
+/// Both scenario clocks: `at.monoUs` and `at.wallUs` of the current step.
+class _ScenarioClock implements TugboatElapsedClock {
   int monoUs = 0;
   int wallUs = 0;
   int _startMonoUs = 0;
 
-  @override
   DateTime now() => DateTime.fromMicrosecondsSinceEpoch(wallUs, isUtc: true);
 
   @override
@@ -128,6 +133,14 @@ class _RecordingSink implements TugboatSessionCaptureSink {
 
 Object? _plainJson(Object? value) => jsonDecode(jsonEncode(value));
 
+/// A scenario the Dart runner cannot express. Reported as a mismatch, so
+/// the fixture must set `runners: ["cpp"]` instead.
+class _Unmodelled implements Exception {
+  _Unmodelled(this.message);
+
+  final String message;
+}
+
 /// The per-controller values Dart takes at construction, which the engine
 /// takes per `session.start`.
 typedef _ControllerIdentity = ({
@@ -151,9 +164,16 @@ class _ScenarioRun {
   late final _ControllerIdentity _controllerIdentity;
 
   List<String> run() {
+    try {
+      return _run();
+    } on _Unmodelled catch (unmodelled) {
+      return ['${unmodelled.message}; set "runners": ["cpp"] on this fixture'];
+    }
+  }
+
+  List<String> _run() {
     _controllerIdentity = _firstStartIdentity();
     _controller = _buildController();
-    final mismatches = <String>[];
     for (var i = 0; i < _steps.length; i++) {
       final expect = _steps[i]['expect']! as Map<String, Object?>;
       if (expect.containsKey('error')) continue;
@@ -163,7 +183,7 @@ class _ScenarioRun {
           r'$.input.steps['
           '$i'
           '].expect';
-      mismatches.addAll(_compareStep(expect, before, path));
+      final mismatches = _compareStep(expect, before, path);
       if (mismatches.isNotEmpty) return mismatches;
     }
     return _compareSnapshot();
@@ -231,7 +251,7 @@ class _ScenarioRun {
     final configure = fixture.input['configure']! as Map<String, Object?>;
     final unsupported = configure.keys.toSet().difference({'host', 'limits'});
     if (unsupported.isNotEmpty) {
-      throw UnsupportedError('Dart runner models host and limits only');
+      throw _Unmodelled('Dart runner does not model configure $unsupported');
     }
     final hostJson = configure['host'] as Map<String, Object?>?;
     final host = hostJson == null ? null : decodeConformanceHost(hostJson);
@@ -255,7 +275,8 @@ class _ScenarioRun {
       boundaryKey: GlobalKey(),
       activationRequestId: _controllerIdentity.activationRequestId,
       sessionEpoch: _controllerIdentity.sessionEpoch,
-    )..debugClock = _clock;
+      debugClock: _clock,
+    )..debugNow = _clock.now;
   }
 
   void _send(Map<String, Object?> message) {
@@ -269,7 +290,7 @@ class _ScenarioRun {
     _setClock(message['at'] as Map<String, Object?>?);
     final handler = _handlers[type];
     if (handler == null) {
-      throw UnsupportedError('Dart runner does not model $type');
+      throw _Unmodelled('Dart runner does not model $type');
     }
     handler(message['input']! as Map<String, Object?>);
   }
@@ -288,7 +309,16 @@ class _ScenarioRun {
         'event.record': _recordEvent,
         // Dart owns no engine timers; the engine ignores unknown timer ids.
         'timer.fired': (_) {},
+        'engine.configure': _reconfigure,
       };
+
+  /// Dart fixes the configuration per controller, so only a configure that
+  /// repeats the scenario's own can be expressed.
+  void _reconfigure(Map<String, Object?> input) {
+    if (diffJson(fixture.input['configure'], input).isNotEmpty) {
+      throw _Unmodelled('Dart fixes the configuration per controller');
+    }
+  }
 
   void _setClock(Map<String, Object?>? at) {
     if (at == null) return;
@@ -299,9 +329,9 @@ class _ScenarioRun {
 
   void _start(Map<String, Object?> input) {
     if (_startIdentity(input) != _controllerIdentity) {
-      throw UnsupportedError(
+      throw _Unmodelled(
         'Dart fixes activationRequestId, explorationRunId, and sessionEpoch '
-        'per controller; every session.start in a scenario must agree',
+        'per controller, but the scenario varies them per session.start',
       );
     }
     final viewport = input['viewport']! as Map<String, Object?>;
@@ -332,7 +362,6 @@ class _ScenarioRun {
     _controller.debugRecordEvent(
       type: input['eventType']! as String,
       stream: TugboatEventStream.parse(input['stream'] as String?),
-      attachActionContext: input['attachActionContext']! as bool,
       data:
           (input['data'] ?? const <String, Object?>{}) as Map<String, Object?>,
       targetAnchor: anchor == null ? null : decodeConformanceAnchor(anchor),
@@ -342,7 +371,7 @@ class _ScenarioRun {
 }
 
 /// Renames event ids by first appearance, so two id sequences that differ
-/// only in numbering compare equal.
+/// only in numbering compare equal. Until phase 3d only; see the header.
 class _IdCanon {
   final Map<String, String> _names = {};
 

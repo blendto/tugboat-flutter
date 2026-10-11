@@ -2,13 +2,13 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "event-record-before-session-start-clamps",
-  "description": "A fact stamped before its session started (atMonoUs earlier than session.start at.monoUs, possible behind an asynchronous seam) gets atMs 0 instead of a negative value: one monotonic clock means atMs is never negative.",
+  "description": "A fact stamped before its session started (atMonoUs earlier than session.start at.monoUs, possible behind an asynchronous seam) records atMs 0 instead of a negative value.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
   },
   "engineOnly": [
-    "C1"
+    "C13"
   ],
   "input": {
     "configure": {

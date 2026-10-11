@@ -51,8 +51,8 @@ const std::map<std::string, std::string> kKindDirectories = {
 };
 
 const std::set<std::string> kEnvelopeKeys = {
-    "fixtureFormat", "kind",     "name",      "description",
-    "contract",      "input",    "expected",  "engineOnly"};
+    "fixtureFormat", "kind",     "name",       "description", "contract",
+    "input",         "expected", "engineOnly", "runners"};
 
 std::string read_file(const fs::path& path) {
   std::ifstream in(path, std::ios::binary);
@@ -81,7 +81,8 @@ std::string check_contract(const Json& fixture) {
 }
 
 // Checks the envelope; returns an empty string when valid.
-std::string check_envelope(const Json& fixture, const std::string& relative) {
+std::string check_envelope(const Json& fixture, const std::string& relative,
+                           const std::set<std::string>& change_ids) {
   if (!fixture.is(Json::Kind::kObject)) {
     return "fixture is not an object";
   }
@@ -118,10 +119,10 @@ std::string check_envelope(const Json& fixture, const std::string& relative) {
       expected == nullptr || !expected->is(Json::Kind::kObject)) {
     return "input and expected must be objects";
   }
-  const std::string engine_only =
-      conformance::check_engine_only(fixture, kind->text);
-  if (!engine_only.empty()) {
-    return engine_only;
+  const std::string markers =
+      conformance::check_markers(fixture, kind->text, change_ids);
+  if (!markers.empty()) {
+    return markers;
   }
   return check_contract(fixture);
 }
@@ -176,7 +177,9 @@ bool run_stateless(EngineClient& engine, const Json& fixture,
 
 // Runs one fixture file; prints and returns false on failure.
 bool run_fixture(EngineClient& engine, const fs::path& path,
-                 const std::string& relative, std::set<std::string>* kinds) {
+                 const std::string& relative,
+                 const std::set<std::string>& change_ids,
+                 std::set<std::string>* kinds) {
   const std::string source = read_file(path);
   Json fixture;
   std::string error;
@@ -185,13 +188,17 @@ bool run_fixture(EngineClient& engine, const fs::path& path,
                 error.c_str());
     return false;
   }
-  error = check_envelope(fixture, relative);
+  error = check_envelope(fixture, relative, change_ids);
   if (!error.empty()) {
     std::printf("FAIL %s\n  %s\n", relative.c_str(), error.c_str());
     return false;
   }
   const std::string& kind = fixture.find("kind")->text;
   kinds->insert(kind);
+  if (!conformance::runs_on_cpp(fixture)) {
+    std::printf("skip %s (runners)\n", relative.c_str());
+    return true;
+  }
   if (kind == kScenarioKind) {
     return conformance::run_scenario(fixture, source, relative);
   }
@@ -209,11 +216,20 @@ int main(int argc, char** argv) {
                  root.string().c_str());
     return 2;
   }
+  std::set<std::string> change_ids;
+  const std::string ids_error = conformance::read_change_ids(
+      read_file(root / conformance::kChangeIdsFile), &change_ids);
+  if (!ids_error.empty()) {
+    std::fprintf(stderr, "%s: %s\n", conformance::kChangeIdsFile,
+                 ids_error.c_str());
+    return 2;
+  }
   std::vector<std::pair<std::string, fs::path>> files;
   for (const auto& entry : fs::recursive_directory_iterator(root)) {
     if (entry.is_regular_file() && entry.path().extension() == ".json") {
       std::string relative = fs::relative(entry.path(), root).generic_string();
-      if (relative.find(filter) != std::string::npos) {
+      if (relative != conformance::kChangeIdsFile &&
+          relative.find(filter) != std::string::npos) {
         files.emplace_back(std::move(relative), entry.path());
       }
     }
@@ -225,7 +241,7 @@ int main(int argc, char** argv) {
   std::set<std::string> kinds;
   int failures = 0;
   for (const auto& file : files) {
-    if (!run_fixture(engine, file.second, file.first, &kinds)) {
+    if (!run_fixture(engine, file.second, file.first, change_ids, &kinds)) {
       ++failures;
     }
   }

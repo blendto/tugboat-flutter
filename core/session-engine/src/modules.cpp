@@ -3,21 +3,20 @@
 namespace tugboat {
 namespace engine {
 
-namespace {
-
-MessageRegistry build_registry() {
-  MessageRegistry registry;
-  register_stateless_messages(&registry);
-  register_engine_messages(&registry);
-  register_session_messages(&registry);
-  register_evidence_messages(&registry);
+ModuleRegistry build_module_registry() {
+  ModuleRegistry registry;
+  register_stateless_module(&registry);
+  register_engine_module(&registry);
+  register_session_module(&registry);
+  register_evidence_module(&registry);
+  register_delivery_module(&registry);
+  register_interaction_module(&registry);
+  register_navigation_module(&registry);
   return registry;
 }
 
-}  // namespace
-
-const MessageRegistry& message_registry() {
-  static const MessageRegistry registry = build_registry();
+const ModuleRegistry& module_registry() {
+  static const ModuleRegistry registry = build_module_registry();
   return registry;
 }
 

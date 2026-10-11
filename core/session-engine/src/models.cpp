@@ -60,26 +60,31 @@ const char* stream_name(EventStream stream) {
     case EventStream::kSemantic: return "semantic";
     case EventStream::kEvidence: return "evidence";
     case EventStream::kDiagnostic: return "diagnostic";
-    case EventStream::kLegacyProjection: return "legacy_projection";
   }
   return "semantic";
 }
 
-std::optional<EventStream> parse_stream(const std::string& name,
-                                        bool allow_legacy) {
-  if (name == "semantic") {
-    return EventStream::kSemantic;
-  }
-  if (name == "evidence") {
-    return EventStream::kEvidence;
-  }
-  if (name == "diagnostic") {
-    return EventStream::kDiagnostic;
-  }
-  if (allow_legacy && name == "legacy_projection") {
-    return EventStream::kLegacyProjection;
+std::optional<EventStream> parse_stream(const std::string& name) {
+  for (EventStream stream : {EventStream::kSemantic, EventStream::kEvidence,
+                             EventStream::kDiagnostic}) {
+    if (name == stream_name(stream)) {
+      return stream;
+    }
   }
   return std::nullopt;
+}
+
+const char* frame_trigger_name(FrameTrigger trigger) {
+  switch (trigger) {
+    case FrameTrigger::kInitial: return "initial";
+    case FrameTrigger::kTap: return "tap";
+    case FrameTrigger::kScroll: return "scroll";
+    case FrameTrigger::kRoute: return "route";
+    case FrameTrigger::kLifecycle: return "lifecycle";
+    case FrameTrigger::kManual: return "manual";
+    case FrameTrigger::kInteraction: return "interaction";
+  }
+  return "manual";
 }
 
 void put_opt(Value* object, const char* key, const OptString& value) {
@@ -204,6 +209,24 @@ Value event_json(const Event& event) {
   }
   put_opt(&out, "explorationRunId", event.exploration_run_id);
   put_opt(&out, "actionId", event.action_id);
+  return out;
+}
+
+Value frame_json(const Frame& frame) {
+  Value out = Value::object();
+  out.set("id", str(frame.id));
+  out.set("atMs", Value::integer(frame.at_ms));
+  out.set("width", Value::integer(frame.width));
+  out.set("height", Value::integer(frame.height));
+  out.set("contentHash", str(frame.content_hash));
+  out.set("masked", Value::boolean(frame.masked));
+  out.set("trigger", str(frame_trigger_name(frame.trigger)));
+  out.set("byteLength", Value::integer(frame.byte_length));
+  out.set("captureMicros", Value::integer(frame.capture_micros));
+  put_opt(&out, "captureSessionId", frame.capture_session_id);
+  put_opt(&out, "requestedBackend", frame.requested_backend);
+  put_opt(&out, "resolvedBackend", frame.resolved_backend);
+  put_opt(&out, "fallbackReason", frame.fallback_reason);
   return out;
 }
 

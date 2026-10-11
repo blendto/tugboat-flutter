@@ -13,11 +13,6 @@ namespace {
 
 using Kind = Json::Kind;
 
-// docs/stateful-engine.md section 11.
-const std::set<std::string> kChangeIds = {"C1", "C2", "C3", "C4",
-                                          "C5", "C6", "C7", "C8",
-                                          "C9", "C10", "C11", "C12"};
-
 bool has_only(const Json& object, const std::set<std::string>& keys) {
   for (const auto& member : object.members) {
     if (keys.count(member.first) == 0) {
@@ -239,28 +234,76 @@ bool run_final_snapshot(EngineClient* engine, const Json& expected,
 
 }  // namespace
 
-std::string check_engine_only(const Json& fixture, const std::string& kind) {
-  const Json* marker = fixture.find("engineOnly");
-  if (marker == nullptr) {
-    return std::string();
+std::string read_change_ids(const std::string& source,
+                            std::set<std::string>* out) {
+  Json json;
+  std::string error;
+  if (!parse(source, &json, &error)) {
+    return "unreadable: " + error;
   }
-  if (kind != "engine.scenario") {
-    return "engineOnly is only valid on engine.scenario";
+  const Json* ids = json.find("changeIds");
+  if (!is_kind(ids, Kind::kArray) || ids->items.empty()) {
+    return "changeIds must be a non-empty array";
   }
-  if (!marker->is(Kind::kArray) || marker->items.empty()) {
-    return "engineOnly must be a non-empty array of change ids";
-  }
-  std::set<std::string> seen;
-  for (const Json& id : marker->items) {
-    if (!id.is(Kind::kString) || kChangeIds.count(id.text) == 0) {
-      return "engineOnly ids must be docs/stateful-engine.md section 11 ids "
-             "(C1..C12)";
-    }
-    if (!seen.insert(id.text).second) {
-      return "engineOnly lists " + id.text + " twice";
+  for (const Json& id : ids->items) {
+    if (!id.is(Kind::kString) || !out->insert(id.text).second) {
+      return "changeIds must be distinct strings";
     }
   }
   return std::string();
+}
+
+namespace {
+
+// A non-empty array of distinct strings from `allowed`.
+bool is_id_list(const Json& marker, const std::set<std::string>& allowed) {
+  if (!marker.is(Kind::kArray) || marker.items.empty()) {
+    return false;
+  }
+  std::set<std::string> seen;
+  for (const Json& id : marker.items) {
+    if (!id.is(Kind::kString) || allowed.count(id.text) == 0 ||
+        !seen.insert(id.text).second) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace
+
+std::string check_markers(const Json& fixture, const std::string& kind,
+                          const std::set<std::string>& change_ids) {
+  const Json* engine_only = fixture.find("engineOnly");
+  const Json* runners = fixture.find("runners");
+  if ((engine_only != nullptr || runners != nullptr) &&
+      kind != "engine.scenario") {
+    return "engineOnly and runners are only valid on engine.scenario";
+  }
+  if (engine_only != nullptr && !is_id_list(*engine_only, change_ids)) {
+    return "engineOnly must list distinct change ids from change_ids.json";
+  }
+  if (runners != nullptr && !is_id_list(*runners, {"cpp", "dart"})) {
+    return "runners must list distinct runners: cpp, dart";
+  }
+  if (engine_only != nullptr && runners != nullptr &&
+      (runners->items.size() != 1 || runners->items[0].text != "cpp")) {
+    return "engineOnly implies runners [\"cpp\"]";
+  }
+  return std::string();
+}
+
+bool runs_on_cpp(const Json& fixture) {
+  const Json* runners = fixture.find("runners");
+  if (runners == nullptr) {
+    return true;
+  }
+  for (const Json& runner : runners->items) {
+    if (runner.text == "cpp") {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool run_scenario(const Json& fixture, const std::string& source,

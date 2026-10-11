@@ -6,7 +6,8 @@
 // change one, edit the JSON by hand, run this test, review the printed
 // actual output, and paste it into `expected` (see conformance/README.md).
 // `engine.scenario` fixtures run step by step on a real controller
-// (helpers/engine_scenario.dart); `engineOnly` scenarios are skipped.
+// (helpers/engine_scenario.dart); `engineOnly` scenarios and scenarios
+// whose `runners` exclude `dart` are skipped.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/anchors.dart';
@@ -32,10 +33,7 @@ void main() {
       test(
         fixture.relativePath,
         () => _expectFixture(fixture),
-        skip: fixture.engineOnly.isEmpty
-            ? null
-            : 'engineOnly ${fixture.engineOnly.join(', ')}: Dart keeps its '
-                  'shipped behaviour',
+        skip: _skipReason(fixture),
       );
     }
   });
@@ -72,6 +70,15 @@ void main() {
       );
     });
   });
+}
+
+String? _skipReason(ConformanceFixture fixture) {
+  if (fixture.engineOnly.isNotEmpty) {
+    return 'engineOnly ${fixture.engineOnly.join(', ')}: Dart keeps its '
+        'shipped behaviour';
+  }
+  if (!fixture.runsOnDart) return 'runners: C++ only';
+  return null;
 }
 
 void _expectFixture(ConformanceFixture fixture) {

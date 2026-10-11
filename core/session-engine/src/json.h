@@ -97,6 +97,11 @@ bool parse_json(std::string_view text, uint32_t max_depth, Value* out,
 // double would be written, as `jsonEncode` throws for those.
 bool write_json(const Value& value, std::string* out, std::string* error_path);
 
+// Finds the first NaN or infinity in `value` (Dart's `jsonEncode` throws on
+// them). Returns false and its JSON path, rooted at `path`, in `*bad_path`.
+bool all_finite(const Value& value, const std::string& path,
+                std::string* bad_path);
+
 // Dart `double.toString()` for a finite double.
 std::string format_double(double value);
 

@@ -39,19 +39,19 @@ Event enrich(Event event, const Session& session,
   return event;
 }
 
-void record_event(EngineState* state, Event event, bool attach_action_context,
-                  Output* out) {
-  Session& session = *state->session;
+void record_event(EngineState* state, Session& session, Event event,
+                  bool attach_action_context, Output* out) {
   Event enriched = enrich(std::move(event), session, state->locale,
                           attach_action_context);
   out->records.push_back(EventRecord{enriched, state->identity.user_id});
   session.append(std::move(enriched), state->config.limits.max_events);
 }
 
-Event make_event(EngineState* state, const char* type, int64_t mono_us) {
+Event make_event(EngineState* state, const Session& session,
+                 const char* type, int64_t mono_us) {
   Event event;
   event.id = state->ids.next("event");
-  event.at_ms = state->session->at_ms(mono_us);
+  event.at_ms = session.at_ms(mono_us);
   event.type = type;
   return event;
 }

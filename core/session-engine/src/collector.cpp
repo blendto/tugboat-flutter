@@ -65,7 +65,7 @@ bool check_event_enums(const ObjectReader& r, const std::string& stream,
                        Event* event, Error* error) {
   // TugboatEventStream.parse and TugboatInteractionResult.values.byName
   // reject anything outside the Dart enums.
-  const std::optional<EventStream> parsed = parse_stream(stream, false);
+  const std::optional<EventStream> parsed = parse_stream(stream);
   if (!parsed) {
     return invalid(error, r.child("stream"), "unsupported stream");
   }

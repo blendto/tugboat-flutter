@@ -1,8 +1,8 @@
 {
   "fixtureFormat": 1,
   "kind": "engine.scenario",
-  "name": "events-after-session-end-rejected",
-  "description": "After session_end, event-producing messages (event.record, app.lifecycle) are invalid_message and change nothing. locale.set is accepted but records nothing and updates the locale for the next session; identity.set and session.end are accepted; session.start begins a new session.",
+  "name": "events-after-session-end-dropped",
+  "description": "After session_end, event-producing facts (event.record, app.lifecycle) are accepted and dropped: no record, no id. locale.set records nothing and sets the locale for the next session; identity.set and session.end are accepted; session.start begins a new session. Dart records app_backgrounded and locale_changed after session_end.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -137,10 +137,8 @@
           }
         },
         "expect": {
-          "error": {
-            "status": "invalid_message",
-            "path": "$.type"
-          }
+          "records": [],
+          "effects": []
         }
       },
       {
@@ -154,10 +152,8 @@
           }
         },
         "expect": {
-          "error": {
-            "status": "invalid_message",
-            "path": "$.type"
-          }
+          "records": [],
+          "effects": []
         }
       },
       {

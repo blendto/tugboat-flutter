@@ -42,6 +42,7 @@ class ConformanceFixture {
     required this.input,
     required this.expected,
     this.engineOnly = const [],
+    this.runners = ConformanceRunner.values,
   });
 
   final String relativePath;
@@ -55,13 +56,36 @@ class ConformanceFixture {
   /// encodes. The Dart runner skips these scenarios: Dart keeps its shipped
   /// behaviour until it moves onto the engine.
   final List<String> engineOnly;
+
+  /// The runners that run this fixture (`engine.scenario` only; default
+  /// both). `engineOnly` implies C++ only.
+  final List<ConformanceRunner> runners;
+
+  bool get runsOnDart => runners.contains(ConformanceRunner.dart);
 }
 
-/// Change ids of docs/stateful-engine.md section 11.
-const conformanceChangeIds = {
-  'C1', 'C2', 'C3', 'C4', 'C5', 'C6', //
-  'C7', 'C8', 'C9', 'C10', 'C11', 'C12',
-};
+enum ConformanceRunner { cpp, dart }
+
+/// The list of docs/stateful-engine.md section 11 change ids, shared with
+/// the C++ runner. Not a fixture.
+const conformanceChangeIdsFile = 'change_ids.json';
+
+/// Reads the section 11 change ids from `<root>/change_ids.json`.
+Set<String> readConformanceChangeIds(Directory root) {
+  final json = _object(
+    jsonDecode(
+      File('${root.path}/$conformanceChangeIdsFile').readAsStringSync(),
+    ),
+    conformanceChangeIdsFile,
+  );
+  final ids = _list(json['changeIds'], '$conformanceChangeIdsFile.changeIds');
+  if (ids.isEmpty ||
+      ids.toSet().length != ids.length ||
+      ids.any((id) => id is! String)) {
+    throw const FormatException('changeIds must be distinct strings');
+  }
+  return ids.cast<String>().toSet();
+}
 
 /// Walks up from the working directory to the repo's `conformance/` folder.
 Directory findConformanceRoot() {
@@ -83,6 +107,9 @@ List<File> listFixtureFiles(Directory root) {
       .listSync(recursive: true)
       .whereType<File>()
       .where((file) => file.path.endsWith('.json'))
+      .where(
+        (file) => fixtureRelativePath(root, file) != conformanceChangeIdsFile,
+      )
       .toList();
   files.sort((a, b) => a.path.compareTo(b.path));
   return files;
@@ -100,7 +127,10 @@ const _envelopeKeys = {
   'input',
   'expected',
   'engineOnly',
+  'runners',
 };
+
+final Set<String> _changeIds = readConformanceChangeIds(findConformanceRoot());
 
 ConformanceFixture loadFixture(Directory root, File file) {
   final relativePath = fixtureRelativePath(root, file);
@@ -119,6 +149,7 @@ ConformanceFixture loadFixture(Directory root, File file) {
     input: _object(json['input'], '$relativePath.input'),
     expected: _object(json['expected'], '$relativePath.expected'),
     engineOnly: _engineOnly(json['engineOnly'], kind, relativePath),
+    runners: _runners(json, kind, relativePath),
   );
 }
 
@@ -130,12 +161,44 @@ List<String> _engineOnly(Object? raw, ConformanceKind kind, String where) {
   final ids = _list(raw, '$where.engineOnly');
   if (ids.isEmpty ||
       ids.toSet().length != ids.length ||
-      !ids.every(conformanceChangeIds.contains)) {
+      !ids.every(_changeIds.contains)) {
     throw FormatException(
-      '$where.engineOnly: distinct section 11 change ids (C1..C12)',
+      '$where.engineOnly: distinct ids from $conformanceChangeIdsFile',
     );
   }
   return ids.cast<String>();
+}
+
+List<ConformanceRunner> _runners(
+  Map<String, Object?> json,
+  ConformanceKind kind,
+  String where,
+) {
+  final raw = json['runners'];
+  final engineOnly = json['engineOnly'] != null;
+  if (raw == null) {
+    return engineOnly
+        ? const [ConformanceRunner.cpp]
+        : ConformanceRunner.values;
+  }
+  if (kind != ConformanceKind.engineScenario) {
+    throw FormatException('$where: runners is only valid on scenarios');
+  }
+  final names = _list(raw, '$where.runners');
+  final runners = [
+    for (final name in names)
+      ConformanceRunner.values.firstWhere(
+        (runner) => runner.name == name,
+        orElse: () => throw FormatException('$where.runners: cpp or dart'),
+      ),
+  ];
+  if (runners.isEmpty || runners.toSet().length != runners.length) {
+    throw FormatException('$where.runners: distinct cpp / dart, non-empty');
+  }
+  if (engineOnly && runners.contains(ConformanceRunner.dart)) {
+    throw FormatException('$where: engineOnly implies runners ["cpp"]');
+  }
+  return runners;
 }
 
 /// Runs the current Dart implementation on [fixture.input] and returns the
@@ -158,20 +221,6 @@ Map<String, Object?> evaluateFixture(ConformanceFixture fixture) {
       throw ArgumentError('scenarios run step by step (engine_scenario.dart)');
   }
 }
-
-// ------------------------------------------------- shared input decoders
-
-/// Decodes a `host` object into the collector configuration it stands for.
-TugboatCollectorConfig decodeConformanceHost(Map<String, Object?> json) =>
-    _decodeHost(json);
-
-/// Decodes locale evidence; null when absent.
-TugboatLocaleInfo? decodeConformanceLocale(Object? raw, String where) =>
-    _decodeLocale(raw, where);
-
-/// Decodes a target anchor object.
-TugboatTargetAnchor decodeConformanceAnchor(Map<String, Object?> json) =>
-    _decodeAnchor(json);
 
 // --------------------------------------------------------------- fingerprint
 
@@ -217,7 +266,7 @@ Map<String, Object?> _evaluateIdentityParts(Map<String, Object?> input) {
 
 Map<String, Object?> _evaluateCollectorEvent(Map<String, Object?> input) {
   _checkKeys(input, const {'host', 'session', 'event'}, 'input');
-  final config = _decodeHost(_object(input['host'], 'input.host'));
+  final config = decodeConformanceHost(_object(input['host'], 'input.host'));
   final session = _decodeSession(_object(input['session'], 'input.session'));
   if (session.traits != null) {
     throw const FormatException('input.session.traits: lifecycle only');
@@ -235,7 +284,7 @@ Map<String, Object?> _evaluateCollectorEvent(Map<String, Object?> input) {
 
 Map<String, Object?> _evaluateSessionLifecycle(Map<String, Object?> input) {
   _checkKeys(input, const {'host', 'session', 'lifecycle'}, 'input');
-  final config = _decodeHost(_object(input['host'], 'input.host'));
+  final config = decodeConformanceHost(_object(input['host'], 'input.host'));
   final session = _decodeSession(_object(input['session'], 'input.session'));
   final lifecycle = _object(input['lifecycle'], 'input.lifecycle');
   _checkKeys(lifecycle, const {
@@ -256,7 +305,10 @@ Map<String, Object?> _evaluateSessionLifecycle(Map<String, Object?> input) {
     userId: session.userId,
     traits: session.traits,
     traitsId: session.traitsId,
-    activeLocale: _decodeLocale(lifecycle['activeLocale'], 'activeLocale'),
+    activeLocale: decodeConformanceLocale(
+      lifecycle['activeLocale'],
+      'activeLocale',
+    ),
   );
   return {'record': record};
 }
@@ -290,7 +342,8 @@ _Session _decodeSession(Map<String, Object?> json) {
   );
 }
 
-TugboatCollectorConfig _decodeHost(Map<String, Object?> json) {
+/// Decodes a `host` object into the collector configuration it stands for.
+TugboatCollectorConfig decodeConformanceHost(Map<String, Object?> json) {
   const where = 'input.host';
   _checkKeys(json, const {
     'app',
@@ -402,7 +455,8 @@ TugboatCollectorLocaleInfo _decodeConfiguredLocale(Map<String, Object?> json) {
   );
 }
 
-TugboatLocaleInfo? _decodeLocale(Object? raw, String where) {
+/// Decodes locale evidence; null when absent.
+TugboatLocaleInfo? decodeConformanceLocale(Object? raw, String where) {
   if (raw == null) return null;
   final json = _object(raw, where);
   _checkKeys(json, const {'language', 'country', 'script', 'tag'}, where);
@@ -442,7 +496,7 @@ TugboatEvent _decodeEvent(Map<String, Object?> json) {
     stream: TugboatEventStream.parse(_requireString(json, 'stream', where)),
     targetAnchor: anchor == null
         ? null
-        : _decodeAnchor(_object(anchor, '$where.targetAnchor')),
+        : decodeConformanceAnchor(_object(anchor, '$where.targetAnchor')),
     beforeFrame: _optString(json, 'beforeFrame', where),
     afterFrame: _optString(json, 'afterFrame', where),
     result: result == null
@@ -452,7 +506,7 @@ TugboatEvent _decodeEvent(Map<String, Object?> json) {
     data: json['data'] == null
         ? const {}
         : _object(json['data'], '$where.data'),
-    locale: _decodeLocale(json['locale'], '$where.locale'),
+    locale: decodeConformanceLocale(json['locale'], '$where.locale'),
     explorationRunId: _optString(json, 'explorationRunId', where),
     actionId: _optString(json, 'actionId', where),
   );
@@ -472,7 +526,8 @@ const _anchorKeys = {
   'actions',
 };
 
-TugboatTargetAnchor _decodeAnchor(Map<String, Object?> json) {
+/// Decodes a target anchor object.
+TugboatTargetAnchor decodeConformanceAnchor(Map<String, Object?> json) {
   const where = 'input.event.targetAnchor';
   _checkKeys(json, _anchorKeys, where);
   final parts = json['fingerprintParts'];

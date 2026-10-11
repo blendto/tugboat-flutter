@@ -33,7 +33,7 @@ bool decode_at(const Value* json, AtRule rule, const std::string& path,
     return true;
   }
   if (json == nullptr || json->is_null()) {
-    return invalid(error, path, "required");
+    return rule == AtRule::kOptional || invalid(error, path, "required");
   }
   if (!json->is_object()) {
     return invalid(error, path, "expected object");
@@ -70,30 +70,28 @@ int64_t elapsed_ms(int64_t start_mono_us, int64_t fact_mono_us) {
 }
 
 void Timers::schedule(const std::string& timer_id, int64_t at_mono_us,
-                      TimerOwner* owner, Output* out) {
-  armed_[timer_id] = Armed{at_mono_us, owner};
+                      Output* out) {
+  deadlines_[timer_id] = at_mono_us;
   out->effects.push_back(TimerSchedule{timer_id, at_mono_us});
 }
 
 void Timers::cancel(const std::string& timer_id, Output* out) {
-  if (armed_.erase(timer_id) != 0) {
+  if (deadlines_.erase(timer_id) != 0) {
     out->effects.push_back(TimerCancel{timer_id});
   }
 }
 
-TimerOwner* Timers::take_due(const std::string& timer_id,
-                             int64_t now_mono_us) {
-  const auto it = armed_.find(timer_id);
-  if (it == armed_.end() || now_mono_us < it->second.at_mono_us) {
-    return nullptr;
+bool Timers::take_due(const std::string& timer_id, int64_t now_mono_us) {
+  const auto it = deadlines_.find(timer_id);
+  if (it == deadlines_.end() || now_mono_us < it->second) {
+    return false;
   }
-  TimerOwner* owner = it->second.owner;
-  armed_.erase(it);
-  return owner;
+  deadlines_.erase(it);
+  return true;
 }
 
 bool Timers::armed(const std::string& timer_id) const {
-  return armed_.count(timer_id) != 0;
+  return deadlines_.count(timer_id) != 0;
 }
 
 }  // namespace engine

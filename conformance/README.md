@@ -17,15 +17,14 @@ Two families of fixture:
 - `engine.scenario`: a sequence of stateful engine messages and the records
   and effects each one produces, plus the final session snapshot
   ([stateful design](../core/session-engine/docs/stateful-engine.md)
-  section 10). Phase 3a covers configuration, session state and lifecycle,
-  adapter evidence, enrichment, trim, `batch`, and timers. Delivery,
-  interactions, navigation, and capture scenarios arrive with their phases.
+  section 10).
 
 ## Layout
 
 ```text
 conformance/
   README.md
+  change_ids.json                   section 11 change ids (not a fixture)
   fingerprint/
     identity_parts/<name>.json      kind fingerprint.identityParts
     label_hash/<name>.json          kind fingerprint.labelHash
@@ -37,7 +36,8 @@ conformance/
 ```
 
 One case per file. The file name stem equals the fixture `name`, and the
-directory is fixed by `kind`. A runner loads every `*.json` under
+directory is fixed by `kind`. A runner loads every `*.json` except
+`change_ids.json` under
 `conformance/` recursively.
 
 ## Fixture envelope
@@ -63,7 +63,8 @@ directory is fixed by `kind`. A runner loads every `*.json` under
 | `contract` | SDK contract versions the expected value was reviewed against. A runner must fail when its own versions differ. |
 | `input` | The facts submitted to the engine. Unknown keys are an error. |
 | `expected` | The engine's output for `input`. |
-| `engineOnly` | `engine.scenario` only, optional. The ids of the deliberate changes in the stateful design's section 11 (`C1` … `C12`) that the scenario encodes. The Dart runner skips it; the C++ runner runs it. Any other id, a duplicate, an empty list, or the key on another kind is an error. |
+| `engineOnly` | `engine.scenario` only, optional. The ids of the deliberate changes in the stateful design's section 11 that the scenario encodes, from `change_ids.json` (the single list both runners read). Implies `runners: ["cpp"]`. Any other id, a duplicate, an empty list, or the key on another kind is an error. |
+| `runners` | `engine.scenario` only, optional. The runners that run the fixture: a non-empty list of distinct `cpp` and `dart`, default both. For scenarios the Dart runner cannot drive without claiming a section 11 change. With `engineOnly`, only `["cpp"]` is allowed. |
 
 Files are UTF-8 JSON with 2-space indent and are ASCII-only: every non-ASCII
 character is written as a `\uXXXX` escape, using a UTF-16 surrogate pair above
@@ -250,17 +251,18 @@ fact a step sends carries `at`, so a scenario is fully deterministic.
 | --- | --- |
 | `finalSnapshot` | `session.snapshot` after the last step: the session JSON (schema 10), or `null` when no session was ever started. |
 
-The Dart runner (`test/helpers/engine_scenario.dart`) runs every
-non-`engineOnly` scenario against the real `TugboatReplayController`, with
-an injected clock driven by each step's `at`. It differs from the C++
-runner in three documented ways:
+The Dart runner (`test/helpers/engine_scenario.dart`) runs every scenario
+whose runners include `dart` against the real `TugboatReplayController`,
+with its clocks driven by each step's `at`. A message type or configuration
+it cannot express is a test failure that asks for `runners: ["cpp"]`, not a
+silent pass. It differs from the C++ runner in three documented ways:
 
 - It does not send steps that expect an `error`. Those pin the engine's
   message validation, which Dart's typed API cannot express.
-- It compares event ids by first appearance rather than by number. Dart's
-  id counter also mints `capture_request-N` at session start and on
-  `resumed`; the engine mints those once it owns capture requests (phase
-  3d).
+- Until the engine owns capture requests, it compares event ids by first
+  appearance rather than by number: Dart's id counter also mints
+  `capture_request-N` at session start and on `resumed`. When capture
+  requests move into the engine, this runner must switch to exact ids.
 - It has no effect model, so it requires every `effects` it checks to be
   empty.
 

@@ -1018,7 +1018,9 @@ class TugboatReplayController extends ChangeNotifier {
     String? initialTraitsId,
     String? initialUserId,
     bool initialUserIdOverride = false,
+    @visibleForTesting TugboatElapsedClock? debugClock,
   }) : _boundaryKey = boundaryKey,
+       _clock = debugClock ?? TugboatStopwatchClock(),
        _initialTraits = initialTraits == null
            ? null
            : Map<String, dynamic>.from(initialTraits),
@@ -1047,6 +1049,7 @@ class TugboatReplayController extends ChangeNotifier {
   String? _initialUserId;
   bool _initialUserIdOverride;
 
+  final TugboatElapsedClock _clock;
   Future<void> _queue = Future.value();
   int _queuedTaskCount = 0;
   Future<void>? _endSessionFuture;
@@ -1158,7 +1161,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   bool get scrolling => _scrollTrackers.isNotEmpty;
   bool get capturePaused => _capturePaused;
-  int get atMs => debugClock.elapsedMilliseconds;
+  int get atMs => _clock.elapsedMilliseconds;
   String? get currentRoute => _currentRoute;
   String? get latestFrameId => _latestFrameId;
 
@@ -1169,34 +1172,28 @@ class TugboatReplayController extends ChangeNotifier {
   bool get _holdPersistentSemanticsHandle =>
       _viewportSemantics.holdPersistentSemanticsHandle;
 
-  /// Session clocks: the wall clock for the session id and `startedAt`, the
-  /// elapsed clock for event `atMs`. Tests replace them before [start] to run
-  /// deterministic session-engine scenarios.
-  @visibleForTesting
-  TugboatControllerClock debugClock = TugboatStopwatchClock();
-
-  /// Records one toolkit-produced event the way the session engine's
-  /// `event.record` does: mints the id, stamps [atMs], then appends with
-  /// [_addEvent]. Nothing is recorded without a session.
+  /// Records one toolkit-produced event through the evidence recorder's
+  /// admission and append path, like `recordExternalEvent`: nothing is
+  /// recorded without an open session. Test-only; the session engine's
+  /// conformance scenarios use it for `event.record`.
   @visibleForTesting
   void debugRecordEvent({
     required String type,
     required TugboatEventStream stream,
-    required bool attachActionContext,
     Map<String, Object?> data = const {},
     TugboatTargetAnchor? targetAnchor,
   }) {
-    if (_session == null) return;
-    _addEvent(
+    final evidence = _evidence;
+    if (!evidence.accepting) return;
+    evidence.appendEvidence(
       TugboatEvent(
-        id: _nextId('event'),
-        atMs: atMs,
+        id: evidence.nextEventId('event'),
+        atMs: evidence.nowMs(),
         type: type,
         stream: stream,
         targetAnchor: targetAnchor,
         data: data,
       ),
-      attachActionContext: attachActionContext,
     );
   }
 
@@ -1706,12 +1703,12 @@ class TugboatReplayController extends ChangeNotifier {
     _lastLifecycleState = null;
     _lastLifecycleEventType = null;
     _endSessionFuture = null;
-    debugClock.restart();
+    _clock.restart();
     final effectiveLocale = locale ?? _currentLocale;
     _currentLocale = effectiveLocale;
     _session = TugboatSession(
-      id: 'session-${debugClock.now().microsecondsSinceEpoch}',
-      startedAt: debugClock.now(),
+      id: 'session-${_now().microsecondsSinceEpoch}',
+      startedAt: _now(),
       platform: platform,
       viewport: TugboatRect(0, 0, viewport.width, viewport.height),
       appInfo: config.appInfo ?? config.collector?.appInfo,

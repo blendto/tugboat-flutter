@@ -1,15 +1,17 @@
 ## 0.10.11-dev.1
 
-Unreleased (ADR 0009 feature branch). No change to shipped behaviour.
+Prerelease. No change to shipped behaviour.
 
 ### Internal
 
-- The capture controller reads its session clocks (wall clock for the
-  session id and `startedAt`, elapsed clock for event `atMs`) through a
-  test-only `debugClock` seam that defaults to `DateTime.now` and a
-  `Stopwatch`, and gains a test-only `debugRecordEvent` hook into its event
-  append path. The shared session-engine conformance scenarios use both to
-  run deterministically against the Dart controller.
+- `TugboatReplayController` takes a test-only `debugClock` (the elapsed
+  clock behind event `atMs`, a `Stopwatch` by default) and builds the
+  session id and `startedAt` from its existing `debugNow` wall clock
+  (`DateTime.now` by default).
+- A test-only `debugRecordEvent` records a toolkit event through the
+  evidence recorder's admission and append path. The shared
+  session-engine conformance scenarios use these to run deterministically
+  against the Dart controller.
 
 ## 0.10.9
 

@@ -1,29 +1,41 @@
-// Every module's message registration. A phase adds one function here and
-// one line in `modules.cpp`; its handlers live in its own files.
+// Every engine module's registration. Each module lives in its own
+// `*_module.cpp`; `modules.cpp` registers all of them once.
 // Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_MODULES_H
 #define TUGBOAT_SESSION_ENGINE_MODULES_H
 
-#include "messages.h"
+#include "module_registry.h"
 
 namespace tugboat {
 namespace engine {
 
 // fingerprint.identityParts, fingerprint.labelHash, collector.event,
-// collector.sessionLifecycle (stateless_messages.cpp).
-void register_stateless_messages(MessageRegistry* registry);
+// collector.sessionLifecycle.
+void register_stateless_module(ModuleRegistry* registry);
 
-// engine.configure, session.snapshot, timer.fired (engine_messages.cpp).
-void register_engine_messages(MessageRegistry* registry);
+// engine.configure, session.snapshot, timer.fired.
+void register_engine_module(ModuleRegistry* registry);
 
-// session.start, session.end, app.lifecycle (session_messages.cpp).
-void register_session_messages(MessageRegistry* registry);
+// session.start, session.end, app.lifecycle.
+void register_session_module(ModuleRegistry* registry);
 
-// event.record, locale.set, identity.set (evidence_messages.cpp).
-void register_evidence_messages(MessageRegistry* registry);
+// event.record, locale.set, identity.set.
+void register_evidence_module(ModuleRegistry* registry);
 
-// The registry of every message type, built once.
-const MessageRegistry& message_registry();
+// Collector delivery (docs/stateful-engine.md section 7).
+void register_delivery_module(ModuleRegistry* registry);
+
+// Interactions (section 9).
+void register_interaction_module(ModuleRegistry* registry);
+
+// Navigation and capture coordination (section 8).
+void register_navigation_module(ModuleRegistry* registry);
+
+// A fresh registry holding every module. Tests extend a copy.
+ModuleRegistry build_module_registry();
+
+// The registry every engine handle uses, built once.
+const ModuleRegistry& module_registry();
 
 }  // namespace engine
 }  // namespace tugboat

@@ -6,17 +6,13 @@ surface is a versioned C ABI (`include/tugboat/tb_session_engine.h`). A
 platform host (Kotlin, Swift) owns one engine handle, submits facts as
 messages, and executes the records and effect requests the engine returns.
 
-Status: ADR 0009 slice 3, phase 3a of the
-[stateful design](docs/stateful-engine.md). The engine implements the
-stateless operations that the [conformance fixtures](../../conformance/README.md)
-pin (fingerprint hashing and collector record mapping) and the stateful
-session core: configuration, session state and lifecycle, adapter evidence,
-enrichment, trim, snapshots, `batch`, and timer plumbing. Collector delivery
-(3b), interactions (3c), and navigation and capture (3d) follow. It
-reproduces the current Dart implementation except for the deliberate changes
-listed in the design's section 11. No runtime or adapter links it yet. Like
-`core/image-processing`, it is never copied into a pub package. It will ship
-inside the platform runtimes (ADR 0003).
+The engine implements the stateless operations that the
+[conformance fixtures](../../conformance/README.md) pin (fingerprint hashing
+and collector record mapping) and the stateful session core described below.
+It reproduces the current Dart implementation except for the deliberate
+changes listed in section 11 of the [stateful design](docs/stateful-engine.md).
+Like `core/image-processing`, it is never copied into a pub package; it
+ships inside the platform runtimes (ADR 0003).
 
 ## Layout
 
@@ -39,16 +35,18 @@ core/session-engine/
 | --- | --- |
 | `tb_session_engine.cpp` | The C ABI: handles, buffers, status codes, error documents. |
 | `engine` | Envelope validation, `batch`, admission, and response documents. |
-| `messages` / `modules` | The message registry keyed by `type`. Each module registers its own handlers (`register_*_messages`), so a phase adds message types in its own files. |
-| `engine_messages.cpp` | `engine.configure`, `session.snapshot`, `timer.fired`. |
-| `session_messages.cpp` | `session.start`, `session.end`, `app.lifecycle`. |
-| `evidence_messages.cpp` | `event.record`, `locale.set`, `identity.set`. |
-| `stateless_messages.cpp` | Registers the slice 2 operations (`fingerprint.cpp`, `collector.cpp`). |
-| `engine_state.h` | Everything a handle holds between messages. |
+| `module_registry` | What modules contribute: message types (with their `at` rule and session policy), teardown work per stage, timers by id prefix, lifecycle hooks, and the event types the engine records itself. |
+| `modules` | Registers every `*_module.cpp` once (`register_*_module`). |
+| `engine_module.cpp` | `engine.configure`, `session.snapshot`, `timer.fired`. |
+| `session_module.cpp` | `session.start`, `session.end`, `app.lifecycle`. |
+| `evidence_module.cpp` | `event.record`, `locale.set`, `identity.set`. |
+| `stateless_module.cpp` | The stateless operations (`fingerprint.cpp`, `collector.cpp`). |
+| `delivery_module.cpp`, `interaction_module.cpp`, `navigation_module.cpp` | Collector delivery, interactions, and navigation and capture (design sections 7–9), each with its state header. |
+| `engine_state.h` | Everything a handle holds between messages, as plain data. |
 | `config` | The typed `engine.configure` configuration. |
 | `lifecycle` | The lifecycle state machine, app-lifecycle mapping and dedupe, admission. |
-| `clock` | `at`, `atMs` derivation, and the host timer registry. |
-| `teardown` | The ordered teardown stages and their extension point. |
+| `clock` | `at`, `atMs` derivation, and host timer deadlines. |
+| `teardown` | The ordered teardown stages. |
 | `session` | The in-memory session, the id counter, and the schema 10 snapshot. |
 | `recorder` | Enrichment and append (Dart `_addEvent`). |
 | `output` | Typed records and effects and their JSON. |
@@ -156,7 +154,7 @@ by `type`:
 | --- | --- | --- |
 | `type` | yes | Message type (below). |
 | `input` | yes | Type-specific object (`{}` when the type takes none). |
-| `at` | per type | When the fact happened (below). Not allowed on stateless messages, queries, or `engine.configure`. |
+| `at` | per type | When the fact happened (below). Optional on `engine.configure` and `session.snapshot` (validated, not used); not allowed on stateless operations. |
 | `contract` | no | When present, both versions must equal the engine's, else `contract_mismatch`. An adapter that computes identity parts itself should send it. |
 
 Unknown envelope keys are `invalid_message`.
@@ -171,7 +169,11 @@ Unknown envelope keys are `invalid_message`.
 The engine never reads a clock. Event `atMs` is
 `floor((fact monoUs - session.start monoUs) / 1000)`, which is Dart's
 `Stopwatch.elapsedMilliseconds`; a fact stamped before its session started
-gets `0` (change C1).
+records `0` (change C13).
+
+No state-changing message may carry a non-finite number anywhere in its
+`input` (`1e400` parses to infinity, which Dart's `jsonEncode` cannot
+write): it is `invalid_message` at that number's path.
 
 ### Batch
 
@@ -181,11 +183,16 @@ gets `0` (change C1).
 
 A batch applies commands in order in one ABI call and returns their records
 and effects concatenated in order. Adapters behind an asynchronous seam send
-one batch per UI frame. A batch is all or nothing: every element is decoded
-and admitted against the state the earlier elements leave before any of
-them is applied, and the first failure rejects the whole batch with the
-element's path (`$.messages[2].input.stream`). Only commands can be
-batched; batches do not nest.
+one batch per UI frame. Rules:
+
+- Every element is decoded and admitted against the state the earlier
+  elements leave before any of them is applied. A malformed or invalid
+  element rejects the whole batch with its path
+  (`$.messages[2].input.stream`), and nothing applies.
+- A fact that arrives after `session.end` in the same batch is not invalid:
+  it is dropped like any late fact (below), and the rest of the batch
+  applies.
+- Only state-changing messages can be batched; batches do not nest.
 
 ### Response
 
@@ -209,16 +216,18 @@ Records are what happened, in append order (not id or `atMs` order):
 | Record | Fields |
 | --- | --- |
 | `{"kind": "event"}` | `event`: the recorded event exactly as `TugboatEvent.toJson()`, already enriched. `userId`: the runtime user id when the event was recorded, or `null`. |
+| `{"kind": "frame"}` | `handle`: the host's handle for the frame bytes. `frame`: `TugboatFrame.toJson()`. |
+| `{"kind": "health"}` | `component`, and `counters`: an object of counter name to count. |
 
-Effects are what the host must do. A host replaces an armed timer when it
-schedules one with the same id.
+Effects are what the host must do, in order.
 
 | Effect | Fields | Host answer |
 | --- | --- | --- |
-| `timer.schedule` | `timerId`, `atMonoUs` | `timer.fired {timerId}` at that host monotonic time |
+| `timer.schedule` | `timerId`, `atMonoUs` | `timer.fired {timerId}` at that host monotonic time. An armed timer with the same id is replaced. |
 | `timer.cancel` | `timerId` | none |
-
-No phase 3a message schedules a timer yet; delivery (3b) is the first owner.
+| `http.send` | `requestId`, `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `json` (the body) or `multipart` (`fields`: object of strings; `frames`: `[{handle, filename}]`, whose bytes the host resolves from the handle) | `transport.result {requestId, …}` |
+| `frame.release` | `handle` | none; the host may drop the bytes |
+| `capture.request` | `requestId`, `trigger`, `force`, `requireFreshPaint`, `dropWhenBusy`, `notBeforeMonoUs`, `context` (`routeEpoch`, `navigatorId?`, `routeInstanceId?`, `boundaryGeneration`), `dHashBaseline?`, `scale` | `capture.result {requestId, …}` |
 
 ### Vocabulary: stateless operations
 
@@ -237,37 +246,38 @@ message `input`. The field-level vocabulary is in
 
 | `type` | `at` | `input` | Does |
 | --- | --- | --- | --- |
-| `engine.configure` | none | `{host?, limits?, gesture?, interaction?, navigation?, capture?, collector?, capabilities?}` | Replaces the configuration (below). Only before the first session or between sessions. |
+| `engine.configure` | optional | `{host?, limits?, gesture?, interaction?, navigation?, capture?, collector?, capabilities?}` | Replaces the configuration (below). Only before the first session or between sessions. |
 | `session.start` | mono + wall | `{viewport: {width, height}, platform, sessionEpoch, locale?, activationRequestId?, explorationRunId?}` | Ends a live session first (C10), resets per-session state, and records `session_start`. The session id is `session-<wallUs>` and `startedAt` is the same instant. Needs a configured `host`. |
 | `session.end` | mono + wall | `{reason?}` (`session_end` or `dispose`) | Tears down in-flight work and records `session_end`. Idempotent. |
 | `app.lifecycle` | mono | `{state}`: `paused`, `hidden`, `inactive`, `resumed`, `detached` | `paused`/`hidden`/`detached` tear down in-flight work. Records `app_backgrounded`, `app_foregrounded`, `app_inactive`, or `app_detached` with `data.state`, dropping consecutive duplicates by state or event type. `detached` then ends the session. |
-| `event.record` | mono | `{eventType, stream, attachActionContext, data?, targetAnchor?, atMonoUs?}` | Records a toolkit-produced event (`scene_inventory`, `network_call`, `external_event`, …). `atMonoUs` (default `at.monoUs`) is the fact time. `stream` is `semantic`, `evidence`, `diagnostic`, or `legacy_projection`. Types the engine records itself are rejected. |
+| `event.record` | mono | `{eventType, stream, attachActionContext, data?, targetAnchor?, atMonoUs?}` | Records a toolkit-produced event (`scene_inventory`, `network_call`, `external_event`, …). `atMonoUs` (default `at.monoUs`) is the fact time. `stream` is `semantic`, `evidence`, or `diagnostic` (session schema 10). Types the engine records itself are rejected. |
 | `locale.set` | mono | `{locale}` | Dedupes against the current locale, updates it, and records `locale_changed` (evidence stream, `data.previousLocale?`, `data.locale`) while a session is live. |
 | `identity.set` | mono + wall | `{userId}` (string or null) | Sets the runtime user id stamped on later records. |
-| `timer.fired` | mono | `{timerId}` | Routes to the module that armed the timer. Unknown, cancelled, and stale (fired before the current deadline) ids are ignored. |
-| `session.snapshot` | none | `{}` | Query. `result.snapshot` is the live or last session as `TugboatSession.toJson()` (schema 10), or `null` before the first session. |
+| `timer.fired` | mono | `{timerId}` | Routes by timer-id prefix to the module that armed the timer. Unknown, cancelled, and stale (fired before the current deadline) ids are ignored. |
+| `session.snapshot` | optional | `{}` | Query. `result.snapshot` is the live or last session as `TugboatSession.toJson()` (schema 10), or `null` before the first session. |
 
 Enrichment follows Dart `_addEvent`: the current locale is stamped when the
 event has none; with `attachActionContext` the session's capture,
 activation, and exploration ids are stamped, and without it only where the
 event has none. Events are appended to the session, emitted as records, then
 trimmed: beyond `limits.maxEvents` the oldest are dropped and the session's
-`truncated` becomes and stays `true`. One counter mints `event-N` (and later
-`frame-N`, `capture_request-N`) per engine handle; it is never reset per
-session (C7, kept).
+`truncated` becomes and stays `true`. One counter mints `event-N`,
+`frame-N`, and `capture_request-N` per engine handle; it is never reset per
+session (C7, kept). The exploration action window (`actionId` stamping) is
+not part of the engine; `actionId` passes through.
 
-Before the first session, events are dropped as in Dart (an `app.lifecycle`
-state still consumes an event id, as Dart's does). After `session_end`,
-`event.record` and `app.lifecycle` are `invalid_message` (change C9);
-`locale.set` only updates the locale for the next session.
+Event-producing facts (`event.record`, `app.lifecycle`) without a live
+session, before the first session or after `session_end` (change C9), are
+accepted and dropped: no record, no id. `locale.set` then only updates the
+locale the next session starts with.
 
-`engine.configure` groups, with Dart's defaults. Every field is optional
-and validated now; phase 3a acts on `host`, `limits.maxEvents`, and
-`host.configuredUserId` (the initial runtime user id until `identity.set`).
+`engine.configure` groups, with Dart's defaults. Every field is optional and
+validated. `host.configuredUserId` is the runtime user id until
+`identity.set`.
 
 | Group | Fields |
 | --- | --- |
-| `host` | The slice 1 `host` vocabulary. Everything the collector needs for `session_start` is required: `app.version`, `app.buildNumber`, the device with `screenSize`, `screenDensity`, `screenDpi`, and `screenPixelDensity` (finite), `ip.ip`, and `locale` (may be `{}`). |
+| `host` | The slice 1 `host` vocabulary. Everything the collector needs for `session_start` is required: `app.version`, `app.buildNumber`, the device with `screenSize`, `screenDensity`, `screenDpi`, and `screenPixelDensity`, `ip.ip`, and `locale` (may be `{}`). |
 | `limits` | `maxEvents` 5000, `maxFrames` 500, `maxScrollSamples` 200 |
 | `gesture` | `touchSlop` 18, `panSlop` 36, `scaleSlop` 18, `trackpadScaleThreshold` 1.08 |
 | `interaction` | `claimWindowMs` 1250, `settleDelayMs` 1000, `maxReleased` 8, `scrollEndCaptureDelayMs` 0, `captureScrollSamples` false, `scrollCaptureIntervalMs` 2000, `factGraceMs` 0 |
@@ -315,17 +325,6 @@ Where the engine is stricter than Dart's `jsonDecode`:
 - Duplicate object keys are rejected. Dart keeps the last one.
 - Invalid UTF-8 bytes are rejected. They cannot reach a Dart `String` from a
   host anyway.
-
-## Next phases
-
-[docs/stateful-engine.md](docs/stateful-engine.md) is the accepted design.
-Its section 13 splits the rest of the stateful engine into phases, each one
-PR with its own scenario fixtures: collector delivery (3b, `http.send`,
-`transport.result`), interactions (3c, `input.pointer`, `scroll`, …), and
-navigation and capture coordination (3d, `navigation`, `capture.request`,
-`capture.result`). Each adds its message handlers in its own files and
-registers them in `modules.cpp`, and hooks its in-flight work into the
-teardown stages.
 
 ## Portability
 
@@ -384,7 +383,8 @@ byte, and compares the step's `records` and `effects` (or its `error` status
 and path) with the response. It stops a scenario at the first failing step
 and names the step, its message type, every differing path, and the actual
 response. Finally it compares `session.snapshot` with `finalSnapshot`. It
-runs `engineOnly` scenarios too.
+runs `engineOnly` scenarios too, skips fixtures whose `runners` exclude
+`cpp`, and validates `engineOnly` ids against `conformance/change_ids.json`.
 
 It parses JSON with its own small reader, so a parser bug in the engine
 cannot hide itself on both sides of the comparison. It also fails when a
