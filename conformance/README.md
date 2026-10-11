@@ -10,26 +10,34 @@ exists. These fixtures are what keeps the two equivalent.
 This folder is outside the pub package on purpose: it is never published to
 pub.dev and no runtime reads it.
 
-Scope of this first slice: pure mapping and hashing only. These are fingerprint
-hashing of supplied identity parts and collector record mapping for one event
-or one session lifecycle record. Controller orchestration (interaction
-transactions, dedup, batching, delivery gaps) is not covered yet.
+Two families of fixture:
+
+- Stateless operations: fingerprint hashing of supplied identity parts and
+  collector record mapping for one event or one session lifecycle record.
+- `engine.scenario`: a sequence of stateful engine messages and the records
+  and effects each one produces, plus the final session snapshot
+  ([stateful design](../core/session-engine/docs/stateful-engine.md)
+  section 10).
 
 ## Layout
 
 ```text
 conformance/
   README.md
+  change_ids.json                   section 11 change ids (not a fixture)
   fingerprint/
     identity_parts/<name>.json      kind fingerprint.identityParts
     label_hash/<name>.json          kind fingerprint.labelHash
   collector/
     event/<name>.json               kind collector.event
     session_lifecycle/<name>.json   kind collector.sessionLifecycle
+  engine/
+    scenario/<name>.json            kind engine.scenario
 ```
 
 One case per file. The file name stem equals the fixture `name`, and the
-directory is fixed by `kind`. A runner loads every `*.json` under
+directory is fixed by `kind`. A runner loads every `*.json` except
+`change_ids.json` under
 `conformance/` recursively.
 
 ## Fixture envelope
@@ -55,6 +63,8 @@ directory is fixed by `kind`. A runner loads every `*.json` under
 | `contract` | SDK contract versions the expected value was reviewed against. A runner must fail when its own versions differ. |
 | `input` | The facts submitted to the engine. Unknown keys are an error. |
 | `expected` | The engine's output for `input`. |
+| `engineOnly` | `engine.scenario` only, optional. The ids of the deliberate changes in the stateful design's section 11 that the scenario encodes, from `change_ids.json` (the single list both runners read). Implies `runners: ["cpp"]`. Any other id, a duplicate, an empty list, or the key on another kind is an error. |
+| `runners` | `engine.scenario` only, optional. The runners that run the fixture: a non-empty list of distinct `cpp` and `dart`, default both. For scenarios the Dart runner cannot drive without claiming a section 11 change. With `engineOnly`, only `["cpp"]` is allowed. |
 
 Files are UTF-8 JSON with 2-space indent and are ASCII-only: every non-ASCII
 character is written as a `\uXXXX` escape, using a UTF-16 surrogate pair above
@@ -222,6 +232,40 @@ only when `true`. `network_call` uses `method`, `route`, `statusCode`,
 kept only when it passes the mapper's type and range checks. For any other
 type, `data` is copied into `payload` as-is.
 
+### `engine.scenario`
+
+A scenario drives one fresh engine handle through the stateful protocol
+(`core/session-engine/README.md` "Messages").
+
+| Input | Meaning |
+| --- | --- |
+| `configure` | The `engine.configure` input, sent first. It must be accepted. |
+| `steps` | Non-empty array of `{send, expect, note?}`. `send` is one complete message (or `batch`), submitted byte for byte. `note` is for readers only. |
+
+`expect` is either `{records, effects}`, compared with the response's
+`records` and `effects`, or `{error: {status, path?}}`, compared with the
+error document's `status` and `path` (the message text is not pinned). Every
+fact a step sends carries `at`, so a scenario is fully deterministic.
+
+| Expected | Meaning |
+| --- | --- |
+| `finalSnapshot` | `session.snapshot` after the last step: the session JSON (schema 10), or `null` when no session was ever started. |
+
+The Dart runner (`test/helpers/engine_scenario.dart`) runs every scenario
+whose runners include `dart` against the real `TugboatReplayController`,
+with its clocks driven by each step's `at`. A message type or configuration
+it cannot express is a test failure that asks for `runners: ["cpp"]`, not a
+silent pass. It differs from the C++ runner in three documented ways:
+
+- It does not send steps that expect an `error`. Those pin the engine's
+  message validation, which Dart's typed API cannot express.
+- Until the engine owns capture requests, it compares event ids by first
+  appearance rather than by number: Dart's id counter also mints
+  `capture_request-N` at session start and on `resumed`. When capture
+  requests move into the engine, this runner must switch to exact ids.
+- It has no effect model, so it requires every `effects` it checks to be
+  empty.
+
 ## Determinism
 
 Fixtures contain no ambient state:
@@ -231,6 +275,9 @@ Fixtures contain no ambient state:
   UTC ISO-8601 with milliseconds (`2026-06-19T00:00:55.957Z`).
 - Ids: session, event, frame, run, action, and traits ids are literal
   strings. The engine does not generate them in these operations.
+- Scenarios: time comes only from each message's `at`, and the engine mints
+  ids from a fresh handle (`session-<wallUs>`, `event-N` from 0), so the
+  same steps always produce the same records.
 - Session and app metadata: everything comes from `host` and `session`.
   Transport settings are not inputs.
 - Contract constants (`interactionSchema` 2, `routeChangeSchema` 2,
@@ -280,5 +327,5 @@ To add or change a fixture:
 
 Dart runner: `sdks/flutter/packages/tugboat/test/conformance_fixtures_test.dart`.
 The loader in `test/helpers/conformance_fixture.dart` is the reference reader
-for this format. It also binds the identity-parts hash to the real Flutter
+for this format, and `test/helpers/engine_scenario.dart` runs scenarios. It also binds the identity-parts hash to the real Flutter
 resolver, so the vectors cannot drift from the private Dart implementation.

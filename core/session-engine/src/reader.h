@@ -9,6 +9,7 @@
 #include <initializer_list>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "json.h"
 #include "tugboat/tb_session_engine.h"
@@ -44,6 +45,11 @@ class ObjectReader {
 
   const std::string& path() const { return path_; }
   std::string child(const char* key) const { return path_ + "." + key; }
+
+  // Fails with `message` at the path of `key`. Always returns false.
+  bool reject(const char* key, std::string message) const {
+    return invalid(error_, child(key), std::move(message));
+  }
 
   // Fails when the object has a key outside `allowed`.
   bool check_keys(std::initializer_list<const char*> allowed) const;
