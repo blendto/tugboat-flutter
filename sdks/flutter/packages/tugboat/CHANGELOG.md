@@ -1,3 +1,15 @@
+## 0.10.11-dev.2
+
+Prerelease. No change to shipped behaviour.
+
+### Internal
+
+- The Android plugin maps capture-runtime statuses and coverage values
+  newer than its pinned runtime without failing to compile: a future
+  status becomes `cancelled` (no Dart fallback, no publish) and
+  `windowComposite` coverage maps to the existing Pigeon value. The
+  plugin never requests window capture, so neither branch runs today.
+
 ## 0.10.11-dev.1
 
 Prerelease. No change to shipped behaviour.

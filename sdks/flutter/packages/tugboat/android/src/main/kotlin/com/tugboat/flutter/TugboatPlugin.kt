@@ -205,11 +205,25 @@ private fun CaptureStatus.toPigeon(): NativeCaptureStatus =
         CaptureStatus.ProcessingFailed -> NativeCaptureStatus.PROCESSING_FAILED
         CaptureStatus.Cancelled -> NativeCaptureStatus.CANCELLED
         CaptureStatus.Disposed -> NativeCaptureStatus.DISPOSED
+        // Values newer than the pinned runtime (0.2.0 adds `SecureWindow`,
+        // reported only by window capture, which this plugin never requests).
+        // An `else` keeps this file compiling against both 0.1.0 and 0.2.0.
+        // `CANCELLED` means no Dart fallback and no publish: a fallback status
+        // would let RepaintBoundary capture a screen the runtime refused.
+        else -> NativeCaptureStatus.CANCELLED
     }
 
 private fun CaptureCoverage.toPigeon(): NativeCaptureCoverage =
     when (this) {
         CaptureCoverage.EngineSurface -> NativeCaptureCoverage.ENGINE_SURFACE
+        // 0.2.0 adds `WindowComposite`, which Pigeon already models. Matched by
+        // name so this file still compiles against the pinned 0.1.0.
+        else ->
+            if (name == "WindowComposite") {
+                NativeCaptureCoverage.WINDOW_COMPOSITE
+            } else {
+                NativeCaptureCoverage.ENGINE_SURFACE
+            }
     }
 
 private fun RenderMode.toPigeon(): NativeCaptureRenderMode =

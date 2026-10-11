@@ -1,0 +1,24 @@
+// Gradle init script for verify-flutter-plugin-runtime.sh. A no-op unless
+// TUGBOAT_CAPTURE_RUNTIME_VERSION is set. When set, every project resolves
+// com.gettugboat.sdk:capture-runtime at that version from TUGBOAT_LOCAL_MAVEN
+// (the repository's .local-maven), so the Flutter plugin can be compiled
+// against an unpublished runtime without editing its pinned dependency.
+def overrideVersion = System.getenv("TUGBOAT_CAPTURE_RUNTIME_VERSION")
+def localMaven = System.getenv("TUGBOAT_LOCAL_MAVEN")
+// Included builds (Flutter's Gradle plugin) keep their own repositories.
+if (overrideVersion && localMaven && gradle.parent == null) {
+    allprojects {
+        repositories {
+            maven { url = uri(localMaven) }
+        }
+        configurations.configureEach {
+            resolutionStrategy.eachDependency { details ->
+                if (details.requested.group == "com.gettugboat.sdk" &&
+                        details.requested.name == "capture-runtime") {
+                    details.useVersion(overrideVersion)
+                    details.because("verify-flutter-plugin-runtime.sh")
+                }
+            }
+        }
+    }
+}
