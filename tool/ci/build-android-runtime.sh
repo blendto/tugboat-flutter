@@ -10,3 +10,5 @@ fi
 cd "$android"
 ./gradlew :capture-runtime:test :capture-runtime-test:test :capture-runtime:assembleRelease :capture-runtime:publishAllPublicationsToLocalCaptureRepository
 ./gradlew :sample:assembleDebug
+# Native host (unpublished): engine JNI build, unit tests, instrumented-test APK.
+./gradlew :tugboat-android:test :tugboat-android:assembleRelease :tugboat-android:assembleAndroidTest
