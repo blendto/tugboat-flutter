@@ -13,6 +13,7 @@ Experimental CPU path for iOS 15+. Default Flutter capture remains
 | `platforms/apple/Sources/TugboatCaptureRuntime` | Public Swift API |
 | `platforms/apple/Sources/TugboatImageCoreBridge` | Objective-C++ bridge to the C ABI |
 | `platforms/apple/Tests` | XCTest (MaskMapper, runtime constants) |
+| `core/session-engine` (target `TugboatSessionEngine`) | Session engine C ABI for Swift ([ADR 0009](../decisions/0009-shared-session-engine.md), proposed); internal target, not a product yet |
 | `platforms/apple/Sample` | Usage notes, not a full Xcode app |
 | `sdks/flutter/packages/tugboat/ios` | Pigeon plugin; depends on CocoaPods `TugboatCaptureRuntime` |
 
