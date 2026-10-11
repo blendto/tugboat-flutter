@@ -1,6 +1,6 @@
 # Stateful session engine design
 
-Status: Draft for review · 2026-10-11 · ADR 0009 slice 3
+Status: Accepted · 2026-10-12 · ADR 0009 slice 3
 
 This document designs the stateful half of the session engine: session state,
 the clock model, interaction transactions built from adapter facts, navigation
@@ -8,8 +8,11 @@ and capture coordination, and collector delivery. It builds on the stateless
 message protocol in [README.md](../README.md) and the golden fixtures in
 [conformance/](../../../conformance/README.md).
 
-Nothing here is implemented yet. Section 11 lists behaviour changes that need
-an explicit decision before implementation starts.
+Section 11 records the decision on every behaviour change, and section 12
+records the open questions. All of them were decided on 2026-10-12.
+
+The behaviour changes apply to the engine only. The Flutter adapter keeps its
+shipped Dart behaviour until it moves onto the engine (Q1).
 
 ## 1. Goals and non-goals
 
@@ -250,7 +253,7 @@ again between sessions.
 | `interaction` | claimWindowMs 1250, settleDelayMs 1000, maxReleased 8, scrollEndCaptureDelayMs 0, captureScrollSamples false, scrollCaptureIntervalMs 2000, factGraceMs |
 | `navigation` | routeBarrierTimeoutMs 5000, routeStackLimit 16 |
 | `capture` | budgetMs 60, budgetWindowMs 5000, degradedScale |
-| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs (change C5) |
+| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs (change C5), reportEventLaneGaps false (change C6) |
 | `capabilities` | the `TugboatReplayConfig` evidence switches (inventory, semantic map, focus, system input, …) |
 
 ## 7. Collector delivery (phase 3b)
@@ -330,7 +333,7 @@ cap (change C4 proposes backoff later). Event batches retry until the
 | Retry batches | 20 batches | drop oldest |
 | Pending frames | 20 | drop oldest; failed frames are requeued at the front and so go first |
 
-Event-side drops are silent today (change C6).
+Event-side drops are silent today. With `reportEventLaneGaps` (default off, change C6) the engine reports them as gap records.
 
 ### 7.6 Frames
 
@@ -389,7 +392,8 @@ re-queues them under their original session ids, sends them before the new
 session's data, and applies the same bounds.
 
 This needs an idempotency key on the wire so the collector can deduplicate
-retried work (Q2). Phase 3e does not start until Q2 is answered.
+retried work (Q2). Phase 3e is deferred until Q2 is answered and is not part
+of the current milestone.
 
 ### 7.9 Exploration WebSocket
 
@@ -582,6 +586,10 @@ A new fixture kind, `engine.scenario`, under `conformance/engine/scenario/`:
 - `expect` is compared type-strictly, as in slice 1. Effect order matters.
 - `session.snapshot` returns the in-memory session JSON (schema 10) for
   `finalSnapshot`.
+- A scenario that encodes a section 11 change carries
+  `"engineOnly": ["C5"]`, listing the change ids. The Dart runner skips it;
+  the C++ runner runs every scenario. `engineOnly` is valid only on
+  `engine.scenario`, and its ids must be section 11 ids.
 
 How Dart stays in step, by phase:
 
@@ -595,46 +603,42 @@ backend flag (Q1).
 
 ## 11. Deliberate behaviour changes
 
-Each needs a yes or no before its phase starts. "Wire" means the collector
-sees a difference.
+Each change was decided on 2026-10-12. "Wire" means the collector sees a
+difference. Every change applies to the engine only; Dart keeps shipped
+behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 
-| Id | Change | Today | Wire | Recommendation |
+| Id | Change | Today | Wire | Decision |
 | --- | --- | --- | --- | --- |
 | C1 | One monotonic clock for all durations | Wall clock for `session_end` `atMs`, gap `atMs`, budget window, scroll cadence | small: `atMs` can no longer go negative | Yes |
 | C2 | A flush trigger during a pass schedules a follow-up pass | Trigger dropped; up to 3 s extra latency | timing only | Yes |
-| C3 | Timeout on JSON posts (`jsonTimeoutMs`, e.g. 15 s) | None; one hung request stalls all delivery | no | Yes |
-| C4 | Exponential retry backoff with jitter | Retries paced only by flush triggers | timing only | Later, after outbox |
+| C3 | Timeout on JSON posts | None; one hung request stalls all delivery | no | Yes, `jsonTimeoutMs` 15000 |
+| C4 | Exponential retry backoff with jitter | Retries paced only by flush triggers | timing only | Later, after the durable outbox |
 | C5 | `session_end` waits for a bounded drain and keeps retrying | `session_end` goes first; never retried after failure | order: frames/events no longer arrive after `session_end` | Yes |
-| C6 | Delivery gaps become engine records; event-lane drops also report gaps | Frame lane only; invisible to other sinks | new `component` values | Records: yes. Event-lane gaps: yes, opt-in until the collector accepts them |
-| C7 | Keep the per-engine id counter and non-contiguous `frameNo` | as stated | no | Keep (no change) |
-| C8 | Keep 202-only acceptance | 200/201/204 count as drops | no | Keep until Q3 |
+| C6 | Delivery gaps become engine records; event-lane drops can also report gaps | Frame lane only; invisible to other sinks | new `component` values | Records: yes. Event-lane gaps: opt-in, default off |
+| C7 | Per-engine id counter and non-contiguous `frameNo` | as stated | no | Keep (no change) |
+| C8 | 202-only acceptance | 200/201/204 count as drops | no | Keep (Q3) |
 | C9 | Reject events after `session_end` | Events can follow `session_end` | yes, removes stray events | Yes |
 | C10 | `session.start` on an active session ends it first | `clear()` replacement emits no `session_end` (test-only path) | yes | Yes |
 | C11 | Per-navigator transition suppression | One global `_skipCapture` | fewer `route_transition` drops | Yes |
 | C12 | Publish a linked scroll when a still-tap pointer goes up | Completion never published | yes, recovers lost scrolls | Yes |
 
-## 12. Open questions
+## 12. Open questions and decisions
 
-- **Q1: Flutter migration timing.**
-  - Recommendation: Flutter moves onto the engine only after phase 3d, behind
-    an opt-in backend flag, in the same way `nativeCpuExperimental` rolled
-    out.
-  - The alternative is a delivery-only mode, where Dart keeps minting events
-    and the engine only delivers them. It would give Flutter the native
-    host's outbox sooner, but it needs a second id authority and a
-    pre-minted-event path. I would skip it.
-- **Q2: Wire idempotency.**
-  - The durable outbox and safe retries need an idempotency key per batch,
-    frame, and lifecycle post. Today none reaches HTTP: the hub's
-    `idempotencyKey` stops at factory sinks.
-  - This needs a collector change and a cross-repo decision.
-- **Q3: Non-202 success codes.** Should 200, 201, and 204 count as accepted?
-  This depends on the collector contract.
-- **Q4: Exploration WebSocket policy.** Keep it host-side (recommended), or
-  move its queue and reconnect policy into the engine.
-- **Q5: In-memory session ownership.** The engine keeps metadata for up to
-  500 frames and 5000 events for `session.snapshot`. Is that export still
-  needed on native SDKs, or can native hosts use smaller limits?
+All five were decided on 2026-10-12.
+
+- **Q1: Flutter migration timing.** Flutter moves onto the engine after phase
+  3d, behind an opt-in backend flag, in a later milestone. There is no
+  delivery-only mode.
+- **Q2: Wire idempotency.** Deferred. The durable outbox and safe retries
+  need an idempotency key per batch, frame, and lifecycle post, which needs a
+  collector change and a cross-repo decision. Phase 3e is out of the current
+  milestone; native hosts deliver from memory, like Flutter does today.
+- **Q3: Non-202 success codes.** Keep 202-only acceptance (C8).
+- **Q4: Exploration WebSocket policy.** It stays host-side. Native SDKs do not
+  need it in the current milestone.
+- **Q5: In-memory session ownership.** Limits stay config-driven with today's
+  defaults. Native SDKs do not need snapshot export, so native hosts may pass
+  smaller limits later.
 
 ## 13. Phases
 
@@ -647,7 +651,7 @@ fixtures:
 | 3b | Collector delivery (section 7.1–7.7), with Dart parity scenarios for `CollectorHttpSink` |
 | 3c | Interactions (section 9) |
 | 3d | Navigation and capture coordination (section 8) |
-| 3e | Durable outbox (section 7.8), once Q2 is answered |
+| 3e | Durable outbox (section 7.8). Out of the current milestone; waits for Q2 |
 
 After 3d:
 
