@@ -188,7 +188,10 @@ Where the engine is stricter than Dart's `jsonDecode`:
 ## Planned messages (not implemented)
 
 The stateful engine will take over `TugboatReplayController` orchestration.
-The expected vocabulary, which changes with the next slices:
+The design under review is
+[docs/stateful-engine.md](docs/stateful-engine.md); it supersedes the sketch
+below where they differ. The expected vocabulary, which changes with the
+next slices:
 
 - **Session:** `session.start` (host metadata, injected clock, ids),
   `session.end`, `session.identify` / `traits`. The engine holds session
