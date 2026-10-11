@@ -10,10 +10,12 @@ Platform views and separate video or map surfaces can be missing. Secure or
 DRM content can also be missing. Those cases are unsupported modes or missing
 layers. They are never an unmasked substitute.
 
-`windowComposite` is Android `PixelCopy` of an app window (capture-runtime
-0.2.0+, API 26+), for native Android hosts; the Flutter plugin does not use
-it. It excludes separate `SurfaceView` / `TextureView` layers (video, maps,
-camera), which callers mask fail-closed, and it never copies a
-`FLAG_SECURE` window (`secureWindow`). `viewHierarchy` is an
+`windowComposite` is Android `PixelCopy` of one app window's surface (API
+26+), for native Android hosts; the Flutter plugin does not use it. It holds
+the views drawn into that window, `TextureView` included, and is not the
+full-screen composition. `SurfaceView` / `GLSurfaceView` layers (video,
+camera previews, maps) are missing, so callers mask them fail-closed. Other
+windows (dialogs, popups, dropdowns, the IME) are missing too. A
+`FLAG_SECURE` window is never copied (`secureWindow`). `viewHierarchy` is an
 optional Apple compatibility mode. It uses `drawHierarchy` of the Flutter
 view. Incomplete descendants set `incomplete=true`.

@@ -2,7 +2,6 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
-| Android `capture-runtime` | 0.2.0 | Unpublished. Adds `capture(window, …)` (`windowComposite`, API 26+) and `CaptureStatus.SecureWindow` for native Android hosts. Flutter `tugboat` still pins `0.1.0`; the view path is unchanged. |
 | Flutter `tugboat` | 0.10.9 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; isolates rejected frame batches and reports bounded collector upload diagnostics. |
 | Flutter `tugboat` | 0.10.8 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; dHash coalescing respects visible-structure changes and keeps its baseline; opt-in `focus_changed` / `system_input` evidence. |
 | Flutter `tugboat` | 0.10.7 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; API error `network_call` events carry a bounded `errorResponseBody` (4 KiB cap). |
@@ -28,6 +27,10 @@ Flutter `0.8.16` compiles on Flutter 3.35 and consumes Android
 `capture-runtime` `0.1.0` from Maven Central and Apple
 `TugboatCaptureRuntime` `0.1.0` from CocoaPods. Native capture stays
 opt-in. The first native-default adapter is still planned as Flutter `0.9.0`.
+
+Android `capture-runtime` `0.2.0` is unpublished. It adds window capture
+(`windowComposite`) and `CaptureStatus.SecureWindow` for native Android
+hosts. No adapter consumes it yet; Flutter `tugboat` still pins `0.1.0`.
 
 CI requires this table to change whenever Flutter adapter source or the
 public Android/C ABI or Apple Swift surface changes

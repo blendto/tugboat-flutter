@@ -4,13 +4,16 @@
 
 Unpublished. Additive; the `FlutterSurfaceView` path is unchanged.
 
-- `CaptureRuntime.capture(window, request, onComplete)`: `PixelCopy` of an
-  app `Window` (API 26+, `MIN_WINDOW_API`; below that `UnsupportedApi`).
-  Reports coverage `WindowComposite`. Masks are normalized to the window's
-  decor view. Separate `SurfaceView` / `TextureView` layers are not in the
-  copy; callers mask them fail-closed.
-- `CaptureStatus.SecureWindow`: a window with `FLAG_SECURE` is never copied.
-  The result has no frame and no coverage.
+- `CaptureRuntime.capture(window, request, onComplete)`: `PixelCopy` of one
+  app `Window`'s surface (API 26+, `MIN_WINDOW_API`; below that
+  `UnsupportedApi`). Reports coverage `WindowComposite`. Masks are normalized
+  to the window's decor view. `TextureView` is in the copy; `SurfaceView` /
+  `GLSurfaceView` layers and other windows (dialogs, popups, the IME) are
+  not, so callers mask `SurfaceView` bounds fail-closed.
+- `CaptureStatus.SecureWindow`: a window flagged `FLAG_SECURE` when the copy
+  is issued is never copied. The result has no frame and no coverage. The
+  copy is taken from a frame committed after the main-thread check, so a
+  stale secure buffer is not copied right after the flag is cleared.
 - `CaptureCoverage.WindowComposite`.
 - View and window captures share one queue and one pipeline (cancellation,
   disposal, mask mapping, C++ mask fill + dHash, JPEG q80, SHA-256, timings).
