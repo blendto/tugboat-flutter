@@ -6,10 +6,15 @@ surface is a versioned C ABI (`include/tugboat/tb_session_engine.h`). A
 platform host (Kotlin, Swift) owns one engine handle, submits facts as
 messages, and executes the records and effect requests the engine returns.
 
-Status: skeleton (ADR 0009 slice 2). It implements only the stateless
-operations that the [conformance fixtures](../../conformance/README.md) pin,
-which are fingerprint hashing and collector record mapping. It reproduces the
-current Dart implementation exactly. No runtime or adapter links it yet. Like
+Status: ADR 0009 slice 3, phase 3a of the
+[stateful design](docs/stateful-engine.md). The engine implements the
+stateless operations that the [conformance fixtures](../../conformance/README.md)
+pin (fingerprint hashing and collector record mapping) and the stateful
+session core: configuration, session state and lifecycle, adapter evidence,
+enrichment, trim, snapshots, `batch`, and timer plumbing. Collector delivery
+(3b), interactions (3c), and navigation and capture (3d) follow. It
+reproduces the current Dart implementation except for the deliberate changes
+listed in the design's section 11. No runtime or adapter links it yet. Like
 `core/image-processing`, it is never copied into a pub package. It will ship
 inside the platform runtimes (ADR 0003).
 
@@ -20,16 +25,41 @@ core/session-engine/
   include/tugboat/tb_session_engine.h   public C ABI (no C++ types)
   src/                                  engine (C++17, internal headers)
   tests/tb_session_engine_test.cpp      unit tests (internals + ABI error paths)
+  tests/tb_session_engine_stateful_test.cpp  unit tests (timers, teardown, lifecycle)
   tests/tb_session_engine_conformance.cpp  fixture runner (public ABI only)
+  tests/conformance/                    runner JSON reader, diff, scenario runner
   fuzz/message_fuzz.cpp                 libFuzzer target for submit
+  docs/stateful-engine.md               accepted stateful design
   third_party/double-conversion/        vendored, see "Third-party code"
 ```
+
+`src/` modules:
+
+| Module | Owns |
+| --- | --- |
+| `tb_session_engine.cpp` | The C ABI: handles, buffers, status codes, error documents. |
+| `engine` | Envelope validation, `batch`, admission, and response documents. |
+| `messages` / `modules` | The message registry keyed by `type`. Each module registers its own handlers (`register_*_messages`), so a phase adds message types in its own files. |
+| `engine_messages.cpp` | `engine.configure`, `session.snapshot`, `timer.fired`. |
+| `session_messages.cpp` | `session.start`, `session.end`, `app.lifecycle`. |
+| `evidence_messages.cpp` | `event.record`, `locale.set`, `identity.set`. |
+| `stateless_messages.cpp` | Registers the slice 2 operations (`fingerprint.cpp`, `collector.cpp`). |
+| `engine_state.h` | Everything a handle holds between messages. |
+| `config` | The typed `engine.configure` configuration. |
+| `lifecycle` | The lifecycle state machine, app-lifecycle mapping and dedupe, admission. |
+| `clock` | `at`, `atMs` derivation, and the host timer registry. |
+| `teardown` | The ordered teardown stages and their extension point. |
+| `session` | The in-memory session, the id counter, and the schema 10 snapshot. |
+| `recorder` | Enrichment and append (Dart `_addEvent`). |
+| `output` | Typed records and effects and their JSON. |
+| `models` / `host` | Shared typed models (locale, anchor, event, host metadata). |
+| `json`, `reader`, `text`, `dart_time` | JSON, strict field readers, SHA-256 and UTF-16 helpers, Dart `DateTime`. |
 
 ## C ABI
 
 | Function | Purpose |
 | --- | --- |
-| `tb_session_engine_version()` | Library semantic version (`"0.1.0"`). |
+| `tb_session_engine_version()` | Library semantic version (`"0.2.0"`). |
 | `tb_session_engine_abi_version()` | `TB_SESSION_ENGINE_ABI_VERSION` of the linked library (`1`). |
 | `tb_session_engine_session_schema_version()` / `..._fingerprint_schema_version()` | Contract versions the engine produces (`10` / `6`). |
 | `tb_session_status_name(status)` | Stable lowercase name (`"invalid_message"`), static string. |
@@ -64,7 +94,7 @@ message twice to size a caller buffer.
 | 1 | `invalid_argument` | `NULL` engine or output pointer, `NULL` message with a non-zero length, or a config limit out of range. |
 | 2 | `abi_mismatch` | `config->abi_version` differs from the library. |
 | 3 | `malformed_message` | Not UTF-8 JSON, duplicate object key, or nested deeper than `max_depth`. |
-| 4 | `invalid_message` | Valid JSON that breaks the message schema: unknown key, wrong type, missing required field, out-of-range value, or a value Dart could not encode (non-finite number reaching the output). |
+| 4 | `invalid_message` | Valid JSON that breaks the message schema (unknown key, wrong type, missing required field, out-of-range value, or a value Dart could not encode: a non-finite number reaching the output or, on state-changing messages, anywhere in the input), or a message the engine state does not admit (an event after `session_end`, `session.start` before a host is configured, `engine.configure` during a session). A rejected message changes no state. |
 | 5 | `unsupported_message` | Unknown message `type`. |
 | 6 | `contract_mismatch` | The message pins other contract versions than the engine. |
 | 7 | `message_too_large` | Longer than `max_message_bytes`. |
@@ -106,35 +136,91 @@ Messages are JSON in this slice. A compact binary encoding may replace JSON
 later behind the same versioning scheme: a new `_v2` entry point or a new
 ABI version, never a silent change to `submit_v1`.
 
+There are three kinds of message, all dispatched through one registry keyed
+by `type`:
+
+- **Stateless** operations (slice 2) compute a `result` from their input
+  alone and never touch engine state.
+- **Queries** (`session.snapshot`) read engine state and respond with a
+  `result`.
+- **Commands** change engine state and respond with `records` and
+  `effects`. Facts among them carry the time they describe in `at`.
+
 ### Envelope
 
 ```json
-{"type": "collector.event", "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6}, "input": { }}
+{"type": "event.record", "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6}, "at": {"monoUs": 81234567, "wallUs": 1791712345678901}, "input": { }}
 ```
 
 | Key | Required | Meaning |
 | --- | --- | --- |
 | `type` | yes | Message type (below). |
-| `input` | yes | Type-specific object. |
+| `input` | yes | Type-specific object (`{}` when the type takes none). |
+| `at` | per type | When the fact happened (below). Not allowed on stateless messages, queries, or `engine.configure`. |
 | `contract` | no | When present, both versions must equal the engine's, else `contract_mismatch`. An adapter that computes identity parts itself should send it. |
 
 Unknown envelope keys are `invalid_message`.
 
+`at` (docs/stateful-engine.md section 5):
+
+| Field | Meaning |
+| --- | --- |
+| `monoUs` | Host monotonic clock in microseconds at the moment of the fact (not of submission). A non-negative integer. Required on every fact. |
+| `wallUs` | UTC epoch microseconds at the same moment, within Dart's `DateTime` range. Required on `session.start`, `session.end`, and `identity.set`; optional elsewhere. |
+
+The engine never reads a clock. Event `atMs` is
+`floor((fact monoUs - session.start monoUs) / 1000)`, which is Dart's
+`Stopwatch.elapsedMilliseconds`; a fact stamped before its session started
+gets `0` (change C1).
+
+### Batch
+
+```json
+{"type": "batch", "messages": [{"type": "session.start", "at": {…}, "input": {…}}, {"type": "event.record", "at": {…}, "input": {…}}]}
+```
+
+A batch applies commands in order in one ABI call and returns their records
+and effects concatenated in order. Adapters behind an asynchronous seam send
+one batch per UI frame. A batch is all or nothing: every element is decoded
+and admitted against the state the earlier elements leave before any of
+them is applied, and the first failure rejects the whole batch with the
+element's path (`$.messages[2].input.stream`). Only commands can be
+batched; batches do not nest.
+
 ### Response
 
 ```json
-{"type": "collector.event", "result": {"record": { }}, "effects": []}
+{"type": "fingerprint.labelHash", "result": {"hash": "…"}, "effects": []}
+{"type": "event.record", "records": [{"kind": "event", "event": { }, "userId": null}], "effects": []}
 ```
 
-`result` has exactly the shape of a fixture's `expected`. `effects` is always
-empty in this slice. Hosts should already loop over it.
+Stateless messages and queries respond with `result` and an empty
+`effects`; `result` has exactly the shape of a fixture's `expected`.
+Commands and batches respond with `records` and `effects`. Hosts execute
+effects in order.
 
 The response is compact JSON. Object keys follow the Dart map insertion
 order, so a record serializes byte for byte like Dart `jsonEncode` of the
 same record. Fixtures do not pin byte order yet, so treat this as a goal and
 not a contract.
 
-### Vocabulary (implemented)
+Records are what happened, in append order (not id or `atMs` order):
+
+| Record | Fields |
+| --- | --- |
+| `{"kind": "event"}` | `event`: the recorded event exactly as `TugboatEvent.toJson()`, already enriched. `userId`: the runtime user id when the event was recorded, or `null`. |
+
+Effects are what the host must do. A host replaces an armed timer when it
+schedules one with the same id.
+
+| Effect | Fields | Host answer |
+| --- | --- | --- |
+| `timer.schedule` | `timerId`, `atMonoUs` | `timer.fired {timerId}` at that host monotonic time |
+| `timer.cancel` | `timerId` | none |
+
+No phase 3a message schedules a timer yet; delivery (3b) is the first owner.
+
+### Vocabulary: stateless operations
 
 The fixture kinds are the message types, and a fixture's `input` is the
 message `input`. The field-level vocabulary is in
@@ -146,6 +232,51 @@ message `input`. The field-level vocabulary is in
 | `fingerprint.labelHash` | `tugboatLabelHash` | `hash` |
 | `collector.event` | `mapTugboatEventToCollectorEvent` | `record` (one `/v1/events/batch` element) |
 | `collector.sessionLifecycle` | `mapTugboatSessionLifecycleToCollectorSession` | `record` (`/v1/sessions` body) |
+
+### Vocabulary: stateful messages
+
+| `type` | `at` | `input` | Does |
+| --- | --- | --- | --- |
+| `engine.configure` | none | `{host?, limits?, gesture?, interaction?, navigation?, capture?, collector?, capabilities?}` | Replaces the configuration (below). Only before the first session or between sessions. |
+| `session.start` | mono + wall | `{viewport: {width, height}, platform, sessionEpoch, locale?, activationRequestId?, explorationRunId?}` | Ends a live session first (C10), resets per-session state, and records `session_start`. The session id is `session-<wallUs>` and `startedAt` is the same instant. Needs a configured `host`. |
+| `session.end` | mono + wall | `{reason?}` (`session_end` or `dispose`) | Tears down in-flight work and records `session_end`. Idempotent. |
+| `app.lifecycle` | mono | `{state}`: `paused`, `hidden`, `inactive`, `resumed`, `detached` | `paused`/`hidden`/`detached` tear down in-flight work. Records `app_backgrounded`, `app_foregrounded`, `app_inactive`, or `app_detached` with `data.state`, dropping consecutive duplicates by state or event type. `detached` then ends the session. |
+| `event.record` | mono | `{eventType, stream, attachActionContext, data?, targetAnchor?, atMonoUs?}` | Records a toolkit-produced event (`scene_inventory`, `network_call`, `external_event`, …). `atMonoUs` (default `at.monoUs`) is the fact time. `stream` is `semantic`, `evidence`, `diagnostic`, or `legacy_projection`. Types the engine records itself are rejected. |
+| `locale.set` | mono | `{locale}` | Dedupes against the current locale, updates it, and records `locale_changed` (evidence stream, `data.previousLocale?`, `data.locale`) while a session is live. |
+| `identity.set` | mono + wall | `{userId}` (string or null) | Sets the runtime user id stamped on later records. |
+| `timer.fired` | mono | `{timerId}` | Routes to the module that armed the timer. Unknown, cancelled, and stale (fired before the current deadline) ids are ignored. |
+| `session.snapshot` | none | `{}` | Query. `result.snapshot` is the live or last session as `TugboatSession.toJson()` (schema 10), or `null` before the first session. |
+
+Enrichment follows Dart `_addEvent`: the current locale is stamped when the
+event has none; with `attachActionContext` the session's capture,
+activation, and exploration ids are stamped, and without it only where the
+event has none. Events are appended to the session, emitted as records, then
+trimmed: beyond `limits.maxEvents` the oldest are dropped and the session's
+`truncated` becomes and stays `true`. One counter mints `event-N` (and later
+`frame-N`, `capture_request-N`) per engine handle; it is never reset per
+session (C7, kept).
+
+Before the first session, events are dropped as in Dart (an `app.lifecycle`
+state still consumes an event id, as Dart's does). After `session_end`,
+`event.record` and `app.lifecycle` are `invalid_message` (change C9);
+`locale.set` only updates the locale for the next session.
+
+`engine.configure` groups, with Dart's defaults. Every field is optional
+and validated now; phase 3a acts on `host`, `limits.maxEvents`, and
+`host.configuredUserId` (the initial runtime user id until `identity.set`).
+
+| Group | Fields |
+| --- | --- |
+| `host` | The slice 1 `host` vocabulary. Everything the collector needs for `session_start` is required: `app.version`, `app.buildNumber`, the device with `screenSize`, `screenDensity`, `screenDpi`, and `screenPixelDensity` (finite), `ip.ip`, and `locale` (may be `{}`). |
+| `limits` | `maxEvents` 5000, `maxFrames` 500, `maxScrollSamples` 200 |
+| `gesture` | `touchSlop` 18, `panSlop` 36, `scaleSlop` 18, `trackpadScaleThreshold` 1.08 |
+| `interaction` | `claimWindowMs` 1250, `settleDelayMs` 1000, `maxReleased` 8, `scrollEndCaptureDelayMs` 0, `captureScrollSamples` false, `scrollCaptureIntervalMs` 2000, `factGraceMs` 0 |
+| `navigation` | `routeBarrierTimeoutMs` 5000, `routeStackLimit` 16 |
+| `capture` | `budgetMs` 60, `budgetWindowMs` 5000, `degradedScale` 0.8 |
+| `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 20, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false |
+| `capabilities` | `sceneInventory`, `viewportSemanticMap`, `captureDiagnostics`, `actionContext`, `focusChanges`, `systemInput`, all false |
+
+Durations are milliseconds in [0, 86400000]; counts are in [1, 1000000].
 
 ### Dart equivalence
 
@@ -185,30 +316,16 @@ Where the engine is stricter than Dart's `jsonDecode`:
 - Invalid UTF-8 bytes are rejected. They cannot reach a Dart `String` from a
   host anyway.
 
-## Planned messages (not implemented)
+## Next phases
 
-The stateful engine will take over `TugboatReplayController` orchestration.
-The design under review is
-[docs/stateful-engine.md](docs/stateful-engine.md); it supersedes the sketch
-below where they differ. The expected vocabulary, which changes with the
-next slices:
-
-- **Session:** `session.start` (host metadata, injected clock, ids),
-  `session.end`, `session.identify` / `traits`. The engine holds session
-  state, user and traits ids, and event sequencing.
-- **Adapter facts:** pointer down/move/up/cancel, scroll start/update/end,
-  navigation (push/pop/replace, overlays), focus and text input, anchors and
-  identity parts, and frame-capture results. The engine forms interaction
-  transactions and dedup decisions from these facts.
-- **Host signals:** `clock.tick` and timer fires, `delivery.ack` /
-  `delivery.failed` for a batch id, and lifecycle (background, foreground,
-  terminate).
-- **Effects** (in `effects`): `collector.sendBatch` (records plus a batch id),
-  `collector.sendSession`, `timer.schedule` / `timer.cancel` (flush), and
-  `frame.capture` requests. The host executes them and reports the result
-  back as messages, so the engine never performs I/O or reads a clock.
-- **Records** that a stateful message emits will appear in the response
-  next to `effects`.
+[docs/stateful-engine.md](docs/stateful-engine.md) is the accepted design.
+Its section 13 splits the rest of the stateful engine into phases, each one
+PR with its own scenario fixtures: collector delivery (3b, `http.send`,
+`transport.result`), interactions (3c, `input.pointer`, `scroll`, …), and
+navigation and capture coordination (3d, `navigation`, `capture.request`,
+`capture.result`). Each adds its message handlers in its own files and
+registers them in `modules.cpp`, and hooks its in-flight work into the
+teardown stages.
 
 ## Portability
 
@@ -240,13 +357,13 @@ umbrella header `double-conversion.h` and build files are not vendored. See
 bash tool/ci/run-session-engine-tests.sh
 ```
 
-This configures with GCC, ASan, and UBSan, then runs two CTest tests.
-`tb_session_engine_test` holds the unit tests.
-`tb_session_engine_conformance` runs every `conformance/**/*.json` through
-`tb_session_engine_submit_v1`. To run a subset:
+This configures with GCC, ASan, and UBSan, then runs three CTest tests.
+`tb_session_engine_test` and `tb_session_engine_stateful_test` hold the unit
+tests. `tb_session_engine_conformance` runs every `conformance/**/*.json`
+through `tb_session_engine_submit_v1`. To run a subset:
 
 ```sh
-./build/session-engine/tb_session_engine_conformance conformance collector/event
+./build/session-engine/tb_session_engine_conformance conformance engine/scenario
 ```
 
 The conformance runner:
@@ -260,6 +377,14 @@ The conformance runner:
 4. compares `result` with `expected` using type-strict deep equality
    (`390` ≠ `390.0`, absent ≠ `null`, key order ignored). On a mismatch it
    prints one line per differing JSON path and the actual result.
+
+`engine.scenario` fixtures run on a fresh handle: the runner sends
+`input.configure` as `engine.configure`, then each step's `send` byte for
+byte, and compares the step's `records` and `effects` (or its `error` status
+and path) with the response. It stops a scenario at the first failing step
+and names the step, its message type, every differing path, and the actual
+response. Finally it compares `session.snapshot` with `finalSnapshot`. It
+runs `engineOnly` scenarios too.
 
 It parses JSON with its own small reader, so a parser bug in the engine
 cannot hide itself on both sides of the comparison. It also fails when a

@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "dart_time.h"
+#include "host.h"
+#include "models.h"
 #include "operations.h"
 #include "tugboat/tb_session_engine.h"
 
@@ -17,63 +19,10 @@ namespace engine {
 
 namespace {
 
-using OptString = std::optional<std::string>;
-
 constexpr int64_t kInteractionSchemaVersion = 2;
 constexpr int64_t kRouteChangeSchemaVersion = 2;
 
-// ------------------------------------------------------------- input model
-
-struct AppInfo {
-  std::string name;
-  std::string version;
-  std::string build_number;
-  std::string installation_id;
-  std::string app_id;
-};
-
-struct DeviceInfo {
-  std::string id;
-  std::string platform;
-  OptString manufacturer;
-  OptString model;
-  OptString os_version;
-  std::optional<int64_t> battery_percent;
-  std::optional<int64_t> storage_free_mb;
-  std::optional<int64_t> ram_mb;
-  OptString network_type;
-  double screen_width = 0;
-  double screen_height = 0;
-  double screen_density = 0;
-  int64_t screen_dpi = 0;
-  double screen_pixel_density = 0;
-};
-
-struct IpInfo {
-  std::string ip;
-  OptString city;
-  OptString region;
-  OptString country;
-  OptString timezone;
-  OptString isp;
-  OptString org;
-};
-
-struct ConfiguredLocale {
-  OptString language;
-  OptString country;
-  OptString timezone;
-};
-
-struct Host {
-  AppInfo app;
-  DeviceInfo device;
-  IpInfo ip;
-  ConfiguredLocale locale;
-  OptString configured_user_id;
-};
-
-struct Session {
+struct CollectorSession {
   OptString session_id;
   int64_t started_at_ms = 0;
   OptString user_id;
@@ -81,135 +30,16 @@ struct Session {
   const Value* traits = nullptr;  // borrowed from the message
 };
 
-// Active-locale evidence (TugboatLocaleInfo).
-struct LocaleInfo {
-  std::string language;
-  OptString country;
-  OptString script;
-  std::string tag;
-};
-
-struct Anchor {
-  int64_t schema_version = 1;
-  OptString widget_type;
-  OptString role;
-  OptString fingerprint;
-  OptString fingerprint_confidence;
-  OptString tag_fingerprint;
-  std::vector<Member> fingerprint_parts;  // string values, input order
-  OptString canonical_path;
-  OptString relative_position;
-  std::optional<bool> enabled;
-  std::vector<std::string> actions;
-};
-
-struct Event {
-  std::string id;
-  int64_t at_ms = 0;
-  std::string type;
-  std::string stream;
-  std::optional<Anchor> anchor;
-  OptString before_frame;
-  OptString after_frame;
-  OptString result;
-  OptString related_event_id;
-  Value data = Value::object();
-  std::optional<LocaleInfo> locale;
-  OptString exploration_run_id;
-  OptString action_id;
-};
-
 // ---------------------------------------------------------------- decoding
 
-bool decode_app(const Value& json, const std::string& where, AppInfo* out,
-                Error* error) {
-  const ObjectReader r(json, where, error);
-  return r.check_keys(
-             {"name", "version", "buildNumber", "installationId", "appId"}) &&
-         r.req_string("name", &out->name) &&
-         r.req_string("version", &out->version) &&
-         r.req_string("buildNumber", &out->build_number) &&
-         r.req_string("installationId", &out->installation_id) &&
-         r.req_string("appId", &out->app_id);
-}
-
-bool decode_screen(const ObjectReader& device, DeviceInfo* out, Error* error) {
-  const Value* screen = nullptr;
-  if (!device.req_object("screenSize", &screen)) {
-    return false;
-  }
-  const ObjectReader r(*screen, device.child("screenSize"), error);
-  return r.check_keys({"width", "height"}) &&
-         r.req_double("width", &out->screen_width) &&
-         r.req_double("height", &out->screen_height);
-}
-
-bool decode_device(const Value& json, const std::string& where,
-                   DeviceInfo* out, Error* error) {
-  const ObjectReader r(json, where, error);
-  return r.check_keys({"id", "platform", "manufacturer", "model", "osVersion",
-                       "batteryPercent", "storageFreeMb", "ramMb",
-                       "networkType", "screenSize", "screenDensity",
-                       "screenDpi", "screenPixelDensity"}) &&
-         decode_screen(r, out, error) && r.req_string("id", &out->id) &&
-         r.req_string("platform", &out->platform) &&
-         r.opt_string("manufacturer", &out->manufacturer) &&
-         r.opt_string("model", &out->model) &&
-         r.opt_string("osVersion", &out->os_version) &&
-         r.opt_int("batteryPercent", &out->battery_percent) &&
-         r.opt_int("storageFreeMb", &out->storage_free_mb) &&
-         r.opt_int("ramMb", &out->ram_mb) &&
-         r.opt_string("networkType", &out->network_type) &&
-         r.req_double("screenDensity", &out->screen_density) &&
-         r.req_int("screenDpi", &out->screen_dpi) &&
-         r.req_double("screenPixelDensity", &out->screen_pixel_density);
-}
-
-bool decode_ip(const Value& json, const std::string& where, IpInfo* out,
-               Error* error) {
-  const ObjectReader r(json, where, error);
-  return r.check_keys(
-             {"ip", "city", "region", "country", "timezone", "isp", "org"}) &&
-         r.req_string("ip", &out->ip) && r.opt_string("city", &out->city) &&
-         r.opt_string("region", &out->region) &&
-         r.opt_string("country", &out->country) &&
-         r.opt_string("timezone", &out->timezone) &&
-         r.opt_string("isp", &out->isp) && r.opt_string("org", &out->org);
-}
-
-bool decode_configured_locale(const Value& json, const std::string& where,
-                              ConfiguredLocale* out, Error* error) {
-  const ObjectReader r(json, where, error);
-  return r.check_keys({"language", "country", "timezone"}) &&
-         r.opt_string("language", &out->language) &&
-         r.opt_string("country", &out->country) &&
-         r.opt_string("timezone", &out->timezone);
-}
-
-bool decode_host(const ObjectReader& input, Host* out, Error* error) {
+bool decode_input_host(const ObjectReader& input, Host* out, Error* error) {
   const Value* json = nullptr;
-  if (!input.req_object("host", &json)) {
-    return false;
-  }
-  const ObjectReader r(*json, input.child("host"), error);
-  const Value* app = nullptr;
-  const Value* device = nullptr;
-  const Value* ip = nullptr;
-  const Value* locale = nullptr;
-  return r.check_keys({"app", "device", "ip", "locale", "configuredUserId"}) &&
-         r.req_object("app", &app) &&
-         decode_app(*app, r.child("app"), &out->app, error) &&
-         r.req_object("device", &device) &&
-         decode_device(*device, r.child("device"), &out->device, error) &&
-         r.req_object("ip", &ip) &&
-         decode_ip(*ip, r.child("ip"), &out->ip, error) &&
-         r.req_object("locale", &locale) &&
-         decode_configured_locale(*locale, r.child("locale"), &out->locale,
-                                  error) &&
-         r.opt_string("configuredUserId", &out->configured_user_id);
+  return input.req_object("host", &json) &&
+         decode_host(*json, input.child("host"), out, error);
 }
 
-bool decode_session(const ObjectReader& input, Session* out, Error* error) {
+bool decode_session(const ObjectReader& input, CollectorSession* out,
+                    Error* error) {
   const Value* json = nullptr;
   if (!input.req_object("session", &json)) {
     return false;
@@ -231,106 +61,18 @@ bool decode_session(const ObjectReader& input, Session* out, Error* error) {
   return true;
 }
 
-// `*present` is false when the locale is absent or null.
-bool decode_locale(const Value* json, const std::string& where,
-                   std::optional<LocaleInfo>* out, Error* error) {
-  out->reset();
-  if (json == nullptr || json->is_null()) {
-    return true;
-  }
-  if (!json->is_object()) {
-    return invalid(error, where, "expected object");
-  }
-  const ObjectReader r(*json, where, error);
-  LocaleInfo locale;
-  if (!r.check_keys({"language", "country", "script", "tag"}) ||
-      !r.req_string("language", &locale.language) ||
-      !r.opt_string("country", &locale.country) ||
-      !r.opt_string("script", &locale.script) ||
-      !r.req_string("tag", &locale.tag)) {
-    return false;
-  }
-  *out = std::move(locale);
-  return true;
-}
-
-bool decode_anchor_lists(const ObjectReader& r, Anchor* out, Error* error) {
-  const Value* parts = nullptr;
-  if (!r.opt_object("fingerprintParts", &parts)) {
-    return false;
-  }
-  if (parts != nullptr) {
-    for (const Member& member : parts->members()) {
-      if (!member.value.is_string()) {
-        // Map<String, String>.from throws on a non-string value.
-        return invalid(error, r.child("fingerprintParts") + "." + member.key,
-                       "expected string");
-      }
-      out->fingerprint_parts.push_back(member);
-    }
-  }
-  const Value* actions = r.get("actions");
-  if (actions == nullptr) {
-    return true;
-  }
-  if (!actions->is_array()) {
-    return invalid(error, r.child("actions"), "expected array");
-  }
-  size_t index = 0;
-  for (const Value& action : actions->items()) {
-    if (!action.is_string()) {
-      // `.cast<String>()` fails when the list is encoded.
-      return invalid(error,
-                     r.child("actions") + "[" + std::to_string(index) + "]",
-                     "expected string");
-    }
-    out->actions.push_back(action.as_string());
-    ++index;
-  }
-  return true;
-}
-
-bool decode_anchor(const Value* json, const std::string& where,
-                   std::optional<Anchor>* out, Error* error) {
-  out->reset();
-  if (json == nullptr) {
-    return true;
-  }
-  const ObjectReader r(*json, where, error);
-  Anchor anchor;
-  std::optional<int64_t> schema_version;
-  if (!r.check_keys({"schemaVersion", "widgetType", "role", "fingerprint",
-                     "fingerprintConfidence", "tagFingerprint",
-                     "fingerprintParts", "canonicalPath", "relativePosition",
-                     "enabled", "actions"}) ||
-      !r.opt_int("schemaVersion", &schema_version) ||
-      !r.opt_string("widgetType", &anchor.widget_type) ||
-      !r.opt_string("role", &anchor.role) ||
-      !r.opt_string("fingerprint", &anchor.fingerprint) ||
-      !r.opt_string("fingerprintConfidence", &anchor.fingerprint_confidence) ||
-      !r.opt_string("tagFingerprint", &anchor.tag_fingerprint) ||
-      !r.opt_string("canonicalPath", &anchor.canonical_path) ||
-      !r.opt_string("relativePosition", &anchor.relative_position) ||
-      !r.opt_bool("enabled", &anchor.enabled) ||
-      !decode_anchor_lists(r, &anchor, error)) {
-    return false;
-  }
-  anchor.schema_version = schema_version.value_or(1);
-  *out = std::move(anchor);
-  return true;
-}
-
-bool check_event_enums(const ObjectReader& r, const Event& event,
-                       Error* error) {
+bool check_event_enums(const ObjectReader& r, const std::string& stream,
+                       Event* event, Error* error) {
   // TugboatEventStream.parse and TugboatInteractionResult.values.byName
   // reject anything outside the Dart enums.
-  if (event.stream != "semantic" && event.stream != "evidence" &&
-      event.stream != "diagnostic") {
+  const std::optional<EventStream> parsed = parse_stream(stream, false);
+  if (!parsed) {
     return invalid(error, r.child("stream"), "unsupported stream");
   }
-  if (event.result && *event.result != "changed" &&
-      *event.result != "noVisibleChange" && *event.result != "navigated" &&
-      *event.result != "unknown") {
+  event->stream = *parsed;
+  if (event->result && *event->result != "changed" &&
+      *event->result != "noVisibleChange" && *event->result != "navigated" &&
+      *event->result != "unknown") {
     return invalid(error, r.child("result"), "unsupported result");
   }
   return true;
@@ -344,12 +86,13 @@ bool decode_event(const ObjectReader& input, Event* out, Error* error) {
   const ObjectReader r(*json, input.child("event"), error);
   const Value* anchor = nullptr;
   const Value* data = nullptr;
+  std::string stream;
   if (!r.check_keys({"id", "atMs", "type", "stream", "targetAnchor",
                      "beforeFrame", "afterFrame", "result", "relatedEventId",
                      "data", "locale", "explorationRunId", "actionId"}) ||
       !r.req_string("id", &out->id) || !r.req_int("atMs", &out->at_ms) ||
       !r.req_string("type", &out->type) ||
-      !r.req_string("stream", &out->stream) ||
+      !r.req_string("stream", &stream) ||
       !r.opt_object("targetAnchor", &anchor) ||
       !decode_anchor(anchor, r.child("targetAnchor"), &out->anchor, error) ||
       !r.opt_string("beforeFrame", &out->before_frame) ||
@@ -361,7 +104,7 @@ bool decode_event(const ObjectReader& input, Event* out, Error* error) {
                      error) ||
       !r.opt_string("explorationRunId", &out->exploration_run_id) ||
       !r.opt_string("actionId", &out->action_id) ||
-      !check_event_enums(r, *out, error)) {
+      !check_event_enums(r, stream, out, error)) {
     return false;
   }
   if (data != nullptr) {
@@ -374,62 +117,10 @@ bool decode_event(const ObjectReader& input, Event* out, Error* error) {
 
 Value str(const std::string& s) { return Value::string(s); }
 
-// Writes `value` under `key` only when present (Dart `if (x != null)`).
-void put_opt(Value* object, const char* key, const OptString& value) {
-  if (value) {
-    object->set(key, str(*value));
-  }
-}
-
-// Dart `if (x != null && x!.isNotEmpty)`.
-void put_non_empty(Value* object, const char* key, const OptString& value) {
-  if (value && !value->empty()) {
-    object->set(key, str(*value));
-  }
-}
-
 Value string_list(const std::vector<std::string>& items) {
   Value out = Value::array();
   for (const std::string& item : items) {
     out.push(str(item));
-  }
-  return out;
-}
-
-// TugboatLocaleInfo.toJson: country and script are dropped when empty.
-Value locale_json(const LocaleInfo& locale) {
-  Value out = Value::object();
-  out.set("language", str(locale.language));
-  put_non_empty(&out, "country", locale.country);
-  put_non_empty(&out, "script", locale.script);
-  out.set("tag", str(locale.tag));
-  return out;
-}
-
-// TugboatTargetAnchor.toJson (generic envelope): schemaVersion only when not
-// 1, fingerprintParts kept.
-Value anchor_json(const Anchor& anchor) {
-  Value out = Value::object();
-  if (anchor.schema_version != 1) {
-    out.set("schemaVersion", Value::integer(anchor.schema_version));
-  }
-  put_opt(&out, "widgetType", anchor.widget_type);
-  put_opt(&out, "role", anchor.role);
-  put_non_empty(&out, "fingerprint", anchor.fingerprint);
-  put_non_empty(&out, "fingerprintConfidence", anchor.fingerprint_confidence);
-  put_non_empty(&out, "tagFingerprint", anchor.tag_fingerprint);
-  if (!anchor.fingerprint_parts.empty()) {
-    Value parts = Value::object();
-    parts.members() = anchor.fingerprint_parts;
-    out.set("fingerprintParts", std::move(parts));
-  }
-  put_non_empty(&out, "canonicalPath", anchor.canonical_path);
-  put_opt(&out, "relativePosition", anchor.relative_position);
-  if (anchor.enabled) {
-    out.set("enabled", Value::boolean(*anchor.enabled));
-  }
-  if (!anchor.actions.empty()) {
-    out.set("actions", string_list(anchor.actions));
   }
   return out;
 }
@@ -483,7 +174,7 @@ const Value* data_value(const Value& data, const char* key) {
 struct EnvelopeContext {
   const Event& event;
   const Host& host;
-  const Session& session;
+  const CollectorSession& session;
   std::string triggered_at;
 };
 
@@ -499,7 +190,7 @@ Value envelope_head(const EnvelopeContext& ctx) {
   out.set("userId",
           ctx.session.user_id ? str(*ctx.session.user_id) : Value::null());
   out.set("eventType", str(event.type));
-  out.set("stream", str(event.stream));
+  out.set("stream", str(stream_name(event.stream)));
   out.set("enrichmentCandidate", Value::boolean(event.type == "interaction"));
   return out;
 }
@@ -676,7 +367,8 @@ Value map_event(const EnvelopeContext& ctx) {
     return flat_envelope(ctx, route_change_extra(event.data));
   }
   if (event.type == "network_call") {
-    return generic_envelope(ctx, network_call_payload(event.data, event.stream));
+    return generic_envelope(
+        ctx, network_call_payload(event.data, stream_name(event.stream)));
   }
   return generic_envelope(ctx, generic_payload(event));
 }
@@ -752,10 +444,11 @@ void add_session_start_metadata(const Host& host,
 bool run_collector_event(const Value& input, Value* result, Error* error) {
   const ObjectReader r(input, "$.input", error);
   Host host;
-  Session session;
+  CollectorSession session;
   Event event;
   if (!r.check_keys({"host", "session", "event"}) ||
-      !decode_host(r, &host, error) || !decode_session(r, &session, error)) {
+      !decode_input_host(r, &host, error) ||
+      !decode_session(r, &session, error)) {
     return false;
   }
   if (session.traits != nullptr) {
@@ -779,10 +472,11 @@ bool run_collector_event(const Value& input, Value* result, Error* error) {
 bool run_session_lifecycle(const Value& input, Value* result, Error* error) {
   const ObjectReader r(input, "$.input", error);
   Host host;
-  Session session;
+  CollectorSession session;
   const Value* lifecycle_json = nullptr;
   if (!r.check_keys({"host", "session", "lifecycle"}) ||
-      !decode_host(r, &host, error) || !decode_session(r, &session, error) ||
+      !decode_input_host(r, &host, error) ||
+      !decode_session(r, &session, error) ||
       !r.req_object("lifecycle", &lifecycle_json)) {
     return false;
   }

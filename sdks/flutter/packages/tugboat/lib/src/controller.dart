@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'anchors.dart';
 import 'capture_sink.dart';
 import 'collector_http_sink.dart';
+import 'controller_clock.dart';
 import 'coordinate_space.dart';
 import 'debug_logging.dart';
 import 'exploration_sink.dart';
@@ -1046,7 +1047,6 @@ class TugboatReplayController extends ChangeNotifier {
   String? _initialUserId;
   bool _initialUserIdOverride;
 
-  final Stopwatch _clock = Stopwatch();
   Future<void> _queue = Future.value();
   int _queuedTaskCount = 0;
   Future<void>? _endSessionFuture;
@@ -1158,7 +1158,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   bool get scrolling => _scrollTrackers.isNotEmpty;
   bool get capturePaused => _capturePaused;
-  int get atMs => _clock.elapsedMilliseconds;
+  int get atMs => debugClock.elapsedMilliseconds;
   String? get currentRoute => _currentRoute;
   String? get latestFrameId => _latestFrameId;
 
@@ -1168,6 +1168,37 @@ class TugboatReplayController extends ChangeNotifier {
   /// Production acquires/disposes semantics transiently inside the map builder.
   bool get _holdPersistentSemanticsHandle =>
       _viewportSemantics.holdPersistentSemanticsHandle;
+
+  /// Session clocks: the wall clock for the session id and `startedAt`, the
+  /// elapsed clock for event `atMs`. Tests replace them before [start] to run
+  /// deterministic session-engine scenarios.
+  @visibleForTesting
+  TugboatControllerClock debugClock = TugboatStopwatchClock();
+
+  /// Records one toolkit-produced event the way the session engine's
+  /// `event.record` does: mints the id, stamps [atMs], then appends with
+  /// [_addEvent]. Nothing is recorded without a session.
+  @visibleForTesting
+  void debugRecordEvent({
+    required String type,
+    required TugboatEventStream stream,
+    required bool attachActionContext,
+    Map<String, Object?> data = const {},
+    TugboatTargetAnchor? targetAnchor,
+  }) {
+    if (_session == null) return;
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: type,
+        stream: stream,
+        targetAnchor: targetAnchor,
+        data: data,
+      ),
+      attachActionContext: attachActionContext,
+    );
+  }
 
   @visibleForTesting
   void debugSetCurrentRoute(String? route) {
@@ -1675,14 +1706,12 @@ class TugboatReplayController extends ChangeNotifier {
     _lastLifecycleState = null;
     _lastLifecycleEventType = null;
     _endSessionFuture = null;
-    _clock
-      ..reset()
-      ..start();
+    debugClock.restart();
     final effectiveLocale = locale ?? _currentLocale;
     _currentLocale = effectiveLocale;
     _session = TugboatSession(
-      id: 'session-${DateTime.now().microsecondsSinceEpoch}',
-      startedAt: DateTime.now(),
+      id: 'session-${debugClock.now().microsecondsSinceEpoch}',
+      startedAt: debugClock.now(),
       platform: platform,
       viewport: TugboatRect(0, 0, viewport.width, viewport.height),
       appInfo: config.appInfo ?? config.collector?.appInfo,

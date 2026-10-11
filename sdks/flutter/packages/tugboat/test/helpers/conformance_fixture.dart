@@ -17,7 +17,8 @@ enum ConformanceKind {
   identityParts('fingerprint.identityParts', 'fingerprint/identity_parts'),
   labelHash('fingerprint.labelHash', 'fingerprint/label_hash'),
   collectorEvent('collector.event', 'collector/event'),
-  sessionLifecycle('collector.sessionLifecycle', 'collector/session_lifecycle');
+  sessionLifecycle('collector.sessionLifecycle', 'collector/session_lifecycle'),
+  engineScenario('engine.scenario', 'engine/scenario');
 
   const ConformanceKind(this.wireName, this.directory);
 
@@ -40,6 +41,7 @@ class ConformanceFixture {
     required this.contract,
     required this.input,
     required this.expected,
+    this.engineOnly = const [],
   });
 
   final String relativePath;
@@ -48,7 +50,18 @@ class ConformanceFixture {
   final Map<String, Object?> contract;
   final Map<String, Object?> input;
   final Map<String, Object?> expected;
+
+  /// Section 11 change ids (`engine.scenario` only) that the scenario
+  /// encodes. The Dart runner skips these scenarios: Dart keeps its shipped
+  /// behaviour until it moves onto the engine.
+  final List<String> engineOnly;
 }
+
+/// Change ids of docs/stateful-engine.md section 11.
+const conformanceChangeIds = {
+  'C1', 'C2', 'C3', 'C4', 'C5', 'C6', //
+  'C7', 'C8', 'C9', 'C10', 'C11', 'C12',
+};
 
 /// Walks up from the working directory to the repo's `conformance/` folder.
 Directory findConformanceRoot() {
@@ -86,6 +99,7 @@ const _envelopeKeys = {
   'contract',
   'input',
   'expected',
+  'engineOnly',
 };
 
 ConformanceFixture loadFixture(Directory root, File file) {
@@ -96,14 +110,32 @@ ConformanceFixture loadFixture(Directory root, File file) {
     throw FormatException('$relativePath: unsupported fixtureFormat');
   }
   _requireString(json, 'description', relativePath);
+  final kind = ConformanceKind.parse(json['kind']);
   return ConformanceFixture(
     relativePath: relativePath,
-    kind: ConformanceKind.parse(json['kind']),
+    kind: kind,
     name: _requireString(json, 'name', relativePath),
     contract: _object(json['contract'], '$relativePath.contract'),
     input: _object(json['input'], '$relativePath.input'),
     expected: _object(json['expected'], '$relativePath.expected'),
+    engineOnly: _engineOnly(json['engineOnly'], kind, relativePath),
   );
+}
+
+List<String> _engineOnly(Object? raw, ConformanceKind kind, String where) {
+  if (raw == null) return const [];
+  if (kind != ConformanceKind.engineScenario) {
+    throw FormatException('$where: engineOnly is only valid on scenarios');
+  }
+  final ids = _list(raw, '$where.engineOnly');
+  if (ids.isEmpty ||
+      ids.toSet().length != ids.length ||
+      !ids.every(conformanceChangeIds.contains)) {
+    throw FormatException(
+      '$where.engineOnly: distinct section 11 change ids (C1..C12)',
+    );
+  }
+  return ids.cast<String>();
 }
 
 /// Runs the current Dart implementation on [fixture.input] and returns the
@@ -122,8 +154,24 @@ Map<String, Object?> evaluateFixture(ConformanceFixture fixture) {
       return _evaluateCollectorEvent(input);
     case ConformanceKind.sessionLifecycle:
       return _evaluateSessionLifecycle(input);
+    case ConformanceKind.engineScenario:
+      throw ArgumentError('scenarios run step by step (engine_scenario.dart)');
   }
 }
+
+// ------------------------------------------------- shared input decoders
+
+/// Decodes a `host` object into the collector configuration it stands for.
+TugboatCollectorConfig decodeConformanceHost(Map<String, Object?> json) =>
+    _decodeHost(json);
+
+/// Decodes locale evidence; null when absent.
+TugboatLocaleInfo? decodeConformanceLocale(Object? raw, String where) =>
+    _decodeLocale(raw, where);
+
+/// Decodes a target anchor object.
+TugboatTargetAnchor decodeConformanceAnchor(Map<String, Object?> json) =>
+    _decodeAnchor(json);
 
 // --------------------------------------------------------------- fingerprint
 

@@ -1,10 +1,12 @@
-// Golden conformance fixtures shared with the future C++ session engine.
+// Golden conformance fixtures shared with the C++ session engine.
 //
 // Every fixture under `<repo>/conformance/` is evaluated against the current
 // Dart implementation and compared with its committed `expected` value. The
 // fixtures are reviewed artifacts: this test only reads them. To add or
 // change one, edit the JSON by hand, run this test, review the printed
 // actual output, and paste it into `expected` (see conformance/README.md).
+// `engine.scenario` fixtures run step by step on a real controller
+// (helpers/engine_scenario.dart); `engineOnly` scenarios are skipped.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/anchors.dart';
@@ -12,8 +14,10 @@ import 'package:tugboat/src/markers.dart';
 import 'package:tugboat/src/models.dart';
 
 import 'helpers/conformance_fixture.dart';
+import 'helpers/engine_scenario.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final root = findConformanceRoot();
   final files = listFixtureFiles(root);
 
@@ -24,8 +28,15 @@ void main() {
 
   group('conformance fixture', () {
     for (final file in files) {
-      final relativePath = fixtureRelativePath(root, file);
-      test(relativePath, () => _expectFixture(loadFixture(root, file)));
+      final fixture = loadFixture(root, file);
+      test(
+        fixture.relativePath,
+        () => _expectFixture(fixture),
+        skip: fixture.engineOnly.isEmpty
+            ? null
+            : 'engineOnly ${fixture.engineOnly.join(', ')}: Dart keeps its '
+                  'shipped behaviour',
+      );
     }
   });
 
@@ -81,6 +92,14 @@ void _expectFixture(ConformanceFixture fixture) {
     reason: 'fixture is pinned to other contract versions; review and re-pin',
   );
 
+  if (fixture.kind == ConformanceKind.engineScenario) {
+    final mismatches = runEngineScenarioOnDart(fixture);
+    if (mismatches.isEmpty) return;
+    fail(
+      '${fixture.relativePath} does not match the Dart controller:\n'
+      '  ${mismatches.join('\n  ')}',
+    );
+  }
   final actual = evaluateFixture(fixture);
   final mismatches = diffJson(fixture.expected, actual, r'$.expected');
   if (mismatches.isEmpty) return;

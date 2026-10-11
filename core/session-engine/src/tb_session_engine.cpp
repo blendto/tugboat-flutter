@@ -7,17 +7,16 @@
 #include <string>
 #include <utility>
 
+#include "engine.h"
 #include "json.h"
-#include "operations.h"
 #include "reader.h"
 
 namespace {
 
 using tugboat::engine::Error;
-using tugboat::engine::ObjectReader;
 using tugboat::engine::Value;
 
-constexpr char kVersion[] = "0.1.0";
+constexpr char kVersion[] = "0.2.0";
 
 // Returned when the engine cannot allocate its own error document.
 constexpr char kOutOfMemoryJson[] =
@@ -28,20 +27,6 @@ constexpr char kBusyJson[] =
 constexpr char kInternalJson[] =
     "{\"error\":{\"status\":\"internal_error\",\"message\":\"internal "
     "error\"}}";
-
-using Handler = bool (*)(const Value&, Value*, Error*);
-
-struct MessageType {
-  const char* name;
-  Handler handler;
-};
-
-const MessageType kMessageTypes[] = {
-    {"fingerprint.identityParts", tugboat::engine::run_identity_parts},
-    {"fingerprint.labelHash", tugboat::engine::run_label_hash},
-    {"collector.event", tugboat::engine::run_collector_event},
-    {"collector.sessionLifecycle", tugboat::engine::run_session_lifecycle},
-};
 
 std::string error_document(const Error& error, const size_t* offset) {
   Value body = Value::object();
@@ -60,72 +45,13 @@ std::string error_document(const Error& error, const size_t* offset) {
   return out;
 }
 
-bool check_contract(const ObjectReader& envelope, Error* error) {
-  const Value* contract = nullptr;
-  if (!envelope.opt_object("contract", &contract)) {
-    return false;
-  }
-  if (contract == nullptr) {
-    return true;
-  }
-  const ObjectReader r(*contract, envelope.child("contract"), error);
-  int64_t session_schema = 0;
-  int64_t fingerprint_schema = 0;
-  if (!r.check_keys({"sessionSchemaVersion", "fingerprintSchemaVersion"}) ||
-      !r.req_int("sessionSchemaVersion", &session_schema) ||
-      !r.req_int("fingerprintSchemaVersion", &fingerprint_schema)) {
-    return false;
-  }
-  if (session_schema != TB_SESSION_ENGINE_SESSION_SCHEMA_VERSION ||
-      fingerprint_schema != TB_SESSION_ENGINE_FINGERPRINT_SCHEMA_VERSION) {
-    return tugboat::engine::fail(
-        error, TB_SESSION_CONTRACT_MISMATCH, envelope.child("contract"),
-        "engine implements sessionSchemaVersion " +
-            std::to_string(TB_SESSION_ENGINE_SESSION_SCHEMA_VERSION) +
-            " and fingerprintSchemaVersion " +
-            std::to_string(TB_SESSION_ENGINE_FINGERPRINT_SCHEMA_VERSION));
-  }
-  return true;
-}
-
-// Dispatches one parsed message. On success `*response` is the response
-// document.
-bool handle_message(const Value& message, Value* response, Error* error) {
-  if (!message.is_object()) {
-    return tugboat::engine::invalid(error, "$", "expected object");
-  }
-  const ObjectReader envelope(message, "$", error);
-  std::string type;
-  const Value* input = nullptr;
-  if (!envelope.check_keys({"type", "contract", "input"}) ||
-      !envelope.req_string("type", &type) || !check_contract(envelope, error) ||
-      !envelope.req_object("input", &input)) {
-    return false;
-  }
-  for (const MessageType& entry : kMessageTypes) {
-    if (type != entry.name) {
-      continue;
-    }
-    Value result;
-    if (!entry.handler(*input, &result, error)) {
-      return false;
-    }
-    *response = Value::object();
-    response->set("type", Value::string(type));
-    response->set("result", std::move(result));
-    response->set("effects", Value::array());
-    return true;
-  }
-  return tugboat::engine::fail(error, TB_SESSION_UNSUPPORTED_MESSAGE, "$.type",
-                               "unknown message type");
-}
-
 }  // namespace
 
 struct tb_session_engine {
   uint32_t max_depth = TB_SESSION_ENGINE_DEFAULT_MAX_DEPTH;
   size_t max_message_bytes = TB_SESSION_ENGINE_DEFAULT_MAX_MESSAGE_BYTES;
   std::atomic<bool> busy{false};
+  tugboat::engine::Engine engine;
   // Last response; borrowed by the host until the next call.
   std::string output;
 
@@ -149,14 +75,16 @@ struct tb_session_engine {
       return error.status;
     }
     Value response;
-    if (!handle_message(parsed, &response, &error)) {
+    if (!engine.handle(parsed, &response, &error)) {
       output = error_document(error, nullptr);
       return error.status;
     }
     std::string json;
     std::string bad_path;
     if (!tugboat::engine::write_json(response, &json, &bad_path)) {
-      // Dart jsonEncode throws on NaN and infinities.
+      // Dart jsonEncode throws on NaN and infinities. Stateless results can
+      // carry them; state-changing messages reject them while decoding, so
+      // no applied message reaches this.
       error.status = TB_SESSION_INVALID_MESSAGE;
       error.path = bad_path;
       error.message = "non-finite number cannot be encoded";

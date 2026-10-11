@@ -25,12 +25,28 @@ set(_tb_dc_sources
   ${_tb_dc}/double-conversion/string-to-double.cc
   ${_tb_dc}/double-conversion/strtod.cc)
 set(_tb_engine_sources
+  src/clock.cpp
   src/collector.cpp
+  src/config.cpp
   src/dart_time.cpp
+  src/engine.cpp
+  src/engine_messages.cpp
+  src/evidence_messages.cpp
   src/fingerprint.cpp
+  src/host.cpp
   src/json.cpp
+  src/lifecycle.cpp
+  src/messages.cpp
+  src/models.cpp
+  src/modules.cpp
+  src/output.cpp
   src/reader.cpp
+  src/recorder.cpp
+  src/session.cpp
+  src/session_messages.cpp
+  src/stateless_messages.cpp
   src/tb_session_engine.cpp
+  src/teardown.cpp
   src/text.cpp)
 
 add_library(tugboat_session_engine STATIC ${_tb_engine_sources}
@@ -61,13 +77,23 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
   # Unit tests reach internal headers; the conformance runner uses only the
   # public C ABI.
   add_executable(tb_session_engine_test tests/tb_session_engine_test.cpp)
-  target_include_directories(tb_session_engine_test PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_executable(tb_session_engine_stateful_test
+    tests/tb_session_engine_stateful_test.cpp)
+  foreach(_tb_unit IN ITEMS tb_session_engine_test
+                            tb_session_engine_stateful_test)
+    target_include_directories(${_tb_unit} PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  endforeach()
   add_executable(tb_session_engine_conformance
-    tests/tb_session_engine_conformance.cpp)
+    tests/tb_session_engine_conformance.cpp
+    tests/conformance/conformance_json.cpp
+    tests/conformance/scenario_runner.cpp)
+  target_include_directories(tb_session_engine_conformance PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests")
   target_compile_definitions(tb_session_engine_conformance PRIVATE
     TB_CONFORMANCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../conformance")
   foreach(_tb_test IN ITEMS tb_session_engine_test
+                            tb_session_engine_stateful_test
                             tb_session_engine_conformance)
     target_link_libraries(${_tb_test} PRIVATE tugboat_session_engine)
     target_compile_options(${_tb_test} PRIVATE -Wall -Wextra -Wpedantic -Werror)
