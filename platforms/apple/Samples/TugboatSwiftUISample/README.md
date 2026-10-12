@@ -86,10 +86,12 @@ With the local collector running on port 3000:
 3. Scroll the list up and down.
 4. Swipe left across the orange **Swipe here** card.
 5. Tap **Open details**.
-6. Tap the text field and type a few characters (for example `hello`);
-   dismiss the keyboard by scrolling.
+6. Tap the text field and type a few characters (for example `hello`),
+   then swipe **up** on the cards so the content scrolls (the drag also
+   dismisses the keyboard).
 7. Rotate to landscape and back: in Simulator, Device > Rotate Left
-   (Cmd-Left), wait 2 s, then Device > Rotate Right (Cmd-Right).
+   (Cmd-Left), scroll the cards once (an interaction captures a landscape
+   frame), then Device > Rotate Right (Cmd-Right).
 8. Background: `xcrun simctl launch booted com.apple.Preferences` (or Shift-Cmd-H). Wait 2 s.
 9. Foreground: `xcrun simctl launch booted com.gettugboat.sample.swiftui`.
 10. Go back to Home and tap **Stop Tugboat**. Delivery of the last events and
@@ -105,17 +107,22 @@ With the local collector running on port 3000:
     back to `Home` (step 10);
   - `interaction` rows: `tap` on `add-to-cart`, `open-details`, `note-field`
     and `stop-tugboat`; `scroll` for the list (step 3) and the details scroll
-    view; `swipe` for the card (step 4). Each `targetAnchor` has
-    `toolkit: "swiftui"` (tagged targets carry the tag; list rows carry
-    `[item:section.row]`);
+    view; `swipe` for the card (step 4, no target anchor). Each
+    `targetAnchor` has `toolkit: "swiftui"` (tagged targets carry the tag;
+    list rows carry `[item:section.row]`). Untagged targets get their own
+    canonical paths (no shared `Representable#0`); a path through a
+    fail-closed box is `low` confidence. Interactions carry
+    `payload.position`;
   - `focus_changed` when the text field gains and loses focus;
   - `app_inactive`, `app_backgrounded` (step 8), `app_inactive`,
     `app_foregrounded` (step 9);
   - no `stateAnchor` on any v2 interaction.
 - `pmkit.frame_captures` and S3 `pmkit-frames/<sessionId>/<frameNo>.jpg`:
   frames with `requestedBackend` / `resolvedBackend` `nativeCpuExperimental`.
-  On iOS 26 text and images are masked per layer (dark `#1a1a1a` boxes over
-  text, images and SF Symbols); on iOS 15–25 every frame is masked whole
-  (unverified layer allowlist). Landscape frames after step 7 have the
+  On iOS 26 text and images inside the `NavigationStack` are masked per
+  layer (dark `#1a1a1a` boxes over text, images and SF Symbols; the rest of
+  the screen is visible) and `capture_masking` says `precise`; on iOS 15–25
+  every frame is masked whole (unverified layer allowlist) and says
+  `wholeFrame`. Landscape frames after step 7 have the
   rotated size.
 - Collector logs: no 400 responses.

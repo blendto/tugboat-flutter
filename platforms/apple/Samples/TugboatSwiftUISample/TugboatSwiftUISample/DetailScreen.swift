@@ -26,7 +26,20 @@ struct DetailScreen: View {
       }
       .padding()
     }
+    .modifier(DismissKeyboardOnScroll())
     .navigationTitle("Details")
     .tugboatScreen("Details")
+  }
+}
+
+/// Dragging the scroll view dismisses the keyboard at once and scrolls the
+/// content (iOS 16+), so the device test's scroll moves the content.
+private struct DismissKeyboardOnScroll: ViewModifier {
+  func body(content: Content) -> some View {
+    if #available(iOS 16.0, *) {
+      content.scrollDismissesKeyboard(.immediately)
+    } else {
+      content
+    }
   }
 }
