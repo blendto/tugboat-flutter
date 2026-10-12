@@ -66,7 +66,10 @@ Notes:
   thread when it handles `capture.request`. If it cannot enumerate the screen
   with confidence (for example, SwiftUI on an iOS major version whose layer
   allowlist is not verified, section 6.3), it masks the whole frame. It never sends an
-  unmasked frame. The default stays `allTextAndMedia`.
+  unmasked frame. The default stays `allTextAndMedia`. The one exception is an
+  explicit app opt-in that trades coverage for detail
+  (`ComposeMasking.SemanticsBestEffort`, section 2.1); every capture reports
+  which masking applied (`MaskCoverage`).
 
 ### 2.1 Mask sources under `allTextAndMedia`
 
@@ -76,7 +79,8 @@ their whole bounds because the SDK cannot see inside them.
 | Toolkit | Text | Media | Fail-closed bounds |
 | --- | --- | --- | --- |
 | Android Views | `TextView` (includes `EditText`, buttons) | `ImageView`, `VideoView` | `WebView`, `SurfaceView`, `TextureView` |
-| Compose | nodes with `Text` or `EditableText` semantics | `Role.Image`, and nodes with only a `ContentDescription` (image-like) | `AndroidView` interop bounds; the whole frame when the semantics owner is unavailable (section 6.2) |
+| Compose (default `ComposeMasking.WholeHost`) | the whole Compose host | the whole Compose host | the whole Compose host |
+| Compose (opt-in `ComposeMasking.SemanticsBestEffort`) | nodes with `Text` or `EditableText` semantics | `Role.Image`, and nodes with a `ContentDescription` (image-like) | `AndroidView` interop bounds; the whole frame when the semantics owner is unavailable (section 6.2); the whole host outside the tested Compose UI range (the opt-in is ignored). **Not masked (accepted by opting in):** content without semantics, such as `Image` / `Icon` / `AsyncImage` with a null `contentDescription`, `drawText`, and Canvas / `drawBehind` / `Modifier.paint` drawing. |
 | SwiftUI | allowlisted SwiftUI drawing layers (section 6.3); `UITextField`, `UITextView`, `UILabel` | allowlisted SwiftUI image layers, padded; `UIImageView` | `WKWebView`; any `UIViewRepresentable` host view; any unclassified layer with `contents` inside a hosting view; the whole frame on an iOS major version without a verified allowlist (section 6.3) |
 
 Adapter tests assert each row (section 8).
@@ -220,7 +224,7 @@ section per toolkit, in the PR that implements each adapter.
 | Token | The nearest **platform** class in the superclass chain (`android.*`, which R8 never renames), plus `#<resource entry name>` when the view has an id. A custom `MyButton : MaterialButton : Button` therefore becomes `Button#checkout`. |
 | Kept | Views that are actionable (clickable, long-clickable, checkable, editable, or with accessibility actions), views with an id, scrollables, and leaves that can be masked (text, image, web, video, surface). |
 | Lists | `RecyclerView` children use `getChildAdapterPosition`. `AbsListView` children use first-visible position plus their index. |
-| Route key | Jetpack Navigation destination route or id entry name, then the top fragment's tag, then the fragment class, then the activity class. Activities are kept by the manifest. Fragment class names can be obfuscated, so they score `low` confidence. |
+| Route key | Jetpack Navigation destination route pattern (arguments stripped: `checkout/{id}?step={s}` is `checkout`) or id entry name, then the top fragment's tag, then the fragment class, then the activity class. Activities are kept by the manifest. Fragment class names can be obfuscated, so they score `low` confidence. |
 | Alias | The `tugboatTag` view tag, then a unique resource entry name within the route. Both are high confidence. |
 | Obfuscation | Resource entry names survive normal release builds. If resource-name obfuscation is enabled, ids are dropped from tokens rather than used. |
 
@@ -231,8 +235,8 @@ section per toolkit, in the PR that implements each adapter.
 | Token | `Role` (Button, Checkbox, Switch, RadioButton, Tab, Image, DropdownList), then `TextField` for editable nodes, `Scrollable` for nodes with a scroll range, and `Node` otherwise. |
 | Source | The merged semantics tree read through `ViewRootForTest.semanticsOwner`. Only nodes that are actionable, editable, scrollable, maskable, or tagged are kept. |
 | Stability | `semanticsOwner` is treated as unstable API. It is reached through `runCatching`. `tugboat-compose` pins the Compose UI version range it is tested against. When the owner is unavailable, the anchor falls back to the hosting `View` identity (section 6.1, `toolkit` stays `compose`) and the frame is masked in full. |
-| Lists | `CollectionItemInfo` index, with traversal order as the fallback. |
-| Route key | The `trackNavigation` route pattern (arguments stripped), then the hosting activity. |
+| Lists | `CollectionItemInfo` index. Without it (lazy layouts set none) the item is `[item]`: on-screen order is not identity, so the index is dropped and the path confidence is `low`. |
+| Route key | The host view's Views route (section 6.1): the same `trackNavigation` route pattern, arguments stripped once by the Views adapter, then the hosting activity (or the fragment around a `ComposeView`). |
 | Alias | `Modifier.tugboatTag`, then `testTag`. Both are high confidence. |
 
 ### 6.3 SwiftUI

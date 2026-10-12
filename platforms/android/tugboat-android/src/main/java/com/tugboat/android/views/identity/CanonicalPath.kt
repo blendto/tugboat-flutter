@@ -4,6 +4,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.AbsListView
 import com.tugboat.android.views.OptionalAndroidx
+import com.tugboat.android.views.region.Regions
 
 /** A target's structural path within its route root. */
 internal class CanonicalPath(val segments: List<String>, val inListItem: Boolean) {
@@ -14,7 +15,8 @@ internal class CanonicalPath(val segments: List<String>, val inListItem: Boolean
 /**
  * Builds canonical paths (design note 6.1).
  *
- * - A segment is the platform token ([PlatformToken]) plus `#<ordinal>`, or
+ * - A segment is the platform token ([PlatformToken]; a toolkit region host
+ *   takes its region's host token) plus `#<ordinal>`, or
  *   `#<entry name>` when the view has a resource id. A repeated named token
  *   gets a further `#<ordinal>` (`Button#save#1`).
  * - Only kept views ([ViewRules.isKept]) get segments; the rest collapse.
@@ -50,10 +52,10 @@ internal class CanonicalPathBuilder(private val names: ResourceNames) {
         return CanonicalPath(segments, inListItem)
     }
 
-    /** `Button` or `Button#checkout`. */
+    /** `Button` or `Button#checkout`; a region host takes its region's host token (`Compose`). */
     fun token(view: View): String {
         val name = names.entryName(view)
-        val platform = PlatformToken.name(view)
+        val platform = Regions.regionOf(view)?.hostToken ?: PlatformToken.name(view)
         return if (name == null) platform else "$platform#$name"
     }
 

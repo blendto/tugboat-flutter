@@ -2,6 +2,7 @@ package com.tugboat.android.views.identity
 
 import android.view.View
 import android.view.ViewGroup
+import com.tugboat.android.views.region.Regions
 
 /**
  * Resolves target anchors against the live View tree (design note 6, 6.1).
@@ -13,6 +14,9 @@ import android.view.ViewGroup
  * - **Confidence**: the floor of the route's and the path's. The path is
  *   high with an alias, medium when the target has its own id or sits in a
  *   list item, and low otherwise.
+ * - **Toolkit regions**: a touch inside a region host (Compose) is resolved
+ *   by its region first ([RegionAnchors]); the Views rules apply only when
+ *   the region defers.
  */
 internal class AnchorResolver(
     private val names: ResourceNames,
@@ -20,9 +24,13 @@ internal class AnchorResolver(
 ) {
     private val paths = CanonicalPathBuilder(names)
 
+    /** Anchors inside toolkit regions, sharing this resolver's routes and paths. */
+    val regions = RegionAnchors(names, routes, paths)
+
     /** Tap evidence for a touch at ([x], [y]) in [window]'s decor coordinates. */
     fun tapEvidence(window: View, x: Float, y: Float): TapEvidence {
         val hit = HitTester.hit(window, x, y) ?: return TapEvidence.failed(TapEvidence.NO_TARGET_AT_POINT)
+        regions.tapEvidence(hit, window, x, y)?.let { return it }
         val target = nearest(hit, window) { ViewRules.isActionable(it) }
             ?: nearest(hit, window) { ViewRules.isKept(it, names) }
             ?: return TapEvidence.failed(TapEvidence.NO_ACTIONABLE_CANDIDATE)
@@ -30,8 +38,9 @@ internal class AnchorResolver(
         return TapEvidence.of(anchor)
     }
 
-    /** The anchor of [view], or null when it is not attached under [window]. */
+    /** The anchor of [view], or null when it is not attached under [window]. A region host anchors as its region. */
     fun anchorFor(view: View, window: View = view.rootView): TargetAnchor? {
+        Regions.hostOf(view)?.let { return regions.anchor(it, target = null, window) }
         val route = routes.routeFor(view) ?: return null
         val path = paths.build(route.root, view) ?: return null
         val tag = alias(route.root, view)
@@ -46,7 +55,7 @@ internal class AnchorResolver(
             routeKey = route.value,
             tag = tag,
             canonicalPath = path.value,
-            relativePosition = relativePosition(window, view),
+            relativePosition = RelativePosition.of(window, ViewGeometry.boundsIn(window, view)),
             enabled = if (role != null) view.isEnabled else null,
             actions = ViewRoles.actions(view),
         )
@@ -73,17 +82,6 @@ internal class AnchorResolver(
         return count
     }
 
-    private fun relativePosition(window: View, view: View): String? {
-        val bounds = ViewGeometry.boundsIn(window, view) ?: return null
-        if (window.height <= 0) return null
-        val centerY = bounds.centerY() / window.height
-        return when {
-            centerY < TOP_LIMIT -> "top"
-            centerY > BOTTOM_LIMIT -> "bottom"
-            else -> "center"
-        }
-    }
-
     private inline fun nearest(start: View, stop: View, predicate: (View) -> Boolean): View? {
         var current: View? = start
         while (current != null) {
@@ -92,11 +90,5 @@ internal class AnchorResolver(
             current = current.parent as? View
         }
         return null
-    }
-
-    private companion object {
-        // Flutter's `_relativePosition` thresholds.
-        const val TOP_LIMIT = 0.33f
-        const val BOTTOM_LIMIT = 0.66f
     }
 }
