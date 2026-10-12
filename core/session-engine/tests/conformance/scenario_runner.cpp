@@ -277,11 +277,9 @@ std::string check_markers(const Json& fixture, const std::string& kind,
   const Json* engine_only = fixture.find("engineOnly");
   const Json* runners = fixture.find("runners");
   const Json* dart_parity = fixture.find("dartParity");
-  if ((engine_only != nullptr || runners != nullptr ||
-       dart_parity != nullptr) &&
+  if ((engine_only != nullptr || dart_parity != nullptr) &&
       kind != "engine.scenario") {
-    return "engineOnly, runners, and dartParity are only valid on "
-           "engine.scenario";
+    return "engineOnly and dartParity are only valid on engine.scenario";
   }
   if (dart_parity != nullptr &&
       (!dart_parity->is(Kind::kString) || dart_parity->text != "delivery" ||

@@ -494,6 +494,12 @@ Highlights:
   inconsistencies, `userId: null` versus an omitted `sessionId`, the
   `session_start` locale merge, traits over traitsId, and no clamping of a
   negative lifecycle `atMs`.
+- **Anchor toolkit.** Native adapters may add `toolkit` to any anchor
+  (`view`, `compose`, `swiftui`, `uikit`, `react-native`; anything else is
+  `invalid_message`). The Dart models have no such field: the engine passes
+  it through, as the last key, into event records and every collector
+  `targetAnchor` (the interaction's reduced anchor too), and never hashes
+  it. Without it, output is byte-identical to Dart.
 
 Where the engine is stricter than Dart's `jsonDecode`:
 

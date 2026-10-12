@@ -58,8 +58,8 @@ class ConformanceFixture {
   /// behaviour until it moves onto the engine.
   final List<String> engineOnly;
 
-  /// The runners that run this fixture (`engine.scenario` only; default
-  /// both). `engineOnly` implies C++ only.
+  /// The runners that run this fixture (default both). `engineOnly` implies
+  /// C++ only.
   final List<ConformanceRunner> runners;
 
   /// `dartParity: "delivery"` (`engine.scenario` only): the Dart runner
@@ -207,9 +207,6 @@ List<ConformanceRunner> _runners(
     return engineOnly
         ? const [ConformanceRunner.cpp]
         : ConformanceRunner.values;
-  }
-  if (kind != ConformanceKind.engineScenario) {
-    throw FormatException('$where: runners is only valid on scenarios');
   }
   final names = _list(raw, '$where.runners');
   final runners = [

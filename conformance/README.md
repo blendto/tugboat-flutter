@@ -65,7 +65,7 @@ directory is fixed by `kind`. A runner loads every `*.json` except
 | `input` | The facts submitted to the engine. Unknown keys are an error. |
 | `expected` | The engine's output for `input`. |
 | `engineOnly` | `engine.scenario` only, optional. The ids of the deliberate changes in the stateful design's section 11 that the scenario encodes, from `change_ids.json` (the single list both runners read). Implies `runners: ["cpp"]`. Any other id, a duplicate, an empty list, or the key on another kind is an error. |
-| `runners` | `engine.scenario` only, optional. The runners that run the fixture: a non-empty list of distinct `cpp` and `dart`, default both. For scenarios the Dart runner cannot drive without claiming a section 11 change. With `engineOnly`, only `["cpp"]` is allowed. |
+| `runners` | Optional, any kind. The runners that run the fixture: a non-empty list of distinct `cpp` and `dart`, default both. For fixtures the Dart runner cannot express without claiming a section 11 change, such as engine vocabulary the Flutter models do not have (an anchor's native `toolkit`). With `engineOnly`, only `["cpp"]` is allowed. |
 | `dartParity` | `engine.scenario` only, optional: `"delivery"`. The Dart runner runs the scenario in delivery replay mode instead of skipping it, even when it is `engineOnly` for a change outside the collector wire: it feeds the engine's published records into the real `CollectorHttpSink` and compares only `http.send` effects. Not allowed with `runners`. |
 
 Files are UTF-8 JSON with 2-space indent and are ASCII-only: every non-ASCII

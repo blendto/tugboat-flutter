@@ -29,7 +29,8 @@ Value string_list(const std::vector<std::string>& items) {
 
 // _collectorInteractionTargetAnchor: reduced anchor for flat interaction
 // records (no schemaVersion, no fingerprintParts, different key order), or
-// nothing when every field is dropped.
+// nothing when every field is dropped. A native adapter's `toolkit` passes
+// through last.
 std::optional<Value> interaction_anchor_json(const std::optional<Anchor>& in) {
   if (!in) {
     return std::nullopt;
@@ -48,6 +49,9 @@ std::optional<Value> interaction_anchor_json(const std::optional<Anchor>& in) {
   }
   if (!anchor.actions.empty()) {
     out.set("actions", string_list(anchor.actions));
+  }
+  if (anchor.toolkit) {
+    out.set("toolkit", str(anchor_toolkit_name(*anchor.toolkit)));
   }
   if (out.members().empty()) {
     return std::nullopt;

@@ -450,7 +450,8 @@ transport, and moving its policy into the engine buys little (Q4).
 
 ### 8.1 Navigation facts
 
-The adapter maps toolkit objects to stable opaque ids and sends:
+The adapter maps toolkit objects to stable opaque ids and sends (anchors
+it attaches anywhere may name their `toolkit`, section 9.1):
 
 ```text
 navigation {kind: push|pop|replace|remove, navigatorId, parentNavigatorId?,
@@ -574,6 +575,13 @@ normalises them against the provenance of the before-frame (section 8.2).
 
 On `scroll` start the adapter attaches the scrollable's anchor. The
 `scrollableId` stays stable for the scrollable's lifetime.
+
+An anchor from a native adapter may carry `toolkit`: `view`, `compose`,
+`swiftui`, `uikit`, or `react-native` (a closed set; anything else is
+`invalid_message`). It is evidence, never a fingerprint input. The engine
+passes it through unchanged into event records and into every collector
+`targetAnchor`, the interaction's reduced anchor included, as the last key.
+Flutter anchors carry none, so Flutter output is unchanged.
 
 ### 9.2 What moves into the engine
 
