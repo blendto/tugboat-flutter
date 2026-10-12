@@ -20,12 +20,19 @@ wiring, window capture, and the Android Views adapter.
   `navigation` facts on (engine phase 3d).
 - `stop()`: `session.end`, then `engine.dispose` and handle destruction once
   the `session_end` post settled (bounded at 25 s).
-- Capture: `capture.request` answered on the main thread with
-  `capture-runtime` window capture (`capture-runtime` is now a dependency),
-  masks before encoding, `nativeCpuExperimental` for both backend fields,
-  every overlapping request answered by id; `surface` facts from the
-  foreground decor view. Masks fail closed (whole frame) while a legacy view
-  animation or `LayoutTransition` runs.
+- Capture: `capture.request` answered with `capture-runtime` window capture
+  (`capture-runtime` 0.3.0 is now a dependency). Masks, the motion check,
+  the structure signature, and the boundary are taken on the main thread
+  immediately before `PixelCopy.request` (`WindowMaskSupplier`), filled
+  before encoding; `nativeCpuExperimental` for both backend fields; every
+  overlapping request answered by id; the `initial` capture waits up to 3 s
+  for a foreground window; `surface` facts from the foreground decor view.
+  Masks fail closed (whole frame) while a legacy view animation or
+  `LayoutTransition` runs. The mask walk reports its coverage
+  (`precise` / `wholeHost` / `wholeFrame` and reasons) and hashes class, id,
+  visibility, and checked / selected / activated state into the structure
+  signature; coverage and a `secureWindow` failure are sent once the engine
+  accepts them.
 - Collector contract test (instrumented, real engine): `session_start` body
   and `frameMetadata` backends.
 

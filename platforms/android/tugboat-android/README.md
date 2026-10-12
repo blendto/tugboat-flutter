@@ -31,10 +31,12 @@ view.tugboatTag = "checkout"                  // developer alias
 - Every method can be called from any thread; the work runs on the main
   thread in call order. Nothing throws into the app: failures are logged
   (tag `Tugboat`) and capture stops.
-- `start` is idempotent while started. It **refuses to start** (and logs the
-  missing paths) when a field the collector requires on `session_start` is
-  blank: app version, build number, app id, installation id, name; device id,
-  screen size and densities; the locale; the collector URL and key.
+- Call `start` once per process, from `Application.onCreate`. It is
+  idempotent while started. It **refuses to start** (and logs the missing
+  paths) when a field the collector requires on `session_start` is blank:
+  app version, build number, app id, installation id, name; device id, screen
+  size and densities; the locale; the collector URL and key. After `stop`, a
+  new `start` observes each activity from its next resume.
 - `stop` detaches every observer, posts `session.end`, waits for the
   `session_end` post to settle (accepted, or a status the engine does not
   retry), then submits `engine.dispose` and destroys the handle. The wait is
@@ -60,7 +62,7 @@ view.tugboatTag = "checkout"                  // developer alias
 | Views adapter | `views/` | Turns activity windows into engine facts and computes masks (below). |
 | Facade | `Tugboat`, `TugboatConfig`, `TugboatTag` | The public API above; thin over `sdk/TugboatRuntime`. |
 | Engine wiring | `sdk/` | `TugboatRuntime` (composition root: one engine, one session), `HostMetadata` + `DeviceSnapshot` (`engine.configure.host`, refused when incomplete), `EngineConfiguration`, `SessionMessages`, `AppLifecycleBridge` (`ProcessLifecycleOwner` to `app.lifecycle`), `SessionEndWatcher` + `StopSequence` (stop order), `NavigationTracking`. |
-| Capture | `capture/` | `CaptureCoordinator` answers `capture.request`; `RuntimeOutcomes` maps `capture-runtime` results; `CaptureResultJson`; `ForegroundWindow` + `SurfaceReporter` (`surface` facts); `CaptureGeometry`; `StructureSignature`. |
+| Capture | `capture/` | `CaptureCoordinator` answers `capture.request`; `FrameMasks` (the copy-time mask supplier); `RuntimeOutcomes` maps `capture-runtime` results; `CaptureResultJson`; `EngineVocabulary` (engine values not yet accepted); `ForegroundWindow` + `SurfaceReporter` (`surface` facts); `CaptureGeometry`. |
 
 `engine.configure` (`sdk/EngineConfiguration`): `host` with every
 `session_start` field (`ipInfo.ip` is the placeholder `10.0.2.2`, as
@@ -76,33 +78,51 @@ locale}`.
 `capture/CaptureCoordinator`:
 
 1. The request hops from the engine thread to the main thread. There the
-   foreground activity's window (`ForegroundWindow`), its decor size, and its
-   masks (`ViewsAdapter.masks`, fail-closed) are read.
-2. `capture-runtime`'s `capture(window, …)` copies the window (`PixelCopy`,
-   API 26+), fills the masks before encoding, and encodes a JPEG at 0.75
-   pixels per dp (Flutter's `capturePixelRatio`) times the request's `scale`.
+   foreground activity's window (`ForegroundWindow`) and its decor size (for
+   the JPEG size: 0.75 pixels per dp, Flutter's `capturePixelRatio`, times
+   the request's `scale`) are read. With no foreground window yet (the
+   session's `initial` capture), it waits up to 3 s for one.
+2. `capture-runtime`'s `capture(window, request, masks, …)` waits for a
+   committed frame, re-checks `FLAG_SECURE`, and then, in the same
+   main-thread task and immediately before `PixelCopy.request`, calls
+   `FrameMasks`: the Views masks (`ViewsAdapter.masks`, fail-closed), the
+   motion check, the structure signature, the mask coverage, and the
+   boundary are all taken for the frame being copied. It fills the masks
+   before encoding.
 3. The JPEG goes into the handle table and `capture.result` is posted with
    `requestedBackend` = `resolvedBackend` = `nativeCpuExperimental` (the
-   collector's closed enum), the boundary rect in dp, a structure
-   signature, and timings.
+   collector's closed enum), the copy-time boundary rect in dp, the
+   structure signature, and timings.
 
 - **Every request is answered exactly once, by id (C16).** Requests can
   overlap; each has its own runtime id and is answered when its result
   arrives, in any order. A late answer is ignored by the engine after its C18
   deadline.
-- **dHash baseline.** Offered to the runtime only for a request that is not
-  forced and whose `structureSignature` (a hash of decor size and mask
-  rectangles) equals the current one. A runtime skip is answered `captured`
-  with the baseline's dHash, so the engine coalesces it. Forced requests
-  always get a fresh frame; `paintUnchanged` is never sent.
+- **dHash baseline.** Passed to the runtime with its structure for a request
+  that is not forced; the runtime offers it to the dHash skip only when the
+  copy-time structure signature equals it. The signature is hashed in the
+  mask walk (`views/mask/StructureHasher`): decor size, each visited view's
+  class, id, visibility, and checked / selected / activated state, and the
+  mask rectangles; never text. A runtime skip is answered `captured` with
+  the baseline's dHash, so the engine coalesces it. Forced requests always
+  get a fresh frame; `paintUnchanged` is never sent.
+- **Mask coverage.** Every frame records `{mode: precise | wholeHost |
+  wholeFrame, reasons}` from the Views walk (`noDecor`, `noWindowSize`,
+  `walkExhausted`, `animating` for whole frames; `composeDefault` for a
+  Compose host masked whole; `webView`, `surfaceLayer` noted). It goes on
+  `capture.result.frame.maskCoverage` once the engine accepts that field
+  (`capture/EngineVocabulary`, off until `engine/mask-coverage` merges).
 - **Status mapping** (`RuntimeOutcomes`): `Ok` to `captured`;
-  `SecureWindow` and `PixelCopyFailed` to `failed readbackFailed`;
+  `SecureWindow` and `PixelCopyFailed` to `failed readbackFailed`
+  (`SecureWindow` becomes `failed secureWindow` once the engine accepts it,
+  `EngineVocabulary`);
   `UnsupportedApi`, `SurfaceUnavailable`, `UnsupportedRenderMode` to `failed
   boundaryUnavailable`; `Timeout` to `failed paintTimedOut`;
   `ProcessingFailed` to `failed encodingFailed`; `Cancelled` and `Disposed` to
   `cancelled`. No foreground window is `boundaryUnavailable`, a decor view not
   laid out yet is retried once after its first traversal, then
-  `layoutUnavailable`, a throwing mask path `maskFailed`.
+  `layoutUnavailable`; a failure before the copy `maskFailed`. A mask
+  supplier that throws masks the whole frame.
 - **`surface` facts.** The foreground decor view's size in dp, reported on
   resume and on every layout change that alters it; the generation advances
   with each change (rotation), starting at 0 so the session's initial capture
@@ -119,8 +139,8 @@ locale}`.
 - Three `internal_error`s in a row shut the host down.
 - Shutting down (`close`, or the `internal_error` limit) first submits
   `engine.dispose` so the engine can report undelivered work. From its
-  response `frame.release` runs, but no `http.send` or `timer.schedule`
-  starts. Then the handle is destroyed.
+  response only `frame.release` runs; no IO, timer, or capture starts. Then
+  the handle is destroyed.
 - Nothing thrown on the engine or IO thread escapes.
 
 ## Views adapter
@@ -173,9 +193,10 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
   the SDK (`TugboatRuntime`) turns it on now that the engine has phase 3d.
 - **Motion fails closed.** A running legacy `Animation` (activity and
   fragment transitions) or `LayoutTransition` on a visible view draws away
-  from layout bounds, so `WindowMasks` masks the whole frame
-  (`FailClosedReason.Animating`); the frame is still captured, fully masked.
-  `ViewPropertyAnimator` motion is in the bounds and needs no fallback.
+  from layout bounds, so `WindowMasks` masks the whole frame (reason
+  `animating`); the frame is still captured, fully masked. Masks are taken at
+  copy time, so `ViewPropertyAnimator` motion, scrolling, and IME resizes are
+  in the bounds and need no fallback.
 - **Failures.** Every adapter callback is guarded; the first failure per site
   is logged and nothing reaches the app.
 
@@ -187,8 +208,8 @@ are not in the captured frame (the copy is the activity window); predictive
 back is not observed; overscroll is reported for `RecyclerView` only;
 fragment `hide`/`show` is not reported; `transitionMs` is 0; window-manager
 activity transitions (not view animations) are not detected for the motion
-fallback; a secure window is reported as `failed readbackFailed`, the
-closest value in the engine's closed failure vocabulary.
+fallback; until `engine/mask-coverage` merges, a secure window is reported
+as `failed readbackFailed` and mask coverage is not sent.
 
 ## Build and test
 
