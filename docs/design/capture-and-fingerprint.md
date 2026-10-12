@@ -265,6 +265,40 @@ hash input.
 - **Coordinates.** Pointer positions and scroll offsets are logical pixels
   (dp): physical pixels divided by display density.
 
+### Compose canonicalization
+
+The Compose adapter (`tugboat-compose`, ADR 0009, not yet published) reads
+Compose content for the Views adapter, which hashes it. Anchors add
+`toolkit: "compose"`, which is not a hash input.
+
+- **Source.** The merged semantics tree of each `AndroidComposeView`,
+  through `ViewRootForTest.semanticsOwner` reached with `runCatching`.
+- **Token.** The `Role` (`Button`, `Checkbox`, `Switch`, `RadioButton`,
+  `Tab`, `Image`, `DropdownList`), then `TextField` for editable nodes,
+  `Scrollable` for nodes with a scroll range, and `Node` otherwise.
+- **Segments.** `Token#<ordinal>`; ordinals count same-token siblings after
+  filtering, in paint order.
+- **Excluded.** Unplaced or zero-size nodes, with their subtrees.
+- **Kept.** Actionable (click, long click, toggle, progress), editable,
+  scrollable, maskable (text, editable text, `Role.Image`, content
+  description), or tagged nodes. Everything else collapses.
+- **Host path.** The `AndroidComposeView` is a kept view with the token
+  `Compose`; the full path is the host's Views path followed by the node
+  path (`Compose#0/Button#1`), so it is unique with several hosts.
+- **Lists.** A child of a node with `CollectionInfo` adds
+  `[item:<CollectionItemInfo index>]`, else `[item:<traversal order on
+  screen>]`. Lazy layouts set no `CollectionItemInfo`, so their items count
+  from the first one on screen unless the app sets it.
+- **Route key.** The `trackNavigation` route pattern with its arguments
+  stripped (`checkout/{id}?step={s}` is `checkout`), else the host's Views
+  route (the hosting activity, or the fragment around a `ComposeView`).
+- **Alias.** `Modifier.tugboatTag`, then `testTag`. Both are `high`
+  confidence and do not change the structural fingerprint.
+- **Confidence.** As for Views: `high` with an alias, `medium` in a list
+  item, `low` otherwise, floored by the route.
+- **Semantics unavailable.** The anchor is the host view's identity
+  (`Compose#0`, `toolkit` still `compose`) and the whole frame is masked.
+
 ### Locale evidence
 
 The capture root observes the active Flutter `Localizations` locale when the

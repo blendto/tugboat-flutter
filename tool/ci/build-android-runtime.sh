@@ -12,3 +12,5 @@ cd "$android"
 ./gradlew :sample:assembleDebug
 # Native host (unpublished): engine JNI build, unit tests, instrumented-test APK.
 ./gradlew :tugboat-android:test :tugboat-android:assembleRelease :tugboat-android:assembleAndroidTest
+# Compose adapter (unpublished): Robolectric unit tests and the release AAR.
+./gradlew :tugboat-compose:test :tugboat-compose:assembleRelease

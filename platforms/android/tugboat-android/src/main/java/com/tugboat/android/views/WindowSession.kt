@@ -22,8 +22,9 @@ import com.tugboat.android.views.scroll.RegionScrollTracker
  * Everything the adapter attaches to one activity window: the window
  * callback (pointer and key facts), the decor view's focus, scroll, and
  * layout listeners, and the frame-driven scroll and focus reads of toolkit
- * region hosts (Compose). Main thread only. After [detach] it emits nothing, even
- * if its window callback has to stay in a foreign wrapper's chain.
+ * region hosts (Compose). Main thread only. After [detach] it emits
+ * nothing, even if its window callback has to stay in a foreign wrapper's
+ * chain.
  */
 internal class WindowSession(
     private val activity: Activity,

@@ -8,7 +8,9 @@ Maven coordinates `com.gettugboat.sdk:tugboat-android:0.1.0`, namespace
 untracked `.local-maven`.
 
 Status: platform plumbing and the Android Views toolkit adapter. There is no
-public API yet; every Kotlin type is `internal`.
+app API yet. The only public types are the opt-in toolkit-region seam
+(`com.tugboat.android.toolkit`, below), which `tugboat-compose` implements;
+everything else is `internal`.
 
 ## What it contains
 
@@ -65,10 +67,11 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
   every `conformance/fingerprint/identity_parts` vector.
 - **Masks.** `WindowMasks.compute(window)` returns rectangles normalized to
   the decor view (the `capture-runtime` window rule): `TextView`,
-  `ImageView`, `VideoView`, and fail-closed `WebView` / `SurfaceView` /
-  `TextureView` / Compose host (`ComposeView`, matched by class name)
-  bounds. It masks the whole frame when the tree cannot be
-  read.
+  `ImageView`, `VideoView`, toolkit region masks, and fail-closed
+  `WebView` / `SurfaceView` / `TextureView` bounds. A Compose host
+  (`ComposeView`, matched by class name) that no region reads is
+  fail-closed too. It masks the whole frame when the tree cannot be read,
+  or when a region asks for it.
 - **Optional androidx.** `core`, `fragment`, and `recyclerview` are
   `compileOnly`; each is probed once with `Class.forName` and its
   implementation used only when the app ships it. `consumer-rules.pro`
@@ -88,6 +91,42 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
   for route keys but posts no `navigation` facts until 3d.
 - **Failures.** Every adapter callback is guarded; the first failure per site
   is logged and nothing reaches the app.
+
+## Toolkit-region seam
+
+Some toolkits draw their whole UI inside one View (Compose's
+`AndroidComposeView`). A toolkit module reads that content for the Views
+adapter by registering a `ToolkitRegion` with `ToolkitRegions.register`.
+The types live in `com.tugboat.android.toolkit` and need
+`@OptIn(TugboatToolkitApi::class)`: they are public only because Kotlin
+`internal` does not cross modules, and are not app API. No toolkit type
+crosses the seam; everything is Views, `RectF`, and plain values.
+
+```kotlin
+interface ToolkitRegion {
+    val toolkit: String                       // anchor toolkit, e.g. "compose"
+    val hostToken: String                     // path token of the host view, e.g. "Compose"
+    fun hosts(view: View): Boolean
+    fun targetAt(host: View, x: Float, y: Float): RegionHit   // Target | Unreadable | Miss
+    fun scrollables(host: View): List<RegionScrollable>
+    fun masks(host: View): RegionMasks                         // host-pixel rects, or wholeFrame
+    fun focus(host: View): RegionFocus?                        // TextInput | Other
+    fun routeKey(host: View): String?
+    fun onDestinationChanged(activity: Activity, route: String?)
+}
+```
+
+How the Views adapter uses it (`views/region/RegionHost` guards every call;
+a throw counts as "cannot read"):
+
+| Concern | Rule |
+| --- | --- |
+| Taps | The hit view's nearest region host answers first. `Target`: an anchor whose path is the host's Views path plus the region's segments, hashed with the region's route key (or the host's Views route), with the region's `toolkit`. `Unreadable`: the host view itself, with the region's `toolkit` and `hostToken`. `Miss`: the Views rules continue from the hit view. |
+| Identity | A region host is a kept view whose token is `hostToken`, so sibling hosts get ordinals and paths stay unique. |
+| Masks | A region host's rects replace walking it; `wholeFrame` masks the whole frame. A name-matched Compose host whose direct child is a region host is no longer fail-closed. |
+| Scroll | `scroll/RegionScrollTracker`: region scrollables are sampled at a gesture's first `down`, then diffed every frame while a pointer is down and for 1 s after (flings); 150 ms idle ends a scroll. Ids are `<toolkit>-scroll-<n>`. |
+| Focus | When a region host has View focus, its region reports the kind; it is re-read for four frames after each touch-up or key event, because region focus moves without a View focus change. |
+| Navigation | `onDestinationChanged(activity, route, id)` forwards the plain route to every region. |
 
 Activities the system destroys without finishing (configuration change,
 back-stack reclaim) keep their route identity when recreated.
