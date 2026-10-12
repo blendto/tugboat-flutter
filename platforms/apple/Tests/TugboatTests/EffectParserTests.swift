@@ -13,7 +13,9 @@ final class EffectParserTests: XCTestCase {
       "{\"type\":\"timer.schedule\",\"timerId\":\"flush\",\"atMonoUs\":4000000}",
       "{\"type\":\"frame.release\",\"handle\":\"frame-1\"}",
       "{\"type\":\"timer.cancel\",\"timerId\":\"flush\"}",
-      "{\"type\":\"capture.request\",\"requestId\":\"capture_request-1\"}"
+      "{\"type\":\"capture.request\",\"requestId\":\"capture-1\",\"trigger\":\"initial\",\"force\":true,"
+        + "\"requireFreshPaint\":true,\"dropWhenBusy\":false,\"notBeforeMonoUs\":5,\"context\":{},\"scale\":1.0}",
+      "{\"type\":\"screen.wake\"}"
     )
     XCTAssertEqual(
       effects,
@@ -21,8 +23,34 @@ final class EffectParserTests: XCTestCase {
         .timerSchedule(timerId: "flush", atMonoUs: 4_000_000),
         .frameRelease(handle: "frame-1"),
         .timerCancel(timerId: "flush"),
-        .unknown(type: "capture.request"),
+        .captureRequest(
+          CaptureRequestEffect(requestId: "capture-1", force: true, requireFreshPaint: true, scale: 1, dHashBaseline: nil)),
+        .unknown(type: "screen.wake"),
       ])
+  }
+
+  func testCaptureRequestKeepsTheBaselineAndBoundsTheScale() throws {
+    let effects = try parse(
+      "{\"type\":\"capture.request\",\"requestId\":\"capture-2\",\"force\":false,\"requireFreshPaint\":false,"
+        + "\"dHashBaseline\":{\"dHash\":\"00ff\",\"structureSignature\":\"s1\"},\"scale\":0.8}",
+      "{\"type\":\"capture.request\",\"requestId\":\"capture-3\",\"force\":false,\"scale\":7}",
+      "{\"type\":\"capture.request\",\"requestId\":\"capture-4\"}"
+    )
+    let baseline = DHashBaseline(dHash: "00ff", structureSignature: "s1")
+    XCTAssertEqual(
+      effects,
+      [
+        .captureRequest(
+          CaptureRequestEffect(requestId: "capture-2", force: false, requireFreshPaint: false, scale: 0.8, dHashBaseline: baseline)),
+        .captureRequest(
+          CaptureRequestEffect(requestId: "capture-3", force: false, requireFreshPaint: false, scale: 1, dHashBaseline: nil)),
+      ], "a request without force is malformed and skipped")
+    guard case let .captureRequest(request)? = effects.first else { return XCTFail() }
+    XCTAssertEqual(request.offeredBaseline, baseline)
+    let forced = CaptureRequestEffect(requestId: "c", force: true, requireFreshPaint: false, scale: 1, dHashBaseline: baseline)
+    let fresh = CaptureRequestEffect(requestId: "c", force: false, requireFreshPaint: true, scale: 1, dHashBaseline: baseline)
+    XCTAssertNil(forced.offeredBaseline, "a forced request is never offered a baseline")
+    XCTAssertNil(fresh.offeredBaseline, "a fresh-paint request is never offered a baseline")
   }
 
   func testJSONBodyIsThePreEncodedString() throws {

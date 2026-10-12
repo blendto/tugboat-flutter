@@ -39,6 +39,8 @@ enum EffectParser {
       return .httpSend(try httpRequest(fields))
     case "frame.release":
       return .frameRelease(handle: try fields.string("handle"))
+    case "capture.request":
+      return .captureRequest(try captureRequest(fields))
     default:
       return .unknown(type: type)
     }
@@ -59,6 +61,23 @@ enum EffectParser {
       path: try fields.string("path"),
       timeoutMs: Int(clamping: try fields.integer("timeoutMs")),
       body: body
+    )
+  }
+
+  private static func captureRequest(_ fields: Fields) throws -> CaptureRequestEffect {
+    var baseline: DHashBaseline?
+    if fields.has("dHashBaseline") {
+      let value = try Fields(fields.value("dHashBaseline"), what: "dHashBaseline")
+      baseline = DHashBaseline(dHash: try value.string("dHash"), structureSignature: try value.string("structureSignature"))
+    }
+    // A scale outside (0, 1] never reaches the pixel size.
+    let scale = fields.has("scale") ? try fields.number("scale") : 1
+    return CaptureRequestEffect(
+      requestId: try fields.string("requestId"),
+      force: try fields.bool("force"),
+      requireFreshPaint: fields.has("requireFreshPaint") ? try fields.bool("requireFreshPaint") : false,
+      scale: scale.isFinite && scale > 0 ? min(scale, 1) : 1,
+      dHashBaseline: baseline
     )
   }
 
@@ -116,6 +135,21 @@ private struct Fields {
       throw EffectParser.MalformedEffect(description: "\(key) is not an integer")
     }
     return value
+  }
+
+  func bool(_ key: String) throws -> Bool {
+    guard let number = object[key] as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else {
+      throw EffectParser.MalformedEffect(description: "\(key) is not a boolean")
+    }
+    return number.boolValue
+  }
+
+  /// Any JSON number (booleans are rejected).
+  func number(_ key: String) throws -> Double {
+    guard let number = object[key] as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else {
+      throw EffectParser.MalformedEffect(description: "\(key) is not a number")
+    }
+    return number.doubleValue
   }
 
   func array(_ key: String) throws -> [Any] {

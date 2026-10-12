@@ -11,6 +11,7 @@ final class EngineHostTests: XCTestCase {
   private var frames: FrameHandleTable!
   private var transport: FakeEngineTransport!
   private var http: FakeHTTPSender!
+  private var captures: RecordingCaptureSink!
   private var shutDowns: Locked<Int>!
   private var host: EngineHost!
 
@@ -26,10 +27,11 @@ final class EngineHostTests: XCTestCase {
     frames = FrameHandleTable()
     transport = FakeEngineTransport()
     http = FakeHTTPSender(frames: frames)
+    captures = RecordingCaptureSink()
     let shutDowns = Locked(0)
     self.shutDowns = shutDowns
     host = EngineHost(
-      transport: transport, queue: queue, http: http, frames: frames, clock: clock,
+      transport: transport, queue: queue, http: http, frames: frames, captures: captures, clock: clock,
       onShutDown: { shutDowns.withLock { $0 += 1 } })
   }
 
@@ -282,6 +284,14 @@ final class EngineHostTests: XCTestCase {
     XCTAssertFalse(transport.closed)
   }
 
+  func testCaptureRequestsReachTheSink() {
+    transport.enqueue(ok("{\"type\":\"capture.request\",\"requestId\":\"capture-1\",\"force\":true,\"requireFreshPaint\":true}"))
+    post("session.start")
+    drain()
+
+    XCTAssertEqual(captures.requests.map { $0.requestId }, ["capture-1"])
+  }
+
   func testUnknownAndMalformedEffectsAreIgnored() {
     transport.enqueue(
       ok("{\"type\":\"capture.request\"}", "{\"type\":\"capture.request\"}", "{\"type\":\"timer.cancel\"}"))
@@ -327,6 +337,7 @@ final class EngineHostTests: XCTestCase {
         "{\"type\":\"http.send\",\"requestId\":\"http-1\",\"lane\":\"events\",\"path\":\"/v1/events/batch\","
           + "\"timeoutMs\":1000,\"jsonBody\":\"{}\"}",
         "{\"type\":\"timer.schedule\",\"timerId\":\"t\",\"atMonoUs\":0}",
+        "{\"type\":\"capture.request\",\"requestId\":\"capture-9\",\"force\":true}",
         "{\"type\":\"frame.release\",\"handle\":\"\(released)\"}"
       ))
     // The handle is destroyed before the frame table is cleared, so this
@@ -346,6 +357,7 @@ final class EngineHostTests: XCTestCase {
 
     XCTAssertEqual(transport.submitted.last, dispose)
     XCTAssertTrue(http.requests.isEmpty, "no http.send after close")
+    XCTAssertTrue(captures.requests.isEmpty, "no capture.request after close")
     XCTAssertEqual(atHandleClose.current?.released, true, "frame.release is honoured")
     XCTAssertEqual(atHandleClose.current?.kept, false)
     XCTAssertEqual(frames.count, 0)
