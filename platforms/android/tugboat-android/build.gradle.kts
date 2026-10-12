@@ -53,6 +53,8 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        // The Views adapter tests resolve resource entry names (R.id.*).
+        unitTests.isIncludeAndroidResources = true
     }
 
     buildTypes {
@@ -64,7 +66,17 @@ android {
     }
 }
 
+// The Views adapter supports these androidx libraries when the app has them,
+// without depending on them: each is probed on the classpath at runtime.
+val optionalAndroidx = listOf(
+    "androidx.core:core:1.13.1",
+    "androidx.fragment:fragment:1.7.1",
+    "androidx.recyclerview:recyclerview:1.3.2",
+)
+
 dependencies {
+    optionalAndroidx.forEach { compileOnly(it) }
+    optionalAndroidx.forEach { testImplementation(it) }
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
