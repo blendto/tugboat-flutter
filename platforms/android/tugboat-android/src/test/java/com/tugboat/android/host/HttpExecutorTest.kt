@@ -82,7 +82,20 @@ class HttpExecutorTest {
     fun bodiesAreTruncatedTo64KiB() {
         server.reply = { Response(202, "x".repeat(100 * 1024)) }
         val outcome = executor.perform(json("{}")) as TransportOutcome.Http
-        assertEquals(HttpExecutor.MAX_BODY_BYTES, outcome.body.length)
+        assertEquals(CollectorResponse.MAX_BODY_BYTES, outcome.body.length)
+    }
+
+    @Test
+    fun truncationNeverSplitsACharacter() {
+        val kept = "x".repeat(CollectorResponse.MAX_BODY_BYTES - 1)
+        server.reply = { Response(202, kept + "\uD83D\uDE00 and more") }
+        assertEquals(TransportOutcome.Http(202, kept), executor.perform(json("{}")))
+    }
+
+    @Test
+    fun statusesTheEngineWouldRejectAreErrors() {
+        server.reply = { Response(600, "odd") }
+        assertEquals(TransportOutcome.Error, executor.perform(json("{}")))
     }
 
     @Test

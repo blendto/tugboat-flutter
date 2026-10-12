@@ -18,6 +18,12 @@ internal class FakeEngineTransport(vararg responses: EngineResponse) : EngineTra
     val submitThreads = CopyOnWriteArrayList<Thread>()
     var overlappingSubmits = 0
     var closed = false
+
+    /** How many messages had been submitted when the handle was closed. */
+    var submittedAtClose: Int? = null
+
+    /** Runs when the host destroys the handle. */
+    var onClose: () -> Unit = {}
     var throwOnSubmit: Throwable? = null
 
     fun enqueue(response: EngineResponse) = queued.addLast(response)
@@ -36,6 +42,8 @@ internal class FakeEngineTransport(vararg responses: EngineResponse) : EngineTra
 
     override fun close() {
         closed = true
+        submittedAtClose = submitted.size
+        onClose()
     }
 }
 
