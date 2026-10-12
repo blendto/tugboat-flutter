@@ -43,10 +43,11 @@ final class WindowMaskFailClosedTests: XCTestCase {
 
     let result = window.settledMasks(allowlist: nil)
     XCTAssertNil(result.fallback)
+    XCTAssertEqual(result.coverage, MaskCoverage(mode: .precise, reasons: []))
     XCTAssertEqual(result.stats.uiKitText, 1, "hidden views are skipped")
     XCTAssertEqual(result.stats.uiKitImages, 1)
-    XCTAssertEqual(result.coverage(of: window.frame(of: label), in: window.window), 1)
-    XCTAssertEqual(result.coverage(of: window.frame(of: hidden), in: window.window), 0)
+    XCTAssertEqual(result.fractionMasked(of: window.frame(of: label), in: window.window), 1)
+    XCTAssertEqual(result.fractionMasked(of: window.frame(of: hidden), in: window.window), 0)
   }
 
   func testAnAnimationAnywhereMasksTheWholeFrame() {
@@ -64,6 +65,7 @@ final class WindowMaskFailClosedTests: XCTestCase {
     let animating = WindowMasks.compute(window.window, allowlist: nil)
     XCTAssertEqual(animating.fallback, .animating)
     XCTAssertEqual(animating.rects, [.fullFrame])
+    XCTAssertEqual(animating.coverage, MaskCoverage(mode: .wholeFrame, reasons: [.animating]))
 
     moving.layer.removeAllAnimations()
     let sublayer = CALayer()
@@ -80,11 +82,11 @@ final class WindowMaskFailClosedTests: XCTestCase {
     let window = host([container])
 
     var result = window.settledMasks(allowlist: nil)
-    XCTAssertEqual(result.coverage(of: window.frame(of: label), in: window.window), 1, "drawn outside its zero-size parent")
+    XCTAssertEqual(result.fractionMasked(of: window.frame(of: label), in: window.window), 1, "drawn outside its zero-size parent")
 
     container.clipsToBounds = true
     result = window.settledMasks(allowlist: nil)
-    XCTAssertEqual(result.coverage(of: window.frame(of: label), in: window.window), 0, "clipped away, so not visible")
+    XCTAssertEqual(result.fractionMasked(of: window.frame(of: label), in: window.window), 0, "clipped away, so not visible")
   }
 
   func testLayersDeeperThanTheLimitMaskTheWholeFrame() {
@@ -99,6 +101,7 @@ final class WindowMaskFailClosedTests: XCTestCase {
     let result = window.settledMasks(allowlist: nil)
     XCTAssertEqual(result.fallback, .walkLimitExceeded)
     XCTAssertEqual(result.rects, [.fullFrame])
+    XCTAssertEqual(result.coverage, MaskCoverage(mode: .wholeFrame, reasons: [.walkExhausted]))
   }
 
   func testOpaqueRenderersAreBoxes() {
@@ -113,12 +116,15 @@ final class WindowMaskFailClosedTests: XCTestCase {
     XCTAssertNil(result.fallback)
     XCTAssertEqual(result.stats.failClosedViews, 1, "a view backed by a renderer layer")
     XCTAssertEqual(result.stats.rendererLayers, 1, "a renderer sublayer of a plain view")
-    XCTAssertEqual(result.coverage(of: window.frame(of: metalView), in: window.window), 1)
-    XCTAssertEqual(result.coverage(of: window.frame(of: player), in: window.window), 1)
+    XCTAssertEqual(result.coverage, MaskCoverage(mode: .precise, reasons: [.renderer]))
+    XCTAssertEqual(result.fractionMasked(of: window.frame(of: metalView), in: window.window), 1)
+    XCTAssertEqual(result.fractionMasked(of: window.frame(of: player), in: window.window), 1)
   }
 
   func testAWindowWithoutSizeIsMaskedInFull() {
-    XCTAssertEqual(WindowMasks.compute(UIWindow(frame: .zero)), .wholeFrame(.noWindow))
+    let result = WindowMasks.compute(UIWindow(frame: .zero))
+    XCTAssertEqual(result, .wholeFrame(.noWindow))
+    XCTAssertEqual(result.coverage, MaskCoverage(mode: .wholeFrame, reasons: [.noWindowSize]))
   }
 }
 #endif

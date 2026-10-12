@@ -57,7 +57,7 @@ enum WindowMasks {
     let view = node.view
     switch node.kind {
     case .webView, .representable, .renderer:
-      return box(view, into: &acc)
+      return box(view, node.kind, into: &acc)
     case .textInput, .label:
       acc.stats.uiKitText += 1
       acc.add(view: view)
@@ -76,7 +76,7 @@ enum WindowMasks {
       return true
     case .internalPlatformView:
       guard let allowlist = allowlist, allowlist.walksPlatformView(String(describing: type(of: view))) else {
-        return box(view, into: &acc)
+        return box(view, .representable, into: &acc)
       }
       LayerWalk(classify: allowlist).walk(view, into: &acc)
       return true
@@ -86,8 +86,13 @@ enum WindowMasks {
     }
   }
 
-  private static func box(_ view: UIView, into acc: inout MaskAccumulator) -> Bool {
+  private static func box(_ view: UIView, _ kind: ViewKind, into acc: inout MaskAccumulator) -> Bool {
     acc.stats.failClosedViews += 1
+    switch kind {
+    case .webView: acc.stats.webViewBoxes += 1
+    case .renderer: acc.stats.rendererBoxes += 1
+    default: acc.stats.representableBoxes += 1
+    }
     acc.add(view: view)
     return false
   }

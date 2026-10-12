@@ -6,7 +6,7 @@ import UIKit
 extension MaskResult {
   /// The fraction of `frame` (window points) inside the mask, on a 10x10
   /// grid of sample points.
-  func coverage(of frame: CGRect, in window: UIWindow) -> Double {
+  func fractionMasked(of frame: CGRect, in window: UIWindow) -> Double {
     let bounds = window.bounds
     let boxes = rects.map {
       CGRect(

@@ -61,7 +61,12 @@ struct MaskStats: Equatable {
   var unclassifiedLayers = 0
   var uiKitText = 0
   var uiKitImages = 0
+  /// Views masked as boxes: the sum of the three counts below.
   var failClosedViews = 0
+  var representableBoxes = 0
+  var webViewBoxes = 0
+  /// Renderer views and renderer layers.
+  var rendererBoxes = 0
   var rendererLayers = 0
   /// Class names of unclassified layers, with counts.
   var unclassifiedClasses: [String: Int] = [:]

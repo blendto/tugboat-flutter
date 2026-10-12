@@ -87,19 +87,22 @@ final class WindowMasksTests: XCTestCase {
 
     for name in ["text", "symbol", "photo", "row0", "row1", "web", "representable"] {
       let frame = try XCTUnwrap(truth.frames[name], "no truth frame for \(name)")
-      XCTAssertGreaterThanOrEqual(result.coverage(of: frame, in: window.window), 0.9, "\(name) at \(frame) not masked; \(result.stats)")
+      XCTAssertGreaterThanOrEqual(result.fractionMasked(of: frame, in: window.window), 0.9, "\(name) at \(frame) not masked; \(result.stats)")
     }
     let field = try XCTUnwrap(window.views(UITextField.self).first)
-    XCTAssertEqual(result.coverage(of: window.frame(of: field), in: window.window), 1, "text field")
+    XCTAssertEqual(result.fractionMasked(of: window.frame(of: field), in: window.window), 1, "text field")
     let web = try XCTUnwrap(window.views(WKWebView.self).first)
-    XCTAssertEqual(result.coverage(of: window.frame(of: web), in: window.window), 1, "web view, fail-closed")
+    XCTAssertEqual(result.fractionMasked(of: window.frame(of: web), in: window.window), 1, "web view, fail-closed")
     XCTAssertEqual(result.stats.failClosedViews, 2, "the web view and the app representable are boxes; List and TextField are walked")
+    XCTAssertEqual(result.coverage.mode, .precise)
+    XCTAssertTrue(result.coverage.reasons.contains(.webView), "\(result.coverage)")
+    XCTAssertTrue(result.coverage.reasons.contains(.representable), "\(result.coverage)")
 
     let row = try XCTUnwrap(truth.frames["row0"])
     let rowEnd = CGRect(x: window.window.bounds.width - 70, y: row.minY, width: 30, height: row.height)
-    XCTAssertLessThan(result.coverage(of: rowEnd, in: window.window), 1, "rows are masked per text, not as one list box")
+    XCTAssertLessThan(result.fractionMasked(of: rowEnd, in: window.window), 1, "rows are masked per text, not as one list box")
     let blank = CGRect(x: 0, y: window.window.bounds.height - 60, width: window.window.bounds.width, height: 40)
-    XCTAssertLessThan(result.coverage(of: blank, in: window.window), 1, "empty space stays visible: masks are per region")
+    XCTAssertLessThan(result.fractionMasked(of: blank, in: window.window), 1, "empty space stays visible: masks are per region")
   }
 
   func testBitmapImagesArePaddedAndShapesAreNot() throws {
@@ -119,9 +122,9 @@ final class WindowMasksTests: XCTestCase {
     let symbol = try XCTUnwrap(truth.frames["symbol"])
     XCTAssertEqual(result.stats.imageLayers, 1, "\(result.stats)")
     XCTAssertEqual(result.stats.shapeLayers, 1, "\(result.stats)")
-    XCTAssertEqual(result.coverage(of: photo.insetBy(dx: -3, dy: -3), in: window.window), 1, "image layers are padded by 4 pt")
-    XCTAssertEqual(result.coverage(of: symbol, in: window.window), 1, "the symbol's shape layer")
-    XCTAssertLessThan(result.coverage(of: symbol.insetBy(dx: -3, dy: -3), in: window.window), 1, "shape layers are not padded")
+    XCTAssertEqual(result.fractionMasked(of: photo.insetBy(dx: -3, dy: -3), in: window.window), 1, "image layers are padded by 4 pt")
+    XCTAssertEqual(result.fractionMasked(of: symbol, in: window.window), 1, "the symbol's shape layer")
+    XCTAssertLessThan(result.fractionMasked(of: symbol.insetBy(dx: -3, dy: -3), in: window.window), 1, "shape layers are not padded")
   }
 
   func testTagMarkersAreNotMaskedAsRepresentables() throws {
@@ -137,7 +140,9 @@ final class WindowMasksTests: XCTestCase {
   func testAnUnverifiedMajorMasksAWindowWithSwiftUIInFull() {
     let window = HostedWindow(Text("Hello"))
     hosted = window
-    XCTAssertEqual(window.settledMasks(allowlist: nil).fallback, .unverifiedLayerAllowlist(iOSMajor: LayerAllowlist.runningMajor))
+    let unverified = window.settledMasks(allowlist: nil)
+    XCTAssertEqual(unverified.fallback, .unverifiedLayerAllowlist(iOSMajor: LayerAllowlist.runningMajor))
+    XCTAssertEqual(unverified.coverage, MaskCoverage(mode: .wholeFrame, reasons: [.unverifiedLayerAllowlist]))
     XCTAssertEqual(WindowMasks.compute(window.window, allowlist: nil, iOSMajor: 18).rects, [.fullFrame])
   }
 

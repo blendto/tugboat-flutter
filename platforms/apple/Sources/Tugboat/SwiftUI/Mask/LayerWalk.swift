@@ -45,6 +45,7 @@ struct LayerWalk {
     }
     if OpaqueRenderers.isRenderer(layer) {
       acc.stats.rendererLayers += 1
+      acc.stats.rendererBoxes += 1
       acc.add(layer: layer)
       return
     }
