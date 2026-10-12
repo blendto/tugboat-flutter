@@ -127,7 +127,8 @@ void apply_system_input(const ModuleRegistry&, EngineState* state,
 
 // Answers for unknown or invalidated requests are ignored (principle 4).
 void apply_capture_result(const ModuleRegistry& modules, EngineState* state,
-                          const CaptureResult& result, const At& at, Output* out) {
+                          const CaptureResult& result, const At& at,
+                          Output* out) {
   InteractionTurn turn = live_turn(state, at, out);
   const std::optional<CaptureAnswer> answer = state->captures.on_result(
       result, turn.now_ms(), state->config.limits.max_frames, &state->ids,

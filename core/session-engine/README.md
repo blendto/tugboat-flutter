@@ -36,7 +36,7 @@ core/session-engine/
 | --- | --- |
 | `tb_session_engine.cpp` | The C ABI: handles, buffers, status codes, error documents. |
 | `engine` | Envelope validation, `batch`, admission, and response documents. |
-| `module_registry` | What modules contribute: message types (with their `at` rule and session policy), teardown work per stage, timers by id prefix, lifecycle hooks, and the event types the engine records itself. |
+| `module_registry` | What modules contribute: message types (with their `at` rule and session policy), teardown work per stage, timers by id prefix, lifecycle hooks, frame-accepted hooks, and the event types the engine records itself. |
 | `modules` | Registers every `*_module.cpp` once (`register_*_module`). |
 | `engine_module.cpp` | `engine.configure`, `session.snapshot`, `timer.fired`. |
 | `session_module.cpp` | `session.start`, `session.end`, `app.lifecycle`. |
@@ -48,12 +48,13 @@ core/session-engine/
 | `pointer_tracker` | Contacts, the cluster, and the trackpad contact (Dart `InputCapture`); turns facts into controller signals. |
 | `pointer_interactions` | The controller's pointer entry points: pointer-down/up/cancel, marks, absorption, abandonment. |
 | `interaction_transaction`, `interaction_registry` | One gesture's transaction and its explicit stages; the pending/released/by-id registry with claim eligibility, sweep, and cap. |
-| `claim_window`, `tap_settle` | The claim window after a tap's release (sweep timer) and the tap-settle state machine. |
-| `gesture_completion`, `scroll_interactions` | Swipe/pan/zoom after-capture; scroll trackers, samples, and pointer-up/scroll-end pairing. |
+| `tap_settle` | A tap after pointer-up: the claim window (sweep timer, cap) and the tap-settle state machine. |
+| `scroll_interactions` | Scroll trackers, samples, and pointer-up/scroll-end pairing. |
 | `input_observations` | Focus and system-input events that wait for one frame. |
-| `tap_evidence`, `interaction_payload`, `interaction_publish` | Tap evidence on facts; the interaction schema 2 envelope and payload; publishing and early finalization. |
-| `interaction_facts` | Typed interaction facts and `capture.result`, with strict decoders. |
-| `frame_ledger`, `capture_requests`, `after_frame` | The phase 3c capture seam: frame provenance and acceptance, outstanding capture requests, and the temporal after-frame rules. Phase 3d replaces the first two with the capture scheduler. |
+| `tap_evidence`, `interaction_payload` | Tap evidence on facts; the interaction schema 2 envelope and payload. |
+| `interaction_publish` | Publishing and early finalization, the temporal after-frame rules, and swipe/pan/zoom completion. |
+| `interaction_facts` | Typed interaction facts and the `capture.result` decoder. |
+| `capture_seam` | The capture seam (`EngineState::captures`): outstanding `capture.request`s and their owners, frame acceptance, and frame provenance. Phase 3d replaces its implementation with the capture scheduler behind the same interface. |
 | `interaction_claims` | What navigation (phase 3d) calls: the claim API, the settle wake hook, and the route stamp. |
 | `engine_state.h` | Everything a handle holds between messages, as plain data. |
 | `config` | The typed `engine.configure` configuration. |
@@ -326,12 +327,40 @@ per pointer gesture from the facts above, with Dart's controller rules:
   abandon pending pointers (a tap becomes `cancelled`; swipe, scroll, pan,
   and zoom keep their gesture), cancel released taps, publish waiting
   gestures and scrolls without a frame, and flush waiting `focus_changed` /
-  `system_input` events, in that order. Pointer input is ignored in the
+  `system_input` events, in that order. Every teardown also forgets the
+  pointer contacts (change C14). Pointer input is ignored in the
   background.
 
 Phase 3d (navigation and the capture scheduler) calls the claim API in
-`interaction_claims.h` and replaces the capture seam (`frame_ledger.h`,
-`capture_requests.h`).
+`interaction_claims.h` and replaces the implementation behind
+`capture_seam.h`.
+
+**Frame-accepted hook.** Whoever accepts a frame into the session emits its
+frame record and then runs `ModuleRegistry::run_frame_accepted`. A module
+registers with `on_frame_accepted(hook)`:
+
+```cpp
+using FrameAcceptedHook = void (*)(const Frame& frame, const std::string& handle,
+                                   EngineState* state, Output* out);
+```
+
+`handle` names the frame's bytes in the host. Collector delivery (phase 3b)
+uses the hook to queue the frame lane and to hold the handle's reference.
+
+**Phase 3c limits.**
+
+- Before-frames and frame compatibility ignore the route epoch: the
+  before-frame is the session's latest frame, and a tap's capture matches
+  its origin whenever the frame is known. Phase 3d adds route epochs,
+  boundary generations, and the surface-compatible fallback.
+- No capture scheduler: every request is issued at once, with no
+  `capture_execution-N` ids, budget, suppression, reuse, perceptual-hash
+  coalescing, or dedupe (phase 3d). Ids therefore differ from Dart's until
+  then.
+- **Blocker before any host links the engine:** a frame trimmed from the
+  session (beyond `limits.maxFrames`) emits no `frame.release`, so its host
+  bytes would never be released. Phase 3b is completing the handle refcount
+  (design section 7.6) through the frame-accepted hook.
 
 `engine.configure` groups, with Dart's defaults. Every field is optional and
 validated. `host.configuredUserId` is the runtime user id until

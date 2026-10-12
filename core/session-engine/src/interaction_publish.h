@@ -53,7 +53,8 @@ OptString temporal_after_frame(const CaptureSeam& captures,
 // The after-capture fallback chain of a completed gesture: the fresh frame
 // its own capture accepted when it is temporal, else the session's latest
 // frame when it is. (Phase 3d adds route barrier frames between the two.)
-OptString after_capture_frame(const CaptureSeam& captures, const Transaction& tx,
+OptString after_capture_frame(const CaptureSeam& captures,
+                              const Transaction& tx,
                               const Session& session,
                               const CaptureResolution& resolution);
 

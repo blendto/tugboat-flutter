@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "interaction-facts-without-session",
-  "description": "Interaction facts and capture answers without a live session are accepted and dropped: before the first session and after session_end. A pointer that went down in an ended session does not carry into the next one.",
+  "description": "Interaction facts and capture answers without a live session are accepted and dropped: before the first session and after session_end.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6

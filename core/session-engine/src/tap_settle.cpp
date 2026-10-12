@@ -134,7 +134,8 @@ void finish_tap_settle(InteractionTurn& turn,
   // origin when the capture seam knows it (phase 3d also compares route
   // epochs).
   const bool captured =
-      resolution.frame_id && state.captures.find(*resolution.frame_id) != nullptr;
+      resolution.frame_id &&
+      state.captures.find(*resolution.frame_id) != nullptr;
   if (captured) {
     tx->after_frame = resolution.frame_id;
   } else {

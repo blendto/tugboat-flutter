@@ -1,7 +1,8 @@
 // Interaction state (docs/stateful-engine.md section 9): pointer contacts,
 // the interaction registry, tap settles, completing gestures, scroll
 // trackers, and deferred input observations. Capture requests and frames
-// live in the engine-wide capture seam (`EngineState::captures`). Owned by the interaction module (interaction_module.cpp).
+// live in the engine-wide capture seam (`EngineState::captures`). Owned by
+// the interaction module (interaction_module.cpp).
 // Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_INTERACTION_STATE_H
 #define TUGBOAT_SESSION_ENGINE_INTERACTION_STATE_H

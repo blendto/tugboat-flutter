@@ -48,7 +48,8 @@ OptString temporal_after_frame(const CaptureSeam& captures,
   return captures.observed_after(frame_id, boundary);
 }
 
-OptString after_capture_frame(const CaptureSeam& captures, const Transaction& tx,
+OptString after_capture_frame(const CaptureSeam& captures,
+                              const Transaction& tx,
                               const Session& session,
                               const CaptureResolution& resolution) {
   const OptString captured =
