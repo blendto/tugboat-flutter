@@ -63,5 +63,32 @@ Event make_event(EngineState* state, const Session& session,
   return event;
 }
 
+Event diagnostic_event(EngineState* state, const Session& session,
+                       int64_t mono_us, Diagnostic diagnostic) {
+  Event event;
+  if (diagnostic.id) {
+    event.id = std::move(*diagnostic.id);
+    event.at_ms = session.at_ms(mono_us);
+    event.type = "capture_diagnostic";
+  } else {
+    event = make_event(state, session, "capture_diagnostic", mono_us);
+  }
+  event.stream = diagnostic.stream;
+  event.after_frame = std::move(diagnostic.after_frame);
+  event.data = std::move(diagnostic.data);
+  return event;
+}
+
+bool record_diagnostic(EngineState* state, const At& at, Output* out,
+                       Diagnostic diagnostic) {
+  Session* session = state->live_session();
+  if (session == nullptr) return false;
+  record_event(state, *session,
+               diagnostic_event(state, *session, at.mono_us,
+                                std::move(diagnostic)),
+               true, out);
+  return true;
+}
+
 }  // namespace engine
 }  // namespace tugboat

@@ -7,7 +7,9 @@
 
 #include <cstdint>
 #include <optional>
+#include <cstddef>
 #include <string>
+#include <vector>
 
 #include "models.h"
 
@@ -35,6 +37,57 @@ struct CaptureTimings {
   }
 };
 
+// `capture.result.frame.maskCoverage.mode`: how much of the frame the
+// host's masks cover. `precise` masks individual regions; `wholeHost` masks
+// a toolkit host view whole (the Compose default); `wholeFrame` masks the
+// whole frame (the host could not enumerate the screen with confidence).
+enum class MaskMode {
+  kPrecise,
+  kWholeHost,
+  kWholeFrame,
+};
+
+// `capture.result.frame.maskCoverage.reasons[]`: why the host masked what
+// it did beyond individual text and media regions. Covers every value the
+// Android (`MaskCoverageReason`) and SwiftUI (`MaskCoverage.Reason`)
+// adapters emit, plus names reserved for the Views host.
+enum class MaskReason {
+  kComposeDefault,
+  kComposeVersionUnverified,
+  kComposeOwnerUnavailable,
+  kInterop,
+  kRegionUnreadable,
+  kTreeUnreadable,
+  kAnimating,
+  kUnverifiedLayerAllowlist,
+  kWalkExhausted,
+  kNoWindowSize,
+  kNoDecor,
+  kRepresentable,
+  kWebView,
+  kRenderer,
+  kSurfaceLayer,
+  kUnclassifiedLayer,
+  kSecureText,
+};
+
+// At most this many reasons, each at most once.
+constexpr size_t kMaxMaskReasons = 8;
+
+const char* mask_mode_name(MaskMode mode);
+std::optional<MaskMode> parse_mask_mode(const std::string& name);
+const char* mask_reason_name(MaskReason reason);
+std::optional<MaskReason> parse_mask_reason(const std::string& name);
+
+// Which mask mode applied to a frame, and why. Native hosts report it so a
+// whole-masked host can be told from a broken capture. The engine records
+// it as a `capture_diagnostic` (component `capture_masking`) when it
+// accepts the frame; frame records and `frameMetadata` never carry it.
+struct MaskCoverage {
+  MaskMode mode = MaskMode::kPrecise;
+  std::vector<MaskReason> reasons;  // distinct, in the host's order
+};
+
 // A frame the host captured (`capture.result.frame` plus `boundaryRect`).
 // The bytes stay in the host under `handle`. `dhash` and
 // `structure_signature` are opaque tokens the engine only compares.
@@ -51,11 +104,14 @@ struct CapturedFrame {
   OptString requested_backend;
   OptString resolved_backend;
   OptString fallback_reason;
+  std::optional<MaskCoverage> mask_coverage;
   std::optional<BoundaryRect> boundary;
 };
 
 // Dart `ScreenshotCaptureFailure` without `cancelled` (an outcome of its
-// own): why a `failed` capture produced no frame.
+// own): why a `failed` capture produced no frame. `secureWindow` has no
+// Dart counterpart: a native host never copies a window flagged secure
+// (Android `FLAG_SECURE`).
 enum class CaptureFailure {
   kBoundaryUnavailable,
   kBoundaryDetached,
@@ -66,6 +122,7 @@ enum class CaptureFailure {
   kReadbackFailed,
   kMaskFailed,
   kEncodingFailed,
+  kSecureWindow,
 };
 
 const char* capture_failure_name(CaptureFailure failure);
