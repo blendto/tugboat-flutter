@@ -18,13 +18,13 @@
 namespace tugboat {
 namespace engine {
 
-// The visible route when the pointer went down. Navigation (phase 3d)
-// supplies it through `current_route_stamp` (interaction_claims.h); until
-// then it is empty, so interactions carry no `route`.
+// The visible route when the pointer went down (`current_route_stamp`,
+// navigation_view.h).
 struct RouteStamp {
   int64_t route_epoch = 0;
   OptString route;
   OptString navigator_id;
+  OptString route_instance_id;
 };
 
 // Where the down point lies on the before-frame (Dart
@@ -102,7 +102,7 @@ struct Transaction {
   const int64_t pointer_id;
   TransactionStage stage = TransactionStage::kPending;
   Gesture gesture = Gesture::kTap;
-  // Claimed as a navigation's cause (phase 3d's claim API).
+  // Claimed as a navigation's cause (`claim_interaction_cause`).
   bool claimed = false;
 
   std::optional<int64_t> released_at_ms;

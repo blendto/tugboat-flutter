@@ -156,7 +156,8 @@ GroupSpec interaction_spec(InteractionConfig* c) {
            duration("scrollCaptureIntervalMs", &c->scroll_capture_interval_ms),
            duration("factGraceMs", &c->fact_grace_ms)},
           {},
-          {{"captureScrollSamples", &c->capture_scroll_samples}}};
+          {{"captureScrollSamples", &c->capture_scroll_samples},
+           {"captureScrollScreenshots", &c->capture_scroll_screenshots}}};
 }
 
 GroupSpec navigation_spec(NavigationConfig* c) {

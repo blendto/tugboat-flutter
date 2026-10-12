@@ -1,189 +1,165 @@
 // The capture seam (design section 8.2): the one interface through which
 // the engine asks the host for frames and learns what they were. Phase 3c
-// implements the minimum interactions need; phase 3d replaces this
-// implementation with the capture scheduler (FIFO and tail absorption,
-// suppression, budget, reuse, coalescing, dedupe, compatibility) behind the
-// same interface.
+// issued every request at once; phase 3d puts the capture scheduler behind
+// the same interface:
 //
-// It owns:
-// - the outstanding `capture.request` effects and who waits for each answer
-//   (principle 4: answers to unknown or invalidated ids are ignored);
-// - frame acceptance: a `captured` answer becomes `frame-N`, a frame record,
-//   and a session frame;
-// - frame provenance: the latest frame of a session (the before-frame), and
-//   whether a frame is an observation made after some input.
-// Not part of the C ABI.
+// - Logical requests (`capture_request-N`) join a FIFO with tail absorption
+//   (capture_scheduler.h). One capture is in flight at a time; the engine
+//   waits out each request's not-before time itself (timer `capture.due`)
+//   so later requests can still be absorbed.
+// - An execution resolves by the decision order of capture_execution.h,
+//   each waiter by its own compatibility, with one `capture_execution-N`
+//   id per execution (one per request for cancellations and rejections),
+//   in Dart's id order. With the `captureDiagnostics` capability every
+//   resolution is a `capture_diagnostic` event.
+// - Answers reach their owners as deferred work (coordination.h).
+// - Frame provenance, the latest frame, and the coalesce baselines are the
+//   frame store (frame_store.h); the screenshot budget is capture_budget.h.
+//
+// Requests and their ids are per engine handle; the host's `capture-N`
+// request ids count physical attempts. Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_CAPTURE_SEAM_H
 #define TUGBOAT_SESSION_ENGINE_CAPTURE_SEAM_H
 
 #include <cstdint>
-#include <map>
 #include <optional>
 #include <string>
+#include <vector>
 
+#include "capture_budget.h"
+#include "capture_execution.h"
+#include "capture_scheduler.h"
+#include "capture_types.h"
+#include "clock.h"
+#include "frame_store.h"
 #include "models.h"
 #include "output.h"
-#include "session.h"
+#include "turn.h"
 
 namespace tugboat {
 namespace engine {
 
-// The capture boundary in surface logical pixels when a frame was taken.
-struct BoundaryRect {
-  double x = 0;
-  double y = 0;
-  double width = 0;
-  double height = 0;
-};
+struct EngineState;
 
-// A frame the host captured (`capture.result` `frame` plus `boundaryRect`).
-// The bytes stay in the host under `handle`.
-struct CapturedFrame {
-  std::string handle;
-  int64_t width = 0;
-  int64_t height = 0;
-  std::string content_hash;
-  bool masked = false;
-  int64_t byte_length = 0;
-  int64_t capture_micros = 0;
-  OptString requested_backend;
-  OptString resolved_backend;
-  OptString fallback_reason;
-  std::optional<BoundaryRect> boundary;
-};
-
-// The `capture.result` outcomes the host reports.
-enum class CaptureResultOutcome {
-  kCaptured,
-  kPaintUnchanged,
-  kFailed,
-  kCancelled,
-};
-
-// `capture.result {requestId, outcome, frame?, boundaryRect?}`.
-struct CaptureResult {
-  std::string request_id;
-  CaptureResultOutcome outcome = CaptureResultOutcome::kFailed;
-  std::optional<CapturedFrame> frame;  // with `captured` only
-};
-
-// Who consumes a capture answer. `key` is the interaction id (tap settle,
-// gesture), the scroll start id (scroll end), or the event id (focus or
-// system-input observation).
-struct CaptureOwner {
-  enum class Kind { kTapSettle, kGesture, kScrollEnd, kObservation };
-  Kind kind = Kind::kGesture;
-  std::string key;
-};
-
-// What to ask the host for.
+// What to ask for (Dart `_requestCaptureCancellable` arguments).
 struct CaptureAsk {
-  FrameTrigger trigger = FrameTrigger::kInteraction;
+  FrameTrigger trigger = FrameTrigger::kManual;
   bool force = false;
-  bool require_fresh_paint = false;
-  int64_t not_before_mono_us = 0;
-  CaptureContext context;
+  // Low priority: dropped (`capture_pressure_drop`) when the scheduler is
+  // busy instead of queued.
+  bool drop_when_busy = false;
+  // Not before this long after the request.
+  int64_t settle_delay_ms = 0;
+  OptString related_event_id;
 };
 
-// A completed gesture asks for a fresh `interaction` frame now (Dart:
+// A completed interaction asks for a fresh `interaction` frame now (Dart:
 // `trigger: interaction, force: true, settleDelay: zero`).
-CaptureAsk interaction_capture(int64_t now_mono_us, CaptureContext context);
+CaptureAsk interaction_capture(const std::string& related_event_id);
 
-// Dart `_CaptureOutcome`, for the outcomes phase 3c can produce.
-enum class CaptureOutcome {
-  kFreshAccepted,
-  kPaintGenerationUnchanged,
-  kNoCompatibleFrame,
-  kCaptureProcessingFailed,
-  kCancelled,
+// The capture boundary as last observed: from a `surface` fact, or from
+// the `boundaryRect` of an accepted frame.
+struct BoundaryObservation {
+  std::optional<BoundaryRect> rect;
+  int64_t generation = 0;
 };
 
-// What one capture request resolved to (Dart `_CaptureResolution`).
-struct CaptureResolution {
-  CaptureOutcome outcome = CaptureOutcome::kCancelled;
-  OptString frame_id;
-};
-
-// An answer routed back to its owner. `accepted` is the frame this answer
-// added to the session (its record is already emitted), if any.
-struct CaptureAnswer {
-  CaptureOwner owner;
-  CaptureResolution resolution;
-  std::optional<FrameRecord> accepted;
-};
-
-// Dart `_FrameProvenance`, reduced to what interactions read.
-struct FrameProvenance {
-  std::string frame_id;
-  std::string session_id;
-  int64_t completed_at_ms = 0;
-  int64_t sequence = 0;
-  int64_t pixel_width = 0;
-  int64_t pixel_height = 0;
-  std::optional<BoundaryRect> boundary;
-  // False once the frame is trimmed from the session (a tombstone).
-  bool available = true;
-};
-
-// The input a temporal observation must follow (Dart `_temporalAfterFrame`
-// and `_frameObservedAfter`).
-struct ObservationBoundary {
-  std::string session_id;
-  int64_t at_ms = 0;
-  // When set, the frame's sequence must be greater (the frame completion
-  // sequence at pointer-up).
-  std::optional<int64_t> after_sequence;
-};
+// The timer that runs the queue head once its not-before time has come.
+constexpr char kCaptureDueTimerId[] = "capture.due";
 
 class CaptureSeam {
  public:
-  // Session start: forgets every frame and outstanding request.
+  // Session start: forgets frames, baselines, and the observed boundary.
+  // The queue is empty by then (teardown invalidated it); the capture
+  // generation, the budget, and the host request counter carry on.
   void reset();
-  // Teardown: invalidates every outstanding request; late answers are then
-  // ignored.
-  void cancel_requests() { requests_.clear(); }
 
-  // Mints `capture_request-N`, emits `capture.request`, and remembers the
-  // owner. Returns the request id.
-  std::string issue(const CaptureOwner& owner, const CaptureAsk& ask,
-                    IdCounter* ids, Output* out);
+  // Mints `capture_request-N` for `owner` with the current context and
+  // schedules it (or resolves it at once when suppressed or dropped).
+  // Returns the request id.
+  std::string request(Turn& turn, const CaptureOwner& owner,
+                      const CaptureAsk& ask);
+  // Dart `_cancelCaptureWaiter`: resolves one waiting request as cancelled.
+  void cancel(EngineState* state, const At& at, Output* out,
+              const std::string& request_id, CancelReason reason);
+  // Dart `_cancelScheduledCaptureWaiters`: resolves every waiting request
+  // as cancelled. The capture in flight keeps running for no one.
+  void cancel_all(EngineState* state, const At& at, Output* out,
+                  CancelReason reason);
+  // Dart `_advanceCaptureGeneration`: the capture in flight becomes stale.
+  void advance_generation() { scheduler_.advance_generation(); }
+  // Teardown (Dart `_invalidateCaptureWork`): advances the generation,
+  // resolves every request as cancelled, and stops waiting for the capture
+  // in flight; its late answer is then ignored like any unknown id.
+  void invalidate(EngineState* state, const At& at, Output* out,
+                  CancelReason reason);
 
-  // Resolves the answer to an outstanding request, or nothing for an
-  // unknown id. A `captured` frame is accepted into `session` as `frame-N`
-  // completing at `at_ms`: appended (trimming beyond `max_frames`, which
-  // tombstones provenance) and emitted as a frame record. `paintUnchanged`
-  // reuses the session's latest frame.
-  std::optional<CaptureAnswer> on_result(const CaptureResult& result,
-                                         int64_t at_ms, int64_t max_frames,
-                                         IdCounter* ids, Session* session,
-                                         Output* out);
+  // The host answered. Answers to unknown or stale ids are ignored, and a
+  // frame no one accepts is released. An accepted frame runs the
+  // frame-accepted hooks.
+  void on_result(EngineState* state, const At& at, Output* out,
+                 const CaptureResult& result);
+  // `capture.due` fired.
+  void on_due(EngineState* state, const At& at, Output* out);
 
+  // A `surface` fact.
+  void observe_surface(const BoundaryRect& rect, int64_t generation);
+  const BoundaryObservation& boundary() const { return boundary_; }
+
+  const FrameStore& frames() const { return frames_; }
   // The frame completion sequence: how many frames this session accepted.
-  int64_t sequence() const { return sequence_; }
-  // The latest available frame of `session_id`, or nullptr.
-  const FrameProvenance* latest(const std::string& session_id) const;
-  const FrameProvenance* find(const std::string& frame_id) const;
-
-  // `frame_id` when it is an available frame of the boundary's session that
-  // completed at or after `boundary.at_ms` (and, when set, after its
-  // sequence); otherwise nothing.
+  int64_t sequence() const { return frames_.sequence(); }
+  const FrameProvenance* latest(const std::string& session_id) const {
+    return frames_.latest(session_id);
+  }
+  const FrameProvenance* find(const std::string& frame_id) const {
+    return frames_.find(frame_id);
+  }
   OptString observed_after(const OptString& frame_id,
-                           const ObservationBoundary& boundary) const;
+                           const ObservationBoundary& boundary) const {
+    return frames_.observed_after(frame_id, boundary);
+  }
 
  private:
-  struct Request {
-    CaptureOwner owner;
-    FrameTrigger trigger;
-  };
+  // Runs the queue head while nothing is in flight and it is due.
+  void pump(EngineState* state, const At& at, Output* out);
+  // Decision steps 1, 2 and the staleness check, then the request.
+  void begin(EngineState* state, const At& at, Output* out,
+             ScheduledCapture scheduled);
+  void issue(InFlightCapture capture, EngineState* state, Output* out);
+  // Classifies a fresh answer to the capture in flight. Nothing when it
+  // stays in flight (the paint-unchanged retry).
+  std::optional<ExecutionResult> execute(EngineState* state, const At& at,
+                                         Output* out, InFlightCapture* flight,
+                                         const CaptureResult& result);
+  ExecutionResult execute_captured(EngineState* state, const At& at,
+                                   Output* out, const InFlightCapture& flight,
+                                   const CapturedFrame& frame);
+  // Dart `_captureContextStillCurrent`.
+  bool still_current(const EngineState& state, const RequestContext& context,
+                     int64_t generation) const;
+  void charge(const At& at, int64_t cost_us, const EngineState& state);
+  void release(const CapturedFrame& frame, Output* out) const;
+  void arm_due(EngineState* state, int64_t at_mono_us, Output* out);
 
-  FrameRecord accept(const CapturedFrame& frame, FrameTrigger trigger,
-                     int64_t at_ms, int64_t max_frames, IdCounter* ids,
-                     Session* session, Output* out);
+  // One `capture_execution-N` for every waiter of one execution.
+  void resolve_execution(EngineState* state, const At& at, Output* out,
+                         const std::vector<CaptureWaiter>& waiters,
+                         const ExecutionResult& execution);
+  // One `capture_execution-N` per waiter (cancellations, rejections).
+  void resolve_each(EngineState* state, const At& at, Output* out,
+                    const std::vector<CaptureWaiter>& waiters,
+                    const ExecutionResult& execution);
+  void resolve_waiter(EngineState* state, const At& at, Output* out,
+                      const CaptureWaiter& waiter,
+                      const std::string& execution_id,
+                      const ExecutionResult& execution);
 
-  std::map<std::string, Request> requests_;
-  std::map<std::string, FrameProvenance> provenance_;
-  OptString latest_frame_id_;
-  int64_t sequence_ = 0;
+  FrameStore frames_;
+  CaptureScheduler scheduler_;
+  CaptureBudget budget_;
+  BoundaryObservation boundary_;
+  std::optional<int64_t> due_at_mono_us_;
 };
 
 }  // namespace engine

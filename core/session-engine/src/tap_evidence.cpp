@@ -4,7 +4,7 @@
 
 #include "engine_state.h"
 #include "interaction_transaction.h"
-#include "interaction_turn.h"
+#include "turn.h"
 #include "name_table.h"
 #include "recorder.h"
 
@@ -42,7 +42,7 @@ bool decode_inventory(const ObjectReader& r, TapEvidence* out, Error* error) {
 }
 
 // Dart `_emitSceneInventory` for tap evidence: once per route and hash.
-void record_inventory(InteractionTurn& turn, const TapInventory& inventory) {
+void record_inventory(Turn& turn, const TapInventory& inventory) {
   EngineState& state = *turn.state;
   const std::string key =
       inventory.route_key + "|" + inventory.inventory_hash + "|";
@@ -80,7 +80,7 @@ bool decode_tap_evidence(const Value& json, const std::string& path,
   return true;
 }
 
-void resolve_tap_evidence(InteractionTurn& turn, Transaction& tx,
+void resolve_tap_evidence(Turn& turn, Transaction& tx,
                           const std::optional<TapEvidence>& up_evidence) {
   if (!turn.state->config.capabilities.scene_inventory) {
     if (up_evidence) {

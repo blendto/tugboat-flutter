@@ -25,16 +25,26 @@ set(_tb_dc_sources
   ${_tb_dc}/double-conversion/string-to-double.cc
   ${_tb_dc}/double-conversion/strtod.cc)
 set(_tb_engine_sources
+  src/capture_budget.cpp
+  src/capture_diagnostics.cpp
+  src/capture_execution.cpp
+  src/capture_facts.cpp
+  src/capture_module.cpp
+  src/capture_scheduler.cpp
   src/capture_seam.cpp
+  src/capture_types.cpp
   src/clock.cpp
   src/collector.cpp
   src/config.cpp
+  src/coordination.cpp
+  src/coordination_module.cpp
   src/dart_time.cpp
   src/delivery_module.cpp
   src/engine.cpp
   src/engine_module.cpp
   src/evidence_module.cpp
   src/fingerprint.cpp
+  src/frame_store.cpp
   src/gesture_classifier.cpp
   src/host.cpp
   src/input_observations.cpp
@@ -50,12 +60,18 @@ set(_tb_engine_sources
   src/models.cpp
   src/module_registry.cpp
   src/modules.cpp
+  src/navigation_facts.cpp
   src/navigation_module.cpp
+  src/navigation_view.cpp
+  src/navigator_registry.cpp
   src/output.cpp
   src/pointer_interactions.cpp
   src/pointer_tracker.cpp
   src/reader.cpp
   src/recorder.cpp
+  src/route_barrier.cpp
+  src/route_capture.cpp
+  src/route_change.cpp
   src/scroll_interactions.cpp
   src/session.cpp
   src/session_module.cpp

@@ -9,11 +9,12 @@
 
 #include <string>
 
-#include "capture_seam.h"
+#include "capture_types.h"
 #include "interaction_facts.h"
-#include "interaction_turn.h"
+#include "turn.h"
 #include "models.h"
 #include "ordered_map.h"
+#include "route_work.h"
 
 namespace tugboat {
 namespace engine {
@@ -37,11 +38,15 @@ struct InputObservations {
 void record_focus(EngineState* state, Session* session, const At& at,
                   FocusKind kind, Output* out);
 
-void record_system_input(InteractionTurn& turn, SystemInput input);
+void record_system_input(Turn& turn, SystemInput input);
 
 // The observation capture of event `event_id` resolved.
-void finish_observation(InteractionTurn& turn, const std::string& event_id,
+void finish_observation(Turn& turn, const std::string& event_id,
                         const CaptureResolution& resolution);
+
+// The route barrier the observation waits on is done.
+void observation_route_barrier_done(Turn& turn, const std::string& event_id,
+                                    const RouteWork& barrier);
 
 // Teardown: publishes every waiting event without a frame, in input order.
 void flush_observations(EngineState* state, Output* out);

@@ -23,6 +23,8 @@ struct Pending {
   LifecycleState lifecycle = LifecycleState::kIdle;
   // An event-producing fact without a live session: accepted, not applied.
   bool dropped = false;
+  // When the fact happened (absent on a configure sent without `at`).
+  std::optional<At> at;
 };
 
 bool check_contract(const ObjectReader& envelope, Error* error) {
@@ -76,6 +78,7 @@ bool decode_command(const ObjectReader& envelope, const CommandSpec& spec,
   const CommandInput command_input{*input, envelope.child("input"), at};
   out->command = spec.decode(command_input, error);
   out->path = envelope.path();
+  out->at = at;
   out->policy = spec.policy;
   return out->command != nullptr;
 }
@@ -241,10 +244,15 @@ class Dispatch {
     }
     Output out;
     for (Pending& p : *pending) {
-      if (!p.dropped) {
-        state_->lifecycle = p.lifecycle;
-        p.command->apply(modules_, state_, &out);
+      if (p.dropped) continue;
+      state_->lifecycle = p.lifecycle;
+      p.command->apply(modules_, state_, &out);
+      // Work the command deferred (coordination.h) sees the lifecycle the
+      // command left.
+      if (const std::optional<LifecycleSignal> signal = p.command->signal()) {
+        state_->lifecycle = transition(p.lifecycle, *signal);
       }
+      if (p.at) modules_.run_after_command(*p.at, state_, &out);
     }
     state_->lifecycle = simulated.lifecycle;
     *response = command_response(type, out);

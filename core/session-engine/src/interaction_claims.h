@@ -1,14 +1,12 @@
-// What navigation (phase 3d) uses from the interaction module, and what it
-// supplies back. Phase 3c has no navigation messages, so nothing calls the
-// claim API yet and the route stamp is empty.
-// Not part of the C ABI.
+// What navigation uses from the interaction module (design section 8.1):
+// claiming a navigation's cause, waking the claimed tap, and attaching the
+// route frame to the cause. Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_INTERACTION_CLAIMS_H
 #define TUGBOAT_SESSION_ENGINE_INTERACTION_CLAIMS_H
 
 #include <string>
 
 #include "clock.h"
-#include "interaction_transaction.h"
 #include "models.h"
 #include "output.h"
 
@@ -48,12 +46,10 @@ InteractionClaim claim_interaction_cause(EngineState* state, const At& at,
 void wake_claimed_tap(EngineState* state, const std::string& interaction_id,
                       const At& at, Output* out);
 
-// The visible route a new pointer-down records. Navigation supplies it in
-// phase 3d; until then it is empty.
-RouteStamp current_route_stamp(const EngineState& state);
-
-// The capture context of a request made now (design section 8.2).
-CaptureContext current_capture_context(const EngineState& state);
+// Dart `_attachCauseInteractionEvidence`: the route frame becomes the
+// still-unpublished cause's after-frame (its own settlement may replace it).
+void attach_route_frame(EngineState* state, const std::string& interaction_id,
+                        const OptString& frame_id);
 
 }  // namespace engine
 }  // namespace tugboat

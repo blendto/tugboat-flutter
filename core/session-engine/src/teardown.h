@@ -10,6 +10,8 @@
 #include <array>
 #include <cstddef>
 
+#include "capture_types.h"
+
 namespace tugboat {
 namespace engine {
 
@@ -54,6 +56,10 @@ constexpr std::array<TeardownStage, kTeardownStageCount> kReplacementOrder = {
 
 const std::array<TeardownStage, kTeardownStageCount>& teardown_order(
     TeardownCause cause);
+
+// The reason work cancelled by a teardown resolves with
+// (`lifecycle_deactivate`, `session_end`, `dispose`, `session_replacement`).
+CancelReason teardown_cancel_reason(TeardownCause cause);
 
 }  // namespace engine
 }  // namespace tugboat
