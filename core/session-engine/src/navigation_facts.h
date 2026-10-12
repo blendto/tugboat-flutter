@@ -51,7 +51,7 @@ RouteIdentity route_identity(const std::optional<FactRoute>& route);
 // `navigation {kind, navigatorId, parentNavigatorId?, route?, departing?}`.
 // `route` is the destination: the pushed route, the replacement, or the
 // route a pop or removal reveals (absent when none is). `departing
-// {instanceId, name?, type}` names the route leaving or covered; only its
+// {instanceId, name?, type?}` names the route leaving or covered; only its
 // id is read.
 struct NavigationFact {
   NavigationKind kind = NavigationKind::kPush;

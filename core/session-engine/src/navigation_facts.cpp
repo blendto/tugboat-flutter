@@ -58,12 +58,13 @@ bool decode_departing(const ObjectReader& parent, NavigationFact* out,
   const ObjectReader r(*json, parent.child("departing"), error);
   std::string instance_id;
   OptString name;
-  std::string type;
-  // `name` and `type` are validated for the adapter's sake; only the id
-  // finds the stack entry.
+  OptString type;
+  // `name` and `type` are validated but not read: the id finds the stack
+  // entry, and `route_change`'s `from*` fields come from the visible route,
+  // as in Dart (none for a session's first navigation).
   if (!r.check_keys({"instanceId", "name", "type"}) ||
       !read_non_empty(r, "instanceId", &instance_id) ||
-      !r.opt_string("name", &name) || !read_non_empty(r, "type", &type)) {
+      !r.opt_string("name", &name) || !r.opt_string("type", &type)) {
     return false;
   }
   out->departing_instance_id = std::move(instance_id);

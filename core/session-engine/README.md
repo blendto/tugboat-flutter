@@ -295,7 +295,7 @@ message `input`. The field-level vocabulary is in
 | `focus` | mono | `{kind}` | `text_input`, `other`, or `none`: what now holds primary focus. Tracked without a session too; records `focus_changed` (with `focusChanges`) only for transitions involving a text input. |
 | `systemInput` | mono | `{input}` | `back`, `volume_up`, `volume_down`, `volume_mute`, `power`, `media_play_pause`. Records `system_input` with the `systemInput` capability. |
 | `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?, failure?, timings?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, dHash?, structureSignature?, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged` (only for a request without `force`), `failed` (optional `failure`: `boundaryUnavailable`, `boundaryDetached`, `boundaryReplaced`, `layoutUnavailable`, `paintTimedOut`, `paintNotAdvanced`, `readbackFailed`, `maskFailed`, `encodingFailed`), `cancelled`. `timings {frameWaitMicros?, readbackMicros?, maskMicros?, encodeMicros?}` (each at most a day) feed the screenshot budget. `requestedBackend` and `resolvedBackend` are the closed collector vocabulary (`flutterRepaintBoundary`, `nativeCpuExperimental`); `dHash` and `structureSignature` are opaque tokens the engine only compares. This is the one way frames enter the engine. A captured frame the engine does not accept (an unknown, stale, or teardown-abandoned request, a reuse, a perceptual match, or no live session) is released at once (`frame.release`). |
-| `navigation` | mono | `{kind, navigatorId, parentNavigatorId?, route?, departing?}` | A navigator callback (section 8.1). `kind`: `push`, `pop`, `replace`, `remove`. `route {instanceId, name?, type, overlayKind, transitionMs}` is the destination: the pushed route, the replacement, or the route a pop or removal reveals (absent when none is). `overlayKind`: `page`, `sheet`, `dialog`, `popup`, `unknown`; `transitionMs` in [0, 86400000]. `departing {instanceId, name?, type}` is the route leaving or covered; only its id is read. Ids are opaque, stable for the navigator's or route's lifetime; the engine maps them onto `nav-N` / `route-N` per session. A navigator first named as `parentNavigatorId` is numbered after its child. |
+| `navigation` | mono | `{kind, navigatorId, parentNavigatorId?, route?, departing?}` | A navigator callback (section 8.1). `kind`: `push`, `pop`, `replace`, `remove`. `route {instanceId, name?, type, overlayKind, transitionMs}` is the destination: the pushed route, the replacement, or the route a pop or removal reveals (absent when none is). `overlayKind`: `page`, `sheet`, `dialog`, `popup`, `unknown`; `transitionMs` in [0, 86400000]. `departing {instanceId, name?, type?}` is the route leaving or covered; only its id is read (`from*` fields come from the visible route, as in Dart). Ids are opaque, stable for the navigator's or route's lifetime; the engine maps them onto `nav-N` / `route-N` per session. A navigator first named as `parentNavigatorId` is numbered after its child. |
 | `surface` | mono | `{boundaryRect {x, y, width, height}, generation}` | The capture boundary in surface logical pixels and the adapter's boundary transform generation, which advances whenever the boundary's rect changes. Send it after `session.start` and on every change, before the `capture.result` of a capture made under it. |
 
 Enrichment follows Dart `_addEvent`: the current locale is stamped when the
@@ -422,6 +422,16 @@ scheduler:
 - **Budget.** Each execution charges its queue wait (the settle delay
   included, as in Dart) and the host's `timings` within `budgetWindowMs` of
   fact time (C1). Over `budgetMs`, requests carry `scale: degradedScale`.
+- **Host contract.** The host answers every `capture.request` by its id
+  and must not assume one at a time: teardown stops waiting for the capture
+  in flight (change C16), so a new request can arrive while the host still
+  performs an abandoned one, whose late answer is ignored (frame released).
+  A request unanswered `capture.answerTimeoutMs` after it was issued (timer
+  `capture.answer.<requestId>`, change C18) resolves as
+  `paint_readiness_timeout`; a forced request answered `paintUnchanged`
+  resolves as `capture_processing_failed`. Both record `capture_diagnostic`
+  with `failure` (`answer_timeout`, `contract_violation`) even without the
+  `captureDiagnostics` capability, and a late answer is ignored.
 - **Lifecycle.** `session.start` requests a forced `initial` capture after
   `session_start`; `resumed` requests a forced `lifecycle` capture before
   `app_foregrounded`. Teardown cancels every request and stops waiting for
@@ -450,7 +460,7 @@ validated. `host.configuredUserId` is the runtime user id until
 | `gesture` | `touchSlop` 18, `panSlop` 36, `scaleSlop` 18, `trackpadScaleThreshold` 1.08 |
 | `interaction` | `claimWindowMs` 1250, `settleDelayMs` 1000, `maxReleased` 8, `scrollEndCaptureDelayMs` 0, `captureScrollSamples` false, `captureScrollScreenshots` false, `scrollCaptureIntervalMs` 2000, `factGraceMs` 0 |
 | `navigation` | `routeBarrierTimeoutMs` 5000, `routeStackLimit` 16 |
-| `capture` | `budgetMs` 60, `budgetWindowMs` 5000, `degradedScale` 0.8 |
+| `capture` | `budgetMs` 60, `budgetWindowMs` 5000, `degradedScale` 0.8, `answerTimeoutMs` 5000 (change C18) |
 | `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 20, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false, `answerGraceMs` 5000 |
 | `capabilities` | `sceneInventory`, `viewportSemanticMap`, `captureDiagnostics`, `actionContext`, `focusChanges`, `systemInput`, all false |
 
