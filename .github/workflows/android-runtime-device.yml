@@ -65,10 +65,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           working-directory: platforms/android
-          script: |
-            adb shell svc power stayon true
-            adb shell wm dismiss-keyguard
-            ./gradlew :capture-runtime-test:connectedDebugAndroidTest
+          script: ./gradlew :capture-runtime-test:connectedDebugAndroidTest
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
