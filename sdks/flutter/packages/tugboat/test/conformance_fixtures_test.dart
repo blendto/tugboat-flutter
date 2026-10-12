@@ -16,6 +16,7 @@ import 'package:tugboat/src/models.dart';
 
 import 'helpers/conformance_fixture.dart';
 import 'helpers/engine_scenario.dart';
+import 'helpers/engine_scenario_replay.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +74,7 @@ void main() {
 }
 
 String? _skipReason(ConformanceFixture fixture) {
+  if (fixture.deliveryParity) return null;
   if (fixture.engineOnly.isNotEmpty) {
     return 'engineOnly ${fixture.engineOnly.join(', ')}: Dart keeps its '
         'shipped behaviour';
@@ -100,10 +102,13 @@ void _expectFixture(ConformanceFixture fixture) {
   );
 
   if (fixture.kind == ConformanceKind.engineScenario) {
-    final mismatches = runEngineScenarioOnDart(fixture);
+    final mismatches = fixture.deliveryParity
+        ? replayDeliveryOnDart(fixture)
+        : runEngineScenarioOnDart(fixture);
     if (mismatches.isEmpty) return;
     fail(
-      '${fixture.relativePath} does not match the Dart controller:\n'
+      '${fixture.relativePath} does not match the Dart '
+      '${fixture.deliveryParity ? 'collector sink' : 'controller'}:\n'
       '  ${mismatches.join('\n  ')}',
     );
   }

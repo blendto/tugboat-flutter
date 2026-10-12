@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 
+#include "frame_retention.h"
 #include "models.h"
 #include "output.h"
 #include "session.h"
@@ -151,11 +152,13 @@ class CaptureSeam {
   // Resolves the answer to an outstanding request, or nothing for an
   // unknown id. A `captured` frame is accepted into `session` as `frame-N`
   // completing at `at_ms`: appended (trimming beyond `max_frames`, which
-  // tombstones provenance) and emitted as a frame record. `paintUnchanged`
-  // reuses the session's latest frame.
+  // tombstones provenance) and emitted as a frame record. The session's
+  // reference to its handle starts in `retention`, and trimmed frames lose
+  // theirs (section 7.6). `paintUnchanged` reuses the session's latest frame.
   std::optional<CaptureAnswer> on_result(const CaptureResult& result,
                                          int64_t at_ms, int64_t max_frames,
                                          IdCounter* ids, Session* session,
+                                         FrameRetention* retention,
                                          Output* out);
 
   // The frame completion sequence: how many frames this session accepted.
@@ -178,7 +181,8 @@ class CaptureSeam {
 
   FrameRecord accept(const CapturedFrame& frame, FrameTrigger trigger,
                      int64_t at_ms, int64_t max_frames, IdCounter* ids,
-                     Session* session, Output* out);
+                     Session* session, FrameRetention* retention,
+                     Output* out);
 
   std::map<std::string, Request> requests_;
   std::map<std::string, FrameProvenance> provenance_;

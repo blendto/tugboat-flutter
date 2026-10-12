@@ -66,6 +66,7 @@ directory is fixed by `kind`. A runner loads every `*.json` except
 | `expected` | The engine's output for `input`. |
 | `engineOnly` | `engine.scenario` only, optional. The ids of the deliberate changes in the stateful design's section 11 that the scenario encodes, from `change_ids.json` (the single list both runners read). Implies `runners: ["cpp"]`. Any other id, a duplicate, an empty list, or the key on another kind is an error. |
 | `runners` | `engine.scenario` only, optional. The runners that run the fixture: a non-empty list of distinct `cpp` and `dart`, default both. For scenarios the Dart runner cannot drive without claiming a section 11 change. With `engineOnly`, only `["cpp"]` is allowed. |
+| `dartParity` | `engine.scenario` only, optional: `"delivery"`. The Dart runner runs the scenario in delivery replay mode instead of skipping it, even when it is `engineOnly` for a change outside the collector wire: it feeds the engine's published records into the real `CollectorHttpSink` and compares only `http.send` effects. Not allowed with `runners`. |
 
 Files are UTF-8 JSON with 2-space indent and are ASCII-only: every non-ASCII
 character is written as a `\uXXXX` escape, using a UTF-16 surrogate pair above
@@ -253,19 +254,41 @@ fact a step sends carries `at`, so a scenario is fully deterministic.
 | `finalSnapshot` | `session.snapshot` after the last step: the session JSON (schema 10), or `null` when no session was ever started. |
 
 The Dart runner (`test/helpers/engine_scenario.dart`) runs every scenario
-whose runners include `dart` against the real `TugboatReplayController`,
-with its clocks driven by each step's `at`. A message type or configuration
-it cannot express is a test failure that asks for `runners: ["cpp"]`, not a
-silent pass. It differs from the C++ runner in three documented ways:
+whose runners include `dart` against the real `TugboatReplayController` and,
+with `collector.enabled`, the real `CollectorHttpSink`
+(`test/helpers/engine_scenario_delivery.dart`), with their clocks driven by
+each step's `at`. Delivery runs on a deterministic scheduler: before each
+step, fake time advances to the step's `at.monoUs`, firing every Dart timer
+that is due, so a `timer.fired` step needs no Dart call (scenarios fire each
+engine timer at its deadline). The sink's requests become `http.send`
+effects with runner-minted `http-N` ids, and `transport.result` steps answer
+them. A message type or configuration it cannot express is a test failure
+that asks for `runners: ["cpp"]`, not a silent pass. It differs from the C++
+runner in these documented ways:
 
 - It does not send steps that expect an `error`. Those pin the engine's
   message validation, which Dart's typed API cannot express.
 - Until the engine owns capture requests, it compares event ids by first
-  appearance rather than by number: Dart's id counter also mints
-  `capture_request-N` at session start and on `resumed`. When capture
-  requests move into the engine, this runner must switch to exact ids.
-- It has no effect model, so it requires every `effects` it checks to be
-  empty.
+  appearance rather than by number, in records, snapshots, and request
+  bodies: Dart's id counter also mints `capture_request-N` at session start
+  and on `resumed`. When capture requests move into the engine, this runner
+  must switch to exact ids.
+- It compares only `http.send` effects. Dart owns its timers and keeps frame
+  bytes until garbage collection, so `timer.*` and `frame.release` have no
+  Dart counterpart. JSON bodies are compared byte for byte; `timeoutMs` only
+  on frame uploads (Dart puts no timeout on JSON posts, change C3).
+- The `TugboatReplay` widget's 500 ms background flush is reproduced by the
+  runner, since the widget is not mounted.
+- Frames reach the engine only through `capture.result` for an
+  interaction's capture request, which the Dart controller cannot drive.
+  Scenarios with frames, and scenarios that are `engineOnly` only because
+  the engine publishes delivery gaps as records (C6), carry
+  `dartParity: "delivery"`: the Dart runner
+  (`test/helpers/engine_scenario_replay.dart`) feeds the records each step
+  expects (minus the engine's own `collector-…` gap records) into the real
+  `CollectorHttpSink` and compares its `http.send` effects, so the 0.10.9
+  frame lane (400 isolation, retry offsets, requeue order, the latch, gap
+  wire bodies) is cross-checked.
 
 ## Determinism
 

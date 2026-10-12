@@ -36,13 +36,19 @@ core/session-engine/
 | --- | --- |
 | `tb_session_engine.cpp` | The C ABI: handles, buffers, status codes, error documents. |
 | `engine` | Envelope validation, `batch`, admission, and response documents. |
-| `module_registry` | What modules contribute: message types (with their `at` rule and session policy), teardown work per stage, timers by id prefix, lifecycle hooks, frame-accepted hooks, and the event types the engine records itself. |
+| `module_registry` | What modules contribute: message types (with their `at` rule and session policy), teardown work per stage, timers by id prefix, lifecycle hooks, frame-accepted hooks, event record observers (which the recorder reaches through the dispatcher's `EngineState::applying`, with the message's `at`), and the event types the engine records itself. |
 | `modules` | Registers every `*_module.cpp` once (`register_*_module`). |
-| `engine_module.cpp` | `engine.configure`, `session.snapshot`, `timer.fired`. |
+| `engine_module.cpp` | `engine.configure`, `engine.dispose`, `session.snapshot`, `timer.fired`. |
 | `session_module.cpp` | `session.start`, `session.end`, `app.lifecycle`. |
-| `evidence_module.cpp` | `event.record`, `locale.set`, `identity.set`. |
+| `evidence_module.cpp` | `event.record`, `locale.set`. |
+| `identity_module.cpp` | `identity.set`, `traits.set`: the runtime user id and the traits bag, with change detection. |
+| `frame_retention`, `frame_retention_module.cpp` | Who references each accepted frame: the session (taken and trimmed by the capture seam, dropped at session end) and delivery; `frame.release` once both let go (design section 7.6). |
 | `stateless_module.cpp` | The stateless operations (`fingerprint.cpp`, `collector.cpp`). |
-| `delivery_module.cpp`, `navigation_module.cpp` | Collector delivery, and navigation and capture (design sections 7 and 8), each with its state header. |
+| `collector_mapping` | The one collector wire mapping (`collector_mapper.dart`), shared by the stateless operations and delivery. |
+| `delivery_module.cpp` | Collector delivery (design section 7): `transport.result`, `transport.flush`, the `delivery.` timers, hooks, and observers. Its state is `delivery_state.h`; the parts below each hold one concept. |
+| `delivery`, `delivery_lanes`, `flush_pass` | Delivery phases, triggers, identity, and the session end drain; queueing events and frames, gaps, and release; the flush pass cursor and response handling (`flush_cursor.h` holds its state). |
+| `lifecycle_lane`, `event_queue`, `frame_lane`, `delivery_gaps`, `delivery_bounds`, `transport` | The `/v1/sessions` FIFO, the identity debounce that feeds it, and the handshake; pending events and retry batches with send-time stamping; pending frames and the multipart body; gap thresholds; every queue bound and its eviction rule; `transport.result` and its classification. |
+| `navigation_module.cpp` | Navigation and capture (design section 8), with its state header. |
 | `interaction_module.cpp` | Interactions (design section 9): the interaction messages, `interaction.` timers, and teardown stages. Its state is `interaction_state.h`; the parts below each hold one concept. |
 | `gesture_classifier` | Pure classification: touch slop, the multi-pointer cluster, trackpad thresholds, from the `gesture` config. |
 | `pointer_tracker` | Contacts, the cluster, and the trackpad contact (Dart `InputCapture`); turns facts into controller signals. |
@@ -106,7 +112,7 @@ message twice to size a caller buffer.
 | 1 | `invalid_argument` | `NULL` engine or output pointer, `NULL` message with a non-zero length, or a config limit out of range. |
 | 2 | `abi_mismatch` | `config->abi_version` differs from the library. |
 | 3 | `malformed_message` | Not UTF-8 JSON, duplicate object key, or nested deeper than `max_depth`. |
-| 4 | `invalid_message` | Valid JSON that breaks the message schema (unknown key, wrong type, missing required field, out-of-range value, or a value Dart could not encode: a non-finite number reaching the output or, on state-changing messages, anywhere in the input), or a message the engine state does not admit (an event after `session_end`, `session.start` before a host is configured, `engine.configure` during a session). A rejected message changes no state. |
+| 4 | `invalid_message` | Valid JSON that breaks the message schema (unknown key, wrong type, missing required field, out-of-range value, or a value Dart could not encode: a non-finite number reaching the output or, on state-changing messages, anywhere in the input), or a message the engine state does not admit (an event after `session_end`, `session.start` before a host is configured, `engine.configure` during a session, any command after `engine.dispose`). A rejected message changes no state, and the host keeps owning any frame handle it carried. |
 | 5 | `unsupported_message` | Unknown message `type`. |
 | 6 | `contract_mismatch` | The message pins other contract versions than the engine. |
 | 7 | `message_too_large` | Longer than `max_message_bytes`. |
@@ -178,7 +184,7 @@ Unknown envelope keys are `invalid_message`.
 | Field | Meaning |
 | --- | --- |
 | `monoUs` | Host monotonic clock in microseconds at the moment of the fact (not of submission). A non-negative integer. Required on every fact. |
-| `wallUs` | UTC epoch microseconds at the same moment, within Dart's `DateTime` range. Required on `session.start`, `session.end`, and `identity.set`; optional elsewhere. |
+| `wallUs` | UTC epoch microseconds at the same moment, within Dart's `DateTime` range. Required on `session.start`, `session.end`, `identity.set`, `traits.set`, and `transport.result`; optional elsewhere. |
 
 The engine never reads a clock. Event `atMs` is
 `floor((fact monoUs - session.start monoUs) / 1000)`, which is Dart's
@@ -239,7 +245,7 @@ Effects are what the host must do, in order.
 | --- | --- | --- |
 | `timer.schedule` | `timerId`, `atMonoUs` | `timer.fired {timerId}` at that host monotonic time. An armed timer with the same id is replaced. |
 | `timer.cancel` | `timerId` | none |
-| `http.send` | `requestId`, `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `json` (the body) or `multipart` (`fields`: object of strings; `frames`: `[{handle, filename}]`, whose bytes the host resolves from the handle) | `transport.result {requestId, …}` |
+| `http.send` | `requestId` (a string, `http-N`), `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `jsonBody` or `multipart`. `jsonBody` is the request body, already encoded: the exact UTF-8 text to send (byte-identical to Dart's `jsonEncode`); hosts never re-encode it. `multipart` is `{fields, frames}`: `fields` an ordered array of `[name, value]` string pairs, `frames` an array of `{handle, filename}` file parts (form field `files`) whose bytes the host resolves from the handle. Headers (API key, app identity, content type) are the host's. | `transport.result {requestId, …}` echoing `requestId` |
 | `frame.release` | `handle` | none; the host may drop the bytes |
 | `capture.request` | `requestId`, `trigger`, `force`, `requireFreshPaint`, `dropWhenBusy`, `notBeforeMonoUs`, `context` (`routeEpoch`, `navigatorId?`, `routeInstanceId?`, `boundaryGeneration`), `dHashBaseline?`, `scale` | `capture.result {requestId, …}` |
 
@@ -260,13 +266,17 @@ message `input`. The field-level vocabulary is in
 
 | `type` | `at` | `input` | Does |
 | --- | --- | --- | --- |
+| `engine.dispose` | optional | `{}` | The host's last message before `tb_session_engine_destroy`, between sessions (a live session is `invalid_message`: end it first). Reports the delivery work the collector never confirmed (below) and releases every frame delivery still references; the engine then admits no further command. |
 | `engine.configure` | optional | `{host?, limits?, gesture?, interaction?, navigation?, capture?, collector?, capabilities?}` | Replaces the configuration (below). Only before the first session or between sessions. |
 | `session.start` | mono + wall | `{viewport: {width, height}, platform, sessionEpoch, locale?, activationRequestId?, explorationRunId?}` | Ends a live session first (C10), resets per-session state, and records `session_start`. The session id is `session-<wallUs>` and `startedAt` is the same instant. Needs a configured `host`. |
 | `session.end` | mono + wall | `{reason?}` (`session_end` or `dispose`) | Tears down in-flight work and records `session_end`. Idempotent. |
 | `app.lifecycle` | mono | `{state}`: `paused`, `hidden`, `inactive`, `resumed`, `detached` | `paused`/`hidden`/`detached` tear down in-flight work. Records `app_backgrounded`, `app_foregrounded`, `app_inactive`, or `app_detached` with `data.state`, dropping consecutive duplicates by state or event type. `detached` then ends the session. |
 | `event.record` | mono | `{eventType, stream, attachActionContext, data?, targetAnchor?, atMonoUs?}` | Records a toolkit-produced event (`scene_inventory`, `network_call`, `external_event`, …). `atMonoUs` (default `at.monoUs`) is the fact time. `stream` is `semantic`, `evidence`, or `diagnostic` (session schema 10). Types the engine records itself are rejected. |
 | `locale.set` | mono | `{locale}` | Dedupes against the current locale, updates it, and records `locale_changed` (evidence stream, `data.previousLocale?`, `data.locale`) while a session is live. |
-| `identity.set` | mono + wall | `{userId}` (string or null) | Sets the runtime user id stamped on later records. |
+| `identity.set` | mono + wall | `{userId}` (string or null) | Sets the runtime user id stamped on later records. A change is posted to the collector after the identity debounce. |
+| `traits.set` | mono + wall | `{traits}` (object) | Replaces the host's traits bag (it survives sessions). A bag equal to the current one (Dart `mapEquals`: shallow, nested containers never equal) is no change; a change is posted after the identity debounce. |
+| `transport.result` | mono + wall | `{requestId, outcome, status?, body?}` | The host's answer to `http.send`. `outcome`: `http` (with `status` in [100, 599] and an optional `body`, the response's first 64 KiB as a string), `error`, or `timeout`. Unknown and already answered ids are ignored. |
+| `transport.flush` | mono | `{}` | A flush trigger from the host, for example before the process exits. |
 | `timer.fired` | mono | `{timerId}` | Routes by timer-id prefix to the module that armed the timer. Unknown, cancelled, and stale (fired before the current deadline) ids are ignored. |
 | `session.snapshot` | optional | `{}` | Query. `result.snapshot` is the live or last session as `TugboatSession.toJson()` (schema 10), or `null` before the first session. |
 | `input.pointer` | mono | `{pointerId, phase, x, y, device, tap?}` | A pointer fact (section 9.1). `phase`: `down`, `move`, `up`, `cancel`; `device`: `touch`, `mouse`, `stylus`, `trackpad` (validated; it does not change classification, as in Dart). `x`, `y` are logical pixels in the adapter's surface space. `tap {anchor?, failureReason?, inventory?}` is allowed on `down` (exploration pre-tap evidence) and `up`. A `pointerId` must be unique per contact. |
@@ -274,7 +284,7 @@ message `input`. The field-level vocabulary is in
 | `scroll` | mono | `{scrollableId, phase, offset?, axis?, maxScrollExtent?, anchor?}` | `phase`: `start`, `update`, `end`, `overscroll`. `offset` and `axis` (`vertical`, `horizontal`) are required except on `overscroll`, which carries only the id; `maxScrollExtent` gives samples their `offsetNorm`; `anchor` (the scrollable's) is allowed on `start` only. `scrollableId` is stable for the scrollable's lifetime. |
 | `focus` | mono | `{kind}` | `text_input`, `other`, or `none`: what now holds primary focus. Tracked without a session too; records `focus_changed` (with `focusChanges`) only for transitions involving a text input. |
 | `systemInput` | mono | `{input}` | `back`, `volume_up`, `volume_down`, `volume_mute`, `power`, `media_play_pause`. Records `system_input` with the `systemInput` capability. |
-| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged`, `failed`, `cancelled`. Unknown and invalidated request ids are ignored. |
+| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged`, `failed`, `cancelled`. `requestedBackend` and `resolvedBackend` are the closed collector vocabulary (`flutterRepaintBoundary`, `nativeCpuExperimental`). This is the one way frames enter the engine. A captured frame for an unknown or invalidated request, or with no live session, is released at once (`frame.release`). |
 
 Enrichment follows Dart `_addEvent`: the current locale is stamped when the
 event has none; with `attachActionContext` the session's capture,
@@ -287,9 +297,11 @@ session (C7, kept). The exploration action window (`actionId` stamping) is
 not part of the engine; `actionId` passes through.
 
 Event-producing facts (`event.record`, `app.lifecycle`, and the interaction
-facts except `focus`) without a live session, before the first session or
-after `session_end` (change C9), are accepted and dropped: no record, no id.
-`locale.set` then only updates the locale the next session starts with.
+facts except `focus` and `capture.result`) without a live session, before
+the first session or after `session_end` (change C9), are accepted and
+dropped: no record, no id. `capture.result` without a live session releases
+its frame instead. `locale.set` then only updates the locale the next
+session starts with.
 
 ### Interactions
 
@@ -374,10 +386,82 @@ validated. `host.configuredUserId` is the runtime user id until
 | `interaction` | `claimWindowMs` 1250, `settleDelayMs` 1000, `maxReleased` 8, `scrollEndCaptureDelayMs` 0, `captureScrollSamples` false, `scrollCaptureIntervalMs` 2000, `factGraceMs` 0 |
 | `navigation` | `routeBarrierTimeoutMs` 5000, `routeStackLimit` 16 |
 | `capture` | `budgetMs` 60, `budgetWindowMs` 5000, `degradedScale` 0.8 |
-| `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 20, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false |
+| `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 20, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false, `answerGraceMs` 5000 |
 | `capabilities` | `sceneInventory`, `viewportSemanticMap`, `captureDiagnostics`, `actionContext`, `focusChanges`, `systemInput`, all false |
 
 Durations are milliseconds in [0, 86400000]; counts are in [1, 1000000].
+
+### Collector delivery
+
+With `collector.enabled`, delivery (design section 7) replaces
+`CollectorHttpSink`'s policy. The engine decides what to send and when; the
+host performs each `http.send` and answers with `transport.result`. One
+request is in flight at a time across the three lanes.
+
+- **Lifecycle lane.** `/v1/sessions` posts in a strict FIFO: `session_start`
+  (with the local session id), `session_identify`, `traits_updated`,
+  `user_changed`, `session_end`. Bodies are built when sent from the current
+  user id and traits; `triggeredAt` is fixed when queued and `atMs` is the
+  monotonic difference (C1). The head leaves the lane only when accepted.
+  An accepted `session_start` sets the collector session id from the body's
+  `sessionId`, or the local id when the body is empty, not a JSON object, or
+  has no non-empty string `sessionId`; any accepted body caches a non-empty
+  `traitsId`.
+- **Identity.** User id and traits changes wait `identityDebounceMs` after
+  the last change (`delivery.identity`) and merge into one post
+  (`session_identify` when both changed). While `session_start` is still
+  queued they fold into its body instead.
+- **Stamping.** An event's `userId` is stamped when it is recorded;
+  `sessionId` and `traitsId` when its batch is sent.
+- **Flush pass** (`flush_pass.cpp`): the lifecycle head; then, once a
+  collector session id exists, pending frames sorted by `frameNo` in chunks
+  of `frameChunk`; the retry-batch head until a retry outcome; fresh events
+  in batches of `batchSize` until none is pending. Triggers: the
+  `batchSize`-th pending event, the periodic `delivery.flush` timer, an
+  accepted frame (unless frames need retry), `delivery.background`
+  (`backgroundFlushDelayMs` after `paused`/`hidden`; `resumed` cancels it),
+  `session.end`, and `transport.flush`. A trigger during a pass runs another
+  pass after it (C2).
+- **Outcomes.** HTTP 202 is accepted; 408, 429, 5xx, `error`, and `timeout`
+  are retried; any other status drops the batch for good (C8 kept). JSON
+  posts carry `jsonTimeoutMs` (C3), frame uploads `frameTimeoutMs`. Each
+  request also arms `delivery.answer.<requestId>` at `timeoutMs +
+  answerGraceMs`: without an answer by then it is a timeout and a late
+  answer is ignored (C15). Retries are paced by triggers only.
+- **Bounds** (`delivery_bounds.h`): `maxPendingEvents`, `maxPendingBatches`,
+  and `maxPendingFrames` evict the oldest; failed frames are requeued at the
+  front, so they go first.
+- **Frames.** Every frame `capture.result` accepts is queued (a frame
+  acceptance observer). A chunk with a retry outcome requeues itself and
+  every later chunk; a chunk of several frames rejected with 400 is re-sent
+  frame by frame, and a single frame with a retry outcome requeues from its
+  own index; any other drop discards the chunk.
+- **Handles.** The session and delivery each reference an accepted frame;
+  `frame.release` is emitted exactly once, when the frame is trimmed from
+  the session (`limits.maxFrames`) or the session ended, and delivery is
+  done with it (accepted, dropped, evicted, or its upload resolved after a
+  reset).
+- **Gaps** (C6). Frame-lane `capture_diagnostic` events with
+  `component: collector_frame_upload` (`failed`, latched until `recovered`;
+  `dropped` at a cumulative 1 or power of two) are ordinary event records.
+  With `reportEventLaneGaps`, evicted and rejected events are reported as
+  `collector_event_upload` `dropped` (`reason` `evicted` or `rejected`) each
+  time the cumulative count crosses a power of two. A gap event is queued
+  like any event, so it counts toward `batchSize` and can evict another.
+- **Session end** (C5). `session.end` first queues a debounced identity
+  change, then holds `session_end` until frames and events drain or
+  `endDrainTimeoutMs` passes (`delivery.endDrain`). The periodic timer keeps
+  retrying until every lane is empty.
+- **Unconfirmed work.** `engine.dispose`, and a new `session.start` that
+  resets delivery (traits and the traits id survive), report the work the
+  collector never confirmed once as a `health` record
+  (`component: collector_delivery`): `undeliveredLifecycle`,
+  `undeliveredEvents`, `undeliveredFrames` (queued: never sent, or waiting
+  for a retry) and `inFlightLifecycle`, `inFlightEvents`, `inFlightFrames`
+  (the request whose answer is pending). After a reset, a request still in
+  flight keeps the single slot until it resolves or its answer deadline
+  passes, and its result is ignored; `engine.dispose` releases its frames at
+  once.
 
 ### Dart equivalence
 
@@ -413,7 +497,9 @@ Highlights:
 
 Where the engine is stricter than Dart's `jsonDecode`:
 
-- Duplicate object keys are rejected. Dart keeps the last one.
+- Duplicate object keys are rejected. Dart keeps the last one. A collector
+  response body with duplicate keys is therefore not read: a
+  `session_start` falls back to the local session id.
 - Invalid UTF-8 bytes are rejected. They cannot reach a Dart `String` from a
   host anyway.
 

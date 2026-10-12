@@ -21,6 +21,10 @@ bool epoch_ms_in_range(int64_t ms);
 // RangeError (result outside the DateTime range).
 bool dart_add_ms(int64_t start_ms, int64_t at_ms, int64_t* out_micros);
 
+// The same for a start instant with microsecond precision (a stateful
+// session's `startedAt`).
+bool dart_add_ms_to_us(int64_t start_us, int64_t at_ms, int64_t* out_micros);
+
 // `DateTime.fromMicrosecondsSinceEpoch(us, isUtc: true).toIso8601String()`:
 // `YYYY-MM-DDTHH:MM:SS.mmmZ`, three more fractional digits when the
 // microsecond part is non-zero, and `±YYYYYY` years outside 0..9999.

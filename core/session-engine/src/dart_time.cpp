@@ -73,9 +73,16 @@ bool dart_add_ms(int64_t start_ms, int64_t at_ms, int64_t* out_micros) {
   if (!epoch_ms_in_range(start_ms)) {
     return false;
   }
-  const uint64_t start_us = static_cast<uint64_t>(start_ms) * 1000u;
+  return dart_add_ms_to_us(start_ms * 1000, at_ms, out_micros);
+}
+
+bool dart_add_ms_to_us(int64_t start_us, int64_t at_ms, int64_t* out_micros) {
+  if (start_us < -kMaxEpochMicros || start_us > kMaxEpochMicros) {
+    return false;
+  }
   const uint64_t delta_us = static_cast<uint64_t>(at_ms) * 1000u;
-  const auto sum = static_cast<int64_t>(start_us + delta_us);
+  const auto sum =
+      static_cast<int64_t>(static_cast<uint64_t>(start_us) + delta_us);
   if (sum < -kMaxEpochMicros || sum > kMaxEpochMicros) {
     return false;
   }
