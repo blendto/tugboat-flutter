@@ -25,7 +25,7 @@ wiring, window capture, and the Android Views adapter.
   View focus before its text field does is one `text_input`. Focus is
   app-wide: a window that becomes active (its activity resumed) reports
   its focus, so leaving a focused field for another activity is
-  `focus_changed none|other`.
+  `focus_changed none|other`; only the active window reports.
 - `stop()`: `session.end`, then `engine.dispose` and handle destruction once
   the `session_end` post settled (bounded at 25 s).
 - Capture: `capture.request` answered with `capture-runtime` window capture
