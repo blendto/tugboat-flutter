@@ -91,6 +91,7 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-12 | Mask coverage: the Compose host is masked whole by default with an opt-in for semantics-precise masks, approved by the local orchestrator 2026-10-12 on the condition that "frames record which mode applied (in frame diagnostics, not a new event field) so Atlas can tell a whole-masked host from a broken capture", for every toolkit (Views, Compose, SwiftUI). `capture.result.frame` gains an optional `maskCoverage {mode, reasons}` (`mode`: `precise`, `wholeHost`, `wholeFrame`; `reasons`: at most 8 distinct names from a closed set of 17 that covers every value the Android `MaskCoverageReason` and SwiftUI `MaskCoverage.Reason` adapters emit, including `regionUnreadable`, `treeUnreadable`, `renderer`; unknown values are `invalid_message`). An accepted frame with it always records `capture_diagnostic` `{component: capture_masking, frameId, mode, reasons}` right after its frame record, before the frame-accepted hooks (a delivery eviction gap follows it); coalesced, reused and stale answers record nothing; no new event types or fields, `frameMetadata` unchanged, frames without it unchanged. `capture.result.failure` gains `secureWindow` (camelCase like the rest of that vocabulary; the Android host mapped `SecureWindow` to `readbackFailed`): `capture_processing_failed` as before, with `capture_diagnostic` `failure: secure_window`. Decided in the PR #96 review: without `captureDiagnostics` that diagnostic is throttled to the first secure window per route instance per session; repeats are counted and each teardown (background, session end or replacement) records `capture_diagnostic` `{component: capture_secure_window, routeInstanceId?, repeatCount}` per route instance with new repeats, so a secure screen cannot flood the event queue. Engine diagnostics share one `record_diagnostic` helper. Fixtures are `runners: ["cpp"]` (native vocabulary Dart does not have), no section 11 change. | The orchestrator's condition; collector accepts new `capture_diagnostic` component values and keeps their data in `payload`; a secure screen must not look like a broken capture either (PR #96) |
 | 2026-10-12 | Android focus is app-wide (Dart `FocusManager` parity): every window's focus producer dedupes against one shared last kind, only the active window (the most recently resumed activity's, cleared when its session detaches) reports, and a resumed activity's window is evaluated like a focus change (still once per frame). Leaving a focused field for another activity reports `none` / `other`; coming back reports `text_input`. | PR #95 final device pass: focus loss through navigation was not recorded |
 | 2026-10-12 | A tap that opens an activity whose `NavHost` reports its start destination (a nested route right after the activity route) has no `afterFrame`: the engine lets a claimed tap take its route's frame only while no route it did not cause followed (`navigation-claim-navigator-mismatch`, design 9.3). Reproduced against the engine: with the nested push 200 ms after the activity push the tap has no `afterFrame`; with no nested push, or with the nested push after the activity's route capture, it has one. Dart-equivalent (a page with an observed nested `Navigator`); documented in the sample README rather than changed. Alternative if Atlas needs it: report a controller's start destination without a separate route change (the activity route stands for it), at the cost of the `rows` `route_change`. | PR #95 final device pass, item 3 |
+| 2026-10-12 | `main` 0.10.10 (#75) seeds the visible Flutter route at session start with one `route_change` `navigation: session_start`. The engine has no `session_start` navigation kind: native adapters report the first screen as an ordinary `route_push` navigation fact. Logged divergence; open item to add the kind before Flutter moves onto the engine (Q1). Dart conformance scenarios are unaffected (their runner installs no Navigator). | Merged `origin/main` into the feature branch before the `main` PR |
 
 ## Gates before merging to main
 
@@ -109,10 +110,23 @@ its Dart path unchanged. No publishing and no merges to `main`.
    (`android-runtime-device.yml`).
 4. On merge to `main`, the Apple publish flow tags `apple-runtime-v0.2.0`
    and pushes `TugboatCaptureRuntime` 0.2.0 to CocoaPods trunk (the root
-   podspec `s.version` is not on trunk). The `main` PR description must say
-   so; the Flutter plugin keeps its 0.1.1 pin until a pin PR follows.
+   podspec `s.version` is 0.2.0 and not on trunk), then opens a Flutter pin
+   PR (`open-flutter-apple-pin-pr.sh`). 0.2.0 adds no enum cases, so the
+   plugin's Swift compiles against it. The `main` PR description must say so.
+5. On merge to `main`, `publish.yml` tags `v0.10.11-dev.3` and publishes
+   `tugboat` and `tugboat_dio` 0.10.11-dev.3 (lockstep prerelease) to
+   pub.dev. Prereleases are not selected by `^` constraints. The owner can
+   instead choose a stable 0.10.11 for both before merging.
+6. Not published by the merge: `tugboat-android` and `tugboat-compose`
+   (`publish-android.yml` runs only `:capture-runtime` tasks), the Swift
+   `Tugboat` / `TugboatSessionEngine` SwiftPM products (no tag of their
+   own; the `v0.10.11-dev.3` pub tag points at a commit whose root
+   `Package.swift` declares them, so SwiftPM could resolve that prerelease
+   tag), and no `TugboatSDK` podspec exists.
 
 ## Open items
+
+- **Engine `session_start` navigation kind.** Flutter 0.10.10 seeds the visible route at session start (`navigation: session_start`); add an equivalent engine fact before Flutter moves onto the engine.
 - **Engine: capture on a boundary change.** A `surface` generation change
   could request a forced capture, so the first interaction after a rotation
   or resize has a compatible before-frame and a `position` (today it has
