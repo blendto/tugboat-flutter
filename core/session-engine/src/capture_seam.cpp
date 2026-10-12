@@ -303,9 +303,7 @@ ExecutionResult CaptureSeam::execute(EngineState* state, const At& at,
              flight.queue_wait_us +
                  (result.timings ? result.timings->frame_wait_us : 0),
              *state);
-      ExecutionResult failed;
-      failed.outcome = failure_outcome(result.failure);
-      return failed;
+      return failed_execution(result.failure);
     }
     case CaptureResultOutcome::kCancelled:
       break;
@@ -352,6 +350,10 @@ ExecutionResult CaptureSeam::execute_captured(EngineState* state,
   // The registry of the message being applied (engine.cpp).
   if (const ModuleRegistry* modules = state->applying.modules) {
     modules->run_frame_accepted(record.frame, record.handle, state, out);
+  }
+  if (frame.mask_coverage) {
+    record_mask_coverage(state, at, out, record.frame.id,
+                         *frame.mask_coverage);
   }
   ExecutionResult accepted;
   accepted.outcome = CaptureOutcome::kFreshAccepted;

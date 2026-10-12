@@ -72,5 +72,26 @@ void record_capture_diagnostic(EngineState* state, const At& at, Output* out,
   record_event(state, *session, std::move(event), true, out);
 }
 
+void record_mask_coverage(EngineState* state, const At& at, Output* out,
+                          const std::string& frame_id,
+                          const MaskCoverage& coverage) {
+  Session* session = state->live_session();
+  if (session == nullptr) return;
+  Value reasons = Value::array();
+  for (MaskReason reason : coverage.reasons) {
+    reasons.push(Value::string(mask_reason_name(reason)));
+  }
+  Value data = Value::object();
+  data.set("component", Value::string("capture_masking"));
+  data.set("frameId", Value::string(frame_id));
+  data.set("mode", Value::string(mask_mode_name(coverage.mode)));
+  data.set("reasons", std::move(reasons));
+  Event event = make_event(state, *session, "capture_diagnostic", at.mono_us);
+  event.stream = EventStream::kDiagnostic;
+  event.after_frame = frame_id;
+  event.data = std::move(data);
+  record_event(state, *session, std::move(event), true, out);
+}
+
 }  // namespace engine
 }  // namespace tugboat

@@ -4,8 +4,24 @@ namespace tugboat {
 namespace engine {
 
 const char* host_failure_name(HostFailure failure) {
-  return failure == HostFailure::kAnswerTimeout ? "answer_timeout"
-                                                : "contract_violation";
+  switch (failure) {
+    case HostFailure::kAnswerTimeout:
+      return "answer_timeout";
+    case HostFailure::kContractViolation:
+      return "contract_violation";
+    case HostFailure::kSecureWindow:
+      return "secure_window";
+  }
+  return "contract_violation";
+}
+
+ExecutionResult failed_execution(const std::optional<CaptureFailure>& failure) {
+  ExecutionResult failed;
+  failed.outcome = failure_outcome(failure);
+  if (failure == CaptureFailure::kSecureWindow) {
+    failed.host_failure = HostFailure::kSecureWindow;
+  }
+  return failed;
 }
 
 ExecutionResult cancelled_execution(CancelReason reason) {
@@ -47,6 +63,7 @@ CaptureOutcome failure_outcome(const std::optional<CaptureFailure>& failure) {
     case CaptureFailure::kReadbackFailed:
     case CaptureFailure::kMaskFailed:
     case CaptureFailure::kEncodingFailed:
+    case CaptureFailure::kSecureWindow:
       return CaptureOutcome::kCaptureProcessingFailed;
   }
   return CaptureOutcome::kCaptureProcessingFailed;

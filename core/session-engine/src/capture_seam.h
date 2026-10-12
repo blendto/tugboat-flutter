@@ -10,7 +10,8 @@
 //   each waiter by its own compatibility, with one `capture_execution-N`
 //   id per execution (one per request for cancellations and rejections),
 //   in Dart's id order. With the `captureDiagnostics` capability every
-//   resolution is a `capture_diagnostic` event.
+//   resolution is a `capture_diagnostic` event. An accepted frame with
+//   `maskCoverage` always records a `capture_masking` diagnostic.
 // - Answers reach their owners as deferred work (coordination.h).
 // - Frame provenance, the latest frame, and the coalesce baselines are the
 //   frame store (frame_store.h); the screenshot budget is capture_budget.h.

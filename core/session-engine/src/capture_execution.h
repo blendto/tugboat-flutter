@@ -25,11 +25,14 @@
 namespace tugboat {
 namespace engine {
 
-// A host contract problem the engine detected (no Dart counterpart). It is
-// always reported as a `capture_diagnostic` `failure`.
+// A host failure (no Dart counterpart) that is always reported as a
+// `capture_diagnostic` `failure`, with or without the `captureDiagnostics`
+// capability: a host contract problem the engine detected, or a window the
+// host refused to copy.
 enum class HostFailure {
   kAnswerTimeout,      // change C18: no answer before the deadline
   kContractViolation,  // `paintUnchanged` answered to a forced request
+  kSecureWindow,       // `failed` with `secureWindow`: never copied
 };
 
 const char* host_failure_name(HostFailure failure);
@@ -62,6 +65,10 @@ ExecutionResult reuse_compatible(FrameStore* frames,
 // Dart `_diagnosticOutcomeForFailure` for a host `failed` answer; no reason
 // is a processing failure.
 CaptureOutcome failure_outcome(const std::optional<CaptureFailure>& failure);
+
+// A host `failed` answer: its `failure_outcome`, and `secureWindow` as the
+// host failure `secure_window` (always reported).
+ExecutionResult failed_execution(const std::optional<CaptureFailure>& failure);
 
 // How a `captured` answer resolves (steps 4 to 6).
 enum class CapturedDisposition {
