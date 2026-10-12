@@ -2,8 +2,17 @@
 
 ## 0.1.0
 
-Unpublished. Platform plumbing only, with no public API and no toolkit adapter.
+Unpublished. Platform plumbing and the Android Views adapter, with no public
+API.
 
+- Views adapter (internal): `input.pointer` (dp, unique contact ids, tap
+  evidence at the down position), `scroll`, `navigation`, `focus`, and
+  `systemInput` facts, batched once per frame; Android Views identity
+  (platform-class tokens, resource entry names, list items, route keys,
+  `tugboatTag` alias, `toolkit: "view"`); mask rectangles for
+  `allTextAndMedia` with fail-closed bounds (including Compose hosts).
+  androidx `core`, `fragment`, and `recyclerview` are optional
+  (`compileOnly`). `navigation` facts are held back until engine phase 3d.
 - `libtugboat_engine.so`: the session engine (`core/session-engine`) built
   with `c++_static`, plus a JNI bridge (`create`, `submit`, `destroy`) that
   copies each engine response into a Java `byte[]`. No exception crosses
