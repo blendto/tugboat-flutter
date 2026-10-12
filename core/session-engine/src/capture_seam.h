@@ -65,6 +65,8 @@ struct BoundaryObservation {
 
 // The timer that runs the queue head once its not-before time has come.
 constexpr char kCaptureDueTimerId[] = "capture.due";
+// Change C18: `capture.answer.<capture-N>`, the host's answer deadline.
+constexpr char kCaptureAnswerTimerPrefix[] = "capture.answer.";
 
 class CaptureSeam {
  public:
@@ -100,6 +102,11 @@ class CaptureSeam {
                  const CaptureResult& result);
   // `capture.due` fired.
   void on_due(EngineState* state, const At& at, Output* out);
+  // Change C18: `capture.answer.<host_request_id>` fired. The capture still
+  // in flight resolves as `paint_readiness_timeout` with failure
+  // `answer_timeout`; a later answer to its id is ignored.
+  void on_answer_deadline(EngineState* state, const At& at, Output* out,
+                          const std::string& host_request_id);
 
   // A `surface` fact.
   void observe_surface(const BoundaryRect& rect, int64_t generation);
@@ -126,6 +133,7 @@ class CaptureSeam {
   void begin(EngineState* state, const At& at, Output* out,
              ScheduledCapture scheduled);
   void issue(InFlightCapture capture, EngineState* state, Output* out);
+  static std::string answer_timer_id(const std::string& host_request_id);
   // Classifies the host's answer to the capture in flight.
   ExecutionResult execute(EngineState* state, const At& at, Output* out,
                           const InFlightCapture& flight,

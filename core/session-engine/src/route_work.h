@@ -45,10 +45,8 @@ struct BarrierWaiter {
   OptString expected_cause;
 };
 
-enum class RouteStage { kTransitioning, kQueued, kCapturing, kDone };
-
-// Dart `_RouteCaptureOutcome`.
-enum class RouteOutcome { kCaptured, kFailed, kCancelled, kTimedOut };
+// Where live work is; a done work has its `result` instead.
+enum class RouteStage { kTransitioning, kQueued, kCapturing };
 
 // Dart `_RouteCaptureResult`: the barrier's terminal outcome.
 struct RouteResult {

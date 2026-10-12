@@ -456,13 +456,13 @@ it attaches anywhere may name their `toolkit`, section 9.1):
 ```text
 navigation {kind: push|pop|replace|remove, navigatorId, parentNavigatorId?,
             route?: {instanceId, name?, type, overlayKind, transitionMs},
-            departing?: {instanceId}}
+            departing?: {instanceId, name?, type}}
 ```
 
 `route` is the destination: the pushed route, the replacement, or the route
 a pop or removal reveals; it is absent when none is (Dart's `previousRoute`
-can be null). `departing` names the route a replace, pop, or removal takes
-away; only its id is read (it finds the stack entry). Every adapter knows its
+can be null). `departing` names the route leaving or covered; only its id is read (it
+finds the stack entry), `name` and `type` are validated. Every adapter knows its
 navigator, so `navigatorId` is required and Dart's unbound-navigator path
 has no counterpart. A navigator first named as a parent is numbered right
 after its child, as Dart's `idForNavigator` does; its own parent is learned

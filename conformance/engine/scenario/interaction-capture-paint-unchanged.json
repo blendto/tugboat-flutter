@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "interaction-capture-paint-unchanged",
-  "description": "A paintUnchanged capture answer reuses the session's latest frame. A tap's standalone capture accepts it as its afterFrame (Dart paint_generation_unchanged reuse matches the tap's origin). A completed swipe takes a frame only when it is fresh and temporal, else the latest frame when it completed after release: the reused frame is older, so the swipe has no afterFrame.",
+  "description": "Interaction captures are forced (they must observe a fresh paint), so a paintUnchanged answer to one breaks the host contract: the capture resolves as capture_processing_failed and records a capture_diagnostic with failure contract_violation, even without the captureDiagnostics capability. The tap then falls back to the latest frame, which completed before its release, so neither the tap nor the swipe has an afterFrame. (A reusable capture's paintUnchanged answer reuses the latest compatible frame: capture-reuse-decisions.)",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -95,6 +95,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -113,7 +118,12 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -170,6 +180,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10030000
             }
           ]
         }
@@ -235,7 +250,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
         }
       },
       {
@@ -287,6 +307,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10240000
             }
           ]
         }
@@ -307,13 +332,36 @@
             {
               "kind": "event",
               "event": {
+                "id": "event-10",
+                "atMs": 280,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "version": 1,
+                  "outcome": "capture_processing_failed",
+                  "requestId": "capture_request-8",
+                  "executionId": "capture_execution-9",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "interaction",
+                  "visualEvidence": "unavailable",
+                  "interactionEvidence": "linked",
+                  "relatedEventId": "event-7",
+                  "failure": "contract_violation"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
                 "id": "event-7",
                 "atMs": 200,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
                 "beforeFrame": "frame-5",
-                "afterFrame": "frame-5",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap",
@@ -328,7 +376,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
         }
       },
       {
@@ -399,6 +452,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 10440000
             }
           ]
         }
@@ -419,7 +477,31 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-10",
+                "id": "event-14",
+                "atMs": 480,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "version": 1,
+                  "outcome": "capture_processing_failed",
+                  "requestId": "capture_request-12",
+                  "executionId": "capture_execution-13",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "interaction",
+                  "visualEvidence": "unavailable",
+                  "interactionEvidence": "linked",
+                  "relatedEventId": "event-11",
+                  "failure": "contract_violation"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-11",
                 "atMs": 400,
                 "type": "interaction",
                 "stream": "semantic",
@@ -447,7 +529,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            }
+          ]
         }
       }
     ]
@@ -511,13 +598,32 @@
           }
         },
         {
+          "id": "event-10",
+          "atMs": 280,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "version": 1,
+            "outcome": "capture_processing_failed",
+            "requestId": "capture_request-8",
+            "executionId": "capture_execution-9",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "interaction",
+            "visualEvidence": "unavailable",
+            "interactionEvidence": "linked",
+            "relatedEventId": "event-7",
+            "failure": "contract_violation"
+          }
+        },
+        {
           "id": "event-7",
           "atMs": 200,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
           "beforeFrame": "frame-5",
-          "afterFrame": "frame-5",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap",
@@ -530,7 +636,27 @@
           }
         },
         {
-          "id": "event-10",
+          "id": "event-14",
+          "atMs": 480,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "version": 1,
+            "outcome": "capture_processing_failed",
+            "requestId": "capture_request-12",
+            "executionId": "capture_execution-13",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "interaction",
+            "visualEvidence": "unavailable",
+            "interactionEvidence": "linked",
+            "relatedEventId": "event-11",
+            "failure": "contract_violation"
+          }
+        },
+        {
+          "id": "event-11",
           "atMs": 400,
           "type": "interaction",
           "stream": "semantic",

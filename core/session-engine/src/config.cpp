@@ -169,7 +169,8 @@ GroupSpec navigation_spec(NavigationConfig* c) {
 
 GroupSpec capture_spec(CaptureConfig* c) {
   return {{duration("budgetMs", &c->budget_ms),
-           duration("budgetWindowMs", &c->budget_window_ms)},
+           duration("budgetWindowMs", &c->budget_window_ms),
+           duration("answerTimeoutMs", &c->answer_timeout_ms)},
           {{"degradedScale", &c->degraded_scale, 0, 1}},
           {}};
 }

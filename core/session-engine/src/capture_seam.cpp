@@ -112,6 +112,9 @@ void CaptureSeam::cancel_all(EngineState* state, const At& at, Output* out,
 void CaptureSeam::invalidate(EngineState* state, const At& at, Output* out,
                              CancelReason reason) {
   scheduler_.advance_generation();
+  if (const InFlightCapture* flight = scheduler_.in_flight()) {
+    state->timers.cancel(answer_timer_id(flight->host_request_id), out);
+  }
   resolve_each(state, at, out, scheduler_.take_all_waiters(true),
                cancelled_execution(reason));
   if (due_at_mono_us_) {
@@ -176,6 +179,7 @@ void CaptureSeam::begin(EngineState* state, const At& at, Output* out,
   InFlightCapture flight;
   flight.generation = scheduler_.generation();
   flight.queue_wait_us = queue_wait_us;
+  flight.issued_mono_us = at.mono_us;
   // Dart: a forced capture never skips an unchanged paint or coalesces.
   flight.forced = scheduled.force ||
                   scheduled.freshness == CaptureFreshness::kFreshPaint ||
@@ -202,7 +206,41 @@ void CaptureSeam::issue(InFlightCapture flight, EngineState* state,
   request.scale =
       budget_.degraded() ? state->config.capture.degraded_scale : 1.0;
   out->effects.push_back(std::move(request));
+  // Change C18: the answer is due within answerTimeoutMs of the request.
+  state->timers.schedule(
+      answer_timer_id(flight.host_request_id),
+      flight.issued_mono_us + state->config.capture.answer_timeout_ms * 1000,
+      out);
   scheduler_.start(std::move(flight));
+}
+
+std::string CaptureSeam::answer_timer_id(const std::string& host_request_id) {
+  return kCaptureAnswerTimerPrefix + host_request_id;
+}
+
+void CaptureSeam::on_answer_deadline(EngineState* state, const At& at,
+                                     Output* out,
+                                     const std::string& host_request_id) {
+  InFlightCapture* flight = scheduler_.in_flight();
+  if (flight == nullptr || flight->host_request_id != host_request_id) {
+    return;
+  }
+  const InFlightCapture done = *scheduler_.finish();
+  charge(at, done.queue_wait_us + (at.mono_us - done.issued_mono_us),
+         *state);
+  // Dart's frame wait timeout outcome, marked as the host's failure.
+  ExecutionResult timeout;
+  timeout.outcome = CaptureOutcome::kPaintReadinessTimeout;
+  timeout.host_failure = HostFailure::kAnswerTimeout;
+  if (done.capture.waiters.empty()) {
+    // Every request it served was cancelled: report the execution itself.
+    CaptureWaiter execution;
+    execution.context = done.capture.context;
+    resolve_execution(state, at, out, {execution}, timeout);
+  } else {
+    resolve_execution(state, at, out, done.capture.waiters, timeout);
+  }
+  pump(state, at, out);
 }
 
 void CaptureSeam::on_result(EngineState* state, const At& at, Output* out,
@@ -213,6 +251,7 @@ void CaptureSeam::on_result(EngineState* state, const At& at, Output* out,
     if (result.frame) release(*result.frame, out);
     return;
   }
+  state->timers.cancel(answer_timer_id(flight->host_request_id), out);
   const ExecutionResult execution = execute(state, at, out, *flight, result);
   const InFlightCapture done = *scheduler_.finish();
   resolve_execution(state, at, out, done.capture.waiters, execution);
@@ -242,7 +281,15 @@ ExecutionResult CaptureSeam::execute(EngineState* state, const At& at,
                                  : result.frame->capture_micros),
              *state);
       return execute_captured(state, at, out, flight, *result.frame);
-    case CaptureResultOutcome::kPaintUnchanged:
+    case CaptureResultOutcome::kPaintUnchanged: {
+      // A forced request must be captured: answering it unchanged breaks
+      // the host contract.
+      if (flight.forced) {
+        ExecutionResult violation;
+        violation.outcome = CaptureOutcome::kCaptureProcessingFailed;
+        violation.host_failure = HostFailure::kContractViolation;
+        return violation;
+      }
       // Dart retries a paint-unchanged attempt once, forced, when no
       // compatible frame is left to reuse. Here the latest frame only
       // changes when a capture resolves and one capture is in flight, so
@@ -250,6 +297,7 @@ ExecutionResult CaptureSeam::execute(EngineState* state, const At& at,
       return reuse_compatible(&frames_, context,
                               CaptureOutcome::kPaintGenerationUnchanged,
                               "paint_generation");
+    }
     case CaptureResultOutcome::kFailed: {
       charge(at,
              flight.queue_wait_us +

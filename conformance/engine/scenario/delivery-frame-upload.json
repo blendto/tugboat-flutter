@@ -110,6 +110,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -127,7 +132,12 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -201,6 +211,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10120000
             }
           ]
         }
@@ -262,7 +277,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
         }
       },
       {
@@ -336,6 +356,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10220000
             }
           ]
         }
@@ -404,7 +429,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
         }
       },
       {
@@ -636,6 +666,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 10520000
             }
           ]
         }
@@ -699,6 +734,10 @@
             }
           ],
           "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            },
             {
               "type": "http.send",
               "requestId": "http-3",

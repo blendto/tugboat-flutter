@@ -66,7 +66,6 @@ void complete(EngineState* state, Output* out, const RouteWorkPtr& work,
   state->timers.cancel(deadline_timer(*work), out);
   state->timers.cancel(timeout_timer(*work), out);
   work->result = std::move(result);
-  work->stage = RouteStage::kDone;
   release_barrier_waiters(state, work);
   if (state->coordination.finalizing == work) release_route_finalize(state);
 }
@@ -179,9 +178,9 @@ void route_deadline_reached(Turn& turn, const std::string& epoch) {
   enqueue_publication(turn.state, RouteFinalizePublication{work});
 }
 
-bool begin_route_finalize(Turn& turn, const RouteWorkPtr& work) {
+void begin_route_finalize(Turn& turn, const RouteWorkPtr& work) {
   EngineState* state = turn.state;
-  if (!is_active(*state, *work)) return false;
+  if (!is_active(*state, *work)) return;
   apply_visible_route(work->change, &state->navigation.visible);
   work->stage = RouteStage::kCapturing;
   state->coordination.finalizing = work;
@@ -191,7 +190,6 @@ bool begin_route_finalize(Turn& turn, const RouteWorkPtr& work) {
   ask.force = true;
   work->capture_request_id = state->captures.request(
       turn, {CaptureOwner::Kind::kRoute, epoch_key(*work)}, ask);
-  return true;
 }
 
 void finish_route_capture(Turn& turn, const std::string& epoch,
@@ -208,7 +206,7 @@ void finish_route_capture(Turn& turn, const std::string& epoch,
     RouteChangeCapture capture;
     capture.request_id = resolution.request_id;
     if (!resolution.frame_id) {
-      capture.outcome = std::string("failed");
+      capture.outcome = RouteOutcome::kFailed;
       capture.failure = std::string(capture_outcome_name(resolution.outcome));
     }
     result.event_id = record(turn, *work, resolution.frame_id, capture);
@@ -233,7 +231,7 @@ void route_barrier_timed_out(Turn& turn, const std::string& epoch) {
   deactivate(&routes, *work);
   routes.transitioning.erase(work->navigator_key());
   RouteChangeCapture capture;
-  capture.outcome = std::string("timed_out");
+  capture.outcome = RouteOutcome::kTimedOut;
   RouteResult result;
   result.outcome = RouteOutcome::kTimedOut;
   result.event_id = record(turn, *work, std::nullopt, capture);

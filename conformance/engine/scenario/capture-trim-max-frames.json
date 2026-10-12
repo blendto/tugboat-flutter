@@ -104,6 +104,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -176,7 +181,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -205,6 +215,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10100000
             }
           ]
         }
@@ -294,6 +309,10 @@
           ],
           "effects": [
             {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
+            {
               "type": "frame.release",
               "handle": "h-a"
             }
@@ -326,6 +345,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10200000
             }
           ]
         }
@@ -414,6 +438,10 @@
             }
           ],
           "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            },
             {
               "type": "frame.release",
               "handle": "h-b"

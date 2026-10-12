@@ -287,6 +287,48 @@ void test_route_identity() {
   CHECK(!route_identity(empty_name).route_name);
 }
 
+// ---------------------------------------------------- answer deadline (C18)
+
+void test_late_answer_after_deadline() {
+  tb_session_engine* engine = unit::make_engine();
+  CHECK(engine != nullptr);
+  const std::string configure =
+      "{\"type\":\"engine.configure\",\"input\":{\"host\":{\"app\":{"
+      "\"name\":\"a\",\"version\":\"1\",\"buildNumber\":\"7\","
+      "\"installationId\":\"i\",\"appId\":\"x\"},\"device\":{\"id\":"
+      "\"d\",\"platform\":\"android\",\"screenSize\":{\"width\":1,"
+      "\"height\":1},\"screenDensity\":1,\"screenDpi\":1,"
+      "\"screenPixelDensity\":1},\"ip\":{\"ip\":\"0\"},\"locale\":{}},"
+      "\"capture\":{\"answerTimeoutMs\":1}}}";
+  CHECK(unit::submit(engine, configure).status == TB_SESSION_OK);
+  const unit::Response started = unit::submit(
+      engine,
+      "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
+      "\"input\":{\"viewport\":{\"width\":1,\"height\":1},"
+      "\"platform\":\"android\",\"sessionEpoch\":0}}");
+  CHECK(unit::contains(started.json,
+                       "\"timerId\":\"capture.answer.capture-0\","
+                       "\"atMonoUs\":1000"));
+  // The deadline resolves the initial capture and reports the timeout.
+  const unit::Response expired = unit::submit(
+      engine,
+      "{\"type\":\"timer.fired\",\"at\":{\"monoUs\":1000},\"input\":"
+      "{\"timerId\":\"capture.answer.capture-0\"}}");
+  CHECK(unit::contains(expired.json, "\"failure\":\"answer_timeout\""));
+  // The late answer is ignored: no frame, and its handle is released.
+  const unit::Response late = unit::submit(
+      engine,
+      "{\"type\":\"capture.result\",\"at\":{\"monoUs\":2000},\"input\":"
+      "{\"requestId\":\"capture-0\",\"outcome\":\"captured\",\"frame\":"
+      "{\"handle\":\"h-late\",\"width\":1,\"height\":1,\"contentHash\":"
+      "\"c\",\"masked\":true,\"byteLength\":1,\"captureMicros\":1}}}");
+  CHECK(late.status == TB_SESSION_OK);
+  CHECK_EQ(late.json,
+           "{\"type\":\"capture.result\",\"records\":[],\"effects\":["
+           "{\"type\":\"frame.release\",\"handle\":\"h-late\"}]}");
+  tb_session_engine_destroy(engine);
+}
+
 }  // namespace
 
 int main() {
@@ -297,5 +339,6 @@ int main() {
   test_budget();
   test_navigator_registry();
   test_route_identity();
+  test_late_answer_after_deadline();
   return unit::finish("capture and navigation");
 }

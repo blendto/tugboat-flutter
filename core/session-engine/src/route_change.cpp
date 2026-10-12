@@ -257,14 +257,17 @@ void record_route_change(Turn& turn, const std::string& event_id,
   event.type = "route_change";
   event.stream = EventStream::kEvidence;
   event.after_frame = after_frame;
-  event.result = std::string(capture.outcome && *capture.outcome == "timed_out"
-                                 ? "unknown"
-                                 : "navigated");
+  const bool timed_out = capture.outcome == RouteOutcome::kTimedOut;
+  event.result = std::string(timed_out ? "unknown" : "navigated");
   Value data = Value::object();
   put_opt(&data, "fromRoute", change.previous_route);
   put_opt(&data, "route", change.destination_route);
   data.set("navigation", Value::string(navigation_wire_name(change.kind)));
-  put_opt(&data, "captureOutcome", capture.outcome);
+  if (capture.outcome == RouteOutcome::kFailed) {
+    data.set("captureOutcome", Value::string("failed"));
+  } else if (timed_out) {
+    data.set("captureOutcome", Value::string("timed_out"));
+  }
   put_opt(&data, "captureFailure", capture.failure);
   put_opt(&data, "captureRequestId", capture.request_id);
   put_identity(&data, change);

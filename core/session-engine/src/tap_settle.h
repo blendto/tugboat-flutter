@@ -31,6 +31,7 @@
 
 #include <optional>
 #include <string>
+#include <variant>
 
 #include "capture_types.h"
 #include "interaction_transaction.h"
@@ -61,37 +62,41 @@ void clear_released(EngineState* state, Output* out);
 // Timer ids are `interaction.settle.<interaction id>`.
 constexpr char kSettleTimerPrefix[] = "interaction.settle.";
 
-enum class SettlePhase {
-  kSettleDelay,
-  kClaimWindow,
-  kCapturing,
-  kRouteBarrier,
-  kSuccessorBarrier,
-  kPublishing,
+// The settle's phases, each with the data only it needs.
+struct SettleDelay {};
+struct ClaimWindow {};
+// Its standalone capture: the request and the route epoch it was made on.
+struct Capturing {
+  std::string request_id;
+  int64_t requested_route_epoch = 0;
+  // The route changed since pointer-down, or the route it caused was
+  // superseded by one it did not cause.
+  bool route_changed = false;
 };
-
+// Waiting for the route it caused (or a successor it also caused).
+struct RouteBarrier {};
 // Which later route a tap observes instead of its own.
 enum class SuccessorKind {
   kAutomatic,    // replaced the route it caused (Dart: superseded route)
   kReplacement,  // started while its standalone capture ran
 };
+struct SuccessorBarrier {
+  SuccessorKind kind = SuccessorKind::kAutomatic;
+};
+// The observed after-frame, waiting in the publication queue.
+struct Publishing {
+  OptString after_frame;
+};
+
+using SettlePhase = std::variant<SettleDelay, ClaimWindow, Capturing,
+                                 RouteBarrier, SuccessorBarrier, Publishing>;
 
 struct TapSettle {
   TransactionPtr tx;
-  SettlePhase phase = SettlePhase::kSettleDelay;
   // The route this tap caused that was active at pointer-up (a direct
   // claim): the settle delay is skipped.
   RouteWorkPtr initial_route;
-  // kCapturing: the standalone request and the route it was made on.
-  OptString capture_request_id;
-  int64_t requested_route_epoch = 0;
-  OptString requested_route;
-  bool route_changed = false;
-  // kSuccessorBarrier.
-  SuccessorKind successor = SuccessorKind::kAutomatic;
-  bool successor_causal = false;
-  // kPublishing: the observed after-frame.
-  OptString after_frame;
+  SettlePhase phase;
 };
 
 // Active settles by interaction id, in start order (Dart `_activeTapSettles`).

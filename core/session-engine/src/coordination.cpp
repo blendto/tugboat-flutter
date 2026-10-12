@@ -60,18 +60,16 @@ void resume(Turn& turn, const BarrierResume& task) {
   }
 }
 
-// Runs one publication. Returns whether it now holds the queue.
-bool run(Turn& turn, const Publication& publication) {
+// Runs one publication; a route finalize may hold the queue.
+void run(Turn& turn, const Publication& publication) {
   if (const auto* route = std::get_if<RouteFinalizePublication>(&publication)) {
-    return begin_route_finalize(turn, route->work);
-  }
-  if (const auto* tap = std::get_if<TapPublication>(&publication)) {
+    begin_route_finalize(turn, route->work);
+  } else if (const auto* tap = std::get_if<TapPublication>(&publication)) {
     publish_settled_tap(turn, tap->interaction_id);
   } else {
     publish_completed_gesture(
         turn, std::get<GesturePublication>(publication).interaction_id);
   }
-  return false;
 }
 
 void run_publications(Turn& turn) {

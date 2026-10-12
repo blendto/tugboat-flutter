@@ -95,6 +95,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -113,7 +118,12 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -220,6 +230,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10240000
             }
           ]
         }
@@ -286,6 +301,10 @@
           ],
           "effects": [
             {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
+            {
               "type": "capture.request",
               "requestId": "capture-2",
               "trigger": "route",
@@ -300,6 +319,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10650000
             }
           ]
         }
@@ -505,6 +529,10 @@
           ],
           "effects": [
             {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            },
+            {
               "type": "frame.release",
               "handle": "h-a"
             },
@@ -543,6 +571,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 11500000
             }
           ]
         }
@@ -635,6 +668,10 @@
             }
           ],
           "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            },
             {
               "type": "timer.cancel",
               "timerId": "navigation.timeout.2"

@@ -30,8 +30,13 @@ void apply_surface(const ModuleRegistry&, EngineState* state,
 
 void fire_capture_timer(const std::string& timer_id, const At& at,
                         EngineState* state, Output* out) {
-  if (timer_id == kCaptureDueTimerId && state->live_session() != nullptr) {
+  if (state->live_session() == nullptr) return;
+  std::string host_request_id;
+  if (timer_id == kCaptureDueTimerId) {
     state->captures.on_due(state, at, out);
+  } else if (timer_key(timer_id, kCaptureAnswerTimerPrefix,
+                       &host_request_id)) {
+    state->captures.on_answer_deadline(state, at, out, host_request_id);
   }
 }
 
@@ -75,7 +80,7 @@ void register_capture_module(ModuleRegistry* registry) {
   registry->add_timers("capture.", fire_capture_timer);
   registry->add_teardown(TeardownStage::kCaptureWork, teardown_capture_work);
   registry->on_session_started(start_session_captures);
-  registry->on_resuming(resume_captures);
+  registry->on_foregrounded_before_record(resume_captures);
 }
 
 }  // namespace engine

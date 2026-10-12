@@ -109,6 +109,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -203,6 +208,10 @@
             }
           ],
           "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            },
             {
               "type": "timer.schedule",
               "timerId": "delivery.background",
@@ -307,6 +316,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 12000000
             }
           ]
         }
@@ -341,6 +355,10 @@
             }
           ],
           "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
             {
               "type": "timer.schedule",
               "timerId": "delivery.background",
@@ -392,6 +410,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 12400000
             },
             {
               "type": "timer.cancel",

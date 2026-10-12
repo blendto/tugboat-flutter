@@ -172,7 +172,7 @@ class InteractionScript {
     }
     if (value % 2 == 1) {
       input += ",\"departing\":{\"instanceId\":\"r" +
-               std::to_string(value / 2 % 5) + "\"}";
+               std::to_string(value / 2 % 5) + "\",\"type\":\"T\"}";
     }
     return fact("navigation", input);
   }

@@ -3,6 +3,11 @@
 namespace tugboat {
 namespace engine {
 
+const char* host_failure_name(HostFailure failure) {
+  return failure == HostFailure::kAnswerTimeout ? "answer_timeout"
+                                                : "contract_violation";
+}
+
 ExecutionResult cancelled_execution(CancelReason reason) {
   ExecutionResult execution;
   execution.outcome = reason == CancelReason::kSupersededRoute

@@ -108,7 +108,9 @@ enum class LifecycleHookPoint {
   kBackgrounded,    // after `paused` / `hidden` teardown
   kForegrounded,    // on `resumed`
   kSessionEnding,   // after end teardown, before `session_end` is recorded
-  kResuming,        // on `resumed`, before `app_foregrounded` is recorded
+  // On `resumed`, before `app_foregrounded` is recorded (Dart requests the
+  // `lifecycle` capture first).
+  kForegroundedBeforeRecord,
 };
 
 constexpr size_t kLifecycleHookPointCount = 5;
@@ -161,7 +163,7 @@ class ModuleRegistry {
   void on_backgrounded(LifecycleHook hook);
   void on_foregrounded(LifecycleHook hook);
   void on_session_ending(LifecycleHook hook);
-  void on_resuming(LifecycleHook hook);
+  void on_foregrounded_before_record(LifecycleHook hook);
   void run_hooks(LifecycleHookPoint point, const At& at, EngineState* state,
                  Output* out) const;
 

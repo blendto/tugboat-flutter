@@ -74,10 +74,13 @@ std::optional<VisibleRouteChange> resolve_route_change(
 void apply_visible_route(const VisibleRouteChange& change,
                          VisibleRoute* visible);
 
-// What a `route_change` event says about its capture.
+// Dart `_RouteCaptureOutcome`: how a route's barrier ended.
+enum class RouteOutcome { kCaptured, kFailed, kCancelled, kTimedOut };
+
+// What a `route_change` event says about its capture. `outcome` is
+// `captured` (no `captureOutcome`), `failed`, or `timed_out`.
 struct RouteChangeCapture {
-  // `captureOutcome`: `failed` or `timed_out`; none when captured.
-  OptString outcome;
+  RouteOutcome outcome = RouteOutcome::kCaptured;
   OptString failure;     // `captureFailure`
   OptString request_id;  // `captureRequestId`
 };

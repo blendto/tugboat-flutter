@@ -23,7 +23,9 @@ Value diagnostic_data(const CaptureWaiter& waiter,
   Value data = Value::object();
   data.set("version", Value::integer(1));
   data.set("outcome", Value::string(capture_outcome_name(execution.outcome)));
-  data.set("requestId", Value::string(waiter.request_id));
+  if (!waiter.request_id.empty()) {
+    data.set("requestId", Value::string(waiter.request_id));
+  }
   data.set("executionId", Value::string(execution_id));
   data.set("captureSessionId", Value::string(context.session_id));
   data.set("routeEpoch", Value::integer(context.route_epoch));
@@ -40,6 +42,10 @@ Value diagnostic_data(const CaptureWaiter& waiter,
              Value::string(cancel_reason_name(*execution.cancellation)));
   }
   put_opt(&data, "reuseReason", execution.reuse_reason);
+  if (execution.host_failure) {
+    data.set("failure",
+             Value::string(host_failure_name(*execution.host_failure)));
+  }
   if (waiter.coalesced) data.set("coalesced", Value::boolean(true));
   // The backend trace the host reported with its frame.
   put_opt(&data, "requestedBackend", execution.requested_backend);
@@ -55,9 +61,10 @@ void record_capture_diagnostic(EngineState* state, const At& at, Output* out,
                                const std::string& execution_id,
                                const ExecutionResult& execution) {
   Session* session = state->live_session();
-  if (session == nullptr || !state->config.capabilities.capture_diagnostics) {
-    return;
-  }
+  // Host contract problems are always reported, so hosts can count them.
+  const bool enabled = state->config.capabilities.capture_diagnostics ||
+                       execution.host_failure.has_value();
+  if (session == nullptr || !enabled) return;
   Event event = make_event(state, *session, "capture_diagnostic", at.mono_us);
   event.stream = EventStream::kDiagnostic;
   event.after_frame = execution.frame_id;

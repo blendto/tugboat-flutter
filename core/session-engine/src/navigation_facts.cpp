@@ -57,8 +57,13 @@ bool decode_departing(const ObjectReader& parent, NavigationFact* out,
   if (json == nullptr) return true;
   const ObjectReader r(*json, parent.child("departing"), error);
   std::string instance_id;
-  if (!r.check_keys({"instanceId"}) ||
-      !read_non_empty(r, "instanceId", &instance_id)) {
+  OptString name;
+  std::string type;
+  // `name` and `type` are validated for the adapter's sake; only the id
+  // finds the stack entry.
+  if (!r.check_keys({"instanceId", "name", "type"}) ||
+      !read_non_empty(r, "instanceId", &instance_id) ||
+      !r.opt_string("name", &name) || !read_non_empty(r, "type", &type)) {
     return false;
   }
   out->departing_instance_id = std::move(instance_id);

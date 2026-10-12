@@ -113,6 +113,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -130,7 +135,12 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -228,6 +238,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10120000
             }
           ]
         }
@@ -289,6 +304,10 @@
             }
           ],
           "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
             {
               "type": "http.send",
               "requestId": "http-1",
@@ -476,6 +495,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10320000
             }
           ]
         }
@@ -538,7 +562,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
         }
       },
       {
@@ -612,6 +641,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 10420000
             }
           ]
         }
@@ -673,7 +707,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            }
+          ]
         }
       },
       {
@@ -747,6 +786,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-4",
+              "atMonoUs": 10520000
             }
           ]
         }
@@ -808,7 +852,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-4"
+            }
+          ]
         }
       },
       {

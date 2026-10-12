@@ -46,10 +46,9 @@ void route_deadline_reached(Turn& turn, const std::string& epoch);
 // The work with `epoch` timed out (step 7).
 void route_barrier_timed_out(Turn& turn, const std::string& epoch);
 
-// The publication queue reached the work: it requests its route capture.
-// Returns whether it now holds the queue (false when it is no longer
-// active).
-bool begin_route_finalize(Turn& turn, const RouteWorkPtr& work);
+// The publication queue reached the work: unless it is no longer active,
+// it requests its route capture and holds the queue until it is done.
+void begin_route_finalize(Turn& turn, const RouteWorkPtr& work);
 
 // The route capture of the finalizing work with `epoch` resolved.
 void finish_route_capture(Turn& turn, const std::string& epoch,

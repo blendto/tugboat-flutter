@@ -200,7 +200,8 @@ class AppLifecycle final : public Command {
     }
     // Dart requests the `lifecycle` capture before it records the event.
     if (info_.signal == LifecycleSignal::kForegrounded) {
-      modules.run_hooks(LifecycleHookPoint::kResuming, at_, state, out);
+      modules.run_hooks(LifecycleHookPoint::kForegroundedBeforeRecord, at_,
+                        state, out);
     }
     if (state->app_lifecycle.observe(info_.state)) {
       Event event = make_event(state, session, info_.event_type, at_.mono_us);

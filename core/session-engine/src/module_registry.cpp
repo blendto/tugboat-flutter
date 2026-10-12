@@ -98,8 +98,8 @@ void ModuleRegistry::on_session_ending(LifecycleHook hook) {
   add_hook(LifecycleHookPoint::kSessionEnding, hook);
 }
 
-void ModuleRegistry::on_resuming(LifecycleHook hook) {
-  add_hook(LifecycleHookPoint::kResuming, hook);
+void ModuleRegistry::on_foregrounded_before_record(LifecycleHook hook) {
+  add_hook(LifecycleHookPoint::kForegroundedBeforeRecord, hook);
 }
 
 void ModuleRegistry::run_hooks(LifecycleHookPoint point, const At& at,

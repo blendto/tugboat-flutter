@@ -98,6 +98,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -172,7 +177,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -205,6 +215,11 @@
                 "structureSignature": "s0"
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10100000
             }
           ]
         }
@@ -282,6 +297,10 @@
           ],
           "effects": [
             {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
+            {
               "type": "frame.release",
               "handle": "h-coalesced"
             }
@@ -318,6 +337,11 @@
                 "structureSignature": "s0"
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10200000
             }
           ]
         }
@@ -408,7 +432,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
         }
       },
       {
@@ -441,6 +470,11 @@
                 "structureSignature": "s1"
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 10300000
             }
           ]
         }
@@ -518,6 +552,10 @@
           ],
           "effects": [
             {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            },
+            {
               "type": "frame.release",
               "handle": "h-same-content"
             }
@@ -554,6 +592,11 @@
                 "structureSignature": "s2"
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-4",
+              "atMonoUs": 10400000
             }
           ]
         }
@@ -611,7 +654,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-4"
+            }
+          ]
         }
       },
       {
@@ -682,6 +730,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-5",
+              "atMonoUs": 10540000
             }
           ]
         }
@@ -788,7 +841,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-5"
+            }
+          ]
         }
       }
     ]

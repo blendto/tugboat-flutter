@@ -98,6 +98,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -436,6 +441,10 @@
           "records": [],
           "effects": [
             {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            },
+            {
               "type": "frame.release",
               "handle": "h-initial-late"
             }
@@ -470,6 +479,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10800000
             }
           ]
         }
@@ -631,6 +645,10 @@
             }
           ],
           "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
             {
               "type": "timer.cancel",
               "timerId": "navigation.timeout.2"

@@ -18,7 +18,10 @@ namespace engine {
 struct EngineState;
 
 // Records the diagnostic of `waiter` resolving as `execution` under
-// `execution_id`, when the capability is on and a session is live.
+// `execution_id` while a session is live: with the `captureDiagnostics`
+// capability, and always for a host failure (C18 answer timeouts, contract
+// violations). A waiter without a request id (an execution no request waits
+// for any more) has no `requestId`.
 void record_capture_diagnostic(EngineState* state, const At& at, Output* out,
                                const CaptureWaiter& waiter,
                                const std::string& execution_id,

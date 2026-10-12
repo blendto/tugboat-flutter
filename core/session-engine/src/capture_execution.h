@@ -25,6 +25,15 @@
 namespace tugboat {
 namespace engine {
 
+// A host contract problem the engine detected (no Dart counterpart). It is
+// always reported as a `capture_diagnostic` `failure`.
+enum class HostFailure {
+  kAnswerTimeout,      // change C18: no answer before the deadline
+  kContractViolation,  // `paintUnchanged` answered to a forced request
+};
+
+const char* host_failure_name(HostFailure failure);
+
 // Dart `_CaptureExecution`.
 struct ExecutionResult {
   CaptureOutcome outcome = CaptureOutcome::kNoFrameAvailable;
@@ -32,6 +41,7 @@ struct ExecutionResult {
   std::optional<CancelReason> cancellation;
   // `budget`, `paint_generation`, `dhash`, or `content_hash`.
   OptString reuse_reason;
+  std::optional<HostFailure> host_failure;
   // The backend trace of the frame the host captured, if any.
   OptString requested_backend;
   OptString resolved_backend;

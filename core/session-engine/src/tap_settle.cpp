@@ -76,8 +76,7 @@ void publish(Turn& turn, TapSettle& settle,
     write(turn, settle.tx->id(), observation.after_frame);
     return;
   }
-  settle.phase = SettlePhase::kPublishing;
-  settle.after_frame = observation.after_frame;
+  settle.phase = Publishing{observation.after_frame};
   enqueue_publication(turn.state, TapPublication{settle.tx->id()});
 }
 
@@ -126,9 +125,7 @@ bool superseded_by_other_cause(const Transaction& tx,
 void observe_successor(Turn& turn, TapSettle& settle,
                        const RouteWorkPtr& route, SuccessorKind kind,
                        bool causal) {
-  settle.phase = SettlePhase::kSuccessorBarrier;
-  settle.successor = kind;
-  settle.successor_causal = causal;
+  settle.phase = SuccessorBarrier{kind};
   const std::string& id = settle.tx->id();
   await_route_barrier(
       turn.state, route,
@@ -141,7 +138,7 @@ void observe_caused_route(Turn& turn, TapSettle& settle,
                           const RouteWorkPtr& route) {
   const std::string& id = settle.tx->id();
   turn.state->navigation.routes.causal.erase(id);
-  settle.phase = SettlePhase::kRouteBarrier;
+  settle.phase = RouteBarrier{};
   await_route_barrier(turn.state, route,
                       {BarrierWaiter::Kind::kTapRoute, id, OptString(id)});
 }
@@ -151,15 +148,16 @@ void request_capture(Turn& turn, TapSettle& settle) {
   EngineState& state = *turn.state;
   const Transaction& tx = *settle.tx;
   const RouteStamp now = current_route_stamp(state);
-  settle.phase = SettlePhase::kCapturing;
-  settle.requested_route_epoch = now.route_epoch;
-  settle.requested_route = now.route;
-  settle.route_changed = now.route_epoch != tx.origin.route.route_epoch ||
+  Capturing capturing;
+  capturing.requested_route_epoch = now.route_epoch;
+  capturing.route_changed = now.route_epoch != tx.origin.route.route_epoch ||
                          now.route != tx.origin.route.route ||
                          cause_was_superseded(state, tx.id());
-  settle.capture_request_id = state.captures.request(
+  settle.phase = std::move(capturing);
+  const std::string request_id = state.captures.request(
       turn, {CaptureOwner::Kind::kTapSettle, tx.id()},
       interaction_capture(tx.id()));
+  std::get<Capturing>(settle.phase).request_id = request_id;
 }
 
 // After the claim window: the route this tap caused, else its own capture.
@@ -184,7 +182,7 @@ void enter_claim_window(Turn& turn, TapSettle& settle) {
   if (config.claim_window_ms > 0 && !tx.claimed && tx.claim_deadline_ms) {
     const int64_t wait_until_ms = *tx.claim_deadline_ms + config.fact_grace_ms;
     if (turn.now_ms() < wait_until_ms) {
-      settle.phase = SettlePhase::kClaimWindow;
+      settle.phase = ClaimWindow{};
       state.timers.schedule(timer_id(tx.id()), turn.mono_at_ms(wait_until_ms),
                             turn.out);
       return;
@@ -247,16 +245,19 @@ void start_tap_settle(Turn& turn, const TransactionPtr& tx) {
 void advance_tap_settle(Turn& turn, const std::string& interaction_id) {
   TapSettle* settle = turn.state->interactions.settles.find(interaction_id);
   if (settle == nullptr) return;
-  if (settle->phase == SettlePhase::kSettleDelay) {
+  if (std::holds_alternative<SettleDelay>(settle->phase)) {
     enter_claim_window(turn, *settle);
-  } else if (settle->phase == SettlePhase::kClaimWindow) {
+  } else if (std::holds_alternative<ClaimWindow>(settle->phase)) {
     after_claim_window(turn, *settle);
   }
 }
 
 void wake_tap_settle(Turn& turn, const std::string& interaction_id) {
   TapSettle* settle = turn.state->interactions.settles.find(interaction_id);
-  if (settle == nullptr || settle->phase != SettlePhase::kClaimWindow) return;
+  if (settle == nullptr ||
+      !std::holds_alternative<ClaimWindow>(settle->phase)) {
+    return;
+  }
   turn.state->timers.cancel(timer_id(interaction_id), turn.out);
   after_claim_window(turn, *settle);
 }
@@ -264,14 +265,17 @@ void wake_tap_settle(Turn& turn, const std::string& interaction_id) {
 void finish_tap_settle(Turn& turn, const std::string& interaction_id,
                        const CaptureResolution& resolution) {
   TapSettle* settle = turn.state->interactions.settles.find(interaction_id);
-  if (settle == nullptr || settle->phase != SettlePhase::kCapturing) return;
-  settle->capture_request_id.reset();
+  const Capturing* capturing =
+      settle == nullptr ? nullptr : std::get_if<Capturing>(&settle->phase);
+  if (capturing == nullptr) return;
+  const int64_t requested_route_epoch = capturing->requested_route_epoch;
+  const bool route_changed = capturing->route_changed;
   const Transaction& tx = *settle->tx;
   const bool matches = frame_matches_origin(turn, tx, resolution.frame_id);
   // Dart `_standaloneCaptureHasReplacementRoute`.
   const RouteWorkPtr replacement = latest_route_capture(*turn.state);
   if (!matches && replacement != nullptr &&
-      replacement->epoch != settle->requested_route_epoch) {
+      replacement->epoch != requested_route_epoch) {
     const std::string* cause = replacement->change.cause_event_id();
     const bool causal = cause != nullptr && *cause == tx.id();
     observe_successor(turn, *settle, replacement, SuccessorKind::kReplacement,
@@ -279,7 +283,7 @@ void finish_tap_settle(Turn& turn, const std::string& interaction_id,
     return;
   }
   // Dart `_standaloneTapSameRouteObservation`.
-  const bool captured = matches && !settle->route_changed;
+  const bool captured = matches && !route_changed;
   TapObservation observation;
   observation.after_frame = captured
                                 ? resolution.frame_id
@@ -294,7 +298,7 @@ void tap_route_barrier_done(Turn& turn, const BarrierWaiter& waiter,
   if (settle == nullptr) return;
   const Transaction& tx = *settle->tx;
   if (waiter.kind == BarrierWaiter::Kind::kTapRoute &&
-      settle->phase == SettlePhase::kRouteBarrier) {
+      std::holds_alternative<RouteBarrier>(settle->phase)) {
     if (!superseded_by_other_cause(tx, barrier)) {
       publish(turn, *settle, from_route(turn, tx, barrier));
     } else if (barrier.superseded_by != nullptr) {
@@ -305,14 +309,16 @@ void tap_route_barrier_done(Turn& turn, const BarrierWaiter& waiter,
     }
     return;
   }
+  const SuccessorBarrier* successor =
+      std::get_if<SuccessorBarrier>(&settle->phase);
   if (waiter.kind != BarrierWaiter::Kind::kTapSuccessor ||
-      settle->phase != SettlePhase::kSuccessorBarrier) {
+      successor == nullptr) {
     return;
   }
   // Dart `_supersededRouteTapObservation` / `_successorTapObservation`:
   // a later route is only a temporal observation.
   const OptString frame =
-      settle->successor == SuccessorKind::kAutomatic
+      successor->kind == SuccessorKind::kAutomatic
           ? barrier.result->frame_id
           : from_route(turn, tx, barrier).after_frame;
   TapObservation observation;
@@ -324,8 +330,10 @@ void tap_route_barrier_done(Turn& turn, const BarrierWaiter& waiter,
 void publish_settled_tap(Turn& turn, const std::string& interaction_id) {
   const TapSettle* settle =
       turn.state->interactions.settles.find(interaction_id);
-  if (settle == nullptr || settle->phase != SettlePhase::kPublishing) return;
-  write(turn, interaction_id, settle->after_frame);
+  const Publishing* publishing =
+      settle == nullptr ? nullptr : std::get_if<Publishing>(&settle->phase);
+  if (publishing == nullptr) return;
+  write(turn, interaction_id, publishing->after_frame);
 }
 
 void cancel_tap_settles(EngineState* state, const At& at, Output* out,
@@ -337,8 +345,8 @@ void cancel_tap_settles(EngineState* state, const At& at, Output* out,
   TapSettles cancelled = std::move(settles);
   settles.clear();
   for (const auto& entry : cancelled.entries()) {
-    if (entry.second.capture_request_id) {
-      state->captures.cancel(state, at, out, *entry.second.capture_request_id,
+    if (const auto* capturing = std::get_if<Capturing>(&entry.second.phase)) {
+      state->captures.cancel(state, at, out, capturing->request_id,
                              teardown_cancel_reason(cause));
     }
   }

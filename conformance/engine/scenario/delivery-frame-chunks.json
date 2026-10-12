@@ -111,6 +111,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -128,7 +133,12 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -202,6 +212,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10120000
             }
           ]
         }
@@ -262,7 +277,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
         }
       },
       {
@@ -336,6 +356,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10220000
             }
           ]
         }
@@ -397,7 +422,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
         }
       },
       {
@@ -471,6 +501,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 10320000
             }
           ]
         }
@@ -532,7 +567,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            }
+          ]
         }
       },
       {
@@ -606,6 +646,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-4",
+              "atMonoUs": 10420000
             }
           ]
         }
@@ -667,7 +712,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-4"
+            }
+          ]
         }
       },
       {
@@ -741,6 +791,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-5",
+              "atMonoUs": 10520000
             }
           ]
         }
@@ -802,7 +857,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-5"
+            }
+          ]
         }
       },
       {
@@ -876,6 +936,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-6",
+              "atMonoUs": 10620000
             }
           ]
         }
@@ -937,7 +1002,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-6"
+            }
+          ]
         }
       },
       {
@@ -1011,6 +1081,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-7",
+              "atMonoUs": 10720000
             }
           ]
         }
@@ -1072,7 +1147,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-7"
+            }
+          ]
         }
       },
       {
@@ -1146,6 +1226,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-8",
+              "atMonoUs": 10820000
             }
           ]
         }
@@ -1207,7 +1292,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-8"
+            }
+          ]
         }
       },
       {
@@ -1281,6 +1371,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-9",
+              "atMonoUs": 10920000
             }
           ]
         }
@@ -1342,7 +1437,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-9"
+            }
+          ]
         }
       },
       {
@@ -1416,6 +1516,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-10",
+              "atMonoUs": 11020000
             }
           ]
         }
@@ -1477,7 +1582,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-10"
+            }
+          ]
         }
       },
       {
@@ -1551,6 +1661,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-11",
+              "atMonoUs": 11120000
             }
           ]
         }
@@ -1612,7 +1727,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-11"
+            }
+          ]
         }
       },
       {
@@ -1686,6 +1806,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-12",
+              "atMonoUs": 11220000
             }
           ]
         }
@@ -1747,7 +1872,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-12"
+            }
+          ]
         }
       },
       {
@@ -1821,6 +1951,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-13",
+              "atMonoUs": 11320000
             }
           ]
         }
@@ -1882,7 +2017,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-13"
+            }
+          ]
         }
       },
       {
@@ -1956,6 +2096,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-14",
+              "atMonoUs": 11420000
             }
           ]
         }
@@ -2017,7 +2162,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-14"
+            }
+          ]
         }
       },
       {
@@ -2091,6 +2241,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-15",
+              "atMonoUs": 11520000
             }
           ]
         }
@@ -2152,7 +2307,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-15"
+            }
+          ]
         }
       },
       {
@@ -2226,6 +2386,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-16",
+              "atMonoUs": 11620000
             }
           ]
         }
@@ -2287,7 +2452,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-16"
+            }
+          ]
         }
       },
       {
@@ -2361,6 +2531,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-17",
+              "atMonoUs": 11720000
             }
           ]
         }
@@ -2422,7 +2597,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-17"
+            }
+          ]
         }
       },
       {
@@ -2496,6 +2676,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-18",
+              "atMonoUs": 11820000
             }
           ]
         }
@@ -2557,7 +2742,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-18"
+            }
+          ]
         }
       },
       {
@@ -2631,6 +2821,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-19",
+              "atMonoUs": 11920000
             }
           ]
         }
@@ -2692,7 +2887,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-19"
+            }
+          ]
         }
       },
       {
@@ -2766,6 +2966,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-20",
+              "atMonoUs": 12020000
             }
           ]
         }
@@ -2827,7 +3032,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-20"
+            }
+          ]
         }
       },
       {
@@ -2901,6 +3111,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 0.8
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-21",
+              "atMonoUs": 12120000
             }
           ]
         }
@@ -2962,7 +3177,12 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-21"
+            }
+          ]
         }
       },
       {

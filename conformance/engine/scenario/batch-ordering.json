@@ -231,6 +231,15 @@
               "scale": 1.0
             },
             {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            },
+            {
               "type": "capture.request",
               "requestId": "capture-1",
               "trigger": "lifecycle",
@@ -243,6 +252,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10040000
             }
           ]
         }

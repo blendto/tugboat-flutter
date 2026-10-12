@@ -2,11 +2,14 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "capture-initial-and-lifecycle",
-  "description": "session.start asks for an initial capture (forced, fresh paint) after session_start; resumed asks for a forced lifecycle capture before app_foregrounded is recorded, also when the state is a duplicate. Going to the background cancels every request (lifecycle_deactivate) and stops waiting for the capture in flight: its late answer is released like any unknown id.",
+  "description": "session.start asks for an initial capture (forced, fresh paint) after session_start; resumed asks for a forced lifecycle capture before app_foregrounded is recorded, also when the state is a duplicate. Going to the background cancels every request (lifecycle_deactivate) and, change C16, stops waiting for the capture in flight (Dart awaits it): its late answer is released like any unknown id, and the next request is issued without waiting for it.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
   },
+  "engineOnly": [
+    "C16"
+  ],
   "runners": [
     "cpp"
   ],
@@ -94,6 +97,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -148,7 +156,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -228,6 +241,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10200000
             }
           ]
         }
@@ -300,7 +318,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
         }
       },
       {
@@ -329,6 +352,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10300000
             }
           ]
         }
@@ -401,7 +429,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
         }
       }
     ]

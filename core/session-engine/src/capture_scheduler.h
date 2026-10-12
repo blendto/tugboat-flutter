@@ -67,6 +67,7 @@ struct InFlightCapture {
   ScheduledCapture capture;
   int64_t generation = 0;       // the capture generation when issued
   int64_t queue_wait_us = 0;
+  int64_t issued_mono_us = 0;
   // What the request told the host: forced captures never report
   // `paintUnchanged` and never coalesce.
   bool forced = false;

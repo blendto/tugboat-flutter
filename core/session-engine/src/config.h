@@ -52,6 +52,9 @@ struct CaptureConfig {
   int64_t budget_ms = 60;
   int64_t budget_window_ms = 5000;
   double degraded_scale = 0.8;
+  // Change C18: a capture the host has not answered this long after it was
+  // requested resolves as failed (`answer_timeout`).
+  int64_t answer_timeout_ms = 5000;
 };
 
 struct CollectorConfig {
