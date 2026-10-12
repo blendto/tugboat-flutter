@@ -91,9 +91,8 @@ internal class ViewsAdapter(
     fun masks(window: Window): WindowMaskResult = WindowMasks.compute(window)
 
     /**
-     * The `trackNavigation` hook: [activity]'s Jetpack Navigation destination
-     * changed. The SDK facade connects it with
-     * `navController.addOnDestinationChangedListener { _, d, _ -> onDestinationChanged(activity, d.route, d.id) }`.
+     * [activity]'s Jetpack Navigation destination changed: route keys only.
+     * The SDK facade uses [onNavDestination], which also reports navigation.
      * The route pattern loses its arguments ([com.tugboat.android.views.navigation.RoutePattern]),
      * so Views and Compose anchors and navigation facts share one route key.
      */
