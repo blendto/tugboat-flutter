@@ -87,7 +87,7 @@ final class ScrollObserverTests: XCTestCase {
     dragged.contentSize = CGSize(width: 300, height: 2000)
     root.addSubview(dragged)
     observer.discover(in: root)
-    dragged.tracking = true
+    dragged.fingerDown = true
 
     dragged.contentOffset = CGPoint(x: 0, y: 40)
     XCTAssertEqual(phases, ["start"], "sent from the KVO callback, before the pointer's up is batched")
@@ -155,10 +155,10 @@ final class ScrollObserverTests: XCTestCase {
 #if canImport(UIKit)
 /// A scroll view a test can mark as finger-driven.
 final class TrackedScrollView: UIScrollView {
-  var tracking = false
+  var fingerDown = false
 
   override var isTracking: Bool {
-    tracking
+    fingerDown
   }
 }
 #endif
