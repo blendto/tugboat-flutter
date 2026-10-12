@@ -9,14 +9,15 @@ import java.util.WeakHashMap
  * SDK's optional `Tugboat.trackNavigation(navController)` feeds from
  * `OnDestinationChangedListener`, so this module needs neither the
  * navigation library nor reflection. A destination is the highest-priority
- * route key (design note 6.1): its route pattern, else its id's resource
- * entry name. Main thread only.
+ * route key (design note 6.1, 6.2): its route pattern without arguments
+ * ([RoutePattern.strip]), else its id's resource entry name. Views and
+ * Compose anchors, and navigation facts, all read it. Main thread only.
  */
 internal class DestinationTracker {
     private val current = WeakHashMap<Activity, String>()
 
     fun onDestinationChanged(activity: Activity, route: String?, destinationId: Int) {
-        val key = route?.takeIf { it.isNotEmpty() } ?: entryName(activity.resources, destinationId)
+        val key = RoutePattern.strip(route) ?: entryName(activity.resources, destinationId)
         if (key == null) current.remove(activity) else current[activity] = key
     }
 

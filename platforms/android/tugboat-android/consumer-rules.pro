@@ -18,5 +18,4 @@
 -keepnames class androidx.recyclerview.widget.RecyclerView
 -keepnames class androidx.core.view.ScrollingView
 -keepnames class androidx.fragment.app.FragmentActivity
--keepnames class androidx.compose.ui.platform.AbstractComposeView
 -keepnames class androidx.compose.ui.platform.AndroidComposeView
