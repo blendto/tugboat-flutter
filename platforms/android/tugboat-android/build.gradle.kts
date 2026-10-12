@@ -98,10 +98,12 @@ val composeTestBom = providers.gradleProperty("tugboat.composeBom").getOrElse("2
 dependencies {
     optionalAndroidx.forEach { compileOnly(it) }
     optionalAndroidx.forEach { testImplementation(it) }
-    // The Compose compiler plugin (applied for the tests) refuses a
-    // compilation without the Compose runtime on its classpath. Main code
-    // uses no Compose; compileOnly keeps it out of the AAR and the POM.
+    // The Compose compiler plugin (applied for the unit tests) refuses any
+    // compilation without the Compose runtime on its classpath. Main and
+    // instrumented code use no Compose; compileOnly keeps it out of the AAR,
+    // the POM, and the test APK.
     compileOnly("androidx.compose.runtime:runtime:1.7.0")
+    androidTestCompileOnly("androidx.compose.runtime:runtime:1.7.0")
     testImplementation(project(":tugboat-compose"))
     testImplementation(platform("androidx.compose:compose-bom:$composeTestBom"))
     testImplementation("androidx.compose.ui:ui")
