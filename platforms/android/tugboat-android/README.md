@@ -100,8 +100,9 @@ locale}`.
   `UnsupportedApi`, `SurfaceUnavailable`, `UnsupportedRenderMode` to `failed
   boundaryUnavailable`; `Timeout` to `failed paintTimedOut`;
   `ProcessingFailed` to `failed encodingFailed`; `Cancelled` and `Disposed` to
-  `cancelled`. No foreground window is `boundaryUnavailable`, an unlaid-out
-  decor `layoutUnavailable`, a throwing mask path `maskFailed`.
+  `cancelled`. No foreground window is `boundaryUnavailable`, a decor view not
+  laid out yet is retried once after its first traversal, then
+  `layoutUnavailable`, a throwing mask path `maskFailed`.
 - **`surface` facts.** The foreground decor view's size in dp, reported on
   resume and on every layout change that alters it; the generation advances
   with each change (rotation), starting at 0 so the session's initial capture

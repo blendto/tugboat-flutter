@@ -1,5 +1,6 @@
 package com.tugboat.android.capture
 
+import android.os.Looper
 import android.view.Window
 import com.tugboat.android.host.DHashBaseline
 import com.tugboat.android.host.FrameHandleTable
@@ -15,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 
 @RunWith(RobolectricTestRunner::class)
 class CaptureCoordinatorTest {
@@ -106,6 +108,23 @@ class CaptureCoordinatorTest {
 
         assertEquals(CaptureAnswer.Failed("capture-1", CaptureFailure.BoundaryUnavailable), answers.single())
         assertTrue(capturer.requests.isEmpty())
+    }
+
+    @Test
+    fun aDecorNotYetLaidOutIsRetriedOnceAfterItsTraversal() {
+        val decor = window!!.decorView
+        decor.layout(0, 0, 0, 0)
+        coordinator.onCaptureRequest(captureRequest("capture-1"))
+        assertTrue("waits for layout instead of failing", answers.isEmpty())
+
+        decor.layout(0, 0, 1080, 2400)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(1, capturer.requests.size)
+
+        decor.layout(0, 0, 0, 0)
+        coordinator.onCaptureRequest(captureRequest("capture-2"))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(CaptureAnswer.Failed("capture-2", CaptureFailure.LayoutUnavailable), answers.single())
     }
 
     @Test

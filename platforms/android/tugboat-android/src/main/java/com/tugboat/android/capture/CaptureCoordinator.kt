@@ -1,6 +1,7 @@
 package com.tugboat.android.capture
 
 import android.util.Log
+import android.view.View
 import android.view.Window
 import com.tugboat.android.host.CaptureRequestEffect
 import com.tugboat.android.host.CaptureRequestSink
@@ -64,9 +65,9 @@ internal class CaptureCoordinator(
         guard("dispose") { capturer.dispose() }
     }
 
-    private fun performOnMain(request: CaptureRequestEffect, receivedNanos: Long) {
+    private fun performOnMain(request: CaptureRequestEffect, receivedNanos: Long, layoutRetried: Boolean = false) {
         val immediate = try {
-            start(request, nextRuntimeId.incrementAndGet(), receivedNanos)
+            start(request, nextRuntimeId.incrementAndGet(), receivedNanos, layoutRetried)
         } catch (failure: Throwable) {
             // Thrown before the capture was registered: nobody else answers it.
             Log.w(TAG, "capture ${request.requestId} failed before the copy", failure)
@@ -80,11 +81,21 @@ internal class CaptureCoordinator(
      * Registering in [inFlight] is the last step before the runtime call, and
      * whoever removes the entry answers, so the answer is sent once.
      */
-    private fun start(request: CaptureRequestEffect, runtimeId: Long, receivedNanos: Long): CaptureAnswer? {
+    private fun start(
+        request: CaptureRequestEffect,
+        runtimeId: Long,
+        receivedNanos: Long,
+        layoutRetried: Boolean,
+    ): CaptureAnswer? {
         val startedNanos = nanoTime()
         val target = window() ?: return CaptureAnswer.Failed(request.requestId, CaptureFailure.BoundaryUnavailable)
-        val geometry = CaptureGeometry.of(target.peekDecorView())
-            ?: return CaptureAnswer.Failed(request.requestId, CaptureFailure.LayoutUnavailable)
+        val decor = target.peekDecorView()
+        val geometry = CaptureGeometry.of(decor)
+            ?: return if (!layoutRetried && retryAfterLayout(request, decor, receivedNanos)) {
+                null
+            } else {
+                CaptureAnswer.Failed(request.requestId, CaptureFailure.LayoutUnavailable)
+            }
         val maskResult = masks(target)
         val signature = StructureSignature.of(geometry, maskResult)
         // A forced request must be answered with a fresh frame: it is never offered a baseline.
@@ -116,6 +127,15 @@ internal class CaptureCoordinator(
             inFlight.remove(runtimeId)?.let { CaptureAnswer.Failed(it.requestId, CaptureFailure.ReadbackFailed) }
         }
     }
+
+    /**
+     * A window that just resumed is laid out by its first traversal, which
+     * runs before a task posted to its attached decor view. True when the
+     * request was re-queued that way (it is then answered by the retry).
+     */
+    private fun retryAfterLayout(request: CaptureRequestEffect, decor: View?, receivedNanos: Long): Boolean =
+        decor != null && decor.isAttachedToWindow &&
+            decor.post { performOnMain(request, receivedNanos, layoutRetried = true) }
 
     /** Runtime thread (or the caller's, for an immediate result). */
     private fun onRuntimeResult(result: CaptureResult) {
