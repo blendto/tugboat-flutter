@@ -28,6 +28,7 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-12 | Fixtures gain `runners` (`cpp`, `dart`; default both). `engineOnly` stays strictly for section 11 change ids and implies `cpp` only. The Dart runner reports an unmodelled message as a failure, never a silent skip. | Phase 3c/3d scenarios cannot drive Dart without claiming a behaviour change |
 | 2026-10-12 | `legacy_projection` is rejected as an `event.record` stream; the engine accepts schema 10 streams (`semantic`, `evidence`, `diagnostic`) only. | Dart session schema 10 removed it; the collector's wider accepted set is not a reason to emit it |
 | 2026-10-12 | `exploration.actionWindow` (action window events and `actionId` stamping) is deferred beyond this milestone; no engine code. | Native SDKs do not use exploration |
+| 2026-10-12 | New C14: the engine's pointer tracker forgets every contact on every teardown cause, not only on `paused`/`hidden`/`detached` as the Flutter widget does. Engine-only; decided during the phase 3c review (PR #87). | After `session_end` facts are dropped (C9), so a contact held across a session boundary could never lift and would join the next session's gestures |
 
 ## Open cross-repo questions
 
