@@ -18,8 +18,10 @@ import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.android.views.mask.WindowMasks
 import com.tugboat.android.views.navigation.ActivityNavigation
+import com.tugboat.android.views.navigation.ControllerNavigation
 import com.tugboat.android.views.navigation.DestinationTracker
 import com.tugboat.android.views.navigation.FragmentNavigation
+import com.tugboat.android.views.navigation.NavEntry
 import com.tugboat.android.views.navigation.NavigationChange
 import com.tugboat.android.views.navigation.ViewRouteResolver
 
@@ -54,6 +56,7 @@ internal class ViewsAdapter(
     private val routes = ViewRouteResolver(destinations) { view -> fragments?.routeRootedAt(view) }
     private val anchors = AnchorResolver(AndroidResourceNames(application.resources), routes)
     private val activities = ActivityNavigation(::reportNavigation)
+    private val controllers = ControllerNavigation(::reportNavigation)
     private val fragments =
         if (OptionalAndroidx.fragment) {
             FragmentNavigation(activities, destinations, ::reportNavigation, batcher::requestFrame)
@@ -97,6 +100,21 @@ internal class ViewsAdapter(
     fun onDestinationChanged(activity: Activity, route: String?, destinationId: Int) =
         AdapterGuard.run("destination changed") { destinations.onDestinationChanged(activity, route, destinationId) }
 
+    /**
+     * The `trackNavigation` hook with the back stack: [current] is the
+     * controller's new current entry, [previous] the one below it. Updates the
+     * route key ([onDestinationChanged]) and reports the change as a
+     * `navigation` fact on the controller's navigator, nested under
+     * [activity]'s ([ControllerNavigation]).
+     */
+    fun onNavDestination(activity: Activity, current: NavEntry, previous: NavEntry?) =
+        AdapterGuard.run("nav destination") {
+            destinations.onDestinationChanged(activity, current.route, current.destinationId)
+            val navigatorId = ControllerNavigation.navigatorIdFor(activities.ensureEntry(activity).instanceId)
+            val routeKey = destinations.routeKey(activity, current.route, current.destinationId) ?: ControllerNavigation.TYPE
+            controllers.onDestinationChanged(navigatorId, activities.navigatorIdOf(activity), current, routeKey, previous)
+        }
+
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
         AdapterGuard.run("activity created") {
             activities.onCreated(activity)
@@ -117,6 +135,7 @@ internal class ViewsAdapter(
             if (activity.isFinishing) {
                 fragments?.forget(activity)
                 destinations.clear(activity)
+                activities.entryOf(activity)?.let { controllers.forget(ControllerNavigation.navigatorIdFor(it.instanceId)) }
             }
             activities.onDestroyed(activity)
         }

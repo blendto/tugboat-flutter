@@ -5,7 +5,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.navigation.NavController
+import androidx.navigation.createGraph
+import androidx.navigation.testing.TestNavHostController
 import androidx.navigation.NavDestination
+import androidx.navigation.NavDestinationBuilder
+import androidx.navigation.Navigator
+import com.tugboat.android.views.navigation.NavEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -51,28 +56,39 @@ class LifecycleAndNavigationTest {
     }
 
     @Test
-    fun destinationsAreForwardedWithTheirActivityRouteAndId() {
+    fun destinationChangesForwardTheCurrentEntryAndTheOneBelow() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        val seen = ArrayList<Triple<Activity, String?, Int>>()
-        val forwarder = DestinationForwarder(activity) { a, route, id -> seen += Triple(a, route, id) }
-        val destination = NavDestination("test").apply {
-            route = "checkout/{orderId}"
-            id = 42 // after route: setting a route also sets the id
+        val seen = ArrayList<Pair<NavEntry, NavEntry?>>()
+        val controller = rowsController(activity)
+
+        NavigationTracking.track(controller) { a, current, previous ->
+            assertSame(activity, a)
+            seen += current to previous
         }
+        controller.navigate("row/3")
 
-        forwarder.onDestinationChanged(NavController(activity), destination, null)
-
-        assertSame(activity, seen.single().first)
-        assertEquals("checkout/{orderId}", seen.single().second)
-        assertEquals(42, seen.single().third)
+        assertEquals(listOf("rows", "row/{index}"), seen.map { it.first.route })
+        assertEquals(null, seen[0].second)
+        assertEquals(seen[0].first.id, seen[1].second?.id)
+        assertEquals(controller.currentBackStackEntry?.id, seen[1].first.id)
     }
 
     @Test
-    fun trackNavigationReportsTheCurrentDestinationOfAnActivityController() {
+    fun aControllerWithoutAGraphReportsNothingAndDoesNotThrow() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val seen = ArrayList<Activity>()
-        // A controller without a graph has no destination yet; tracking must not throw.
         NavigationTracking.track(NavController(activity)) { a, _, _ -> seen += a }
         assertEquals(emptyList<Activity>(), seen)
     }
 }
+
+/** A controller over `rows` and `row/{index}` test destinations, started at `rows`. */
+internal fun rowsController(activity: Activity): TestNavHostController =
+    TestNavHostController(activity).apply {
+        graph = createGraph(startDestination = "rows") {
+            // TestNavHostController's provider answers any navigator name with a test navigator.
+            val navigator = provider.getNavigator<Navigator<NavDestination>>("test")
+            destination(NavDestinationBuilder(navigator, "rows"))
+            destination(NavDestinationBuilder(navigator, "row/{index}"))
+        }
+    }

@@ -95,14 +95,16 @@ object Tugboat {
     }
 
     /**
-     * Uses [navController]'s destinations (route pattern, else the id's
-     * resource name) as route keys for its activity. Optional; needs
-     * `androidx.navigation` in the app. Call once per controller.
+     * Tracks [navController]: its destinations become route keys for its
+     * activity (route pattern without arguments, else the id's resource name)
+     * and `route_change`s on a navigator nested under the activity's.
+     * Optional; needs `androidx.navigation` in the app. Call once per
+     * controller.
      */
     @JvmStatic
     fun trackNavigation(navController: NavController) = onMain("trackNavigation") {
-        NavigationTracking.track(navController) { activity, route, destinationId ->
-            runtime?.onDestinationChanged(activity, route, destinationId)
+        NavigationTracking.track(navController) { activity, current, previous ->
+            runtime?.onNavDestination(activity, current, previous)
         }
     }
 
