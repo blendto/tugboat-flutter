@@ -82,6 +82,10 @@ its Dart path unchanged. No publishing and no merges to `main`.
    (`:capture-runtime-test:connectedAndroidTest`) must have run on an
    emulator or device. CI runs them on API 26 and 34
    (`android-runtime-device.yml`).
+4. On merge to `main`, the Apple publish flow tags `apple-runtime-v0.2.0`
+   and pushes `TugboatCaptureRuntime` 0.2.0 to CocoaPods trunk (the root
+   podspec `s.version` is not on trunk). The `main` PR description must say
+   so; the Flutter plugin keeps its 0.1.1 pin until a pin PR follows.
 
 ## Open items
 - **SwiftUI: switch on `maskCoverage`** in `Capture/EngineVocabulary` when
