@@ -53,6 +53,12 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        // Byte-exact fixtures shared with the Apple host (conformance/host).
+        val hostFixtures = rootProject.projectDir.resolve("../../conformance/host").canonicalFile
+        unitTests.all { test ->
+            test.systemProperty("tugboat.hostFixtures", hostFixtures.path)
+            test.inputs.dir(hostFixtures)
+        }
     }
 
     buildTypes {
