@@ -1,7 +1,6 @@
 // The capture seam (design section 8.2): the one interface through which
-// the engine asks the host for frames and learns what they were. Phase 3c
-// issued every request at once; phase 3d puts the capture scheduler behind
-// the same interface:
+// the engine asks the host for frames and learns what they were. Behind it
+// is the capture scheduler:
 //
 // - Logical requests (`capture_request-N`) join a FIFO with tail absorption
 //   (capture_scheduler.h). One capture is in flight at a time; the engine

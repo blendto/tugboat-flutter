@@ -6,7 +6,7 @@
 #include "capture_diagnostics.h"
 #include "coordination.h"
 #include "engine_state.h"
-#include "modules.h"
+#include "module_registry.h"
 #include "navigation_view.h"
 
 namespace tugboat {
@@ -301,8 +301,10 @@ ExecutionResult CaptureSeam::execute_captured(EngineState* state,
       frame, context, session.at_ms(at.mono_us),
       state->config.limits.max_frames, &state->ids, &session,
       &state->frame_retention, out);
-  module_registry().run_frame_accepted(record.frame, record.handle, state,
-                                       out);
+  // The registry of the message being applied (engine.cpp).
+  if (const ModuleRegistry* modules = state->applying.modules) {
+    modules->run_frame_accepted(record.frame, record.handle, state, out);
+  }
   ExecutionResult accepted;
   accepted.outcome = CaptureOutcome::kFreshAccepted;
   accepted.frame_id = record.frame.id;

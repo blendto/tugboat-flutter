@@ -6,8 +6,8 @@
 #ifndef TUGBOAT_SESSION_ENGINE_POINTER_INTERACTIONS_H
 #define TUGBOAT_SESSION_ENGINE_POINTER_INTERACTIONS_H
 
-#include "turn.h"
 #include "pointer_tracker.h"
+#include "turn.h"
 
 namespace tugboat {
 namespace engine {

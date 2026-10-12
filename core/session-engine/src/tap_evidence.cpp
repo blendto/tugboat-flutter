@@ -4,9 +4,9 @@
 
 #include "engine_state.h"
 #include "interaction_transaction.h"
-#include "turn.h"
 #include "name_table.h"
 #include "recorder.h"
+#include "turn.h"
 
 namespace tugboat {
 namespace engine {
@@ -89,8 +89,9 @@ void resolve_tap_evidence(Turn& turn, Transaction& tx,
     }
     return;
   }
-  // Dart `_resolveExplorationTapEvidence`. (Phase 3d also rejects evidence
-  // from another route generation as `stale_route_generation`.)
+  // Dart `_resolveExplorationTapEvidence`. Dart also checks that the
+  // evidence's route generation is the origin's (`stale_route_generation`);
+  // both are stamped from the same `down` fact here, so it always holds.
   if (!tx.pre_tap_evidence) {
     tx.failure_reason = TapFailureReason::kNoTargetAtPoint;
     return;

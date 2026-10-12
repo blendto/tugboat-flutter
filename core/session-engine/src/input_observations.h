@@ -11,10 +11,10 @@
 
 #include "capture_types.h"
 #include "interaction_facts.h"
-#include "turn.h"
 #include "models.h"
 #include "ordered_map.h"
 #include "route_work.h"
+#include "turn.h"
 
 namespace tugboat {
 namespace engine {

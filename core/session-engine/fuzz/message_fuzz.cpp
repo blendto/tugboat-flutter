@@ -264,7 +264,8 @@ class InteractionScript {
       case 17:
         return fact("capture.result",
                     id + ",\"outcome\":\"failed\",\"failure\":\"" +
-                        (value % 2 == 0 ? "paintTimedOut" : "boundaryDetached") +
+                        (value % 2 == 0 ? "paintTimedOut"
+                                        : "boundaryDetached") +
                         "\",\"timings\":{\"frameWaitMicros\":" +
                         std::to_string(value) + "}");
       default:  // end the session, or replace it with a new one
