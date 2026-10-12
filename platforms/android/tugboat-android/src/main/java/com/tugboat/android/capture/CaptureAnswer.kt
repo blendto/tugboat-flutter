@@ -75,6 +75,6 @@ internal enum class CaptureFailure(val wire: String) {
     MaskFailed("maskFailed"),
     EncodingFailed("encodingFailed"),
 
-    /** Sent only with [EngineVocabulary.SECURE_WINDOW_FAILURE]. */
+    /** A `FLAG_SECURE` window: never copied. */
     SecureWindow("secureWindow"),
 }

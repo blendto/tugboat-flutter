@@ -56,8 +56,8 @@ core/session-engine/
 | `navigation_view` | What other modules read from navigation: the route stamp, the request context, transition suppression (C11), the active and causal route captures. |
 | `capture_module.cpp` | Capture coordination (design section 8.2): `capture.result`, `surface`, the `capture.due` timer, the capture-work teardown stage, the `initial` and `lifecycle` captures. |
 | `capture_seam` | The capture seam (`EngineState::captures`): requests, the pump, the decision order, per-waiter resolution, `capture_diagnostic`. The parts below each hold one concept. |
-| `capture_types`, `capture_facts` | The capture vocabulary (owners, outcomes, cancel reasons); the `capture.result` and `surface` decoders. |
-| `capture_scheduler`, `capture_execution`, `frame_store`, `capture_budget`, `capture_diagnostics` | The FIFO with tail absorption and the one capture in flight; what an execution resolves to; frame provenance, compatibility, coalesce baselines, and trim; the rolling screenshot budget; the diagnostic event. |
+| `capture_types`, `capture_facts` | The capture vocabulary (owners, outcomes, cancel reasons, mask coverage); the `capture.result` and `surface` decoders. |
+| `capture_scheduler`, `capture_execution`, `frame_store`, `capture_budget`, `capture_diagnostics` | The FIFO with tail absorption and the one capture in flight; what an execution resolves to; frame provenance, compatibility, coalesce baselines, and trim; the rolling screenshot budget; the diagnostic events. |
 | `coordination`, `coordination_module.cpp` | Deferred work (capture answers, barrier resumes) run after every command, and the serialized publication queue (design section 9.3 #3). |
 | `fact_command.h`, `turn.h` | A command made of one typed fact; what every stateful step works on (state, live session, fact time, output). |
 | `interaction_module.cpp` | Interactions (design section 9): the interaction messages, `interaction.` timers, and teardown stages. Its state is `interaction_state.h`; the parts below each hold one concept. |
@@ -294,7 +294,7 @@ message `input`. The field-level vocabulary is in
 | `scroll` | mono | `{scrollableId, phase, offset?, axis?, maxScrollExtent?, anchor?}` | `phase`: `start`, `update`, `end`, `overscroll`. `offset` and `axis` (`vertical`, `horizontal`) are required except on `overscroll`, which carries only the id; `maxScrollExtent` gives samples their `offsetNorm`; `anchor` (the scrollable's) is allowed on `start` only. `scrollableId` is stable for the scrollable's lifetime. |
 | `focus` | mono | `{kind}` | `text_input`, `other`, or `none`: what now holds primary focus. Tracked without a session too; records `focus_changed` (with `focusChanges`) only for transitions involving a text input. |
 | `systemInput` | mono | `{input}` | `back`, `volume_up`, `volume_down`, `volume_mute`, `power`, `media_play_pause`. Records `system_input` with the `systemInput` capability. |
-| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?, failure?, timings?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, dHash?, structureSignature?, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged` (only for a request without `force`), `failed` (optional `failure`: `boundaryUnavailable`, `boundaryDetached`, `boundaryReplaced`, `layoutUnavailable`, `paintTimedOut`, `paintNotAdvanced`, `readbackFailed`, `maskFailed`, `encodingFailed`), `cancelled`. `timings {frameWaitMicros?, readbackMicros?, maskMicros?, encodeMicros?}` (each at most a day) feed the screenshot budget. `requestedBackend` and `resolvedBackend` are the closed collector vocabulary (`flutterRepaintBoundary`, `nativeCpuExperimental`); `dHash` and `structureSignature` are opaque tokens the engine only compares. This is the one way frames enter the engine. A captured frame the engine does not accept (an unknown, stale, or teardown-abandoned request, a reuse, a perceptual match, or no live session) is released at once (`frame.release`). |
+| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?, failure?, timings?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, dHash?, structureSignature?, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?, maskCoverage?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged` (only for a request without `force`), `failed` (optional `failure`: `boundaryUnavailable`, `boundaryDetached`, `boundaryReplaced`, `layoutUnavailable`, `paintTimedOut`, `paintNotAdvanced`, `readbackFailed`, `maskFailed`, `encodingFailed`, `secureWindow`), `cancelled`. `maskCoverage {mode, reasons}` (native hosts) says which mask mode applied: `mode` is `precise`, `wholeHost`, or `wholeFrame`; `reasons` is an array (may be empty) of at most 8 distinct names from `composeDefault`, `composeVersionUnverified`, `composeOwnerUnavailable`, `interop`, `regionUnreadable`, `treeUnreadable`, `animating`, `unverifiedLayerAllowlist`, `walkExhausted`, `noWindowSize`, `noDecor`, `representable`, `webView`, `renderer`, `surfaceLayer`, `unclassifiedLayer`, `secureText` (every value the Android and SwiftUI adapters emit). `timings {frameWaitMicros?, readbackMicros?, maskMicros?, encodeMicros?}` (each at most a day) feed the screenshot budget. `requestedBackend` and `resolvedBackend` are the closed collector vocabulary (`flutterRepaintBoundary`, `nativeCpuExperimental`); `dHash` and `structureSignature` are opaque tokens the engine only compares. This is the one way frames enter the engine. A captured frame the engine does not accept (an unknown, stale, or teardown-abandoned request, a reuse, a perceptual match, or no live session) is released at once (`frame.release`). |
 | `navigation` | mono | `{kind, navigatorId, parentNavigatorId?, route?, departing?}` | A navigator callback (section 8.1). `kind`: `push`, `pop`, `replace`, `remove`. `route {instanceId, name?, type, overlayKind, transitionMs}` is the destination: the pushed route, the replacement, or the route a pop or removal reveals (absent when none is). `overlayKind`: `page`, `sheet`, `dialog`, `popup`, `unknown`; `transitionMs` in [0, 86400000]. `departing {instanceId, name?, type?}` is the route leaving or covered; only its id is read (`from*` fields come from the visible route, as in Dart). Ids are opaque, stable for the navigator's or route's lifetime; the engine maps them onto `nav-N` / `route-N` per session. A navigator first named as `parentNavigatorId` is numbered after its child. |
 | `surface` | mono | `{boundaryRect {x, y, width, height}, generation}` | The capture boundary in surface logical pixels and the adapter's boundary transform generation, which advances whenever the boundary's rect changes. Send it after `session.start` and on every change, before the `capture.result` of a capture made under it. |
 
@@ -419,6 +419,27 @@ scheduler:
   request for cancellations and rejections), in Dart's order. With
   `capabilities.captureDiagnostics` every resolution records
   `capture_diagnostic` (diagnostic stream) as Dart does.
+- **Mask coverage.** An accepted frame with `maskCoverage` always records
+  `capture_diagnostic` `{component: capture_masking, frameId, mode,
+  reasons}` (`afterFrame` the new frame) right after its frame record,
+  before anything the frame-accepted hooks record (a delivery eviction
+  gap), with or without `captureDiagnostics`, so Atlas can tell a
+  whole-masked frame from a broken capture. Frame records and
+  `frameMetadata` never carry it; a frame without `maskCoverage`
+  (Flutter, older hosts) records nothing new, and neither does a frame
+  the engine coalesces, reuses, or releases (stale, unknown, no session).
+- **Secure windows.** `failed` with `secureWindow` (a window flagged
+  secure is never copied) resolves as `capture_processing_failed`, like
+  the other non-retryable failures; its `capture_diagnostic` carries
+  `failure: secure_window`. Without `captureDiagnostics` it is recorded
+  only for the first secure window of each route instance in a session
+  (before any route, the session counts as one), so a secure screen
+  captured again and again cannot flood the event queue. Later ones are
+  counted, and every teardown (going to the background, session end or
+  replacement) records `capture_diagnostic` `{component:
+  capture_secure_window, routeInstanceId?, repeatCount}` for each route
+  instance with repeats since the last report, in first-failure order.
+  With `captureDiagnostics` every one is recorded and nothing is counted.
 - **Budget.** Each execution charges its queue wait (the settle delay
   included, as in Dart) and the host's `timings` within `budgetWindowMs` of
   fact time (C1). Over `budgetMs`, requests carry `scale: degradedScale`.

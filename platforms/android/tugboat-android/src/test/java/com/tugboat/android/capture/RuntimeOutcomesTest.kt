@@ -80,7 +80,7 @@ class RuntimeOutcomesTest {
     @Test
     fun failuresAreMappedExplicitly() {
         val expected = mapOf(
-            CaptureStatus.SecureWindow to CaptureFailure.ReadbackFailed, // secureWindow once the engine accepts it
+            CaptureStatus.SecureWindow to CaptureFailure.SecureWindow,
             CaptureStatus.UnsupportedApi to CaptureFailure.BoundaryUnavailable,
             CaptureStatus.SurfaceUnavailable to CaptureFailure.BoundaryUnavailable,
             CaptureStatus.UnsupportedRenderMode to CaptureFailure.BoundaryUnavailable,

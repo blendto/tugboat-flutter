@@ -69,7 +69,7 @@ view.tugboatTag = "checkout"                  // developer alias
 | Views adapter | `views/` | Turns activity windows into engine facts and computes masks (below). |
 | Facade | `Tugboat`, `TugboatConfig`, `TugboatTag` | The public API above; thin over `sdk/TugboatRuntime`. |
 | Engine wiring | `sdk/` | `TugboatRuntime` (composition root: one engine, one session), `HostMetadata` + `DeviceSnapshot` (`engine.configure.host`, refused when incomplete), `EngineConfiguration`, `SessionMessages`, `AppLifecycleBridge` (`ProcessLifecycleOwner` to `app.lifecycle`), `SessionEndWatcher` + `StopSequence` (stop order), `NavigationTracking`. |
-| Capture | `capture/` | `CaptureCoordinator` answers `capture.request`; `FrameMasks` (the copy-time mask supplier); `RuntimeOutcomes` maps `capture-runtime` results; `CaptureResultJson`; `EngineVocabulary` (engine values not yet accepted); `ForegroundWindow` + `SurfaceReporter` (`surface` facts); `CaptureGeometry`. |
+| Capture | `capture/` | `CaptureCoordinator` answers `capture.request`; `FrameMasks` (the copy-time mask supplier); `RuntimeOutcomes` maps `capture-runtime` results; `CaptureResultJson`; `ForegroundWindow` + `SurfaceReporter` (`surface` facts); `CaptureGeometry`. |
 
 `engine.configure` (`sdk/EngineConfiguration`): `host` with every
 `session_start` field (`ipInfo.ip` is the placeholder `10.0.2.2`, as
@@ -118,13 +118,13 @@ locale}`.
   `walkExhausted`, `animating` for whole frames; `composeDefault` for a
   Compose host masked whole; `webView`, `surfaceLayer` noted; region
   reasons such as `interop`). Every reason name is in the engine's closed
-  set. `coverage.toJson()` goes on `capture.result.frame.maskCoverage` once
-  the engine accepts that field (`capture/EngineVocabulary`, off until
-  engine PR #96 merges).
+  set. `coverage.toJson()` goes on `capture.result.frame.maskCoverage` of
+  every captured frame; the engine records it as a `capture_masking`
+  `capture_diagnostic` and keeps it out of the frame record and
+  `frameMetadata`.
 - **Status mapping** (`RuntimeOutcomes`): `Ok` to `captured`;
-  `SecureWindow` and `PixelCopyFailed` to `failed readbackFailed`
-  (`SecureWindow` becomes `failed secureWindow` once the engine accepts it,
-  `EngineVocabulary`);
+  `SecureWindow` to `failed secureWindow` (the engine records a throttled
+  `capture_diagnostic`); `PixelCopyFailed` to `failed readbackFailed`;
   `UnsupportedApi`, `SurfaceUnavailable`, `UnsupportedRenderMode` to `failed
   boundaryUnavailable`; `Timeout` to `failed paintTimedOut`;
   `ProcessingFailed` to `failed encodingFailed`; `Cancelled` and `Disposed` to
@@ -220,8 +220,7 @@ are not in the captured frame (the copy is the activity window); predictive
 back is not observed; overscroll is reported for `RecyclerView` only;
 fragment `hide`/`show` is not reported; `transitionMs` is 0; window-manager
 activity transitions (not view animations) are not detected for the motion
-fallback; until engine PR #96 merges, a secure window is reported
-as `failed readbackFailed` and mask coverage is not sent.
+fallback.
 
 ## Toolkit-region seam
 

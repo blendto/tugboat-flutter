@@ -38,7 +38,7 @@ class CaptureResultJsonTest {
         assertEquals(
             setOf(
                 "handle", "width", "height", "contentHash", "masked", "byteLength", "captureMicros",
-                "requestedBackend", "resolvedBackend", "dHash", "structureSignature",
+                "requestedBackend", "resolvedBackend", "dHash", "structureSignature", "maskCoverage",
             ),
             frame.keys().asSequence().toSet(),
         )
@@ -48,8 +48,8 @@ class CaptureResultJsonTest {
     }
 
     @Test
-    fun maskCoverageIsEncodedInTheEnginesShapeOnceEnabled() {
-        val frame = JSONObject(CaptureResultJson.encode(answer, maskCoverage = true)).getJSONObject("frame")
+    fun maskCoverageIsEncodedInTheEnginesShape() {
+        val frame = JSONObject(answer.toInputJson()).getJSONObject("frame")
 
         assertEquals(
             """{"mode":"wholeHost","reasons":["composeDefault","webView"]}""",
@@ -92,11 +92,11 @@ class CaptureResultJsonTest {
     }
 
     private companion object {
-        /** The engine's `MaskReason` names (`engine/mask-coverage`, PR #96). */
+        /** The engine's closed `maskCoverage.reasons` names (`core/session-engine`, PR #96). */
         val ENGINE_MASK_REASONS = setOf(
             "composeDefault", "composeVersionUnverified", "composeOwnerUnavailable", "interop", "animating",
             "unverifiedLayerAllowlist", "walkExhausted", "noWindowSize", "noDecor", "representable", "webView",
-            "surfaceLayer", "unclassifiedLayer", "secureText",
+            "surfaceLayer", "unclassifiedLayer", "secureText", "regionUnreadable", "treeUnreadable", "renderer",
         )
     }
 }

@@ -26,7 +26,7 @@ internal class InFlightCapture(
  * | --- | --- |
  * | `Ok` with JPEG bytes | `captured` (bytes stored in the handle table) |
  * | `SkippedByDHash` | `captured` with the offered baseline's `dHash` and structure (the runtime skips only when the copy-time structure equals it; the engine coalesces and releases the empty handle); without a baseline `failed readbackFailed` |
- * | `SecureWindow` | `failed readbackFailed` (`secureWindow` once [EngineVocabulary.SECURE_WINDOW_FAILURE]): `FLAG_SECURE` windows are never copied |
+ * | `SecureWindow` | `failed secureWindow`: `FLAG_SECURE` windows are never copied (the engine records a throttled `capture_diagnostic`) |
  * | `UnsupportedApi`, `SurfaceUnavailable`, `UnsupportedRenderMode` | `failed boundaryUnavailable` |
  * | `Timeout` | `failed paintTimedOut` |
  * | `PixelCopyFailed` | `failed readbackFailed` |
@@ -39,7 +39,7 @@ internal class RuntimeOutcomes(private val frames: FrameHandleTable, private val
             CaptureStatus.Ok ->
                 if (result.jpeg.isEmpty()) failed(capture, result, CaptureFailure.EncodingFailed) else captured(capture, result)
             CaptureStatus.SkippedByDHash -> coalesced(capture, result)
-            CaptureStatus.SecureWindow -> failed(capture, result, SECURE_WINDOW)
+            CaptureStatus.SecureWindow -> failed(capture, result, CaptureFailure.SecureWindow)
             CaptureStatus.UnsupportedApi,
             CaptureStatus.SurfaceUnavailable,
             CaptureStatus.UnsupportedRenderMode,
@@ -112,8 +112,5 @@ internal class RuntimeOutcomes(private val frames: FrameHandleTable, private val
 
     private companion object {
         const val NANOS_PER_MICRO = 1_000L
-
-        val SECURE_WINDOW =
-            if (EngineVocabulary.SECURE_WINDOW_FAILURE) CaptureFailure.SecureWindow else CaptureFailure.ReadbackFailed
     }
 }

@@ -36,8 +36,9 @@ wiring, window capture, and the Android Views adapter.
   `LayoutTransition` runs. The mask walk reports its coverage
   (`precise` / `wholeHost` / `wholeFrame` and reasons) and hashes class, id,
   visibility, and checked / selected / activated state into the structure
-  signature; coverage and a `secureWindow` failure are sent once the engine
-  accepts them (engine PR #96). `MaskCoverageReason` uses only the engine's
+  signature. Every captured frame carries `maskCoverage` (the engine records
+  a `capture_masking` diagnostic), and a secure window is answered `failed
+  secureWindow`. `MaskCoverageReason` uses only the engine's
   reason names (`noDecor`, `noWindowSize`, `walkExhausted` replace
   `treeUnreadable` / `regionUnreadable`; `webView`, `surfaceLayer` added).
 - Collector contract test (instrumented, real engine): `session_start` body

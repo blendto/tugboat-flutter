@@ -11,6 +11,7 @@ import com.tugboat.android.capture.CaptureAnswer
 import com.tugboat.android.capture.CaptureTimingsMicros
 import com.tugboat.android.capture.CapturedFrame
 import com.tugboat.android.engine.JniEngineTransport
+import com.tugboat.android.toolkit.MaskCoverageReason
 import com.tugboat.android.views.mask.MaskCoverage
 import com.tugboat.android.views.mask.MaskMode
 import com.tugboat.android.host.EngineHost
@@ -26,6 +27,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,9 +37,11 @@ import java.util.concurrent.CopyOnWriteArrayList
  * Contract test (native SDK note section 8): the real engine, driven through
  * the host with the SDK's own `engine.configure`, `session.start`, and
  * `capture.result` builders, must produce collector bodies the collector
- * accepts. Pins the `session_start` body (every required field) and
+ * accepts. Pins the `session_start` body (every required field),
  * `frameMetadata[].requestedBackend` / `resolvedBackend` =
- * `nativeCpuExperimental`. Only the transport is fake: it records each
+ * `nativeCpuExperimental` with no mask coverage in it, and the frame's
+ * `maskCoverage` arriving as a `capture_masking` `capture_diagnostic` on
+ * `/v1/events/batch`. Only the transport is fake: it records each
  * `http.send` and answers 202.
  */
 @RunWith(AndroidJUnit4::class)
@@ -89,13 +93,25 @@ class CollectorContractTest {
         val entries = JSONArray(metadataField)
         assertTrue(entries.length() > 0)
         for (i in 0 until entries.length()) {
-            assertEquals("nativeCpuExperimental", entries.getJSONObject(i).getString("requestedBackend"))
-            assertEquals("nativeCpuExperimental", entries.getJSONObject(i).getString("resolvedBackend"))
+            val entry = entries.getJSONObject(i)
+            assertEquals("nativeCpuExperimental", entry.getString("requestedBackend"))
+            assertEquals("nativeCpuExperimental", entry.getString("resolvedBackend"))
+            assertFalse("mask coverage never reaches frameMetadata", entry.has("maskCoverage"))
+            assertFalse("mask coverage never reaches frameMetadata", "capture_masking" in entry.toString())
         }
 
         host.post(SessionMessages.SESSION_END, SessionMessages.sessionEnd(), SystemHostClock.now())
         val end = awaitRequest { it.lane == "lifecycle" && "session_end" in it.json() }
         assertTrue(SessionEndWatcher.isSessionEnd(end))
+
+        // The frame's mask coverage reaches the collector as a capture_masking
+        // capture_diagnostic on /v1/events/batch.
+        val masking = awaitRequest { it.lane == "events" && "capture_masking" in it.json() }
+        val batch = JSONObject(masking.json()).getJSONArray("events")
+        val diagnostic = (0 until batch.length()).map { batch.getJSONObject(it) }.first { "capture_masking" in it.toString() }
+        assertTrue(diagnostic.toString(), "capture_diagnostic" in diagnostic.toString())
+        assertTrue(diagnostic.toString(), "\"wholeHost\"" in diagnostic.toString())
+        assertTrue(diagnostic.toString(), "\"composeDefault\"" in diagnostic.toString())
     }
 
     /** Answers a capture as the coordinator would, with a stand-in JPEG. */
@@ -104,7 +120,7 @@ class CollectorContractTest {
         val handle = frames.put(jpeg)
         val reply = CaptureAnswer.Captured(
             requestId = requestId,
-            frame = CapturedFrame(handle, 300, 600, "sha-$requestId", true, jpeg.size, 1000, "00ff00ff00ff00ff", "sig", MaskCoverage(MaskMode.Precise)),
+            frame = CapturedFrame(handle, 300, 600, "sha-$requestId", true, jpeg.size, 1000, "00ff00ff00ff00ff", "sig", COVERAGE),
             boundaryRect = BoundaryRect(0.0, 0.0, 400.0, 800.0),
             timings = CaptureTimingsMicros(readbackMicros = 500),
         )
@@ -121,6 +137,10 @@ class CollectorContractTest {
     }
 
     private fun HttpRequest.json(): String = (body as? HttpBody.Json)?.text.orEmpty()
+
+    private companion object {
+        val COVERAGE = MaskCoverage(MaskMode.WholeHost, setOf(MaskCoverageReason.ComposeDefault))
+    }
 
     /** Records each request and accepts it, with a collector session id for lifecycle posts. */
     private class RecordingSender : HttpSender {

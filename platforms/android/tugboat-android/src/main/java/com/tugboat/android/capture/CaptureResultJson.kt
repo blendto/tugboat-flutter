@@ -17,12 +17,12 @@ internal object CaptureResultJson {
     /** One day, the engine's bound on every duration. */
     private const val MAX_MICROS = 86_400_000_000L
 
-    fun encode(answer: CaptureAnswer, maskCoverage: Boolean = EngineVocabulary.FRAME_MASK_COVERAGE): String {
+    fun encode(answer: CaptureAnswer): String {
         val input = JSONObject().put("requestId", answer.requestId)
         when (answer) {
             is CaptureAnswer.Captured -> {
                 input.put("outcome", "captured")
-                input.put("frame", frame(answer.frame, maskCoverage))
+                input.put("frame", frame(answer.frame))
                 input.put("boundaryRect", answer.boundaryRect.toJson())
                 input.put("timings", timings(answer.timings))
             }
@@ -36,7 +36,7 @@ internal object CaptureResultJson {
         return input.toString()
     }
 
-    private fun frame(frame: CapturedFrame, maskCoverage: Boolean): JSONObject {
+    private fun frame(frame: CapturedFrame): JSONObject {
         val json = JSONObject()
             .put("handle", frame.handle)
             .put("width", frame.width)
@@ -49,7 +49,9 @@ internal object CaptureResultJson {
             .put("resolvedBackend", NATIVE_BACKEND)
         if (frame.dHash.isNotEmpty()) json.put("dHash", frame.dHash)
         json.put("structureSignature", frame.structureSignature)
-        if (maskCoverage) json.put("maskCoverage", frame.maskCoverage.toJson())
+        // Which masking applied; the engine records it as a `capture_masking`
+        // diagnostic and keeps it out of the frame record and `frameMetadata`.
+        json.put("maskCoverage", frame.maskCoverage.toJson())
         return json
     }
 

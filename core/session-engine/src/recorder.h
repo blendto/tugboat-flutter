@@ -3,9 +3,12 @@
 #ifndef TUGBOAT_SESSION_ENGINE_RECORDER_H
 #define TUGBOAT_SESSION_ENGINE_RECORDER_H
 
+#include <cstdint>
 #include <optional>
 
+#include "clock.h"
 #include "engine_state.h"
+#include "json.h"
 #include "models.h"
 #include "output.h"
 #include "session.h"
@@ -35,6 +38,26 @@ void record_event(EngineState* state, Session& session, Event event,
 // Mints `event-N` and builds an engine-produced event at `mono_us`.
 Event make_event(EngineState* state, const Session& session,
                  const char* type, int64_t mono_us);
+
+// An engine-produced `capture_diagnostic`: `data` on the diagnostic stream
+// under a minted `event-N`, unless `id` and `stream` say otherwise
+// (collector delivery gaps keep Dart's `collector-…` ids and stream).
+struct Diagnostic {
+  Value data = Value::object();
+  OptString after_frame;
+  OptString id;
+  EventStream stream = EventStream::kDiagnostic;
+};
+
+// The `capture_diagnostic` event of `diagnostic` in `session` at `mono_us`.
+Event diagnostic_event(EngineState* state, const Session& session,
+                       int64_t mono_us, Diagnostic diagnostic);
+
+// Records `diagnostic` in the live session (with the session's action
+// context). Without a live session nothing is recorded or minted, and it
+// returns false.
+bool record_diagnostic(EngineState* state, const At& at, Output* out,
+                       Diagnostic diagnostic);
 
 }  // namespace engine
 }  // namespace tugboat

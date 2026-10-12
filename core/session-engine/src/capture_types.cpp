@@ -18,6 +18,33 @@ constexpr NamedValue<CaptureFailure> kFailures[] = {
     {"readbackFailed", CaptureFailure::kReadbackFailed},
     {"maskFailed", CaptureFailure::kMaskFailed},
     {"encodingFailed", CaptureFailure::kEncodingFailed},
+    {"secureWindow", CaptureFailure::kSecureWindow},
+};
+
+constexpr NamedValue<MaskMode> kMaskModes[] = {
+    {"precise", MaskMode::kPrecise},
+    {"wholeHost", MaskMode::kWholeHost},
+    {"wholeFrame", MaskMode::kWholeFrame},
+};
+
+constexpr NamedValue<MaskReason> kMaskReasons[] = {
+    {"composeDefault", MaskReason::kComposeDefault},
+    {"composeVersionUnverified", MaskReason::kComposeVersionUnverified},
+    {"composeOwnerUnavailable", MaskReason::kComposeOwnerUnavailable},
+    {"interop", MaskReason::kInterop},
+    {"regionUnreadable", MaskReason::kRegionUnreadable},
+    {"treeUnreadable", MaskReason::kTreeUnreadable},
+    {"animating", MaskReason::kAnimating},
+    {"unverifiedLayerAllowlist", MaskReason::kUnverifiedLayerAllowlist},
+    {"walkExhausted", MaskReason::kWalkExhausted},
+    {"noWindowSize", MaskReason::kNoWindowSize},
+    {"noDecor", MaskReason::kNoDecor},
+    {"representable", MaskReason::kRepresentable},
+    {"webView", MaskReason::kWebView},
+    {"renderer", MaskReason::kRenderer},
+    {"surfaceLayer", MaskReason::kSurfaceLayer},
+    {"unclassifiedLayer", MaskReason::kUnclassifiedLayer},
+    {"secureText", MaskReason::kSecureText},
 };
 
 // Dart `_captureOutcomeWireNames`.
@@ -56,6 +83,20 @@ const char* capture_failure_name(CaptureFailure failure) {
 
 std::optional<CaptureFailure> parse_capture_failure(const std::string& name) {
   return parse_name(kFailures, name);
+}
+
+const char* mask_mode_name(MaskMode mode) { return name_of(kMaskModes, mode); }
+
+std::optional<MaskMode> parse_mask_mode(const std::string& name) {
+  return parse_name(kMaskModes, name);
+}
+
+const char* mask_reason_name(MaskReason reason) {
+  return name_of(kMaskReasons, reason);
+}
+
+std::optional<MaskReason> parse_mask_reason(const std::string& name) {
+  return parse_name(kMaskReasons, name);
 }
 
 const char* capture_outcome_name(CaptureOutcome outcome) {

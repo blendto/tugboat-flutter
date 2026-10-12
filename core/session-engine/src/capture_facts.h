@@ -25,7 +25,9 @@ struct SurfaceFact {
 
 // `capture.result`: `frame` (and optionally `boundaryRect`) is required
 // with `captured` and not allowed otherwise; `failure` is allowed with
-// `failed` only; `timings` with any outcome.
+// `failed` only; `timings` with any outcome. `frame.maskCoverage {mode,
+// reasons}` is optional; its vocabularies are closed and `reasons` holds
+// at most kMaxMaskReasons distinct names.
 bool decode_capture_result(const Value& input, const std::string& path,
                            CaptureResult* out, Error* error);
 bool decode_surface_fact(const Value& input, const std::string& path,

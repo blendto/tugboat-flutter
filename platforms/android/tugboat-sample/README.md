@@ -141,8 +141,12 @@ the Navigation route keys `rows` and `row` (arguments stripped).
   texts, the text field, and the described image are masked individually;
   button and row backgrounds stay visible. Frames taken mid-transition are
   fully masked. `frameMetadata` backends are `nativeCpuExperimental`.
-  Mask coverage (`precise` / `wholeHost` / `wholeFrame`) is not on the wire
-  until engine PR #96 merges.
+  Each captured frame's mask coverage is a `capture_diagnostic` row in
+  `pmkit.raw_events` with `component: capture_masking`, the `frameId`,
+  `mode` (`precise` on Views screens and `ComposeSemanticsActivity`,
+  `wholeHost` with `composeDefault` on `ComposeWholeHostActivity`,
+  `wholeFrame` with `animating` mid-transition), and `reasons`.
+  `frameMetadata` does not change.
   Frame sizes can step down mid-session (for example 309×686 to 247×549):
   when captures exceed the screenshot budget (60 ms per 5 s, Dart parity),
   later captures use `degradedScale` 0.8 until the window recovers. Expected
