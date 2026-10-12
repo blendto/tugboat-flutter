@@ -66,17 +66,31 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
 - **Masks.** `WindowMasks.compute(window)` returns rectangles normalized to
   the decor view (the `capture-runtime` window rule): `TextView`,
   `ImageView`, `VideoView`, and fail-closed `WebView` / `SurfaceView` /
-  `TextureView` bounds. It masks the whole frame when the tree cannot be
+  `TextureView` / Compose host (`ComposeView`, matched by class name)
+  bounds. It masks the whole frame when the tree cannot be
   read.
 - **Optional androidx.** `core`, `fragment`, and `recyclerview` are
-  `compileOnly`; each is probed with `Class.forName` and used only when the
-  app ships it.
-- **`Window.Callback`.** Every method is forwarded to the replaced callback
-  exactly once. A marker interface prevents double wrapping; on each resume a
-  callback another SDK replaced is wrapped again, and only the outermost
-  Tugboat wrapper observes.
+  `compileOnly`; each is probed once with `Class.forName` and its
+  implementation used only when the app ships it. `consumer-rules.pro`
+  silences R8 for apps without them and keeps the probed names.
+- **`Window.Callback`.** The wrapper is Java (`ObservingWindowCallback.java`)
+  so platform `null`s never meet Kotlin null checks; every method is
+  forwarded to the replaced callback exactly once. On create and every
+  resume it wraps only when no Tugboat wrapper is reachable in the chain:
+  `CallbackChain` follows Tugboat's delegate, public `getWrapped()` /
+  `getDelegate()` accessors, and `Window.Callback` fields of non-platform
+  wrapper classes, up to 16 links. A per-thread dispatch depth keeps facts
+  single if two wrappers still end up in one chain.
+- **Stop.** After `stop()` nothing is emitted: window, fragment, and
+  lifecycle callbacks are removed, and every fact path is gated.
+- **Navigation gate.** `navigation` is a phase 3d engine message, so
+  `ViewsAdapter(postNavigationFacts = false)` (the default) tracks navigation
+  for route keys but posts no `navigation` facts until 3d.
 - **Failures.** Every adapter callback is guarded; the first failure per site
   is logged and nothing reaches the app.
+
+Activities the system destroys without finishing (configuration change,
+back-stack reclaim) keep their route identity when recreated.
 
 Known gaps: dialog and popup windows are not wrapped for pointer facts;
 predictive back is not observed; overscroll is reported for `RecyclerView`

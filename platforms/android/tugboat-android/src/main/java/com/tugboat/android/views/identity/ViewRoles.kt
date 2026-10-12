@@ -1,7 +1,6 @@
 package com.tugboat.android.views.identity
 
 import android.view.View
-import com.tugboat.android.views.scroll.Scrollables
 import android.widget.AbsSeekBar
 import android.widget.CheckBox
 import android.widget.CompoundButton
@@ -9,6 +8,7 @@ import android.widget.RadioButton
 import android.widget.Spinner
 import android.widget.Switch
 import android.widget.ToggleButton
+import com.tugboat.android.views.scroll.Scrollables
 
 /**
  * The anchor `role` and `actions` vocabulary, shared with the Flutter

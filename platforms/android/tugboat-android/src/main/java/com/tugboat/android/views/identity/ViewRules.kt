@@ -4,12 +4,12 @@ import android.os.Build
 import android.view.SurfaceView
 import android.view.TextureView
 import android.view.View
-import com.tugboat.android.views.scroll.Scrollables
 import android.webkit.WebView
 import android.widget.Checkable
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.VideoView
+import com.tugboat.android.views.scroll.Scrollables
 
 /**
  * Which views take part in identity (design note 6, 6.1).

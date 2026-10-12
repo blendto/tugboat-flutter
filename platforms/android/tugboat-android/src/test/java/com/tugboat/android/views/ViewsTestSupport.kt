@@ -2,8 +2,8 @@ package com.tugboat.android.views
 
 import android.content.Context
 import android.view.View
-import com.tugboat.android.host.FakeClock
 import com.tugboat.android.host.EngineMessage
+import com.tugboat.android.host.FakeClock
 import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.FactSink
 import com.tugboat.android.views.facts.FrameScheduler
