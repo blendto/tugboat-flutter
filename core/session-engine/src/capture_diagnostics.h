@@ -26,8 +26,8 @@ struct EngineState;
 // Records the diagnostic of `waiter` resolving as `execution` under
 // `execution_id` while a session is live: with the `captureDiagnostics`
 // capability, and always for a host failure (C18 answer timeouts, contract
-// violations, secure windows). A waiter without a request id (an execution no request waits
-// for any more) has no `requestId`.
+// violations, secure windows). A waiter without a request id (an execution
+// no request waits for any more) has no `requestId`.
 void record_capture_diagnostic(EngineState* state, const At& at, Output* out,
                                const CaptureWaiter& waiter,
                                const std::string& execution_id,
