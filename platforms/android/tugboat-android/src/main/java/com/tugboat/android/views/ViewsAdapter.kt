@@ -14,6 +14,7 @@ import com.tugboat.android.views.facts.FrameScheduler
 import com.tugboat.android.views.facts.ViewsFact
 import com.tugboat.android.views.identity.AnchorResolver
 import com.tugboat.android.views.identity.AndroidResourceNames
+import com.tugboat.android.views.input.FocusState
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.android.views.mask.WindowMasks
@@ -64,6 +65,9 @@ internal class ViewsAdapter(
             null
         }
     private val sessions = HashMap<Activity, WindowSession>()
+
+    /** Focus is app-wide: every window reports against the same last kind. */
+    private val focusState = FocusState()
     private var started = false
 
     fun start() = AdapterGuard.run("start") {
@@ -123,7 +127,10 @@ internal class ViewsAdapter(
 
     override fun onActivityResumed(activity: Activity) =
         AdapterGuard.run("activity resumed") {
-            session(activity).ensureAttached()
+            session(activity).apply {
+                ensureAttached()
+                onWindowActive()
+            }
             activities.onResumed(activity)
         }
 
@@ -149,7 +156,7 @@ internal class ViewsAdapter(
 
     private fun session(activity: Activity): WindowSession =
         sessions.getOrPut(activity) {
-            WindowSession(activity, clock, gesture, anchors, ::emit, batcher::requestFrame)
+            WindowSession(activity, clock, gesture, anchors, ::emit, batcher::requestFrame, focusState)
         }
 
     /** The only way facts reach the batcher: nothing after [stop]. */

@@ -35,7 +35,7 @@ import com.tugboat.android.compose.tugboatTag
 class ComposeWholeHostActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { WholeHostScreen() } }
+        setContent { MaterialTheme { NoInitialFocus { WholeHostScreen() } } }
     }
 }
 
