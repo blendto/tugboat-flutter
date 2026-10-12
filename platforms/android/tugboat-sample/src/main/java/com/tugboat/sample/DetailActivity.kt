@@ -10,6 +10,7 @@ class DetailActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_detail)
+        applySystemBarInsets(findViewById(R.id.detail_root))
         findViewById<Button>(R.id.back).apply {
             tugboatTag = "details_back"
             setOnClickListener { finish() }

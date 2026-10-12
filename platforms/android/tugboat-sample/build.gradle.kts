@@ -42,6 +42,8 @@ dependencies {
     implementation(project(":tugboat-android"))
     implementation(project(":tugboat-compose"))
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    // ViewCompat window insets: edge-to-edge is enforced for targetSdk 35 on API 35+.
+    implementation("androidx.core:core:1.13.1")
     // Compose UI 1.8.3: inside tugboat-compose's tested range (1.7.0 to 1.9.0).
     implementation(platform("androidx.compose:compose-bom:2025.06.01"))
     implementation("androidx.compose.ui:ui")

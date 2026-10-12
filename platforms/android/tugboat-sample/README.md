@@ -5,7 +5,8 @@ on an emulator against a local collector (native SDK note section 10). Not
 published. Application id `com.tugboat.sample`, minSdk 24 (frames need API
 26+; below that sessions carry events without frames).
 
-Screens:
+Screens (all edge-to-edge safe: content is padded by the system bars and
+display cutout, as targetSdk 35 requires on API 35+):
 
 - `MainActivity` (Views): a tagged button (`tugboatTag = "primary_action"`),
   a swipe area, a text field, a `RecyclerView` list of 50 rows, a dialog,
@@ -99,16 +100,20 @@ the Navigation route keys `rows` and `row` (arguments stripped).
     activity but keeps its route, so it adds no `route_change`. Navigation
     Compose destinations change route keys, not routes: no `route_change`
     for `row/3`;
-  - `interaction` events (v2, no `stateAnchor`): a `tap` on the button
-    (step 2, `targetAnchor.toolkit = "view"`, tag fingerprint from
-    `primary_action`), a `scroll` on the list (step 3), a `swipe` (step 4),
-    taps on "Open details" and the text field, all with
-    `targetAnchor.toolkit = "view"`;
+  - `interaction` events (v2, no `stateAnchor`). As in Flutter, only taps
+    resolve a target and scrolls carry their scrollable's anchor; swipe,
+    pan, and zoom carry **no** `targetAnchor` (so no `toolkit`):
+    - `tap` on the button (step 2, `targetAnchor.toolkit = "view"`, tag
+      fingerprint from `primary_action`), and taps on "Open details" and the
+      text field, all with `targetAnchor.toolkit = "view"`;
+    - `scroll` on the list (step 3), `targetAnchor` = the `RecyclerView`,
+      `toolkit = "view"`;
+    - `swipe` (step 4), without a `targetAnchor`;
   - Compose `interaction` events with `targetAnchor.toolkit = "compose"`:
     the tap on the button (step 10, tag fingerprint from
-    `compose_primary`), the list `scroll`s (steps 10 and 11, scrollable ids
-    `compose-scroll-<n>`), taps on the text fields, on "Row 3" (route key
-    `rows`), and on "Back" (route key `row`, tag `compose_back`);
+    `compose_primary`), taps on the text fields, on "Row 3" (route key
+    `rows`), and on "Back" (route key `row`, tag `compose_back`), and the
+    list `scroll`s (steps 10 and 11, anchored to the `LazyColumn`);
   - `focus_changed` when the text fields gain and lose focus (steps 6, 10,
     11);
   - `system_input` `back` (steps 5, 10, 11 for the presses that reach the

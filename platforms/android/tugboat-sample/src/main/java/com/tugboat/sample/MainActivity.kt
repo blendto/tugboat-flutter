@@ -22,6 +22,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        applySystemBarInsets(findViewById(R.id.main_root))
         taps = savedInstanceState?.getInt(KEY_TAPS) ?: 0
 
         val count = findViewById<TextView>(R.id.tap_count)
