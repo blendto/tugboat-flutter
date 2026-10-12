@@ -5,7 +5,7 @@
 #ifndef TUGBOAT_SESSION_ENGINE_INTERACTION_PAYLOAD_H
 #define TUGBOAT_SESSION_ENGINE_INTERACTION_PAYLOAD_H
 
-#include "frame_ledger.h"
+#include "capture_seam.h"
 #include "interaction_transaction.h"
 #include "json.h"
 #include "models.h"

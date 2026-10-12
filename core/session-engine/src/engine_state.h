@@ -6,10 +6,10 @@
 
 #include <optional>
 
+#include "capture_seam.h"
 #include "clock.h"
 #include "config.h"
 #include "delivery_state.h"
-#include "frame_ledger.h"
 #include "interaction_state.h"
 #include "lifecycle.h"
 #include "models.h"
@@ -38,9 +38,9 @@ struct EngineState {
   std::optional<Session> session;
   Timers timers;
   DeliveryState delivery;
-  // Frame provenance for before- and after-frames (phase 3d replaces it
-  // with the capture scheduler's provenance).
-  FrameLedger frames;
+  // Capture requests, frame acceptance, and frame provenance (phase 3d
+  // replaces the implementation behind the same interface).
+  CaptureSeam captures;
   InteractionState interactions;
   NavigationState navigation;
 

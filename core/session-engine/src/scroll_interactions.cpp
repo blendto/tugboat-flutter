@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <utility>
 
-#include "after_frame.h"
-#include "capture_requests.h"
 #include "engine_state.h"
 #include "interaction_claims.h"
 #include "interaction_publish.h"
@@ -54,7 +52,7 @@ void start_scroll(InteractionTurn& turn, const ScrollFact& fact) {
   ScrollState& scrolls = state.interactions.scrolls;
   if (scrolls.trackers.count(fact.scrollable_id) == 0) {
     ScrollTracker tracker;
-    const FrameProvenance* before = state.frames.latest(turn.session->id());
+    const FrameProvenance* before = state.captures.latest(turn.session->id());
     if (before != nullptr) tracker.before_frame = before->frame_id;
     tracker.start_id = state.ids.next("event");
     tracker.start_offset = fact.offset;
@@ -88,7 +86,7 @@ void request_capture(InteractionTurn& turn, const std::string& start_id,
                      ScrollCompletion& completion) {
   EngineState& state = *turn.state;
   completion.stage = ScrollCompletion::Stage::kCapturing;
-  state.interactions.captures.issue(
+  state.captures.issue(
       {CaptureOwner::Kind::kScrollEnd, start_id},
       interaction_capture(turn.at.mono_us, current_capture_context(state)),
       &state.ids, turn.out);
@@ -180,7 +178,7 @@ void publish_resolved_scroll(EngineState* state, Session& session,
   tx->scroll = completion->facts;
   tx->after_frame =
       completion->resolution
-          ? after_capture_frame(state->frames, *tx, session,
+          ? after_capture_frame(state->captures, *tx, session,
                                 *completion->resolution)
           : std::nullopt;
   scrolls.interactions.erase(start_id);

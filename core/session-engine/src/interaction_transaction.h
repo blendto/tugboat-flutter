@@ -90,9 +90,6 @@ struct Transaction {
     return stage == TransactionStage::kPublished ||
            stage == TransactionStage::kAbsorbed;
   }
-  // Dart `isEligible`: can still be claimed as a navigation's cause.
-  bool claimable() const { return !claimed && !terminal(); }
-
   // Dart `markSwipe`: a pan or zoom stays what it is.
   void mark_swipe();
   // Dart `markCluster`: only pan, zoom, and swipe classify a cluster.

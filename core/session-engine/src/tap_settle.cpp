@@ -1,7 +1,7 @@
 #include "tap_settle.h"
 
-#include "after_frame.h"
-#include "capture_requests.h"
+#include <optional>
+
 #include "engine_state.h"
 #include "interaction_claims.h"
 #include "interaction_publish.h"
@@ -11,6 +11,19 @@ namespace engine {
 
 namespace {
 
+// Dart `_ensureReconciliationSweepScheduled`: one sweep timer, armed for the
+// earliest deadline plus the fact grace.
+void ensure_sweep(InteractionTurn& turn) {
+  EngineState& state = *turn.state;
+  if (state.timers.armed(kSweepTimerId)) return;
+  const std::optional<int64_t> earliest =
+      state.interactions.registry.earliest_claim_deadline();
+  if (!earliest) return;
+  const int64_t grace_ms = state.config.interaction.fact_grace_ms;
+  state.timers.schedule(kSweepTimerId, turn.mono_at_ms(*earliest + grace_ms),
+                        turn.out);
+}
+
 std::string timer_id(const std::string& interaction_id) {
   return kSettleTimerPrefix + interaction_id;
 }
@@ -18,7 +31,7 @@ std::string timer_id(const std::string& interaction_id) {
 void request_capture(InteractionTurn& turn, TapSettle& settle) {
   EngineState& state = *turn.state;
   settle.phase = SettlePhase::kCapturing;
-  state.interactions.captures.issue(
+  state.captures.issue(
       {CaptureOwner::Kind::kTapSettle, settle.tx->id()},
       interaction_capture(turn.at.mono_us, current_capture_context(state)),
       &state.ids, turn.out);
@@ -43,6 +56,33 @@ void enter_claim_window(InteractionTurn& turn, TapSettle& settle) {
 }
 
 }  // namespace
+
+void release_for_claims(InteractionTurn& turn, const TransactionPtr& tx) {
+  EngineState& state = *turn.state;
+  if (!tx->released_at_ms) tx->released_at_ms = turn.now_ms();
+  state.interactions.registry.release(tx);
+  // A zero window (Dart's microtask-only rollback mode) closes at release.
+  tx->claim_deadline_ms =
+      *tx->released_at_ms + state.config.interaction.claim_window_ms;
+  ensure_sweep(turn);
+}
+
+void sweep_released(InteractionTurn& turn) {
+  EngineState& state = *turn.state;
+  const InteractionConfig& config = state.config.interaction;
+  state.interactions.registry.sweep(turn.now_ms(), config.fact_grace_ms,
+                                    config.max_released);
+  if (state.interactions.registry.has_released()) ensure_sweep(turn);
+}
+
+void clear_released(EngineState* state, Output* out) {
+  state->timers.cancel(kSweepTimerId, out);
+  Session* session = state->live_session();
+  for (const TransactionPtr& tx :
+       state->interactions.registry.take_all_released()) {
+    if (session != nullptr) finalize_abandoned(state, *session, *tx, out);
+  }
+}
 
 void start_tap_settle(InteractionTurn& turn, const TransactionPtr& tx) {
   EngineState& state = *turn.state;
@@ -91,15 +131,16 @@ void finish_tap_settle(InteractionTurn& turn,
   const TransactionPtr tx = settle->tx;
   settles.erase(interaction_id);
   // Dart `_standaloneTapSameRouteObservation`. The frame matches the tap's
-  // origin when the ledger knows it (phase 3d also compares route epochs).
+  // origin when the capture seam knows it (phase 3d also compares route
+  // epochs).
   const bool captured =
-      resolution.frame_id && state.frames.find(*resolution.frame_id) != nullptr;
+      resolution.frame_id && state.captures.find(*resolution.frame_id) != nullptr;
   if (captured) {
     tx->after_frame = resolution.frame_id;
   } else {
-    const FrameProvenance* latest = state.frames.latest(turn.session->id());
+    const FrameProvenance* latest = state.captures.latest(turn.session->id());
     tx->after_frame = temporal_after_frame(
-        state.frames, *tx, *turn.session,
+        state.captures, *tx, *turn.session,
         latest == nullptr ? std::nullopt : OptString(latest->frame_id));
   }
   tx->gesture = Gesture::kTap;

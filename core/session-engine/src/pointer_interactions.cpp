@@ -5,15 +5,13 @@
 #include <utility>
 #include <vector>
 
-#include "claim_window.h"
+#include "tap_settle.h"
 #include "engine_state.h"
-#include "gesture_completion.h"
+#include "interaction_publish.h"
 #include "interaction_claims.h"
 #include "interaction_payload.h"
-#include "interaction_publish.h"
 #include "scroll_interactions.h"
 #include "tap_evidence.h"
-#include "tap_settle.h"
 
 namespace tugboat {
 namespace engine {
@@ -40,7 +38,7 @@ void pointer_down(InteractionTurn& turn, const PointerDownSignal& signal) {
   }
   abandon_pending(&state, turn.session, signal.pointer, turn.out);
   const bool primary = !interactions.registry.has_pending();
-  const FrameProvenance* before = state.frames.latest(turn.session->id());
+  const FrameProvenance* before = state.captures.latest(turn.session->id());
 
   InteractionOrigin origin;
   origin.interaction_id = state.ids.next("event");
@@ -69,7 +67,7 @@ void pointer_up(InteractionTurn& turn, const PointerUpSignal& signal) {
       state.interactions.registry.take_pending(signal.pointer);
   if (tx == nullptr) return;
   tx->released_at_ms = turn.now_ms();
-  tx->released_frame_sequence = state.frames.sequence();
+  tx->released_frame_sequence = state.captures.sequence();
   const bool scroll_linked = !tx->scroll_start_ids.empty();
   if (is_pan_or_zoom(tx->gesture) && (is_zoom(tx->gesture) || !scroll_linked)) {
     tx->end_position = signal.position;

@@ -2,8 +2,14 @@
 // transactions by pointer, released taps by pointer, and every unpublished
 // transaction by id, each in insertion order. It also answers which
 // transactions a navigation may claim and which released taps a sweep
-// expires. It owns the stage transitions in and out of the indexes; it never
-// publishes. Not part of the C ABI.
+// expires. It never publishes.
+//
+// A transaction's stage is the source of truth; the indexes are lookups by
+// pointer and order. The registry moves the stage whenever it moves a
+// transaction in or out of an index. Like Dart, a tap published while still
+// in its claim window stays in the released index (and counts toward the
+// cap) until the sweep removes it; its stage says it is published.
+// Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_INTERACTION_REGISTRY_H
 #define TUGBOAT_SESSION_ENGINE_INTERACTION_REGISTRY_H
 
@@ -30,14 +36,15 @@ class InteractionRegistry {
   TransactionPtr first_pending() const;
   // Unpublished transactions by interaction id (Dart `byId`).
   TransactionPtr find(const std::string& id) const;
-  bool is_pending(const Transaction& tx) const;
 
   // Indexes a new pointer-down transaction (stage pending).
   void add_pending(const TransactionPtr& tx);
-  // Removes the pending transaction of `pointer`; the caller moves it on.
+  // Removes the pending transaction of `pointer`, which moves to settling
+  // until the caller moves it on (release, completion, or publication).
   TransactionPtr take_pending(int64_t pointer);
   // Moves a tap from pending to released (stage released).
   void release(const TransactionPtr& tx);
+  // Removes released taps from the index; unpublished ones move to settling.
   TransactionPtr take_released(int64_t pointer);
   std::vector<TransactionPtr> take_all_released();
   // Pending pointers in pointer-down order.

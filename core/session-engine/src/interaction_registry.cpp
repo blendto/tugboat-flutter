@@ -11,6 +11,12 @@ TransactionPtr found(const TransactionPtr* entry) {
   return entry == nullptr ? nullptr : *entry;
 }
 
+// Leaving an index: an unpublished transaction is settling until its owner
+// moves it on.
+void leave_index(Transaction* tx) {
+  if (!tx->terminal()) tx->stage = TransactionStage::kSettling;
+}
+
 }  // namespace
 
 TransactionPtr InteractionRegistry::pending_at(int64_t pointer) const {
@@ -26,11 +32,6 @@ TransactionPtr InteractionRegistry::find(const std::string& id) const {
   return it == by_id_.end() ? nullptr : it->second;
 }
 
-bool InteractionRegistry::is_pending(const Transaction& tx) const {
-  const TransactionPtr pending = pending_at(tx.pointer_id);
-  return pending.get() == &tx;
-}
-
 void InteractionRegistry::add_pending(const TransactionPtr& tx) {
   tx->stage = TransactionStage::kPending;
   by_id_[tx->id()] = tx;
@@ -39,7 +40,9 @@ void InteractionRegistry::add_pending(const TransactionPtr& tx) {
 
 TransactionPtr InteractionRegistry::take_pending(int64_t pointer) {
   TransactionPtr tx = pending_at(pointer);
+  if (tx == nullptr) return nullptr;
   pending_.erase(pointer);
+  leave_index(tx.get());
   return tx;
 }
 
@@ -51,13 +54,18 @@ void InteractionRegistry::release(const TransactionPtr& tx) {
 
 TransactionPtr InteractionRegistry::take_released(int64_t pointer) {
   TransactionPtr tx = found(released_.find(pointer));
+  if (tx == nullptr) return nullptr;
   released_.erase(pointer);
+  leave_index(tx.get());
   return tx;
 }
 
 std::vector<TransactionPtr> InteractionRegistry::take_all_released() {
   std::vector<TransactionPtr> out;
-  for (const auto& entry : released_.entries()) out.push_back(entry.second);
+  for (const auto& entry : released_.entries()) {
+    leave_index(entry.second.get());
+    out.push_back(entry.second);
+  }
   released_.clear();
   return out;
 }
@@ -79,7 +87,8 @@ std::vector<TransactionPtr> InteractionRegistry::claimable(
   std::vector<TransactionPtr> out;
   for (const auto& entry : pending_.entries()) {
     const Transaction& tx = *entry.second;
-    if (!skips_tap_settlement(tx.gesture) && tx.claimable() &&
+    if (tx.stage == TransactionStage::kPending && !tx.claimed &&
+        !skips_tap_settlement(tx.gesture) &&
         tx.origin.session_id == session_id) {
       out.push_back(entry.second);
     }
@@ -89,7 +98,8 @@ std::vector<TransactionPtr> InteractionRegistry::claimable(
     // Dart `isWithinReconciliationWindow`: the window compares fact time.
     const bool in_window =
         !tx.claim_deadline_ms || now_ms <= *tx.claim_deadline_ms;
-    if (tx.claimable() && in_window && tx.origin.session_id == session_id) {
+    if (tx.stage == TransactionStage::kReleased && !tx.claimed && in_window &&
+        tx.origin.session_id == session_id) {
       out.push_back(entry.second);
     }
   }
@@ -108,9 +118,7 @@ std::optional<int64_t> InteractionRegistry::earliest_claim_deadline() const {
 void InteractionRegistry::expire(TransactionPtr tx,
                                  std::vector<TransactionPtr>* out) {
   released_.erase(tx->pointer_id);
-  if (tx->stage == TransactionStage::kReleased) {
-    tx->stage = TransactionStage::kSettling;
-  }
+  leave_index(tx.get());
   out->push_back(std::move(tx));
 }
 

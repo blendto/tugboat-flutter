@@ -2,7 +2,6 @@
 
 #include <utility>
 
-#include "capture_requests.h"
 #include "engine_state.h"
 #include "interaction_claims.h"
 #include "recorder.h"
@@ -29,7 +28,7 @@ void observe(InteractionTurn& turn, const char* type, Value data) {
   ask.not_before_mono_us =
       turn.at.mono_us + state.config.interaction.settle_delay_ms * 1000;
   ask.context = current_capture_context(state);
-  state.interactions.captures.issue({CaptureOwner::Kind::kObservation, id},
+  state.captures.issue({CaptureOwner::Kind::kObservation, id},
                                     ask, &state.ids, turn.out);
 }
 
@@ -82,11 +81,11 @@ void finish_observation(InteractionTurn& turn, const std::string& event_id,
   // (Phase 3d checks an active route barrier in between.)
   OptString frame = resolution.frame_id;
   if (!frame) {
-    const FrameProvenance* latest = state.frames.latest(turn.session->id());
+    const FrameProvenance* latest = state.captures.latest(turn.session->id());
     ObservationBoundary boundary;
     boundary.session_id = pending->session_id;
     boundary.at_ms = pending->event.at_ms;
-    frame = state.frames.observed_after(
+    frame = state.captures.observed_after(
         latest == nullptr ? std::nullopt : OptString(latest->frame_id),
         boundary);
   }

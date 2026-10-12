@@ -117,6 +117,12 @@ using TeardownHandler = void (*)(TeardownCause cause, EngineState* state,
 using TimerHandler = void (*)(const std::string& timer_id, const At& at,
                               EngineState* state, Output* out);
 using LifecycleHook = void (*)(const At& at, EngineState* state, Output* out);
+// A frame was accepted into the live session; its frame record is already
+// in `out`. `handle` names the frame's bytes in the host. Collector delivery
+// (phase 3b) uses it to queue the frame lane and hold the handle.
+using FrameAcceptedHook = void (*)(const Frame& frame,
+                                   const std::string& handle,
+                                   EngineState* state, Output* out);
 
 class ModuleRegistry {
  public:
@@ -148,6 +154,12 @@ class ModuleRegistry {
   void run_hooks(LifecycleHookPoint point, const At& at, EngineState* state,
                  Output* out) const;
 
+  // Frame acceptance, in registration order. Whoever accepts a frame runs
+  // these after emitting its frame record.
+  void on_frame_accepted(FrameAcceptedHook hook);
+  void run_frame_accepted(const Frame& frame, const std::string& handle,
+                          EngineState* state, Output* out) const;
+
   // Event types the engine records itself; adapters cannot record them.
   void add_engine_event_type(const char* type);
   bool is_engine_event_type(const std::string& type) const;
@@ -160,6 +172,7 @@ class ModuleRegistry {
   std::array<std::vector<TeardownHandler>, kTeardownStageCount> teardown_;
   std::map<std::string, TimerHandler> timers_;
   std::array<std::vector<LifecycleHook>, kLifecycleHookPointCount> hooks_;
+  std::vector<FrameAcceptedHook> frame_accepted_;
   std::set<std::string> engine_event_types_;
 };
 

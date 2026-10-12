@@ -1,21 +1,20 @@
 // Interactions (docs/stateful-engine.md section 9): the `input.pointer`,
 // `input.panZoom`, `scroll`, `focus`, `systemInput`, and `capture.result`
 // messages, the `interaction.` timers, and the interaction teardown stages.
-// Its state is `EngineState::interactions` (interaction_state.h) plus the
-// frame ledger (`EngineState::frames`).
+// Its state is `EngineState::interactions` (interaction_state.h); it asks
+// for frames through the capture seam (`EngineState::captures`).
 #include <memory>
 #include <string>
 #include <utility>
 
-#include "claim_window.h"
+#include "tap_settle.h"
 #include "engine_state.h"
-#include "gesture_completion.h"
+#include "interaction_publish.h"
 #include "input_observations.h"
 #include "interaction_facts.h"
 #include "modules.h"
 #include "pointer_interactions.h"
 #include "scroll_interactions.h"
-#include "tap_settle.h"
 
 namespace tugboat {
 namespace engine {
@@ -37,14 +36,18 @@ bool has_prefix(const std::string& id, const char* prefix, std::string* rest) {
 
 // One decoded fact and its time; `Apply` does the work. Event-producing
 // facts only apply with a live session (the dispatcher drops the rest).
-template <typename Fact, void (*Apply)(EngineState*, const Fact&, const At&,
-                                       Output*)>
+template <typename Fact>
+using FactHandler = void (*)(const ModuleRegistry& modules, EngineState* state,
+                             const Fact& fact, const At& at, Output* out);
+
+template <typename Fact, FactHandler<Fact> Apply>
 class FactCommand final : public Command {
  public:
   FactCommand(Fact fact, At at) : fact_(std::move(fact)), at_(at) {}
 
-  void apply(const ModuleRegistry&, EngineState* state, Output* out) override {
-    Apply(state, fact_, at_, out);
+  void apply(const ModuleRegistry& modules, EngineState* state,
+             Output* out) override {
+    Apply(modules, state, fact_, at_, out);
   }
 
  private:
@@ -54,15 +57,15 @@ class FactCommand final : public Command {
 
 template <typename Fact,
           bool (*Decode)(const Value&, const std::string&, Fact*, Error*),
-          void (*Apply)(EngineState*, const Fact&, const At&, Output*)>
+          FactHandler<Fact> Apply>
 std::unique_ptr<Command> decode_fact(const CommandInput& in, Error* error) {
   Fact fact{};
   if (!Decode(in.input, in.path, &fact, error)) return nullptr;
   return std::make_unique<FactCommand<Fact, Apply>>(std::move(fact), *in.at);
 }
 
-void apply_pointer(EngineState* state, const PointerFact& fact, const At& at,
-                   Output* out) {
+void apply_pointer(const ModuleRegistry&, EngineState* state,
+                   const PointerFact& fact, const At& at, Output* out) {
   PointerTracker& tracker = state->interactions.pointers;
   const GestureConfig& config = state->config.gesture;
   PointerSignals signals;
@@ -84,8 +87,8 @@ void apply_pointer(EngineState* state, const PointerFact& fact, const At& at,
   apply_pointer_signals(turn, signals);
 }
 
-void apply_pan_zoom(EngineState* state, const PanZoomFact& fact, const At& at,
-                    Output* out) {
+void apply_pan_zoom(const ModuleRegistry&, EngineState* state,
+                    const PanZoomFact& fact, const At& at, Output* out) {
   PointerTracker& tracker = state->interactions.pointers;
   PointerSignals signals;
   switch (fact.phase) {
@@ -104,36 +107,39 @@ void apply_pan_zoom(EngineState* state, const PanZoomFact& fact, const At& at,
   apply_pointer_signals(turn, signals);
 }
 
-void apply_scroll(EngineState* state, const ScrollFact& fact, const At& at,
-                  Output* out) {
+void apply_scroll(const ModuleRegistry&, EngineState* state,
+                  const ScrollFact& fact, const At& at, Output* out) {
   InteractionTurn turn = live_turn(state, at, out);
   record_scroll(turn, fact);
 }
 
 // `focus` applies without a session too, so the focus kind stays current.
-void apply_focus(EngineState* state, const FocusKind& kind, const At& at,
-                 Output* out) {
+void apply_focus(const ModuleRegistry&, EngineState* state,
+                 const FocusKind& kind, const At& at, Output* out) {
   record_focus(state, state->live_session(), at, kind, out);
 }
 
-void apply_system_input(EngineState* state, const SystemInput& input,
-                        const At& at, Output* out) {
+void apply_system_input(const ModuleRegistry&, EngineState* state,
+                        const SystemInput& input, const At& at, Output* out) {
   InteractionTurn turn = live_turn(state, at, out);
   record_system_input(turn, input);
 }
 
 // Answers for unknown or invalidated requests are ignored (principle 4).
-void apply_capture_result(EngineState* state, const CaptureResult& result,
-                          const At& at, Output* out) {
-  const std::optional<CaptureRequests::Pending> pending =
-      state->interactions.captures.take(result.request_id);
-  if (!pending) return;
+void apply_capture_result(const ModuleRegistry& modules, EngineState* state,
+                          const CaptureResult& result, const At& at, Output* out) {
   InteractionTurn turn = live_turn(state, at, out);
-  const CaptureResolution resolution = state->frames.resolve(
-      result.outcome, result.frame, pending->trigger, turn.now_ms(),
-      state->config.limits.max_frames, &state->ids, turn.session, out);
-  const std::string& key = pending->owner.key;
-  switch (pending->owner.kind) {
+  const std::optional<CaptureAnswer> answer = state->captures.on_result(
+      result, turn.now_ms(), state->config.limits.max_frames, &state->ids,
+      turn.session, out);
+  if (!answer) return;
+  if (answer->accepted) {
+    modules.run_frame_accepted(answer->accepted->frame,
+                               answer->accepted->handle, state, out);
+  }
+  const CaptureResolution& resolution = answer->resolution;
+  const std::string& key = answer->owner.key;
+  switch (answer->owner.kind) {
     case CaptureOwner::Kind::kTapSettle:
       finish_tap_settle(turn, key, resolution);
       break;
@@ -172,7 +178,7 @@ void teardown_tap_settles(TeardownCause, EngineState* state, Output* out) {
 }
 
 void teardown_capture_work(TeardownCause, EngineState* state, Output*) {
-  state->interactions.captures.clear();
+  state->captures.cancel_requests();
 }
 
 void teardown_pending_pointers(TeardownCause, EngineState* state,
@@ -198,7 +204,7 @@ void teardown_observations(TeardownCause, EngineState* state, Output* out) {
 
 // Per-session interaction state starts empty (Dart `start()`).
 void reset_for_session(const At&, EngineState* state, Output*) {
-  state->frames.reset();
+  state->captures.reset();
   InteractionState& interactions = state->interactions;
   interactions.registry.clear();
   interactions.emitted_inventories.clear();

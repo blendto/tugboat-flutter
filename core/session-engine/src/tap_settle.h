@@ -1,7 +1,15 @@
-// The tap-settle state machine (Dart `_resolveTapSettle`): after a tap's
-// pointer-up, wait the settle delay, then the rest of the claim window
-// (`factGraceMs` late), then take a standalone `interaction` capture, and
-// publish the tap with the temporal after-frame.
+// A tap after its pointer-up: the claim window and the tap-settle state
+// machine.
+//
+// Claim window (Dart `_releaseInteractionClaim` and the reconciliation
+// sweep): a released tap stays claimable as a navigation's cause until
+// `claimWindowMs` after release, measured in fact time. The sweep timer fires
+// `factGraceMs` late (design section 5) so a fact stamped inside the window
+// that arrives late can still claim.
+//
+// Settle (Dart `_resolveTapSettle`): wait the settle delay, then the rest of
+// the claim window (also `factGraceMs` late), then take a standalone
+// `interaction` capture, and publish the tap with the temporal after-frame.
 //
 //   settle delay ──timer──► claim window ──timer or wake──► capturing ──►
 //   published
@@ -15,13 +23,29 @@
 
 #include <string>
 
-#include "frame_ledger.h"
+#include "capture_seam.h"
 #include "interaction_transaction.h"
 #include "interaction_turn.h"
 #include "ordered_map.h"
 
 namespace tugboat {
 namespace engine {
+
+// ---------------------------------------------------------------- claim window
+
+constexpr char kSweepTimerId[] = "interaction.sweep";
+
+// Releases a tap into the claim window and arms the sweep if it is idle.
+void release_for_claims(InteractionTurn& turn, const TransactionPtr& tx);
+
+// The sweep timer: expires released taps past their window (and the oldest
+// beyond `maxReleased`), then re-arms while any remain.
+void sweep_released(InteractionTurn& turn);
+
+// Teardown: disarms the sweep and finalizes every released tap.
+void clear_released(EngineState* state, Output* out);
+
+// ---------------------------------------------------------------------- settle
 
 // Timer ids are `interaction.settle.<interaction id>`.
 constexpr char kSettleTimerPrefix[] = "interaction.settle.";

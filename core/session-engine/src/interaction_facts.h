@@ -8,7 +8,7 @@
 #include <optional>
 #include <string>
 
-#include "frame_ledger.h"
+#include "capture_seam.h"
 #include "interaction_types.h"
 #include "json.h"
 #include "models.h"
@@ -80,15 +80,6 @@ enum class SystemInput {
 
 const char* system_input_name(SystemInput input);
 
-// `capture.result {requestId, outcome, frame?, boundaryRect?}`. `frame`
-// (and optionally `boundaryRect`) is required with `captured` and not
-// allowed otherwise.
-struct CaptureResult {
-  std::string request_id;
-  CaptureResultOutcome outcome = CaptureResultOutcome::kFailed;
-  std::optional<CapturedFrame> frame;
-};
-
 // Each decoder reads the message `input` object at JSON path `path`.
 bool decode_pointer_fact(const Value& input, const std::string& path,
                          PointerFact* out, Error* error);
@@ -100,6 +91,8 @@ bool decode_focus_fact(const Value& input, const std::string& path,
                        FocusKind* out, Error* error);
 bool decode_system_input_fact(const Value& input, const std::string& path,
                               SystemInput* out, Error* error);
+// `capture.result`: `frame` (and optionally `boundaryRect`) is required
+// with `captured` and not allowed otherwise.
 bool decode_capture_result(const Value& input, const std::string& path,
                            CaptureResult* out, Error* error);
 

@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "frame_ledger.h"
+#include "capture_seam.h"
 #include "interaction_facts.h"
 #include "interaction_transaction.h"
 #include "interaction_turn.h"

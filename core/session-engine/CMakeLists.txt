@@ -25,9 +25,7 @@ set(_tb_dc_sources
   ${_tb_dc}/double-conversion/string-to-double.cc
   ${_tb_dc}/double-conversion/strtod.cc)
 set(_tb_engine_sources
-  src/after_frame.cpp
-  src/capture_requests.cpp
-  src/claim_window.cpp
+  src/capture_seam.cpp
   src/clock.cpp
   src/collector.cpp
   src/config.cpp
@@ -37,9 +35,7 @@ set(_tb_engine_sources
   src/engine_module.cpp
   src/evidence_module.cpp
   src/fingerprint.cpp
-  src/frame_ledger.cpp
   src/gesture_classifier.cpp
-  src/gesture_completion.cpp
   src/host.cpp
   src/input_observations.cpp
   src/interaction_claims.cpp

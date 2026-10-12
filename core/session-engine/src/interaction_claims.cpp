@@ -41,7 +41,7 @@ InteractionClaim claim_interaction_cause(EngineState* state, const At& at,
   const bool window_active = state->config.interaction.claim_window_ms > 0;
   claim.outcome = ClaimOutcome::kClaimed;
   claim.interaction_id = tx.id();
-  claim.attribution = registry.is_pending(tx) || !window_active
+  claim.attribution = tx.stage == TransactionStage::kPending || !window_active
                           ? ClaimAttribution::kDirect
                           : ClaimAttribution::kDelayedLikely;
   return claim;

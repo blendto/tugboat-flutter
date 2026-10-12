@@ -1,7 +1,7 @@
 // Unit tests for the interaction module's parts (docs/stateful-engine.md
 // section 9): the pure gesture classifier, the pointer tracker's signals,
-// the registry's claim and sweep rules, the payload rules, the frame
-// ledger's temporal rule, and the claim API phase 3d calls. End-to-end
+// the registry's claim and sweep rules, the payload rules, the capture
+// seam, and the claim API phase 3d calls. End-to-end
 // behaviour is pinned by conformance/engine/scenario/ instead.
 #include <memory>
 #include <optional>
@@ -10,8 +10,8 @@
 #include <variant>
 #include <vector>
 
+#include "capture_seam.h"
 #include "engine.h"
-#include "frame_ledger.h"
 #include "gesture_classifier.h"
 #include "interaction_claims.h"
 #include "interaction_payload.h"
@@ -239,44 +239,68 @@ void test_coordinate_and_payload() {
   CHECK(event.anchor.has_value());
 }
 
-// ------------------------------------------------------------ frame ledger
+// ------------------------------------------------------------ capture seam
 
-void test_ledger_temporal_rule() {
+// Issues one request and answers it.
+std::optional<CaptureAnswer> answer(CaptureSeam* seam, CaptureResult result,
+                                    int64_t at_ms, IdCounter* ids,
+                                    Session* session, Output* out) {
+  result.request_id = seam->issue({CaptureOwner::Kind::kGesture, "event-1"},
+                                  interaction_capture(0, {}), ids, out);
+  return seam->on_result(result, at_ms, 1, ids, session, out);
+}
+
+void test_capture_seam() {
   Session session(SessionHeader{});
   IdCounter ids;
   Output out;
-  FrameLedger ledger;
+  CaptureSeam seam;
   CapturedFrame captured;
   captured.handle = "h";
-  const CaptureResolution first =
-      ledger.resolve(CaptureResultOutcome::kCaptured, captured,
-                     FrameTrigger::kInteraction, 100, 1, &ids, &session, &out);
-  CHECK(first.outcome == CaptureOutcome::kFreshAccepted);
-  CHECK(ledger.sequence() == 1);
+  const CaptureResult with_frame{"", CaptureResultOutcome::kCaptured, captured};
+  const std::optional<CaptureAnswer> first =
+      answer(&seam, with_frame, 100, &ids, &session, &out);
+  CHECK(first->owner.key == "event-1");
+  CHECK(first->resolution.outcome == CaptureOutcome::kFreshAccepted);
+  CHECK(first->accepted->handle == "h");
+  CHECK(first->accepted->frame.id == *first->resolution.frame_id);
+  CHECK(seam.sequence() == 1);
+  // Unknown and already-answered ids are ignored.
+  CHECK(!seam.on_result({"capture_request-0", CaptureResultOutcome::kFailed,
+                         std::nullopt},
+                        0, 1, &ids, &session, &out));
+  const OptString first_id = first->resolution.frame_id;
   ObservationBoundary boundary{"", 100, std::nullopt};
-  CHECK(ledger.observed_after(first.frame_id, boundary) == first.frame_id);
+  CHECK(seam.observed_after(first_id, boundary) == first_id);
   boundary.at_ms = 101;
-  CHECK(!ledger.observed_after(first.frame_id, boundary));
+  CHECK(!seam.observed_after(first_id, boundary));
   boundary.at_ms = 0;
   boundary.after_sequence = 1;
-  CHECK(!ledger.observed_after(first.frame_id, boundary));
+  CHECK(!seam.observed_after(first_id, boundary));
   boundary.session_id = "other";
   boundary.after_sequence.reset();
-  CHECK(!ledger.observed_after(first.frame_id, boundary));
+  CHECK(!seam.observed_after(first_id, boundary));
   // maxFrames 1: the next frame trims the first, which becomes a tombstone.
-  const CaptureResolution second =
-      ledger.resolve(CaptureResultOutcome::kCaptured, captured,
-                     FrameTrigger::kInteraction, 200, 1, &ids, &session, &out);
-  CHECK(!ledger.find(*first.frame_id)->available);
-  CHECK(!ledger.observed_after(first.frame_id, {"", 0, std::nullopt}));
+  const std::optional<CaptureAnswer> second =
+      answer(&seam, with_frame, 200, &ids, &session, &out);
+  CHECK(!seam.find(*first_id)->available);
+  CHECK(!seam.observed_after(first_id, {"", 0, std::nullopt}));
   CHECK(session.truncated());
-  const CaptureResolution reused =
-      ledger.resolve(CaptureResultOutcome::kPaintUnchanged, std::nullopt,
-                     FrameTrigger::kInteraction, 300, 1, &ids, &session, &out);
-  CHECK(reused.frame_id == second.frame_id);
+  const std::optional<CaptureAnswer> reused =
+      answer(&seam, {"", CaptureResultOutcome::kPaintUnchanged, std::nullopt},
+             300, &ids, &session, &out);
+  CHECK(reused->resolution.frame_id == second->resolution.frame_id);
+  CHECK(!reused->accepted);
   CHECK(out.records.size() == 2);  // two frame records, no reuse record
-  ledger.reset();
-  CHECK(ledger.latest("") == nullptr);
+  // Teardown invalidates outstanding requests; a session start forgets all.
+  const std::string late = seam.issue({CaptureOwner::Kind::kGesture, "x"},
+                                      interaction_capture(0, {}), &ids, &out);
+  seam.cancel_requests();
+  CHECK(!seam.on_result({late, CaptureResultOutcome::kFailed, std::nullopt},
+                        0, 1, &ids, &session, &out));
+  seam.reset();
+  CHECK(seam.latest("") == nullptr);
+  CHECK(seam.sequence() == 0);
 }
 
 // --------------------------------------------------------------- claim API
@@ -405,7 +429,7 @@ int main() {
   test_tracker_cancel_and_pan_zoom();
   test_registry_claimable_and_sweep();
   test_coordinate_and_payload();
-  test_ledger_temporal_rule();
+  test_capture_seam();
   test_claim_api();
   test_wake_claimed_tap();
   return unit::finish("interaction");
