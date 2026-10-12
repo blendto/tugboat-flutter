@@ -16,9 +16,14 @@ extension View {
 /// instance id, and exposes the id to tags inside the screen.
 struct TugboatScreenModifier: ViewModifier {
   let name: String
-  var tracker: ScreenTracker = .shared
+  let tracker: ScreenTracker
 
   @State private var instanceId = ScreenTracker.newInstanceId()
+
+  init(name: String, tracker: ScreenTracker = .shared) {
+    self.name = name
+    self.tracker = tracker
+  }
 
   func body(content: Content) -> some View {
     content

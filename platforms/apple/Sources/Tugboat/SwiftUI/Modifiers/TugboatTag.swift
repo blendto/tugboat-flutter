@@ -18,10 +18,15 @@ extension View {
 /// while the view is on screen.
 struct TugboatTagModifier: ViewModifier {
   let tag: String
-  var registry: TagRegistry = .shared
+  let registry: TagRegistry
 
   @State private var id = TagRegistry.newId()
   @Environment(\.tugboatScreenInstance) private var screen
+
+  init(tag: String, registry: TagRegistry = .shared) {
+    self.tag = tag
+    self.registry = registry
+  }
 
   func body(content: Content) -> some View {
     content

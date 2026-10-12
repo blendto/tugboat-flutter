@@ -45,8 +45,9 @@ final class TagRegistry {
     entries.withLock { $0.removeAll() }
   }
 
-  var count: Int {
-    entries.withLock { $0.count }
+  /// Every entry, in registration order.
+  var all: [Entry] {
+    entries.withLock { $0.sorted { $0.key < $1.key }.map { $0.value } }
   }
 
   /// The tag at `point` (in the `.global` space): the smallest tagged frame
@@ -54,7 +55,6 @@ final class TagRegistry {
   /// inside that screen win, then frames outside any screen; frames inside
   /// other screens never match.
   func entry(at point: CGPoint, screen: String?) -> Entry? {
-    let all = entries.withLock { $0.sorted { $0.key < $1.key }.map { $0.value } }
     let hits = all.filter { !$0.frame.isEmpty && $0.frame.contains(point) }
     let candidates: [Entry]
     if let screen = screen {

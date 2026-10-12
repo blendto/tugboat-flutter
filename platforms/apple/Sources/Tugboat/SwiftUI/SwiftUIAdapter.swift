@@ -92,13 +92,14 @@ final class SwiftUIAdapter {
     if trackHostingControllers {
       ViewControllerAppearance.observer = nil
     }
-    screens.isRecording = false
-    screens.onEvent = nil
     for window in windows.keyEnumerator().allObjects.compactMap({ $0 as? UIWindow }) {
       detach(from: window)
     }
     scroll.stop()
+    // The last flush still collects screen facts; recording stops after it.
     batcher.close()
+    screens.isRecording = false
+    screens.onEvent = nil
   }
 
   /// Mask rectangles for `window` under `allTextAndMedia`; called on the
