@@ -13,6 +13,8 @@ import android.widget.VideoView
 import com.tugboat.android.views.AdapterGuard
 import com.tugboat.android.views.identity.ViewGeometry
 import com.tugboat.android.views.identity.ViewTags
+import com.tugboat.android.views.region.RegionHost
+import com.tugboat.android.views.region.Regions
 
 /**
  * One mask rectangle normalized to the window's decor view, the rule
@@ -45,9 +47,12 @@ internal data class WindowMaskResult(val rects: List<MaskRect>, val failClosed: 
  * - Text: every `TextView`, so `EditText`, buttons, and password fields
  *   (secure text is always masked).
  * - Media: `ImageView`, `VideoView`.
+ * - Toolkit regions: a region host (Compose, when `tugboat-compose` is
+ *   installed) supplies its own rectangles, and may ask for the whole frame
+ *   (it cannot read itself); nothing below a host is walked as Views.
  * - Fail-closed bounds: `WebView`, `SurfaceView`, `TextureView`, and
- *   Compose hosts (`ComposeView`), over their whole bounds and without
- *   looking inside.
+ *   Compose hosts that no region reads (`ComposeView`), over their whole
+ *   bounds and without looking inside.
  * - Bounds include view transforms and are clipped to the decor view only,
  *   so a partly clipped view is over-masked, never under-masked.
  * - Hidden (not `VISIBLE` or zero alpha) and SDK-owned subtrees are skipped.
@@ -64,26 +69,33 @@ internal object WindowMasks {
     fun compute(decor: View): WindowMaskResult =
         AdapterGuard.run("mask computation", failClosed()) {
             if (decor.width <= 0 || decor.height <= 0) return@run failClosed()
-            val rects = ArrayList<MaskRect>()
-            collect(decor, decor, rects)
-            WindowMaskResult(rects, failClosed = false)
+            val masks = Collected(decor)
+            masks.collect(decor)
+            if (masks.wholeFrame) failClosed() else WindowMaskResult(masks.rects, failClosed = false)
         }
 
-    /** The reason [view] is masked, or null when it is not. */
+    /** The reason [view] is masked as a View, or null when it is not (a region host masks itself). */
     fun sourceOf(view: View): MaskSource? =
         when (view) {
             is WebView, is SurfaceView, is TextureView -> MaskSource.FailClosed
             is TextView -> MaskSource.Text
             is ImageView, is VideoView -> MaskSource.Media
-            else -> if (isComposeHost(view)) MaskSource.FailClosed else null
+            else -> if (isUnreadComposeHost(view)) MaskSource.FailClosed else null
         }
 
     /**
      * A Compose UI hosted in Views (`ComposeView`, `AndroidComposeView`),
-     * matched by class name so this module needs no Compose dependency. Its
-     * content is not Views, so it is fail-closed until the Compose adapter
-     * supplies its masks.
+     * matched by class name so this module needs no Compose dependency, that
+     * no toolkit region reads: neither the view nor a direct child of it
+     * (`ComposeView` wraps the `AndroidComposeView` a region hosts) is a
+     * region host. Its content is not Views, so it is fail-closed.
      */
+    private fun isUnreadComposeHost(view: View): Boolean {
+        if (!isComposeHost(view) || Regions.hostOf(view) != null) return false
+        val group = view as? ViewGroup ?: return true
+        return (0 until group.childCount).none { Regions.hostOf(group.getChildAt(it)) != null }
+    }
+
     private fun isComposeHost(view: View): Boolean {
         var type: Class<*>? = view.javaClass
         while (type != null && type != View::class.java) {
@@ -98,15 +110,36 @@ internal object WindowMasks {
         "androidx.compose.ui.platform.AndroidComposeView",
     )
 
-    private fun collect(decor: View, view: View, out: MutableList<MaskRect>) {
-        if (isHidden(view)) return
-        val source = sourceOf(view)
-        if (source != null) {
-            ViewGeometry.boundsIn(decor, view)?.let { normalize(it, decor) }?.let(out::add)
-            if (source == MaskSource.FailClosed) return
+    /** One walk's rectangles; [wholeFrame] once a region host asked for the whole frame. */
+    private class Collected(private val decor: View) {
+        val rects = ArrayList<MaskRect>()
+        var wholeFrame = false
+
+        fun collect(view: View) {
+            if (wholeFrame || isHidden(view)) return
+            val host = Regions.hostOf(view)
+            if (host != null) return region(host)
+            val source = sourceOf(view)
+            if (source != null) {
+                ViewGeometry.boundsIn(decor, view)?.let(::add)
+                if (source == MaskSource.FailClosed) return
+            }
+            if (view is ViewGroup) {
+                for (i in 0 until view.childCount) collect(view.getChildAt(i))
+            }
         }
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) collect(decor, view.getChildAt(i), out)
+
+        private fun region(host: RegionHost) {
+            val masks = host.masks()
+            if (masks.wholeFrame) {
+                wholeFrame = true
+                return
+            }
+            for (rect in masks.rects) ViewGeometry.mapRect(decor, host.view, rect)?.let(::add)
+        }
+
+        private fun add(bounds: RectF) {
+            normalize(bounds, decor)?.let(rects::add)
         }
     }
 

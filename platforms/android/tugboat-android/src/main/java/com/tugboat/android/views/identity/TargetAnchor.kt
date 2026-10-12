@@ -5,8 +5,9 @@ import org.json.JSONObject
 
 /**
  * A resolved target, serialized as the engine's `targetAnchor`
- * (conformance/README.md) plus `toolkit: "view"` (design note 6). The
- * toolkit is never a hash input. Visible text and content descriptions are
+ * (conformance/README.md) plus `toolkit` (design note 6): `view`, or the
+ * region's toolkit (`compose`) for a region target or host. The toolkit is
+ * never a hash input. Visible text and content descriptions are
  * never part of it.
  */
 internal data class TargetAnchor(
@@ -21,6 +22,7 @@ internal data class TargetAnchor(
     val relativePosition: String?,
     val enabled: Boolean?,
     val actions: List<String>,
+    val toolkit: String = TOOLKIT,
 ) {
     fun toJson(): JSONObject {
         val json = JSONObject()
@@ -36,7 +38,7 @@ internal data class TargetAnchor(
         relativePosition?.let { json.put("relativePosition", it) }
         enabled?.let { json.put("enabled", it) }
         if (actions.isNotEmpty()) json.put("actions", JSONArray(actions))
-        return json.put("toolkit", TOOLKIT)
+        return json.put("toolkit", toolkit)
     }
 
     /** Small serialized evidence, not the hash input (the path is). */

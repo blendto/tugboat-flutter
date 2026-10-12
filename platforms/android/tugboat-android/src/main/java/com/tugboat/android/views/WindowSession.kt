@@ -16,11 +16,13 @@ import com.tugboat.android.views.input.PointerFactProducer
 import com.tugboat.android.views.input.SystemInputProducer
 import com.tugboat.android.views.scroll.OffsetScrollTracker
 import com.tugboat.android.views.scroll.RecyclerScrollTracker
+import com.tugboat.android.views.scroll.RegionScrollTracker
 
 /**
  * Everything the adapter attaches to one activity window: the window
- * callback (pointer and key facts), and the decor view's focus, scroll, and
- * layout listeners. Main thread only. After [detach] it emits nothing, even
+ * callback (pointer and key facts), the decor view's focus, scroll, and
+ * layout listeners, and the frame-driven scroll and focus reads of toolkit
+ * region hosts (Compose). Main thread only. After [detach] it emits nothing, even
  * if its window callback has to stay in a foreign wrapper's chain.
  */
 internal class WindowSession(
@@ -39,6 +41,7 @@ internal class WindowSession(
     private val recyclers =
         if (OptionalAndroidx.hasRecyclerView) RecyclerScrollTracker(clock, anchors::anchorFor, ::emitIfAttached) else null
     private var scrolls: OffsetScrollTracker? = null
+    private var regionScrolls: RegionScrollTracker? = null
 
     /** Wraps the window callback if needed and hooks the decor view once it exists. */
     fun ensureAttached() {
@@ -58,6 +61,7 @@ internal class WindowSession(
             onRecyclerView = { list -> recyclers?.track(list) },
         )
         scrolls = tracker
+        regionScrolls = RegionScrollTracker(view, clock, anchors.regions::anchor, ::emitIfAttached, requestFrame)
         view.viewTreeObserver.apply {
             addOnGlobalFocusChangeListener(focus)
             addOnScrollChangedListener(tracker)
@@ -67,7 +71,10 @@ internal class WindowSession(
     }
 
     fun onFrame() {
-        if (attached) scrolls?.onFrame()
+        if (!attached) return
+        scrolls?.onFrame()
+        regionScrolls?.onFrame()
+        if (focus.onFrame(decor?.findFocus())) requestFrame()
     }
 
     fun detach() {
@@ -79,11 +86,16 @@ internal class WindowSession(
     }
 
     override fun onTouch(event: MotionEvent) {
-        if (attached) pointers.onTouch(event)
+        if (!attached) return
+        pointers.onTouch(event)
+        regionScrolls?.onTouch(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP) inputHappened()
     }
 
     override fun onKey(event: KeyEvent) {
-        if (attached) keys.onKey(event)
+        if (!attached) return
+        keys.onKey(event)
+        inputHappened()
     }
 
     private fun unhookDecor() {
@@ -99,6 +111,14 @@ internal class WindowSession(
         }
         decor = null
         scrolls = null
+        regionScrolls?.detach()
+        regionScrolls = null
+    }
+
+    /** Region focus can move without a View focus change: re-read it on the next frames. */
+    private fun inputHappened() {
+        focus.onInput()
+        requestFrame()
     }
 
     private fun resolveTap(x: Float, y: Float): TapEvidence {

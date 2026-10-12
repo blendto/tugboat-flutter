@@ -9,6 +9,7 @@ import android.widget.Checkable
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.VideoView
+import com.tugboat.android.views.region.Regions
 import com.tugboat.android.views.scroll.Scrollables
 
 /**
@@ -16,8 +17,8 @@ import com.tugboat.android.views.scroll.Scrollables
  *
  * - **Excluded** with their subtree: not `VISIBLE`, zero alpha, zero size,
  *   or SDK-owned.
- * - **Kept**: actionable views, views with a resource id, scrollables, and
- *   maskable leaves. Every other view collapses: its kept descendants attach
+ * - **Kept**: actionable views, views with a resource id, scrollables,
+ *   maskable leaves, and toolkit region hosts. Every other view collapses: its kept descendants attach
  *   to its nearest kept ancestor.
  *
  * Accessibility actions are not inspected: reading them builds an
@@ -39,8 +40,10 @@ internal object ViewRules {
         view is TextView || view is ImageView || view is WebView || view is VideoView ||
             view is SurfaceView || view is TextureView
 
+    /** Region hosts (a Compose host, for example) are kept, so their content paths stay unique. */
     fun isKept(view: View, names: ResourceNames): Boolean =
-        isActionable(view) || Scrollables.isScrollable(view) || isMaskableLeaf(view) || names.entryName(view) != null
+        isActionable(view) || Scrollables.isScrollable(view) || isMaskableLeaf(view) || names.entryName(view) != null ||
+            Regions.hostOf(view) != null
 
     private fun isContextClickable(view: View): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && view.isContextClickable

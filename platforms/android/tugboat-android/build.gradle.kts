@@ -42,6 +42,8 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
+        // This module defines the toolkit-region seam and uses it internally.
+        freeCompilerArgs += "-opt-in=com.tugboat.android.toolkit.TugboatToolkitApi"
     }
 
     externalNativeBuild {
