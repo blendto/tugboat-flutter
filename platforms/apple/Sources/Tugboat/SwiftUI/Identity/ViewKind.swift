@@ -8,8 +8,12 @@ import UIKit
 enum ViewKind: Equatable {
   /// A SwiftUI hosting view (`_UIHostingView<…>` and its variants).
   case hosting
-  /// A `UIViewRepresentable` / `UIViewControllerRepresentable` host
-  /// (`PlatformViewHost<…>`), or an app-defined view inside a hosting view.
+  /// The host of an app's `UIViewRepresentable` /
+  /// `UIViewControllerRepresentable`
+  /// (`UIKitPlatformViewHost<PlatformViewRepresentableAdaptor<…>>`), or an
+  /// app-defined view inside a hosting view. SwiftUI's own platform views
+  /// (`List`'s `ListRepresentable`, text fields) are walked like any other
+  /// view: what they draw is still masked by class or fail-closed.
   case representable
   /// `UITextField`, `UITextView` (SwiftUI `TextField`, `SecureField`,
   /// `TextEditor`).
@@ -61,7 +65,9 @@ enum ViewKind: Equatable {
     if cls.isSubclass(of: UICollectionViewCell.self) || cls.isSubclass(of: UITableViewCell.self) { return .cell }
     if cls.isSubclass(of: UIScrollView.self) { return .scrollView }
     let name = String(describing: cls)
-    if name.contains("PlatformViewHost") { return .representable }
+    if name.contains("PlatformViewHost") {
+      return name.contains("RepresentableAdaptor") ? .representable : .other
+    }
     if name.contains("HostingView") { return .hosting }
     return .other
   }
