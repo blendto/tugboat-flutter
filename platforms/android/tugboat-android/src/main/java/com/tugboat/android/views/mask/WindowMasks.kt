@@ -25,6 +25,15 @@ internal data class MaskRect(val x: Double, val y: Double, val width: Double, va
     }
 }
 
+/** Why a view is masked (native SDK note 2.1). */
+internal enum class MaskSource {
+    Text,
+    Media,
+
+    /** Content the SDK cannot see into: masked over its whole bounds and never walked. */
+    FailClosed,
+}
+
 /** Masks for one capture; [failClosed] when the whole frame is masked because the tree could not be read. */
 internal data class WindowMaskResult(val rects: List<MaskRect>, val failClosed: Boolean)
 
@@ -59,11 +68,21 @@ internal object WindowMasks {
             WindowMaskResult(rects, failClosed = false)
         }
 
+    /** The reason [view] is masked, or null when it is not. */
+    fun sourceOf(view: View): MaskSource? =
+        when (view) {
+            is WebView, is SurfaceView, is TextureView -> MaskSource.FailClosed
+            is TextView -> MaskSource.Text
+            is ImageView, is VideoView -> MaskSource.Media
+            else -> null
+        }
+
     private fun collect(decor: View, view: View, out: MutableList<MaskRect>) {
         if (isHidden(view)) return
-        if (isMasked(view)) {
+        val source = sourceOf(view)
+        if (source != null) {
             ViewGeometry.boundsIn(decor, view)?.let { normalize(it, decor) }?.let(out::add)
-            if (isOpaque(view)) return
+            if (source == MaskSource.FailClosed) return
         }
         if (view is ViewGroup) {
             for (i in 0 until view.childCount) collect(decor, view.getChildAt(i), out)
@@ -72,12 +91,6 @@ internal object WindowMasks {
 
     private fun isHidden(view: View): Boolean =
         view.visibility != View.VISIBLE || view.alpha == 0f || ViewTags.isSdkOwned(view)
-
-    private fun isMasked(view: View): Boolean =
-        view is TextView || view is ImageView || view is VideoView || isOpaque(view)
-
-    /** Content the SDK cannot see into: masked whole, never walked. */
-    private fun isOpaque(view: View): Boolean = view is WebView || view is SurfaceView || view is TextureView
 
     private fun normalize(bounds: RectF, decor: View): MaskRect? {
         val width = decor.width.toDouble()
