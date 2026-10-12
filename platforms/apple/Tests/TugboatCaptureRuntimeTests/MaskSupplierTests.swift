@@ -45,9 +45,9 @@ final class MaskSupplierTests: XCTestCase {
 
   func testLayoutChangedAfterTheSupplierIsNotDrawnBeforeTheNextTurn() throws {
     let view = solidView(.green)
-    let result = try capture(request(id: 1), view: view) { supplied in
+    let result = try capture(request(id: 1), view: view) { _ in
       // Queued from inside the supplier: it runs only after the draw.
-      DispatchQueue.main.async { supplied.backgroundColor = .white }
+      DispatchQueue.main.async { view.fill = .white }
       return MaskSnapshot(masks: [])
     }
 
@@ -86,10 +86,8 @@ final class MaskSupplierTests: XCTestCase {
       masks: masks, lastStructureSignature: lastStructure)
   }
 
-  private func solidView(_ color: UIColor = .red) -> UIView {
-    let view = UIView(frame: CGRect(x: 0, y: 0, width: 40, height: 60))
-    view.backgroundColor = color
-    return view
+  private func solidView(_ color: UIColor = .red) -> FillView {
+    FillView(frame: CGRect(x: 0, y: 0, width: 40, height: 60), fill: color)
   }
 
   private func capture(
@@ -122,5 +120,26 @@ final class MaskSupplierTests: XCTestCase {
     let height = CGFloat(image.height)
     context.draw(image, in: CGRect(x: -width / 2, y: -height / 2, width: width, height: height))
     return Double(pixel[0])
+  }
+}
+
+/// Draws one solid color through `drawHierarchy`, without a window.
+final class FillView: UIView {
+  var fill: UIColor
+
+  init(frame: CGRect, fill: UIColor) {
+    self.fill = fill
+    super.init(frame: frame)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  override func drawHierarchy(in rect: CGRect, afterScreenUpdates: Bool) -> Bool {
+    fill.setFill()
+    UIRectFill(rect)
+    return true
   }
 }
