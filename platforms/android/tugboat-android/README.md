@@ -9,8 +9,10 @@ untracked `.local-maven`.
 
 Status: the native Android SDK for Views apps, end to end: public facade,
 engine wiring, window capture with masks, and a sample app
-([`tugboat-sample`](../tugboat-sample/README.md)). The public API is the
-`com.tugboat.android` package below; everything else is `internal`.
+([`tugboat-sample`](../tugboat-sample/README.md)). The app API is the
+`com.tugboat.android` package below. The opt-in toolkit-region seam
+(`com.tugboat.android.toolkit`, below), which `tugboat-compose` implements,
+is public but not app API; everything else is `internal`.
 
 ## Public API
 
@@ -170,10 +172,11 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
   every `conformance/fingerprint/identity_parts` vector.
 - **Masks.** `WindowMasks.compute(window)` returns rectangles normalized to
   the decor view (the `capture-runtime` window rule): `TextView`,
-  `ImageView`, `VideoView`, and fail-closed `WebView` / `SurfaceView` /
-  `TextureView` / Compose host (`ComposeView`, matched by class name)
-  bounds. It masks the whole frame when the tree cannot be
-  read.
+  `ImageView`, `VideoView`, toolkit region masks, and fail-closed
+  `WebView` / `SurfaceView` / `TextureView` bounds. A Compose host
+  (`AndroidComposeView`, matched by class name) that no region reads is
+  fail-closed too. It masks the whole frame when the tree cannot be read,
+  or when a region asks for it, and reports the coverage that applied.
 - **Optional androidx.** `core`, `fragment`, and `recyclerview` are
   `compileOnly`; each is probed once with `Class.forName` and its
   implementation used only when the app ships it. `consumer-rules.pro`
@@ -210,6 +213,43 @@ fragment `hide`/`show` is not reported; `transitionMs` is 0; window-manager
 activity transitions (not view animations) are not detected for the motion
 fallback; until `engine/mask-coverage` merges, a secure window is reported
 as `failed readbackFailed` and mask coverage is not sent.
+
+## Toolkit-region seam
+
+Some toolkits draw their whole UI inside one View (Compose's
+`AndroidComposeView`). A toolkit module reads that content for the Views
+adapter by registering a `ToolkitRegion` with `ToolkitRegions.register`.
+The types live in `com.tugboat.android.toolkit` and need
+`@OptIn(TugboatToolkitApi::class)`: they are public only because Kotlin
+`internal` does not cross modules, and are not app API. No toolkit type
+crosses the seam; everything is Views, `RectF`, and plain values.
+
+```kotlin
+interface ToolkitRegion {
+    val toolkit: String                       // anchor toolkit, e.g. "compose"
+    val hostToken: String                     // path token of the host view, e.g. "Compose"
+    fun hosts(view: View): Boolean
+    fun targetAt(host: View, x: Float, y: Float): RegionHit                  // Target | Unreadable | Miss
+    fun scrollablesAt(host: View, x: Float, y: Float): List<RegionScrollable> // live offset readers
+    fun masks(host: View): RegionMasks        // Rects(rects, reasons) | WholeHost(reason) | WholeFrame(reason)
+    fun focus(host: View): RegionFocus?       // TextInput | Other
+}
+```
+
+Route keys are not part of the seam: a region host takes its Views route.
+
+How the Views adapter uses it (`views/region/RegionHost` guards every call;
+a throw counts as "cannot read"):
+
+| Concern | Rule |
+| --- | --- |
+| Taps | The hit view's nearest region host answers first. `Target`: an anchor whose path is the host's Views path plus the region's segments, hashed with the host's Views route, with the region's `toolkit`. `Unreadable`: the host view itself, with the region's `toolkit` and `hostToken`. `Miss`: the Views rules continue from the hit view. |
+| Identity | A region host is a kept view whose token is `hostToken`, so sibling hosts get ordinals and paths stay unique. |
+| Masks | Each view is classified once per walk (`mask/MaskWalk`); a region host answers for itself and is not walked: `Rects` (precise), `WholeHost` (its bounds), or `WholeFrame`. Off the main thread, or on a throw, a region's masks are the whole frame. An `AndroidComposeView` no region reads is fail-closed by class name. |
+| Coverage | `WindowMaskResult.coverage` is `MaskCoverage {mode: precise | wholeHost | wholeFrame, reasons}` (closed `MaskCoverageReason` wire names), for the host to forward on `capture.result`. |
+| Scroll | `scroll/RegionScrollTracker`: a gesture's first `down` resolves the scrollables under the touch once; their live readers are diffed every frame while a pointer is down and for 1 s after (flings); 150 ms idle ends a scroll. Ids are `<toolkit>-scroll-<n>`. Nothing runs when no region is registered. |
+| Focus | When a region host has View focus, its region reports the kind; it is re-read for four frames after each touch-up or key event (only when a region is registered), because region focus moves without a View focus change. |
+| Navigation | `onDestinationChanged(activity, route, id)`: `DestinationTracker` strips route arguments (`navigation/RoutePattern`), once, for every toolkit and for navigation facts. |
 
 ## Build and test
 

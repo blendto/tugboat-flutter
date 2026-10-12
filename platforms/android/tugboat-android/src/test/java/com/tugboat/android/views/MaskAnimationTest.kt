@@ -11,7 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.tugboat.android.views.identity.ViewTags
 import com.tugboat.android.views.mask.MaskMode
-import com.tugboat.android.views.mask.MaskReason
+import com.tugboat.android.toolkit.MaskCoverageReason
 import com.tugboat.android.views.mask.MaskRect
 import com.tugboat.android.views.mask.WindowMasks
 import org.junit.Assert.assertEquals
@@ -36,7 +36,7 @@ class MaskAnimationTest {
         val result = WindowMasks.compute(root)
 
         assertTrue(result.failClosed)
-        assertEquals(listOf(MaskReason.Animating), result.coverage.reasons)
+        assertEquals(setOf(MaskCoverageReason.Animating), result.coverage.reasons)
         assertEquals(listOf(MaskRect.FULL_FRAME), result.rects)
     }
 
@@ -45,7 +45,7 @@ class MaskAnimationTest {
         val root = column(TextView(context))
         root.animation = started(AlphaAnimation(0f, 1f).apply { duration = 10_000 })
 
-        assertEquals(listOf(MaskReason.Animating), WindowMasks.compute(root).coverage.reasons)
+        assertEquals(setOf(MaskCoverageReason.Animating), WindowMasks.compute(root).coverage.reasons)
     }
 
     @Test
@@ -77,7 +77,7 @@ class MaskAnimationTest {
         }
         val root = column(inner)
 
-        assertEquals(listOf(MaskReason.Animating), WindowMasks.compute(root).coverage.reasons)
+        assertEquals(setOf(MaskCoverageReason.Animating), WindowMasks.compute(root).coverage.reasons)
     }
 
     @Test
@@ -95,7 +95,7 @@ class MaskAnimationTest {
 
     @Test
     fun anUnsizedTreeReportsItsReason() {
-        assertEquals(listOf(MaskReason.NoWindowSize), WindowMasks.compute(FrameLayout(context)).coverage.reasons)
+        assertEquals(setOf(MaskCoverageReason.NoWindowSize), WindowMasks.compute(FrameLayout(context)).coverage.reasons)
     }
 
     private fun started(animation: Animation): Animation = animation.apply {

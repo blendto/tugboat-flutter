@@ -8,10 +8,9 @@ import android.webkit.WebView
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.compose.ui.platform.ComposeView
 import com.tugboat.android.views.mask.MaskCoverage
 import com.tugboat.android.views.mask.MaskMode
-import com.tugboat.android.views.mask.MaskReason
+import com.tugboat.android.toolkit.MaskCoverageReason
 import com.tugboat.android.views.mask.WindowMasks
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -29,17 +28,17 @@ class MaskCoverageTest {
     }
 
     @Test
-    fun opaqueContentIsNotedAndComposeHostsAreWholeHost() {
-        val coverage = WindowMasks.compute(column(WebView(context), SurfaceView(context), ComposeView(context))).coverage
+    fun opaqueViewsAreNotedOnAPreciseFrame() {
+        val coverage = WindowMasks.compute(column(WebView(context), SurfaceView(context))).coverage
 
-        assertEquals(MaskMode.WholeHost, coverage.mode)
-        assertEquals(listOf(MaskReason.WebView, MaskReason.SurfaceLayer, MaskReason.ComposeDefault), coverage.reasons)
+        assertEquals(MaskMode.Precise, coverage.mode)
+        assertEquals(setOf(MaskCoverageReason.WebView, MaskCoverageReason.SurfaceLayer), coverage.reasons)
     }
 
     @Test
     fun aDetachedWindowIsWholeFrameNoDecor() {
         val window = Robolectric.buildActivity(Activity::class.java).get().window
-        assertEquals(MaskCoverage(MaskMode.WholeFrame, listOf(MaskReason.NoDecor)), WindowMasks.compute(window).coverage)
+        assertEquals(MaskCoverage(MaskMode.WholeFrame, setOf(MaskCoverageReason.NoDecor)), WindowMasks.compute(window).coverage)
     }
 
     @Test

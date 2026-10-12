@@ -1,6 +1,5 @@
 package com.tugboat.android.capture
 
-import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -50,11 +49,7 @@ internal object CaptureResultJson {
             .put("resolvedBackend", NATIVE_BACKEND)
         if (frame.dHash.isNotEmpty()) json.put("dHash", frame.dHash)
         json.put("structureSignature", frame.structureSignature)
-        if (maskCoverage) {
-            val reasons = JSONArray()
-            frame.maskCoverage.reasons.forEach { reasons.put(it.wire) }
-            json.put("maskCoverage", JSONObject().put("mode", frame.maskCoverage.mode.wire).put("reasons", reasons))
-        }
+        if (maskCoverage) json.put("maskCoverage", frame.maskCoverage.toJson())
         return json
     }
 

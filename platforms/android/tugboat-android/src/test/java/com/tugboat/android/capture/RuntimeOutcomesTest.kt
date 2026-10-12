@@ -4,7 +4,7 @@ import com.tugboat.android.host.DHashBaseline
 import com.tugboat.android.host.FrameHandleTable
 import com.tugboat.android.views.mask.MaskCoverage
 import com.tugboat.android.views.mask.MaskMode
-import com.tugboat.android.views.mask.MaskReason
+import com.tugboat.android.toolkit.MaskCoverageReason
 import com.tugboat.android.views.mask.MaskRect
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.capture.CaptureResult
@@ -21,12 +21,12 @@ import org.robolectric.RobolectricTestRunner
 class RuntimeOutcomesTest {
     private val frames = FrameHandleTable()
     private val outcomes = RuntimeOutcomes(frames) { 9_000_000L }
-    private val coverage = MaskCoverage(MaskMode.Precise, listOf(MaskReason.WebView))
+    private val coverage = MaskCoverage(MaskMode.Precise, setOf(MaskCoverageReason.WebView))
     private val window = laidOutWindow(widthPx = 1080, heightPx = 2400)
 
     /** A capture whose masks were taken at copy time (the window's decor at density 1). */
     private fun inFlight(baseline: DHashBaseline? = null, copied: Boolean = true): InFlightCapture {
-        val masks = FrameMasks { WindowMaskResult(listOf(MaskRect(0.0, 0.0, 0.5, 0.5)), coverage, "sig") }
+        val masks = FrameMasks { WindowMaskResult(listOf(MaskRect(0.0, 0.0, 0.5, 0.5)), false, coverage, "sig") }
         if (copied) masks.masksFor(window)
         return InFlightCapture(
             requestId = "capture-7",

@@ -6,7 +6,7 @@ import com.tugboat.android.host.DHashBaseline
 import com.tugboat.android.host.FrameHandleTable
 import com.tugboat.android.views.mask.MaskCoverage
 import com.tugboat.android.views.mask.MaskMode
-import com.tugboat.android.views.mask.MaskReason
+import com.tugboat.android.toolkit.MaskCoverageReason
 import com.tugboat.android.views.mask.MaskRect
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.capture.CaptureResult
@@ -177,7 +177,7 @@ class CaptureCoordinatorTest {
 
     @Test
     fun aWholeFrameMaskIsStillCapturedMarkedMaskedAndReported() {
-        maskResult = WindowMaskResult.wholeFrame(MaskReason.Animating)
+        maskResult = WindowMaskResult.wholeFrame(MaskCoverageReason.Animating)
         coordinator.onCaptureRequest(captureRequest("capture-1"))
         val id = capturer.requests.single().requestId
 
@@ -187,7 +187,7 @@ class CaptureCoordinatorTest {
         assertTrue(snapshot.wholeFrame)
         val frame = (answers.single() as CaptureAnswer.Captured).frame
         assertTrue(frame.masked)
-        assertEquals(MaskCoverage(MaskMode.WholeFrame, listOf(MaskReason.Animating)), frame.maskCoverage)
+        assertEquals(MaskCoverage(MaskMode.WholeFrame, setOf(MaskCoverageReason.Animating)), frame.maskCoverage)
     }
 
     @Test
@@ -209,7 +209,7 @@ class CaptureCoordinatorTest {
     }
 
     private fun masks(rect: MaskRect, signature: String) =
-        WindowMaskResult(listOf(rect), MaskCoverage(MaskMode.Precise), signature)
+        WindowMaskResult(listOf(rect), false, MaskCoverage(MaskMode.Precise), signature)
 
     private fun ok(id: Long, jpeg: ByteArray) =
         CaptureResult(requestId = id, status = CaptureStatus.Ok, jpeg = jpeg, width = 10, height = 20, dHash = "ff", contentHash = "c$id")

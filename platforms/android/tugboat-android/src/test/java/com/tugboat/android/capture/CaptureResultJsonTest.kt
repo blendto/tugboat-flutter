@@ -2,10 +2,11 @@ package com.tugboat.android.capture
 
 import com.tugboat.android.views.mask.MaskCoverage
 import com.tugboat.android.views.mask.MaskMode
-import com.tugboat.android.views.mask.MaskReason
+import com.tugboat.android.toolkit.MaskCoverageReason
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -20,7 +21,7 @@ class CaptureResultJsonTest {
         requestId = "capture-1",
         frame = CapturedFrame(
             "frame-1", 300, 600, "sha", true, 1234, 5000, "00ff", "sig",
-            MaskCoverage(MaskMode.WholeHost, listOf(MaskReason.ComposeDefault, MaskReason.WebView)),
+            MaskCoverage(MaskMode.WholeHost, setOf(MaskCoverageReason.ComposeDefault, MaskCoverageReason.WebView)),
         ),
         boundaryRect = BoundaryRect(0.0, 0.0, 400.0, 800.0),
         timings = CaptureTimingsMicros(1, 2, 3, 4),
@@ -78,9 +79,9 @@ class CaptureResultJsonTest {
             CaptureFailure.values().map { it.wire },
         )
         assertEquals(listOf("precise", "wholeHost", "wholeFrame"), MaskMode.values().map { it.wire })
-        assertEquals(
-            listOf("noDecor", "noWindowSize", "walkExhausted", "animating", "composeDefault", "webView", "surfaceLayer"),
-            MaskReason.values().map { it.wire },
+        assertTrue(
+            "every reason is in the engine's closed maskCoverage.reasons set",
+            ENGINE_MASK_REASONS.containsAll(MaskCoverageReason.values().map { it.wire }),
         )
     }
 
@@ -88,5 +89,14 @@ class CaptureResultJsonTest {
     fun durationsAreClampedToTheEnginesBounds() {
         val failed = CaptureAnswer.Failed("capture-4", CaptureFailure.PaintTimedOut, CaptureTimingsMicros(frameWaitMicros = -5))
         assertEquals(0, JSONObject(failed.toInputJson()).getJSONObject("timings").getLong("frameWaitMicros"))
+    }
+
+    private companion object {
+        /** The engine's `MaskReason` names (`engine/mask-coverage`, PR #96). */
+        val ENGINE_MASK_REASONS = setOf(
+            "composeDefault", "composeVersionUnverified", "composeOwnerUnavailable", "interop", "animating",
+            "unverifiedLayerAllowlist", "walkExhausted", "noWindowSize", "noDecor", "representable", "webView",
+            "surfaceLayer", "unclassifiedLayer", "secureText",
+        )
     }
 }

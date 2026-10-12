@@ -2,7 +2,7 @@ package com.tugboat.android.capture
 
 import android.view.Window
 import com.tugboat.android.views.mask.MaskMode
-import com.tugboat.android.views.mask.MaskReason
+import com.tugboat.android.toolkit.MaskCoverageReason
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.capture.MaskCoverage
 import com.tugboat.capture.MaskCoverageMode
@@ -29,7 +29,7 @@ internal class FrameMasks(private val compute: (Window) -> WindowMaskResult) : W
 
     /** What the frame was masked with: the computed masks, or the whole frame when none were taken. */
     val applied: WindowMaskResult
-        get() = result ?: WindowMaskResult.wholeFrame(MaskReason.WalkExhausted)
+        get() = result ?: WindowMaskResult.wholeFrame(MaskCoverageReason.WalkExhausted)
 
     override fun masksFor(window: Window): MaskSnapshot {
         val geometry = CaptureGeometry.of(window.peekDecorView())
@@ -39,7 +39,7 @@ internal class FrameMasks(private val compute: (Window) -> WindowMaskResult) : W
             masks = masks.rects.map { NormalizedMask(it.x, it.y, it.width, it.height) },
             wholeFrame = masks.failClosed,
             structureSignature = masks.structureSignature,
-            coverage = MaskCoverage(mode(masks.coverage.mode), masks.coverage.reasons.map { it.wire }),
+            coverage = MaskCoverage(mode(masks.coverage.mode), masks.coverage.reasons.map { it.wire }.sorted()),
         )
     }
 
