@@ -26,6 +26,8 @@ final class SurfaceAndStructureTests: XCTestCase {
 
   func testControlStateEntersTheStructure() {
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+    window.isHidden = false
+    defer { window.isHidden = true }
     let toggle = UISwitch()
     let tab = UIView()
     let hidden = UIButton()
