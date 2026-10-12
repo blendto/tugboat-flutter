@@ -84,9 +84,19 @@ val optionalAndroidx = listOf(
     "androidx.recyclerview:recyclerview:1.3.2",
 )
 
+// `Tugboat.trackNavigation(navController)` compiles against Jetpack
+// Navigation; only apps that have it can call it.
+val optionalNavigation = "androidx.navigation:navigation-runtime:2.7.7"
+
 dependencies {
+    // The pixel runtime (window capture, masks before encoding), built from this repository.
+    implementation(project(":capture-runtime"))
+    // ProcessLifecycleOwner for `app.lifecycle` (native SDK note section 5).
+    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
     optionalAndroidx.forEach { compileOnly(it) }
     optionalAndroidx.forEach { testImplementation(it) }
+    compileOnly(optionalNavigation)
+    testImplementation(optionalNavigation)
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

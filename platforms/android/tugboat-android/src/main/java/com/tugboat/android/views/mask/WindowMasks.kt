@@ -34,8 +34,24 @@ internal enum class MaskSource {
     FailClosed,
 }
 
-/** Masks for one capture; [failClosed] when the whole frame is masked because the tree could not be read. */
-internal data class WindowMaskResult(val rects: List<MaskRect>, val failClosed: Boolean)
+/** Why a capture masks the whole frame. */
+internal enum class FailClosedReason {
+    /** No attached or sized decor view, or the walk failed. */
+    TreeUnreadable,
+
+    /** A legacy view animation or a layout transition is running ([AnimationProbe]). */
+    Animating,
+}
+
+/**
+ * Masks for one capture; [failClosed] when the whole frame is masked, for
+ * [reason].
+ */
+internal data class WindowMaskResult(
+    val rects: List<MaskRect>,
+    val failClosed: Boolean,
+    val reason: FailClosedReason? = null,
+)
 
 /**
  * Mask geometry for a window under `allTextAndMedia` (native SDK note 2.1,
@@ -52,7 +68,9 @@ internal data class WindowMaskResult(val rects: List<MaskRect>, val failClosed: 
  *   so a partly clipped view is over-masked, never under-masked.
  * - Hidden (not `VISIBLE` or zero alpha) and SDK-owned subtrees are skipped.
  * - **Fail closed**: no attached decor view, a zero-size decor view, or any
- *   failure while walking masks the whole frame.
+ *   failure while walking masks the whole frame. So does motion the layout
+ *   bounds do not describe: a running legacy `Animation` or
+ *   `LayoutTransition` on a visible view ([AnimationProbe]).
  */
 internal object WindowMasks {
     fun compute(window: Window): WindowMaskResult =
@@ -64,6 +82,7 @@ internal object WindowMasks {
     fun compute(decor: View): WindowMaskResult =
         AdapterGuard.run("mask computation", failClosed()) {
             if (decor.width <= 0 || decor.height <= 0) return@run failClosed()
+            if (AnimationProbe.isAnimating(decor)) return@run failClosed(FailClosedReason.Animating)
             val rects = ArrayList<MaskRect>()
             collect(decor, decor, rects)
             WindowMaskResult(rects, failClosed = false)
@@ -124,5 +143,6 @@ internal object WindowMasks {
         return MaskRect(left, top, right - left, bottom - top)
     }
 
-    private fun failClosed() = WindowMaskResult(listOf(MaskRect.FULL_FRAME), failClosed = true)
+    private fun failClosed(reason: FailClosedReason = FailClosedReason.TreeUnreadable) =
+        WindowMaskResult(listOf(MaskRect.FULL_FRAME), failClosed = true, reason = reason)
 }

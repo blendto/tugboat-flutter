@@ -12,6 +12,8 @@
 -dontwarn androidx.core.view.ScrollingView
 -dontwarn androidx.fragment.app.**
 -dontwarn androidx.recyclerview.widget.**
+# `Tugboat.trackNavigation` compiles against Jetpack Navigation (compileOnly).
+-dontwarn androidx.navigation.**
 # It probes them by class name (Class.forName) and recognises Compose hosts
 # by class name for fail-closed masks: keep those names when the app keeps
 # the classes. -keepnames never forces a class to be kept.

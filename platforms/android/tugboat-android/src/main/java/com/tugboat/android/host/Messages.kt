@@ -37,6 +37,7 @@ internal class EngineMessage(
 internal object HostMessages {
     const val TIMER_FIRED = "timer.fired"
     const val TRANSPORT_RESULT = "transport.result"
+    const val CAPTURE_RESULT = "capture.result"
 
     /**
      * The last message before the handle is destroyed: the engine reports
