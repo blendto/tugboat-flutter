@@ -1,0 +1,1116 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "capture-reuse-decisions",
+  "description": "How a reusable (not forced) capture resolves, in Dart's order. The engine offers the dHash baseline of the last accepted (or exactly reused) frame together with that frame's visible structure; the host reports a perceptual match as captured with the baseline's dHash. With the same structure that is perceptual_hash_coalesced: the frame is released and the latest frame reused, and the baseline stays the referenced frame's. Under another structure the frame is new (fresh_accepted). A frame whose content hash equals a compatible retained frame is exact_content_reused: released, that frame reused, and its dHash and structure become the baseline. paintUnchanged reuses the latest compatible frame (paint_generation_unchanged). Forced captures (here a swipe's) get no baseline.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      },
+      "interaction": {
+        "settleDelayMs": 0
+      },
+      "capabilities": {
+        "systemInput": true,
+        "captureDiagnostics": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5010000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-initial",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-initial",
+              "dHash": "d0",
+              "structureSignature": "s0",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-initial",
+              "frame": {
+                "id": "frame-2",
+                "atMs": 10,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-initial",
+                "masked": true,
+                "trigger": "initial",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 10,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "version": 1,
+                  "outcome": "fresh_accepted",
+                  "requestId": "capture_request-1",
+                  "executionId": "capture_execution-3",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "initial",
+                  "visualEvidence": "fresh",
+                  "interactionEvidence": "not_applicable"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "systemInput",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "input": "back"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5100000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "dHashBaseline": {
+                "dHash": "d0",
+                "structureSignature": "s0"
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10100000
+            }
+          ]
+        }
+      },
+      {
+        "note": "Within Hamming distance 2 of d0, same structure.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5110000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-coalesced",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-coalesced",
+              "dHash": "d0",
+              "structureSignature": "s0",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-8",
+                "atMs": 110,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "version": 1,
+                  "outcome": "perceptual_hash_coalesced",
+                  "requestId": "capture_request-6",
+                  "executionId": "capture_execution-7",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "manual",
+                  "visualEvidence": "reused",
+                  "interactionEvidence": "not_applicable",
+                  "reuseReason": "dhash"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-5",
+                "atMs": 100,
+                "type": "system_input",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "input": "back"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-coalesced"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "systemInput",
+          "at": {
+            "monoUs": 5200000
+          },
+          "input": {
+            "input": "back"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-2",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5200000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "dHashBaseline": {
+                "dHash": "d0",
+                "structureSignature": "s0"
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10200000
+            }
+          ]
+        }
+      },
+      {
+        "note": "Same dHash, but the visible structure changed.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5210000
+          },
+          "input": {
+            "requestId": "capture-2",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-new-structure",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-new-structure",
+              "dHash": "d0",
+              "structureSignature": "s1",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-new-structure",
+              "frame": {
+                "id": "frame-11",
+                "atMs": 210,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-new-structure",
+                "masked": true,
+                "trigger": "manual",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-13",
+                "atMs": 210,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-11",
+                "data": {
+                  "version": 1,
+                  "outcome": "fresh_accepted",
+                  "requestId": "capture_request-10",
+                  "executionId": "capture_execution-12",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "manual",
+                  "visualEvidence": "fresh",
+                  "interactionEvidence": "not_applicable"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-9",
+                "atMs": 200,
+                "type": "system_input",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-11",
+                "data": {
+                  "input": "back"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "systemInput",
+          "at": {
+            "monoUs": 5300000
+          },
+          "input": {
+            "input": "back"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-3",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5300000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "dHashBaseline": {
+                "dHash": "d0",
+                "structureSignature": "s1"
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 10300000
+            }
+          ]
+        }
+      },
+      {
+        "note": "Identical pixels to the initial frame.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5310000
+          },
+          "input": {
+            "requestId": "capture-3",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-same-content",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-initial",
+              "dHash": "d9",
+              "structureSignature": "s2",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-17",
+                "atMs": 310,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "version": 1,
+                  "outcome": "exact_content_reused",
+                  "requestId": "capture_request-15",
+                  "executionId": "capture_execution-16",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "manual",
+                  "visualEvidence": "reused",
+                  "interactionEvidence": "not_applicable",
+                  "reuseReason": "content_hash"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-14",
+                "atMs": 300,
+                "type": "system_input",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "input": "back"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-same-content"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "systemInput",
+          "at": {
+            "monoUs": 5400000
+          },
+          "input": {
+            "input": "back"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-4",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5400000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "dHashBaseline": {
+                "dHash": "d9",
+                "structureSignature": "s2"
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-4",
+              "atMonoUs": 10400000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5410000
+          },
+          "input": {
+            "requestId": "capture-4",
+            "outcome": "paintUnchanged"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-21",
+                "atMs": 410,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "version": 1,
+                  "outcome": "paint_generation_unchanged",
+                  "requestId": "capture_request-19",
+                  "executionId": "capture_execution-20",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "manual",
+                  "visualEvidence": "reused",
+                  "interactionEvidence": "not_applicable",
+                  "reuseReason": "paint_generation"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-18",
+                "atMs": 400,
+                "type": "system_input",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "input": "back"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-4"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5500000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 300.0,
+            "y": 800.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5520000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "move",
+            "x": 300.0,
+            "y": 600.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5540000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 300.0,
+            "y": 400.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-5",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5540000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-5",
+              "atMonoUs": 10540000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5600000
+          },
+          "input": {
+            "requestId": "capture-5",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-swipe",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-swipe",
+              "dHash": "d5",
+              "structureSignature": "s5",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-swipe",
+              "frame": {
+                "id": "frame-24",
+                "atMs": 600,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-swipe",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-26",
+                "atMs": 600,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-24",
+                "data": {
+                  "version": 1,
+                  "outcome": "fresh_accepted",
+                  "requestId": "capture_request-23",
+                  "executionId": "capture_execution-25",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "interaction",
+                  "visualEvidence": "fresh",
+                  "interactionEvidence": "linked",
+                  "relatedEventId": "event-22"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-22",
+                "atMs": 500,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-2",
+                "afterFrame": "frame-24",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe",
+                  "payload": {
+                    "position": {
+                      "xNorm": 0.7281553398058253,
+                      "yNorm": 0.8743169398907104
+                    },
+                    "endPosition": {
+                      "xNorm": 0.7281553398058253,
+                      "yNorm": 0.4371584699453552
+                    },
+                    "delta": {
+                      "xNorm": 0.0,
+                      "yNorm": -0.4371584699453552
+                    }
+                  }
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-5"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-2",
+          "atMs": 10,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-initial",
+          "masked": true,
+          "trigger": "initial",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-11",
+          "atMs": 210,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-new-structure",
+          "masked": true,
+          "trigger": "manual",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-24",
+          "atMs": 600,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-swipe",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-4",
+          "atMs": 10,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "version": 1,
+            "outcome": "fresh_accepted",
+            "requestId": "capture_request-1",
+            "executionId": "capture_execution-3",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "initial",
+            "visualEvidence": "fresh",
+            "interactionEvidence": "not_applicable"
+          }
+        },
+        {
+          "id": "event-8",
+          "atMs": 110,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "version": 1,
+            "outcome": "perceptual_hash_coalesced",
+            "requestId": "capture_request-6",
+            "executionId": "capture_execution-7",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "manual",
+            "visualEvidence": "reused",
+            "interactionEvidence": "not_applicable",
+            "reuseReason": "dhash"
+          }
+        },
+        {
+          "id": "event-5",
+          "atMs": 100,
+          "type": "system_input",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "input": "back"
+          }
+        },
+        {
+          "id": "event-13",
+          "atMs": 210,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-11",
+          "data": {
+            "version": 1,
+            "outcome": "fresh_accepted",
+            "requestId": "capture_request-10",
+            "executionId": "capture_execution-12",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "manual",
+            "visualEvidence": "fresh",
+            "interactionEvidence": "not_applicable"
+          }
+        },
+        {
+          "id": "event-9",
+          "atMs": 200,
+          "type": "system_input",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-11",
+          "data": {
+            "input": "back"
+          }
+        },
+        {
+          "id": "event-17",
+          "atMs": 310,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "version": 1,
+            "outcome": "exact_content_reused",
+            "requestId": "capture_request-15",
+            "executionId": "capture_execution-16",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "manual",
+            "visualEvidence": "reused",
+            "interactionEvidence": "not_applicable",
+            "reuseReason": "content_hash"
+          }
+        },
+        {
+          "id": "event-14",
+          "atMs": 300,
+          "type": "system_input",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "input": "back"
+          }
+        },
+        {
+          "id": "event-21",
+          "atMs": 410,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "version": 1,
+            "outcome": "paint_generation_unchanged",
+            "requestId": "capture_request-19",
+            "executionId": "capture_execution-20",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "manual",
+            "visualEvidence": "reused",
+            "interactionEvidence": "not_applicable",
+            "reuseReason": "paint_generation"
+          }
+        },
+        {
+          "id": "event-18",
+          "atMs": 400,
+          "type": "system_input",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "input": "back"
+          }
+        },
+        {
+          "id": "event-26",
+          "atMs": 600,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-24",
+          "data": {
+            "version": 1,
+            "outcome": "fresh_accepted",
+            "requestId": "capture_request-23",
+            "executionId": "capture_execution-25",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "interaction",
+            "visualEvidence": "fresh",
+            "interactionEvidence": "linked",
+            "relatedEventId": "event-22"
+          }
+        },
+        {
+          "id": "event-22",
+          "atMs": 500,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-2",
+          "afterFrame": "frame-24",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe",
+            "payload": {
+              "position": {
+                "xNorm": 0.7281553398058253,
+                "yNorm": 0.8743169398907104
+              },
+              "endPosition": {
+                "xNorm": 0.7281553398058253,
+                "yNorm": 0.4371584699453552
+              },
+              "delta": {
+                "xNorm": 0.0,
+                "yNorm": -0.4371584699453552
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

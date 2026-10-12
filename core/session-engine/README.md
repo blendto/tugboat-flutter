@@ -23,6 +23,8 @@ core/session-engine/
   tests/tb_session_engine_test.cpp      unit tests (internals + ABI error paths)
   tests/tb_session_engine_stateful_test.cpp  unit tests (timers, teardown, lifecycle)
   tests/tb_session_engine_interaction_test.cpp  unit tests (classifier, registry, ledger, claims)
+  tests/tb_session_engine_delivery_test.cpp  unit tests (delivery)
+  tests/tb_session_engine_capture_test.cpp  unit tests (scheduler, frame store, budget, navigator registry)
   tests/tb_session_engine_conformance.cpp  fixture runner (public ABI only)
   tests/conformance/                    runner JSON reader, diff, scenario runner
   fuzz/message_fuzz.cpp                 libFuzzer target for submit
@@ -48,7 +50,16 @@ core/session-engine/
 | `delivery_module.cpp` | Collector delivery (design section 7): `transport.result`, `transport.flush`, the `delivery.` timers, hooks, and observers. Its state is `delivery_state.h`; the parts below each hold one concept. |
 | `delivery`, `delivery_lanes`, `flush_pass` | Delivery phases, triggers, identity, and the session end drain; queueing events and frames, gaps, and release; the flush pass cursor and response handling (`flush_cursor.h` holds its state). |
 | `lifecycle_lane`, `event_queue`, `frame_lane`, `delivery_gaps`, `delivery_bounds`, `transport` | The `/v1/sessions` FIFO, the identity debounce that feeds it, and the handshake; pending events and retry batches with send-time stamping; pending frames and the multipart body; gap thresholds; every queue bound and its eviction rule; `transport.result` and its classification. |
-| `navigation_module.cpp` | Navigation and capture (design section 8), with its state header. |
+| `navigation_module.cpp` | Navigation (design section 8.1): the `navigation` fact, the `navigation.` timers, the route-capture teardown stage. Its state is `navigation_state.h`; the parts below each hold one concept. |
+| `navigation_facts`, `navigator_registry`, `route_change` | The typed `navigation` fact; `nav-N` / `route-N` ids, stacks, presentedOver / hostPage; how a fact resolves into a visible change (invisible removal, cause claim) and the `route_change` envelope. |
+| `route_work.h`, `route_capture`, `route_barrier` | The route-capture work state machine as data and its transitions (supersession, deadline, finalize, timeout, teardown); waiting on a route barrier and following `supersededBy`. |
+| `navigation_view` | What other modules read from navigation: the route stamp, the request context, transition suppression (C11), the active and causal route captures. |
+| `capture_module.cpp` | Capture coordination (design section 8.2): `capture.result`, `surface`, the `capture.due` timer, the capture-work teardown stage, the `initial` and `lifecycle` captures. |
+| `capture_seam` | The capture seam (`EngineState::captures`): requests, the pump, the decision order, per-waiter resolution, `capture_diagnostic`. The parts below each hold one concept. |
+| `capture_types`, `capture_facts` | The capture vocabulary (owners, outcomes, cancel reasons); the `capture.result` and `surface` decoders. |
+| `capture_scheduler`, `capture_execution`, `frame_store`, `capture_budget`, `capture_diagnostics` | The FIFO with tail absorption and the one capture in flight; what an execution resolves to; frame provenance, compatibility, coalesce baselines, and trim; the rolling screenshot budget; the diagnostic event. |
+| `coordination`, `coordination_module.cpp` | Deferred work (capture answers, barrier resumes) run after every command, and the serialized publication queue (design section 9.3 #3). |
+| `fact_command.h`, `turn.h` | A command made of one typed fact; what every stateful step works on (state, live session, fact time, output). |
 | `interaction_module.cpp` | Interactions (design section 9): the interaction messages, `interaction.` timers, and teardown stages. Its state is `interaction_state.h`; the parts below each hold one concept. |
 | `gesture_classifier` | Pure classification: touch slop, the multi-pointer cluster, trackpad thresholds, from the `gesture` config. |
 | `pointer_tracker` | Contacts, the cluster, and the trackpad contact (Dart `InputCapture`); turns facts into controller signals. |
@@ -59,9 +70,8 @@ core/session-engine/
 | `input_observations` | Focus and system-input events that wait for one frame. |
 | `tap_evidence`, `interaction_payload` | Tap evidence on facts; the interaction schema 2 envelope and payload. |
 | `interaction_publish` | Publishing and early finalization, the temporal after-frame rules, and swipe/pan/zoom completion. |
-| `interaction_facts` | Typed interaction facts and the `capture.result` decoder. |
-| `capture_seam` | The capture seam (`EngineState::captures`): outstanding `capture.request`s and their owners, frame acceptance, and frame provenance. Phase 3d replaces its implementation with the capture scheduler behind the same interface. |
-| `interaction_claims` | What navigation (phase 3d) calls: the claim API, the settle wake hook, and the route stamp. |
+| `interaction_facts` | Typed interaction facts. |
+| `interaction_claims` | What navigation calls: the claim API, the settle wake hook, and attaching the route frame to the cause. |
 | `engine_state.h` | Everything a handle holds between messages, as plain data. |
 | `config` | The typed `engine.configure` configuration. |
 | `lifecycle` | The lifecycle state machine, app-lifecycle mapping and dedupe, admission. |
@@ -247,7 +257,7 @@ Effects are what the host must do, in order.
 | `timer.cancel` | `timerId` | none |
 | `http.send` | `requestId` (a string, `http-N`), `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `jsonBody` or `multipart`. `jsonBody` is the request body, already encoded: the exact UTF-8 text to send (byte-identical to Dart's `jsonEncode`); hosts never re-encode it. `multipart` is `{fields, frames}`: `fields` an ordered array of `[name, value]` string pairs, `frames` an array of `{handle, filename}` file parts (form field `files`) whose bytes the host resolves from the handle. Headers (API key, app identity, content type) are the host's. | `transport.result {requestId, …}` echoing `requestId` |
 | `frame.release` | `handle` | none; the host may drop the bytes |
-| `capture.request` | `requestId`, `trigger`, `force`, `requireFreshPaint`, `dropWhenBusy`, `notBeforeMonoUs`, `context` (`routeEpoch`, `navigatorId?`, `routeInstanceId?`, `boundaryGeneration`), `dHashBaseline?`, `scale` | `capture.result {requestId, …}` |
+| `capture.request` | `requestId` (`capture-N`, one per physical capture), `trigger`, `force` (capture even when the paint is unchanged), `requireFreshPaint`, `dropWhenBusy` (informative), `notBeforeMonoUs` (already reached: the engine waits itself), `context` (`routeEpoch`, `navigatorId?`, `routeInstanceId?`, `boundaryGeneration`), `dHashBaseline?` (`{dHash, structureSignature}`), `scale` | `capture.result {requestId, …}`, exactly one per request |
 
 ### Vocabulary: stateless operations
 
@@ -284,7 +294,9 @@ message `input`. The field-level vocabulary is in
 | `scroll` | mono | `{scrollableId, phase, offset?, axis?, maxScrollExtent?, anchor?}` | `phase`: `start`, `update`, `end`, `overscroll`. `offset` and `axis` (`vertical`, `horizontal`) are required except on `overscroll`, which carries only the id; `maxScrollExtent` gives samples their `offsetNorm`; `anchor` (the scrollable's) is allowed on `start` only. `scrollableId` is stable for the scrollable's lifetime. |
 | `focus` | mono | `{kind}` | `text_input`, `other`, or `none`: what now holds primary focus. Tracked without a session too; records `focus_changed` (with `focusChanges`) only for transitions involving a text input. |
 | `systemInput` | mono | `{input}` | `back`, `volume_up`, `volume_down`, `volume_mute`, `power`, `media_play_pause`. Records `system_input` with the `systemInput` capability. |
-| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged`, `failed`, `cancelled`. `requestedBackend` and `resolvedBackend` are the closed collector vocabulary (`flutterRepaintBoundary`, `nativeCpuExperimental`). This is the one way frames enter the engine. A captured frame for an unknown or invalidated request, or with no live session, is released at once (`frame.release`). |
+| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?, failure?, timings?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, dHash?, structureSignature?, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged` (only for a request without `force`), `failed` (optional `failure`: `boundaryUnavailable`, `boundaryDetached`, `boundaryReplaced`, `layoutUnavailable`, `paintTimedOut`, `paintNotAdvanced`, `readbackFailed`, `maskFailed`, `encodingFailed`), `cancelled`. `timings {frameWaitMicros?, readbackMicros?, maskMicros?, encodeMicros?}` (each at most a day) feed the screenshot budget. `requestedBackend` and `resolvedBackend` are the closed collector vocabulary (`flutterRepaintBoundary`, `nativeCpuExperimental`); `dHash` and `structureSignature` are opaque tokens the engine only compares. This is the one way frames enter the engine. A captured frame the engine does not accept (an unknown, stale, or teardown-abandoned request, a reuse, a perceptual match, or no live session) is released at once (`frame.release`). |
+| `navigation` | mono | `{kind, navigatorId, parentNavigatorId?, route?, departing?}` | A navigator callback (section 8.1). `kind`: `push`, `pop`, `replace`, `remove`. `route {instanceId, name?, type, overlayKind, transitionMs}` is the destination: the pushed route, the replacement, or the route a pop or removal reveals (absent when none is). `overlayKind`: `page`, `sheet`, `dialog`, `popup`, `unknown`; `transitionMs` in [0, 86400000]. `departing {instanceId, name?, type?}` is the route leaving or covered; only its id is read (`from*` fields come from the visible route, as in Dart). Ids are opaque, stable for the navigator's or route's lifetime; the engine maps them onto `nav-N` / `route-N` per session. A navigator first named as `parentNavigatorId` is numbered after its child. |
+| `surface` | mono | `{boundaryRect {x, y, width, height}, generation}` | The capture boundary in surface logical pixels and the adapter's boundary transform generation, which advances whenever the boundary's rect changes. Send it after `session.start` and on every change, before the `capture.result` of a capture made under it. |
 
 Enrichment follows Dart `_addEvent`: the current locale is stamped when the
 event has none; with `attachActionContext` the session's capture,
@@ -292,12 +304,13 @@ activation, and exploration ids are stamped, and without it only where the
 event has none. Events are appended to the session, emitted as records, then
 trimmed: beyond `limits.maxEvents` the oldest are dropped and the session's
 `truncated` becomes and stays `true`. One counter mints `event-N`,
-`frame-N`, and `capture_request-N` per engine handle; it is never reset per
-session (C7, kept). The exploration action window (`actionId` stamping) is
+`frame-N`, `capture_request-N`, and `capture_execution-N` per engine
+handle, in Dart's order; it is never reset per session (C7, kept). The
+host's `capture-N` request ids have their own counter. The exploration action window (`actionId` stamping) is
 not part of the engine; `actionId` passes through.
 
-Event-producing facts (`event.record`, `app.lifecycle`, and the interaction
-facts except `focus` and `capture.result`) without a live session, before
+Event-producing facts (`event.record`, `app.lifecycle`, `navigation`,
+`surface`, and the interaction facts except `focus`) without a live session, before
 the first session or after `session_end` (change C9), are accepted and
 dropped: no record, no id. `capture.result` without a live session releases
 its frame instead. `locale.set` then only updates the locale the next
@@ -325,15 +338,20 @@ per pointer gesture from the facts above, with Dart's controller rules:
   arrived, in either order. A scroll no pointer owned records only scroll
   samples. A tap that owns a scroll start completes as that scroll (change
   C12).
-- **Captures.** Each completion emits `capture.request` (trigger
-  `interaction`, forced, fresh paint; focus and system input use `manual`
-  after the settle delay) and waits for `capture.result`. A `captured` frame
-  is accepted as `frame-N` with a frame record. The after-frame is temporal:
-  same session, completed no earlier than release, newer than the frame
-  sequence at release; otherwise the latest frame when it qualifies.
-- **Positions.** The latest frame at pointer-down is the before-frame;
-  positions are normalised against its `boundaryRect`. Without one, or
-  outside it, the interaction has no positions. `cancelled` has no payload.
+- **Captures.** Each completion asks the capture scheduler (below) for a
+  capture (trigger `interaction`, forced, fresh paint; focus and system
+  input use `manual` after the settle delay) and waits for its answer. The
+  after-frame is temporal: same session, completed no earlier than release,
+  newer than the frame sequence at release. A swipe, pan, zoom, or scroll
+  whose own capture gave no fresh temporal frame walks the route barriers
+  (the active route capture, then the routes that superseded it), then
+  takes the latest frame when it qualifies.
+- **Positions.** The before-frame is the latest frame when it is compatible
+  with the pointer-down's context (route epoch, route, navigator, route
+  instance, boundary generation). Positions are normalised against that
+  frame's `boundaryRect` (or the observed boundary). Without an observed
+  boundary, a frame of the current boundary generation, or outside the
+  boundary, the interaction has no positions. `cancelled` has no payload.
 - **Teardown.** `paused`, `hidden`, `detached`, `session.end`, and a
   replacing `session.start` cancel settles and outstanding captures,
   abandon pending pointers (a tap becomes `cancelled`; swipe, scroll, pan,
@@ -342,10 +360,6 @@ per pointer gesture from the facts above, with Dart's controller rules:
   `system_input` events, in that order. Every teardown also forgets the
   pointer contacts (change C14). Pointer input is ignored in the
   background.
-
-Phase 3d (navigation and the capture scheduler) calls the claim API in
-`interaction_claims.h` and replaces the implementation behind
-`capture_seam.h`.
 
 **Frame-accepted hook.** Whoever accepts a frame into the session emits its
 frame record and then runs `ModuleRegistry::run_frame_accepted`. A module
@@ -359,20 +373,81 @@ using FrameAcceptedHook = void (*)(const Frame& frame, const std::string& handle
 `handle` names the frame's bytes in the host. Collector delivery (phase 3b)
 uses the hook to queue the frame lane and to hold the handle's reference.
 
-**Phase 3c limits.**
+### Navigation and captures
 
-- Before-frames and frame compatibility ignore the route epoch: the
-  before-frame is the session's latest frame, and a tap's capture matches
-  its origin whenever the frame is known. Phase 3d adds route epochs,
-  boundary generations, and the surface-compatible fallback.
-- No capture scheduler: every request is issued at once, with no
-  `capture_execution-N` ids, budget, suppression, reuse, perceptual-hash
-  coalescing, or dedupe (phase 3d). Ids therefore differ from Dart's until
-  then.
-- **Blocker before any host links the engine:** a frame trimmed from the
-  session (beyond `limits.maxFrames`) emits no `frame.release`, so its host
-  bytes would never be released. Phase 3b is completing the handle refcount
-  (design section 7.6) through the frame-accepted hook.
+The navigation module and the capture seam (design section 8) reproduce
+the Dart controller's route observer, route-capture barriers, and capture
+scheduler:
+
+- **Navigation.** A removal revealing no route, or the visible route, is
+  invisible. Otherwise the stacks update, the visual observation
+  generation advances, and the cause is claimed (exactly one eligible
+  transaction, same navigator) before the route epoch advances. Prior work
+  on the same navigator is cancelled with every waiting capture
+  (`superseded_route`) and links its successor; the capture generation
+  advances. The claimed tap is woken once the barrier is registered. After
+  `transitionMs + settleDelayMs` (timer `navigation.deadline.<epoch>`) the
+  route joins the publication queue, requests a forced `route` capture, and
+  records `route_change` (`navigated`, the frame as `afterFrame`, or
+  `captureOutcome: failed` with `captureFailure`). After
+  `routeBarrierTimeoutMs` more (timer `navigation.timeout.<epoch>`) it
+  records `route_change` with `captureOutcome: timed_out` (`unknown`)
+  instead. Superseded work records no `route_change`.
+- **Taps and routes.** A tap that caused the route active at its pointer-up
+  skips the settle delay; a tap claimed later stops waiting out its claim
+  window. Either waits for its route's barrier (following successors it
+  also caused) and takes the route frame. A tap whose route was replaced by
+  one it did not cause, or whose standalone capture was overtaken by a
+  later route, observes that route's frame only as a temporal observation.
+- **Scheduler.** Requests (`capture_request-N`) queue FIFO; a request joins
+  the tail when both are compatible and neither is an `interaction`
+  capture (the higher-priority trigger wins: manual > interaction > route >
+  lifecycle > tap > scroll > initial). One capture is in flight; the engine
+  waits out each head's not-before time with timer `capture.due`.
+  `dropWhenBusy` requests resolve `capture_pressure_drop` while busy.
+- **Decision order.** Suppressed (`route_transition`, while the context's
+  navigator is in a transition, change C11); budget skip (degraded budget,
+  reusable capture, compatible frame); stale context (route epoch, route,
+  boundary generation, or capture generation changed: never reaches the
+  host); then the host's answer: paint-unchanged reuse, perceptual
+  coalescing (the offered `dHashBaseline` matched under the same
+  structure), exact-content reuse (a compatible retained frame with the
+  same `contentHash`), or `fresh_accepted`. An answer whose context went
+  stale meanwhile is `superseded_route_epoch`. Each waiter keeps the frame
+  only when it is compatible with its own context.
+- **Ids and diagnostics.** One `capture_execution-N` per execution (one per
+  request for cancellations and rejections), in Dart's order. With
+  `capabilities.captureDiagnostics` every resolution records
+  `capture_diagnostic` (diagnostic stream) as Dart does.
+- **Budget.** Each execution charges its queue wait (the settle delay
+  included, as in Dart) and the host's `timings` within `budgetWindowMs` of
+  fact time (C1). Over `budgetMs`, requests carry `scale: degradedScale`.
+- **Host contract.** The host answers every `capture.request` by its id
+  and must not assume one at a time: teardown stops waiting for the capture
+  in flight (change C16), so a new request can arrive while the host still
+  performs an abandoned one, whose late answer is ignored (frame released).
+  A request unanswered `capture.answerTimeoutMs` after it was issued (timer
+  `capture.answer.<requestId>`, change C18) resolves as
+  `paint_readiness_timeout`; a forced request answered `paintUnchanged`
+  resolves as `capture_processing_failed`. Both record `capture_diagnostic`
+  with `failure` (`answer_timeout`, `contract_violation`) even without the
+  `captureDiagnostics` capability, and a late answer is ignored.
+- **Lifecycle.** `session.start` requests a forced `initial` capture after
+  `session_start`; `resumed` requests a forced `lifecycle` capture before
+  `app_foregrounded`. Teardown cancels every request and stops waiting for
+  the capture in flight.
+- **Deferred work.** Capture answers and barrier resumes reach their
+  waiters after the command that produced them, as Dart microtasks do.
+  Route finalization, settled taps with a frame, and completed gestures
+  publish through one serialized queue that a route finalize holds until
+  its route is done; a degraded tap observation publishes at once.
+- **Trim.** Beyond `limits.maxFrames` the oldest frame leaves the session
+  with a tombstone (never attached or reused again), and the session's
+  reference to its handle is released (section 7.6).
+
+Not modelled: exploration frame suppression and `pause_capture` (host
+side), and Dart's paint-unchanged retry (unreachable here: the latest
+frame only changes when a capture resolves, and one is in flight).
 
 `engine.configure` groups, with Dart's defaults. Every field is optional and
 validated. `host.configuredUserId` is the runtime user id until
@@ -383,9 +458,9 @@ validated. `host.configuredUserId` is the runtime user id until
 | `host` | The slice 1 `host` vocabulary. Everything the collector needs for `session_start` is required: `app.version`, `app.buildNumber`, the device with `screenSize`, `screenDensity`, `screenDpi`, and `screenPixelDensity`, `ip.ip`, and `locale` (may be `{}`). |
 | `limits` | `maxEvents` 5000, `maxFrames` 500, `maxScrollSamples` 200 |
 | `gesture` | `touchSlop` 18, `panSlop` 36, `scaleSlop` 18, `trackpadScaleThreshold` 1.08 |
-| `interaction` | `claimWindowMs` 1250, `settleDelayMs` 1000, `maxReleased` 8, `scrollEndCaptureDelayMs` 0, `captureScrollSamples` false, `scrollCaptureIntervalMs` 2000, `factGraceMs` 0 |
+| `interaction` | `claimWindowMs` 1250, `settleDelayMs` 1000, `maxReleased` 8, `scrollEndCaptureDelayMs` 0, `captureScrollSamples` false, `captureScrollScreenshots` false, `scrollCaptureIntervalMs` 2000, `factGraceMs` 0 |
 | `navigation` | `routeBarrierTimeoutMs` 5000, `routeStackLimit` 16 |
-| `capture` | `budgetMs` 60, `budgetWindowMs` 5000, `degradedScale` 0.8 |
+| `capture` | `budgetMs` 60, `budgetWindowMs` 5000, `degradedScale` 0.8, `answerTimeoutMs` 5000 (change C18) |
 | `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 20, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false, `answerGraceMs` 5000 |
 | `capabilities` | `sceneInventory`, `viewportSemanticMap`, `captureDiagnostics`, `actionContext`, `focusChanges`, `systemInput`, all false |
 
@@ -539,10 +614,10 @@ umbrella header `double-conversion.h` and build files are not vendored. See
 bash tool/ci/run-session-engine-tests.sh
 ```
 
-This configures with GCC, ASan, and UBSan, then runs four CTest tests.
-`tb_session_engine_test`, `tb_session_engine_stateful_test`, and
-`tb_session_engine_interaction_test` hold the unit
-tests. `tb_session_engine_conformance` runs every `conformance/**/*.json`
+This configures with GCC, ASan, and UBSan, then runs six CTest tests.
+`tb_session_engine_test`, `tb_session_engine_stateful_test`,
+`tb_session_engine_interaction_test`, `tb_session_engine_delivery_test`, and
+`tb_session_engine_capture_test` hold the unit tests. `tb_session_engine_conformance` runs every `conformance/**/*.json`
 through `tb_session_engine_submit_v1`. To run a subset:
 
 ```sh

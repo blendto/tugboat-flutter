@@ -81,7 +81,49 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {

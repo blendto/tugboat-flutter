@@ -99,6 +99,25 @@
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-0",
               "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -149,7 +168,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 1000,
                 "type": "session_end",
                 "stream": "semantic",
@@ -160,7 +179,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-4",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
@@ -183,6 +202,10 @@
           ],
           "effects": [
             {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            },
+            {
               "type": "http.send",
               "requestId": "http-1",
               "lane": "lifecycle",
@@ -203,6 +226,25 @@
               "type": "timer.schedule",
               "timerId": "delivery.flush",
               "atMonoUs": 9000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 11000000
             }
           ]
         }
@@ -297,7 +339,7 @@
       "frames": [],
       "events": [
         {
-          "id": "event-2",
+          "id": "event-4",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",

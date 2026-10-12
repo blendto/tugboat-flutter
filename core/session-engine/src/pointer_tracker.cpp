@@ -28,7 +28,7 @@ bool PointerTracker::points_of(const std::vector<int64_t>& pointers,
   for (int64_t pointer : pointers) {
     const auto it = positions_.find(pointer);
     if (it == positions_.end()) return false;
-    out->push_back(it->second);
+    out->emplace_back(it->second);
   }
   return out->size() >= 2;
 }
@@ -40,7 +40,7 @@ void PointerTracker::down(int64_t pointer, Point position,
   positions_[pointer] = position;
   order_.push_back(pointer);
   swiped_[pointer] = false;
-  out->push_back(PointerDownSignal{pointer, position, std::move(tap)});
+  out->emplace_back(PointerDownSignal{pointer, position, std::move(tap)});
   if (positions_.size() >= 2) {
     if (cluster_) {
       grow_cluster(pointer, out);
@@ -85,7 +85,7 @@ void PointerTracker::up(const GestureConfig& config, int64_t pointer,
     }
     cluster_.reset();
   }
-  out->push_back(PointerUpSignal{pointer, position, std::move(tap)});
+  out->emplace_back(PointerUpSignal{pointer, position, std::move(tap)});
   forget(pointer);
   ensure_cluster();
 }
@@ -94,23 +94,23 @@ void PointerTracker::cancel(int64_t pointer, Point position,
                             PointerSignals* out) {
   if (cluster_has(pointer)) {
     const Cluster cluster = *cluster_;
-    out->push_back(PointerCancelSignal{cluster.primary, position});
+    out->emplace_back(PointerCancelSignal{cluster.primary, position});
     for (int64_t member : cluster.pointers) {
-      if (member != cluster.primary) out->push_back(SuppressSignal{member});
+      if (member != cluster.primary) out->emplace_back(SuppressSignal{member});
     }
     cluster_.reset();
     for (int64_t member : cluster.pointers) forget(member);
     return;
   }
   if (pan_zoom_ && pan_zoom_->pointer == pointer) pan_zoom_.reset();
-  out->push_back(PointerCancelSignal{pointer, position});
+  out->emplace_back(PointerCancelSignal{pointer, position});
   forget(pointer);
 }
 
 void PointerTracker::pan_zoom_start(int64_t pointer, Point position,
                                     PointerSignals* out) {
   pan_zoom_ = PanZoom{pointer, std::nullopt, position};
-  out->push_back(PointerDownSignal{pointer, position, std::nullopt});
+  out->emplace_back(PointerDownSignal{pointer, position, std::nullopt});
 }
 
 void PointerTracker::pan_zoom_update(const GestureConfig& config,
@@ -122,17 +122,17 @@ void PointerTracker::pan_zoom_update(const GestureConfig& config,
   const std::optional<Gesture> gesture = classify_trackpad(config, scale, pan);
   if (!gesture) return;
   pan_zoom_->classified = gesture;
-  out->push_back(MarkClusterSignal{pointer, *gesture, scale, 2});
+  out->emplace_back(MarkClusterSignal{pointer, *gesture, scale, 2});
 }
 
 void PointerTracker::pan_zoom_end(int64_t pointer, Point position,
                                   PointerSignals* out) {
   if (!pan_zoom_ || pan_zoom_->pointer != pointer) return;
   if (pan_zoom_->classified) {
-    out->push_back(
+    out->emplace_back(
         PointerUpSignal{pointer, pan_zoom_->end_position, std::nullopt});
   } else {
-    out->push_back(PointerCancelSignal{pointer, position});
+    out->emplace_back(PointerCancelSignal{pointer, position});
   }
   pan_zoom_.reset();
   forget(pointer);
@@ -153,7 +153,7 @@ void PointerTracker::classify_swipe(const GestureConfig& config,
   if (swiped_[pointer]) return;
   if (exceeds_touch_slop(config, down_[pointer], position)) {
     swiped_[pointer] = true;
-    out->push_back(MarkSwipeSignal{pointer});
+    out->emplace_back(MarkSwipeSignal{pointer});
   }
 }
 
@@ -181,7 +181,7 @@ void PointerTracker::ensure_cluster() {
 void PointerTracker::grow_cluster(int64_t pointer, PointerSignals* out) {
   if (!cluster_ || cluster_->has(pointer)) return;
   cluster_->pointers.push_back(pointer);
-  if (cluster_->classified) out->push_back(SuppressSignal{pointer});
+  if (cluster_->classified) out->emplace_back(SuppressSignal{pointer});
   refresh_baseline();
 }
 
@@ -237,10 +237,10 @@ void PointerTracker::classify_cluster_now(const GestureConfig& config,
 void PointerTracker::apply_classification(PointerSignals* out) {
   const Cluster& cluster = *cluster_;
   if (!cluster.classified) return;
-  out->push_back(MarkClusterSignal{cluster.primary, *cluster.classified,
+  out->emplace_back(MarkClusterSignal{cluster.primary, *cluster.classified,
                                    cluster.scale, cluster.classified_count});
   for (int64_t member : cluster.pointers) {
-    if (member != cluster.primary) out->push_back(SuppressSignal{member});
+    if (member != cluster.primary) out->emplace_back(SuppressSignal{member});
   }
 }
 
@@ -248,7 +248,7 @@ void PointerTracker::complete_cluster(PointerSignals* out) {
   if (!cluster_ || !cluster_->classified) return;
   apply_classification(out);
   const Cluster cluster = *cluster_;
-  out->push_back(
+  out->emplace_back(
       PointerUpSignal{cluster.primary, cluster.end_position, std::nullopt});
   cluster_.reset();
   for (int64_t member : cluster.pointers) forget(member);

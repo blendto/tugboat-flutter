@@ -120,7 +120,7 @@ const char* cause_letter(TeardownCause cause) {
 }
 
 template <TeardownStage kStage>
-void trace_stage(TeardownCause cause, EngineState*, Output*) {
+void trace_stage(TeardownCause cause, const At&, EngineState*, Output*) {
   static const char* const kNames[] = {"tap",      "route",    "capture",
                                        "pointers", "released", "gestures",
                                        "input"};
@@ -419,7 +419,8 @@ void test_configure_between_sessions() {
   const std::string head =
       "{\"type\":\"session.start\",\"records\":[{\"kind\":\"event\",";
   CHECK(started.json.rfind(head, 0) == 0);
-  CHECK(contains(started.json, "],\"effects\":[]}"));
+  // The session asks for its `initial` capture.
+  CHECK(contains(started.json, "],\"effects\":[{\"type\":\"capture.request\""));
   // Not while a session is live.
   auto rejected = submit(engine, configure("null"));
   CHECK(rejected.status == TB_SESSION_INVALID_MESSAGE &&
@@ -453,7 +454,7 @@ void test_configure_between_sessions() {
       submit(engine, "{\"type\":\"session.snapshot\",\"input\":{}}");
   CHECK(contains(snapshot.json, "\"truncated\":true"));
   CHECK(contains(snapshot.json,
-                 "\"events\":[{\"id\":\"event-3\",\"atMs\":0,\"type\":"
+                 "\"events\":[{\"id\":\"event-6\",\"atMs\":0,\"type\":"
                  "\"external_event\",\"stream\":\"evidence\""));
   tb_session_engine_destroy(engine);
 }

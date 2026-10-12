@@ -81,7 +81,49 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -127,7 +169,7 @@
             },
             {
               "type": "capture.request",
-              "requestId": "capture_request-2",
+              "requestId": "capture-1",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -138,6 +180,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10030000
             }
           ]
         }
@@ -149,7 +196,7 @@
             "monoUs": 5050000
           },
           "input": {
-            "requestId": "capture_request-2",
+            "requestId": "capture-1",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-2",
@@ -174,7 +221,7 @@
               "kind": "frame",
               "handle": "h-capture_request-2",
               "frame": {
-                "id": "frame-3",
+                "id": "frame-5",
                 "atMs": 50,
                 "width": 1080,
                 "height": 2400,
@@ -189,12 +236,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 10,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-3",
+                "afterFrame": "frame-5",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap"
@@ -203,7 +250,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
         }
       },
       {
@@ -326,7 +378,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-6",
+              "requestId": "capture-2",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -337,6 +389,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10130000
             }
           ]
         }
@@ -367,7 +424,7 @@
             "monoUs": 5190000
           },
           "input": {
-            "requestId": "capture_request-6",
+            "requestId": "capture-2",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-6",
@@ -392,7 +449,7 @@
               "kind": "frame",
               "handle": "h-capture_request-6",
               "frame": {
-                "id": "frame-7",
+                "id": "frame-10",
                 "atMs": 190,
                 "width": 1080,
                 "height": 2400,
@@ -407,7 +464,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-7",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
@@ -418,8 +475,8 @@
                   "fingerprint": "fp-list",
                   "canonicalPath": "Scaffold/ListView"
                 },
-                "beforeFrame": "frame-3",
-                "afterFrame": "frame-7",
+                "beforeFrame": "frame-5",
+                "afterFrame": "frame-10",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -437,7 +494,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
         }
       },
       {
@@ -560,7 +622,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-10",
+              "requestId": "capture-3",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -571,6 +633,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 10330000
             }
           ]
         }
@@ -582,7 +649,7 @@
             "monoUs": 5335000
           },
           "input": {
-            "requestId": "capture_request-10",
+            "requestId": "capture-3",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-10",
@@ -607,7 +674,7 @@
               "kind": "frame",
               "handle": "h-capture_request-10",
               "frame": {
-                "id": "frame-11",
+                "id": "frame-15",
                 "atMs": 335,
                 "width": 1080,
                 "height": 2400,
@@ -620,7 +687,12 @@
               }
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            }
+          ]
         }
       },
       {
@@ -642,7 +714,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-12",
                 "atMs": 300,
                 "type": "interaction",
                 "stream": "semantic",
@@ -653,7 +725,7 @@
                   "fingerprint": "fp-list",
                   "canonicalPath": "Scaffold/ListView"
                 },
-                "beforeFrame": "frame-7",
+                "beforeFrame": "frame-10",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -702,7 +774,7 @@
       },
       "frames": [
         {
-          "id": "frame-3",
+          "id": "frame-5",
           "atMs": 50,
           "width": 1080,
           "height": 2400,
@@ -714,7 +786,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "frame-7",
+          "id": "frame-10",
           "atMs": 190,
           "width": 1080,
           "height": 2400,
@@ -726,7 +798,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "frame-11",
+          "id": "frame-15",
           "atMs": 335,
           "width": 1080,
           "height": 2400,
@@ -747,19 +819,19 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-3",
           "atMs": 10,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-3",
+          "afterFrame": "frame-5",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap"
           }
         },
         {
-          "id": "event-4",
+          "id": "event-7",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
@@ -770,8 +842,8 @@
             "fingerprint": "fp-list",
             "canonicalPath": "Scaffold/ListView"
           },
-          "beforeFrame": "frame-3",
-          "afterFrame": "frame-7",
+          "beforeFrame": "frame-5",
+          "afterFrame": "frame-10",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",
@@ -787,7 +859,7 @@
           }
         },
         {
-          "id": "event-8",
+          "id": "event-12",
           "atMs": 300,
           "type": "interaction",
           "stream": "semantic",
@@ -798,7 +870,7 @@
             "fingerprint": "fp-list",
             "canonicalPath": "Scaffold/ListView"
           },
-          "beforeFrame": "frame-7",
+          "beforeFrame": "frame-10",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",

@@ -9,6 +9,7 @@
 #include "capture_seam.h"
 #include "clock.h"
 #include "config.h"
+#include "coordination.h"
 #include "delivery_state.h"
 #include "frame_retention.h"
 #include "interaction_state.h"
@@ -55,11 +56,12 @@ struct EngineState {
   // Who still references each accepted frame's handle (section 7.6).
   FrameRetention frame_retention;
   DeliveryState delivery;
-  // Capture requests, frame acceptance, and frame provenance (phase 3d
-  // replaces the implementation behind the same interface).
+  // The capture scheduler, frame acceptance, and frame provenance.
   CaptureSeam captures;
   InteractionState interactions;
   NavigationState navigation;
+  // Deferred work and the publication queue.
+  Coordination coordination;
 
   // The session while it is live (active or background), else null.
   Session* live_session() {

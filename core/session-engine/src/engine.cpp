@@ -19,8 +19,10 @@ struct Pending {
   std::unique_ptr<Command> command;
   std::string path;
   SessionPolicy policy = SessionPolicy::kAny;
-  // The lifecycle state the command sees when it is applied.
+  // The lifecycle state the command sees when it is applied, and the one it
+  // leaves (what the work it deferred sees).
   LifecycleState lifecycle = LifecycleState::kIdle;
+  LifecycleState lifecycle_after = LifecycleState::kIdle;
   // An event-producing fact without a live session: accepted, not applied.
   bool dropped = false;
   // When the fact happened (absent on untimed messages).
@@ -245,14 +247,16 @@ class Dispatch {
       if (const std::optional<LifecycleSignal> signal = p.command->signal()) {
         simulated.lifecycle = transition(simulated.lifecycle, *signal);
       }
+      p.lifecycle_after = simulated.lifecycle;
     }
     Output out;
     for (Pending& p : *pending) {
-      if (!p.dropped) {
-        state_->lifecycle = p.lifecycle;
-        state_->applying = AppliedMessage{&modules_, p.at};
-        p.command->apply(modules_, state_, &out);
-      }
+      if (p.dropped) continue;
+      state_->lifecycle = p.lifecycle;
+      state_->applying = AppliedMessage{&modules_, p.at};
+      p.command->apply(modules_, state_, &out);
+      state_->lifecycle = p.lifecycle_after;
+      if (p.at) modules_.run_after_command(*p.at, state_, &out);
     }
     state_->applying = AppliedMessage();
     state_->lifecycle = simulated.lifecycle;

@@ -5,7 +5,7 @@
 #ifndef TUGBOAT_SESSION_ENGINE_INTERACTION_PAYLOAD_H
 #define TUGBOAT_SESSION_ENGINE_INTERACTION_PAYLOAD_H
 
-#include "capture_seam.h"
+#include "frame_store.h"
 #include "interaction_transaction.h"
 #include "json.h"
 #include "models.h"
@@ -16,11 +16,14 @@ namespace engine {
 // `interactionSchema` (Dart `tugboatInteractionSchemaVersion`).
 constexpr int64_t kInteractionSchemaVersion = 2;
 
-// Where `position` lies on `before_frame` (nullptr: no before-frame). It is
-// available only with a frame of known pixel size and boundary, and only
-// inside that boundary (Dart `buildCaptureCoordinate`).
+// Dart `_sampleCaptureCoordinate`: where `position` lies on `frame`
+// (nullptr: none) for a request made in `context`. It is available only
+// with an observed capture boundary, a frame of known pixel size from the
+// same boundary generation, and only inside the frame's boundary (or the
+// observed one when the frame has none).
 CaptureCoordinate sample_coordinate(Point position,
-                                    const FrameProvenance* before_frame);
+                                    const FrameProvenance* frame,
+                                    const RequestContext& context);
 
 // The event `data` (Dart `buildInteractionV2Payload`):
 // - `interactionSchema`, `gesture`, `route`, `targetFingerprint`, and for a

@@ -156,7 +156,8 @@ GroupSpec interaction_spec(InteractionConfig* c) {
            duration("scrollCaptureIntervalMs", &c->scroll_capture_interval_ms),
            duration("factGraceMs", &c->fact_grace_ms)},
           {},
-          {{"captureScrollSamples", &c->capture_scroll_samples}}};
+          {{"captureScrollSamples", &c->capture_scroll_samples},
+           {"captureScrollScreenshots", &c->capture_scroll_screenshots}}};
 }
 
 GroupSpec navigation_spec(NavigationConfig* c) {
@@ -168,7 +169,8 @@ GroupSpec navigation_spec(NavigationConfig* c) {
 
 GroupSpec capture_spec(CaptureConfig* c) {
   return {{duration("budgetMs", &c->budget_ms),
-           duration("budgetWindowMs", &c->budget_window_ms)},
+           duration("budgetWindowMs", &c->budget_window_ms),
+           duration("answerTimeoutMs", &c->answer_timeout_ms)},
           {{"degradedScale", &c->degraded_scale, 0, 1}},
           {}};
 }

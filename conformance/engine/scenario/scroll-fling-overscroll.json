@@ -81,7 +81,49 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -309,7 +351,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-3",
+              "requestId": "capture-1",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -320,6 +362,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10200000
             }
           ]
         }
@@ -331,7 +378,7 @@
             "monoUs": 5240000
           },
           "input": {
-            "requestId": "capture_request-3",
+            "requestId": "capture-1",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-3",
@@ -356,7 +403,7 @@
               "kind": "frame",
               "handle": "h-capture_request-3",
               "frame": {
-                "id": "frame-4",
+                "id": "frame-6",
                 "atMs": 240,
                 "width": 1080,
                 "height": 2400,
@@ -371,7 +418,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
@@ -382,7 +429,7 @@
                   "fingerprint": "fp-list",
                   "canonicalPath": "Scaffold/ListView"
                 },
-                "afterFrame": "frame-4",
+                "afterFrame": "frame-6",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -397,7 +444,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
         }
       }
     ]
@@ -428,7 +480,7 @@
       },
       "frames": [
         {
-          "id": "frame-4",
+          "id": "frame-6",
           "atMs": 240,
           "width": 1080,
           "height": 2400,
@@ -449,7 +501,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-3",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
@@ -460,7 +512,7 @@
             "fingerprint": "fp-list",
             "canonicalPath": "Scaffold/ListView"
           },
-          "afterFrame": "frame-4",
+          "afterFrame": "frame-6",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",

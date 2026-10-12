@@ -74,7 +74,27 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
         }
       },
       {
@@ -92,7 +112,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 10,
                 "type": "app_foregrounded",
                 "stream": "semantic",
@@ -137,7 +157,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-8",
                 "atMs": 30,
                 "type": "app_backgrounded",
                 "stream": "semantic",
@@ -149,7 +169,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -197,7 +222,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-10",
                 "atMs": 60,
                 "type": "app_foregrounded",
                 "stream": "semantic",
@@ -209,7 +234,27 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "lifecycle",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5060000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10060000
+            }
+          ]
         }
       },
       {
@@ -227,7 +272,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-12",
                 "atMs": 70,
                 "type": "app_backgrounded",
                 "stream": "semantic",
@@ -239,7 +284,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
         }
       },
       {
@@ -257,7 +307,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-13",
                 "atMs": 80,
                 "type": "app_inactive",
                 "stream": "semantic",
@@ -323,7 +373,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-3",
           "atMs": 10,
           "type": "app_foregrounded",
           "stream": "semantic",
@@ -333,7 +383,7 @@
           }
         },
         {
-          "id": "event-2",
+          "id": "event-8",
           "atMs": 30,
           "type": "app_backgrounded",
           "stream": "semantic",
@@ -343,7 +393,7 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-10",
           "atMs": 60,
           "type": "app_foregrounded",
           "stream": "semantic",
@@ -353,7 +403,7 @@
           }
         },
         {
-          "id": "event-4",
+          "id": "event-12",
           "atMs": 70,
           "type": "app_backgrounded",
           "stream": "semantic",
@@ -363,7 +413,7 @@
           }
         },
         {
-          "id": "event-5",
+          "id": "event-13",
           "atMs": 80,
           "type": "app_inactive",
           "stream": "semantic",
