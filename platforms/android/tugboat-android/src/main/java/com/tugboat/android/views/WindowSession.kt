@@ -11,6 +11,7 @@ import com.tugboat.android.views.facts.ViewsFact
 import com.tugboat.android.views.identity.AnchorResolver
 import com.tugboat.android.views.identity.TapEvidence
 import com.tugboat.android.views.input.FocusFactProducer
+import com.tugboat.android.views.input.FocusState
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.input.PointerFactProducer
 import com.tugboat.android.views.input.SystemInputProducer
@@ -34,12 +35,13 @@ internal class WindowSession(
     private val anchors: AnchorResolver,
     private val emit: (ViewsFact) -> Unit,
     private val requestFrame: () -> Unit,
+    focusState: FocusState = FocusState(),
 ) : WindowEventObserver {
     private var attached = true
     private var decor: View? = null
     private val pointers = PointerFactProducer(clock, gesture, ::density, ::resolveTap, ::emitIfAttached)
     private val keys = SystemInputProducer(clock, ::emitIfAttached)
-    private val focus = FocusFactProducer(clock, ::emitIfAttached, requestFrame)
+    private val focus = FocusFactProducer(clock, ::emitIfAttached, requestFrame, focusState)
     private val recyclers =
         if (OptionalAndroidx.hasRecyclerView) RecyclerScrollTracker(clock, anchors::anchorFor, ::emitIfAttached) else null
     private var scrolls: OffsetScrollTracker? = null
@@ -70,6 +72,11 @@ internal class WindowSession(
             addOnGlobalLayoutListener(tracker)
         }
         requestFrame()
+    }
+
+    /** This window became the active one (its activity resumed): report its focus on the next frame. */
+    fun onWindowActive() {
+        if (attached) focus.onWindowActive()
     }
 
     fun onFrame() {

@@ -30,13 +30,20 @@ import org.json.JSONObject
  *
  * Region focus also moves without a View focus change, so [onFrame] re-reads
  * it for [RECHECK_FRAMES] frames after each input event ([onInput]).
+ *
+ * **One focus across windows.** Focus is app-wide, as Dart's
+ * `FocusManager` is: [state] (the last reported kind) is shared by every
+ * window's producer, and a window that becomes active ([onWindowActive])
+ * is evaluated like a focus change. Navigating from a focused field to
+ * another activity therefore reports that activity's kind (`none` or
+ * `other`), and coming back reports `text_input` again.
  */
 internal class FocusFactProducer(
     private val clock: FactClock,
     private val emit: (ViewsFact) -> Unit,
     private val requestFrame: () -> Unit = {},
+    private val state: FocusState = FocusState(),
 ) : ViewTreeObserver.OnGlobalFocusChangeListener {
-    private var lastKind: String? = null
     private var recheckFrames = 0
 
     /** When the View focus changed, until that change is reported. */
@@ -48,6 +55,9 @@ internal class FocusFactProducer(
             recheckFrames = RECHECK_FRAMES
             requestFrame()
         }
+
+    /** This window became the active one: its focus is the app's focus now. */
+    fun onWindowActive() = onGlobalFocusChanged(null, null)
 
     /** An input event happened: region focus may move on the next frames. */
     fun onInput() {
@@ -73,8 +83,8 @@ internal class FocusFactProducer(
     }
 
     private fun report(kind: String, at: HostTime) {
-        if (kind == lastKind) return
-        lastKind = kind
+        if (kind == state.lastKind) return
+        state.lastKind = kind
         emit(ViewsFact(FactTypes.FOCUS, JSONObject().put("kind", kind), at))
     }
 
@@ -92,4 +102,9 @@ internal class FocusFactProducer(
         /** Compose applies focus and its semantics within a frame or two of the input event. */
         const val RECHECK_FRAMES = 4
     }
+}
+
+/** The last focus kind reported, shared by every window's [FocusFactProducer]. Main thread only. */
+internal class FocusState {
+    var lastKind: String? = null
 }

@@ -40,7 +40,7 @@ class FocusAndSystemInputTest {
     @Test
     fun severalChangesWithinOneFrameReportWhereFocusSettled() {
         var frames = 0
-        val focus = FocusFactProducer(FactClock(clock), recorded::emit) { frames++ }
+        val focus = FocusFactProducer(FactClock(clock), recorded::emit, requestFrame = { frames++ })
         val field = EditText(context)
         val button = Button(context)
 
