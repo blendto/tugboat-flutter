@@ -55,6 +55,12 @@ CaptureAsk interaction_capture(const std::string& related_event_id) {
 void CaptureSeam::reset() {
   frames_.reset();
   boundary_ = BoundaryObservation{};
+  secure_windows_.reset();
+}
+
+void CaptureSeam::report_secure_windows(EngineState* state, const At& at,
+                                        Output* out) {
+  secure_windows_.report(state, at, out);
 }
 
 // ------------------------------------------------------------- requests
@@ -347,13 +353,15 @@ ExecutionResult CaptureSeam::execute_captured(EngineState* state,
       frame, context, session.at_ms(at.mono_us),
       state->config.limits.max_frames, &state->ids, &session,
       &state->frame_retention, out);
-  // The registry of the message being applied (engine.cpp).
-  if (const ModuleRegistry* modules = state->applying.modules) {
-    modules->run_frame_accepted(record.frame, record.handle, state, out);
-  }
+  // Right after the frame record, before the frame-accepted hooks can
+  // record anything (a delivery eviction gap).
   if (frame.mask_coverage) {
     record_mask_coverage(state, at, out, record.frame.id,
                          *frame.mask_coverage);
+  }
+  // The registry of the message being applied (engine.cpp).
+  if (const ModuleRegistry* modules = state->applying.modules) {
+    modules->run_frame_accepted(record.frame, record.handle, state, out);
   }
   ExecutionResult accepted;
   accepted.outcome = CaptureOutcome::kFreshAccepted;
@@ -391,6 +399,19 @@ void CaptureSeam::observe_surface(const BoundaryRect& rect,
 
 // ------------------------------------------------------------ resolution
 
+bool CaptureSeam::always_reported(const EngineState& state,
+                                  const CaptureWaiter& waiter,
+                                  const ExecutionResult& execution) {
+  // Host contract problems are always reported, so hosts can count them.
+  if (execution.host_failure) return true;
+  // With the capability every resolution is recorded: nothing to throttle.
+  if (!execution.secure_window ||
+      state.config.capabilities.capture_diagnostics) {
+    return false;
+  }
+  return secure_windows_.first(waiter.context.route_instance_id);
+}
+
 void CaptureSeam::resolve_execution(EngineState* state, const At& at,
                                     Output* out,
                                     const std::vector<CaptureWaiter>& waiters,
@@ -416,7 +437,8 @@ void CaptureSeam::resolve_waiter(EngineState* state, const At& at,
                                  Output* out, const CaptureWaiter& waiter,
                                  const std::string& execution_id,
                                  const ExecutionResult& execution) {
-  record_capture_diagnostic(state, at, out, waiter, execution_id, execution);
+  record_capture_diagnostic(state, at, out, waiter, execution_id, execution,
+                            always_reported(*state, waiter, execution));
   if (waiter.owner.kind == CaptureOwner::Kind::kNone) return;
   defer(state, CaptureAnswer{waiter.owner,
                              CaptureResolution{waiter.request_id,

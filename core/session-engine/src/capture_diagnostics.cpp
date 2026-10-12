@@ -45,6 +45,8 @@ Value diagnostic_data(const CaptureWaiter& waiter,
   if (execution.host_failure) {
     data.set("failure",
              Value::string(host_failure_name(*execution.host_failure)));
+  } else if (execution.secure_window) {
+    data.set("failure", Value::string("secure_window"));
   }
   if (waiter.coalesced) data.set("coalesced", Value::boolean(true));
   // The backend trace the host reported with its frame.
@@ -56,41 +58,54 @@ Value diagnostic_data(const CaptureWaiter& waiter,
 
 }  // namespace
 
+bool SecureWindowLog::first(const OptString& route_instance_id) {
+  for (auto& route : routes_) {
+    if (route.first == route_instance_id) {
+      ++route.second;
+      return false;
+    }
+  }
+  routes_.emplace_back(route_instance_id, 0);
+  return true;
+}
+
+void SecureWindowLog::report(EngineState* state, const At& at, Output* out) {
+  for (auto& route : routes_) {
+    if (route.second == 0) continue;
+    Diagnostic summary;
+    summary.data.set("component", Value::string("capture_secure_window"));
+    put_opt(&summary.data, "routeInstanceId", route.first);
+    summary.data.set("repeatCount", Value::integer(route.second));
+    if (!record_diagnostic(state, at, out, std::move(summary))) return;
+    route.second = 0;
+  }
+}
+
 void record_capture_diagnostic(EngineState* state, const At& at, Output* out,
                                const CaptureWaiter& waiter,
                                const std::string& execution_id,
-                               const ExecutionResult& execution) {
-  Session* session = state->live_session();
-  // Host contract problems are always reported, so hosts can count them.
-  const bool enabled = state->config.capabilities.capture_diagnostics ||
-                       execution.host_failure.has_value();
-  if (session == nullptr || !enabled) return;
-  Event event = make_event(state, *session, "capture_diagnostic", at.mono_us);
-  event.stream = EventStream::kDiagnostic;
-  event.after_frame = execution.frame_id;
-  event.data = diagnostic_data(waiter, execution_id, execution);
-  record_event(state, *session, std::move(event), true, out);
+                               const ExecutionResult& execution, bool always) {
+  if (!always && !state->config.capabilities.capture_diagnostics) return;
+  Diagnostic diagnostic;
+  diagnostic.after_frame = execution.frame_id;
+  diagnostic.data = diagnostic_data(waiter, execution_id, execution);
+  record_diagnostic(state, at, out, std::move(diagnostic));
 }
 
 void record_mask_coverage(EngineState* state, const At& at, Output* out,
                           const std::string& frame_id,
                           const MaskCoverage& coverage) {
-  Session* session = state->live_session();
-  if (session == nullptr) return;
   Value reasons = Value::array();
   for (MaskReason reason : coverage.reasons) {
     reasons.push(Value::string(mask_reason_name(reason)));
   }
-  Value data = Value::object();
-  data.set("component", Value::string("capture_masking"));
-  data.set("frameId", Value::string(frame_id));
-  data.set("mode", Value::string(mask_mode_name(coverage.mode)));
-  data.set("reasons", std::move(reasons));
-  Event event = make_event(state, *session, "capture_diagnostic", at.mono_us);
-  event.stream = EventStream::kDiagnostic;
-  event.after_frame = frame_id;
-  event.data = std::move(data);
-  record_event(state, *session, std::move(event), true, out);
+  Diagnostic diagnostic;
+  diagnostic.after_frame = frame_id;
+  diagnostic.data.set("component", Value::string("capture_masking"));
+  diagnostic.data.set("frameId", Value::string(frame_id));
+  diagnostic.data.set("mode", Value::string(mask_mode_name(coverage.mode)));
+  diagnostic.data.set("reasons", std::move(reasons));
+  record_diagnostic(state, at, out, std::move(diagnostic));
 }
 
 }  // namespace engine

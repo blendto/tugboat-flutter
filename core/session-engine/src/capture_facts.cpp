@@ -48,7 +48,8 @@ bool decode_mask_reasons(const ObjectReader& r,
   const Value* reasons = nullptr;
   if (!r.req_array("reasons", &reasons)) return false;
   if (reasons->items().size() > kMaxMaskReasons) {
-    return r.reject("reasons", "at most 8 reasons");
+    return r.reject("reasons", "at most " + std::to_string(kMaxMaskReasons) +
+                                   " reasons");
   }
   for (size_t i = 0; i < reasons->items().size(); ++i) {
     const Value& item = reasons->items()[i];

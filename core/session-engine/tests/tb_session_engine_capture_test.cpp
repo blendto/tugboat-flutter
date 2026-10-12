@@ -10,15 +10,16 @@
 #include <vector>
 
 #include "capture_budget.h"
+#include "capture_diagnostics.h"
 #include "capture_execution.h"
 #include "capture_facts.h"
 #include "capture_scheduler.h"
 #include "capture_types.h"
 #include "frame_store.h"
 #include "json.h"
-#include "reader.h"
 #include "navigation_facts.h"
 #include "navigator_registry.h"
+#include "reader.h"
 #include "session.h"
 #include "unit_support.h"
 
@@ -335,27 +336,40 @@ void test_late_answer_after_deadline() {
 
 // --------------------------------------------- mask coverage, secure window
 
+// The documented vocabularies (README "Navigation and captures", design
+// section 8.2), in order.
+constexpr const char* kDocumentedModes[] = {"precise", "wholeHost",
+                                            "wholeFrame"};
+constexpr const char* kDocumentedReasons[] = {
+    "composeDefault",   "composeVersionUnverified", "composeOwnerUnavailable",
+    "interop",          "regionUnreadable",         "treeUnreadable",
+    "animating",        "unverifiedLayerAllowlist", "walkExhausted",
+    "noWindowSize",     "noDecor",                  "representable",
+    "webView",          "renderer",                 "surfaceLayer",
+    "unclassifiedLayer", "secureText"};
+
 void test_mask_vocabulary() {
-  for (MaskMode mode :
-       {MaskMode::kPrecise, MaskMode::kWholeHost, MaskMode::kWholeFrame}) {
-    CHECK(parse_mask_mode(mask_mode_name(mode)) == mode);
+  int index = 0;
+  for (const char* name : kDocumentedModes) {
+    const std::optional<MaskMode> mode = parse_mask_mode(name);
+    CHECK(mode && static_cast<int>(*mode) == index++);
+    CHECK(mode && std::string(mask_mode_name(*mode)) == name);
   }
-  CHECK(std::string(mask_mode_name(MaskMode::kWholeHost)) == "wholeHost");
   CHECK(!parse_mask_mode("whole_host"));
-  int reasons = 0;
-  for (int i = 0; i <= static_cast<int>(MaskReason::kSecureText); ++i) {
-    const MaskReason reason = static_cast<MaskReason>(i);
-    CHECK(parse_mask_reason(mask_reason_name(reason)) == reason);
-    ++reasons;
+  // Every enum value is documented, and nothing else parses.
+  index = 0;
+  for (const char* name : kDocumentedReasons) {
+    const std::optional<MaskReason> reason = parse_mask_reason(name);
+    CHECK(reason && static_cast<int>(*reason) == index++);
+    CHECK(reason && std::string(mask_reason_name(*reason)) == name);
   }
-  CHECK(reasons == 14);
-  CHECK(std::string(mask_reason_name(MaskReason::kComposeDefault)) ==
-        "composeDefault");
+  CHECK(index == static_cast<int>(MaskReason::kSecureText) + 1);
   CHECK(!parse_mask_reason("compose_default"));
   CHECK(kMaxMaskReasons == 8);
 
   // secureWindow: camelCase on the capture.result wire like the rest of
-  // the failure vocabulary, `secure_window` in the diagnostic.
+  // the failure vocabulary, `secure_window` in the diagnostic. It is not a
+  // host contract failure.
   CHECK(parse_capture_failure("secureWindow") ==
         CaptureFailure::kSecureWindow);
   CHECK(!parse_capture_failure("secure_window"));
@@ -364,11 +378,21 @@ void test_mask_vocabulary() {
   const ExecutionResult secure =
       failed_execution(CaptureFailure::kSecureWindow);
   CHECK(secure.outcome == CaptureOutcome::kCaptureProcessingFailed);
-  CHECK(secure.host_failure == HostFailure::kSecureWindow);
-  CHECK(std::string(host_failure_name(HostFailure::kSecureWindow)) ==
-        "secure_window");
-  CHECK(!failed_execution(CaptureFailure::kReadbackFailed).host_failure);
-  CHECK(!failed_execution(std::nullopt).host_failure);
+  CHECK(secure.secure_window && !secure.host_failure);
+  CHECK(!failed_execution(CaptureFailure::kReadbackFailed).secure_window);
+  CHECK(!failed_execution(std::nullopt).secure_window);
+}
+
+void test_secure_window_log() {
+  SecureWindowLog log;
+  const OptString route = std::string("route-0");
+  CHECK(log.first(std::nullopt));
+  CHECK(log.first(route));
+  CHECK(!log.first(route));
+  CHECK(!log.first(std::nullopt));
+  CHECK(log.first(std::string("route-1")));
+  log.reset();
+  CHECK(log.first(route));
 }
 
 bool decode(const std::string& text, CaptureResult* out, Error* error) {
@@ -483,6 +507,7 @@ int main() {
   test_route_identity();
   test_late_answer_after_deadline();
   test_mask_vocabulary();
+  test_secure_window_log();
   test_decode_mask_coverage();
   test_mask_coverage_only_for_accepted_frames();
   return unit::finish("capture and navigation");

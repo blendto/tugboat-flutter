@@ -25,14 +25,11 @@
 namespace tugboat {
 namespace engine {
 
-// A host failure (no Dart counterpart) that is always reported as a
-// `capture_diagnostic` `failure`, with or without the `captureDiagnostics`
-// capability: a host contract problem the engine detected, or a window the
-// host refused to copy.
+// A host contract problem the engine detected (no Dart counterpart). It is
+// always reported as a `capture_diagnostic` `failure`.
 enum class HostFailure {
   kAnswerTimeout,      // change C18: no answer before the deadline
   kContractViolation,  // `paintUnchanged` answered to a forced request
-  kSecureWindow,       // `failed` with `secureWindow`: never copied
 };
 
 const char* host_failure_name(HostFailure failure);
@@ -45,6 +42,11 @@ struct ExecutionResult {
   // `budget`, `paint_generation`, `dhash`, or `content_hash`.
   OptString reuse_reason;
   std::optional<HostFailure> host_failure;
+  // The host refused to copy a secure window (`failed` with
+  // `secureWindow`): a `capture_diagnostic` `failure: secure_window`,
+  // reported without the `captureDiagnostics` capability once per route
+  // instance (capture_diagnostics.h).
+  bool secure_window = false;
   // The backend trace of the frame the host captured, if any.
   OptString requested_backend;
   OptString resolved_backend;
@@ -66,8 +68,8 @@ ExecutionResult reuse_compatible(FrameStore* frames,
 // is a processing failure.
 CaptureOutcome failure_outcome(const std::optional<CaptureFailure>& failure);
 
-// A host `failed` answer: its `failure_outcome`, and `secureWindow` as the
-// host failure `secure_window` (always reported).
+// A host `failed` answer: its `failure_outcome`, flagged `secure_window`
+// for `secureWindow`.
 ExecutionResult failed_execution(const std::optional<CaptureFailure>& failure);
 
 // How a `captured` answer resolves (steps 4 to 6).

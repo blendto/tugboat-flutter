@@ -48,12 +48,16 @@ enum class MaskMode {
 };
 
 // `capture.result.frame.maskCoverage.reasons[]`: why the host masked what
-// it did beyond individual text and media regions.
+// it did beyond individual text and media regions. Covers every value the
+// Android (`MaskCoverageReason`) and SwiftUI (`MaskCoverage.Reason`)
+// adapters emit, plus names reserved for the Views host.
 enum class MaskReason {
   kComposeDefault,
   kComposeVersionUnverified,
   kComposeOwnerUnavailable,
   kInterop,
+  kRegionUnreadable,
+  kTreeUnreadable,
   kAnimating,
   kUnverifiedLayerAllowlist,
   kWalkExhausted,
@@ -61,6 +65,7 @@ enum class MaskReason {
   kNoDecor,
   kRepresentable,
   kWebView,
+  kRenderer,
   kSurfaceLayer,
   kUnclassifiedLayer,
   kSecureText,
