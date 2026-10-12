@@ -5,10 +5,11 @@ import XCTest
 
 @testable import Tugboat
 
-/// Prints the platform-view hosts SwiftUI containers create (lines start
-/// with `TBDUMP`), so `KnownPlatformViews` entries are verified from CI
-/// logs per iOS major. Asserts nothing about the names themselves.
-final class ContainerDumpTests: XCTestCase {
+/// SwiftUI's own container hosts are walked and an app's view-controller
+/// representable is a box. Prints every host (lines start with `TBDUMP`),
+/// so `KnownPlatformViews` entries can be verified from CI logs on a new
+/// iOS major.
+final class ContainerHostTests: XCTestCase {
   private final class AppController: UIViewController {}
 
   private struct AppControllerHost: UIViewControllerRepresentable {
@@ -25,7 +26,7 @@ final class ContainerDumpTests: XCTestCase {
     }
   }
 
-  func testDumpContainerHosts() {
+  func testContainerHostsAreWalkedAndAppHostsAreBoxes() {
     var roots: [(String, AnyView)] = [
       ("NavigationView", AnyView(NavigationView { Screen() }.navigationViewStyle(.stack))),
       ("TabView", AnyView(TabView { Screen().tabItem { Text("One") }; Screen().tabItem { Text("Two") } })),
@@ -34,19 +35,30 @@ final class ContainerDumpTests: XCTestCase {
     if #available(iOS 16.0, *) {
       roots.insert(("NavigationStack", AnyView(NavigationStack { Screen() })), at: 0)
     }
+    let verified = LayerAllowlist.forMajor(LayerAllowlist.runningMajor) != nil
     for (name, root) in roots {
       let hosted = HostedWindow(root)
       hosted.settle(0.5)
-      dump(name, hosted.window)
+      let kinds = dump(name, hosted.window)
       hosted.close()
+      guard verified else { continue }
+      if name == "AppController" {
+        XCTAssertTrue(kinds.contains(.representable), "an app view-controller representable is a box")
+      } else {
+        XCTAssertTrue(kinds.contains(.internalPlatformView), "\(name): its host is walked")
+        XCTAssertFalse(kinds.contains(.representable), "\(name): no box")
+      }
     }
     let sheet = HostedWindow(Text("Base").sheet(isPresented: .constant(true)) { Screen() })
     sheet.settle(1.0)
-    dump("sheet", sheet.window)
+    _ = dump("sheet", sheet.window)
     sheet.close()
   }
 
-  private func dump(_ root: String, _ window: UIWindow) {
+  /// Prints the hosts under `window` and returns the kinds of its
+  /// platform-view hosts.
+  private func dump(_ root: String, _ window: UIWindow) -> [ViewKind] {
+    var hostKinds: [ViewKind] = []
     var stack: [(UIView, Int)] = [(window, 0)]
     while let (view, depth) = stack.popLast() {
       let cls: AnyClass = type(of: view)
@@ -55,12 +67,16 @@ final class ContainerDumpTests: XCTestCase {
         || described.contains("Hosting") || depth < 8
       if interesting {
         let kind = ViewKind.of(view, insideHosting: depth > 1)
+        if described.contains("PlatformViewHost") {
+          hostKinds.append(kind)
+        }
         print(
           "TBDUMP \(root) depth=\(depth) kind=\(kind) frame=\(view.frame) described=\(described) "
             + "reflecting=\(String(reflecting: cls)) objc=\(NSStringFromClass(cls))")
       }
       stack.append(contentsOf: view.subviews.reversed().map { ($0, depth + 1) })
     }
+    return hostKinds
   }
 }
 #endif

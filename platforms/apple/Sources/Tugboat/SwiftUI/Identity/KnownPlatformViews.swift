@@ -17,10 +17,14 @@ import Foundation
 /// represents `SwiftUI.NavigationStackRepresentable`, while an app's
 /// `UIKitPlatformViewHost<…Adaptor<MyApp.MapView>>` represents `MyApp.MapView`.
 ///
-/// Verified on iOS 26.5 with CI view dumps (2026-10-12, `ContainerDumpTests`):
-/// `List` (`ListRepresentable`), `TextField` (`PlatformTextFieldAdaptor`),
-/// and the containers that wrap whole screens: `NavigationStack`
-/// (`NavigationStackRepresentable`), and the ones listed below.
+/// Verified on iOS 26.5 with CI view dumps (2026-10-12, `ContainerHostTests`
+/// prints them as `TBDUMP` lines): `List` (`ListRepresentable`), `TextField`
+/// (`PlatformTextFieldAdaptor`), and the containers that wrap whole screens
+/// in a view-controller adaptor around a SwiftUI hosting controller:
+/// `NavigationStack` (`NavigationStackRepresentable`), `NavigationView`
+/// (`BridgedNavigationView`), and `TabView` (`UIKitAdaptableTabView`).
+/// Sheets and full-screen covers present a hosting controller directly
+/// (no platform-view host), so they need no entry.
 enum KnownPlatformViews {
   static let swiftUIModule = "SwiftUI"
 
@@ -29,6 +33,8 @@ enum KnownPlatformViews {
       "ListRepresentable",
       "PlatformTextFieldAdaptor",
       "NavigationStackRepresentable",
+      "BridgedNavigationView",
+      "UIKitAdaptableTabView",
     ],
   ]
 
