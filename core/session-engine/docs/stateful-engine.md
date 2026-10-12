@@ -524,7 +524,8 @@ capture.request {requestId, trigger, force, requireFreshPaint, dropWhenBusy,
                  dHashBaseline?: {dHash, structureSignature}, scale}
 capture.result  {requestId, outcome: captured|paintUnchanged|failed|cancelled,
                  frame?: {handle, width, height, contentHash, dHash?,
-                          structureSignature?, masked, backend…},
+                          structureSignature?, masked, backend…,
+                          maskCoverage?: {mode, reasons}},
                  boundaryRect?, failure?, timings?}
 ```
 
@@ -540,8 +541,30 @@ capture.result  {requestId, outcome: captured|paintUnchanged|failed|cancelled,
   gets no baseline. `dropWhenBusy` is informative; the engine already
   applied it.
 - `failure` names why a `failed` capture produced no frame (Dart
-  `ScreenshotCaptureFailure`). `timings` (`frameWaitMicros`,
-  `readbackMicros`, `maskMicros`, `encodeMicros`) feed the budget.
+  `ScreenshotCaptureFailure`, plus `secureWindow`). `timings`
+  (`frameWaitMicros`, `readbackMicros`, `maskMicros`, `encodeMicros`) feed
+  the budget.
+- `maskCoverage` (native hosts) says which mask mode applied to the frame:
+  `mode` is `precise` (individual regions), `wholeHost` (a toolkit host
+  view masked whole, the Compose default), or `wholeFrame`; `reasons` is
+  an array of at most 8 distinct names from a closed set
+  (`composeDefault`, `composeVersionUnverified`, `composeOwnerUnavailable`,
+  `interop`, `animating`, `unverifiedLayerAllowlist`, `walkExhausted`,
+  `noWindowSize`, `noDecor`, `representable`, `webView`, `surfaceLayer`,
+  `unclassifiedLayer`, `secureText`), possibly empty. An unknown value is
+  `invalid_message` and the host keeps the handle. When the engine accepts
+  the frame it records `capture_diagnostic` `{component: capture_masking,
+  frameId, mode, reasons}` right after the frame record, always (with or
+  without the `captureDiagnostics` capability), so a whole-masked host can
+  be told from a broken capture. The frame record and `frameMetadata`
+  never carry it. A frame without `maskCoverage` (Flutter, older hosts)
+  records nothing new; a frame the engine reuses, coalesces, or releases
+  records nothing.
+- `secureWindow`: a native host never copies a window flagged secure
+  (Android `FLAG_SECURE`). It resolves as `capture_processing_failed`, like
+  the other non-retryable failures, and its `capture_diagnostic` carries
+  `failure: secure_window` and is always recorded, like the host failures
+  below.
 - The host answers every request exactly once, by id. It must not
   assume one request at a time: teardown abandons the capture in flight
   (change C16), so a new `capture.request` can arrive while the host still

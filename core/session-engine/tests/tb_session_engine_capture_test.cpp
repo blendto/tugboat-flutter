@@ -11,8 +11,12 @@
 
 #include "capture_budget.h"
 #include "capture_execution.h"
+#include "capture_facts.h"
 #include "capture_scheduler.h"
+#include "capture_types.h"
 #include "frame_store.h"
+#include "json.h"
+#include "reader.h"
 #include "navigation_facts.h"
 #include "navigator_registry.h"
 #include "session.h"
@@ -329,6 +333,144 @@ void test_late_answer_after_deadline() {
   tb_session_engine_destroy(engine);
 }
 
+// --------------------------------------------- mask coverage, secure window
+
+void test_mask_vocabulary() {
+  for (MaskMode mode :
+       {MaskMode::kPrecise, MaskMode::kWholeHost, MaskMode::kWholeFrame}) {
+    CHECK(parse_mask_mode(mask_mode_name(mode)) == mode);
+  }
+  CHECK(std::string(mask_mode_name(MaskMode::kWholeHost)) == "wholeHost");
+  CHECK(!parse_mask_mode("whole_host"));
+  int reasons = 0;
+  for (int i = 0; i <= static_cast<int>(MaskReason::kSecureText); ++i) {
+    const MaskReason reason = static_cast<MaskReason>(i);
+    CHECK(parse_mask_reason(mask_reason_name(reason)) == reason);
+    ++reasons;
+  }
+  CHECK(reasons == 14);
+  CHECK(std::string(mask_reason_name(MaskReason::kComposeDefault)) ==
+        "composeDefault");
+  CHECK(!parse_mask_reason("compose_default"));
+  CHECK(kMaxMaskReasons == 8);
+
+  // secureWindow: camelCase on the capture.result wire like the rest of
+  // the failure vocabulary, `secure_window` in the diagnostic.
+  CHECK(parse_capture_failure("secureWindow") ==
+        CaptureFailure::kSecureWindow);
+  CHECK(!parse_capture_failure("secure_window"));
+  CHECK(failure_outcome(CaptureFailure::kSecureWindow) ==
+        CaptureOutcome::kCaptureProcessingFailed);
+  const ExecutionResult secure =
+      failed_execution(CaptureFailure::kSecureWindow);
+  CHECK(secure.outcome == CaptureOutcome::kCaptureProcessingFailed);
+  CHECK(secure.host_failure == HostFailure::kSecureWindow);
+  CHECK(std::string(host_failure_name(HostFailure::kSecureWindow)) ==
+        "secure_window");
+  CHECK(!failed_execution(CaptureFailure::kReadbackFailed).host_failure);
+  CHECK(!failed_execution(std::nullopt).host_failure);
+}
+
+bool decode(const std::string& text, CaptureResult* out, Error* error) {
+  Value json;
+  ParseError parse_error;
+  if (!parse_json(text, 64, &json, &parse_error)) return false;
+  return decode_capture_result(json, "$.input", out, error);
+}
+
+std::string with_coverage(const std::string& coverage) {
+  return "{\"requestId\":\"capture-0\",\"outcome\":\"captured\",\"frame\":"
+         "{\"handle\":\"h\",\"width\":1,\"height\":1,\"contentHash\":\"c\","
+         "\"masked\":true,\"byteLength\":1,\"captureMicros\":1,"
+         "\"maskCoverage\":" +
+         coverage + "}}";
+}
+
+void test_decode_mask_coverage() {
+  CaptureResult result;
+  Error error;
+  CHECK(decode(with_coverage("{\"mode\":\"wholeHost\",\"reasons\":"
+                             "[\"interop\",\"composeDefault\"]}"),
+               &result, &error));
+  const std::optional<MaskCoverage>& coverage = result.frame->mask_coverage;
+  CHECK(coverage && coverage->mode == MaskMode::kWholeHost);
+  // The host's order is kept.
+  CHECK(coverage->reasons.size() == 2 &&
+        coverage->reasons[0] == MaskReason::kInterop &&
+        coverage->reasons[1] == MaskReason::kComposeDefault);
+
+  CaptureResult precise;
+  CHECK(decode(with_coverage("{\"mode\":\"precise\",\"reasons\":[]}"),
+               &precise, &error));
+  CHECK(precise.frame->mask_coverage &&
+        precise.frame->mask_coverage->reasons.empty());
+
+  // null is absent, as everywhere in inputs.
+  CaptureResult absent;
+  CHECK(decode(with_coverage("null"), &absent, &error));
+  CHECK(!absent.frame->mask_coverage);
+
+  CaptureResult rejected;
+  Error duplicate;
+  CHECK(!decode(with_coverage("{\"mode\":\"precise\",\"reasons\":"
+                              "[\"webView\",\"webView\"]}"),
+                &rejected, &duplicate));
+  CHECK(duplicate.status == TB_SESSION_INVALID_MESSAGE);
+  CHECK(duplicate.path == "$.input.frame.maskCoverage.reasons[1]");
+  Error mode;
+  CHECK(!decode(with_coverage("{\"mode\":\"none\",\"reasons\":[]}"),
+                &rejected, &mode));
+  CHECK(mode.path == "$.input.frame.maskCoverage.mode");
+}
+
+void test_mask_coverage_only_for_accepted_frames() {
+  tb_session_engine* engine = unit::make_engine();
+  CHECK(engine != nullptr);
+  CHECK(unit::submit(
+            engine,
+            "{\"type\":\"engine.configure\",\"input\":{\"host\":{\"app\":{"
+            "\"name\":\"a\",\"version\":\"1\",\"buildNumber\":\"7\","
+            "\"installationId\":\"i\",\"appId\":\"x\"},\"device\":{\"id\":"
+            "\"d\",\"platform\":\"android\",\"screenSize\":{\"width\":1,"
+            "\"height\":1},\"screenDensity\":1,\"screenDpi\":1,"
+            "\"screenPixelDensity\":1},\"ip\":{\"ip\":\"0\"},"
+            "\"locale\":{}}}}")
+            .status == TB_SESSION_OK);
+  CHECK(unit::submit(
+            engine,
+            "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
+            "\"input\":{\"viewport\":{\"width\":1,\"height\":1},"
+            "\"platform\":\"android\",\"sessionEpoch\":0}}")
+            .status == TB_SESSION_OK);
+  const std::string answer =
+      "{\"type\":\"capture.result\",\"at\":{\"monoUs\":10},\"input\":" +
+      with_coverage("{\"mode\":\"wholeFrame\",\"reasons\":[\"noDecor\"]}") +
+      "}";
+  // A frame no one accepts (an unknown request id) is released and records
+  // nothing, coverage or not.
+  std::string unknown = answer;
+  unknown.replace(unknown.find("capture-0"), 9, "capture-9");
+  CHECK_EQ(unit::submit(engine, unknown).json,
+           "{\"type\":\"capture.result\",\"records\":[],\"effects\":["
+           "{\"type\":\"frame.release\",\"handle\":\"h\"}]}");
+  // The accepted frame records its capture_masking diagnostic.
+  const unit::Response accepted = unit::submit(engine, answer);
+  CHECK(accepted.status == TB_SESSION_OK);
+  CHECK(unit::contains(accepted.json,
+                       "\"data\":{\"component\":\"capture_masking\","
+                       "\"frameId\":\"frame-2\",\"mode\":\"wholeFrame\","
+                       "\"reasons\":[\"noDecor\"]}"));
+  // After session end the answer is released, again without a record.
+  CHECK(unit::submit(engine,
+                     "{\"type\":\"session.end\",\"at\":{\"monoUs\":20,"
+                     "\"wallUs\":20},\"input\":{}}")
+            .status == TB_SESSION_OK);
+  CHECK_EQ(unit::submit(engine, answer).json,
+           "{\"type\":\"capture.result\",\"records\":[],\"effects\":["
+           "{\"type\":\"frame.release\",\"handle\":\"h\"}]}");
+  tb_session_engine_destroy(engine);
+}
+
 }  // namespace
 
 int main() {
@@ -340,5 +482,8 @@ int main() {
   test_navigator_registry();
   test_route_identity();
   test_late_answer_after_deadline();
+  test_mask_vocabulary();
+  test_decode_mask_coverage();
+  test_mask_coverage_only_for_accepted_frames();
   return unit::finish("capture and navigation");
 }
