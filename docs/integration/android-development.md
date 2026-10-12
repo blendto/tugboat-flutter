@@ -1,6 +1,13 @@
 # Android development
 
-The capture runtime lives in `platforms/android`.
+The Android Gradle build lives in `platforms/android`.
+
+| Module | Maven | Contents |
+| --- | --- | --- |
+| `capture-runtime` | `com.gettugboat.sdk:capture-runtime` | Pixel capture runtime (below) |
+| `tugboat-android` | `com.gettugboat.sdk:tugboat-android` `0.1.0`, unpublished | Native host for the session engine: `libtugboat_engine.so`, JNI bridge, engine thread, timers, collector HTTP, frame handle table ([README](../../platforms/android/tugboat-android/README.md)) |
+
+The capture runtime:
 
 - Namespace: `com.tugboat.capture.runtime`
 - Maven: `com.gettugboat.sdk:capture-runtime` (group is the reverse of
