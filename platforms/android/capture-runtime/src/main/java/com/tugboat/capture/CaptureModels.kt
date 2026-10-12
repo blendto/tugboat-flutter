@@ -17,10 +17,12 @@ enum class CaptureStatus {
     ProcessingFailed,
     Cancelled,
     Disposed,
+    SecureWindow,
 }
 
 enum class CaptureCoverage {
     EngineSurface,
+    WindowComposite,
 }
 
 enum class RenderMode {
