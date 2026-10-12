@@ -30,6 +30,7 @@ class NavigationFactsTest {
         sink = sink,
         hostClock = FakeClock(),
         frames = frames,
+        postNavigationFacts = true,
     ).apply { start() }
 
     @After
@@ -147,6 +148,60 @@ class NavigationFactsTest {
     }
 
     @Test
+    fun anActivityTheSystemDestroyedWithoutFinishingIsNotNavigation() {
+        val first = Robolectric.buildActivity(FirstActivity::class.java).setup()
+        val instanceId = navigation().single().getJSONObject("route").getString("instanceId")
+        first.pause()
+        val second = Robolectric.buildActivity(SecondActivity::class.java).setup()
+        first.stop().destroy() // reclaimed in the back stack, not finishing
+        assertEquals(listOf("push"), navigation().map { it.getString("kind") })
+
+        second.get().finish()
+        second.pause()
+        Robolectric.buildActivity(FirstActivity::class.java).setup() // recreated from the back stack
+        second.stop().destroy()
+        val back = navigation().single()
+        assertEquals("pop", back.getString("kind"))
+        assertEquals(instanceId, back.getJSONObject("route").getString("instanceId"))
+    }
+
+    @Test
+    fun nestedFragmentNavigatorsAreForgottenWithTheirHosts() {
+        val host = Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val activityId = navigation().single().getJSONObject("route").getString("instanceId")
+        val parent = ParentFragment()
+        host.get().supportFragmentManager.beginTransaction().add(android.R.id.content, parent, "parent").commitNow()
+        val facts = navigation()
+        assertEquals(listOf("parent", "child"), facts.map { it.getJSONObject("route").getString("name") })
+        val parentId = facts.first { it.getJSONObject("route").getString("name") == "parent" }
+            .getJSONObject("route").getString("instanceId")
+        val child = facts.single { it.getJSONObject("route").getString("name") == "child" }
+        assertEquals("$parentId/fragments", child.getString("navigatorId"))
+        assertEquals("$activityId/fragments", child.getString("parentNavigatorId"))
+        assertEquals(setOf("$activityId/fragments", "$parentId/fragments"), adapter.fragmentNavigatorIds)
+
+        host.get().supportFragmentManager.beginTransaction().remove(parent).commitNow()
+        navigation()
+        assertEquals(setOf("$activityId/fragments"), adapter.fragmentNavigatorIds)
+
+        host.get().finish()
+        host.pause().stop().destroy()
+        assertTrue(adapter.fragmentNavigatorIds.isEmpty())
+    }
+
+    @Test
+    fun navigationIsTrackedButNotPostedUntilEnabled() {
+        val gated = ViewsAdapter(context as android.app.Application, sink, FakeClock(), frames).apply { start() }
+        try {
+            adapter.stop()
+            Robolectric.buildActivity(FirstActivity::class.java).setup()
+            assertTrue(navigation().isEmpty())
+        } finally {
+            gated.stop()
+        }
+    }
+
+    @Test
     fun instanceIdsAreDistinctPerInstance() {
         Robolectric.buildActivity(FirstActivity::class.java).setup()
         Robolectric.buildActivity(FirstActivity::class.java).setup()
@@ -165,6 +220,15 @@ class NavigationFactsTest {
     class FirstActivity : Activity()
 
     class SecondActivity : Activity()
+
+    class ParentFragment : Fragment() {
+        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
+            FrameLayout(inflater.context).apply { id = android.R.id.widget_frame }
+
+        override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+            childFragmentManager.beginTransaction().add(android.R.id.widget_frame, TestFragment(), "child").commitNow()
+        }
+    }
 
     class TestFragment : Fragment() {
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =

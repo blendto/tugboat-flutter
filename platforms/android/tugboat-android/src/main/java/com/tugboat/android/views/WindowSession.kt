@@ -37,7 +37,7 @@ internal class WindowSession(
     private val keys = SystemInputProducer(clock, ::emitIfAttached)
     private val focus = FocusFactProducer(clock, ::emitIfAttached)
     private val recyclers =
-        if (OptionalAndroidx.recyclerView) RecyclerScrollTracker(clock, anchors::anchorFor, ::emitIfAttached) else null
+        if (OptionalAndroidx.hasRecyclerView) RecyclerScrollTracker(clock, anchors::anchorFor, ::emitIfAttached) else null
     private var scrolls: OffsetScrollTracker? = null
 
     /** Wraps the window callback if needed and hooks the decor view once it exists. */

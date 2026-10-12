@@ -2,18 +2,6 @@ package com.tugboat.android.views.identity
 
 import android.view.View
 
-/** Fingerprint confidence tiers, lowest first; [floor] takes the weakest. */
-internal enum class Confidence(val wire: String) {
-    Low("low"),
-    Medium("medium"),
-    High("high"),
-    ;
-
-    companion object {
-        fun floor(vararg tiers: Confidence): Confidence = tiers.minByOrNull { it.ordinal } ?: High
-    }
-}
-
 /**
  * The route a view belongs to (design note 6.1, in priority order):
  *

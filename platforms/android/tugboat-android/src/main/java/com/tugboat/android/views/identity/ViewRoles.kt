@@ -1,6 +1,7 @@
 package com.tugboat.android.views.identity
 
 import android.view.View
+import com.tugboat.android.views.scroll.Scrollables
 import android.widget.AbsSeekBar
 import android.widget.CheckBox
 import android.widget.CompoundButton

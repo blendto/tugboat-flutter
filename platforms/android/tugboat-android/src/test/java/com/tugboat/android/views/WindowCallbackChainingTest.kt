@@ -6,7 +6,8 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Window
 import android.view.accessibility.AccessibilityEvent
-import com.tugboat.android.views.callback.ObservingWindowCallback
+import com.tugboat.android.views.callback.CallbackChain
+import com.tugboat.android.views.callback.TugboatWindowCallback
 import com.tugboat.android.views.callback.WindowCallbackInstaller
 import com.tugboat.android.views.callback.WindowEventObserver
 import org.junit.Assert.assertEquals
@@ -36,9 +37,9 @@ class WindowCallbackChainingTest {
         window.callback = forwarding(window.callback)
         WindowCallbackInstaller.ensureInstalled(window, observer)
         window.callback = forwarding(window.callback)
-        // Resume: the foreign wrapper is on top, so Tugboat wraps again.
+        // Resume: a foreign wrapper is on top, but ours is reachable through it.
         WindowCallbackInstaller.ensureInstalled(window, observer)
-        assertTrue(window.callback is ObservingWindowCallback)
+        assertEquals(1, CallbackChain.countTugboat(window.callback))
 
         invokeEveryMethod(window.callback)
 
@@ -49,13 +50,54 @@ class WindowCallbackChainingTest {
     }
 
     @Test
+    fun nullArgumentsAreForwardedWithoutThrowing() {
+        window.callback = original.proxy
+        WindowCallbackInstaller.ensureInstalled(window, observer)
+
+        for (method in callbackMethods()) {
+            val args = method.parameterTypes.map(::nullOrPrimitive).toTypedArray()
+            method.invoke(window.callback, *args)
+        }
+
+        assertEquals(callbackMethods().map { it.signature() }.toSet(), original.calls.keys)
+        assertEquals(0, observer.touches + observer.keys)
+    }
+
+    @Test
+    fun anSdkThatRewrapsOnEveryResumeDoesNotGrowTugboatWrappers() {
+        window.callback = original.proxy
+        repeat(10) {
+            WindowCallbackInstaller.ensureInstalled(window, observer)
+            window.callback = SentryStyleWrapper(window.callback)
+        }
+        WindowCallbackInstaller.ensureInstalled(window, observer)
+
+        assertEquals(1, CallbackChain.countTugboat(window.callback))
+        window.callback.dispatchTouchEvent(touch())
+        assertEquals(1, observer.touches)
+        assertEquals(1, original.calls[DISPATCH_TOUCH])
+    }
+
+    @Test
+    fun aChainDeeperThanTheWalkLimitIsWrappedOnceMoreAndStillObservedOnce() {
+        window.callback = original.proxy
+        WindowCallbackInstaller.ensureInstalled(window, observer)
+        repeat(CallbackChain.MAX_DEPTH + 2) { window.callback = SentryStyleWrapper(window.callback) }
+        WindowCallbackInstaller.ensureInstalled(window, observer)
+
+        window.callback.dispatchTouchEvent(touch())
+        assertEquals("the dispatch depth keeps facts single", 1, observer.touches)
+        assertEquals(1, original.calls[DISPATCH_TOUCH])
+    }
+
+    @Test
     fun neverWrapsItsOwnWrapperTwice() {
         window.callback = original.proxy
         WindowCallbackInstaller.ensureInstalled(window, observer)
         val ours = window.callback
         WindowCallbackInstaller.ensureInstalled(window, observer)
         assertSame(ours, window.callback)
-        assertSame(original.proxy, (ours as ObservingWindowCallback).delegate)
+        assertSame(original.proxy, (ours as TugboatWindowCallback).delegate)
     }
 
     @Test
@@ -111,6 +153,13 @@ class WindowCallbackChainingTest {
     private fun inert(type: Class<*>): Any =
         Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { _, method, _ -> defaultReturn(method) }
 
+    private fun nullOrPrimitive(type: Class<*>): Any? =
+        when (type) {
+            Int::class.javaPrimitiveType -> 0
+            Boolean::class.javaPrimitiveType -> false
+            else -> null
+        }
+
     private fun touch(): MotionEvent {
         val now = SystemClock.uptimeMillis()
         return MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 1f, 1f, 0)
@@ -124,6 +173,9 @@ class WindowCallbackChainingTest {
                 defaultReturn(method)
             } as Window.Callback
     }
+
+    /** A foreign SDK wrapper that keeps its delegate in a private field, as Sentry's adapter does. */
+    private class SentryStyleWrapper(private val wrapped: Window.Callback) : Window.Callback by wrapped
 
     private class CountingObserver : WindowEventObserver {
         var touches = 0

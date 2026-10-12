@@ -6,8 +6,6 @@ import com.tugboat.android.views.AdapterGuard
 import com.tugboat.android.views.OptionalAndroidx
 import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.ViewsFact
-import com.tugboat.android.views.identity.ScrollAxis
-import com.tugboat.android.views.identity.Scrollables
 import com.tugboat.android.views.identity.TargetAnchor
 import java.util.WeakHashMap
 

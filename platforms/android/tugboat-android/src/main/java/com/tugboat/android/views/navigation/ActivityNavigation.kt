@@ -2,54 +2,54 @@ package com.tugboat.android.views.navigation
 
 import android.app.Activity
 import com.tugboat.android.views.identity.Confidence
+import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 
 /**
  * Navigation facts for activities: one navigator per task
  * (`activities:<taskId>`), driven by the lifecycle callbacks the adapter
- * receives.
+ * receives. Resumes go through [NavigatorStack.onShown]:
  *
- * - First resume of an instance: `push`, or `replace` when the activity it
- *   covers is finishing (it started this one and finished itself).
- * - Resume of an instance below the top: `pop` back to it when everything
- *   above is finishing, else `push` (brought to front).
- * - Destroy while finishing: `remove` when it was below the top (the engine
- *   ignores invisible removals); nothing when it was the last route.
- * - Configuration-change recreation keeps the instance id and sends nothing:
- *   the new instance (same class, same task) takes over the old entry.
+ * - first resume: `push`, or `replace` when the covered activity is
+ *   finishing (it started this one and finished itself);
+ * - resume below the top: `pop` back to it when everything above is
+ *   finishing, else `push` (brought to front).
  *
- * Main thread only.
+ * Destroying a finishing activity below the top is a `remove` (the engine
+ * ignores invisible removals); the last route leaving sends nothing.
+ *
+ * An activity destroyed **without** finishing (a configuration change, or the
+ * system reclaiming a back-stack activity) is not navigation: its entry is
+ * parked and the next instance of the same class in the same task takes it
+ * over, keeping the instance id and sending nothing. Main thread only.
  */
 internal class ActivityNavigation(private val report: (NavigationChange) -> Unit) {
     private val entries = WeakHashMap<Activity, RouteEntry>()
     private val stacks = HashMap<Int, NavigatorStack>()
-    private val recreating = HashMap<String, RouteEntry>()
+    private val parked = HashMap<String, ArrayDeque<RouteEntry>>()
 
     fun entryOf(activity: Activity): RouteEntry? = entries[activity]
 
     fun navigatorIdOf(activity: Activity): String = "activities:${activity.taskId}"
 
     fun onCreated(activity: Activity) {
-        recreating.remove(recreationKey(activity))?.let { entries[activity] = it }
+        val waiting = parked[parkingKey(activity)] ?: return
+        val entry = waiting.removeLastOrNull() ?: return
+        if (waiting.isEmpty()) parked.remove(parkingKey(activity))
+        bind(activity, entry)
     }
 
     fun onResumed(activity: Activity) {
         val stack = stacks.getOrPut(activity.taskId) { NavigatorStack(navigatorIdOf(activity), null) }
-        val known = entries[activity]
-        val change = when {
-            known == null -> showNew(activity, stack)
-            known !in stack -> stack.push(known)
-            stack.top === known -> null
-            stack.above(known).all(::isFinishing) -> stack.popTo(known)
-            else -> stack.push(known)
-        }
-        change?.let(report)
+        val entry = entries[activity] ?: bind(activity, newEntry(activity))
+        stack.onShown(entry)?.let(report)
     }
 
     fun onDestroyed(activity: Activity) {
         val entry = entries.remove(activity) ?: return
-        if (activity.isChangingConfigurations) {
-            recreating[recreationKey(activity)] = entry
+        if (!activity.isFinishing) {
+            entry.isLeaving = { false }
+            parked.getOrPut(parkingKey(activity)) { ArrayDeque() }.addLast(entry)
             return
         }
         val stack = stacks[activity.taskId] ?: return
@@ -57,23 +57,21 @@ internal class ActivityNavigation(private val report: (NavigationChange) -> Unit
         if (stack.top == null) stacks.remove(activity.taskId)
     }
 
-    private fun showNew(activity: Activity, stack: NavigatorStack): NavigationChange {
-        val entry = RouteEntry(
+    private fun bind(activity: Activity, entry: RouteEntry): RouteEntry {
+        entries[activity] = entry
+        val owner = WeakReference(activity)
+        entry.isLeaving = { owner.get()?.let { it.isFinishing || it.isDestroyed } ?: true }
+        return entry
+    }
+
+    private fun newEntry(activity: Activity) =
+        RouteEntry(
             instanceId = RouteEntry.newInstanceId("activity"),
             routeKey = activity.javaClass.name,
             confidence = Confidence.High,
             type = "Activity",
             overlayKind = if (activity.window?.isFloating == true) OverlayKind.Dialog else OverlayKind.Page,
         )
-        entries[activity] = entry
-        val top = stack.top
-        return if (top != null && isFinishing(top)) stack.replace(entry) else stack.push(entry)
-    }
 
-    private fun isFinishing(entry: RouteEntry): Boolean {
-        val owner = entries.entries.firstOrNull { it.value === entry }?.key ?: return true
-        return owner.isFinishing || owner.isDestroyed
-    }
-
-    private fun recreationKey(activity: Activity) = "${activity.taskId}|${activity.javaClass.name}"
+    private fun parkingKey(activity: Activity) = "${activity.taskId}|${activity.javaClass.name}"
 }

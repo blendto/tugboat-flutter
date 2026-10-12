@@ -135,6 +135,27 @@ class ViewsAdapterTest {
         assertTrue(sink.batches.isEmpty())
     }
 
+    @Test
+    fun nothingIsEmittedAfterStop() {
+        val navigating = ViewsAdapter(context as Application, sink, clock, frames, postNavigationFacts = true)
+        adapter.stop()
+        navigating.start()
+        val controller = Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val activity = controller.get()
+        activity.setContentView(Button(activity))
+        shadowOf(Looper.getMainLooper()).idle()
+        drain()
+
+        navigating.stop()
+        activity.supportFragmentManager.beginTransaction().add(android.R.id.content, ButtonFragment(), "late").commitNow()
+        activity.window.callback.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 5f, 5f, 0))
+        activity.window.callback.dispatchKeyEvent(KeyEvent(0, 1, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK, 0))
+        controller.pause().stop().destroy()
+        while (frames.hasPending) frames.runFrame()
+
+        assertTrue(sink.batches.toString(), sink.batches.isEmpty())
+    }
+
     private fun centerInWindow(view: View): Pair<Float, Float> {
         val location = IntArray(2)
         view.getLocationInWindow(location)

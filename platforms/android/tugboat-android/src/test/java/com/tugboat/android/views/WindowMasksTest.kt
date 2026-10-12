@@ -14,6 +14,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.VideoView
+import androidx.compose.ui.platform.ComposeView
 import com.tugboat.android.views.identity.ViewTags
 import com.tugboat.android.views.mask.MaskRect
 import com.tugboat.android.views.mask.MaskSource
@@ -64,6 +65,15 @@ class WindowMasksTest {
         assertEquals(MaskSource.Text, WindowMasks.sourceOf(Button(context)))
         assertEquals(MaskSource.Media, WindowMasks.sourceOf(ImageView(context)))
         assertEquals(null, WindowMasks.sourceOf(FrameLayout(context)))
+    }
+
+    @Test
+    fun composeHostedInViewsIsFailClosedAndNotWalked() {
+        val compose = ComposeView(context).apply { addView(TextView(context), FrameLayout.LayoutParams(100, 50)) }
+        val root = column(compose to 300)
+        layOut(root, 1000, 1000)
+        assertEquals(MaskSource.FailClosed, WindowMasks.sourceOf(compose))
+        assertRects(listOf(MaskRect(0.0, 0.0, 1.0, 0.3)), WindowMasks.compute(root).rects)
     }
 
     @Test

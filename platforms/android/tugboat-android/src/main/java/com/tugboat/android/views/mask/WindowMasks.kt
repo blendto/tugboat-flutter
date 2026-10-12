@@ -45,8 +45,9 @@ internal data class WindowMaskResult(val rects: List<MaskRect>, val failClosed: 
  * - Text: every `TextView`, so `EditText`, buttons, and password fields
  *   (secure text is always masked).
  * - Media: `ImageView`, `VideoView`.
- * - Fail-closed bounds: `WebView`, `SurfaceView`, `TextureView`, over their
- *   whole bounds and without looking inside.
+ * - Fail-closed bounds: `WebView`, `SurfaceView`, `TextureView`, and
+ *   Compose hosts (`ComposeView`), over their whole bounds and without
+ *   looking inside.
  * - Bounds include view transforms and are clipped to the decor view only,
  *   so a partly clipped view is over-masked, never under-masked.
  * - Hidden (not `VISIBLE` or zero alpha) and SDK-owned subtrees are skipped.
@@ -74,8 +75,28 @@ internal object WindowMasks {
             is WebView, is SurfaceView, is TextureView -> MaskSource.FailClosed
             is TextView -> MaskSource.Text
             is ImageView, is VideoView -> MaskSource.Media
-            else -> null
+            else -> if (isComposeHost(view)) MaskSource.FailClosed else null
         }
+
+    /**
+     * A Compose UI hosted in Views (`ComposeView`, `AndroidComposeView`),
+     * matched by class name so this module needs no Compose dependency. Its
+     * content is not Views, so it is fail-closed until the Compose adapter
+     * supplies its masks.
+     */
+    private fun isComposeHost(view: View): Boolean {
+        var type: Class<*>? = view.javaClass
+        while (type != null && type != View::class.java) {
+            if (type.name in COMPOSE_HOSTS) return true
+            type = type.superclass
+        }
+        return false
+    }
+
+    private val COMPOSE_HOSTS = setOf(
+        "androidx.compose.ui.platform.AbstractComposeView",
+        "androidx.compose.ui.platform.AndroidComposeView",
+    )
 
     private fun collect(decor: View, view: View, out: MutableList<MaskRect>) {
         if (isHidden(view)) return

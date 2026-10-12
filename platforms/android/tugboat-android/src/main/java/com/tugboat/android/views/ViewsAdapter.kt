@@ -11,6 +11,7 @@ import com.tugboat.android.views.facts.FactBatcher
 import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.FactSink
 import com.tugboat.android.views.facts.FrameScheduler
+import com.tugboat.android.views.facts.ViewsFact
 import com.tugboat.android.views.identity.AnchorResolver
 import com.tugboat.android.views.identity.AndroidResourceNames
 import com.tugboat.android.views.input.GestureConfig
@@ -20,9 +21,7 @@ import com.tugboat.android.views.navigation.ActivityNavigation
 import com.tugboat.android.views.navigation.DestinationTracker
 import com.tugboat.android.views.navigation.FragmentNavigation
 import com.tugboat.android.views.navigation.NavigationChange
-import com.tugboat.android.views.navigation.RouteRoots
 import com.tugboat.android.views.navigation.ViewRouteResolver
-import java.util.WeakHashMap
 
 /**
  * The Android Views toolkit adapter (native SDK note section 5): it turns
@@ -41,25 +40,28 @@ internal class ViewsAdapter(
     frames: FrameScheduler = ChoreographerFrames(),
     /** Send `gesture.toEngineJson()` in `engine.configure` so engine and adapter agree on taps. */
     val gesture: GestureConfig = GestureConfig.from(application),
+    /**
+     * Engine-wiring gate. `navigation` is a phase 3d engine message: before 3d
+     * a real engine rejects it, and with it the whole batch. Navigation is
+     * still tracked (route keys need it); only its facts are held back.
+     * TODO(ADR 0009 phase 3d): default to true once the engine accepts `navigation`.
+     */
+    private val postNavigationFacts: Boolean = false,
 ) : Application.ActivityLifecycleCallbacks {
     private val clock = FactClock(hostClock)
-    private val batcher = FactBatcher(sink, frames)
+    private val batcher = FactBatcher(sink, frames, ::onFrame)
     private val destinations = DestinationTracker()
-    private val roots = RouteRoots()
-    private val anchors = AnchorResolver(AndroidResourceNames(application.resources), ViewRouteResolver(roots, destinations))
+    private val routes = ViewRouteResolver(destinations) { view -> fragments?.routeRootedAt(view) }
+    private val anchors = AnchorResolver(AndroidResourceNames(application.resources), routes)
     private val activities = ActivityNavigation(::reportNavigation)
     private val fragments =
         if (OptionalAndroidx.fragment) {
-            FragmentNavigation(activities, destinations, roots, ::reportNavigation, batcher::requestFrame)
+            FragmentNavigation(activities, destinations, ::reportNavigation, batcher::requestFrame)
         } else {
             null
         }
-    private val sessions = WeakHashMap<Activity, WindowSession>()
+    private val sessions = HashMap<Activity, WindowSession>()
     private var started = false
-
-    init {
-        batcher.onFrame(::onFrame)
-    }
 
     fun start() = AdapterGuard.run("start") {
         if (started) return@run
@@ -67,15 +69,20 @@ internal class ViewsAdapter(
         application.registerActivityLifecycleCallbacks(this)
     }
 
-    /** Detaches from every window and posts what is pending. */
+    /** Posts what is pending, then detaches everywhere; nothing is emitted after it. */
     fun stop() = AdapterGuard.run("stop") {
         if (!started) return@run
+        batcher.flush()
         started = false
         application.unregisterActivityLifecycleCallbacks(this)
+        fragments?.unregisterAll()
         sessions.values.toList().forEach(WindowSession::detach)
         sessions.clear()
-        batcher.flush()
     }
+
+    /** Fragment navigator ids currently tracked; for tests. */
+    val fragmentNavigatorIds: Set<String>
+        get() = fragments?.navigatorIds.orEmpty()
 
     /** Mask rectangles for [window] under `allTextAndMedia`; called on the main thread per `capture.request`. */
     fun masks(window: Window): WindowMaskResult = WindowMasks.compute(window)
@@ -100,6 +107,7 @@ internal class ViewsAdapter(
     override fun onActivityDestroyed(activity: Activity) =
         AdapterGuard.run("activity destroyed") {
             sessions.remove(activity)?.detach()
+            fragments?.unregister(activity)
             if (activity.isFinishing) {
                 fragments?.forget(activity)
                 destinations.clear(activity)
@@ -117,10 +125,17 @@ internal class ViewsAdapter(
 
     private fun session(activity: Activity): WindowSession =
         sessions.getOrPut(activity) {
-            WindowSession(activity, clock, gesture, anchors, batcher::add, batcher::requestFrame)
+            WindowSession(activity, clock, gesture, anchors, ::emit, batcher::requestFrame)
         }
 
-    private fun reportNavigation(change: NavigationChange) = batcher.add(change.toFact(clock.now()))
+    /** The only way facts reach the batcher: nothing after [stop]. */
+    private fun emit(fact: ViewsFact) {
+        if (started) batcher.add(fact)
+    }
+
+    private fun reportNavigation(change: NavigationChange) {
+        if (postNavigationFacts) emit(change.toFact(clock.now()))
+    }
 
     private fun onFrame() {
         fragments?.flush()

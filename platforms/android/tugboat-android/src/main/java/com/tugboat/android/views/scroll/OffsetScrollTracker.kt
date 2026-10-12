@@ -8,9 +8,6 @@ import com.tugboat.android.views.AdapterGuard
 import com.tugboat.android.views.OptionalAndroidx
 import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.ViewsFact
-import com.tugboat.android.views.identity.RecyclerSupport
-import com.tugboat.android.views.identity.ScrollMetrics
-import com.tugboat.android.views.identity.Scrollables
 import com.tugboat.android.views.identity.TargetAnchor
 import com.tugboat.android.views.identity.ViewRules
 import java.util.WeakHashMap
@@ -116,8 +113,7 @@ internal class OffsetScrollTracker(
         }
     }
 
-    private fun isRecycler(view: View): Boolean =
-        OptionalAndroidx.recyclerView && RecyclerSupport.isRecyclerView(view)
+    private fun isRecycler(view: View): Boolean = OptionalAndroidx.recycler.isRecyclerView(view)
 
     private fun density(): Float = root.resources.displayMetrics.density
 

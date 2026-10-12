@@ -14,6 +14,26 @@ internal class NavigatorStack(val navigatorId: String, val parentNavigatorId: St
 
     operator fun contains(entry: RouteEntry): Boolean = entries.any { it === entry }
 
+    /** Every entry, bottom first. */
+    fun all(): List<RouteEntry> = entries.toList()
+
+    /**
+     * [entry] became visible. Shown again on top: nothing. Below the top:
+     * `pop` back to it when everything above is leaving, else `push` (brought
+     * to front). New: `replace` when the covered top is leaving, unless
+     * [keepLeavingTop] (it stays in a back stack), else `push`.
+     */
+    fun onShown(entry: RouteEntry, keepLeavingTop: Boolean = false): NavigationChange? {
+        val top = top
+        return when {
+            top === entry -> null
+            entry in this && above(entry).all { it.isLeaving() } -> popTo(entry)
+            entry in this -> push(entry)
+            top != null && top.isLeaving() && !keepLeavingTop -> replace(entry)
+            else -> push(entry)
+        }
+    }
+
     /** The entries above [entry], or empty when it is the top or unknown. */
     fun above(entry: RouteEntry): List<RouteEntry> {
         val index = entries.indexOfFirst { it === entry }

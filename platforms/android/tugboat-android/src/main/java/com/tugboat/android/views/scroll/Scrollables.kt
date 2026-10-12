@@ -1,4 +1,4 @@
-package com.tugboat.android.views.identity
+package com.tugboat.android.views.scroll
 
 import android.view.View
 import android.widget.AbsListView
@@ -27,7 +27,7 @@ internal data class ScrollMetrics(val axis: ScrollAxis, val offsetPx: Float, val
 internal object Scrollables {
     fun isScrollable(view: View): Boolean =
         view is ScrollView || view is HorizontalScrollView || view is AbsListView ||
-            (OptionalAndroidx.scrollingView && AndroidxScrolling.isScrollingView(view))
+            OptionalAndroidx.scrolling.isScrollingView(view)
 
     fun metrics(view: View): ScrollMetrics? =
         when {
@@ -35,8 +35,7 @@ internal object Scrollables {
             view is HorizontalScrollView ->
                 ScrollMetrics(ScrollAxis.Horizontal, view.scrollX.toFloat(), horizontalExtent(view))
             view is AbsListView -> ScrollMetrics(ScrollAxis.Vertical, listOffset(view), null)
-            OptionalAndroidx.scrollingView -> AndroidxScrolling.metrics(view)
-            else -> null
+            else -> OptionalAndroidx.scrolling.metrics(view)
         }
 
     private fun verticalExtent(view: ScrollView): Float {

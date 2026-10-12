@@ -17,13 +17,14 @@ import com.tugboat.android.views.identity.RouteResolver
  * (or the decor view for views outside it, such as a window-level toolbar).
  */
 internal class ViewRouteResolver(
-    private val roots: RouteRoots,
     private val destinations: DestinationTracker,
+    /** The shown fragment route rooted at a view ([FragmentNavigation.routeRootedAt]); none without androidx.fragment. */
+    private val fragmentRoute: (View) -> RouteEntry? = { null },
 ) : RouteResolver {
     override fun routeFor(view: View): RouteKey? {
         var current: View? = view
         while (current != null) {
-            roots[current]?.let { return RouteKey(it.routeKey, it.confidence, current) }
+            fragmentRoute(current)?.let { return RouteKey(it.routeKey, it.confidence, current) }
             current = current.parent as? View
         }
         val activity = activityOf(view.context) ?: return null

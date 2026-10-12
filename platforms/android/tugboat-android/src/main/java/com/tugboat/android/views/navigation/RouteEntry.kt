@@ -11,9 +11,10 @@ internal enum class OverlayKind(val wire: String) {
 
 /**
  * One route on a navigator: an activity or a fragment instance. [instanceId]
- * is opaque and stable for the instance's lifetime, including a
- * configuration-change recreation. [routeKey] is the identity route key
- * (and the fact's `name`), fixed when the route is first shown.
+ * is opaque and stable for the instance's lifetime, including a recreation
+ * (configuration change, or an activity the system destroyed while in the
+ * back stack). [routeKey] is the identity route key (and the fact's `name`),
+ * fixed when the route is first shown.
  */
 internal class RouteEntry(
     val instanceId: String,
@@ -22,6 +23,13 @@ internal class RouteEntry(
     val type: String,
     val overlayKind: OverlayKind,
 ) {
+    /**
+     * True while the route's current owner is going away (a finishing
+     * activity, a fragment being removed). Owners rebind it; a route whose
+     * owner is gone reads as leaving, a parked route as staying.
+     */
+    var isLeaving: () -> Boolean = { false }
+
     override fun toString(): String = "$instanceId($routeKey)"
 
     companion object {

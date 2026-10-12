@@ -108,9 +108,8 @@ internal class CanonicalPathBuilder(private val names: ResourceNames) {
         fun itemIndex(child: View): Int? {
             val parent = child.parent as? View ?: return null
             if (parent is AbsListView) return parent.firstVisiblePosition + parent.indexOfChild(child)
-            if (OptionalAndroidx.recyclerView && RecyclerSupport.isRecyclerView(parent)) {
-                return RecyclerSupport.itemIndex(parent, child) ?: (parent as ViewGroup).indexOfChild(child)
-            }
+            val recycler = OptionalAndroidx.recycler
+            if (recycler.isRecyclerView(parent)) return recycler.itemIndex(parent, child) ?: (parent as ViewGroup).indexOfChild(child)
             return null
         }
     }

@@ -14,7 +14,8 @@ import org.robolectric.RobolectricTestRunner
 class FactBatcherTest {
     private val sink = RecordingSink()
     private val frames = ManualFrames()
-    private val batcher = FactBatcher(sink, frames)
+    private var hook: () -> Unit = {}
+    private val batcher = FactBatcher(sink, frames) { hook() }
 
     @Test
     fun factsOfOneFrameLeaveAsOneBatchInOrderWithTheirOwnTimes() {
@@ -33,7 +34,7 @@ class FactBatcherTest {
 
     @Test
     fun frameHooksRunFirstAndTheirFactsJoinTheBatch() {
-        batcher.onFrame { batcher.add(fact("hook", 5)) }
+        hook = { batcher.add(fact("hook", 5)) }
         batcher.add(fact("a", 10))
         frames.runFrame()
         assertEquals(listOf("a", "hook"), sink.batches.single().map { it.type })
@@ -41,7 +42,7 @@ class FactBatcherTest {
 
     @Test
     fun aFailingHookDoesNotStopTheBatch() {
-        batcher.onFrame { throw IllegalStateException("hook bug") }
+        hook = { throw IllegalStateException("hook bug") }
         batcher.add(fact("a", 10))
         frames.runFrame()
         assertEquals(listOf("a"), sink.batches.single().map { it.type })
