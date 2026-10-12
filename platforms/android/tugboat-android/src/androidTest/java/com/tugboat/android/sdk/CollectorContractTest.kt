@@ -11,6 +11,8 @@ import com.tugboat.android.capture.CaptureAnswer
 import com.tugboat.android.capture.CaptureTimingsMicros
 import com.tugboat.android.capture.CapturedFrame
 import com.tugboat.android.engine.JniEngineTransport
+import com.tugboat.android.views.mask.MaskCoverage
+import com.tugboat.android.views.mask.MaskMode
 import com.tugboat.android.host.EngineHost
 import com.tugboat.android.host.FrameHandleTable
 import com.tugboat.android.host.HostMessages
@@ -102,7 +104,7 @@ class CollectorContractTest {
         val handle = frames.put(jpeg)
         val reply = CaptureAnswer.Captured(
             requestId = requestId,
-            frame = CapturedFrame(handle, 300, 600, "sha-$requestId", true, jpeg.size, 1000, "00ff00ff00ff00ff", "sig"),
+            frame = CapturedFrame(handle, 300, 600, "sha-$requestId", true, jpeg.size, 1000, "00ff00ff00ff00ff", "sig", MaskCoverage(MaskMode.Precise)),
             boundaryRect = BoundaryRect(0.0, 0.0, 400.0, 800.0),
             timings = CaptureTimingsMicros(readbackMicros = 500),
         )

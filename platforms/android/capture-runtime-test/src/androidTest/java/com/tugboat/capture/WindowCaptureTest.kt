@@ -66,6 +66,47 @@ class WindowCaptureTest {
         }
     }
 
+    /**
+     * Masks are taken for the frame being copied: the marker moves after the
+     * request is made (in the same main-thread task), and the copied frame's
+     * mask covers its new position, not the one the request was made for.
+     */
+    @Test
+    fun suppliedMasksFollowAViewThatMovedBetweenRequestAndCopy() {
+        assumeTrue(Build.VERSION.SDK_INT >= CaptureRuntime.MIN_WINDOW_API)
+        ActivityScenario.launch(WindowCaptureActivity::class.java).use { scenario ->
+            val (window, width, height) = presentedWindow(scenario)
+            val drawn = CountDownLatch(1)
+            scenario.onActivity {
+                it.moveMarkerTo(0.1, 0.1)
+                it.afterTwoFrames { drawn.countDown() }
+            }
+            assertTrue(drawn.await(5, TimeUnit.SECONDS))
+            val oldMask = AtomicReference<NormalizedMask>()
+            scenario.onActivity { oldMask.set(markerMask(it)) }
+
+            val latch = CountDownLatch(1)
+            val result = AtomicReference<CaptureResult>()
+            scenario.onActivity { activity ->
+                val request = CaptureRequest(5, width, height, force = true, masks = listOf(oldMask.get()))
+                runtime.capture(activity.window, request, { MaskSnapshot(listOf(markerMask(activity))) }) {
+                    result.set(it)
+                    latch.countDown()
+                }
+                activity.moveMarkerTo(0.5, 0.6)
+            }
+            assertTrue(latch.await(5, TimeUnit.SECONDS))
+            val newMask = AtomicReference<NormalizedMask>()
+            scenario.onActivity { newMask.set(markerMask(it)) }
+
+            assertEquals(CaptureStatus.Ok, result.get().status)
+            assertEquals(listOf(newMask.get()), result.get().maskSnapshot?.masks)
+            val jpeg = requireNotNull(BitmapFactory.decodeByteArray(result.get().jpeg, 0, result.get().jpeg.size))
+            assertColorNear(MASK_FILL, jpeg.at(newMask.get().centerX, newMask.get().centerY))
+            assertColorNear(WindowCaptureActivity.FILL, jpeg.at(oldMask.get().centerX, oldMask.get().centerY))
+        }
+    }
+
     @Test
     fun secureWindowIsNeverCopied() {
         assumeTrue(Build.VERSION.SDK_INT >= CaptureRuntime.MIN_WINDOW_API)
@@ -146,6 +187,26 @@ class WindowCaptureTest {
         assertTrue(latch.await(5, TimeUnit.SECONDS))
         return result.get()
     }
+
+    /** Main thread. The marker's bounds normalized to the decor view. */
+    private fun markerMask(activity: WindowCaptureActivity): NormalizedMask {
+        val decor = activity.window.decorView
+        val marker = activity.marker
+        val location = IntArray(2)
+        marker.getLocationInWindow(location)
+        return NormalizedMask(
+            x = location[0].toDouble() / decor.width,
+            y = location[1].toDouble() / decor.height,
+            width = marker.width.toDouble() / decor.width,
+            height = marker.height.toDouble() / decor.height,
+        )
+    }
+
+    private val NormalizedMask.centerX: Double
+        get() = x + width / 2
+
+    private val NormalizedMask.centerY: Double
+        get() = y + height / 2
 
     private fun Bitmap.at(x: Double, y: Double): Int = getPixel((x * width).toInt(), (y * height).toInt())
 
