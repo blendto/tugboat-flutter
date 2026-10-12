@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "capture-secure-window-failure",
-  "description": "capture.result.failure secureWindow: a native host never copies a window flagged secure (Android FLAG_SECURE). It resolves like the other non-retryable failures (readbackFailed, maskFailed, encodingFailed) as capture_processing_failed, and its capture_diagnostic carries failure secure_window and is recorded even without the captureDiagnostics capability, like the host failures of change C18, so a secure screen can be told from a broken capture.",
+  "description": "capture.result.failure secureWindow: a native host never copies a window flagged secure (Android FLAG_SECURE). It resolves like the other non-retryable failures (readbackFailed, maskFailed, encodingFailed) as capture_processing_failed, and its capture_diagnostic carries failure secure_window and is recorded even without the captureDiagnostics capability (for the first secure window of each route instance; capture-secure-window-throttle covers repeats), so a secure screen can be told from a broken capture.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
