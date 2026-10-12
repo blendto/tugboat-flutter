@@ -226,6 +226,45 @@ fingerprint parts for diagnosis.
 not change the target fingerprint. `TugboatSubView` adds a developer-owned
 subview label for route-internal state and scroll attribution.
 
+### Android Views canonicalization
+
+The native Android SDK (`tugboat-android`, ADR 0009, not yet published)
+builds the same parts for Android Views. The hash, `fingerprintParts`, and
+confidence tiers are shared; anchors add `toolkit: "view"`, which is not a
+hash input.
+
+- **Token.** The nearest platform class (`android.*`, which R8 never renames)
+  in the view's superclass chain, plus `#<resource entry name>` when the view
+  has a resource id. A custom `MyButton : MaterialButton : Button` is
+  `Button`; androidx classes are library code, so a `RecyclerView` is
+  `ViewGroup`.
+- **Segments.** `Token#<ordinal>` without an id, `Token#<entry>` with one
+  (`Token#<entry>#<ordinal>` when the same id repeats). Ordinals count
+  same-token siblings after filtering.
+- **Excluded.** Views that are not `VISIBLE`, have zero alpha or zero size,
+  or are SDK-owned, with their subtrees.
+- **Kept.** Actionable views (clickable, long- or context-clickable,
+  checkable, editable), views with a resource id, scrollables, and maskable
+  leaves (text, image, web, video, surface, texture). Everything else
+  collapses. Accessibility actions are not inspected.
+- **Lists.** `RecyclerView` children add `[item:<adapter position>]`;
+  `AbsListView` children add `[item:<first visible position + index>]`.
+- **Route key.** Inside a shown fragment: the Jetpack Navigation destination
+  current when it was shown, else its tag, else its class name (`low`
+  confidence, because R8 may rename it); paths start below the fragment's
+  view. Elsewhere: the activity's current destination, else the activity
+  class name; paths start below `android.R.id.content`.
+- **Alias.** The `tugboatTag` view tag, else the resource entry name when no
+  other view under the route root has the same id. It gives `tagFingerprint`
+  and does not change the structural fingerprint.
+- **Confidence.** The floor of the route's and the path's. The path is `high`
+  with an alias, `medium` when the target has its own id or sits in a list
+  item, and `low` otherwise.
+- **Obfuscated resource names.** When the SDK's own probe id does not resolve
+  to its own entry name, resource ids are dropped from tokens.
+- **Coordinates.** Pointer positions and scroll offsets are logical pixels
+  (dp): physical pixels divided by display density.
+
 ### Locale evidence
 
 The capture root observes the active Flutter `Localizations` locale when the
