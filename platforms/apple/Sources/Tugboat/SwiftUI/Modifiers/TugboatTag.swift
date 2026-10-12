@@ -63,7 +63,7 @@ struct TugboatTagAnchorKey: PreferenceKey {
 
 /// An invisible, non-interactive view that writes its entry to the registry
 /// when it appears or changes, and removes it when it disappears.
-private struct TagFrameReporter: View {
+struct TagFrameReporter: View {
   let id: Int64
   let entry: TagRegistry.Entry
   let registry: TagRegistry

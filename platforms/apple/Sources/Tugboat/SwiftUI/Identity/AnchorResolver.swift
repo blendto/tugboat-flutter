@@ -47,7 +47,8 @@ final class AnchorResolver {
   }
 
   private func evidence(_ anchor: TargetAnchor?) -> TapEvidence {
-    anchor.map { .anchor($0) } ?? .failed(.resolutionError)
+    guard let anchor = anchor else { return .failed(.resolutionError) }
+    return .anchor(anchor)
   }
 
   private func anchor(for view: UIView, in window: UIWindow, screen: RouteEntry?, tag: String?) -> TargetAnchor? {
