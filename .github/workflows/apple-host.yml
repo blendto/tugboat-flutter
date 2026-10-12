@@ -30,4 +30,6 @@ jobs:
       - name: Build and test
         run: bash tool/ci/test-apple-host.sh
       - name: Build the SwiftUI sample (XcodeGen)
+        # Reported even when a test failed: the sample build is independent.
+        if: success() || failure()
         run: bash tool/ci/build-apple-sample.sh
