@@ -38,6 +38,7 @@ internal class TugboatRuntime private constructor(
     private val captures: CaptureCoordinator,
     private val watcher: SessionEndWatcher,
     private val clock: HostClock,
+    private val stopSequence: StopSequence,
 ) {
     private var stopped = false
 
@@ -60,7 +61,7 @@ internal class TugboatRuntime private constructor(
         adapter.stop()
         lifecycle.stop()
         foreground.stop()
-        StopSequence().run(
+        stopSequence.run(
             watcher = watcher,
             endSession = { host.post(SessionMessages.SESSION_END, SessionMessages.sessionEnd(), clock.now()) },
             finish = {
@@ -82,6 +83,7 @@ internal class TugboatRuntime private constructor(
             config: TugboatConfig,
             sessionEpoch: Int,
             openTransport: () -> EngineTransport? = { JniEngineTransport.open() },
+            stopSequence: StopSequence = StopSequence(),
         ): TugboatRuntime? {
             val device = DeviceSnapshot.read(application)
             val metadata = HostMetadata(config.app, device)
@@ -94,7 +96,7 @@ internal class TugboatRuntime private constructor(
                 Log.e(TAG, "Tugboat not started: the session engine is unavailable")
                 return null
             }
-            return assemble(application, config, transport, device, metadata, sessionEpoch)
+            return assemble(application, config, transport, device, metadata, sessionEpoch, stopSequence)
         }
 
         private fun collectorProblems(config: TugboatConfig): List<String> = buildList {
@@ -109,6 +111,7 @@ internal class TugboatRuntime private constructor(
             device: DeviceSnapshot,
             metadata: HostMetadata,
             sessionEpoch: Int,
+            stopSequence: StopSequence,
         ): TugboatRuntime {
             val clock = SystemHostClock
             val frames = FrameHandleTable()
@@ -150,7 +153,7 @@ internal class TugboatRuntime private constructor(
             adapter.start()
             foreground.start()
             lifecycle.start()
-            return TugboatRuntime(host, adapter, lifecycle, foreground, captures, watcher, clock)
+            return TugboatRuntime(host, adapter, lifecycle, foreground, captures, watcher, clock, stopSequence)
         }
     }
 }

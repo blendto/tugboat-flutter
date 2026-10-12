@@ -28,6 +28,8 @@ rootProject.name = "tugboat-android"
 include(":capture-runtime")
 include(":capture-runtime-test")
 include(":tugboat-android")
+// Native SDK sample app (Views); built from the project, no local Maven needed.
+include(":tugboat-sample")
 
 val runtimeVersion =
     java.util.Properties()

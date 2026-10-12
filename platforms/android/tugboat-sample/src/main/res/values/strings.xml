@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tugboat Sample</string>
+    <string name="primary_action">Tap me</string>
+    <string name="tap_count">Tapped %1$d times</string>
+    <string name="swipe_area">Swipe here</string>
+    <string name="note_hint">Type a note</string>
+    <string name="open_details">Open details</string>
+    <string name="show_dialog">Show dialog</string>
+    <string name="stop_tugboat">Stop Tugboat</string>
+    <string name="tugboat_stopped">Tugboat stopped</string>
+    <string name="dialog_title">A dialog</string>
+    <string name="dialog_message">Dialogs are separate windows: not in the captured frame (known gap).</string>
+    <string name="ok">OK</string>
+    <string name="details_title">Details</string>
+    <string name="details_body">The second screen. Press back to return.</string>
+    <string name="back">Back</string>
+    <string name="row">Row %1$d</string>
+</resources>
