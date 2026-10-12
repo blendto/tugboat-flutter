@@ -33,7 +33,14 @@ struct LocaleInfo {
   bool operator!=(const LocaleInfo& other) const { return !(*this == other); }
 };
 
-// TugboatTargetAnchor.
+// The UI toolkit an adapter resolved an anchor in (ADR 0009). Evidence
+// carried through to records and the collector wire, never a fingerprint
+// input; Flutter anchors carry none.
+enum class AnchorToolkit { kView, kCompose, kSwiftUi, kUiKit, kReactNative };
+
+const char* anchor_toolkit_name(AnchorToolkit toolkit);
+
+// TugboatTargetAnchor, plus the native adapters' `toolkit`.
 struct Anchor {
   int64_t schema_version = 1;
   OptString widget_type;
@@ -46,6 +53,7 @@ struct Anchor {
   OptString relative_position;
   std::optional<bool> enabled;
   std::vector<std::string> actions;
+  std::optional<AnchorToolkit> toolkit;
 };
 
 // TugboatEventStream (session schema 10).
@@ -115,7 +123,8 @@ bool decode_anchor(const Value* json, const std::string& where,
 // TugboatLocaleInfo.toJson: country and script are dropped when empty.
 Value locale_json(const LocaleInfo& locale);
 
-// TugboatTargetAnchor.toJson: schemaVersion only when not 1.
+// TugboatTargetAnchor.toJson: schemaVersion only when not 1; `toolkit`
+// last, only when present.
 Value anchor_json(const Anchor& anchor);
 
 // TugboatEvent.toJson.

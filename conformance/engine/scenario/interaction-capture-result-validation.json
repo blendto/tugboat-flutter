@@ -328,7 +328,12 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "frame.release",
+              "handle": "h-capture_request-99"
+            }
+          ]
         }
       },
       {
@@ -423,7 +428,12 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "frame.release",
+              "handle": "h-repeat"
+            }
+          ]
         }
       }
     ]

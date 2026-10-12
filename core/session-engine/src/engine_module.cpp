@@ -1,10 +1,13 @@
-// Engine-level messages: `engine.configure`, `session.snapshot`, and
-// `timer.fired` (docs/stateful-engine.md sections 3, 6, and 10).
+// Engine-level messages: `engine.configure`, `engine.dispose`,
+// `session.snapshot`, and `timer.fired` (docs/stateful-engine.md sections
+// 3, 6, and 10).
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
 #include "config.h"
+#include "delivery.h"
 #include "modules.h"
 #include "session.h"
 
@@ -47,6 +50,45 @@ std::unique_ptr<Command> decode_configure(const CommandInput& in,
     return nullptr;
   }
   return std::make_unique<Configure>(std::move(config));
+}
+
+// `engine.dispose {}`: the host is about to destroy the engine
+// (`tb_session_engine_destroy`). Delivery reports the work the collector
+// never confirmed and releases every frame it still references; the engine
+// then admits no further command. Only between sessions: a host ends a live
+// session first.
+class Dispose final : public Command {
+ public:
+  explicit Dispose(At at) : at_(at) {}
+
+  std::optional<LifecycleSignal> signal() const override {
+    return LifecycleSignal::kDispose;
+  }
+
+  bool admit(Admission* admission, const std::string& path,
+             Error* error) const override {
+    if (has_live_session(admission->lifecycle)) {
+      return invalid(error, path + ".type",
+                     "end the session (session.end) before engine.dispose");
+    }
+    return true;
+  }
+
+  void apply(const ModuleRegistry&, EngineState* state,
+             Output* out) override {
+    delivery_dispose(at_, state, out);
+  }
+
+ private:
+  At at_;
+};
+
+std::unique_ptr<Command> decode_dispose(const CommandInput& in, Error* error) {
+  const ObjectReader r(in.input, in.path, error);
+  if (!r.check_keys({})) {
+    return nullptr;
+  }
+  return std::make_unique<Dispose>(in.at.value_or(At()));
 }
 
 // `timer.fired {timerId}`: routed by timer-id prefix to the module that
@@ -100,6 +142,9 @@ void register_engine_module(ModuleRegistry* registry) {
   registry->add_command("engine.configure",
                         {AtRule::kOptional, SessionPolicy::kAny,
                          decode_configure});
+  registry->add_command("engine.dispose",
+                        {AtRule::kOptional, SessionPolicy::kAny,
+                         decode_dispose});
   registry->add_command("timer.fired",
                         {AtRule::kMono, SessionPolicy::kAny,
                          decode_timer_fired});

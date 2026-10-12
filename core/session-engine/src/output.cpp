@@ -42,9 +42,12 @@ Value effect_head(const char* type) {
 }
 
 Value multipart_json(const MultipartBody& body) {
-  Value fields = Value::object();
+  Value fields = Value::array();
   for (const auto& field : body.fields) {
-    fields.set(field.first, str(field.second));
+    Value pair = Value::array();
+    pair.push(str(field.first));
+    pair.push(str(field.second));
+    fields.push(std::move(pair));
   }
   Value frames = Value::array();
   for (const MultipartFrame& frame : body.frames) {
@@ -86,8 +89,8 @@ struct EffectJson {
     out.set("lane", str(http_lane_name(effect.lane)));
     out.set("path", str(effect.path));
     out.set("timeoutMs", Value::integer(effect.timeout_ms));
-    if (const Value* json = std::get_if<Value>(&effect.body)) {
-      out.set("json", *json);
+    if (const JsonBody* json = std::get_if<JsonBody>(&effect.body)) {
+      out.set("jsonBody", str(json->text));
     } else {
       out.set("multipart",
               multipart_json(std::get<MultipartBody>(effect.body)));

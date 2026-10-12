@@ -68,8 +68,8 @@ records next to effects.
 - `at.monoUs`: the host monotonic clock (section 5) at the moment the fact
   happened, not when it was submitted. Required on every stateful message.
 - `at.wallUs`: UTC epoch microseconds at the same moment. Required on
-  `session.start`, `session.end`, `identity.set`, and `transport.result`.
-  Optional elsewhere.
+  `session.start`, `session.end`, `identity.set`, `traits.set`, and
+  `transport.result`. Optional elsewhere.
 - `batch`: `{"type": "batch", "messages": [ … ]}` applies messages in order
   in one ABI call and returns the concatenated output. Adapters behind an
   asynchronous seam send one batch per UI frame.
@@ -92,16 +92,32 @@ records next to effects.
 | --- | --- | --- |
 | `timer.schedule` | `timerId`, `atMonoUs` | `timer.fired {timerId}` |
 | `timer.cancel` | `timerId` | none |
-| `http.send` | `requestId`, `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `json` (body) or `multipart` (`fields`, `frames: [{handle, filename}]`) | `transport.result` |
+| `http.send` | `requestId` (string, `http-N`), `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `jsonBody` (the body, already encoded) or `multipart` (`fields`: ordered `[name, value]` string pairs; `frames: [{handle, filename}]`) | `transport.result` |
 | `frame.release` | `handle` | none |
 | `capture.request` | section 8.2 | `capture.result` |
 | `outbox.write` / `outbox.remove` | section 7.8 (phase 3e) | none |
 
+Every `http.send` also arms `delivery.answer.<requestId>` at `timeoutMs +
+answerGraceMs`: without a `transport.result` by then, the engine treats the
+request as timed out and ignores a late answer (change C15).
+
+`engine.dispose {}` (`at` optional) is the host's last message before
+`tb_session_engine_destroy`, sent between sessions (a live session is ended
+first). The engine reports undelivered work (section 7.7), releases every
+frame it still references, and then admits no further command.
+
 A host executes effects in order. For `timer.schedule`, an existing timer
 with the same id is replaced.
 
+`http.send` carries the exact wire bytes of a JSON body as the string
+`jsonBody` (byte-identical to Dart's `jsonEncode`), so hosts never re-encode
+it. Multipart fields are ordered pairs, because the field order is part of
+the request. All values are strings. Headers (API key, app identity,
+content type) are the host's.
+
 `transport.result` input:
 `{requestId, outcome: "http" | "error" | "timeout", status?, body?}`.
+`requestId` echoes the effect's string id. `status` comes with `http` only.
 `body` is the first 64 KiB of the response; the engine parses `sessionId` and
 `traitsId` from it.
 
@@ -255,7 +271,7 @@ again between sessions.
 | `interaction` | claimWindowMs 1250, settleDelayMs 1000, maxReleased 8, scrollEndCaptureDelayMs 0, captureScrollSamples false, scrollCaptureIntervalMs 2000, factGraceMs |
 | `navigation` | routeBarrierTimeoutMs 5000, routeStackLimit 16 |
 | `capture` | budgetMs 60, budgetWindowMs 5000, degradedScale |
-| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs (change C5), reportEventLaneGaps false (change C6) |
+| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs 5000 (change C5), reportEventLaneGaps false (change C6), answerGraceMs 5000 (change C15) |
 | `capabilities` | the `TugboatReplayConfig` evidence switches (inventory, semantic map, focus, system input, …) |
 
 ## 7. Collector delivery (phase 3b)
@@ -339,9 +355,12 @@ Event-side drops are silent today. With `reportEventLaneGaps` (default off, chan
 
 ### 7.6 Frames
 
-`frame.add {handle, frame}` registers an accepted frame. `frame` is the
-`TugboatFrame.toJson()` shape. In phases 3a–3c frames come from the adapter;
-phase 3d replaces this with `capture.result`.
+Frames have one entry path: a `captured` `capture.result` (section 8.2)
+that the capture seam accepts as `frame-N`. Delivery observes every accepted
+frame through a frame acceptance hook in the module registry and queues it;
+`capture.result` rejects a frame whose `requestedBackend` or
+`resolvedBackend` is outside the collector's closed vocabulary
+(`flutterRepaintBoundary`, `nativeCpuExperimental`).
 
 The upload is one multipart `http.send` with:
 
@@ -364,7 +383,11 @@ Handle release (refcount):
 - The engine emits `frame.release` only when both references are gone: the
   frame was accepted, dropped, or evicted, and was also trimmed from the
   session or the session ended.
-- Hosts keep bytes only until then.
+- Hosts keep bytes only until then. A captured frame nothing accepts (an
+  unknown or invalidated request, or no live session) is released at once.
+- A handle in a message the engine rejects (for example a `capture.result`
+  with a backend outside the vocabulary) never reaches the engine: no
+  `frame.release` follows, and the host keeps owning it.
 
 ### 7.7 Delivery gaps and session end
 
@@ -374,13 +397,33 @@ Handle release (refcount):
     the cumulative count is 1 or a power of two).
 - They become ordinary engine records, so health, factory sinks, and the
   in-memory session also see them (change C6). Their `atMs` uses the
-  monotonic clock (change C1).
+  monotonic clock (change C1). After `session_end` they are still records
+  and still delivered, but the closed in-memory session takes no more
+  events.
+- Event-lane gaps (opt-in, `reportEventLaneGaps`): `capture_diagnostic`
+  with `component: collector_event_upload`, `result: dropped`, `reason`
+  (`evicted` from the pending or retry queue, or `rejected` by a permanent
+  drop status), `statusCode?`, `eventCount`, and the cumulative
+  `droppedEventCount`, reported each time the cumulative count crosses a
+  power of two. Evictions caused by queueing a gap event are counted, not
+  reported.
 - Session end (change C5):
   1. `session.end` queues `session_end` but first drains frames and events
      until the lanes are empty or `endDrainTimeoutMs` passes.
-  2. `session_end` keeps retrying on triggers after the periodic timer stops.
+  2. `session_end` keeps retrying on triggers after the drain; the periodic
+     timer keeps running until every lane is empty, then stops.
   3. Anything still undelivered when the host disposes the engine is
-     reported once as a gap record.
+     reported once as a gap record. The host sends `engine.dispose {}`
+     (section 3) before `tb_session_engine_destroy`; the engine reports and
+     becomes inert. A new `session.start` that resets delivery reports what
+     it discards the same way. The report is a `health` record
+     (`component: collector_delivery`) with counters `undelivered*` (queued:
+     never sent, or waiting for a retry) and `inFlight*` (the request whose
+     answer is still pending, such as a replaced session's `session_end`),
+     each for `Lifecycle`, `Events`, and `Frames`.
+
+  `session_end`'s `triggeredAt` and `atMs` are the `session.end` fact's
+  time, not the time the drain ended.
 
   Today `session_end` goes first in its pass, and a failed end is never
   retried.
@@ -407,7 +450,8 @@ transport, and moving its policy into the engine buys little (Q4).
 
 ### 8.1 Navigation facts
 
-The adapter maps toolkit objects to stable opaque ids and sends:
+The adapter maps toolkit objects to stable opaque ids and sends (anchors
+it attaches anywhere may name their `toolkit`, section 9.1):
 
 ```text
 navigation {kind: push|pop|replace|remove, navigatorId, parentNavigatorId?,
@@ -532,6 +576,13 @@ normalises them against the provenance of the before-frame (section 8.2).
 On `scroll` start the adapter attaches the scrollable's anchor. The
 `scrollableId` stays stable for the scrollable's lifetime.
 
+An anchor from a native adapter may carry `toolkit`: `view`, `compose`,
+`swiftui`, `uikit`, or `react-native` (a closed set; anything else is
+`invalid_message`). It is evidence, never a fingerprint input. The engine
+passes it through unchanged into event records and into every collector
+`targetAnchor`, the interaction's reduced anchor included, as the last key.
+Flutter anchors carry none, so Flutter output is unchanged.
+
 ### 9.2 What moves into the engine
 
 - **Gesture classification.** Single-pointer slop, the multi-pointer cluster
@@ -648,6 +699,7 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C12 | Publish a linked scroll when a still-tap pointer goes up | Completion never published | yes, recovers lost scrolls | Yes |
 | C13 | Facts stamped before session start record `atMs` 0 (async-seam skew) | Cannot happen (Dart stamps on arrival) | small: no negative `atMs` | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C14 | The pointer tracker forgets every contact on every teardown cause (session end and replacement too) | The widget resets `InputCapture` on `paused`/`hidden`/`detached` only, so a contact held across a session boundary can join the next session's gesture | small: a stale contact can no longer absorb a new pointer | Yes (engine-only; decided during the phase 3c review 2026-10-12) |
+| C15 | Engine-side answer deadline: an `http.send` without a `transport.result` by `timeoutMs + answerGraceMs` (default 5000) is a timeout; a late answer is ignored | A hung request is bounded by the `http` client only | no (timing only) | Yes (engine-only; decided during the phase 3b review 2026-10-12) |
 
 ## 12. Open questions and decisions
 

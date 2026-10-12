@@ -46,7 +46,7 @@ are in native SDK note sections 2.1, 5 and 6.3, and in
 | Masks | `Mask/` | `masks(for:)`: UIKit text, images, fail-closed web views and representables, and the allowlisted SwiftUI layers per iOS major (`LayerAllowlist`; iOS 26 verified). Unclassified layers with contents are masked; an unverified major masks a window with SwiftUI in full. |
 
 Known gaps: no system input (none in this milestone); the engine on this
-branch rejects `toolkit` in anchors and `navigation` facts (decisions log).
+branch rejects `navigation` facts until phase 3d (decisions log).
 
 `EngineHost` threading and failure rules:
 

@@ -59,7 +59,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     String? initialTraitsId,
     String? initialUserId,
     @visibleForTesting Duration? identityDebounceDuration,
+    @visibleForTesting DateTime Function()? debugNow,
   }) : _config = config,
+       _now = debugNow ?? DateTime.now,
        _userId = initialUserId ?? config.userId,
        _traits = initialTraits == null
            ? null
@@ -78,6 +80,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   final TugboatCollectorConfig _config;
   final _CollectorHttpClient _client;
+
+  /// Wall clock for lifecycle `triggeredAt` and diagnostic `atMs`.
+  /// [DateTime.now] unless a test injects one.
+  final DateTime Function() _now;
 
   bool _disposed = false;
   TugboatSession? _session;
@@ -267,7 +273,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_session == null) return;
     if (_isSessionStartPending()) return;
     _traitsDirty = true;
-    _traitsTriggeredAt = DateTime.now();
+    _traitsTriggeredAt = _now();
     _scheduleIdentityDebounce();
   }
 
@@ -284,7 +290,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_session == null) return;
     if (_isSessionStartPending()) return;
     _userDirty = true;
-    _userTriggeredAt = DateTime.now();
+    _userTriggeredAt = _now();
     _scheduleIdentityDebounce();
   }
 
@@ -318,8 +324,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   DateTime _coalescedIdentityTriggeredAt() {
     if (_userDirty && _traitsDirty) return _latestIdentityTrigger();
-    if (_userDirty) return _userTriggeredAt ?? DateTime.now();
-    return _traitsTriggeredAt ?? DateTime.now();
+    if (_userDirty) return _userTriggeredAt ?? _now();
+    return _traitsTriggeredAt ?? _now();
   }
 
   DateTime _latestIdentityTrigger() {
@@ -328,7 +334,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (userAt != null && traitsAt != null) {
       return userAt.isAfter(traitsAt) ? userAt : traitsAt;
     }
-    return userAt ?? traitsAt ?? DateTime.now();
+    return userAt ?? traitsAt ?? _now();
   }
 
   void _enqueueCoalescedIdentityUpdate() {
@@ -356,7 +362,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     await flush();
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionEnd.wireValue,
-      DateTime.now(),
+      _now(),
     );
     await _drainLifecyclePosts();
     _cancelFlushTimer();
@@ -770,7 +776,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (session == null) return;
     final event = TugboatEvent(
       id: 'collector-frame-upload-${_frameUploadDiagnosticSequence++}',
-      atMs: DateTime.now().difference(session.startedAt).inMilliseconds,
+      atMs: _now().difference(session.startedAt).inMilliseconds,
       type: 'capture_diagnostic',
       data: {
         'component': 'collector_frame_upload',

@@ -43,6 +43,7 @@ class ConformanceFixture {
     required this.expected,
     this.engineOnly = const [],
     this.runners = ConformanceRunner.values,
+    this.deliveryParity = false,
   });
 
   final String relativePath;
@@ -57,11 +58,18 @@ class ConformanceFixture {
   /// behaviour until it moves onto the engine.
   final List<String> engineOnly;
 
-  /// The runners that run this fixture (`engine.scenario` only; default
-  /// both). `engineOnly` implies C++ only.
+  /// The runners that run this fixture (default both). `engineOnly` implies
+  /// C++ only.
   final List<ConformanceRunner> runners;
 
-  bool get runsOnDart => runners.contains(ConformanceRunner.dart);
+  /// `dartParity: "delivery"` (`engine.scenario` only): the Dart runner
+  /// replays the engine's records into the real collector sink and compares
+  /// only `http.send` effects (engine_scenario_replay.dart), even when the
+  /// scenario is `engineOnly` for a change outside the collector wire.
+  final bool deliveryParity;
+
+  bool get runsOnDart =>
+      deliveryParity || runners.contains(ConformanceRunner.dart);
 }
 
 enum ConformanceRunner { cpp, dart }
@@ -128,6 +136,7 @@ const _envelopeKeys = {
   'expected',
   'engineOnly',
   'runners',
+  'dartParity',
 };
 
 final Set<String> _changeIds = readConformanceChangeIds(findConformanceRoot());
@@ -150,7 +159,25 @@ ConformanceFixture loadFixture(Directory root, File file) {
     expected: _object(json['expected'], '$relativePath.expected'),
     engineOnly: _engineOnly(json['engineOnly'], kind, relativePath),
     runners: _runners(json, kind, relativePath),
+    deliveryParity: _deliveryParity(json, kind, relativePath),
   );
+}
+
+bool _deliveryParity(
+  Map<String, Object?> json,
+  ConformanceKind kind,
+  String where,
+) {
+  final raw = json['dartParity'];
+  if (raw == null) return false;
+  if (kind != ConformanceKind.engineScenario ||
+      raw != 'delivery' ||
+      json['runners'] != null) {
+    throw FormatException(
+      '$where.dartParity: "delivery", on scenarios, without runners',
+    );
+  }
+  return true;
 }
 
 List<String> _engineOnly(Object? raw, ConformanceKind kind, String where) {
@@ -180,9 +207,6 @@ List<ConformanceRunner> _runners(
     return engineOnly
         ? const [ConformanceRunner.cpp]
         : ConformanceRunner.values;
-  }
-  if (kind != ConformanceKind.engineScenario) {
-    throw FormatException('$where: runners is only valid on scenarios');
   }
   final names = _list(raw, '$where.runners');
   final runners = [
@@ -509,6 +533,33 @@ TugboatEvent _decodeEvent(Map<String, Object?> json) {
     locale: decodeConformanceLocale(json['locale'], '$where.locale'),
     explorationRunId: _optString(json, 'explorationRunId', where),
     actionId: _optString(json, 'actionId', where),
+  );
+}
+
+/// Decodes a recorded event (`TugboatEvent.toJson()`, as in an engine event
+/// record).
+TugboatEvent decodeConformanceRecordedEvent(Map<String, Object?> json) {
+  const context = {'captureSessionId', 'activationRequestId'};
+  final event = _decodeEvent({
+    for (final entry in json.entries)
+      if (!context.contains(entry.key)) entry.key: entry.value,
+  });
+  return TugboatEvent(
+    id: event.id,
+    atMs: event.atMs,
+    type: event.type,
+    stream: event.stream,
+    captureSessionId: json['captureSessionId'] as String?,
+    activationRequestId: json['activationRequestId'] as String?,
+    targetAnchor: event.targetAnchor,
+    beforeFrame: event.beforeFrame,
+    afterFrame: event.afterFrame,
+    result: event.result,
+    relatedEventId: event.relatedEventId,
+    data: event.data,
+    locale: event.locale,
+    explorationRunId: event.explorationRunId,
+    actionId: event.actionId,
   );
 }
 

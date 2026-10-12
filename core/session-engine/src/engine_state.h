@@ -10,6 +10,7 @@
 #include "clock.h"
 #include "config.h"
 #include "delivery_state.h"
+#include "frame_retention.h"
 #include "interaction_state.h"
 #include "lifecycle.h"
 #include "models.h"
@@ -19,11 +20,24 @@
 namespace tugboat {
 namespace engine {
 
-// The runtime user id. It starts as the host's `configuredUserId` (Dart
-// `initialUserId ?? config.userId`) until `identity.set` takes over.
+// The host identity (identity_module.cpp). The runtime user id starts as the
+// host's `configuredUserId` (Dart `initialUserId ?? config.userId`) until
+// `identity.set` takes over.
 struct Identity {
   OptString user_id;
   bool set_explicitly = false;
+  // The host's traits bag (`traits.set`). Survives sessions.
+  std::optional<Value> traits;
+};
+
+class ModuleRegistry;
+
+// The command being applied: the engine's registry, for observers that code
+// deep in a module notifies (`record_event`), and the message's `at`. Set by
+// the dispatcher around each `apply`; empty between messages.
+struct AppliedMessage {
+  const ModuleRegistry* modules = nullptr;
+  std::optional<At> at;
 };
 
 struct EngineState {
@@ -37,6 +51,9 @@ struct EngineState {
   // The live session, or the last one after it ended.
   std::optional<Session> session;
   Timers timers;
+  AppliedMessage applying;
+  // Who still references each accepted frame's handle (section 7.6).
+  FrameRetention frame_retention;
   DeliveryState delivery;
   // Capture requests, frame acceptance, and frame provenance (phase 3d
   // replaces the implementation behind the same interface).

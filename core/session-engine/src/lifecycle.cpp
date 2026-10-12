@@ -25,7 +25,8 @@ LifecycleState on_live(LifecycleState state, LifecycleSignal signal) {
     case LifecycleSignal::kDetached: return LifecycleState::kEnded;
     case LifecycleSignal::kBackgrounded: return LifecycleState::kBackground;
     case LifecycleSignal::kForegrounded: return LifecycleState::kActive;
-    case LifecycleSignal::kInactive: return state;
+    case LifecycleSignal::kInactive:
+    case LifecycleSignal::kDispose: return state;
   }
   return state;
 }
@@ -33,6 +34,10 @@ LifecycleState on_live(LifecycleState state, LifecycleSignal signal) {
 }  // namespace
 
 LifecycleState transition(LifecycleState state, LifecycleSignal signal) {
+  if (state == LifecycleState::kDisposed ||
+      signal == LifecycleSignal::kDispose) {
+    return LifecycleState::kDisposed;
+  }
   if (signal == LifecycleSignal::kSessionStart) {
     // From active or background this replaces the session (change C10).
     return LifecycleState::kActive;
