@@ -13,7 +13,9 @@ Unpublished. Platform plumbing only, with no public API and no toolkit adapter.
 - Engine host: one handle driven from one serial `tugboat.engine` queue.
   Facts are posted with their own `at`. A non-`ok` status drops the message
   and releases its frame handles. Three `internal_error`s in a row shut the
-  host down.
+  host down. Shutdown first submits `engine.dispose` (the engine reports
+  undelivered work), honouring its `frame.release` but starting no new IO
+  or timers.
 - Effect executors:
   - `timer.schedule` / `timer.cancel` (`DispatchSourceTimer` on the uptime
     clock, saturating deadlines);

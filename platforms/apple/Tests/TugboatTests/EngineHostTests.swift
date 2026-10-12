@@ -15,6 +15,8 @@ final class EngineHostTests: XCTestCase {
   private var host: EngineHost!
 
   private let factAt = HostTime(monoUs: 5_000, wallUs: 7_000)
+  /// `engine.dispose` stamped by the fake clock at shutdown.
+  private let dispose = "{\"type\":\"engine.dispose\",\"at\":{\"monoUs\":1000000,\"wallUs\":1791712345678901},\"input\":{}}"
   private let factAtJSON = "\"at\":{\"monoUs\":5000,\"wallUs\":7000}"
 
   override func setUp() {
@@ -228,7 +230,7 @@ final class EngineHostTests: XCTestCase {
     post("late", frameHandles: [late])
     drain()
 
-    XCTAssertEqual(transport.submitted.count, 1)
+    XCTAssertEqual(transport.submitted.count, 2, "the queued post, then engine.dispose")
     XCTAssertEqual(frames.count, 0)
     XCTAssertNil(frames.get(frames.put(Data([3]))), "put after shutdown keeps nothing")
   }
@@ -257,7 +259,9 @@ final class EngineHostTests: XCTestCase {
     wait(for: [noTimer], timeout: 0.3)
     drain()
 
-    XCTAssertEqual(transport.submitted.count, 1 + limit)
+    XCTAssertEqual(transport.submitted.count, 1 + limit + 1)
+    XCTAssertEqual(transport.submitted.last, dispose, "disabling disposes the engine too")
+    XCTAssertEqual(transport.submittedAtClose, transport.submitted.count)
     XCTAssertFalse(host.isRunning)
     XCTAssertTrue(transport.closed)
     XCTAssertTrue(http.closed)
@@ -304,11 +308,60 @@ final class EngineHostTests: XCTestCase {
     wait(for: [noTimer], timeout: 0.3)
     drain()
 
-    XCTAssertEqual(transport.submitted, ["{\"type\":\"a\",\(factAtJSON),\"input\":{}}"])
+    XCTAssertEqual(transport.submitted, ["{\"type\":\"a\",\(factAtJSON),\"input\":{}}", dispose])
+    XCTAssertEqual(transport.submittedAtClose, 2, "engine.dispose comes before the handle is destroyed")
     XCTAssertTrue(transport.closed)
     XCTAssertTrue(http.closed)
     XCTAssertEqual(frames.count, 0)
     XCTAssertEqual(shutDowns.current, 1)
     XCTAssertFalse(host.isRunning)
+  }
+
+  func testDisposeStartsNoNewWorkButReleasesFrames() {
+    let released = frames.put(Data([1]))
+    let kept = frames.put(Data([2]))
+    post("a", frameHandles: [released, kept])
+    drain()
+    transport.enqueue(
+      ok(
+        "{\"type\":\"http.send\",\"requestId\":\"http-1\",\"lane\":\"events\",\"path\":\"/v1/events/batch\","
+          + "\"timeoutMs\":1000,\"jsonBody\":\"{}\"}",
+        "{\"type\":\"timer.schedule\",\"timerId\":\"t\",\"atMonoUs\":0}",
+        "{\"type\":\"frame.release\",\"handle\":\"\(released)\"}"
+      ))
+    // The handle is destroyed before the frame table is cleared, so this
+    // sees what engine.dispose's own effects did.
+    let frames = self.frames!
+    let atHandleClose = Locked<(released: Bool, kept: Bool)?>(nil)
+    transport.onClose = {
+      atHandleClose.withLock { $0 = (frames.get(released) == nil, frames.get(kept) == nil) }
+    }
+    let noTimer = expectation(description: "no timer starts after close")
+    noTimer.isInverted = true
+    transport.onSubmit = { if $0.contains("timer.fired") { noTimer.fulfill() } }
+
+    host.close()
+    wait(for: [noTimer], timeout: 0.2)
+    drain()
+
+    XCTAssertEqual(transport.submitted.last, dispose)
+    XCTAssertTrue(http.requests.isEmpty, "no http.send after close")
+    XCTAssertEqual(atHandleClose.current?.released, true, "frame.release is honoured")
+    XCTAssertEqual(atHandleClose.current?.kept, false)
+    XCTAssertEqual(frames.count, 0)
+  }
+
+  func testAnEngineWithoutDisposeIsStillDestroyed() {
+    transport.enqueue(
+      response(
+        TB_SESSION_UNSUPPORTED_MESSAGE,
+        "{\"error\":{\"status\":\"unsupported_message\",\"message\":\"unknown message type\",\"path\":\"$.type\"}}"))
+    host.close()
+    drain()
+
+    XCTAssertEqual(transport.submitted, [dispose])
+    XCTAssertTrue(transport.closed)
+    XCTAssertTrue(http.closed)
+    XCTAssertEqual(shutDowns.current, 1)
   }
 }

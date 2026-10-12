@@ -2,6 +2,9 @@
 enum HostMessages {
   static let timerFired = "timer.fired"
   static let transportResult = "transport.result"
+  /// The last message before the handle is destroyed: the engine reports
+  /// undelivered work and becomes inert. Its input is empty.
+  static let engineDispose = "engine.dispose"
 
   static func timerFiredInput(timerId: String) -> String {
     "{\"timerId\":" + JSONText.quoted(timerId) + "}"

@@ -35,8 +35,11 @@ yet; every Swift type is internal. It mirrors the Android host in
   order. Transport results and timer fires come back as messages on it.
 - A non-`ok` status is logged. The message is dropped and its frame handles
   are released.
-- Three `internal_error`s in a row shut the host down: timers cancelled, IO
-  closed, handle destroyed, frames freed. Posts after that (or after `close`)
+- Shutting down (`close`, or three `internal_error`s in a row) first submits
+  `engine.dispose` so the engine can report undelivered work; from its
+  response `frame.release` runs but no `http.send` or `timer.schedule` starts.
+  Then timers are cancelled, IO closed, the handle destroyed, and frames
+  freed. Posts after that (or after `close`)
   release their frame handles.
 - Nothing force-unwraps external data, and no engine or collector value can
   reach a trapping operation: integer conversions and deadlines saturate.

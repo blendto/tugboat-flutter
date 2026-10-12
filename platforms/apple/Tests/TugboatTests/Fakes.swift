@@ -29,17 +29,22 @@ final class FakeEngineTransport: EngineTransport {
     var inSubmit = false
     var overlappingSubmits = 0
     var closed = false
+    var submittedAtClose: Int?
   }
 
   private let state = Locked(State())
 
   /// Called on the engine queue with each submitted message.
   var onSubmit: ((String) -> Void)?
+  /// Called on the engine queue when the host destroys the handle.
+  var onClose: (() -> Void)?
 
   var submitted: [String] { state.current.submitted }
   var submitsOnEngineQueue: [Bool] { state.current.submitsOnEngineQueue }
   var overlappingSubmits: Int { state.current.overlappingSubmits }
   var closed: Bool { state.current.closed }
+  /// How many messages had been submitted when the handle was closed.
+  var submittedAtClose: Int? { state.current.submittedAtClose }
 
   func enqueue(_ response: EngineResponse) {
     state.withLock { $0.queued.append(response) }
@@ -63,7 +68,11 @@ final class FakeEngineTransport: EngineTransport {
   }
 
   func close() {
-    state.withLock { $0.closed = true }
+    state.withLock { (state: inout State) in
+      state.closed = true
+      state.submittedAtClose = state.submitted.count
+    }
+    onClose?()
   }
 }
 

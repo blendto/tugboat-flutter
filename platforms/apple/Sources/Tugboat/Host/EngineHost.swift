@@ -89,8 +89,8 @@ final class EngineHost {
     enqueue(json: EngineMessage(type: type, inputJSON: inputJSON, at: nil).json, frameHandles: [])
   }
 
-  /// Cancels timers, closes IO, destroys the handle, and frees frames, after
-  /// already-posted work.
+  /// Submits `engine.dispose`, then cancels timers, closes IO, destroys the
+  /// handle, and frees frames, after already-posted work.
   func close() {
     accepting.withLock { $0 = false }
     queue.async { self.shutDown() }
@@ -172,10 +172,34 @@ final class EngineHost {
   private func shutDown() {
     guard active else { return }
     active = false
+    dispose()
     timers.cancelAll()
     http.close()
     transport.close()
     frames.close()
     onShutDown()
+  }
+
+  /// Lets the engine report undelivered work before its handle goes. Its
+  /// effects run as usual except that no new IO or timer starts: `http.send`
+  /// and `timer.schedule` are dropped, `frame.release` is honoured. An engine
+  /// without `engine.dispose` (before phase 3b) answers
+  /// `unsupported_message`, which is logged and otherwise ignored.
+  private func dispose() {
+    let message = EngineMessage(type: HostMessages.engineDispose, inputJSON: "{}", at: clock.now())
+    let response = transport.submit(Data(message.json.utf8))
+    guard response.status == TB_SESSION_OK else {
+      HostLog.warning("engine.dispose not accepted (\(response.statusName)); destroying the handle")
+      return
+    }
+    guard let parsed = try? EffectParser.parse(response.json) else { return }
+    for effect in parsed {
+      switch effect {
+      case .httpSend, .timerSchedule:
+        continue
+      default:
+        effects.dispatch(effect)
+      }
+    }
   }
 }
