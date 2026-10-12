@@ -253,7 +253,10 @@ hash input.
   current when it was shown, else its tag, else its class name (`low`
   confidence, because R8 may rename it); paths start below the fragment's
   view. Elsewhere: the activity's current destination, else the activity
-  class name; paths start below `android.R.id.content`.
+  class name; paths start below `android.R.id.content`. A destination is
+  its route pattern without arguments (`checkout/{id}?step={s}` is
+  `checkout`), else its id's entry name; Compose anchors and navigation
+  facts use the same key.
 - **Alias.** The `tugboatTag` view tag, else the resource entry name when no
   other view under the route root has the same id. It gives `tagFingerprint`
   and does not change the structural fingerprint.
@@ -286,16 +289,16 @@ Compose content for the Views adapter, which hashes it. Anchors add
   `Compose`; the full path is the host's Views path followed by the node
   path (`Compose#0/Button#1`), so it is unique with several hosts.
 - **Lists.** A child of a node with `CollectionInfo` adds
-  `[item:<CollectionItemInfo index>]`, else `[item:<traversal order on
-  screen>]`. Lazy layouts set no `CollectionItemInfo`, so their items count
-  from the first one on screen unless the app sets it.
-- **Route key.** The `trackNavigation` route pattern with its arguments
-  stripped (`checkout/{id}?step={s}` is `checkout`), else the host's Views
-  route (the hosting activity, or the fragment around a `ComposeView`).
+  `[item:<CollectionItemInfo index>]`. Without it (lazy layouts set none)
+  it adds `[item]`: the order on screen changes as the list scrolls, so it
+  is not identity, and such rows share one fingerprint at `low` confidence.
+- **Route key.** The host view's Views route (above): the same
+  `trackNavigation` route pattern without arguments, else the hosting
+  activity (or the fragment around a `ComposeView`).
 - **Alias.** `Modifier.tugboatTag`, then `testTag`. Both are `high`
   confidence and do not change the structural fingerprint.
-- **Confidence.** As for Views: `high` with an alias, `medium` in a list
-  item, `low` otherwise, floored by the route.
+- **Confidence.** As for Views: `high` with an alias, `medium` in an
+  indexed list item, `low` otherwise, floored by the route.
 - **Semantics unavailable.** The anchor is the host view's identity
   (`Compose#0`, `toolkit` still `compose`) and the whole frame is masked.
 

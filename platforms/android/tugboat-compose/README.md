@@ -8,43 +8,69 @@ Maven coordinates `com.gettugboat.sdk:tugboat-compose:0.1.0`, namespace
 untracked `.local-maven`.
 
 It is a separate artifact so Views-only apps do not pull in Compose. It
-depends on `tugboat-android` and Compose UI.
+depends on `tugboat-android`; Compose UI is `compileOnly` (the app ships
+it).
 
 ## Public API
 
-Two entry points, nothing else:
-
 | API | Use |
 | --- | --- |
-| `TugboatCompose.install()` | Called by the SDK facade when the app ships this module. Registers the Compose region with the Views adapter. Idempotent; never throws. |
+| `TugboatCompose.install(composeMasking = ComposeMasking.WholeHost)` | Called by the SDK facade when the app ships this module. Registers the Compose region with the Views adapter. Installing again replaces the choice. Never throws. |
+| `ComposeMasking` | `WholeHost` (default) or `SemanticsBestEffort` (below). |
 | `Modifier.tugboatTag("checkout")` | Developer alias, like `View.tugboatTag`. A high-confidence `tagFingerprint`; the structural fingerprint is unchanged. |
+
+## Masking
+
+Under `allTextAndMedia`:
+
+| `ComposeMasking` | What is masked |
+| --- | --- |
+| `WholeHost` (default) | Every Compose host (each `ComposeView`, `setContent`) over its whole bounds. Nothing Compose draws can leak. |
+| `SemanticsBestEffort` (opt-in) | Only what the semantics tree describes: `Text` and `EditableText` nodes (password fields included), `Role.Image`, nodes with a content description, and `AndroidView` interop bounds (fail-closed). The whole frame when the semantics owner is unavailable. |
+
+**Residual leak of `SemanticsBestEffort`.** Content without semantics is
+not masked and is captured as drawn:
+
+- `Image`, `Icon`, and `AsyncImage` with `contentDescription = null`;
+- `drawText`, and anything drawn on a `Canvas`, in `drawBehind` /
+  `drawWithContent`, or by `Modifier.paint`.
+
+Opt in only for apps whose screens draw nothing private that way. Outside
+the tested Compose UI range (below) the opt-in is ignored and hosts are
+masked whole. Identity, scroll, and focus are the same in both modes.
+
+Every capture reports which masking applied: `WindowMasks` returns a
+`MaskCoverage {mode: precise | wholeHost | wholeFrame, reasons}`
+(`composeDefault`, `composeVersionUnverified`, `composeOwnerUnavailable`,
+`interop`, ...) that the host forwards on `capture.result`.
+
+Mask bounds are the union of a node's semantics bounds and the unclipped
+root bounding box of its layout coordinates, so `graphicsLayer` transforms
+and content drawn outside a non-clipping parent are covered. Compose lays
+out every frame, so masks follow animations.
 
 ## How it plugs into the Views adapter
 
 `tugboat-android`'s Views adapter owns the window: the single
-`Window.Callback` wrapper (pointer and key facts), batching, hashing, and
-mask normalization. Compose content lives inside one View, the
-`AndroidComposeView`, which the Views adapter cannot read. This module
-implements the adapter's **toolkit-region seam**
-(`com.tugboat.android.toolkit.ToolkitRegion`, opt-in
-`@TugboatToolkitApi`, see the `tugboat-android` README). The adapter asks
-the region first, for every `AndroidComposeView`:
+`Window.Callback` wrapper (pointer and key facts), batching, hashing, route
+keys, and mask normalization. Compose content lives inside one View, the
+`AndroidComposeView`. This module implements the adapter's
+**toolkit-region seam** (`com.tugboat.android.toolkit.ToolkitRegion`,
+opt-in `@TugboatToolkitApi`, see the `tugboat-android` README):
 
 | Seam call | Compose answer |
 | --- | --- |
-| `targetAt` | Semantics hit-test at the **down** position: the nearest actionable node, else the nearest kept node; its path, token, role, actions, alias. A point on `AndroidView` interop is a `Miss`, so the Views rules resolve the interop View. |
-| `masks` | Text, editable text, `Role.Image`, and content-description nodes from the unmerged tree; `AndroidView` interop bounds fail-closed. |
-| `scrollables` | Nodes with a `ScrollAxisRange`, diffed per frame during and after gestures. |
+| `targetAt` | Semantics hit-test at the **down** position: the nearest actionable node, else the nearest kept node. A point on `AndroidView` interop is a `Miss`, so the Views rules resolve the interop View. |
+| `masks` | Per `ComposeMasking` and the version gate, above. |
+| `scrollablesAt` | The nodes with a `ScrollAxisRange` under the touch, resolved once per gesture; their ranges read live state, so frames read offsets without walking the tree. |
 | `focus` | `TextInput` when a focused node is editable. |
-| `routeKey` | The `trackNavigation` route pattern without arguments. |
 
 The region keeps no listeners; the Views adapter drives it, so it is inert
 once the adapter stops.
 
 ## Identity
 
-`docs/design/capture-and-fingerprint.md`, "Compose canonicalization".
-In short:
+`docs/design/capture-and-fingerprint.md`, "Compose canonicalization":
 
 - Source: the merged semantics tree from `ViewRootForTest.semanticsOwner`,
   reached through `runCatching` (the only Compose internal used).
@@ -52,45 +78,40 @@ In short:
   `Image`, `DropdownList`), then `TextField`, `Scrollable`, `Node`.
 - Path: the host's Views path (the host is the token `Compose`) followed by
   the node path, for example `Compose#0/Scrollable#0/[item:3]/Node#0`.
-- Lists: `CollectionItemInfo`, else traversal order on screen.
-- Route key: the `trackNavigation` route pattern, arguments stripped
-  (`checkout/{id}?step={s}` is `checkout`), else the host's Views route
-  (the hosting activity, or the fragment around a `ComposeView`).
+- Lists: `[item:<CollectionItemInfo index>]`; without it (lazy layouts set
+  none) `[item]`, at `low` confidence, because the order on screen changes
+  as the list scrolls. Set `Modifier.semantics { collectionItemInfo = ... }`
+  or a `tugboatTag` for distinct rows.
+- Route key: the host's Views route: the `trackNavigation` route pattern
+  without arguments (`checkout/{id}?step={s}` is `checkout`, normalized
+  once by the Views adapter for every toolkit), else the hosting activity
+  (or the fragment around a `ComposeView`).
 - Alias: `Modifier.tugboatTag`, then `testTag`. Text is never in identity.
-- `toolkit: "compose"`, including the fallback below.
-
-**Semantics unavailable.** If the owner cannot be reached (a Compose
-version that moved it, or any throw), a tap anchors the hosting View
-(`Compose#0`, `toolkit: "compose"`) and the whole frame is masked.
-
-## Navigation hook
-
-There is no Navigation Compose dependency. The SDK facade connects
-`Tugboat.trackNavigation(navController)` with:
-
-```kotlin
-navController.addOnDestinationChangedListener { _, destination, _ ->
-    viewsAdapter.onDestinationChanged(activity, destination.route, destination.id)
-}
-```
-
-The Views adapter keeps the destination for Views route keys and forwards
-the plain route string to every region; Compose strips its arguments.
+- `toolkit: "compose"`. If the semantics owner cannot be reached, a tap
+  anchors the hosting View (`Compose#0`, still `compose`).
 
 ## Compose versions
 
 | | Compose UI |
 | --- | --- |
-| Compiled against (floor, `require`) | 1.7.0 |
-| Unit tests in CI | 1.8.3 (BOM `2025.06.01`) |
-| Also verified locally | 1.7.7 (BOM `2025.01.01`) |
-| Tested range | 1.7.x to 1.8.x |
+| Compiled against (`compileOnly`, floor) | 1.7.0 |
+| Tested range (runtime gate) | 1.7.0 up to, not including, 1.9.0 |
+| CI | 1.8.3 (BOM `2025.06.01`) and 1.7.0 (BOM `2024.09.00`) |
 
-The dependency is a floor, not a strict pin, so the app's newer Compose
-wins. Outside the tested range every semantics read still goes through
-`runCatching`: a failure falls back to the host identity and whole-frame
-masks, never an unmasked frame. Re-run the tests against another release
-with `./gradlew :tugboat-compose:test -Ptugboat.composeBom=<bom>`.
+`compileOnly` keeps this module from upgrading an app's Compose. The
+runtime gate reads `META-INF/androidx.compose.ui_ui.version`, which every
+Compose UI release ships (Android Studio's Layout Inspector reads it too).
+A version outside the range, or an app that strips that file, masks every
+host whole and ignores the opt-in. Any other failure falls back as
+described above, never to an unmasked frame.
+
+## Navigation hook
+
+There is no Navigation Compose dependency. The SDK facade's
+`Tugboat.trackNavigation(navController)` registers
+`navController.addOnDestinationChangedListener` and passes
+`destination.route` to the Views adapter's `onDestinationChanged`, whose
+`DestinationTracker` strips the arguments.
 
 ## Known gaps
 
@@ -98,14 +119,9 @@ with `./gradlew :tugboat-compose:test -Ptugboat.composeBom=<bom>`.
   layouts report Compose's own estimate (500 per item plus the first item's
   pixel offset) and no extent. Scrolls without a touch (wheel,
   programmatic) and overscroll are not reported.
-- Lazy layout items carry no `CollectionItemInfo`, so their `[item:n]`
-  counts from the first item on screen. Apps make it stable with
-  `Modifier.semantics { collectionItemInfo = ... }` or a `tugboatTag`.
-- Items without a semantics node of their own (a `Row` of a text and a
-  button) are separate children of the list, so each takes its own index.
-- Masks cover semantics nodes. Text drawn on a `Canvas` without semantics
-  is not masked.
-- Mask bounds ignore `graphicsLayer` scale beyond the clipped bounds.
+- Lazy rows without `CollectionItemInfo` share one structural fingerprint.
+  Items without a semantics node of their own (a `Row` of a text and a
+  button) are separate children of the list.
 - Interop masking tells Compose's own views apart by package name; the
   consumer R8 rules keep those names. A renamed class over-masks.
 - Compose dialogs and popups are separate windows, which the Views adapter
@@ -116,10 +132,12 @@ with `./gradlew :tugboat-compose:test -Ptugboat.composeBom=<bom>`.
 From `platforms/android`:
 
 ```sh
-./gradlew :tugboat-compose:test   # Robolectric + Compose UI test
+./gradlew :tugboat-compose:test                                   # region-level tests
+./gradlew :tugboat-android:test --tests 'com.tugboat.android.views.compose.*'  # end to end
+./gradlew :tugboat-compose:test -Ptugboat.composeBom=2024.09.00   # the floor of the range
 ```
 
-The tests drive `tugboat-android`'s internal Views adapter end to end, so
-the unit-test compilation is a Kotlin friend of `tugboat-android`'s classes
-(test-only, see `build.gradle.kts`). `bash tool/ci/build-android-runtime.sh`
-from the repository root runs them and builds the release AAR.
+The end-to-end tests (identity, masks, scroll, focus, routes, through the
+Views adapter) live in `tugboat-android`'s test source set, which depends on
+this module test-only. `bash tool/ci/build-android-runtime.sh` from the
+repository root runs both ends of the range and builds the release AAR.
