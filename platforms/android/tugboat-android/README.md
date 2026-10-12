@@ -111,9 +111,11 @@ locale}`.
 - **Mask coverage.** Every frame records `{mode: precise | wholeHost |
   wholeFrame, reasons}` from the Views walk (`noDecor`, `noWindowSize`,
   `walkExhausted`, `animating` for whole frames; `composeDefault` for a
-  Compose host masked whole; `webView`, `surfaceLayer` noted). It goes on
-  `capture.result.frame.maskCoverage` once the engine accepts that field
-  (`capture/EngineVocabulary`, off until `engine/mask-coverage` merges).
+  Compose host masked whole; `webView`, `surfaceLayer` noted; region
+  reasons such as `interop`). Every reason name is in the engine's closed
+  set. `coverage.toJson()` goes on `capture.result.frame.maskCoverage` once
+  the engine accepts that field (`capture/EngineVocabulary`, off until
+  engine PR #96 merges).
 - **Status mapping** (`RuntimeOutcomes`): `Ok` to `captured`;
   `SecureWindow` and `PixelCopyFailed` to `failed readbackFailed`
   (`SecureWindow` becomes `failed secureWindow` once the engine accepts it,
@@ -175,8 +177,10 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
   `ImageView`, `VideoView`, toolkit region masks, and fail-closed
   `WebView` / `SurfaceView` / `TextureView` bounds. A Compose host
   (`AndroidComposeView`, matched by class name) that no region reads is
-  fail-closed too. It masks the whole frame when the tree cannot be read,
-  or when a region asks for it, and reports the coverage that applied.
+  fail-closed too (coverage `wholeHost`, `composeDefault`). It masks the
+  whole frame when the tree cannot be read, when a region asks for it, or
+  when views are in motion (checked first, before any region is asked), and
+  reports the coverage that applied.
 - **Optional androidx.** `core`, `fragment`, and `recyclerview` are
   `compileOnly`; each is probed once with `Class.forName` and its
   implementation used only when the app ships it. `consumer-rules.pro`
@@ -211,7 +215,7 @@ are not in the captured frame (the copy is the activity window); predictive
 back is not observed; overscroll is reported for `RecyclerView` only;
 fragment `hide`/`show` is not reported; `transitionMs` is 0; window-manager
 activity transitions (not view animations) are not detected for the motion
-fallback; until `engine/mask-coverage` merges, a secure window is reported
+fallback; until engine PR #96 merges, a secure window is reported
 as `failed readbackFailed` and mask coverage is not sent.
 
 ## Toolkit-region seam

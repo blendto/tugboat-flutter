@@ -32,7 +32,9 @@ wiring, window capture, and the Android Views adapter.
   (`precise` / `wholeHost` / `wholeFrame` and reasons) and hashes class, id,
   visibility, and checked / selected / activated state into the structure
   signature; coverage and a `secureWindow` failure are sent once the engine
-  accepts them.
+  accepts them (engine PR #96). `MaskCoverageReason` uses only the engine's
+  reason names (`noDecor`, `noWindowSize`, `walkExhausted` replace
+  `treeUnreadable` / `regionUnreadable`; `webView`, `surfaceLayer` added).
 - Collector contract test (instrumented, real engine): `session_start` body
   and `frameMetadata` backends.
 
