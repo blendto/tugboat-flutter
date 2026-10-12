@@ -495,6 +495,54 @@ void test_mask_coverage_only_for_accepted_frames() {
   tb_session_engine_destroy(engine);
 }
 
+// With the `captureDiagnostics` capability every resolution is recorded,
+// so secure windows are not throttled and no repeats are reported.
+void test_secure_window_with_capability() {
+  tb_session_engine* engine = unit::make_engine();
+  CHECK(engine != nullptr);
+  CHECK(unit::submit(
+            engine,
+            "{\"type\":\"engine.configure\",\"input\":{\"host\":{\"app\":{"
+            "\"name\":\"a\",\"version\":\"1\",\"buildNumber\":\"7\","
+            "\"installationId\":\"i\",\"appId\":\"x\"},\"device\":{\"id\":"
+            "\"d\",\"platform\":\"android\",\"screenSize\":{\"width\":1,"
+            "\"height\":1},\"screenDensity\":1,\"screenDpi\":1,"
+            "\"screenPixelDensity\":1},\"ip\":{\"ip\":\"0\"},"
+            "\"locale\":{}},\"capabilities\":{\"captureDiagnostics\":true}}}")
+            .status == TB_SESSION_OK);
+  CHECK(unit::submit(
+            engine,
+            "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
+            "\"input\":{\"viewport\":{\"width\":1,\"height\":1},"
+            "\"platform\":\"android\",\"sessionEpoch\":0}}")
+            .status == TB_SESSION_OK);
+  const std::string secure =
+      "\"outcome\":\"failed\",\"failure\":\"secureWindow\"}}";
+  CHECK(unit::contains(
+      unit::submit(engine,
+                   "{\"type\":\"capture.result\",\"at\":{\"monoUs\":10},"
+                   "\"input\":{\"requestId\":\"capture-0\"," + secure)
+          .json,
+      "\"failure\":\"secure_window\""));
+  CHECK(unit::submit(engine,
+                     "{\"type\":\"app.lifecycle\",\"at\":{\"monoUs\":20},"
+                     "\"input\":{\"state\":\"resumed\"}}")
+            .status == TB_SESSION_OK);
+  CHECK(unit::contains(
+      unit::submit(engine,
+                   "{\"type\":\"capture.result\",\"at\":{\"monoUs\":30},"
+                   "\"input\":{\"requestId\":\"capture-1\"," + secure)
+          .json,
+      "\"failure\":\"secure_window\""));
+  const unit::Response ended = unit::submit(
+      engine,
+      "{\"type\":\"session.end\",\"at\":{\"monoUs\":40,\"wallUs\":40},"
+      "\"input\":{}}");
+  CHECK(ended.status == TB_SESSION_OK);
+  CHECK(!unit::contains(ended.json, "capture_secure_window"));
+  tb_session_engine_destroy(engine);
+}
+
 }  // namespace
 
 int main() {
@@ -508,6 +556,7 @@ int main() {
   test_late_answer_after_deadline();
   test_mask_vocabulary();
   test_secure_window_log();
+  test_secure_window_with_capability();
   test_decode_mask_coverage();
   test_mask_coverage_only_for_accepted_frames();
   return unit::finish("capture and navigation");
