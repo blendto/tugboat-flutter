@@ -13,6 +13,18 @@ API.
   `allTextAndMedia` with fail-closed bounds (including Compose hosts).
   androidx `core`, `fragment`, and `recyclerview` are optional
   (`compileOnly`). `navigation` facts are held back until engine phase 3d.
+- Toolkit-region seam (`com.tugboat.android.toolkit`, opt-in
+  `@TugboatToolkitApi`): a module such as `tugboat-compose` registers a
+  `ToolkitRegion` that resolves taps, the scrollables under a touch, masks
+  (`Rects` / `WholeHost` / `WholeFrame`), and focus inside its host views.
+  The Views adapter consults it before its own rules and before the
+  fail-closed Compose host rule (now `AndroidComposeView` only); region
+  hosts are kept views with their own path token; anchors carry the
+  region's `toolkit`. `WindowMasks` reports `MaskCoverage {mode, reasons}`
+  per capture.
+- Route patterns lose their arguments in `DestinationTracker`
+  (`checkout/{id}?step={s}` is `checkout`), one route key for Views,
+  Compose, and navigation facts.
 - `libtugboat_engine.so`: the session engine (`core/session-engine`) built
   with `c++_static`, plus a JNI bridge (`create`, `submit`, `destroy`) that
   copies each engine response into a Java `byte[]`. No exception crosses

@@ -14,8 +14,12 @@ internal object ViewGeometry {
     private val inverse = Matrix()
 
     /** [view]'s bounds in [root]'s coordinates, or null when it is not a descendant. */
-    fun boundsIn(root: View, view: View): RectF? {
-        val rect = RectF(0f, 0f, view.width.toFloat(), view.height.toFloat())
+    fun boundsIn(root: View, view: View): RectF? =
+        mapRect(root, view, RectF(0f, 0f, view.width.toFloat(), view.height.toFloat()))
+
+    /** [local], in [view]'s own coordinates, mapped into [root]'s; null when it is not a descendant. */
+    fun mapRect(root: View, view: View, local: RectF): RectF? {
+        val rect = RectF(local)
         var current = view
         while (current !== root) {
             if (!current.matrix.isIdentity) current.matrix.mapRect(rect)
@@ -41,6 +45,19 @@ internal object ViewGeometry {
             inverse.mapPoints(scratch)
         }
         return floatArrayOf(scratch[0], scratch[1])
+    }
+
+    /** Maps ([x], [y]) in [root]'s coordinates into its descendant [view]'s, or null. */
+    fun toDescendant(root: View, view: View, x: Float, y: Float): FloatArray? {
+        val chain = ArrayList<View>()
+        var current = view
+        while (current !== root) {
+            chain += current
+            current = current.parent as? View ?: return null
+        }
+        var point = floatArrayOf(x, y)
+        for (child in chain.asReversed()) point = toChild(child, point[0], point[1]) ?: return null
+        return point
     }
 
     fun contains(view: View, localX: Float, localY: Float): Boolean =

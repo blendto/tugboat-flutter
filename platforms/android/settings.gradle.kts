@@ -10,6 +10,7 @@ plugins {
     id("com.android.library") version "8.9.1" apply false
     id("com.android.application") version "8.9.1" apply false
     id("org.jetbrains.kotlin.android") version "2.1.0" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.1.0" apply false
     id("com.vanniktech.maven.publish") version "0.34.0" apply false
 }
 
@@ -28,6 +29,7 @@ rootProject.name = "tugboat-android"
 include(":capture-runtime")
 include(":capture-runtime-test")
 include(":tugboat-android")
+include(":tugboat-compose")
 
 val runtimeVersion =
     java.util.Properties()

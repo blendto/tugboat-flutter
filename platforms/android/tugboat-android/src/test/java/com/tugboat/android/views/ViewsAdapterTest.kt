@@ -98,13 +98,14 @@ class ViewsAdapterTest {
         activity.setContentView(button)
         shadowOf(Looper.getMainLooper()).idle()
         drain()
-        adapter.onDestinationChanged(activity, "checkout/{id}", 0)
+        adapter.onDestinationChanged(activity, "checkout/{id}?step={step}", 0)
 
         tap(activity.window, button)
         frames.runFrame()
 
         val anchor = JSONObject(sink.batches.single()[1].inputJson).getJSONObject("tap").getJSONObject("anchor")
-        assertEquals("checkout/{id}", anchor.getJSONObject("fingerprintParts").getString("routeKey"))
+        // Arguments are stripped, so Views and Compose share the route key.
+        assertEquals("checkout", anchor.getJSONObject("fingerprintParts").getString("routeKey"))
     }
 
     @Test
