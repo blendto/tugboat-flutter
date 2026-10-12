@@ -4,10 +4,14 @@ import android.os.Looper
 import android.view.Window
 import com.tugboat.android.host.DHashBaseline
 import com.tugboat.android.host.FrameHandleTable
+import com.tugboat.android.views.mask.MaskCoverage
+import com.tugboat.android.views.mask.MaskMode
+import com.tugboat.android.views.mask.MaskReason
 import com.tugboat.android.views.mask.MaskRect
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.capture.CaptureResult
 import com.tugboat.capture.CaptureStatus
+import com.tugboat.capture.MaskCoverageMode
 import com.tugboat.capture.NormalizedMask
 import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
@@ -24,12 +28,14 @@ class CaptureCoordinatorTest {
     private val capturer = FakeWindowCapturer()
     private val answers = ArrayList<CaptureAnswer>()
     private var window: Window? = laidOutWindow()
-    private var maskResult = WindowMaskResult(listOf(MaskRect(0.0, 0.1, 0.5, 0.2)), failClosed = false)
+    private var maskResult = masks(MaskRect(0.0, 0.1, 0.5, 0.2), signature = "s1")
     private var mainAccepts = true
+    private val windowWaiters = ArrayList<() -> Unit>()
 
     private val coordinator = CaptureCoordinator(
         mainThread = { task -> if (mainAccepts) task.run(); mainAccepts },
         window = { window },
+        awaitWindow = { _, onDone -> windowWaiters += onDone },
         masks = { maskResult },
         capturer = capturer,
         frames = frames,
@@ -64,11 +70,26 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun theRuntimeGetsMasksScaleAndForce() {
+    fun masksAreTakenAtCopyTimeNotWhenTheRequestArrives() {
+        coordinator.onCaptureRequest(captureRequest("capture-1"))
+        assertTrue("no masks travel with the request", capturer.requests.single().masks.isEmpty())
+
+        // The layout moved between the request and the copy.
+        maskResult = masks(MaskRect(0.5, 0.6, 0.5, 0.2), signature = "moved")
+        val snapshot = capturer.copy(capturer.requests.single().requestId)
+
+        assertEquals(listOf(NormalizedMask(0.5, 0.6, 0.5, 0.2)), snapshot.masks)
+        assertEquals("moved", snapshot.structureSignature)
+        assertEquals(MaskCoverageMode.Precise, snapshot.coverage?.mode)
+        capturer.calls.single().onComplete(ok(capturer.requests.single().requestId, byteArrayOf(1)))
+        assertEquals("moved", (answers.single() as CaptureAnswer.Captured).frame.structureSignature)
+    }
+
+    @Test
+    fun theRuntimeGetsScaleForceAndPixelSize() {
         coordinator.onCaptureRequest(captureRequest("capture-1", force = true, scale = 0.8))
 
         val sent = capturer.requests.single()
-        assertEquals(listOf(NormalizedMask(0.0, 0.1, 0.5, 0.2)), sent.masks)
         assertTrue(sent.force)
         assertEquals("", sent.lastDHash)
         // 1080 px at density 1 (Robolectric mdpi) x 0.75 x 0.8.
@@ -77,34 +98,44 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun theBaselineIsOfferedOnlyWhenTheStructureMatches() {
-        val geometry = CaptureGeometry.of(window!!.peekDecorView())!!
-        val same = StructureSignature.of(geometry, maskResult)
-        coordinator.onCaptureRequest(captureRequest("capture-1", force = false, baseline = DHashBaseline("abcd", same)))
-        coordinator.onCaptureRequest(captureRequest("capture-2", force = false, baseline = DHashBaseline("abcd", "other")))
+    fun theBaselineGoesToTheRuntimeWithItsStructureOnlyForUnforcedRequests() {
+        val baseline = DHashBaseline("abcd", "s1")
+        coordinator.onCaptureRequest(captureRequest("capture-1", force = false, baseline = baseline))
+        coordinator.onCaptureRequest(captureRequest("capture-2", force = true, baseline = baseline))
 
         assertEquals(listOf("abcd", ""), capturer.requests.map { it.lastDHash })
+        assertEquals(listOf("s1", ""), capturer.requests.map { it.lastStructureSignature })
     }
 
     @Test
     fun aDHashSkipIsReportedAsTheBaselineSoTheEngineCoalesces() {
-        val geometry = CaptureGeometry.of(window!!.peekDecorView())!!
-        val signature = StructureSignature.of(geometry, maskResult)
-        coordinator.onCaptureRequest(captureRequest("capture-1", force = false, baseline = DHashBaseline("abcd", signature)))
+        coordinator.onCaptureRequest(captureRequest("capture-1", force = false, baseline = DHashBaseline("abcd", "s1")))
         val id = capturer.requests.single().requestId
 
         capturer.complete(CaptureResult(requestId = id, status = CaptureStatus.SkippedByDHash, dHash = "abce", width = 10, height = 20))
 
         val frame = JSONObject(answers.single().toInputJson()).getJSONObject("frame")
         assertEquals("abcd", frame.getString("dHash"))
-        assertEquals(signature, frame.getString("structureSignature"))
+        assertEquals("s1", frame.getString("structureSignature"))
         assertEquals(0, frame.getInt("byteLength"))
     }
 
     @Test
-    fun noForegroundWindowFailsAsBoundaryUnavailable() {
+    fun theInitialCaptureWaitsForAForegroundWindow() {
         window = null
         coordinator.onCaptureRequest(captureRequest("capture-1"))
+        assertTrue("waits instead of failing", answers.isEmpty())
+
+        window = laidOutWindow()
+        windowWaiters.single()()
+        assertEquals(1, capturer.requests.size)
+    }
+
+    @Test
+    fun noWindowAfterTheWaitFailsAsBoundaryUnavailable() {
+        window = null
+        coordinator.onCaptureRequest(captureRequest("capture-1"))
+        windowWaiters.single()()
 
         assertEquals(CaptureAnswer.Failed("capture-1", CaptureFailure.BoundaryUnavailable), answers.single())
         assertTrue(capturer.requests.isEmpty())
@@ -136,33 +167,39 @@ class CaptureCoordinatorTest {
     }
 
     @Test
-    fun aThrowingRuntimeOrMaskPathAnswersFailedOnce() {
+    fun aThrowingRuntimeAnswersFailedOnce() {
         capturer.throwOnCapture = IllegalStateException("boom")
         coordinator.onCaptureRequest(captureRequest("capture-1"))
+
         assertEquals(CaptureFailure.ReadbackFailed, (answers.single() as CaptureAnswer.Failed).failure)
         assertEquals(0, coordinator.pendingCount)
-
-        val throwingMasks = CaptureCoordinator(
-            mainThread = { it.run(); true },
-            window = { window },
-            masks = { throw IllegalStateException("walk") },
-            capturer = capturer,
-            frames = frames,
-            answer = { answers += it },
-        )
-        throwingMasks.onCaptureRequest(captureRequest("capture-2"))
-        assertEquals(CaptureFailure.MaskFailed, (answers.last() as CaptureAnswer.Failed).failure)
-        assertEquals(2, answers.size)
     }
 
     @Test
-    fun aFullFrameMaskIsStillCapturedAndMarkedMasked() {
-        maskResult = WindowMaskResult(listOf(MaskRect.FULL_FRAME), failClosed = true)
+    fun aWholeFrameMaskIsStillCapturedMarkedMaskedAndReported() {
+        maskResult = WindowMaskResult.wholeFrame(MaskReason.Animating)
         coordinator.onCaptureRequest(captureRequest("capture-1"))
-        capturer.complete(ok(capturer.requests.single().requestId, byteArrayOf(9)))
+        val id = capturer.requests.single().requestId
 
-        assertEquals(listOf(NormalizedMask(0.0, 0.0, 1.0, 1.0)), capturer.requests.single().masks)
-        assertTrue((answers.single() as CaptureAnswer.Captured).frame.masked)
+        val snapshot = capturer.copy(id)
+        capturer.calls.single().onComplete(ok(id, byteArrayOf(9)))
+
+        assertTrue(snapshot.wholeFrame)
+        val frame = (answers.single() as CaptureAnswer.Captured).frame
+        assertTrue(frame.masked)
+        assertEquals(MaskCoverage(MaskMode.WholeFrame, listOf(MaskReason.Animating)), frame.maskCoverage)
+    }
+
+    @Test
+    fun aCopyThatNeverTookMasksIsReportedAsWholeFrame() {
+        coordinator.onCaptureRequest(captureRequest("capture-1"))
+        val id = capturer.requests.single().requestId
+
+        // The runtime completed without reaching the copy (no masks taken).
+        capturer.calls.single().onComplete(CaptureResult(requestId = id, status = CaptureStatus.Ok, jpeg = byteArrayOf(1)))
+
+        val frame = (answers.single() as CaptureAnswer.Captured).frame
+        assertEquals(MaskMode.WholeFrame, frame.maskCoverage.mode)
     }
 
     @Test
@@ -170,6 +207,9 @@ class CaptureCoordinatorTest {
         coordinator.dispose()
         assertTrue(capturer.disposed)
     }
+
+    private fun masks(rect: MaskRect, signature: String) =
+        WindowMaskResult(listOf(rect), MaskCoverage(MaskMode.Precise), signature)
 
     private fun ok(id: Long, jpeg: ByteArray) =
         CaptureResult(requestId = id, status = CaptureStatus.Ok, jpeg = jpeg, width = 10, height = 20, dHash = "ff", contentHash = "c$id")

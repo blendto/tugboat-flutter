@@ -25,9 +25,7 @@ class CaptureEffectTest {
             Effect.CaptureRequest(
                 CaptureRequestEffect(
                     requestId = "capture-3",
-                    trigger = "route",
                     force = false,
-                    requireFreshPaint = true,
                     scale = 0.8,
                     dHashBaseline = DHashBaseline("00ff", "ab"),
                 ),

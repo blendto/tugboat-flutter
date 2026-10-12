@@ -9,26 +9,43 @@ import com.tugboat.android.host.CaptureRequestEffect
 import com.tugboat.android.host.DHashBaseline
 import com.tugboat.capture.CaptureRequest
 import com.tugboat.capture.CaptureResult
+import com.tugboat.capture.MaskSnapshot
+import com.tugboat.capture.WindowMaskSupplier
 import org.robolectric.Robolectric
 
-/** Records runtime calls; completes them only when the test says so. */
+/**
+ * Records runtime calls and completes them only when the test says so. Like
+ * the real runtime, it takes the masks ([copy]) right before completing.
+ */
 internal class FakeWindowCapturer : WindowCapturer {
-    val requests = ArrayList<CaptureRequest>()
-    private val callbacks = HashMap<Long, (CaptureResult) -> Unit>()
+    class Call(val window: Window, val request: CaptureRequest, val masks: WindowMaskSupplier, val onComplete: (CaptureResult) -> Unit)
+
+    val calls = ArrayList<Call>()
+    val requests: List<CaptureRequest>
+        get() = calls.map { it.request }
     var throwOnCapture: Throwable? = null
     var disposed = false
 
-    override fun capture(window: Window, request: CaptureRequest, onComplete: (CaptureResult) -> Unit) {
+    override fun capture(window: Window, request: CaptureRequest, masks: WindowMaskSupplier, onComplete: (CaptureResult) -> Unit) {
         throwOnCapture?.let { throw it }
-        requests += request
-        callbacks[request.requestId] = onComplete
+        calls += Call(window, request, masks, onComplete)
     }
 
     override fun dispose() {
         disposed = true
     }
 
-    fun complete(result: CaptureResult) = callbacks.getValue(result.requestId)(result)
+    /** The main-thread step right before `PixelCopy.request`: takes the masks. */
+    fun copy(id: Long): MaskSnapshot {
+        val call = calls.first { it.request.requestId == id }
+        return call.masks.masksFor(call.window)
+    }
+
+    /** Takes the masks (as a copy would) and completes with [result]. */
+    fun complete(result: CaptureResult) {
+        copy(result.requestId)
+        calls.first { it.request.requestId == result.requestId }.onComplete(result)
+    }
 }
 
 /** An activity whose decor view is laid out at [widthPx] x [heightPx] with one text view. */
@@ -49,11 +66,4 @@ internal fun captureRequest(
     force: Boolean = true,
     scale: Double = 1.0,
     baseline: DHashBaseline? = null,
-) = CaptureRequestEffect(
-    requestId = id,
-    trigger = "interaction",
-    force = force,
-    requireFreshPaint = force,
-    scale = scale,
-    dHashBaseline = baseline,
-)
+) = CaptureRequestEffect(requestId = id, force = force, scale = scale, dHashBaseline = baseline)

@@ -1,5 +1,8 @@
 package com.tugboat.android.capture
 
+import com.tugboat.android.views.mask.MaskCoverage
+import com.tugboat.android.views.mask.MaskMode
+import com.tugboat.android.views.mask.MaskReason
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -13,15 +16,18 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class CaptureResultJsonTest {
+    private val answer = CaptureAnswer.Captured(
+        requestId = "capture-1",
+        frame = CapturedFrame(
+            "frame-1", 300, 600, "sha", true, 1234, 5000, "00ff", "sig",
+            MaskCoverage(MaskMode.WholeHost, listOf(MaskReason.ComposeDefault, MaskReason.WebView)),
+        ),
+        boundaryRect = BoundaryRect(0.0, 0.0, 400.0, 800.0),
+        timings = CaptureTimingsMicros(1, 2, 3, 4),
+    )
+
     @Test
     fun capturedCarriesTheNativeBackendForBothFields() {
-        val answer = CaptureAnswer.Captured(
-            requestId = "capture-1",
-            frame = CapturedFrame("frame-1", 300, 600, "sha", true, 1234, 5000, "00ff", "sig"),
-            boundaryRect = BoundaryRect(0.0, 0.0, 400.0, 800.0),
-            timings = CaptureTimingsMicros(1, 2, 3, 4),
-        )
-
         val json = JSONObject(answer.toInputJson())
 
         assertEquals("captured", json.getString("outcome"))
@@ -41,6 +47,16 @@ class CaptureResultJsonTest {
     }
 
     @Test
+    fun maskCoverageIsEncodedInTheEnginesShapeOnceEnabled() {
+        val frame = JSONObject(CaptureResultJson.encode(answer, maskCoverage = true)).getJSONObject("frame")
+
+        assertEquals(
+            """{"mode":"wholeHost","reasons":["composeDefault","webView"]}""",
+            frame.getJSONObject("maskCoverage").toString(),
+        )
+    }
+
+    @Test
     fun failedAndCancelledCarryNoFrame() {
         val failed = JSONObject(CaptureAnswer.Failed("capture-2", CaptureFailure.ReadbackFailed).toInputJson())
         assertEquals("failed", failed.getString("outcome"))
@@ -53,16 +69,24 @@ class CaptureResultJsonTest {
     }
 
     @Test
-    fun failureNamesAreTheEnginesVocabulary() {
+    fun failureAndCoverageNamesAreTheEnginesVocabulary() {
         assertEquals(
-            listOf("boundaryUnavailable", "layoutUnavailable", "paintTimedOut", "readbackFailed", "maskFailed", "encodingFailed"),
+            listOf(
+                "boundaryUnavailable", "layoutUnavailable", "paintTimedOut", "readbackFailed", "maskFailed",
+                "encodingFailed", "secureWindow",
+            ),
             CaptureFailure.values().map { it.wire },
+        )
+        assertEquals(listOf("precise", "wholeHost", "wholeFrame"), MaskMode.values().map { it.wire })
+        assertEquals(
+            listOf("noDecor", "noWindowSize", "walkExhausted", "animating", "composeDefault", "webView", "surfaceLayer"),
+            MaskReason.values().map { it.wire },
         )
     }
 
     @Test
     fun durationsAreClampedToTheEnginesBounds() {
-        val answer = CaptureAnswer.Failed("capture-4", CaptureFailure.PaintTimedOut, CaptureTimingsMicros(frameWaitMicros = -5))
-        assertEquals(0, JSONObject(answer.toInputJson()).getJSONObject("timings").getLong("frameWaitMicros"))
+        val failed = CaptureAnswer.Failed("capture-4", CaptureFailure.PaintTimedOut, CaptureTimingsMicros(frameWaitMicros = -5))
+        assertEquals(0, JSONObject(failed.toInputJson()).getJSONObject("timings").getLong("frameWaitMicros"))
     }
 }

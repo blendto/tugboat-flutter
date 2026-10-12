@@ -58,8 +58,14 @@ android {
         // Byte-exact fixtures shared with the Apple host (conformance/host),
         // and the identity-parts vectors the Views adapter hashes against.
         val hostFixtures = rootProject.projectDir.resolve("../../conformance/host").canonicalFile
+        // The engine's delivery rule that `SessionEndWatcher` repeats (EngineRetryRuleTest).
+        val engineSources = rootProject.projectDir.resolve("../../core/session-engine").canonicalFile
+        val statusFixture = rootProject.projectDir.resolve("../../conformance/engine/scenario/delivery-status-classification.json").canonicalFile
         val identityFixtures = rootProject.projectDir.resolve("../../conformance/fingerprint/identity_parts").canonicalFile
         unitTests.all { test ->
+            test.systemProperty("tugboat.engineSources", engineSources.path)
+            test.inputs.file(engineSources.resolve("src/transport.cpp"))
+            test.inputs.file(statusFixture)
             test.systemProperty("tugboat.hostFixtures", hostFixtures.path)
             test.inputs.dir(hostFixtures)
             test.systemProperty("tugboat.identityFixtures", identityFixtures.path)

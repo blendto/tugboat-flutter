@@ -10,12 +10,12 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.tugboat.android.views.identity.ViewTags
-import com.tugboat.android.views.mask.FailClosedReason
+import com.tugboat.android.views.mask.MaskMode
+import com.tugboat.android.views.mask.MaskReason
 import com.tugboat.android.views.mask.MaskRect
 import com.tugboat.android.views.mask.WindowMasks
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,7 +36,7 @@ class MaskAnimationTest {
         val result = WindowMasks.compute(root)
 
         assertTrue(result.failClosed)
-        assertEquals(FailClosedReason.Animating, result.reason)
+        assertEquals(listOf(MaskReason.Animating), result.coverage.reasons)
         assertEquals(listOf(MaskRect.FULL_FRAME), result.rects)
     }
 
@@ -45,7 +45,7 @@ class MaskAnimationTest {
         val root = column(TextView(context))
         root.animation = started(AlphaAnimation(0f, 1f).apply { duration = 10_000 })
 
-        assertEquals(FailClosedReason.Animating, WindowMasks.compute(root).reason)
+        assertEquals(listOf(MaskReason.Animating), WindowMasks.compute(root).coverage.reasons)
     }
 
     @Test
@@ -65,7 +65,7 @@ class MaskAnimationTest {
         val result = WindowMasks.compute(root)
 
         assertFalse(result.failClosed)
-        assertNull(result.reason)
+        assertEquals(MaskMode.Precise, result.coverage.mode)
         assertEquals(2, result.rects.size)
     }
 
@@ -77,7 +77,7 @@ class MaskAnimationTest {
         }
         val root = column(inner)
 
-        assertEquals(FailClosedReason.Animating, WindowMasks.compute(root).reason)
+        assertEquals(listOf(MaskReason.Animating), WindowMasks.compute(root).coverage.reasons)
     }
 
     @Test
@@ -94,8 +94,8 @@ class MaskAnimationTest {
     }
 
     @Test
-    fun anUnreadableTreeReportsItsReason() {
-        assertEquals(FailClosedReason.TreeUnreadable, WindowMasks.compute(FrameLayout(context)).reason)
+    fun anUnsizedTreeReportsItsReason() {
+        assertEquals(listOf(MaskReason.NoWindowSize), WindowMasks.compute(FrameLayout(context)).coverage.reasons)
     }
 
     private fun started(animation: Animation): Animation = animation.apply {
