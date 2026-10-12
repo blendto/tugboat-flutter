@@ -10,13 +10,17 @@ final class EffectDispatcherTests: XCTestCase {
   private let logs = Locked<[String]>([])
   private let posts = Locked<[String]>([])
 
-  private func makeDispatcher(onFired: @escaping (String, Int64) -> Void = { _, _ in }) -> EffectDispatcher {
+  private func makeDispatcher(
+    captures: CaptureRequestSink = RecordingCaptureSink(),
+    onFired: @escaping (String, Int64) -> Void = { _, _ in }
+  ) -> EffectDispatcher {
     let logs = self.logs
     let posts = self.posts
     return EffectDispatcher(
       timers: TimerExecutor(queue: queue, onFired: onFired),
       http: http,
       frames: frames,
+      captures: captures,
       post: { type, input in posts.withLock { $0.append(type + " " + input) } },
       log: { message in logs.withLock { $0.append(message) } })
   }
@@ -24,11 +28,24 @@ final class EffectDispatcherTests: XCTestCase {
   func testUnknownTypesAreLoggedOncePerType() {
     let dispatcher = makeDispatcher()
     queue.sync {
-      for effect in [Effect.unknown(type: "capture.request"), .unknown(type: "capture.request"), .unknown(type: "a"), .unknown(type: "a"), .unknown(type: "b")] {
+      for effect in [Effect.unknown(type: "screen.wake"), .unknown(type: "screen.wake"), .unknown(type: "a"), .unknown(type: "a"), .unknown(type: "b")] {
         dispatcher.dispatch(effect)
       }
     }
     XCTAssertEqual(logs.current.count, 3)
+  }
+
+  func testCaptureRequestsGoToTheSinkInOrder() {
+    let sink = RecordingCaptureSink()
+    let dispatcher = makeDispatcher(captures: sink)
+    let first = CaptureRequestEffect(requestId: "capture-1", force: true, requireFreshPaint: true, scale: 1, dHashBaseline: nil)
+    let second = CaptureRequestEffect(requestId: "capture-2", force: false, requireFreshPaint: false, scale: 0.8, dHashBaseline: nil)
+    queue.sync {
+      dispatcher.dispatch(.captureRequest(first))
+      dispatcher.dispatch(.captureRequest(second))
+    }
+    XCTAssertEqual(sink.requests, [first, second])
+    XCTAssertTrue(logs.current.isEmpty)
   }
 
   func testFrameReleaseFreesTheHandle() {
@@ -62,5 +79,15 @@ final class EffectDispatcherTests: XCTestCase {
     }
     wait(for: [fired], timeout: 2)
     queue.sync {}
+  }
+}
+
+final class RecordingCaptureSink: CaptureRequestSink {
+  private let received = Locked<[CaptureRequestEffect]>([])
+
+  var requests: [CaptureRequestEffect] { received.current }
+
+  func onCaptureRequest(_ request: CaptureRequestEffect) {
+    received.withLock { $0.append(request) }
   }
 }

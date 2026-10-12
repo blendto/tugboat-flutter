@@ -81,6 +81,35 @@ final class ScrollObserverTests: XCTestCase {
     XCTAssertEqual(anchorRequests, 1)
   }
 
+  func testAFingerDrivenMoveSendsStartAtOnceBeforeTheFrame() throws {
+    let dragged = TrackedScrollView(frame: CGRect(x: 0, y: 0, width: 300, height: 400))
+    dragged.contentInsetAdjustmentBehavior = .never
+    dragged.contentSize = CGSize(width: 300, height: 2000)
+    root.addSubview(dragged)
+    observer.discover(in: root)
+    dragged.fingerDown = true
+
+    dragged.contentOffset = CGPoint(x: 0, y: 40)
+    XCTAssertEqual(phases, ["start"], "sent from the KVO callback, before the pointer's up is batched")
+    dragged.contentOffset = CGPoint(x: 0, y: 80)
+    observer.onFrame()
+    XCTAssertEqual(phases, ["start", "update"], "one start per scroll")
+    XCTAssertEqual(facts[1].decodedInput["offset"] as? Double, 80)
+  }
+
+  func testScrollViewsUnderAPointerDownAreObservedAtOnce() {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
+    window.isHidden = false
+    defer { window.isHidden = true }
+    let pushed = UIScrollView(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
+    let content = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 100))
+    pushed.addSubview(content)
+    window.addSubview(pushed)
+    let before = observer.observedCount
+    observer.observe(at: CGPoint(x: 50, y: 50), in: window)
+    XCTAssertEqual(observer.observedCount, before + 1)
+  }
+
   func testRubberBandingSendsOneOverscroll() {
     scrollView.contentOffset = CGPoint(x: 0, y: -30)
     observer.onFrame()
@@ -119,6 +148,17 @@ final class ScrollObserverTests: XCTestCase {
     scrollView.contentOffset = CGPoint(x: 0, y: 30)
     observer.onFrame()
     XCTAssertEqual(phases.count, 3, "no longer observed")
+  }
+}
+#endif
+
+#if canImport(UIKit)
+/// A scroll view a test can mark as finger-driven.
+final class TrackedScrollView: UIScrollView {
+  var fingerDown = false
+
+  override var isTracking: Bool {
+    fingerDown
   }
 }
 #endif

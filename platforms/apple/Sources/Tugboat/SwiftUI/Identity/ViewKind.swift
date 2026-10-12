@@ -30,6 +30,9 @@ enum ViewKind: Equatable {
   case cell
   /// Any other `UIScrollView` (SwiftUI `ScrollView`, `List`).
   case scrollView
+  /// Any other `UIControl`: UIKit buttons (navigation and tab bar buttons,
+  /// the back button), switches (SwiftUI `Toggle`), sliders.
+  case control
   /// A view the SDK itself added (`.tugboatTag` markers and their hosts).
   case sdkOwned
   case other
@@ -70,12 +73,13 @@ enum ViewKind: Equatable {
     if cls.isSubclass(of: UIImageView.self) { return .image }
     if cls.isSubclass(of: UICollectionViewCell.self) || cls.isSubclass(of: UITableViewCell.self) { return .cell }
     if cls.isSubclass(of: UIScrollView.self) { return .scrollView }
+    if cls.isSubclass(of: UIControl.self) { return .control }
     let name = String(describing: cls)
     if OpaqueRenderers.isRenderer(layerClass: cls.layerClass) || OpaqueRenderers.isRendererViewName(name) {
       return .renderer
     }
     if name.contains("PlatformViewHost") {
-      return KnownPlatformViews.isInternal(name) ? .internalPlatformView : .representable
+      return KnownPlatformViews.isInternal(String(reflecting: cls)) ? .internalPlatformView : .representable
     }
     if name.contains("HostingView") { return .hosting }
     return .other

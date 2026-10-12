@@ -100,7 +100,7 @@ final class SwiftUITagTests: XCTestCase {
     XCTAssertNil(resolved.role, "not scrollable")
     XCTAssertEqual(resolved.actions, [])
     XCTAssertEqual(resolved.widgetType, "SwiftUIView")
-    XCTAssertTrue(resolved.canonicalPath.hasSuffix("Scrollable#0"), "the structure is still the scroll view: \(resolved.canonicalPath)")
+    XCTAssertTrue(resolved.canonicalPath.hasSuffix("Scrollable#0/Tagged#0"), "the structure is still the scroll view: \(resolved.canonicalPath)")
   }
 
   func testATagUnderAnotherHostingRootNeverWinsATapOnIt() throws {

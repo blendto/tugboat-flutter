@@ -58,12 +58,17 @@ Notes:
     `SurfaceView` / `TextureView` layers such as video, maps, or camera. The
     adapter masks their bounds fail-closed (section 2.1).
     `native-capture-contracts.md` states this for `windowComposite`.
-- **Apple.** No runtime change. `CaptureRuntime(coverage: .viewHierarchy)`
-  already accepts any `UIView`. The host captures the key window's root view.
+- **Apple.** `CaptureRuntime(coverage: .viewHierarchy)` already accepts any
+  `UIView`. The host captures the key window itself, so presented sheets and
+  alerts are in the frame. `TugboatCaptureRuntime` 0.2.0 (unpublished) adds
+  an additive mask supplier that runs in the same main-thread turn as the
+  draw (decisions log); the Flutter plugin's pin is unchanged.
 - Below the native floor (Android API 26, iOS 15), sessions carry events
   without frames. This is the existing `unsupportedApi` outcome.
 - **Masks fail closed.** The adapter computes mask rectangles on the main
-  thread when it handles `capture.request`. If it cannot enumerate the screen
+  thread at copy (draw) time: the pixel runtime calls the host's mask
+  supplier immediately before `PixelCopy.request` / `drawHierarchy`, so the
+  masks describe the copied frame, not the layout when the request arrived. If it cannot enumerate the screen
   with confidence (for example, SwiftUI on an iOS major version whose layer
   allowlist is not verified, section 6.3), it masks the whole frame. It never sends an
   unmasked frame. The default stays `allTextAndMedia`. The one exception is an

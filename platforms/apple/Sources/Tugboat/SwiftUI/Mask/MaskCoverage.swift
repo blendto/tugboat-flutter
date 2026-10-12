@@ -28,8 +28,14 @@ struct MaskCoverage: Equatable {
 }
 
 extension MaskResult {
-  /// The summary of this result: the fallback reason for a whole frame,
-  /// else the kinds of fail-closed boxes the precise mask contains.
+  /// A fail-closed box over at least this share of the window masks the
+  /// frame in effect: the summary then says `wholeFrame`, with the box
+  /// reasons, so the diagnostic matches the pixels.
+  static let wholeFrameBoxFraction = 0.9
+
+  /// The summary of this result: the fallback reason for a whole frame;
+  /// `wholeFrame` with the box reasons when a box covers (nearly) the whole
+  /// window; else `precise` with the kinds of fail-closed boxes it contains.
   var coverage: MaskCoverage {
     if let fallback = fallback {
       return MaskCoverage(mode: .wholeFrame, reasons: [MaskResult.reason(for: fallback)])
@@ -40,7 +46,9 @@ extension MaskResult {
       .renderer: stats.rendererBoxes > 0,
       .unclassifiedLayer: stats.unclassifiedLayers > 0,
     ]
-    return MaskCoverage(mode: .precise, reasons: MaskCoverage.Reason.allCases.filter { present[$0] == true })
+    let reasons = MaskCoverage.Reason.allCases.filter { present[$0] == true }
+    let mode: MaskCoverage.Mode = stats.largestBoxFraction >= MaskResult.wholeFrameBoxFraction ? .wholeFrame : .precise
+    return MaskCoverage(mode: mode, reasons: reasons)
   }
 
   private static func reason(for fallback: MaskFallback) -> MaskCoverage.Reason {

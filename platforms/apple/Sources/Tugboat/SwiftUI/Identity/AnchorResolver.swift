@@ -13,11 +13,16 @@ import UIKit
 ///   `enabled` are omitted (a tagged button inside a scroll view is not
 ///   `scrollable`).
 /// - **Fingerprint.** Hash of `routeKey` + the canonical path of the view
-///   under the point. A tag adds `tagFingerprint` (`routeKey` + `tag`) and
-///   leaves the structural fingerprint unchanged.
+///   under the point. A tagged target's path ends in `Tagged#<k>`, `k` its
+///   marker's layout-order ordinal within its hosting view, so tagged
+///   controls drawn in one hosting view get distinct structural
+///   fingerprints; the tag value never enters the path. A tag also adds
+///   `tagFingerprint` (`routeKey` + `tag`), the high-confidence alias.
 /// - **Confidence.** The floor of the route's and the path's. The path is
-///   `high` with a tag, `medium` inside a list cell (index path), `low`
-///   otherwise.
+///   `high` with a tag; `low` when it passes through a fail-closed box (a
+///   `Representable` segment: the SDK cannot see inside, so every target
+///   there shares the box's path); `medium` inside a list cell (index
+///   path); `low` otherwise.
 ///
 /// Main thread only.
 final class AnchorResolver {
@@ -38,17 +43,18 @@ final class AnchorResolver {
     let root = lineage.first { $0.kind == .hosting }?.view ?? window
     if let tagged = tags.marker(at: point, in: window, root: root) {
       let base = AnchorResolver.nearestTarget(in: lineage) ?? lineage.last { $0.kind == .hosting }?.view ?? hit ?? window
-      return evidence(anchor(for: base, in: window, tag: tagged.tugboatTag))
+      let tag = Tagging(value: tagged.tugboatTag, ordinal: tags.layoutOrdinal(of: tagged))
+      return evidence(anchor(for: base, in: window, tag: tag))
     }
     guard hit != nil else { return .failed(.noTargetAtPoint) }
     guard let target = AnchorResolver.nearestTarget(in: lineage) else { return .failed(.noActionableCandidate) }
-    return evidence(anchor(for: target, in: window, tag: nil))
+    return evidence(anchor(for: target, in: window, tag: nil as Tagging?))
   }
 
   /// The anchor of `view` (a scrollable at scroll start), or nil when it is
   /// not in `window`.
   func anchor(for view: UIView, in window: UIWindow) -> TargetAnchor? {
-    anchor(for: view, in: window, tag: nil)
+    anchor(for: view, in: window, tag: nil as Tagging?)
   }
 
   private func evidence(_ anchor: TargetAnchor?) -> TapEvidence {
@@ -56,17 +62,26 @@ final class AnchorResolver {
     return .anchor(anchor)
   }
 
-  private func anchor(for view: UIView, in window: UIWindow, tag: String?) -> TargetAnchor? {
+  /// A tap's tag: its value (the alias) and its marker's layout ordinal
+  /// (the structural path segment).
+  private struct Tagging {
+    let value: String
+    let ordinal: Int
+  }
+
+  private func anchor(for view: UIView, in window: UIWindow, tag tagging: Tagging?) -> TargetAnchor? {
     guard view === window || view.isDescendant(of: window) else { return nil }
     screens.settle()
     let route = RouteKey.resolve(for: view, in: window, screen: screens.top)
-    guard let path = CanonicalPathBuilder.build(root: route.root, target: view) else { return nil }
-    let pathConfidence: Confidence = tag != nil ? .high : (path.indexPath != nil ? .medium : .low)
+    guard let base = CanonicalPathBuilder.build(root: route.root, target: view) else { return nil }
+    let path = tagging.map { base.appending("\(CanonicalPath.taggedToken)#\($0.ordinal)") } ?? base
+    let tag = tagging?.value
+    let pathConfidence = AnchorResolver.pathConfidence(path, tagged: tag != nil)
     let kind = ViewTree.node(view).kind
     let structural = IdentityHash.fingerprint([(key: "routeKey", value: route.value), (key: "path", value: path.value)])
     return TargetAnchor(
       widgetType: tag == nil ? kind.widgetType(of: view) : AnchorResolver.taggedWidgetType,
-      role: tag == nil ? kind.anchorRole : nil,
+      role: tag == nil ? kind.anchorRole(of: view) : nil,
       fingerprint: structural,
       confidence: Confidence.floor(route.confidence, pathConfidence),
       tagFingerprint: tag.map { IdentityHash.fingerprint([(key: "routeKey", value: route.value), (key: "tag", value: $0)]) },
@@ -77,6 +92,12 @@ final class AnchorResolver {
       enabled: tag == nil && kind.isTarget ? ViewKind.isEnabled(view) : nil,
       actions: tag == nil ? kind.actions(of: view) : []
     )
+  }
+
+  static func pathConfidence(_ path: CanonicalPath, tagged: Bool) -> Confidence {
+    if tagged { return .high }
+    if path.passesThroughBox || path.indexPath == nil { return .low }
+    return .medium
   }
 
   /// The deepest node of `lineage` (window first) that is a list cell or a

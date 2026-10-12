@@ -12,7 +12,8 @@ extension ViewKind {
     case .textInput: return "TextField"
     case .cell: return "Cell"
     case .scrollView: return "Scrollable"
-    case .representable, .webView, .renderer: return "Representable"
+    case .control: return "Control"
+    case .representable, .webView, .renderer: return CanonicalPath.boxToken
     case .internalPlatformView, .label, .image, .sdkOwned, .other: return nil
     }
   }
@@ -32,6 +33,17 @@ extension ViewKind {
     }
   }
 
+  /// The anchor `role` of `view`: `button` for UIKit buttons (including the
+  /// navigation bar's private button classes), else the kind's role.
+  func anchorRole(of view: UIView) -> String? {
+    guard self == .control else { return anchorRole }
+    return ViewKind.isButton(view) ? "button" : nil
+  }
+
+  static func isButton(_ view: UIView) -> Bool {
+    view is UIButton || String(describing: type(of: view)).contains("Button")
+  }
+
   /// The anchor `widgetType`: a public UIKit base class, never an app or
   /// private SwiftUI class name.
   func widgetType(of view: UIView) -> String {
@@ -39,6 +51,7 @@ extension ViewKind {
     case .textInput: return view is UITextView ? "UITextView" : "UITextField"
     case .cell: return view is UITableViewCell ? "UITableViewCell" : "UICollectionViewCell"
     case .scrollView: return "UIScrollView"
+    case .control: return ViewKind.isButton(view) ? "UIButton" : "UIControl"
     case .representable, .webView, .renderer: return "UIViewRepresentable"
     case .hosting: return "UIHostingView"
     default: return "UIView"
@@ -50,7 +63,7 @@ extension ViewKind {
     guard ViewKind.isEnabled(view) != false else { return [] }
     switch self {
     case .textInput: return ["input", "tap"]
-    case .cell: return ["tap"]
+    case .cell, .control: return ["tap"]
     case .scrollView: return ["scroll"]
     default: return []
     }

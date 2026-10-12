@@ -13,4 +13,11 @@ enum HostLog {
   static func error(_ message: String) {
     os_log("%{public}@", log: log, type: .error, message as NSString)
   }
+
+  /// Diagnostics (capture boundaries, surfaces); kept only while debug
+  /// logging is enabled for the subsystem.
+  static func debug(_ message: @autoclosure () -> String) {
+    guard log.isEnabled(type: .debug) else { return }
+    os_log("%{public}@", log: log, type: .debug, message() as NSString)
+  }
 }

@@ -50,9 +50,10 @@ struct LayerAllowlist: Equatable {
     ProcessInfo.processInfo.operatingSystemVersion.majorVersion
   }
 
-  /// True when masks may walk into the SwiftUI platform view `className`
+  /// True when masks may walk into the SwiftUI platform-view host
+  /// `qualifiedName` (`String(reflecting:)` of its class)
   /// on this major (`KnownPlatformViews`); otherwise it is a box.
-  func walksPlatformView(_ className: String) -> Bool {
-    KnownPlatformViews.isVerified(className, major: major)
+  func walksPlatformView(_ qualifiedName: String) -> Bool {
+    KnownPlatformViews.isVerified(qualifiedName, major: major)
   }
 }

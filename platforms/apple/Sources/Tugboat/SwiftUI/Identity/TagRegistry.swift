@@ -44,6 +44,35 @@ final class TagRegistry {
     return hits.min { $0.area < $1.area }?.marker
   }
 
+  /// The ordinal of `marker` among the visible markers in its nearest
+  /// hosting view, in layout order: top to bottom, then leading to
+  /// trailing (window coordinates). It names a tagged target in the
+  /// structural path without the tag value.
+  func layoutOrdinal(of marker: TagMarkerView) -> Int {
+    guard let window = marker.window else { return 0 }
+    let root = TagRegistry.nearestHosting(of: marker)
+    let peers = all.filter { peer in
+      peer.window === window && TagRegistry.nearestHosting(of: peer) === root && isVisible(peer, below: root ?? window)
+    }
+    let ordered = peers.map { ($0, $0.convert($0.bounds, to: window)) }.sorted { lhs, rhs in
+      if lhs.1.minY != rhs.1.minY { return lhs.1.minY < rhs.1.minY }
+      if lhs.1.minX != rhs.1.minX { return lhs.1.minX < rhs.1.minX }
+      return lhs.1.height < rhs.1.height
+    }
+    return ordered.firstIndex { $0.0 === marker } ?? 0
+  }
+
+  private static func nearestHosting(of view: UIView) -> UIView? {
+    var current = view.superview
+    var depth = 0
+    while let ancestor = current, depth < ViewTree.maxDepth {
+      if ViewKind.of(ancestor, insideHosting: false) == .hosting { return ancestor }
+      current = ancestor.superview
+      depth += 1
+    }
+    return nil
+  }
+
   /// No hidden or transparent view between the marker and `root`.
   private func isVisible(_ marker: TagMarkerView, below root: UIView) -> Bool {
     var current: UIView? = marker

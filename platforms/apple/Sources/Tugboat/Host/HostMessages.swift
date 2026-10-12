@@ -5,6 +5,8 @@ enum HostMessages {
   /// The last message before the handle is destroyed: the engine reports
   /// undelivered work and becomes inert. Its input is empty.
   static let engineDispose = "engine.dispose"
+  /// The answer to a `capture.request` effect.
+  static let captureResult = "capture.result"
 
   static func timerFiredInput(timerId: String) -> String {
     "{\"timerId\":" + JSONText.quoted(timerId) + "}"

@@ -69,6 +69,8 @@ struct MaskStats: Equatable {
   /// Renderer views and renderer layers.
   var rendererBoxes = 0
   var rendererLayers = 0
+  /// The share of the window's area the largest fail-closed box covers.
+  var largestBoxFraction = 0.0
   /// Class names of unclassified layers, with counts.
   var unclassifiedClasses: [String: Int] = [:]
 }

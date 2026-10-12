@@ -4,8 +4,23 @@ import UIKit
 /// A target's structural path within its route root, and the list index
 /// path it sits in, if any.
 struct CanonicalPath: Equatable {
+  static let boxToken = "Representable"
+  /// The last segment of a tagged target: `Tagged#<layout ordinal>`.
+  static let taggedToken = "Tagged"
+
   let value: String
   let indexPath: IndexPath?
+
+  /// This path with `segment` added at the end (`Root#0` is replaced).
+  func appending(_ segment: String) -> CanonicalPath {
+    let joined = value == CanonicalPathBuilder.rootSegment ? segment : value + "/" + segment
+    return CanonicalPath(value: joined, indexPath: indexPath)
+  }
+
+  /// True when a segment is a fail-closed box the SDK cannot see into.
+  var passesThroughBox: Bool {
+    value.split(separator: "/").contains { $0.hasPrefix(CanonicalPath.boxToken + "#") }
+  }
 }
 
 /// Builds canonical paths for SwiftUI targets (native SDK note 6, 6.3).
