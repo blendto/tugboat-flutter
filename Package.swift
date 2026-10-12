@@ -11,6 +11,12 @@ let package = Package(
       name: "TugboatCaptureRuntime",
       targets: ["TugboatCaptureRuntime"]
     ),
+    // Native SDK (ADR 0009, native SDK design note section 1). Platform
+    // plumbing only for now: every type in the module is internal.
+    .library(
+      name: "Tugboat",
+      targets: ["Tugboat"]
+    ),
   ],
   targets: [
     .target(
@@ -74,6 +80,18 @@ let package = Package(
       linkerSettings: [
         .linkedLibrary("c++"),
       ]
+    ),
+    // Swift host for the session engine. Calls the engine's C ABI directly.
+    .target(
+      name: "Tugboat",
+      dependencies: ["TugboatSessionEngine"],
+      path: "platforms/apple/Sources/Tugboat",
+      exclude: ["README.md"]
+    ),
+    .testTarget(
+      name: "TugboatTests",
+      dependencies: ["Tugboat", "TugboatSessionEngine"],
+      path: "platforms/apple/Tests/TugboatTests"
     ),
     .testTarget(
       name: "TugboatSessionEngineTests",
