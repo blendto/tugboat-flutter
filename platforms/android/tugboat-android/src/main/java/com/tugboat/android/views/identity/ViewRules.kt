@@ -43,7 +43,7 @@ internal object ViewRules {
     /** Region hosts (a Compose host, for example) are kept, so their content paths stay unique. */
     fun isKept(view: View, names: ResourceNames): Boolean =
         isActionable(view) || Scrollables.isScrollable(view) || isMaskableLeaf(view) || names.entryName(view) != null ||
-            Regions.hostOf(view) != null
+            Regions.regionOf(view) != null
 
     private fun isContextClickable(view: View): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && view.isContextClickable

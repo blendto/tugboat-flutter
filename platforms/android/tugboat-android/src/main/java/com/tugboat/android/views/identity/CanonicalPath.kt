@@ -55,7 +55,7 @@ internal class CanonicalPathBuilder(private val names: ResourceNames) {
     /** `Button` or `Button#checkout`; a region host takes its region's host token (`Compose`). */
     fun token(view: View): String {
         val name = names.entryName(view)
-        val platform = Regions.hostOf(view)?.region?.hostToken ?: PlatformToken.name(view)
+        val platform = Regions.regionOf(view)?.hostToken ?: PlatformToken.name(view)
         return if (name == null) platform else "$platform#$name"
     }
 

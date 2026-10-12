@@ -22,7 +22,6 @@ import com.tugboat.android.views.navigation.DestinationTracker
 import com.tugboat.android.views.navigation.FragmentNavigation
 import com.tugboat.android.views.navigation.NavigationChange
 import com.tugboat.android.views.navigation.ViewRouteResolver
-import com.tugboat.android.views.region.Regions
 
 /**
  * The Android Views toolkit adapter (native SDK note section 5): it turns
@@ -91,15 +90,12 @@ internal class ViewsAdapter(
     /**
      * The `trackNavigation` hook: [activity]'s Jetpack Navigation destination
      * changed. The SDK facade connects it with
-     * `navController.addOnDestinationChangedListener { _, d, _ -> onDestinationChanged(activity, d.route, d.id) }`;
-     * toolkit regions receive the plain route string too (Compose strips its
-     * arguments for route keys).
+     * `navController.addOnDestinationChangedListener { _, d, _ -> onDestinationChanged(activity, d.route, d.id) }`.
+     * The route pattern loses its arguments ([com.tugboat.android.views.navigation.RoutePattern]),
+     * so Views and Compose anchors and navigation facts share one route key.
      */
     fun onDestinationChanged(activity: Activity, route: String?, destinationId: Int) =
-        AdapterGuard.run("destination changed") {
-            destinations.onDestinationChanged(activity, route, destinationId)
-            Regions.onDestinationChanged(activity, route)
-        }
+        AdapterGuard.run("destination changed") { destinations.onDestinationChanged(activity, route, destinationId) }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
         AdapterGuard.run("activity created") {

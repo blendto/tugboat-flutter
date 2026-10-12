@@ -1,13 +1,13 @@
 package com.tugboat.android.toolkit
 
-import android.app.Activity
 import android.view.View
 
 /**
  * A toolkit whose content lives inside one View (a *region host*, such as
  * Compose's `AndroidComposeView`) that the Views adapter cannot read as
  * Views. The Views adapter consults registered regions before its own rules,
- * and before treating such a host as fail-closed.
+ * and before treating such a host as fail-closed. Route keys stay the Views
+ * adapter's (the host's activity, fragment, or navigation destination).
  *
  * Coordinates and rectangles are physical pixels in the host's own
  * coordinate space. Every method runs on the main thread. The Views adapter
@@ -29,20 +29,14 @@ interface ToolkitRegion {
     /** The tap target at ([x], [y]) in [host]. */
     fun targetAt(host: View, x: Float, y: Float): RegionHit
 
-    /** The scrollables currently inside [host]; empty when unreadable. */
-    fun scrollables(host: View): List<RegionScrollable>
+    /** The scrollables under ([x], [y]) in [host], innermost last; empty when unreadable. */
+    fun scrollablesAt(host: View, x: Float, y: Float): List<RegionScrollable>
 
-    /** Mask rectangles for [host] under `allTextAndMedia`. */
+    /** Mask rectangles for [host] under `allTextAndMedia`, with the coverage mode that applied. */
     fun masks(host: View): RegionMasks
 
     /** What has input focus inside [host], or null when unreadable. */
     fun focus(host: View): RegionFocus?
-
-    /** A route key for [host] that overrides its Views route, or null to keep that. */
-    fun routeKey(host: View): String?
-
-    /** The `trackNavigation` hook: [activity]'s navigation destination is now [route]. */
-    fun onDestinationChanged(activity: Activity, route: String?)
 }
 
 /** What has focus inside a region host (the engine's `focus.kind`, minus `none`). */

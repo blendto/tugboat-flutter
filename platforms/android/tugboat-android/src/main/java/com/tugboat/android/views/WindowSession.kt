@@ -14,6 +14,7 @@ import com.tugboat.android.views.input.FocusFactProducer
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.input.PointerFactProducer
 import com.tugboat.android.views.input.SystemInputProducer
+import com.tugboat.android.views.region.Regions
 import com.tugboat.android.views.scroll.OffsetScrollTracker
 import com.tugboat.android.views.scroll.RecyclerScrollTracker
 import com.tugboat.android.views.scroll.RegionScrollTracker
@@ -118,6 +119,7 @@ internal class WindowSession(
 
     /** Region focus can move without a View focus change: re-read it on the next frames. */
     private fun inputHappened() {
+        if (!Regions.any) return
         focus.onInput()
         requestFrame()
     }

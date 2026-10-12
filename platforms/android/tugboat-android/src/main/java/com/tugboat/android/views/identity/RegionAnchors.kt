@@ -9,8 +9,8 @@ import com.tugboat.android.views.region.Regions
  * Anchors inside toolkit regions (a Compose host, for example). The region
  * reads its own structure; this class gives it the Views context:
  *
- * - **Route**: the region's route key for the host when it has one (the
- *   `trackNavigation` route), else the host view's Views route.
+ * - **Route**: the host view's Views route (its activity, fragment, or
+ *   navigation destination), shared with Views anchors.
  * - **Path**: the host's Views canonical path (the host is a kept view with
  *   its region's token) followed by the region's segments, so the full path
  *   is unique within the route even with several hosts.
@@ -44,8 +44,7 @@ internal class RegionAnchors(
 
     /** The anchor of [target] in [host], or of the host itself when [target] is null. */
     fun anchor(host: RegionHost, target: RegionHit.Target?, window: View = host.view.rootView): TargetAnchor? {
-        val viewsRoute = routes.routeFor(host.view) ?: return null
-        val route = host.routeKey()?.let { RouteKey(it, Confidence.High, viewsRoute.root) } ?: viewsRoute
+        val route = routes.routeFor(host.view) ?: return null
         val hostPath = paths.build(route.root, host.view) ?: return null
         val path = (hostPath.segments + target?.path.orEmpty()).joinToString(separator = "/")
         val tag = if (target != null) target.tag else ViewTags.alias(host.view)
