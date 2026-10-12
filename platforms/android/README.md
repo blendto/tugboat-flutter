@@ -48,6 +48,14 @@ emulator. CI runs it on API 26 and API 34 emulators
 (`.github/workflows/android-runtime-device.yml`). API 24 vs recent, rotation, and activity-recreation tests wait
 on a Flutter `FlutterSurfaceView` fixture (Phase 6).
 
+## Native SDK and sample
+
+`tugboat-android` (the native Android SDK on the session engine) and its
+sample app `tugboat-sample` live in this build too; they use `capture-runtime`
+as a project dependency and need no local Maven. See
+[tugboat-android/README.md](tugboat-android/README.md) and
+[tugboat-sample/README.md](tugboat-sample/README.md) (device-test script).
+
 ## Hosted Maven
 
 Merging a version bump to `main` tags `capture-runtime-v<version>` and

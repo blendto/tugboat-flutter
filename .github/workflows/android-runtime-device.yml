@@ -3,13 +3,18 @@ name: Android runtime device tests
 # Runs :capture-runtime-test:connectedAndroidTest (lifecycle and window
 # capture) on emulators: API 26 is the window-capture floor and uses the
 # two-animation-frame wait; API 34 uses the frame-commit callback.
+# Also runs :tugboat-android:connectedAndroidTest: the real session engine
+# through JNI, including the collector contract test (session_start body,
+# frameMetadata backends).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "platforms/android/capture-runtime/**"
       - "platforms/android/capture-runtime-test/**"
+      - "platforms/android/tugboat-android/**"
       - "core/image-processing/**"
+      - "core/session-engine/**"
       - ".github/workflows/android-runtime-device.yml"
   workflow_dispatch:
 
@@ -55,7 +60,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Build test APKs
         working-directory: platforms/android
-        run: ./gradlew :capture-runtime-test:assembleDebugAndroidTest
+        run: ./gradlew :capture-runtime-test:assembleDebugAndroidTest :tugboat-android:assembleDebugAndroidTest
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -65,7 +70,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           working-directory: platforms/android
-          script: ./gradlew :capture-runtime-test:connectedDebugAndroidTest
+          script: ./gradlew :capture-runtime-test:connectedDebugAndroidTest :tugboat-android:connectedDebugAndroidTest
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -74,4 +79,6 @@ jobs:
           path: |
             platforms/android/capture-runtime-test/build/reports/androidTests
             platforms/android/capture-runtime-test/build/outputs/androidTest-results
+            platforms/android/tugboat-android/build/reports/androidTests
+            platforms/android/tugboat-android/build/outputs/androidTest-results
           if-no-files-found: ignore

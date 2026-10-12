@@ -2,8 +2,32 @@
 
 ## 0.1.0
 
-Unpublished. Platform plumbing and the Android Views adapter, with no public
-API.
+Unpublished. The native Android SDK for Views apps: public facade, engine
+wiring, window capture, and the Android Views adapter.
+
+- Public API (`com.tugboat.android`): `Tugboat.start(application,
+  TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
+  (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
+  `CollectorConfig`, `AppInfo`, `MaskLevel`. Idempotent start; nothing
+  throws into the app.
+- Engine wiring: `engine.configure` with every `session_start` field the
+  collector requires (start is refused and logged when one is blank),
+  `limits`, the adapter's `gesture`, `capture.answerTimeoutMs` 5000,
+  `collector.enabled`, `focusChanges` / `systemInput` capabilities;
+  `session.start`; `ProcessLifecycleOwner` to `app.lifecycle`
+  (`androidx.lifecycle:lifecycle-process`, the one new runtime dependency);
+  `identity.set` / `traits.set`; adapter facts as per-frame batches with
+  `navigation` facts on (engine phase 3d).
+- `stop()`: `session.end`, then `engine.dispose` and handle destruction once
+  the `session_end` post settled (bounded at 25 s).
+- Capture: `capture.request` answered on the main thread with
+  `capture-runtime` window capture (`capture-runtime` is now a dependency),
+  masks before encoding, `nativeCpuExperimental` for both backend fields,
+  every overlapping request answered by id; `surface` facts from the
+  foreground decor view. Masks fail closed (whole frame) while a legacy view
+  animation or `LayoutTransition` runs.
+- Collector contract test (instrumented, real engine): `session_start` body
+  and `frameMetadata` backends.
 
 - Views adapter (internal): `input.pointer` (dp, unique contact ids, tap
   evidence at the down position), `scroll`, `navigation`, `focus`, and

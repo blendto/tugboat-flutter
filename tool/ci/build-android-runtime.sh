@@ -12,3 +12,5 @@ cd "$android"
 ./gradlew :sample:assembleDebug
 # Native host (unpublished): engine JNI build, unit tests, instrumented-test APK.
 ./gradlew :tugboat-android:test :tugboat-android:assembleRelease :tugboat-android:assembleAndroidTest
+# Native SDK sample app (Views), for emulator device tests against a local collector.
+./gradlew :tugboat-sample:assembleDebug
