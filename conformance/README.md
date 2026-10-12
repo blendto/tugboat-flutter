@@ -33,6 +33,7 @@ conformance/
     session_lifecycle/<name>.json   kind collector.sessionLifecycle
   engine/
     scenario/<name>.json            kind engine.scenario
+  host/                             byte-exact platform host fixtures (not *.json; see host/README.md)
 ```
 
 One case per file. The file name stem equals the fixture `name`, and the
