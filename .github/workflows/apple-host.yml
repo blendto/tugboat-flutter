@@ -1,5 +1,5 @@
-# Build the Swift host (`Tugboat`) and run the package XCTests on an iOS
-# simulator (needs Xcode).
+# Build the Swift host (`Tugboat`), run the package XCTests on an iOS
+# simulator, and build the SwiftUI sample app (needs Xcode).
 name: Apple host
 
 on:
@@ -11,6 +11,8 @@ on:
       - 'core/session-engine/**'
       - 'conformance/host/**'
       - 'tool/ci/test-apple-host.sh'
+      - 'tool/ci/build-apple-sample.sh'
+      - 'tool/ci/apple-simulator-udid.sh'
       - '.github/workflows/apple-host.yml'
   workflow_dispatch:
 
@@ -27,3 +29,5 @@ jobs:
         uses: actions/checkout@v4
       - name: Build and test
         run: bash tool/ci/test-apple-host.sh
+      - name: Build the SwiftUI sample (XcodeGen)
+        run: bash tool/ci/build-apple-sample.sh
