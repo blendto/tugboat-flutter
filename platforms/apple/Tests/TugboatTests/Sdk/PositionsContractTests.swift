@@ -134,6 +134,29 @@ final class PositionsContractTests: XCTestCase {
     XCTAssertEqual(y, 40.0 / 402.0, accuracy: 1e-6)
   }
 
+  /// Engine rule, pinned so a change is noticed: positions need a
+  /// before-frame of the current boundary generation, and the host cannot
+  /// ask for a capture, so the first tap after a rotation (before any
+  /// landscape frame) has no position. Its own capture gives later taps one
+  /// (`testATapAfterRotationHasALandscapePosition`). Open item: the engine
+  /// could request a capture when the generation changes.
+  func testTheFirstTapAfterRotationHasNoPositionUntilALandscapeFrame() throws {
+    var surfaces: [String] = []
+    let reporter = SurfaceReporter { surfaces.append($0) }
+    reporter.observe(boundary)
+    reporter.observe(BoundaryRect(x: 0, y: 0, width: 874, height: 402))
+    engine.boundary = BoundaryRect(x: 0, y: 0, width: 874, height: 402)
+    engine.send(SurfaceReporter.factType, try XCTUnwrap(surfaces.last))
+
+    engine.send(FactTypes.pointer, pointer("down", x: 650, y: 40))
+    engine.run(forMs: 40)
+    engine.send(FactTypes.pointer, pointer("up", x: 650, y: 40))
+    engine.run(forMs: 5000)
+
+    let tap = try XCTUnwrap(engine.interactions.first, "events: \(engine.eventTypes)")
+    XCTAssertNil(payload(of: tap)?["position"], "\(tap)")
+  }
+
   private func scroll(_ phase: ScrollPhase, _ offset: Double) -> String {
     ScrollFacts.fact(
       id: "swiftui-scroll-1", phase: phase, metrics: ScrollMetrics(axis: .vertical, offset: offset, maxExtent: 2000),

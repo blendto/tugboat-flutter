@@ -28,6 +28,7 @@ extension TugboatRuntime {
       let watcher = SessionEndWatcher(delegate: HTTPExecutor(config: hostConfig, frameBytes: { frames.get($0) }))
       let ref = HostRef()
       let reporter = SurfaceReporter { input in
+        HostLog.debug("surface \(input)")
         ref.host?.post(type: SurfaceReporter.factType, inputJSON: input, at: clock.now())
       }
       let captures = CaptureCoordinator(
@@ -36,6 +37,10 @@ extension TugboatRuntime {
         capturer: RuntimeWindowCapturer(),
         frames: frames,
         answer: { answer in
+          if case let .captured(requestId, frame, boundary, _) = answer {
+            HostLog.debug(
+              "capture.result \(requestId) \(frame.width)x\(frame.height) px boundaryRect \(boundary.map { "\($0)" } ?? "none") pt")
+          }
           ref.host?.post(
             type: HostMessages.captureResult, inputJSON: CaptureResultJSON.encode(answer), at: clock.now(),
             frameHandles: answer.frameHandles)

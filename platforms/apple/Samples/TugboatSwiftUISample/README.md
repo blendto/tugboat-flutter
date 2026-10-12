@@ -109,10 +109,15 @@ With the local collector running on port 3000:
     and `stop-tugboat`; `scroll` for the list (step 3) and the details scroll
     view; `swipe` for the card (step 4, no target anchor). Each
     `targetAnchor` has `toolkit: "swiftui"` (tagged targets carry the tag;
-    list rows carry `[item:section.row]`). Untagged targets get their own
-    canonical paths (no shared `Representable#0`); a path through a
-    fail-closed box is `low` confidence. Interactions carry
-    `payload.position`;
+    list rows carry `[item:section.row]`). Tagged buttons have distinct
+    structural paths `Tagged#<k>` (layout order within their hosting view;
+    on Home `add-to-cart` is `Tagged#0`, `open-details` `Tagged#2`,
+    `stop-tugboat` `Tagged#3`, with the swipe card `Tagged#1`), never the
+    tag value; the navigation-bar back button is a `button` anchor
+    (`Control#n`, `widgetType` `UIButton`); a path through a fail-closed
+    box is `low` confidence. Interactions carry `payload.position`, except
+    the first one after a rotation (no landscape frame yet; the next ones
+    have it);
   - `focus_changed` when the text field gains and loses focus;
   - `app_inactive`, `app_backgrounded` (step 8), `app_inactive`,
     `app_foregrounded` (step 9);

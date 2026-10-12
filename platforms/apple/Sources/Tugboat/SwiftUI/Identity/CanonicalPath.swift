@@ -5,9 +5,17 @@ import UIKit
 /// path it sits in, if any.
 struct CanonicalPath: Equatable {
   static let boxToken = "Representable"
+  /// The last segment of a tagged target: `Tagged#<layout ordinal>`.
+  static let taggedToken = "Tagged"
 
   let value: String
   let indexPath: IndexPath?
+
+  /// This path with `segment` added at the end (`Root#0` is replaced).
+  func appending(_ segment: String) -> CanonicalPath {
+    let joined = value == CanonicalPathBuilder.rootSegment ? segment : value + "/" + segment
+    return CanonicalPath(value: joined, indexPath: indexPath)
+  }
 
   /// True when a segment is a fail-closed box the SDK cannot see into.
   var passesThroughBox: Bool {

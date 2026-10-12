@@ -80,7 +80,7 @@ enum WindowMasks {
       }
       LayerWalk(classify: allowlist).walk(view, into: &acc)
       return true
-    case .cell, .scrollView, .other, .sdkOwned:
+    case .cell, .scrollView, .control, .other, .sdkOwned:
       LayerWalk(classify: node.insideHosting ? allowlist : nil).walk(view, into: &acc)
       return true
     }
