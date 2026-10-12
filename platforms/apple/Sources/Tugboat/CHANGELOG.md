@@ -14,7 +14,8 @@ is the `.tugboatTag(_:)` and `.tugboatScreen(_:)` view modifiers.
   frames, UIKit roles, list index paths, `.tugboatScreen` route keys,
   `toolkit: "swiftui"`); mask rectangles for `allTextAndMedia` from UIKit
   views and a per-iOS-major SwiftUI layer allowlist (iOS 26), fail-closed
-  elsewhere.
+  elsewhere (unverified majors, animations, opaque renderers, app
+  representables), with a per-frame `MaskCoverage` summary.
 
 - `EngineBridge`: calls the session engine's C ABI directly through the
   `TugboatSessionEngine` SwiftPM target and copies each engine-owned

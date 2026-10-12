@@ -91,7 +91,12 @@ enum WindowMasks {
     switch kind {
     case .webView: acc.stats.webViewBoxes += 1
     case .renderer: acc.stats.rendererBoxes += 1
-    default: acc.stats.representableBoxes += 1
+    default:
+      acc.stats.representableBoxes += 1
+      // A representable that wraps a web view is reported as one too.
+      if view.subviews.contains(where: { ViewKind.of($0, insideHosting: true) == .webView }) {
+        acc.stats.webViewBoxes += 1
+      }
     }
     acc.add(view: view)
     return false

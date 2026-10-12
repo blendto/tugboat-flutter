@@ -61,7 +61,8 @@ struct MaskStats: Equatable {
   var unclassifiedLayers = 0
   var uiKitText = 0
   var uiKitImages = 0
-  /// Views masked as boxes: the sum of the three counts below.
+  /// Views masked as boxes. A representable wrapping a web view counts as
+  /// both a representable and a web view box below.
   var failClosedViews = 0
   var representableBoxes = 0
   var webViewBoxes = 0

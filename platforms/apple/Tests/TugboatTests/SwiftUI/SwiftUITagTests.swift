@@ -103,32 +103,32 @@ final class SwiftUITagTests: XCTestCase {
     XCTAssertTrue(resolved.canonicalPath.hasSuffix("Scrollable#0"), "the structure is still the scroll view: \(resolved.canonicalPath)")
   }
 
-  func testATagUnderASheetNeverWinsATapOnTheSheet() throws {
-    let presenter = HostedWindow(
+  func testATagUnderAnotherHostingRootNeverWinsATapOnIt() throws {
+    // Two hosting roots in one window, like a sheet over its presenter: the
+    // one behind has a smaller tag at the point the one in front covers.
+    let container = UIViewController()
+    let back = UIHostingController(rootView: AnyView(
       Color.white.frame(width: 40, height: 40).modifier(TugboatTagModifier(tag: "behind", registry: registry))
-    )
-    hosted = presenter
-    XCTAssertTrue(presenter.wait { self.marker("behind") != nil })
-    let behind = try XCTUnwrap(marker("behind"))
-    let point = centre(of: behind, in: presenter.window)
+    ))
+    let front = UIHostingController(rootView: AnyView(Color.blue.ignoresSafeArea()))
+    for child in [back, front] {
+      container.addChild(child)
+      child.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+      container.view.addSubview(child.view)
+      child.didMove(toParent: container)
+    }
+    let window = HostedWindow(controller: container)
+    hosted = window
+    XCTAssertTrue(window.wait { self.marker("behind") != nil })
+    let point = centre(of: try XCTUnwrap(marker("behind")), in: window.window)
+    XCTAssertEqual(resolver.tapEvidence(in: window.window, at: point), .failed(.noActionableCandidate),
+                   "the covered root's smaller tag is in another hosting root")
 
-    let sheet = UIHostingController(rootView: Color.blue.ignoresSafeArea())
-    sheet.modalPresentationStyle = .overFullScreen
-    presenter.window.rootViewController?.present(sheet, animated: false)
-    XCTAssertTrue(presenter.wait { sheet.view.window != nil })
-    presenter.settle()
-    XCTAssertEqual(resolver.tapEvidence(in: presenter.window, at: point), .failed(.noActionableCandidate),
-                   "the covered presenter's smaller tag is in another hosting root")
-
-    let front = UIHostingController(rootView: AnyView(Color.green.frame(width: 300, height: 300).modifier(TugboatTagModifier(tag: "front", registry: registry))))
-    front.modalPresentationStyle = .overFullScreen
-    sheet.present(front, animated: false)
-    XCTAssertTrue(presenter.wait { self.marker("front") != nil })
-    presenter.settle()
-    let resolved = try XCTUnwrap(anchor(resolver.tapEvidence(in: presenter.window, at: point)))
-    XCTAssertEqual(resolved.tag, "front", "the larger tag of the sheet that was hit")
-    front.dismiss(animated: false)
-    sheet.dismiss(animated: false)
+    front.rootView = AnyView(Color.green.frame(width: 300, height: 300).modifier(TugboatTagModifier(tag: "front", registry: registry)))
+    XCTAssertTrue(window.wait { self.marker("front") != nil })
+    window.settle()
+    let resolved = try XCTUnwrap(anchor(resolver.tapEvidence(in: window.window, at: point)))
+    XCTAssertEqual(resolved.tag, "front", "the larger tag of the root that was hit")
   }
 
   func testRouteKeysFromTheHostingTypeScoreByHowSpecificTheTypeIs() throws {
