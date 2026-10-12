@@ -15,13 +15,19 @@ final class TugboatScreenTests: XCTestCase {
     super.tearDown()
   }
 
+  /// The top screen after applying queued callbacks.
+  private func top(_ tracker: ScreenTracker) -> RouteEntry? {
+    tracker.settle()
+    return tracker.top
+  }
+
   func testAppearAndReplacementProduceNavigationFacts() throws {
     let clock = ManualClock()
     let tracker = ScreenTracker(clock: clock)
     tracker.isRecording = true
     let window = HostedWindow(Text("Home").modifier(TugboatScreenModifier(name: "Home", tracker: tracker)).id("home"))
     hosted = window
-    XCTAssertTrue(window.wait { tracker.top?.name == "Home" })
+    XCTAssertTrue(window.wait { self.top(tracker)?.name == "Home" })
     let first = tracker.takeFacts()
     XCTAssertEqual(first.count, 1)
     let push = first.first?.decodedInput
@@ -34,7 +40,7 @@ final class TugboatScreenTests: XCTestCase {
 
     // A new identity: Home disappears, Detail appears.
     window.hosting?.rootView = AnyView(Text("Detail").modifier(TugboatScreenModifier(name: "Detail", tracker: tracker)).id("detail"))
-    XCTAssertTrue(window.wait { tracker.top?.name == "Detail" })
+    XCTAssertTrue(window.wait { self.top(tracker)?.name == "Detail" })
     window.settle()
     let second = tracker.takeFacts()
     XCTAssertEqual(second.count, 1, "the covered Home disappearing changes nothing")
@@ -48,11 +54,11 @@ final class TugboatScreenTests: XCTestCase {
     tracker.isRecording = true
     let window = HostedWindow(Text("A").modifier(TugboatScreenModifier(name: "A", tracker: tracker)))
     hosted = window
-    XCTAssertTrue(window.wait { tracker.top != nil })
+    XCTAssertTrue(window.wait { self.top(tracker) != nil })
     let id = tracker.top?.instanceId
     window.hosting?.rootView = AnyView(Text("A changed").modifier(TugboatScreenModifier(name: "A", tracker: tracker)))
     window.settle()
-    XCTAssertEqual(tracker.top?.instanceId, id)
+    XCTAssertEqual(top(tracker)?.instanceId, id)
   }
 
   func testHostingControllerAppearanceIsSilentOnceAScreenIsSeen() {

@@ -75,7 +75,7 @@ final class ScrollObserver {
     var visited = 0
     while let view = stack.popLast(), visited < ScrollObserver.maxDiscoveredViews {
       visited += 1
-      guard !ViewKind.isExcluded(view) else { continue }
+      guard !ViewTree.isInvisibleForMasks(view) else { continue }
       if let scrollView = view as? UIScrollView, !(view is UITextView) {
         observe(scrollView)
       }

@@ -99,6 +99,13 @@ final class PointerFactBuilderTests: XCTestCase {
     XCTAssertFalse(builder.hasActiveContacts)
   }
 
+  func testCancelledContactsKeepTheirDevice() {
+    let builder = makeBuilder()
+    let pencil = newTouch()
+    _ = builder.facts(for: TouchSample(key: pencil, phase: .began, location: .zero, uptime: 1, device: .stylus))
+    XCTAssertEqual(builder.cancelAll().first?.decodedInput["device"] as? String, "stylus")
+  }
+
   func testGestureConfigIsWhatTheEngineIsConfiguredWith() {
     let json = decodeObject(GestureConfig.uiKitDefault.engineJSON.json)
     XCTAssertEqual(json?["touchSlop"] as? Double, 10)

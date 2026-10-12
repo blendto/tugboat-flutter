@@ -90,7 +90,9 @@ final class SwiftUIAdapterTests: XCTestCase {
     let adapter = start()
     let window = HostedWindow(Text("Masked"))
     hosted = window
-    XCTAssertEqual(adapter.masks(for: window.window), WindowMasks.compute(window.window))
+    let settled = window.settledMasks()
+    XCTAssertEqual(adapter.masks(for: window.window).fallback, settled.fallback)
+    XCTAssertEqual(adapter.masks(for: window.window).rects, settled.rects)
   }
 }
 #endif

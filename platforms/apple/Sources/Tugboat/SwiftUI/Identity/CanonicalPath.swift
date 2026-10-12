@@ -11,47 +11,44 @@ struct CanonicalPath: Equatable {
 /// Builds canonical paths for SwiftUI targets (native SDK note 6, 6.3).
 ///
 /// - Segments come from the UIKit views between the route root and the
-///   target that have a `TargetRole`: nested hosting views (`Host`),
-///   scroll views (`Scrollable`), representable hosts (`Representable`),
-///   text inputs (`TextField`). Everything else collapses.
+///   target whose kind has a path token: nested hosting views (`Host`),
+///   scroll views (`Scrollable`), representables (`Representable`), text
+///   inputs (`TextField`). Everything else collapses, including SwiftUI's
+///   own platform-view hosts.
 /// - A segment is `Token#<ordinal>`. Ordinals count same-token siblings
-///   after filtering: the role views and list cells whose nearest segment
-///   ancestor is the same, in subview order. Hidden, transparent and
-///   zero-size views are skipped with their subtrees.
+///   after filtering: the token views and list cells whose nearest segment
+///   ancestor is the same, in subview order. Hidden, transparent, zero-size
+///   and SDK-owned views are skipped with their subtrees.
 /// - A list cell adds `[item:<section>.<row>]` from its index path and
 ///   scopes the ordinals of everything inside it; a cell that is itself the
 ///   target adds `Cell#0` after it.
 /// - SwiftUI drawing (text, images, shapes) has no UIKit view, so it never
-///   appears in a path; a tap on it resolves to the nearest role view.
+///   appears in a path.
 ///
 /// The route root itself is not part of the path; an empty path is
 /// `Root#0`.
 enum CanonicalPathBuilder {
-  /// A role view or list cell below a scope, with its token (nil for cells).
+  static let rootSegment = "Root#0"
+
+  /// A token view or list cell below a scope, with its token (nil for cells).
   private typealias Segment = (view: UIView, token: String?)
 
-  static let rootSegment = "Root#0"
-  private static let maxDepth = 128
-
   static func build(root: UIView, target: UIView) -> CanonicalPath? {
-    guard let chain = chainBelow(root: root, target: target) else { return nil }
+    guard let lineage = ViewTree.lineage(from: root, to: target), var scope = lineage.first else { return nil }
     var segments: [String] = []
-    var scope = root
     var indexPath: IndexPath?
-    var insideHosting = ViewKind.of(root, insideHosting: false) == .hosting
-    for view in chain {
-      if let item = itemIndexPath(of: view) {
+    for node in lineage.dropFirst() {
+      if let item = itemIndexPath(of: node.view) {
         segments.append("[item:\(item.section).\(item.row)]")
         indexPath = item
-        scope = view
-        if view === target {
-          segments.append(TargetRole.cell.token + "#0")
+        scope = node
+        if node.view === target {
+          segments.append("Cell#0")
         }
-      } else if let role = TargetRole.of(view, insideHosting: insideHosting) {
-        segments.append(role.token + "#\(ordinal(of: view, token: role.token, in: scope, insideHosting: insideHosting))")
-        scope = view
+      } else if let token = node.kind.token {
+        segments.append(token + "#\(ordinal(of: node.view, token: token, in: scope))")
+        scope = node
       }
-      insideHosting = insideHosting || ViewKind.of(view, insideHosting: insideHosting) == .hosting
     }
     let value = segments.isEmpty ? rootSegment : segments.joined(separator: "/")
     return CanonicalPath(value: value, indexPath: indexPath)
@@ -82,45 +79,28 @@ enum CanonicalPathBuilder {
     return nil
   }
 
-  /// Ancestors strictly below `root` down to `target`, top first.
-  private static func chainBelow(root: UIView, target: UIView) -> [UIView]? {
-    var chain: [UIView] = []
-    var current: UIView = target
-    while current !== root {
-      guard chain.count < maxDepth, let parent = current.superview else { return nil }
-      chain.append(current)
-      current = parent
-    }
-    return chain.reversed()
-  }
-
-  private static func ordinal(of view: UIView, token: String, in scope: UIView, insideHosting: Bool) -> Int {
+  private static func ordinal(of view: UIView, token: String, in scope: ViewNode) -> Int {
     var ordinal = 0
-    for sibling in segmentChildren(of: scope, insideHosting: insideHosting) {
-      if sibling.view === view { return ordinal }
-      if sibling.token == token { ordinal += 1 }
+    var segments: [Segment] = []
+    collect(below: scope, depth: 0, into: &segments)
+    for segment in segments {
+      if segment.view === view { return ordinal }
+      if segment.token == token { ordinal += 1 }
     }
     return ordinal
   }
 
-  /// The role views and list cells whose nearest segment ancestor is
-  /// `scope`, in subview order, with their tokens (nil for list cells).
-  private static func segmentChildren(of scope: UIView, insideHosting: Bool) -> [Segment] {
-    var out: [Segment] = []
-    let scopeIsHosting = ViewKind.of(scope, insideHosting: insideHosting) == .hosting
-    collect(scope, insideHosting: insideHosting || scopeIsHosting, depth: 0, into: &out)
-    return out
-  }
-
-  private static func collect(_ parent: UIView, insideHosting: Bool, depth: Int, into out: inout [Segment]) {
-    guard depth < maxDepth else { return }
-    for child in parent.subviews where !ViewKind.isExcluded(child) {
-      if itemIndexPath(of: child) != nil {
-        out.append((child, nil))
-      } else if let role = TargetRole.of(child, insideHosting: insideHosting) {
-        out.append((child, role.token))
+  /// The token views and list cells whose nearest segment ancestor is
+  /// `parent`, in subview order.
+  private static func collect(below parent: ViewNode, depth: Int, into out: inout [Segment]) {
+    guard depth < ViewTree.maxDepth else { return }
+    for child in ViewTree.children(of: parent) where !ViewTree.isExcludedFromIdentity(child) {
+      if itemIndexPath(of: child.view) != nil {
+        out.append((child.view, nil))
+      } else if let token = child.kind.token {
+        out.append((child.view, token))
       } else {
-        collect(child, insideHosting: insideHosting, depth: depth + 1, into: &out)
+        collect(below: child, depth: depth + 1, into: &out)
       }
     }
   }

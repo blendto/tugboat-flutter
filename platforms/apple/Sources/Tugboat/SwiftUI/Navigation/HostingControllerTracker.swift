@@ -20,8 +20,7 @@ final class HostingControllerTracker {
   private let clock: FactClock
   private let emit: (AdapterFact) -> Void
   private var stack = ScreenStack(navigatorId: HostingControllerTracker.navigatorId)
-  private let ids = NSMapTable<UIViewController, NSString>.weakToStrongObjects()
-  private var nextId: Int64 = 1
+  private let ids = ObjectIds(prefix: "swiftui-host")
 
   init(screens: ScreenTracker, clock: FactClock, emit: @escaping (AdapterFact) -> Void) {
     self.screens = screens
@@ -37,28 +36,18 @@ final class HostingControllerTracker {
     if appeared {
       guard coversWindow(controller) else { return }
       let entry = RouteEntry(
-        instanceId: instanceId(of: controller),
+        instanceId: ids.id(of: controller),
         name: RouteKey.hostingKey(controller),
         type: HostingControllerTracker.routeType
       )
       change = stack.appeared(entry)
     } else {
-      guard let known = ids.object(forKey: controller) else { return }
-      change = stack.disappeared(instanceId: known as String)
+      guard let known = ids.existingId(of: controller) else { return }
+      change = stack.disappeared(instanceId: known)
     }
     if let change = change {
       emit(change.fact(at: clock.now()))
     }
-  }
-
-  private func instanceId(of controller: UIViewController) -> String {
-    if let id = ids.object(forKey: controller) {
-      return id as String
-    }
-    let id = "swiftui-host-\(nextId)"
-    nextId = nextId == Int64.max ? 1 : nextId + 1
-    ids.setObject(id as NSString, forKey: controller)
-    return id
   }
 
   private func coversWindow(_ controller: UIViewController) -> Bool {

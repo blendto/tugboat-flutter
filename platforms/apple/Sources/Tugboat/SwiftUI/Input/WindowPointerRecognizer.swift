@@ -32,6 +32,7 @@ final class WindowPointerRecognizer: UIGestureRecognizer, UIGestureRecognizerDel
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+    super.touchesBegan(touches, with: event)
     for touch in touches {
       open.insert(ObjectIdentifier(touch))
       deliver(touch, .began)
@@ -39,16 +40,19 @@ final class WindowPointerRecognizer: UIGestureRecognizer, UIGestureRecognizerDel
   }
 
   override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+    super.touchesMoved(touches, with: event)
     for touch in touches {
       deliver(touch, .moved)
     }
   }
 
   override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+    super.touchesEnded(touches, with: event)
     finish(touches, .ended)
   }
 
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+    super.touchesCancelled(touches, with: event)
     finish(touches, .cancelled)
   }
 

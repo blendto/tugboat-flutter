@@ -274,11 +274,13 @@ Without VoiceOver the in-process accessibility tree of a SwiftUI hosting view
 is empty, and SwiftUI text, images and buttons are not UIKit views, so
 identity comes from developer tags and from the UIKit views SwiftUI does use.
 
-- **Tags first.** `.tugboatTag("checkout")` registers its view's frame
-  through an anchor preference. A tap inside the smallest tagged frame at the
-  point resolves to that tag: `tagFingerprint` (`routeKey` + `tag`), `high`
-  confidence. Tags inside the top `.tugboatScreen` win over tags of covered
-  screens. The tag is transparent to structural identity.
+- **Tags first.** `.tugboatTag("checkout")` places an invisible,
+  non-interactive marker view behind its content. A tap inside the smallest
+  tagged frame at the point, in the same window and hosting root as the hit
+  view, resolves to that tag: `tagFingerprint` (`routeKey` + `tag`), `high`
+  confidence, `widgetType: SwiftUIView`, and no `role`, `actions` or
+  `enabled`. A screen under a sheet never wins. The tag is transparent to
+  structural identity.
 - **UIKit roles.** Otherwise the target is the nearest view, from UIKit
   hit-testing at the point, with a role: `TextField` (`UITextField`,
   `UITextView`), a list cell, `Scrollable` (`UIScrollView`), or
@@ -295,7 +297,9 @@ identity comes from developer tags and from the UIKit views SwiftUI does use.
   ends with `Cell#0`.
 - **Route key.** The name of the `.tugboatScreen` on top of the screen
   stack, else `host:<16 hex>`, the identity hash of the nearest hosting
-  controller's Swift type name (`medium`), else `swiftui:window` (`low`).
+  controller's Swift type name (`medium`; `low` when the type contains
+  `AnyView`, since type-erased roots share one key), else `swiftui:window`
+  (`low`).
   Paths start below that hosting controller's view.
 - **Confidence.** The floor of the route's and the path's. The path is
   `high` with a tag, `medium` inside a list cell, and `low` otherwise.

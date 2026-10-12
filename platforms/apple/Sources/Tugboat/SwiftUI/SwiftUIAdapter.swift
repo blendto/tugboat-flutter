@@ -42,7 +42,14 @@ final class SwiftUIAdapter {
     clock: clock,
     emit: { [weak self] in self?.batcher.add($0) }
   )
-  private let windows = NSMapTable<UIWindow, WindowPointerRecognizer>.weakToStrongObjects()
+  /// One recognizer per observed window. Entries whose window is gone are
+  /// dropped on the next attach.
+  private struct Attachment {
+    weak var window: UIWindow?
+    let recognizer: WindowPointerRecognizer
+  }
+
+  private var attachments: [ObjectIdentifier: Attachment] = [:]
   private var keyWindowToken: NSObjectProtocol?
   private var nextDiscoveryMonoUs = Int64.min
   private(set) var isStarted = false
@@ -100,9 +107,10 @@ final class SwiftUIAdapter {
     if trackHostingControllers {
       ViewControllerAppearance.observer = nil
     }
-    for window in windows.keyEnumerator().allObjects.compactMap({ $0 as? UIWindow }) {
-      detach(from: window)
+    for attachment in attachments.values {
+      attachment.window?.removeGestureRecognizer(attachment.recognizer)
     }
+    attachments.removeAll()
     scroll.stop()
     // The last flush still collects screen facts; recording stops after it.
     batcher.close()
@@ -118,7 +126,8 @@ final class SwiftUIAdapter {
 
   /// Observes `window`'s touches and scroll views. Once per window.
   func attach(to window: UIWindow) {
-    guard isStarted, windows.object(forKey: window) == nil else { return }
+    attachments = attachments.filter { $0.value.window != nil }
+    guard isStarted, attachments[ObjectIdentifier(window)]?.window !== window else { return }
     let builder = PointerFactBuilder(clock: clock, gesture: gesture) { [weak self, weak window] point in
       guard let self = self, let window = window else { return .failed(.resolutionError) }
       return self.resolver.tapEvidence(in: window, at: point)
@@ -136,14 +145,8 @@ final class SwiftUIAdapter {
       }
     )
     window.addGestureRecognizer(recognizer)
-    windows.setObject(recognizer, forKey: window)
+    attachments[ObjectIdentifier(window)] = Attachment(window: window, recognizer: recognizer)
     scroll.discover(in: window)
-  }
-
-  private func detach(from window: UIWindow) {
-    guard let recognizer = windows.object(forKey: window) else { return }
-    window.removeGestureRecognizer(recognizer)
-    windows.removeObject(forKey: window)
   }
 
   private func discoverScrollViews(in window: UIWindow) {

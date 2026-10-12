@@ -39,14 +39,13 @@ are in native SDK note sections 2.1, 5 and 6.3, and in
 | --- | --- | --- |
 | Facts | `Facts/` | `FactBatcher` (frame hooks, one `batch` per frame), `DisplayLinkFrames`, `FactClock` (`UITouch.timestamp` is `systemUptime`, the host clock), a small ordered JSON writer. |
 | Pointer | `Input/WindowPointerRecognizer`, `PointerFactBuilder` | A recognizer on each window that becomes key: never cancels or delays touches, never prevents or is prevented, recognizes simultaneously, no swizzling. `input.pointer` in window points, a unique `pointerId` per contact, tap evidence on `up` under `touchSlop` resolved at the down position. |
-| Identity | `Identity/` | `.tugboatTag` frames (anchor preferences, `TagRegistry`) first, then UIKit hit-testing (text inputs, list cells with index paths, scroll views, representable hosts); route key from `.tugboatScreen`, else the hashed hosting-controller type; `toolkit: "swiftui"`. `IdentityHash` matches every `conformance/fingerprint/identity_parts` vector. |
+| Identity | `Identity/` | `ViewTree` / `ViewKind` classify every view once per walk. `.tugboatTag` markers (`TagMarkerView`, matched within the hit window and hosting root) first, then UIKit hit-testing (text inputs, list cells with index paths, scroll views, representable hosts); route key from `.tugboatScreen`, else the hashed hosting-controller type; `toolkit: "swiftui"`. `IdentityHash` matches every `conformance/fingerprint/identity_parts` vector. |
 | Scroll | `Scroll/` | KVO on `contentOffset` of the window's scroll views; `start` (with the anchor), one `update` per frame, one `overscroll` per scroll, `end` when no finger or momentum drives it and it has been still for 100 ms. |
 | Navigation | `Navigation/`, `Modifiers/TugboatScreen` | `.tugboatScreen` appear and disappear on navigator `swiftui-screens`; optional hosting-controller appearance (one-time method exchange, opt-out) on `swiftui-hosting` until a screen is seen. |
 | Focus | `Input/FocusObserver` | `text_input` / `none` from `UITextField` / `UITextView` editing notifications. |
-| Masks | `Mask/` | `masks(for:)`: UIKit text, images, fail-closed web views and representables, and the allowlisted SwiftUI layers per iOS major (`LayerAllowlist`; iOS 26 verified). Unclassified layers with contents are masked; an unverified major masks a window with SwiftUI in full. |
+| Masks | `Mask/` | `masks(for:)`: one view walk plus each view's layers (`LayerWalk`). UIKit text and images; boxes for web views, opaque renderers, app representables and unverified SwiftUI platform views; allowlisted SwiftUI text, image and shape layers per iOS major (`LayerAllowlist`, `KnownPlatformViews`; iOS 26 verified). Unclassified layers are masked. The whole frame is masked on an unverified major with SwiftUI, during any animation, and over the walk's limits. |
 
-Known gaps: no system input (none in this milestone); the engine on this
-branch rejects `navigation` facts until phase 3d (decisions log).
+Known gaps: no system input (none in this milestone).
 
 `EngineHost` threading and failure rules:
 

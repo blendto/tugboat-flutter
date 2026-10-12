@@ -7,7 +7,9 @@ import UIKit
 /// 1. the `.tugboatScreen` name on top of the screen stack: `high`;
 /// 2. the nearest hosting controller's Swift type name, hashed because it is
 ///    long (`host:<16 hex>`): `medium`. Swift type names are not
-///    obfuscated, but a type name changes when the view tree's type does;
+///    obfuscated, but a type name changes when the view tree's type does.
+///    A type-erased root (`AnyView` anywhere in the type) names no screen,
+///    so every such controller shares a key: `low`;
 /// 3. `swiftui:window` when the target is in no hosting controller: `low`.
 ///
 /// `root` is the view canonical paths start below: that hosting
@@ -26,7 +28,8 @@ struct RouteKey: Equatable {
       return RouteKey(value: name, confidence: .high, root: root)
     }
     if let controller = controller {
-      return RouteKey(value: hostingKey(controller), confidence: .medium, root: root)
+      let erased = String(reflecting: type(of: controller)).contains("AnyView")
+      return RouteKey(value: hostingKey(controller), confidence: erased ? .low : .medium, root: root)
     }
     return RouteKey(value: windowKey, confidence: .low, root: window)
   }

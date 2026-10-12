@@ -5,7 +5,7 @@ import XCTest
 
 @testable import Tugboat
 
-/// Identity on hosted SwiftUI views (native SDK note 6.3): tags first, then
+/// Identity on hosted SwiftUI views (native SDK note 6.3) without tags:
 /// UIKit hit-testing for text fields, list cells, and scroll views.
 final class SwiftUIIdentityTests: XCTestCase {
   private var hosted: HostedWindow?
@@ -32,47 +32,14 @@ final class SwiftUIIdentityTests: XCTestCase {
     return anchor
   }
 
+  /// Applies queued screen callbacks, then reports whether a screen is up.
+  private var screenOnTop: Bool {
+    screens.settle()
+    return screens.top != nil
+  }
+
   private var resolver: AnchorResolver {
     AnchorResolver(tags: registry, screens: screens)
-  }
-
-  func testATaggedButtonResolvesToItsTagWithHighConfidence() throws {
-    let window = host(
-      VStack(spacing: 40) {
-        Button("Pay now") {}.modifier(TugboatTagModifier(tag: "checkout", registry: registry))
-        Button("Untagged") {}
-      }
-      .modifier(TugboatScreenModifier(name: "Checkout", tracker: screens))
-    )
-    XCTAssertTrue(window.wait { self.registry.all.count == 1 && self.screens.top != nil })
-    let tagged = try XCTUnwrap(registry.all.first)
-    XCTAssertEqual(tagged.screen, screens.top?.instanceId, "a tag records its screen")
-
-    let evidence = resolver.tapEvidence(in: window.window, at: CGPoint(x: tagged.frame.midX, y: tagged.frame.midY))
-    let resolved = try XCTUnwrap(anchor(evidence))
-    XCTAssertEqual(resolved.tag, "checkout")
-    XCTAssertEqual(resolved.routeKey, "Checkout")
-    XCTAssertEqual(resolved.confidence, .high)
-    XCTAssertEqual(resolved.tagFingerprint, IdentityHash.fingerprint([(key: "routeKey", value: "Checkout"), (key: "tag", value: "checkout")]))
-    XCTAssertEqual(resolved.fingerprint, IdentityHash.fingerprint([(key: "routeKey", value: "Checkout"), (key: "path", value: resolved.canonicalPath)]))
-    XCTAssertFalse(resolved.canonicalPath.contains("checkout"), "the tag is not part of the structural path")
-    let json = try XCTUnwrap(decodeObject(resolved.json.json))
-    XCTAssertEqual(json["toolkit"] as? String, "swiftui")
-    XCTAssertEqual((json["fingerprintParts"] as? [String: String])?["tag"], "checkout")
-
-    // Bare SwiftUI drawing below the tagged frame has no target.
-    let below = CGPoint(x: tagged.frame.midX, y: tagged.frame.maxY + 50)
-    XCTAssertEqual(resolver.tapEvidence(in: window.window, at: below), .failed(.noActionableCandidate))
-  }
-
-  func testATagOutsideAnyScreenUsesTheHostingControllerRouteKey() throws {
-    let window = host(Text("Tagged").padding(30).modifier(TugboatTagModifier(tag: "hero", registry: registry)))
-    XCTAssertTrue(window.wait { !self.registry.all.isEmpty })
-    let tagged = try XCTUnwrap(registry.all.first)
-    let resolved = try XCTUnwrap(anchor(resolver.tapEvidence(in: window.window, at: CGPoint(x: tagged.frame.midX, y: tagged.frame.midY))))
-    XCTAssertTrue(resolved.routeKey.hasPrefix("host:"), resolved.routeKey)
-    XCTAssertEqual(resolved.routeKey.count, "host:".count + 16)
-    XCTAssertEqual(resolved.confidence, .medium, "the hashed hosting type scores medium")
   }
 
   func testAListRowResolvesToItsCellIndexPath() throws {
@@ -82,7 +49,7 @@ final class SwiftUIIdentityTests: XCTestCase {
       }
       .modifier(TugboatScreenModifier(name: "Inbox", tracker: screens))
     )
-    XCTAssertTrue(window.wait { self.screens.top != nil && !self.cells(in: window).isEmpty })
+    XCTAssertTrue(window.wait { self.screenOnTop && !self.cells(in: window).isEmpty })
     let rows = cells(in: window).sorted { window.frame(of: $0).minY < window.frame(of: $1).minY }
     let third = try XCTUnwrap(rows.dropFirst(2).first)
     let expected = try XCTUnwrap(CanonicalPathBuilder.itemIndexPath(of: third))

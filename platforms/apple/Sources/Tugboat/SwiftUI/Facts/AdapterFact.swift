@@ -16,8 +16,6 @@ enum FactTypes {
   static let pointer = "input.pointer"
   static let scroll = "scroll"
   static let focus = "focus"
-  /// Phase 3d: the engine on this branch rejects this type until navigation
-  /// lands (decisions log).
   static let navigation = "navigation"
 }
 

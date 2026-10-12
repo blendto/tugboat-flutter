@@ -8,13 +8,15 @@ import Foundation
 final class Contact {
   let contactId: Int64
   let down: CGPoint
+  let device: PointerDevice
   private(set) var last: CGPoint
   /// Largest distance from the down point so far, in points.
   private(set) var maxTravel: Double = 0
 
-  init(contactId: Int64, down: CGPoint) {
+  init(contactId: Int64, down: CGPoint, device: PointerDevice) {
     self.contactId = contactId
     self.down = down
+    self.device = device
     self.last = down
   }
 
@@ -32,7 +34,7 @@ final class Contact {
 /// began gets the next id of one process-wide, increasing counter, and
 /// windows tracked by separate recognizers never share an id.
 struct PointerContacts {
-  private static let nextContactId = Locked<Int64>(1)
+  private static let contactIds = IdSequence()
 
   private var active: [ObjectIdentifier: Contact] = [:]
 
@@ -40,13 +42,8 @@ struct PointerContacts {
     active.isEmpty
   }
 
-  mutating func begin(_ key: ObjectIdentifier, at point: CGPoint) -> Contact {
-    let id = PointerContacts.nextContactId.withLock { (next: inout Int64) -> Int64 in
-      let current = next
-      next = next == Int64.max ? 1 : next + 1
-      return current
-    }
-    let contact = Contact(contactId: id, down: point)
+  mutating func begin(_ key: ObjectIdentifier, at point: CGPoint, device: PointerDevice) -> Contact {
+    let contact = Contact(contactId: PointerContacts.contactIds.nextValue(), down: point, device: device)
     active[key] = contact
     return contact
   }

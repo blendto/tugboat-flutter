@@ -13,7 +13,7 @@ extension View {
 }
 
 /// Reports appear and disappear to `ScreenTracker` under one stable
-/// instance id, and exposes the id to tags inside the screen.
+/// instance id.
 struct TugboatScreenModifier: ViewModifier {
   let name: String
   let tracker: ScreenTracker
@@ -27,21 +27,8 @@ struct TugboatScreenModifier: ViewModifier {
 
   func body(content: Content) -> some View {
     content
-      .environment(\.tugboatScreenInstance, instanceId)
       .onAppear { tracker.appeared(instanceId: instanceId, name: name) }
       .onDisappear { tracker.disappeared(instanceId: instanceId) }
-  }
-}
-
-private struct TugboatScreenInstanceKey: EnvironmentKey {
-  static let defaultValue: String? = nil
-}
-
-extension EnvironmentValues {
-  /// The instance id of the nearest enclosing `.tugboatScreen`.
-  var tugboatScreenInstance: String? {
-    get { self[TugboatScreenInstanceKey.self] }
-    set { self[TugboatScreenInstanceKey.self] = newValue }
   }
 }
 #endif

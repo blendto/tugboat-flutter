@@ -7,19 +7,12 @@ import UIKit
 /// the adjusted top / left inset, so an inset change alone (safe area,
 /// keyboard, bars) is not a scroll.
 enum ScrollViewReading {
-  private static let ids = NSMapTable<UIScrollView, NSString>.weakToStrongObjects()
-  private static var nextId: Int64 = 1
+  private static let ids = ObjectIds(prefix: "swiftui-scroll")
 
   /// A stable opaque `scrollableId`: one per scroll view instance, for its
-  /// lifetime. Main thread only.
+  /// lifetime.
   static func id(of view: UIScrollView) -> String {
-    if let id = ids.object(forKey: view) {
-      return id as String
-    }
-    let id = "swiftui-scroll-\(nextId)"
-    nextId = nextId == Int64.max ? 1 : nextId + 1
-    ids.setObject(id as NSString, forKey: view)
-    return id
+    ids.id(of: view)
   }
 
   /// The offset on both axes, 0 at the resting start.

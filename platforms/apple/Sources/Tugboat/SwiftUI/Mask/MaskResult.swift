@@ -43,8 +43,12 @@ enum MaskFallback: Equatable {
   /// The running iOS major has no verified SwiftUI layer allowlist and the
   /// window contains a hosting view.
   case unverifiedLayerAllowlist(iOSMajor: Int)
-  /// The view or layer walk hit its budget before covering the window.
-  case walkBudgetExceeded
+  /// The walk hit its node budget or depth limit before covering the window.
+  case walkLimitExceeded
+  /// A layer in the window is animating. Masks come from model-layer
+  /// geometry while capture renders what is on screen mid-animation, so the
+  /// two can disagree.
+  case animating
 }
 
 /// What the mask walk found, for diagnostics and the allowlist regression
@@ -53,11 +57,13 @@ struct MaskStats: Equatable {
   var hostingViews = 0
   var textLayers = 0
   var imageLayers = 0
+  var shapeLayers = 0
   var unclassifiedLayers = 0
   var uiKitText = 0
   var uiKitImages = 0
   var failClosedViews = 0
-  /// Class names of unclassified layers with contents, with counts.
+  var rendererLayers = 0
+  /// Class names of unclassified layers, with counts.
   var unclassifiedClasses: [String: Int] = [:]
 }
 

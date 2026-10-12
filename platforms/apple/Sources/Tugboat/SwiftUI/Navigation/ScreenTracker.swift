@@ -11,15 +11,16 @@ import Foundation
 ///   `onDisappear` of two screens consistently within a frame; applying
 ///   appearances first keeps a covered screen on the stack instead of
 ///   popping it.
-/// - `top` is the route key source for identity. It is kept even while the
-///   adapter is not recording; facts are only kept while it is.
+/// - `top` is the route key source for identity: the stack as of the last
+///   `settle()` (identity settles before reading it). The stack is kept even
+///   while the adapter is not recording; facts are only kept while it is.
 ///
 /// Main thread only (SwiftUI runs view callbacks there).
 final class ScreenTracker {
   static let shared = ScreenTracker()
   static let navigatorId = "swiftui-screens"
   static let routeType = "TugboatScreen"
-  private static let nextInstance = Locked<Int64>(1)
+  private static let instances = IdSequence()
 
   private enum Event {
     case appeared(RouteEntry, HostTime)
@@ -44,17 +45,13 @@ final class ScreenTracker {
   }
 
   static func newInstanceId() -> String {
-    let id = nextInstance.withLock { (next: inout Int64) -> Int64 in
-      defer { next = next == Int64.max ? 1 : next + 1 }
-      return next
-    }
-    return "swiftui-screen-\(id)"
+    instances.nextId(prefix: "swiftui-screen")
   }
 
-  /// The most recently shown screen that is still on the stack.
+  /// The most recently shown screen still on the stack, as of the last
+  /// `settle()`.
   var top: RouteEntry? {
-    settle()
-    return stack.top
+    stack.top
   }
 
   func appeared(instanceId: String, name: String) {
@@ -83,7 +80,8 @@ final class ScreenTracker {
     stack.removeAll()
   }
 
-  private func settle() {
+  /// Applies queued callbacks: appearances first, then disappearances.
+  func settle() {
     guard !queued.isEmpty else { return }
     let events = queued
     queued.removeAll()

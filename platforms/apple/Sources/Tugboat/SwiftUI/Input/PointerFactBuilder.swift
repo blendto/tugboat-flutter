@@ -59,16 +59,16 @@ final class PointerFactBuilder {
   /// reset or detached before their ended arrived.
   func cancelAll() -> [AdapterFact] {
     let at = clock.now()
-    return contacts.endAll().map { fact($0.contactId, "cancel", $0.last, .touch, at: at) }
+    return contacts.endAll().map { fact($0.contactId, "cancel", $0.last, $0.device, at: at) }
   }
 
   private func begin(_ sample: TouchSample, at: HostTime) -> [AdapterFact] {
     var out: [AdapterFact] = []
     // A began for a touch still open means its end was never delivered.
     if let stale = contacts.end(sample.key) {
-      out.append(fact(stale.contactId, "cancel", stale.last, sample.device, at: at))
+      out.append(fact(stale.contactId, "cancel", stale.last, stale.device, at: at))
     }
-    let contact = contacts.begin(sample.key, at: sample.location)
+    let contact = contacts.begin(sample.key, at: sample.location, device: sample.device)
     out.append(fact(contact.contactId, "down", sample.location, sample.device, at: at))
     return out
   }
