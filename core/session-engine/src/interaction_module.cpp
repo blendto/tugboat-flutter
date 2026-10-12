@@ -125,15 +125,25 @@ void apply_system_input(const ModuleRegistry&, EngineState* state,
   record_system_input(turn, input);
 }
 
-// Answers for unknown or invalidated requests are ignored (principle 4).
+// Answers for unknown or invalidated requests are ignored (principle 4). A
+// captured frame nothing accepts (such an answer, or one without a live
+// session) is released at once, so the host never keeps its bytes.
 void apply_capture_result(const ModuleRegistry& modules, EngineState* state,
                           const CaptureResult& result, const At& at,
                           Output* out) {
+  std::optional<CaptureAnswer> answer;
   InteractionTurn turn = live_turn(state, at, out);
-  const std::optional<CaptureAnswer> answer = state->captures.on_result(
-      result, turn.now_ms(), state->config.limits.max_frames, &state->ids,
-      turn.session, out);
-  if (!answer) return;
+  if (turn.session != nullptr) {
+    answer = state->captures.on_result(
+        result, turn.now_ms(), state->config.limits.max_frames, &state->ids,
+        turn.session, &state->frame_retention, out);
+  }
+  if (!answer) {
+    if (result.frame) {
+      out->effects.push_back(FrameRelease{result.frame->handle});
+    }
+    return;
+  }
   if (answer->accepted) {
     modules.run_frame_accepted(answer->accepted->frame,
                                answer->accepted->handle, state, out);
@@ -234,7 +244,7 @@ void register_interaction_module(ModuleRegistry* registry) {
        decode_fact<SystemInput, decode_system_input_fact, apply_system_input>});
   registry->add_command(
       "capture.result",
-      {AtRule::kMono, SessionPolicy::kEventProducing,
+      {AtRule::kMono, SessionPolicy::kAny,
        decode_fact<CaptureResult, decode_capture_result,
                    apply_capture_result>});
   registry->add_timers("interaction.", fire_interaction_timer);

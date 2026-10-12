@@ -97,6 +97,10 @@ bool parse_json(std::string_view text, uint32_t max_depth, Value* out,
 // double would be written, as `jsonEncode` throws for those.
 bool write_json(const Value& value, std::string* out, std::string* error_path);
 
+// `jsonEncode` of a value known to be finite, such as anything built from
+// state-changing input (which the dispatcher checks with `all_finite`).
+std::string encode_json(const Value& value);
+
 // Finds the first NaN or infinity in `value` (Dart's `jsonEncode` throws on
 // them). Returns false and its JSON path, rooted at `path`, in `*bad_path`.
 bool all_finite(const Value& value, const std::string& path,

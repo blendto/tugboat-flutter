@@ -641,6 +641,13 @@ bool write_json(const Value& value, std::string* out, std::string* error_path) {
   return writer.write(value);
 }
 
+std::string encode_json(const Value& value) {
+  std::string out;
+  std::string error_path;
+  write_json(value, &out, &error_path);
+  return out;
+}
+
 bool all_finite(const Value& value, const std::string& path,
                 std::string* bad_path) {
   if (value.is_double() && !std::isfinite(value.as_double())) {

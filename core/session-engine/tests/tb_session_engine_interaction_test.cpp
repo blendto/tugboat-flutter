@@ -247,13 +247,15 @@ std::optional<CaptureAnswer> answer(CaptureSeam* seam, CaptureResult result,
                                     Session* session, Output* out) {
   result.request_id = seam->issue({CaptureOwner::Kind::kGesture, "event-1"},
                                   interaction_capture(0, {}), ids, out);
-  return seam->on_result(result, at_ms, 1, ids, session, out);
+  tugboat::engine::FrameRetention retention;
+  return seam->on_result(result, at_ms, 1, ids, session, &retention, out);
 }
 
 void test_capture_seam() {
   Session session(SessionHeader{});
   IdCounter ids;
   Output out;
+  tugboat::engine::FrameRetention retention;
   CaptureSeam seam;
   CapturedFrame captured;
   captured.handle = "h";
@@ -268,7 +270,7 @@ void test_capture_seam() {
   // Unknown and already-answered ids are ignored.
   CHECK(!seam.on_result({"capture_request-0", CaptureResultOutcome::kFailed,
                          std::nullopt},
-                        0, 1, &ids, &session, &out));
+                        0, 1, &ids, &session, &retention, &out));
   const OptString first_id = first->resolution.frame_id;
   ObservationBoundary boundary{"", 100, std::nullopt};
   CHECK(seam.observed_after(first_id, boundary) == first_id);
@@ -297,7 +299,7 @@ void test_capture_seam() {
                                       interaction_capture(0, {}), &ids, &out);
   seam.cancel_requests();
   CHECK(!seam.on_result({late, CaptureResultOutcome::kFailed, std::nullopt},
-                        0, 1, &ids, &session, &out));
+                        0, 1, &ids, &session, &retention, &out));
   seam.reset();
   CHECK(seam.latest("") == nullptr);
   CHECK(seam.sequence() == 0);
