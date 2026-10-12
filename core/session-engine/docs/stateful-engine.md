@@ -549,22 +549,31 @@ capture.result  {requestId, outcome: captured|paintUnchanged|failed|cancelled,
   view masked whole, the Compose default), or `wholeFrame`; `reasons` is
   an array of at most 8 distinct names from a closed set
   (`composeDefault`, `composeVersionUnverified`, `composeOwnerUnavailable`,
-  `interop`, `animating`, `unverifiedLayerAllowlist`, `walkExhausted`,
-  `noWindowSize`, `noDecor`, `representable`, `webView`, `surfaceLayer`,
-  `unclassifiedLayer`, `secureText`), possibly empty. An unknown value is
-  `invalid_message` and the host keeps the handle. When the engine accepts
-  the frame it records `capture_diagnostic` `{component: capture_masking,
-  frameId, mode, reasons}` right after the frame record, always (with or
-  without the `captureDiagnostics` capability), so a whole-masked host can
-  be told from a broken capture. The frame record and `frameMetadata`
-  never carry it. A frame without `maskCoverage` (Flutter, older hosts)
-  records nothing new; a frame the engine reuses, coalesces, or releases
-  records nothing.
+  `interop`, `regionUnreadable`, `treeUnreadable`, `animating`,
+  `unverifiedLayerAllowlist`, `walkExhausted`, `noWindowSize`, `noDecor`,
+  `representable`, `webView`, `renderer`, `surfaceLayer`,
+  `unclassifiedLayer`, `secureText`: every value the Android and SwiftUI
+  adapters emit), possibly empty. An unknown value is `invalid_message` and
+  the host keeps the handle. When the engine accepts the frame it records
+  `capture_diagnostic` `{component: capture_masking, frameId, mode,
+  reasons}` right after the frame record, before the frame-accepted hooks
+  run (so a delivery eviction gap follows it), always (with or without the
+  `captureDiagnostics` capability), so a whole-masked host can be told
+  from a broken capture. The frame record and `frameMetadata` never carry
+  it. A frame without `maskCoverage` (Flutter, older hosts) records nothing
+  new; a frame the engine reuses, coalesces, or releases records nothing.
 - `secureWindow`: a native host never copies a window flagged secure
   (Android `FLAG_SECURE`). It resolves as `capture_processing_failed`, like
   the other non-retryable failures, and its `capture_diagnostic` carries
-  `failure: secure_window` and is always recorded, like the host failures
-  below.
+  `failure: secure_window`. It is not a host contract failure. Without the
+  `captureDiagnostics` capability it is still recorded, but throttled: only
+  the first secure window of each route instance in a session (the session
+  before any route counts as one). Later ones are counted, and each
+  teardown (background, session end or replacement) records one
+  `capture_diagnostic` `{component: capture_secure_window,
+  routeInstanceId?, repeatCount}` per route instance with repeats since
+  the last report. A secure screen captured on every interaction therefore
+  costs at most one diagnostic per route instance plus one per teardown.
 - The host answers every request exactly once, by id. It must not
   assume one request at a time: teardown abandons the capture in flight
   (change C16), so a new `capture.request` can arrive while the host still

@@ -294,7 +294,7 @@ message `input`. The field-level vocabulary is in
 | `scroll` | mono | `{scrollableId, phase, offset?, axis?, maxScrollExtent?, anchor?}` | `phase`: `start`, `update`, `end`, `overscroll`. `offset` and `axis` (`vertical`, `horizontal`) are required except on `overscroll`, which carries only the id; `maxScrollExtent` gives samples their `offsetNorm`; `anchor` (the scrollable's) is allowed on `start` only. `scrollableId` is stable for the scrollable's lifetime. |
 | `focus` | mono | `{kind}` | `text_input`, `other`, or `none`: what now holds primary focus. Tracked without a session too; records `focus_changed` (with `focusChanges`) only for transitions involving a text input. |
 | `systemInput` | mono | `{input}` | `back`, `volume_up`, `volume_down`, `volume_mute`, `power`, `media_play_pause`. Records `system_input` with the `systemInput` capability. |
-| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?, failure?, timings?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, dHash?, structureSignature?, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?, maskCoverage?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged` (only for a request without `force`), `failed` (optional `failure`: `boundaryUnavailable`, `boundaryDetached`, `boundaryReplaced`, `layoutUnavailable`, `paintTimedOut`, `paintNotAdvanced`, `readbackFailed`, `maskFailed`, `encodingFailed`, `secureWindow`), `cancelled`. `maskCoverage {mode, reasons}` (native hosts) says which mask mode applied: `mode` is `precise`, `wholeHost`, or `wholeFrame`; `reasons` is an array (may be empty) of at most 8 distinct names from `composeDefault`, `composeVersionUnverified`, `composeOwnerUnavailable`, `interop`, `animating`, `unverifiedLayerAllowlist`, `walkExhausted`, `noWindowSize`, `noDecor`, `representable`, `webView`, `surfaceLayer`, `unclassifiedLayer`, `secureText`. `timings {frameWaitMicros?, readbackMicros?, maskMicros?, encodeMicros?}` (each at most a day) feed the screenshot budget. `requestedBackend` and `resolvedBackend` are the closed collector vocabulary (`flutterRepaintBoundary`, `nativeCpuExperimental`); `dHash` and `structureSignature` are opaque tokens the engine only compares. This is the one way frames enter the engine. A captured frame the engine does not accept (an unknown, stale, or teardown-abandoned request, a reuse, a perceptual match, or no live session) is released at once (`frame.release`). |
+| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?, failure?, timings?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, dHash?, structureSignature?, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?, maskCoverage?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged` (only for a request without `force`), `failed` (optional `failure`: `boundaryUnavailable`, `boundaryDetached`, `boundaryReplaced`, `layoutUnavailable`, `paintTimedOut`, `paintNotAdvanced`, `readbackFailed`, `maskFailed`, `encodingFailed`, `secureWindow`), `cancelled`. `maskCoverage {mode, reasons}` (native hosts) says which mask mode applied: `mode` is `precise`, `wholeHost`, or `wholeFrame`; `reasons` is an array (may be empty) of at most 8 distinct names from `composeDefault`, `composeVersionUnverified`, `composeOwnerUnavailable`, `interop`, `regionUnreadable`, `treeUnreadable`, `animating`, `unverifiedLayerAllowlist`, `walkExhausted`, `noWindowSize`, `noDecor`, `representable`, `webView`, `renderer`, `surfaceLayer`, `unclassifiedLayer`, `secureText` (every value the Android and SwiftUI adapters emit). `timings {frameWaitMicros?, readbackMicros?, maskMicros?, encodeMicros?}` (each at most a day) feed the screenshot budget. `requestedBackend` and `resolvedBackend` are the closed collector vocabulary (`flutterRepaintBoundary`, `nativeCpuExperimental`); `dHash` and `structureSignature` are opaque tokens the engine only compares. This is the one way frames enter the engine. A captured frame the engine does not accept (an unknown, stale, or teardown-abandoned request, a reuse, a perceptual match, or no live session) is released at once (`frame.release`). |
 | `navigation` | mono | `{kind, navigatorId, parentNavigatorId?, route?, departing?}` | A navigator callback (section 8.1). `kind`: `push`, `pop`, `replace`, `remove`. `route {instanceId, name?, type, overlayKind, transitionMs}` is the destination: the pushed route, the replacement, or the route a pop or removal reveals (absent when none is). `overlayKind`: `page`, `sheet`, `dialog`, `popup`, `unknown`; `transitionMs` in [0, 86400000]. `departing {instanceId, name?, type?}` is the route leaving or covered; only its id is read (`from*` fields come from the visible route, as in Dart). Ids are opaque, stable for the navigator's or route's lifetime; the engine maps them onto `nav-N` / `route-N` per session. A navigator first named as `parentNavigatorId` is numbered after its child. |
 | `surface` | mono | `{boundaryRect {x, y, width, height}, generation}` | The capture boundary in surface logical pixels and the adapter's boundary transform generation, which advances whenever the boundary's rect changes. Send it after `session.start` and on every change, before the `capture.result` of a capture made under it. |
 
@@ -422,14 +422,24 @@ scheduler:
 - **Mask coverage.** An accepted frame with `maskCoverage` always records
   `capture_diagnostic` `{component: capture_masking, frameId, mode,
   reasons}` (`afterFrame` the new frame) right after its frame record,
-  with or without `captureDiagnostics`, so Atlas can tell a whole-masked
-  frame from a broken capture. Frame records and `frameMetadata` never
-  carry it; a frame without `maskCoverage` (Flutter, older hosts) records
-  nothing new, and neither does a frame the engine does not accept.
+  before anything the frame-accepted hooks record (a delivery eviction
+  gap), with or without `captureDiagnostics`, so Atlas can tell a
+  whole-masked frame from a broken capture. Frame records and
+  `frameMetadata` never carry it; a frame without `maskCoverage`
+  (Flutter, older hosts) records nothing new, and neither does a frame
+  the engine coalesces, reuses, or releases (stale, unknown, no session).
 - **Secure windows.** `failed` with `secureWindow` (a window flagged
   secure is never copied) resolves as `capture_processing_failed`, like
   the other non-retryable failures; its `capture_diagnostic` carries
-  `failure: secure_window` and is always recorded.
+  `failure: secure_window`. Without `captureDiagnostics` it is recorded
+  only for the first secure window of each route instance in a session
+  (before any route, the session counts as one), so a secure screen
+  captured again and again cannot flood the event queue. Later ones are
+  counted, and every teardown (going to the background, session end or
+  replacement) records `capture_diagnostic` `{component:
+  capture_secure_window, routeInstanceId?, repeatCount}` for each route
+  instance with repeats since the last report, in first-failure order.
+  With `captureDiagnostics` every one is recorded and nothing is counted.
 - **Budget.** Each execution charges its queue wait (the settle delay
   included, as in Dart) and the host's `timings` within `budgetWindowMs` of
   fact time (C1). Over `budgetMs`, requests carry `scale: degradedScale`.
