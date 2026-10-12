@@ -108,7 +108,7 @@ final class ScrollObserver {
     let now = clock.now()
     for state in tracked.values {
       if let view = state.view, state.active {
-        emit(ScrollFacts.fact(id: ScrollViewReading.id(of: view), phase: .end, metrics: ScrollViewReading.metrics(of: view, axis: state.axis), at: now))
+        emitEnd(view, state, at: now)
       }
       state.observation?.invalidate()
     }
@@ -168,8 +168,13 @@ final class ScrollObserver {
     state.active = false
     state.overscrolled = false
     state.resting = ScrollViewReading.relativeOffset(of: view)
-    emit(ScrollFacts.fact(id: ScrollViewReading.id(of: view), phase: .end, metrics: ScrollViewReading.metrics(of: view, axis: state.axis), at: now))
+    emitEnd(view, state, at: now)
     return true
+  }
+
+  private func emitEnd(_ view: UIScrollView, _ state: Tracked, at: HostTime) {
+    let metrics = ScrollViewReading.metrics(of: view, axis: state.axis)
+    emit(ScrollFacts.fact(id: ScrollViewReading.id(of: view), phase: .end, metrics: metrics, at: at))
   }
 }
 #endif

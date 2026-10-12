@@ -38,7 +38,7 @@ struct MaskRect: Equatable {
 
 /// Why a whole frame was masked instead of per region.
 enum MaskFallback: Equatable {
-  /// The window has no size, or is not attached.
+  /// The window has no size.
   case noWindow
   /// The running iOS major has no verified SwiftUI layer allowlist and the
   /// window contains a hosting view.

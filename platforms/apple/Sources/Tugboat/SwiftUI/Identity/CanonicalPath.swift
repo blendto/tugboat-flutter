@@ -27,6 +27,9 @@ struct CanonicalPath: Equatable {
 /// The route root itself is not part of the path; an empty path is
 /// `Root#0`.
 enum CanonicalPathBuilder {
+  /// A role view or list cell below a scope, with its token (nil for cells).
+  private typealias Segment = (view: UIView, token: String?)
+
   static let rootSegment = "Root#0"
   private static let maxDepth = 128
 
@@ -102,13 +105,14 @@ enum CanonicalPathBuilder {
 
   /// The role views and list cells whose nearest segment ancestor is
   /// `scope`, in subview order, with their tokens (nil for list cells).
-  private static func segmentChildren(of scope: UIView, insideHosting: Bool) -> [(view: UIView, token: String?)] {
-    var out: [(view: UIView, token: String?)] = []
-    collect(scope, insideHosting: insideHosting || ViewKind.of(scope, insideHosting: insideHosting) == .hosting, depth: 0, into: &out)
+  private static func segmentChildren(of scope: UIView, insideHosting: Bool) -> [Segment] {
+    var out: [Segment] = []
+    let scopeIsHosting = ViewKind.of(scope, insideHosting: insideHosting) == .hosting
+    collect(scope, insideHosting: insideHosting || scopeIsHosting, depth: 0, into: &out)
     return out
   }
 
-  private static func collect(_ parent: UIView, insideHosting: Bool, depth: Int, into out: inout [(view: UIView, token: String?)]) {
+  private static func collect(_ parent: UIView, insideHosting: Bool, depth: Int, into out: inout [Segment]) {
     guard depth < maxDepth else { return }
     for child in parent.subviews where !ViewKind.isExcluded(child) {
       if itemIndexPath(of: child) != nil {

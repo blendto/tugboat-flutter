@@ -39,7 +39,8 @@ enum WindowMasks {
   /// A window without SwiftUI needs no layer allowlist.
   private static func uiKitOnly(_ window: UIWindow) -> MaskResult {
     var acc = MaskAccumulator(window: window)
-    visit(window, insideHosting: false, layers: HostingLayerWalk(allowlist: LayerAllowlist(textClasses: [], imageClasses: [])), into: &acc)
+    let noLayers = HostingLayerWalk(allowlist: LayerAllowlist(textClasses: [], imageClasses: []))
+    visit(window, insideHosting: false, layers: noLayers, into: &acc)
     return acc.result()
   }
 

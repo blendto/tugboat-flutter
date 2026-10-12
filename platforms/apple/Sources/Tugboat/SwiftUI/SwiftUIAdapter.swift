@@ -26,14 +26,22 @@ final class SwiftUIAdapter {
   private let screens: ScreenTracker
   private let trackHostingControllers: Bool
   private let center: NotificationCenter
-  private lazy var focus = FocusObserver(clock: clock, emit: { [weak self] in self?.batcher.add($0) }, requestFrame: { [weak self] in self?.batcher.requestFrame() })
+  private lazy var focus = FocusObserver(
+    clock: clock,
+    emit: { [weak self] in self?.batcher.add($0) },
+    requestFrame: { [weak self] in self?.batcher.requestFrame() }
+  )
   private lazy var scroll = ScrollObserver(
     clock: clock,
     anchorFor: { [weak self] view in view.window.flatMap { self?.resolver.anchor(for: view, in: $0) } },
     emit: { [weak self] in self?.batcher.add($0) },
     requestFrame: { [weak self] in self?.batcher.requestFrame() }
   )
-  private lazy var hostingControllers = HostingControllerTracker(screens: screens, clock: clock, emit: { [weak self] in self?.batcher.add($0) })
+  private lazy var hostingControllers = HostingControllerTracker(
+    screens: screens,
+    clock: clock,
+    emit: { [weak self] in self?.batcher.add($0) }
+  )
   private let windows = NSMapTable<UIWindow, WindowPointerRecognizer>.weakToStrongObjects()
   private var keyWindowToken: NSObjectProtocol?
   private var nextDiscoveryMonoUs = Int64.min
