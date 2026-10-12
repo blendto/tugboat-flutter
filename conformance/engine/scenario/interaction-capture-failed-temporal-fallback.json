@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "interaction-capture-failed-temporal-fallback",
-  "description": "When an interaction capture fails, the after-frame falls back to the session's latest frame only when it is a temporal observation: same session, completed no earlier than release, and newer than the frame sequence at release. A swipe whose capture failed and whose latest frame predates its release has none; a tap released before another capture completed takes that later frame.",
+  "description": "When an interaction capture fails, the after-frame falls back to the session's latest frame only when it is a temporal observation: same session, completed no earlier than release, and newer than the frame sequence at release. A swipe whose capture failed and whose latest frame predates its release has none; a tap released while an earlier tap's capture was in flight (one capture runs at a time) falls back to the frame that capture produced, which completed after its release.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -81,6 +81,38 @@
               "userId": null
             }
           ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
           "effects": []
         }
       },
@@ -127,7 +159,7 @@
             },
             {
               "type": "capture.request",
-              "requestId": "capture_request-2",
+              "requestId": "capture-1",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -149,7 +181,7 @@
             "monoUs": 5050000
           },
           "input": {
-            "requestId": "capture_request-2",
+            "requestId": "capture-1",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-2",
@@ -174,7 +206,7 @@
               "kind": "frame",
               "handle": "h-capture_request-2",
               "frame": {
-                "id": "frame-3",
+                "id": "frame-5",
                 "atMs": 50,
                 "width": 1080,
                 "height": 2400,
@@ -189,12 +221,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 10,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-3",
+                "afterFrame": "frame-5",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap"
@@ -263,7 +295,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-5",
+              "requestId": "capture-2",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -285,7 +317,7 @@
             "monoUs": 5280000
           },
           "input": {
-            "requestId": "capture_request-5",
+            "requestId": "capture-2",
             "outcome": "failed"
           }
         },
@@ -294,12 +326,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-7",
                 "atMs": 200,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
-                "beforeFrame": "frame-3",
+                "beforeFrame": "frame-5",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "swipe",
@@ -363,7 +395,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-7",
+              "requestId": "capture-3",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -413,22 +445,7 @@
         },
         "expect": {
           "records": [],
-          "effects": [
-            {
-              "type": "capture.request",
-              "requestId": "capture_request-9",
-              "trigger": "interaction",
-              "force": true,
-              "requireFreshPaint": true,
-              "dropWhenBusy": false,
-              "notBeforeMonoUs": 5440000,
-              "context": {
-                "routeEpoch": 0,
-                "boundaryGeneration": 0
-              },
-              "scale": 1.0
-            }
-          ]
+          "effects": []
         }
       },
       {
@@ -438,7 +455,7 @@
             "monoUs": 5460000
           },
           "input": {
-            "requestId": "capture_request-9",
+            "requestId": "capture-3",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-9",
@@ -463,7 +480,7 @@
               "kind": "frame",
               "handle": "h-capture_request-9",
               "frame": {
-                "id": "frame-10",
+                "id": "frame-14",
                 "atMs": 460,
                 "width": 1080,
                 "height": 2400,
@@ -478,20 +495,20 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
-                "atMs": 430,
+                "id": "event-10",
+                "atMs": 400,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
-                "beforeFrame": "frame-3",
-                "afterFrame": "frame-10",
+                "beforeFrame": "frame-5",
+                "afterFrame": "frame-14",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap",
                   "payload": {
                     "position": {
-                      "xNorm": 0.14563106796116504,
-                      "yNorm": 0.06557377049180328
+                      "xNorm": 0.12135922330097088,
+                      "yNorm": 0.0546448087431694
                     }
                   }
                 }
@@ -499,7 +516,22 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-4",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5440000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
         }
       },
       {
@@ -509,7 +541,7 @@
             "monoUs": 5470000
           },
           "input": {
-            "requestId": "capture_request-7",
+            "requestId": "capture-4",
             "outcome": "failed"
           }
         },
@@ -518,20 +550,20 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
-                "atMs": 400,
+                "id": "event-12",
+                "atMs": 430,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
-                "beforeFrame": "frame-3",
-                "afterFrame": "frame-10",
+                "beforeFrame": "frame-5",
+                "afterFrame": "frame-14",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap",
                   "payload": {
                     "position": {
-                      "xNorm": 0.12135922330097088,
-                      "yNorm": 0.0546448087431694
+                      "xNorm": 0.14563106796116504,
+                      "yNorm": 0.06557377049180328
                     }
                   }
                 }
@@ -570,7 +602,7 @@
       },
       "frames": [
         {
-          "id": "frame-3",
+          "id": "frame-5",
           "atMs": 50,
           "width": 1080,
           "height": 2400,
@@ -582,7 +614,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "frame-10",
+          "id": "frame-14",
           "atMs": 460,
           "width": 1080,
           "height": 2400,
@@ -603,24 +635,24 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-3",
           "atMs": 10,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-3",
+          "afterFrame": "frame-5",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap"
           }
         },
         {
-          "id": "event-4",
+          "id": "event-7",
           "atMs": 200,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
-          "beforeFrame": "frame-3",
+          "beforeFrame": "frame-5",
           "data": {
             "interactionSchema": 2,
             "gesture": "swipe",
@@ -641,32 +673,13 @@
           }
         },
         {
-          "id": "event-8",
-          "atMs": 430,
-          "type": "interaction",
-          "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
-          "beforeFrame": "frame-3",
-          "afterFrame": "frame-10",
-          "data": {
-            "interactionSchema": 2,
-            "gesture": "tap",
-            "payload": {
-              "position": {
-                "xNorm": 0.14563106796116504,
-                "yNorm": 0.06557377049180328
-              }
-            }
-          }
-        },
-        {
-          "id": "event-6",
+          "id": "event-10",
           "atMs": 400,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
-          "beforeFrame": "frame-3",
-          "afterFrame": "frame-10",
+          "beforeFrame": "frame-5",
+          "afterFrame": "frame-14",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap",
@@ -674,6 +687,25 @@
               "position": {
                 "xNorm": 0.12135922330097088,
                 "yNorm": 0.0546448087431694
+              }
+            }
+          }
+        },
+        {
+          "id": "event-12",
+          "atMs": 430,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-5",
+          "afterFrame": "frame-14",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "tap",
+            "payload": {
+              "position": {
+                "xNorm": 0.14563106796116504,
+                "yNorm": 0.06557377049180328
               }
             }
           }

@@ -1,0 +1,578 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "navigation-supersession-chain",
+  "description": "Route work replaced on its navigator is cancelled (no route_change for it) and links its successor (supersededBy). A tap that caused the cancelled route does not inherit an automatic successor as its cause: it observes the successor's frame only as a temporal observation. A swipe during the transition has its capture suppressed (route_transition) and walks the route barriers: it follows the cancelled barrier to its successor and takes that route's frame. Neither the tap nor the swipe is the successor's cause.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails: no frame yet.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 100.0,
+            "y": 200.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "navigation",
+          "at": {
+            "monoUs": 5120000
+          },
+          "input": {
+            "kind": "push",
+            "navigatorId": "root",
+            "route": {
+              "instanceId": "a-a",
+              "name": "/a",
+              "type": "MaterialPageRoute<dynamic>",
+              "overlayKind": "page",
+              "transitionMs": 300
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "navigation.timeout.1",
+              "atMonoUs": 11420000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "navigation.deadline.1",
+              "atMonoUs": 6420000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5150000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 100.0,
+            "y": 200.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.sweep",
+              "atMonoUs": 6400000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5200000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "down",
+            "x": 300.0,
+            "y": 800.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5220000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "move",
+            "x": 300.0,
+            "y": 600.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5240000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "up",
+            "x": 300.0,
+            "y": 400.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "navigation",
+          "at": {
+            "monoUs": 5500000
+          },
+          "input": {
+            "kind": "push",
+            "navigatorId": "root",
+            "route": {
+              "instanceId": "a-b",
+              "name": "/b",
+              "type": "MaterialPageRoute<dynamic>",
+              "overlayKind": "page",
+              "transitionMs": 0
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "navigation.deadline.1"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "navigation.timeout.1"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "navigation.timeout.2",
+              "atMonoUs": 11500000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "navigation.deadline.2",
+              "atMonoUs": 6500000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 6500000
+          },
+          "input": {
+            "timerId": "navigation.deadline.2"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "route",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6500000,
+              "context": {
+                "routeEpoch": 2,
+                "navigatorId": "nav-0",
+                "routeInstanceId": "route-1",
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6550000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-b",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-b",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-b",
+              "frame": {
+                "id": "frame-8",
+                "atMs": 1550,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-b",
+                "masked": true,
+                "trigger": "route",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-10",
+                "atMs": 1550,
+                "type": "route_change",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-8",
+                "result": "navigated",
+                "data": {
+                  "fromRoute": "/a",
+                  "route": "/b",
+                  "navigation": "route_push",
+                  "captureRequestId": "capture_request-7",
+                  "routeName": "/b",
+                  "routeType": "MaterialPageRoute<dynamic>",
+                  "routeNamed": true,
+                  "fromRouteName": "/a",
+                  "fromRouteType": "MaterialPageRoute<dynamic>",
+                  "fromRouteNamed": true,
+                  "navigatorId": "nav-0",
+                  "routeInstanceId": "route-1",
+                  "fromRouteInstanceId": "route-0",
+                  "stackRevision": 2,
+                  "overlayKind": "page",
+                  "visualObservationGeneration": 2,
+                  "navigationOrigin": "automatic_or_unknown",
+                  "routeStack": [
+                    {
+                      "routeInstanceId": "route-0",
+                      "route": "/a",
+                      "routeNamed": true,
+                      "overlayKind": "page",
+                      "navigatorId": "nav-0"
+                    },
+                    {
+                      "routeInstanceId": "route-1",
+                      "route": "/b",
+                      "routeNamed": true,
+                      "overlayKind": "page",
+                      "navigatorId": "nav-0"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-8",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "tap"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 200,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-8",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe",
+                  "route": "/a"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "navigation.timeout.2"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-8",
+          "atMs": 1550,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-b",
+          "masked": true,
+          "trigger": "route",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-10",
+          "atMs": 1550,
+          "type": "route_change",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-8",
+          "result": "navigated",
+          "data": {
+            "fromRoute": "/a",
+            "route": "/b",
+            "navigation": "route_push",
+            "captureRequestId": "capture_request-7",
+            "routeName": "/b",
+            "routeType": "MaterialPageRoute<dynamic>",
+            "routeNamed": true,
+            "fromRouteName": "/a",
+            "fromRouteType": "MaterialPageRoute<dynamic>",
+            "fromRouteNamed": true,
+            "navigatorId": "nav-0",
+            "routeInstanceId": "route-1",
+            "fromRouteInstanceId": "route-0",
+            "stackRevision": 2,
+            "overlayKind": "page",
+            "visualObservationGeneration": 2,
+            "navigationOrigin": "automatic_or_unknown",
+            "routeStack": [
+              {
+                "routeInstanceId": "route-0",
+                "route": "/a",
+                "routeNamed": true,
+                "overlayKind": "page",
+                "navigatorId": "nav-0"
+              },
+              {
+                "routeInstanceId": "route-1",
+                "route": "/b",
+                "routeNamed": true,
+                "overlayKind": "page",
+                "navigatorId": "nav-0"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-8",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "tap"
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 200,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-8",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe",
+            "route": "/a"
+          }
+        }
+      ]
+    }
+  }
+}

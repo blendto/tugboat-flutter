@@ -176,7 +176,6 @@ void CaptureSeam::begin(EngineState* state, const At& at, Output* out,
   InFlightCapture flight;
   flight.generation = scheduler_.generation();
   flight.queue_wait_us = queue_wait_us;
-  flight.has_compatible_frame = has_compatible;
   // Dart: a forced capture never skips an unchanged paint or coalesces.
   flight.forced = scheduled.force ||
                   scheduled.freshness == CaptureFreshness::kFreshPaint ||
@@ -214,19 +213,18 @@ void CaptureSeam::on_result(EngineState* state, const At& at, Output* out,
     if (result.frame) release(*result.frame, out);
     return;
   }
-  const std::optional<ExecutionResult> execution =
-      execute(state, at, out, flight, result);
-  if (!execution) return;  // retried; still in flight
+  const ExecutionResult execution = execute(state, at, out, *flight, result);
   const InFlightCapture done = *scheduler_.finish();
-  resolve_execution(state, at, out, done.capture.waiters, *execution);
+  resolve_execution(state, at, out, done.capture.waiters, execution);
   pump(state, at, out);
 }
 
-std::optional<ExecutionResult> CaptureSeam::execute(
-    EngineState* state, const At& at, Output* out, InFlightCapture* flight,
-    const CaptureResult& result) {
-  const RequestContext& context = flight->capture.context;
-  const bool current = still_current(*state, context, flight->generation);
+ExecutionResult CaptureSeam::execute(EngineState* state, const At& at,
+                                     Output* out,
+                                     const InFlightCapture& flight,
+                                     const CaptureResult& result) {
+  const RequestContext& context = flight.capture.context;
+  const bool current = still_current(*state, context, flight.generation);
   if (!current) {
     if (result.frame) release(*result.frame, out);
     ExecutionResult stale;
@@ -239,31 +237,22 @@ std::optional<ExecutionResult> CaptureSeam::execute(
   switch (result.outcome) {
     case CaptureResultOutcome::kCaptured:
       charge(at,
-             flight->queue_wait_us +
+             flight.queue_wait_us +
                  (result.timings ? result.timings->total()
                                  : result.frame->capture_micros),
              *state);
-      return execute_captured(state, at, out, *flight, *result.frame);
-    case CaptureResultOutcome::kPaintUnchanged: {
-      ExecutionResult reused =
-          reuse_compatible(&frames_, context,
-                           CaptureOutcome::kPaintGenerationUnchanged,
-                           "paint_generation");
-      if (reused.outcome != CaptureOutcome::kNoCompatibleFrame ||
-          flight->retried) {
-        return reused;
-      }
-      // Dart's second attempt: forced, so the host must capture.
-      InFlightCapture retry = std::move(*scheduler_.finish());
-      retry.retried = true;
-      retry.forced = true;
-      retry.baseline.reset();
-      issue(std::move(retry), state, out);
-      return std::nullopt;
-    }
+      return execute_captured(state, at, out, flight, *result.frame);
+    case CaptureResultOutcome::kPaintUnchanged:
+      // Dart retries a paint-unchanged attempt once, forced, when no
+      // compatible frame is left to reuse. Here the latest frame only
+      // changes when a capture resolves and one capture is in flight, so
+      // the frame compatible at the request still is.
+      return reuse_compatible(&frames_, context,
+                              CaptureOutcome::kPaintGenerationUnchanged,
+                              "paint_generation");
     case CaptureResultOutcome::kFailed: {
       charge(at,
-             flight->queue_wait_us +
+             flight.queue_wait_us +
                  (result.timings ? result.timings->frame_wait_us : 0),
              *state);
       ExecutionResult failed;

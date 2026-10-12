@@ -81,6 +81,38 @@
               "userId": null
             }
           ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
           "effects": []
         }
       },
@@ -141,7 +173,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
@@ -214,7 +246,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-4",
                 "atMs": 200,
                 "type": "interaction",
                 "stream": "semantic",
@@ -266,7 +298,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-3",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
@@ -277,7 +309,7 @@
           }
         },
         {
-          "id": "event-2",
+          "id": "event-4",
           "atMs": 200,
           "type": "interaction",
           "stream": "semantic",

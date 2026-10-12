@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "events-before-first-session",
-  "description": "Before the first session.start, event-producing facts (event.record, app.lifecycle) are accepted and dropped: no record and no id. locale.set records nothing but sets the locale the session starts with.",
+  "description": "Before the first session.start, event-producing facts (here event.record) are accepted and dropped: no record and no id. locale.set records nothing but sets the locale the session starts with. app-lifecycle-before-first-session covers app.lifecycle, where Dart's ids differ.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -66,36 +66,6 @@
       },
       {
         "send": {
-          "type": "app.lifecycle",
-          "at": {
-            "monoUs": 4980000
-          },
-          "input": {
-            "state": "inactive"
-          }
-        },
-        "expect": {
-          "records": [],
-          "effects": []
-        }
-      },
-      {
-        "send": {
-          "type": "app.lifecycle",
-          "at": {
-            "monoUs": 4990000
-          },
-          "input": {
-            "state": "inactive"
-          }
-        },
-        "expect": {
-          "records": [],
-          "effects": []
-        }
-      },
-      {
-        "send": {
           "type": "locale.set",
           "at": {
             "monoUs": 4995000
@@ -146,7 +116,22 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
         }
       }
     ]

@@ -90,7 +90,22 @@
               "userId": "user-early"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
         }
       },
       {
@@ -123,7 +138,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 100,
                 "type": "session_end",
                 "stream": "semantic",
@@ -156,7 +171,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-4",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
@@ -165,7 +180,22 @@
               "userId": "user-early"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
         }
       }
     ]
@@ -197,7 +227,7 @@
       "frames": [],
       "events": [
         {
-          "id": "event-2",
+          "id": "event-4",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",

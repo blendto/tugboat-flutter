@@ -26,10 +26,12 @@
 // - `attachActionContext`: Dart's evidence path never attaches action
 //   context; with no exploration action window (deferred beyond this
 //   milestone) both values enrich identically.
-// - NOTE (until phase 3d): event ids are compared by first appearance, not
-//   by number. Dart's id counter also mints `capture_request-N` when a
-//   session starts and on `resumed`; the engine mints those once it owns
-//   capture requests. Phase 3d must switch this runner to exact ids.
+// - `capture.request` effects. Dart's capture scheduler is async work this
+//   runner holds, so it never reaches the host. The ids it mints are still
+//   compared, exactly: `capture_request-N` when a session starts and on
+//   `resumed`, and `capture_execution-N` for each request a teardown
+//   cancels share the event-id counter, so every later event id depends on
+//   them. Any other effect is reported as unmodelled.
 // - Async work is held, never run: everything these scenarios cover happens
 //   synchronously in Dart, and held capture work cannot add records.
 import 'dart:async';
@@ -156,8 +158,6 @@ class _ScenarioRun {
   final ConformanceFixture fixture;
   final List<Map<String, Object?>> _steps;
   final _ScenarioClock _clock = _ScenarioClock();
-  final _expectedIds = _IdCanon();
-  final _actualIds = _IdCanon();
   late final _RecordingSinks _sinks = _RecordingSinks(() => _identity?.userId);
   CollectorHttpSink? _identity;
   late final TugboatReplayController _controller;
@@ -195,14 +195,17 @@ class _ScenarioRun {
     String path,
   ) {
     final actual = _sinks.records.sublist(before);
-    final expected = _plainJson(expect['records'])! as List;
     final out = diffJson(
-      [for (final r in expected) _canonRecord(r as Map, _expectedIds)],
-      [for (final r in actual) _canonRecord(r, _actualIds)],
+      _plainJson(expect['records']),
+      _plainJson(actual),
       '$path.records',
     );
-    if ((expect['effects']! as List).isNotEmpty) {
-      out.add('$path.effects: the Dart runner has no effect model yet');
+    final unmodelled = [
+      for (final effect in expect['effects']! as List)
+        if ((effect as Map)['type'] != 'capture.request') effect['type'],
+    ];
+    if (unmodelled.isNotEmpty) {
+      out.add('$path.effects: the Dart runner does not model $unmodelled');
     }
     return out;
   }
@@ -214,8 +217,8 @@ class _ScenarioRun {
         ? null
         : _plainJson(session.toJson())! as Map;
     return diffJson(
-      expected == null ? null : _canonSnapshot(expected, _expectedIds),
-      actual == null ? null : _canonSnapshot(actual, _actualIds),
+      expected == null ? null : _plainJson(expected),
+      actual,
       r'$.expected.finalSnapshot',
     );
   }
@@ -369,30 +372,3 @@ class _ScenarioRun {
     _clock.monoUs = monoUs;
   }
 }
-
-/// Renames event ids by first appearance, so two id sequences that differ
-/// only in numbering compare equal. Until phase 3d only; see the header.
-class _IdCanon {
-  final Map<String, String> _names = {};
-
-  String name(String id) =>
-      _names.putIfAbsent(id, () => 'event-#${_names.length}');
-}
-
-Map<String, Object?> _canonEvent(Map event, _IdCanon ids) => {
-  ...Map<String, Object?>.from(event),
-  'id': ids.name(event['id']! as String),
-};
-
-Map<String, Object?> _canonRecord(Map record, _IdCanon ids) => {
-  ...Map<String, Object?>.from(record),
-  'event': _canonEvent(record['event']! as Map, ids),
-};
-
-Map<String, Object?> _canonSnapshot(Map snapshot, _IdCanon ids) => {
-  ...Map<String, Object?>.from(snapshot),
-  'events': [
-    for (final event in snapshot['events']! as List)
-      _canonEvent(event as Map, ids),
-  ],
-};

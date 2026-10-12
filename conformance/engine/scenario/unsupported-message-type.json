@@ -64,7 +64,7 @@
           "type": "batch",
           "messages": [
             {
-              "type": "navigation",
+              "type": "example.later",
               "at": {
                 "monoUs": 5000000
               },

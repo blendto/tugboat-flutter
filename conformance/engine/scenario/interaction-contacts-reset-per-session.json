@@ -81,6 +81,38 @@
               "userId": null
             }
           ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
           "effects": []
         }
       },
@@ -117,7 +149,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
@@ -132,7 +164,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-4",
                 "atMs": 200,
                 "type": "session_end",
                 "stream": "semantic",
@@ -165,7 +197,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-5",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
@@ -174,6 +206,38 @@
               "userId": null
             }
           ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5300000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5300000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
           "effects": []
         }
       },
@@ -234,7 +298,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-5",
+              "requestId": "capture-2",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -256,7 +320,7 @@
             "monoUs": 5460000
           },
           "input": {
-            "requestId": "capture_request-5",
+            "requestId": "capture-2",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-5",
@@ -281,7 +345,7 @@
               "kind": "frame",
               "handle": "h-capture_request-5",
               "frame": {
-                "id": "frame-6",
+                "id": "frame-10",
                 "atMs": 160,
                 "width": 1080,
                 "height": 2400,
@@ -296,12 +360,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-8",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200300000",
-                "afterFrame": "frame-6",
+                "afterFrame": "frame-10",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "swipe"
@@ -341,7 +405,7 @@
       },
       "frames": [
         {
-          "id": "frame-6",
+          "id": "frame-10",
           "atMs": 160,
           "width": 1080,
           "height": 2400,
@@ -355,19 +419,19 @@
       ],
       "events": [
         {
-          "id": "event-3",
+          "id": "event-5",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
           "captureSessionId": "session-1781827200300000"
         },
         {
-          "id": "event-4",
+          "id": "event-8",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200300000",
-          "afterFrame": "frame-6",
+          "afterFrame": "frame-10",
           "data": {
             "interactionSchema": 2,
             "gesture": "swipe"

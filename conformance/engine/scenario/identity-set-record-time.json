@@ -74,7 +74,22 @@
               "userId": "user-configured"
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
         }
       },
       {
@@ -97,7 +112,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-2",
                 "atMs": 100,
                 "type": "external_event",
                 "stream": "evidence",
@@ -148,7 +163,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-3",
                 "atMs": 300,
                 "type": "external_event",
                 "stream": "evidence",
@@ -193,7 +208,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-5",
                 "atMs": 500,
                 "type": "session_end",
                 "stream": "semantic",
@@ -241,7 +256,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-2",
           "atMs": 100,
           "type": "external_event",
           "stream": "evidence",
@@ -251,7 +266,7 @@
           }
         },
         {
-          "id": "event-2",
+          "id": "event-3",
           "atMs": 300,
           "type": "external_event",
           "stream": "evidence",
@@ -261,7 +276,7 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-5",
           "atMs": 500,
           "type": "session_end",
           "stream": "semantic",

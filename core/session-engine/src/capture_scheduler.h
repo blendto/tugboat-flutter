@@ -67,13 +67,10 @@ struct InFlightCapture {
   ScheduledCapture capture;
   int64_t generation = 0;       // the capture generation when issued
   int64_t queue_wait_us = 0;
-  bool has_compatible_frame = false;
   // What the request told the host: forced captures never report
   // `paintUnchanged` and never coalesce.
   bool forced = false;
   std::optional<DHashBaseline> baseline;
-  // The paint-unchanged retry (Dart's second physical attempt) was issued.
-  bool retried = false;
 };
 
 class CaptureScheduler {

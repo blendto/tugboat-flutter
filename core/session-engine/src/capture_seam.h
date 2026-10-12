@@ -127,11 +127,10 @@ class CaptureSeam {
   void begin(EngineState* state, const At& at, Output* out,
              ScheduledCapture scheduled);
   void issue(InFlightCapture capture, EngineState* state, Output* out);
-  // Classifies a fresh answer to the capture in flight. Nothing when it
-  // stays in flight (the paint-unchanged retry).
-  std::optional<ExecutionResult> execute(EngineState* state, const At& at,
-                                         Output* out, InFlightCapture* flight,
-                                         const CaptureResult& result);
+  // Classifies the host's answer to the capture in flight.
+  ExecutionResult execute(EngineState* state, const At& at, Output* out,
+                          const InFlightCapture& flight,
+                          const CaptureResult& result);
   ExecutionResult execute_captured(EngineState* state, const At& at,
                                    Output* out, const InFlightCapture& flight,
                                    const CapturedFrame& frame);

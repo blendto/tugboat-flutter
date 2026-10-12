@@ -135,7 +135,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-2",
                 "atMs": 10,
                 "type": "external_event",
                 "stream": "evidence",
@@ -154,7 +154,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-4",
                 "atMs": 20,
                 "type": "app_backgrounded",
                 "stream": "semantic",
@@ -173,7 +173,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-5",
                 "atMs": 30,
                 "type": "locale_changed",
                 "stream": "evidence",
@@ -199,7 +199,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-7",
                 "atMs": 40,
                 "type": "app_foregrounded",
                 "stream": "semantic",
@@ -215,7 +215,36 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "lifecycle",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5040000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
         }
       },
       {
@@ -273,7 +302,7 @@
           }
         },
         {
-          "id": "event-1",
+          "id": "event-2",
           "atMs": 10,
           "type": "external_event",
           "stream": "evidence",
@@ -288,7 +317,7 @@
           }
         },
         {
-          "id": "event-2",
+          "id": "event-4",
           "atMs": 20,
           "type": "app_backgrounded",
           "stream": "semantic",
@@ -303,7 +332,7 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-5",
           "atMs": 30,
           "type": "locale_changed",
           "stream": "evidence",
@@ -325,7 +354,7 @@
           }
         },
         {
-          "id": "event-4",
+          "id": "event-7",
           "atMs": 40,
           "type": "app_foregrounded",
           "stream": "semantic",

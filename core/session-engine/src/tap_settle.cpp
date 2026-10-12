@@ -52,9 +52,10 @@ OptString latest_frame(const Turn& turn) {
   return latest == nullptr ? std::nullopt : OptString(latest->frame_id);
 }
 
-// Dart `_writeTapSettleObservation`.
-void write(Turn& turn, const std::string& interaction_id,
-           const OptString& after_frame) {
+// Dart `_writeTapSettleObservation`. Takes its arguments by value: they may
+// live in the settle it erases.
+void write(Turn& turn, const std::string interaction_id,
+           const OptString after_frame) {
   EngineState& state = *turn.state;
   TapSettles& settles = state.interactions.settles;
   const TapSettle* settle = settles.find(interaction_id);

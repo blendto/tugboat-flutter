@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "focus-text-input-transitions",
-  "description": "Focus facts carry only the kind of the node holding primary focus. The engine keeps the previous kind (also without a session: here the text field was focused before the session started) and records focus_changed only for transitions into, out of, or between text inputs; churn between other nodes is ignored. Each event waits for one manual capture after the settle delay and publishes once: with the frame the capture produced or reused, else the latest frame when it completed after the input, else without a frame.",
+  "description": "Focus facts carry only the kind of the node holding primary focus. The engine keeps the previous kind (also without a session: here the text field was focused before the session started) and records focus_changed only for transitions into, out of, or between text inputs; churn between other nodes is ignored. Each event waits for one manual capture after the settle delay and publishes once: with the frame the capture produced or reused, else the latest frame when it completed after the input, else without a frame. The screenshot budget is unbounded here, so each observation takes its own capture.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -47,6 +47,9 @@
       },
       "capabilities": {
         "focusChanges": true
+      },
+      "capture": {
+        "budgetMs": 86400000
       }
     },
     "steps": [
@@ -95,6 +98,38 @@
               "userId": null
             }
           ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5010000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5010000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
           "effects": []
         }
       },
@@ -112,10 +147,32 @@
           "records": [],
           "effects": [
             {
+              "type": "timer.schedule",
+              "timerId": "capture.due",
+              "atMonoUs": 6100000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The scheduler runs the waiting capture once its not-before time comes.",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 6100000
+          },
+          "input": {
+            "timerId": "capture.due"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
               "type": "capture.request",
-              "requestId": "capture_request-2",
+              "requestId": "capture-1",
               "trigger": "manual",
-              "force": false,
+              "force": true,
               "requireFreshPaint": false,
               "dropWhenBusy": false,
               "notBeforeMonoUs": 6100000,
@@ -135,7 +192,7 @@
             "monoUs": 6100000
           },
           "input": {
-            "requestId": "capture_request-2",
+            "requestId": "capture-1",
             "outcome": "failed"
           }
         },
@@ -144,7 +201,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 90,
                 "type": "focus_changed",
                 "stream": "evidence",
@@ -174,10 +231,32 @@
           "records": [],
           "effects": [
             {
+              "type": "timer.schedule",
+              "timerId": "capture.due",
+              "atMonoUs": 7200000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The scheduler runs the waiting capture once its not-before time comes.",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 7200000
+          },
+          "input": {
+            "timerId": "capture.due"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
               "type": "capture.request",
-              "requestId": "capture_request-4",
+              "requestId": "capture-2",
               "trigger": "manual",
-              "force": false,
+              "force": true,
               "requireFreshPaint": false,
               "dropWhenBusy": false,
               "notBeforeMonoUs": 7200000,
@@ -197,7 +276,7 @@
             "monoUs": 7200000
           },
           "input": {
-            "requestId": "capture_request-4",
+            "requestId": "capture-2",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-4",
@@ -222,7 +301,7 @@
               "kind": "frame",
               "handle": "h-capture_request-4",
               "frame": {
-                "id": "frame-5",
+                "id": "frame-8",
                 "atMs": 2190,
                 "width": 1080,
                 "height": 2400,
@@ -237,12 +316,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-6",
                 "atMs": 1190,
                 "type": "focus_changed",
                 "stream": "evidence",
                 "captureSessionId": "session-1781827200010000",
-                "afterFrame": "frame-5",
+                "afterFrame": "frame-8",
                 "data": {
                   "focus": "text_input",
                   "previousFocus": "none"
@@ -268,8 +347,30 @@
           "records": [],
           "effects": [
             {
+              "type": "timer.schedule",
+              "timerId": "capture.due",
+              "atMonoUs": 8300000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The scheduler runs the waiting capture once its not-before time comes.",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 8300000
+          },
+          "input": {
+            "timerId": "capture.due"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
               "type": "capture.request",
-              "requestId": "capture_request-7",
+              "requestId": "capture-3",
               "trigger": "manual",
               "force": false,
               "requireFreshPaint": false,
@@ -291,7 +392,7 @@
             "monoUs": 8300000
           },
           "input": {
-            "requestId": "capture_request-7",
+            "requestId": "capture-3",
             "outcome": "cancelled"
           }
         },
@@ -300,7 +401,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-10",
                 "atMs": 2290,
                 "type": "focus_changed",
                 "stream": "evidence",
@@ -330,8 +431,30 @@
           "records": [],
           "effects": [
             {
+              "type": "timer.schedule",
+              "timerId": "capture.due",
+              "atMonoUs": 9400000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The scheduler runs the waiting capture once its not-before time comes.",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 9400000
+          },
+          "input": {
+            "timerId": "capture.due"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
               "type": "capture.request",
-              "requestId": "capture_request-9",
+              "requestId": "capture-4",
               "trigger": "manual",
               "force": false,
               "requireFreshPaint": false,
@@ -353,7 +476,7 @@
             "monoUs": 9400000
           },
           "input": {
-            "requestId": "capture_request-9",
+            "requestId": "capture-4",
             "outcome": "paintUnchanged"
           }
         },
@@ -362,12 +485,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-13",
                 "atMs": 3390,
                 "type": "focus_changed",
                 "stream": "evidence",
                 "captureSessionId": "session-1781827200010000",
-                "afterFrame": "frame-5",
+                "afterFrame": "frame-8",
                 "data": {
                   "focus": "other",
                   "previousFocus": "text_input"
@@ -437,7 +560,7 @@
       },
       "frames": [
         {
-          "id": "frame-5",
+          "id": "frame-8",
           "atMs": 2190,
           "width": 1080,
           "height": 2400,
@@ -458,7 +581,7 @@
           "captureSessionId": "session-1781827200010000"
         },
         {
-          "id": "event-1",
+          "id": "event-3",
           "atMs": 90,
           "type": "focus_changed",
           "stream": "evidence",
@@ -469,19 +592,19 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-6",
           "atMs": 1190,
           "type": "focus_changed",
           "stream": "evidence",
           "captureSessionId": "session-1781827200010000",
-          "afterFrame": "frame-5",
+          "afterFrame": "frame-8",
           "data": {
             "focus": "text_input",
             "previousFocus": "none"
           }
         },
         {
-          "id": "event-6",
+          "id": "event-10",
           "atMs": 2290,
           "type": "focus_changed",
           "stream": "evidence",
@@ -492,12 +615,12 @@
           }
         },
         {
-          "id": "event-8",
+          "id": "event-13",
           "atMs": 3390,
           "type": "focus_changed",
           "stream": "evidence",
           "captureSessionId": "session-1781827200010000",
-          "afterFrame": "frame-5",
+          "afterFrame": "frame-8",
           "data": {
             "focus": "other",
             "previousFocus": "text_input"

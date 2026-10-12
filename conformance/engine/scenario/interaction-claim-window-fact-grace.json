@@ -80,6 +80,38 @@
               "userId": null
             }
           ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
           "effects": []
         }
       },
@@ -126,7 +158,7 @@
             },
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-1",
+              "timerId": "interaction.settle.event-3",
               "atMonoUs": 6150000
             }
           ]
@@ -139,7 +171,7 @@
             "monoUs": 6150000
           },
           "input": {
-            "timerId": "interaction.settle.event-1"
+            "timerId": "interaction.settle.event-3"
           }
         },
         "expect": {
@@ -147,7 +179,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-1",
+              "timerId": "interaction.settle.event-3",
               "atMonoUs": 6450000
             }
           ]
@@ -190,7 +222,7 @@
             "monoUs": 6450000
           },
           "input": {
-            "timerId": "interaction.settle.event-1"
+            "timerId": "interaction.settle.event-3"
           }
         },
         "expect": {
@@ -198,7 +230,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-2",
+              "requestId": "capture-1",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -220,7 +252,7 @@
             "monoUs": 6500000
           },
           "input": {
-            "requestId": "capture_request-2",
+            "requestId": "capture-1",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-2",
@@ -245,7 +277,7 @@
               "kind": "frame",
               "handle": "h-capture_request-2",
               "frame": {
-                "id": "frame-3",
+                "id": "frame-5",
                 "atMs": 1500,
                 "width": 1080,
                 "height": 2400,
@@ -260,12 +292,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-3",
+                "afterFrame": "frame-5",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap"
@@ -305,7 +337,7 @@
       },
       "frames": [
         {
-          "id": "frame-3",
+          "id": "frame-5",
           "atMs": 1500,
           "width": 1080,
           "height": 2400,
@@ -326,12 +358,12 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-3",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-3",
+          "afterFrame": "frame-5",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap"

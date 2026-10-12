@@ -81,6 +81,38 @@
               "userId": null
             }
           ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
           "effects": []
         }
       },
@@ -98,18 +130,9 @@
           "records": [],
           "effects": [
             {
-              "type": "capture.request",
-              "requestId": "capture_request-2",
-              "trigger": "manual",
-              "force": false,
-              "requireFreshPaint": false,
-              "dropWhenBusy": false,
-              "notBeforeMonoUs": 6100000,
-              "context": {
-                "routeEpoch": 0,
-                "boundaryGeneration": 0
-              },
-              "scale": 1.0
+              "type": "timer.schedule",
+              "timerId": "capture.due",
+              "atMonoUs": 6100000
             }
           ]
         }
@@ -129,7 +152,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 100,
                 "type": "system_input",
                 "stream": "evidence",
@@ -143,7 +166,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-6",
                 "atMs": 200,
                 "type": "app_backgrounded",
                 "stream": "semantic",
@@ -155,7 +178,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.due"
+            }
+          ]
         }
       },
       {
@@ -186,7 +214,12 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "frame.release",
+              "handle": "h-capture_request-2"
+            }
+          ]
         }
       },
       {
@@ -234,7 +267,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-8",
                 "atMs": 400,
                 "type": "app_foregrounded",
                 "stream": "semantic",
@@ -246,6 +279,38 @@
               "userId": null
             }
           ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "lifecycle",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5400000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "The lifecycle capture fails, so later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5400000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
           "effects": []
         }
       },
@@ -263,18 +328,9 @@
           "records": [],
           "effects": [
             {
-              "type": "capture.request",
-              "requestId": "capture_request-6",
-              "trigger": "manual",
-              "force": false,
-              "requireFreshPaint": false,
-              "dropWhenBusy": false,
-              "notBeforeMonoUs": 6500000,
-              "context": {
-                "routeEpoch": 0,
-                "boundaryGeneration": 0
-              },
-              "scale": 1.0
+              "type": "timer.schedule",
+              "timerId": "capture.due",
+              "atMonoUs": 6500000
             }
           ]
         }
@@ -293,7 +349,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-10",
                 "atMs": 500,
                 "type": "focus_changed",
                 "stream": "evidence",
@@ -308,7 +364,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-7",
+                "id": "event-13",
                 "atMs": 600,
                 "type": "session_end",
                 "stream": "semantic",
@@ -317,7 +373,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.due"
+            }
+          ]
         }
       },
       {
@@ -348,7 +409,12 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "frame.release",
+              "handle": "h-capture_request-6"
+            }
+          ]
         }
       }
     ]
@@ -387,7 +453,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-3",
           "atMs": 100,
           "type": "system_input",
           "stream": "evidence",
@@ -397,7 +463,7 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-6",
           "atMs": 200,
           "type": "app_backgrounded",
           "stream": "semantic",
@@ -407,7 +473,7 @@
           }
         },
         {
-          "id": "event-4",
+          "id": "event-8",
           "atMs": 400,
           "type": "app_foregrounded",
           "stream": "semantic",
@@ -417,7 +483,7 @@
           }
         },
         {
-          "id": "event-5",
+          "id": "event-10",
           "atMs": 500,
           "type": "focus_changed",
           "stream": "evidence",
@@ -428,7 +494,7 @@
           }
         },
         {
-          "id": "event-7",
+          "id": "event-13",
           "atMs": 600,
           "type": "session_end",
           "stream": "semantic",
