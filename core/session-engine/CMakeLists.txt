@@ -25,6 +25,9 @@ set(_tb_dc_sources
   ${_tb_dc}/double-conversion/string-to-double.cc
   ${_tb_dc}/double-conversion/strtod.cc)
 set(_tb_engine_sources
+  src/after_frame.cpp
+  src/capture_requests.cpp
+  src/claim_window.cpp
   src/clock.cpp
   src/collector.cpp
   src/config.cpp
@@ -34,8 +37,18 @@ set(_tb_engine_sources
   src/engine_module.cpp
   src/evidence_module.cpp
   src/fingerprint.cpp
+  src/frame_ledger.cpp
+  src/gesture_classifier.cpp
+  src/gesture_completion.cpp
   src/host.cpp
+  src/input_observations.cpp
+  src/interaction_claims.cpp
+  src/interaction_facts.cpp
   src/interaction_module.cpp
+  src/interaction_payload.cpp
+  src/interaction_publish.cpp
+  src/interaction_registry.cpp
+  src/interaction_transaction.cpp
   src/json.cpp
   src/lifecycle.cpp
   src/models.cpp
@@ -43,11 +56,16 @@ set(_tb_engine_sources
   src/modules.cpp
   src/navigation_module.cpp
   src/output.cpp
+  src/pointer_interactions.cpp
+  src/pointer_tracker.cpp
   src/reader.cpp
   src/recorder.cpp
+  src/scroll_interactions.cpp
   src/session.cpp
   src/session_module.cpp
   src/stateless_module.cpp
+  src/tap_evidence.cpp
+  src/tap_settle.cpp
   src/tb_session_engine.cpp
   src/teardown.cpp
   src/text.cpp)
@@ -82,8 +100,11 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
   add_executable(tb_session_engine_test tests/tb_session_engine_test.cpp)
   add_executable(tb_session_engine_stateful_test
     tests/tb_session_engine_stateful_test.cpp)
+  add_executable(tb_session_engine_interaction_test
+    tests/tb_session_engine_interaction_test.cpp)
   foreach(_tb_unit IN ITEMS tb_session_engine_test
-                            tb_session_engine_stateful_test)
+                            tb_session_engine_stateful_test
+                            tb_session_engine_interaction_test)
     target_include_directories(${_tb_unit} PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src")
   endforeach()
@@ -97,6 +118,7 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
     TB_CONFORMANCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../conformance")
   foreach(_tb_test IN ITEMS tb_session_engine_test
                             tb_session_engine_stateful_test
+                            tb_session_engine_interaction_test
                             tb_session_engine_conformance)
     target_link_libraries(${_tb_test} PRIVATE tugboat_session_engine)
     target_compile_options(${_tb_test} PRIVATE -Wall -Wextra -Wpedantic -Werror)

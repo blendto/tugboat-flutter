@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "host.h"
 #include "json.h"
@@ -41,6 +42,17 @@ struct SessionHeader {
   int64_t session_epoch = 0;
 };
 
+// TugboatScrollSample: one sampled offset of a scrolling scrollable.
+struct ScrollSample {
+  int64_t at_ms = 0;
+  double offset = 0;
+  OptString before_frame;
+  OptString after_frame;
+  OptString scrollable_fingerprint;
+  OptString axis;
+  std::optional<double> offset_norm;
+};
+
 class Session {
  public:
   explicit Session(SessionHeader header) : header_(std::move(header)) {}
@@ -52,6 +64,10 @@ class Session {
     locale_ = std::move(locale);
   }
   const std::deque<Event>& events() const { return events_; }
+  const std::deque<Frame>& frames() const { return frames_; }
+  const std::deque<ScrollSample>& scroll_samples() const {
+    return scroll_samples_;
+  }
   bool truncated() const { return truncated_; }
 
   // Event `atMs` for a fact at `mono_us`.
@@ -61,15 +77,29 @@ class Session {
   // makes `truncated` true for the rest of the session (Dart `_trim`).
   void append(Event event, int64_t max_events);
 
+  // Appends an accepted frame, then drops the oldest beyond `max_frames`
+  // (sticky `truncated`). Returns the ids of the dropped frames.
+  std::vector<std::string> append_frame(Frame frame, int64_t max_frames);
+
+  // Appends a scroll sample, then drops the oldest beyond `max_samples`
+  // (sticky `truncated`, Dart `_trimScrollSamples`).
+  void append_scroll_sample(ScrollSample sample, int64_t max_samples);
+  // The newest scroll sample, or nullptr (Dart `scrollSamples.last`).
+  ScrollSample* last_scroll_sample() {
+    return scroll_samples_.empty() ? nullptr : &scroll_samples_.back();
+  }
+
  private:
   SessionHeader header_;
   std::optional<LocaleInfo> locale_;
   std::deque<Event> events_;
+  std::deque<Frame> frames_;
+  std::deque<ScrollSample> scroll_samples_;
   bool truncated_ = false;
 };
 
-// TugboatSession.toJson (session schema 10). Frames and scroll samples are
-// empty until later phases record them.
+// TugboatSession.toJson (session schema 10). `scrollSamples` is written only
+// when there are any.
 Value session_snapshot_json(const Session& session);
 
 }  // namespace engine

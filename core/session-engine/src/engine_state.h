@@ -9,6 +9,7 @@
 #include "clock.h"
 #include "config.h"
 #include "delivery_state.h"
+#include "frame_ledger.h"
 #include "interaction_state.h"
 #include "lifecycle.h"
 #include "models.h"
@@ -37,6 +38,9 @@ struct EngineState {
   std::optional<Session> session;
   Timers timers;
   DeliveryState delivery;
+  // Frame provenance for before- and after-frames (phase 3d replaces it
+  // with the capture scheduler's provenance).
+  FrameLedger frames;
   InteractionState interactions;
   NavigationState navigation;
 

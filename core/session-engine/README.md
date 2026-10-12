@@ -22,6 +22,7 @@ core/session-engine/
   src/                                  engine (C++17, internal headers)
   tests/tb_session_engine_test.cpp      unit tests (internals + ABI error paths)
   tests/tb_session_engine_stateful_test.cpp  unit tests (timers, teardown, lifecycle)
+  tests/tb_session_engine_interaction_test.cpp  unit tests (classifier, registry, ledger, claims)
   tests/tb_session_engine_conformance.cpp  fixture runner (public ABI only)
   tests/conformance/                    runner JSON reader, diff, scenario runner
   fuzz/message_fuzz.cpp                 libFuzzer target for submit
@@ -41,17 +42,29 @@ core/session-engine/
 | `session_module.cpp` | `session.start`, `session.end`, `app.lifecycle`. |
 | `evidence_module.cpp` | `event.record`, `locale.set`, `identity.set`. |
 | `stateless_module.cpp` | The stateless operations (`fingerprint.cpp`, `collector.cpp`). |
-| `delivery_module.cpp`, `interaction_module.cpp`, `navigation_module.cpp` | Collector delivery, interactions, and navigation and capture (design sections 7–9), each with its state header. |
+| `delivery_module.cpp`, `navigation_module.cpp` | Collector delivery, and navigation and capture (design sections 7 and 8), each with its state header. |
+| `interaction_module.cpp` | Interactions (design section 9): the interaction messages, `interaction.` timers, and teardown stages. Its state is `interaction_state.h`; the parts below each hold one concept. |
+| `gesture_classifier` | Pure classification: touch slop, the multi-pointer cluster, trackpad thresholds, from the `gesture` config. |
+| `pointer_tracker` | Contacts, the cluster, and the trackpad contact (Dart `InputCapture`); turns facts into controller signals. |
+| `pointer_interactions` | The controller's pointer entry points: pointer-down/up/cancel, marks, absorption, abandonment. |
+| `interaction_transaction`, `interaction_registry` | One gesture's transaction and its explicit stages; the pending/released/by-id registry with claim eligibility, sweep, and cap. |
+| `claim_window`, `tap_settle` | The claim window after a tap's release (sweep timer) and the tap-settle state machine. |
+| `gesture_completion`, `scroll_interactions` | Swipe/pan/zoom after-capture; scroll trackers, samples, and pointer-up/scroll-end pairing. |
+| `input_observations` | Focus and system-input events that wait for one frame. |
+| `tap_evidence`, `interaction_payload`, `interaction_publish` | Tap evidence on facts; the interaction schema 2 envelope and payload; publishing and early finalization. |
+| `interaction_facts` | Typed interaction facts and `capture.result`, with strict decoders. |
+| `frame_ledger`, `capture_requests`, `after_frame` | The phase 3c capture seam: frame provenance and acceptance, outstanding capture requests, and the temporal after-frame rules. Phase 3d replaces the first two with the capture scheduler. |
+| `interaction_claims` | What navigation (phase 3d) calls: the claim API, the settle wake hook, and the route stamp. |
 | `engine_state.h` | Everything a handle holds between messages, as plain data. |
 | `config` | The typed `engine.configure` configuration. |
 | `lifecycle` | The lifecycle state machine, app-lifecycle mapping and dedupe, admission. |
 | `clock` | `at`, `atMs` derivation, and host timer deadlines. |
 | `teardown` | The ordered teardown stages. |
-| `session` | The in-memory session, the id counter, and the schema 10 snapshot. |
+| `session` | The in-memory session (events, frames, scroll samples), the id counter, and the schema 10 snapshot. |
 | `recorder` | Enrichment and append (Dart `_addEvent`). |
 | `output` | Typed records and effects and their JSON. |
 | `models` / `host` | Shared typed models (locale, anchor, event, host metadata). |
-| `json`, `reader`, `text`, `dart_time` | JSON, strict field readers, SHA-256 and UTF-16 helpers, Dart `DateTime`. |
+| `json`, `reader`, `text`, `dart_time`, `name_table`, `ordered_map` | JSON, strict field readers, SHA-256 and UTF-16 helpers, Dart `DateTime`, closed vocabularies as tables, an insertion-ordered map. |
 
 ## C ABI
 
@@ -255,6 +268,12 @@ message `input`. The field-level vocabulary is in
 | `identity.set` | mono + wall | `{userId}` (string or null) | Sets the runtime user id stamped on later records. |
 | `timer.fired` | mono | `{timerId}` | Routes by timer-id prefix to the module that armed the timer. Unknown, cancelled, and stale (fired before the current deadline) ids are ignored. |
 | `session.snapshot` | optional | `{}` | Query. `result.snapshot` is the live or last session as `TugboatSession.toJson()` (schema 10), or `null` before the first session. |
+| `input.pointer` | mono | `{pointerId, phase, x, y, device, tap?}` | A pointer fact (section 9.1). `phase`: `down`, `move`, `up`, `cancel`; `device`: `touch`, `mouse`, `stylus`, `trackpad` (validated; it does not change classification, as in Dart). `x`, `y` are logical pixels in the adapter's surface space. `tap {anchor?, failureReason?, inventory?}` is allowed on `down` (exploration pre-tap evidence) and `up`. A `pointerId` must be unique per contact. |
+| `input.panZoom` | mono | `{pointerId, phase, x, y, panX?, panY?, scale?}` | A trackpad pan/zoom contact at `x, y`. `phase`: `start`, `update`, `end`. The cumulative `panX`, `panY`, and `scale` are required on `update` and not allowed otherwise. |
+| `scroll` | mono | `{scrollableId, phase, offset?, axis?, maxScrollExtent?, anchor?}` | `phase`: `start`, `update`, `end`, `overscroll`. `offset` and `axis` (`vertical`, `horizontal`) are required except on `overscroll`, which carries only the id; `maxScrollExtent` gives samples their `offsetNorm`; `anchor` (the scrollable's) is allowed on `start` only. `scrollableId` is stable for the scrollable's lifetime. |
+| `focus` | mono | `{kind}` | `text_input`, `other`, or `none`: what now holds primary focus. Tracked without a session too; records `focus_changed` (with `focusChanges`) only for transitions involving a text input. |
+| `systemInput` | mono | `{input}` | `back`, `volume_up`, `volume_down`, `volume_mute`, `power`, `media_play_pause`. Records `system_input` with the `systemInput` capability. |
+| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged`, `failed`, `cancelled`. Unknown and invalidated request ids are ignored. |
 
 Enrichment follows Dart `_addEvent`: the current locale is stamped when the
 event has none; with `attachActionContext` the session's capture,
@@ -266,10 +285,53 @@ trimmed: beyond `limits.maxEvents` the oldest are dropped and the session's
 session (C7, kept). The exploration action window (`actionId` stamping) is
 not part of the engine; `actionId` passes through.
 
-Event-producing facts (`event.record`, `app.lifecycle`) without a live
-session, before the first session or after `session_end` (change C9), are
-accepted and dropped: no record, no id. `locale.set` then only updates the
-locale the next session starts with.
+Event-producing facts (`event.record`, `app.lifecycle`, and the interaction
+facts except `focus`) without a live session, before the first session or
+after `session_end` (change C9), are accepted and dropped: no record, no id.
+`locale.set` then only updates the locale the next session starts with.
+
+### Interactions
+
+The interaction module (design section 9) builds one `interaction` event
+per pointer gesture from the facts above, with Dart's controller rules:
+
+- **Classification.** One pointer past `gesture.touchSlop` is a swipe. Two
+  or more pointers form a cluster: a span change of `scaleSlop` zooms,
+  shared travel of `panSlop` pans (two pointers) or swipes (three or more);
+  the other pointers are absorbed. A cluster that never classifies is one
+  tap per pointer. Trackpad contacts zoom past `trackpadScaleThreshold` and
+  pan past `panSlop`; one that ends unclassified is `cancelled`.
+- **Taps.** Pointer-up releases a tap into its claim window
+  (`claimWindowMs`, timer `interaction.sweep`, capped at `maxReleased`) and
+  starts its settle (timer `interaction.settle.<id>`): the settle delay,
+  the rest of the claim window, then a standalone capture. Window timers
+  fire `factGraceMs` late; window comparisons use fact time.
+- **Swipe, pan, zoom** publish after their own capture; **scrolls** publish
+  once both the pointer-up and the scroll end (and its capture, after
+  `scrollEndCaptureDelayMs`, timer `interaction.scrollEnd.<id>`) have
+  arrived, in either order. A scroll no pointer owned records only scroll
+  samples. A tap that owns a scroll start completes as that scroll (change
+  C12).
+- **Captures.** Each completion emits `capture.request` (trigger
+  `interaction`, forced, fresh paint; focus and system input use `manual`
+  after the settle delay) and waits for `capture.result`. A `captured` frame
+  is accepted as `frame-N` with a frame record. The after-frame is temporal:
+  same session, completed no earlier than release, newer than the frame
+  sequence at release; otherwise the latest frame when it qualifies.
+- **Positions.** The latest frame at pointer-down is the before-frame;
+  positions are normalised against its `boundaryRect`. Without one, or
+  outside it, the interaction has no positions. `cancelled` has no payload.
+- **Teardown.** `paused`, `hidden`, `detached`, `session.end`, and a
+  replacing `session.start` cancel settles and outstanding captures,
+  abandon pending pointers (a tap becomes `cancelled`; swipe, scroll, pan,
+  and zoom keep their gesture), cancel released taps, publish waiting
+  gestures and scrolls without a frame, and flush waiting `focus_changed` /
+  `system_input` events, in that order. Pointer input is ignored in the
+  background.
+
+Phase 3d (navigation and the capture scheduler) calls the claim API in
+`interaction_claims.h` and replaces the capture seam (`frame_ledger.h`,
+`capture_requests.h`).
 
 `engine.configure` groups, with Dart's defaults. Every field is optional and
 validated. `host.configuredUserId` is the runtime user id until
@@ -356,8 +418,9 @@ umbrella header `double-conversion.h` and build files are not vendored. See
 bash tool/ci/run-session-engine-tests.sh
 ```
 
-This configures with GCC, ASan, and UBSan, then runs three CTest tests.
-`tb_session_engine_test` and `tb_session_engine_stateful_test` hold the unit
+This configures with GCC, ASan, and UBSan, then runs four CTest tests.
+`tb_session_engine_test`, `tb_session_engine_stateful_test`, and
+`tb_session_engine_interaction_test` hold the unit
 tests. `tb_session_engine_conformance` runs every `conformance/**/*.json`
 through `tb_session_engine_submit_v1`. To run a subset:
 

@@ -1,0 +1,972 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "interaction-abandon-on-background",
+  "description": "Going to the background (paused) applies the same teardown before app_backgrounded: pending pointers are abandoned (a swipe keeps its gesture; only a pointer cancel would make it cancelled), released taps are cancelled, waiting gestures and scrolls publish without a frame, observations flush. Pointer input in the background is ignored, and the contacts are forgotten, so a pointer that went down before the background lifting after resume does nothing. After resumed, a new tap is recorded.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      },
+      "interaction": {
+        "settleDelayMs": 0
+      },
+      "capabilities": {
+        "systemInput": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 10.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5110000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 10.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.sweep",
+              "atMonoUs": 6360000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-1",
+              "atMonoUs": 6360000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 6360000
+          },
+          "input": {
+            "timerId": "interaction.sweep"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 6360000
+          },
+          "input": {
+            "timerId": "interaction.settle.event-1"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture_request-2",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6360000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6400000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "down",
+            "x": 20.0,
+            "y": 20.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6410000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "up",
+            "x": 20.0,
+            "y": 20.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.sweep",
+              "atMonoUs": 7660000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-3",
+              "atMonoUs": 7660000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6500000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6510000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "move",
+            "x": 100.0,
+            "y": 200.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6520000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture_request-5",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6520000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6600000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "down",
+            "x": 100.0,
+            "y": 700.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6610000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "move",
+            "x": 100.0,
+            "y": 650.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scroll",
+          "at": {
+            "monoUs": 6612000
+          },
+          "input": {
+            "scrollableId": "list",
+            "phase": "start",
+            "offset": 0.0,
+            "axis": "vertical",
+            "maxScrollExtent": 1000.0,
+            "anchor": {
+              "widgetType": "ListView",
+              "role": "scrollable",
+              "fingerprint": "fp-list",
+              "canonicalPath": "Scaffold/ListView"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6620000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "move",
+            "x": 100.0,
+            "y": 500.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scroll",
+          "at": {
+            "monoUs": 6622000
+          },
+          "input": {
+            "scrollableId": "list",
+            "phase": "update",
+            "offset": 150.0,
+            "axis": "vertical",
+            "maxScrollExtent": 1000.0
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6640000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6700000
+          },
+          "input": {
+            "pointerId": 5,
+            "phase": "down",
+            "x": 300.0,
+            "y": 800.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6720000
+          },
+          "input": {
+            "pointerId": 5,
+            "phase": "move",
+            "x": 300.0,
+            "y": 700.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "systemInput",
+          "at": {
+            "monoUs": 6730000
+          },
+          "input": {
+            "input": "back"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture_request-10",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6730000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 6800000
+          },
+          "input": {
+            "state": "paused"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-8",
+                "atMs": 1700,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 1400,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "cancelled"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 1500,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-6",
+                "atMs": 1600,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "scroll"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-9",
+                "atMs": 1730,
+                "type": "system_input",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "input": "back"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-11",
+                "atMs": 1800,
+                "type": "app_backgrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "paused"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-3"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.sweep"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6850000
+          },
+          "input": {
+            "pointerId": 7,
+            "phase": "down",
+            "x": 50.0,
+            "y": 50.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6860000
+          },
+          "input": {
+            "pointerId": 7,
+            "phase": "up",
+            "x": 50.0,
+            "y": 50.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 6900000
+          },
+          "input": {
+            "state": "resumed"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-12",
+                "atMs": 1900,
+                "type": "app_foregrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "resumed"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6950000
+          },
+          "input": {
+            "pointerId": 5,
+            "phase": "up",
+            "x": 300.0,
+            "y": 600.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 7000000
+          },
+          "input": {
+            "pointerId": 8,
+            "phase": "down",
+            "x": 60.0,
+            "y": 60.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 7010000
+          },
+          "input": {
+            "pointerId": 8,
+            "phase": "up",
+            "x": 60.0,
+            "y": 60.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.sweep",
+              "atMonoUs": 8260000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-13",
+              "atMonoUs": 8260000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 8260000
+          },
+          "input": {
+            "timerId": "interaction.settle.event-13"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture_request-14",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 8260000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 8300000
+          },
+          "input": {
+            "requestId": "capture_request-14",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-14",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-capture_request-14",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-14",
+              "frame": {
+                "id": "frame-15",
+                "atMs": 3300,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-capture_request-14",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-13",
+                "atMs": 2000,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-15",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "tap"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-15",
+          "atMs": 3300,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-capture_request-14",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-8",
+          "atMs": 1700,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 1400,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "cancelled"
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 1500,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-6",
+          "atMs": 1600,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "scroll"
+          }
+        },
+        {
+          "id": "event-9",
+          "atMs": 1730,
+          "type": "system_input",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "input": "back"
+          }
+        },
+        {
+          "id": "event-11",
+          "atMs": 1800,
+          "type": "app_backgrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "paused"
+          }
+        },
+        {
+          "id": "event-12",
+          "atMs": 1900,
+          "type": "app_foregrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "resumed"
+          }
+        },
+        {
+          "id": "event-13",
+          "atMs": 2000,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-15",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "tap"
+          }
+        }
+      ]
+    }
+  }
+}

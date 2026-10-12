@@ -1,0 +1,546 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "scroll-pointer-up-before-scroll-end",
+  "description": "A swipe that started a scroll completes as a scroll. When the pointer-up arrives first, the interaction waits for the scroll end: the scroll end takes the one interaction capture (no swipe capture is made) and the scroll publishes with the start and end offsets, the scrollable's anchor and fingerprint, and the capture as afterFrame.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      },
+      "interaction": {
+        "settleDelayMs": 0,
+        "claimWindowMs": 0
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5010000
+          },
+          "input": {
+            "pointerId": 90,
+            "phase": "down",
+            "x": 5.0,
+            "y": 5.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5030000
+          },
+          "input": {
+            "pointerId": 90,
+            "phase": "up",
+            "x": 5.0,
+            "y": 5.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.sweep",
+              "atMonoUs": 5030000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture_request-2",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5030000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5050000
+          },
+          "input": {
+            "requestId": "capture_request-2",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-2",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-capture_request-2",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-2",
+              "frame": {
+                "id": "frame-3",
+                "atMs": 50,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-capture_request-2",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-1",
+                "atMs": 10,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-3",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "tap"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 100.0,
+            "y": 700.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5110000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "move",
+            "x": 100.0,
+            "y": 650.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scroll",
+          "at": {
+            "monoUs": 5112000
+          },
+          "input": {
+            "scrollableId": "list",
+            "phase": "start",
+            "offset": 0.0,
+            "axis": "vertical",
+            "maxScrollExtent": 1000.0,
+            "anchor": {
+              "widgetType": "ListView",
+              "role": "scrollable",
+              "fingerprint": "fp-list",
+              "canonicalPath": "Scaffold/ListView"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5120000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "move",
+            "x": 100.0,
+            "y": 500.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scroll",
+          "at": {
+            "monoUs": 5122000
+          },
+          "input": {
+            "scrollableId": "list",
+            "phase": "update",
+            "offset": 150.0,
+            "axis": "vertical",
+            "maxScrollExtent": 1000.0
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5140000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scroll",
+          "at": {
+            "monoUs": 5150000
+          },
+          "input": {
+            "scrollableId": "list",
+            "phase": "end",
+            "offset": 400.0,
+            "axis": "vertical",
+            "maxScrollExtent": 1000.0
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture_request-6",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5150000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5190000
+          },
+          "input": {
+            "requestId": "capture_request-6",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-6",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-capture_request-6",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-6",
+              "frame": {
+                "id": "frame-7",
+                "atMs": 190,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-capture_request-6",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "targetAnchor": {
+                  "widgetType": "ListView",
+                  "role": "scrollable",
+                  "fingerprint": "fp-list",
+                  "canonicalPath": "Scaffold/ListView"
+                },
+                "beforeFrame": "frame-3",
+                "afterFrame": "frame-7",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "scroll",
+                  "targetFingerprint": "fp-list",
+                  "payload": {
+                    "position": {
+                      "xNorm": 0.24271844660194175,
+                      "yNorm": 0.7650273224043715
+                    },
+                    "startOffset": 0.0,
+                    "endOffset": 400.0
+                  }
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-3",
+          "atMs": 50,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-capture_request-2",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-7",
+          "atMs": 190,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-capture_request-6",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-1",
+          "atMs": 10,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-3",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "tap"
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "targetAnchor": {
+            "widgetType": "ListView",
+            "role": "scrollable",
+            "fingerprint": "fp-list",
+            "canonicalPath": "Scaffold/ListView"
+          },
+          "beforeFrame": "frame-3",
+          "afterFrame": "frame-7",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "scroll",
+            "targetFingerprint": "fp-list",
+            "payload": {
+              "position": {
+                "xNorm": 0.24271844660194175,
+                "yNorm": 0.7650273224043715
+              },
+              "startOffset": 0.0,
+              "endOffset": 400.0
+            }
+          }
+        }
+      ]
+    }
+  }
+}

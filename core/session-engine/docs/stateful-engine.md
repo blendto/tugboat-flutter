@@ -500,13 +500,19 @@ readback.
 ```text
 input.pointer  {pointerId, phase: down|move|up|cancel, x, y,
                 device: touch|mouse|stylus|trackpad, tap?}
-input.panZoom  {pointerId, phase: start|update|end, panX, panY, scale}
-scroll         {scrollableId, phase: start|update|end|overscroll, offset,
-                axis, page?, anchor?}
+input.panZoom  {pointerId, phase: start|update|end, x, y,
+                panX?, panY?, scale?}          (update only)
+scroll         {scrollableId, phase: start|update|end|overscroll, offset?,
+                axis?, maxScrollExtent?, anchor?}   (overscroll: id only)
 focus          {kind: text_input|other|none}
 systemInput    {input: back|volume_up|volume_down|volume_mute|power|
                 media_play_pause}
 ```
+
+Phase 3c added `x, y` to `input.panZoom` (the contact position the end
+position builds on) and `maxScrollExtent` to `scroll` (sample
+`offsetNorm`), and dropped `page`, which only adapter-side semantic context
+reads. The [README](../README.md) is the field-level reference.
 
 Coordinates are logical pixels in the adapter's surface space. The engine
 normalises them against the provenance of the before-frame (section 8.2).
