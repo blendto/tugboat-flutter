@@ -1,0 +1,54 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+}
+
+// Collector for device tests (native SDK note section 10). Override with
+// `-Ptugboat.collectorUrl=… -Ptugboat.collectorKey=…`; the defaults reach a
+// local collector on the emulator's host loopback.
+val collectorUrl = providers.gradleProperty("tugboat.collectorUrl").orElse("http://10.0.2.2:3000").get()
+val collectorKey = providers.gradleProperty("tugboat.collectorKey").orElse("pmk_blend-app-dev-secret").get()
+
+android {
+    namespace = "com.tugboat.sample"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "com.tugboat.sample"
+        minSdk = 24
+        targetSdk = 36
+        versionCode = 1
+        versionName = "0.1.0"
+        buildConfigField("String", "COLLECTOR_URL", "\"$collectorUrl\"")
+        buildConfigField("String", "COLLECTOR_KEY", "\"$collectorKey\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
+        compose = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+}
+
+dependencies {
+    implementation(project(":tugboat-android"))
+    implementation(project(":tugboat-compose"))
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    // ViewCompat window insets: edge-to-edge is enforced for targetSdk 35 on API 35+.
+    implementation("androidx.core:core:1.13.1")
+    // Compose UI 1.8.3: inside tugboat-compose's tested range (1.7.0 to 1.9.0).
+    implementation(platform("androidx.compose:compose-bom:2025.06.01"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.navigation:navigation-compose:2.8.5")
+}

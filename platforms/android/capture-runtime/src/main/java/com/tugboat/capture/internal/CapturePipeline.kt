@@ -80,7 +80,7 @@ internal class CapturePipeline(
                 return framelessResult(request, copy.status, renderMode)
                     .copy(timings = CaptureTimings(surfaceCopyMicros = surfaceCopyMicros))
             }
-            return process(coverage, bitmap, request, renderMode, surfaceCopyMicros)
+            return process(coverage, bitmap, request, AppliedMasks.of(resolved.target, request), renderMode, surfaceCopyMicros)
         } finally {
             if (recycleBitmap) {
                 bitmap?.recycle()
@@ -92,13 +92,14 @@ internal class CapturePipeline(
         coverage: CaptureCoverage,
         bitmap: Bitmap,
         request: CaptureRequest,
+        applied: AppliedMasks,
         renderMode: RenderMode,
         surfaceCopyMicros: Long,
     ): CaptureResult {
-        val masks = MaskMapper.toPixelRects(request.masks, bitmap.width, bitmap.height)
+        val masks = MaskMapper.toPixelRects(applied.rects, bitmap.width, bitmap.height)
         val processed =
             try {
-                core.process(bitmap, masks, request.lastDHash, request.force)
+                core.process(bitmap, masks, applied.lastDHash, request.force)
             } catch (_: Throwable) {
                 return framelessResult(request, CaptureStatus.ProcessingFailed, renderMode)
             }
@@ -119,8 +120,10 @@ internal class CapturePipeline(
                         surfaceCopyMicros = surfaceCopyMicros,
                         maskFillMicros = processed.maskFillMicros,
                         dHashMicros = processed.dHashMicros,
+                        maskComputeMicros = applied.computeMicros,
                     ),
                 renderMode = renderMode,
+                maskSnapshot = applied.snapshot,
             )
         if (coreStatus == CaptureStatus.SkippedByDHash) return frame
         return encode(frame, bitmap)

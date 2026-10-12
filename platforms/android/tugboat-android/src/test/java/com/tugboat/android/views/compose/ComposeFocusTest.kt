@@ -54,7 +54,7 @@ class ComposeFocusTest {
         compose.waitForIdle()
         focus.onInput()
         focus.onFrame(compose.activity.decor.findFocus())
-        assertEquals(listOf("other", "text_input"), kinds())
+        assertEquals("the host's View focus and the field's focus are one settled change", listOf("text_input"), kinds())
     }
 
     @Test

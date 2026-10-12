@@ -6,6 +6,7 @@ import android.view.WindowManager
 import com.tugboat.capture.CaptureCoverage
 import com.tugboat.capture.CaptureStatus
 import com.tugboat.capture.RenderMode
+import com.tugboat.capture.WindowMaskSupplier
 
 /**
  * What a capture copies pixels from. This is the only thing that differs
@@ -59,6 +60,7 @@ internal class FlutterSurfaceSource(
  */
 internal class WindowSource(
     private val window: Window,
+    private val masks: WindowMaskSupplier,
 ) : CaptureSource {
     override val minApi: Int = RuntimeConstants.MIN_WINDOW_API
     override val coverage: CaptureCoverage = CaptureCoverage.WindowComposite
@@ -67,7 +69,7 @@ internal class WindowSource(
         if (window.isSecure()) {
             SourceResolution.Rejected(CaptureStatus.SecureWindow, RenderMode.Unknown)
         } else {
-            SourceResolution.Ready(WindowTarget(window), RenderMode.Unknown)
+            SourceResolution.Ready(WindowTarget(window, masks), RenderMode.Unknown)
         }
 }
 

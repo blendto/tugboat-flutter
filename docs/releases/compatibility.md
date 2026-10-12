@@ -32,9 +32,12 @@ Flutter `0.8.16` compiles on Flutter 3.35 and consumes Android
 `TugboatCaptureRuntime` `0.1.0` from CocoaPods. Native capture stays
 opt-in. The first native-default adapter is still planned as Flutter `0.9.0`.
 
-Android `capture-runtime` `0.2.0` is unpublished. It adds window capture
-(`windowComposite`) and `CaptureStatus.SecureWindow` for native Android
-hosts. No adapter consumes it yet; Flutter `tugboat` still pins `0.1.0`.
+Android `capture-runtime` `0.3.0` is unpublished (0.2.0 was never
+published). It adds window capture (`windowComposite`),
+`CaptureStatus.SecureWindow`, and masks supplied on the main thread at copy
+time (`WindowMaskSupplier`) for native Android hosts. Only the unpublished
+native SDK (`tugboat-android`) consumes it; Flutter `tugboat` still pins
+`0.1.0`.
 
 Apple `TugboatCaptureRuntime` `0.2.0` is unpublished. It adds a mask
 supplier that runs in the same main-thread turn as the draw, for the native

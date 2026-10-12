@@ -118,6 +118,15 @@ window's decor view, which is the area `PixelCopy.request(Window, …)`
 copies. Callers normalize rects against the decor view's width and height.
 The mapping rule above is unchanged.
 
+With a `WindowMaskSupplier` (`capture(window, request, masks, onComplete)`),
+masks are evaluated on the main thread for the frame being copied: the
+supplier runs in the same main-thread task as `PixelCopy.request`, after the
+committed-frame wait and the `FLAG_SECURE` re-check, and its masks replace
+`request.masks`. Layout that moves between the request and the copy
+(scrolling, animations, an IME resize) therefore cannot move content out of
+its mask. A supplier that throws, or reports `wholeFrame`, masks the whole
+frame. `CaptureResult.maskSnapshot` returns what was applied.
+
 ## Coverage
 
 Closed: `engineSurface | windowComposite | viewHierarchy`.

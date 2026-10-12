@@ -39,7 +39,7 @@ internal class WindowSession(
     private var decor: View? = null
     private val pointers = PointerFactProducer(clock, gesture, ::density, ::resolveTap, ::emitIfAttached)
     private val keys = SystemInputProducer(clock, ::emitIfAttached)
-    private val focus = FocusFactProducer(clock, ::emitIfAttached)
+    private val focus = FocusFactProducer(clock, ::emitIfAttached, requestFrame)
     private val recyclers =
         if (OptionalAndroidx.hasRecyclerView) RecyclerScrollTracker(clock, anchors::anchorFor, ::emitIfAttached) else null
     private var scrolls: OffsetScrollTracker? = null

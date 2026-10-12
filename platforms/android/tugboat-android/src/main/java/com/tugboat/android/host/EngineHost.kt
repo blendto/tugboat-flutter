@@ -26,11 +26,13 @@ internal class EngineHost(
     private val clock: HostClock = SystemHostClock,
     private val maxConsecutiveInternalErrors: Int = DEFAULT_MAX_CONSECUTIVE_INTERNAL_ERRORS,
     private val onShutDown: () -> Unit = {},
+    /** Performs `capture.request`; it answers through [post] with `capture.result`. */
+    captures: CaptureRequestSink,
 ) {
     private val timers = TimerExecutor(handler) { timerId ->
         guarded("timer") { postNow(HostMessages.TIMER_FIRED, HostMessages.timerFiredInput(timerId)) }
     }
-    private val effects = EffectDispatcher(timers, http, frames, ::postNow)
+    private val effects = EffectDispatcher(timers, http, frames, ::postNow, captures)
 
     /** Gates new posts; any thread reads it. */
     @Volatile
@@ -127,8 +129,8 @@ internal class EngineHost(
 
     /**
      * Lets the engine report undelivered work before its handle goes. Its
-     * effects run as usual except that no new IO or timer starts: `http.send`
-     * and `timer.schedule` are dropped, `frame.release` is honoured. An engine
+     * effects are dropped except `frame.release`, the one effect that only
+     * frees host memory: no new IO, timer, or capture starts. An engine
      * without `engine.dispose` (before phase 3b) answers `unsupported_message`,
      * which is logged and otherwise ignored.
      */
@@ -140,7 +142,7 @@ internal class EngineHost(
             return
         }
         EffectParser.parse(response.text())
-            .filterNot { it is Effect.HttpSend || it is Effect.TimerSchedule }
+            .filterIsInstance<Effect.FrameRelease>()
             .forEach { effect -> guarded("effect ${effect.javaClass.simpleName}") { effects.dispatch(effect) } }
     }
 
@@ -157,15 +159,24 @@ internal class EngineHost(
         const val DEFAULT_MAX_CONSECUTIVE_INTERNAL_ERRORS = 3
         private const val TAG = "TugboatEngine"
 
-        /** Starts a host on a new `tugboat-engine` thread; the host owns [transport]. */
-        fun start(config: HostConfig, transport: EngineTransport, frames: FrameHandleTable): EngineHost {
+        /**
+         * Starts a host on a new `tugboat-engine` thread; the host owns
+         * [transport] and closes [http] at shutdown.
+         */
+        fun start(
+            transport: EngineTransport,
+            frames: FrameHandleTable,
+            http: HttpSender,
+            captures: CaptureRequestSink,
+        ): EngineHost {
             val thread = HandlerThread("tugboat-engine", Process.THREAD_PRIORITY_BACKGROUND).apply { start() }
             return EngineHost(
                 transport = transport,
                 handler = Handler(thread.looper),
-                http = HttpExecutor(config, frames::get),
+                http = http,
                 frames = frames,
                 onShutDown = { thread.quitSafely() },
+                captures = captures,
             )
         }
     }

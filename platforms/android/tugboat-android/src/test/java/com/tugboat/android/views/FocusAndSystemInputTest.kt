@@ -24,12 +24,33 @@ class FocusAndSystemInputTest {
         val button = Button(context)
 
         focus.onGlobalFocusChanged(null, field)
-        focus.onGlobalFocusChanged(field, field) // same kind: not repeated
+        clock.monoUs = 7_016_000
+        focus.onFrame(field)
+        focus.onGlobalFocusChanged(field, field)
+        focus.onFrame(field) // same kind: not repeated
         focus.onGlobalFocusChanged(field, button)
+        focus.onFrame(button)
         focus.onGlobalFocusChanged(button, null)
+        focus.onFrame(null)
 
         assertEquals(listOf("text_input", "other", "none"), recorded.inputs("focus").map { it.getString("kind") })
-        assertEquals(7_000_000L, recorded.facts.first().at.monoUs)
+        assertEquals("stamped when focus changed, not at the frame", 7_000_000L, recorded.facts.first().at.monoUs)
+    }
+
+    @Test
+    fun severalChangesWithinOneFrameReportWhereFocusSettled() {
+        var frames = 0
+        val focus = FocusFactProducer(FactClock(clock), recorded::emit) { frames++ }
+        val field = EditText(context)
+        val button = Button(context)
+
+        focus.onGlobalFocusChanged(null, button)
+        focus.onGlobalFocusChanged(button, field)
+        assertEquals("nothing before the frame", 0, recorded.facts.size)
+        assertEquals(2, frames)
+        focus.onFrame(field)
+
+        assertEquals(listOf("text_input"), recorded.inputs("focus").map { it.getString("kind") })
     }
 
     @Test

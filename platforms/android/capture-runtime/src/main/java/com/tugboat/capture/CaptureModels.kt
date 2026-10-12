@@ -46,6 +46,12 @@ data class CaptureRequest(
     val force: Boolean,
     val lastDHash: String = "",
     val masks: List<NormalizedMask> = emptyList(),
+    /**
+     * The visible structure [lastDHash] was captured with. When set, a window
+     * capture with a [WindowMaskSupplier] offers [lastDHash] to the dHash skip
+     * only if the supplied `MaskSnapshot.structureSignature` equals it.
+     */
+    val lastStructureSignature: String = "",
 )
 
 data class CaptureTimings(
@@ -55,6 +61,8 @@ data class CaptureTimings(
     val jpegMicros: Long = 0,
     val sha256Micros: Long = 0,
     val pixelReadbackMicros: Long = 0,
+    /** Time the [WindowMaskSupplier] took on the main thread. */
+    val maskComputeMicros: Long = 0,
 )
 
 data class CaptureResult(
@@ -69,4 +77,6 @@ data class CaptureResult(
     val timings: CaptureTimings = CaptureTimings(),
     val renderMode: RenderMode = RenderMode.Unknown,
     val incomplete: Boolean = false,
+    /** The masks this frame was filled with (window captures that reached the copy). */
+    val maskSnapshot: MaskSnapshot? = null,
 )

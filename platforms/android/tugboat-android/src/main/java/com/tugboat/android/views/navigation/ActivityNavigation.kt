@@ -41,9 +41,11 @@ internal class ActivityNavigation(private val report: (NavigationChange) -> Unit
 
     fun onResumed(activity: Activity) {
         val stack = stacks.getOrPut(activity.taskId) { NavigatorStack(navigatorIdOf(activity), null) }
-        val entry = entries[activity] ?: bind(activity, newEntry(activity))
-        stack.onShown(entry)?.let(report)
+        stack.onShown(ensureEntry(activity))?.let(report)
     }
+
+    /** [activity]'s route, created before its first resume when a nested navigator needs it first. */
+    fun ensureEntry(activity: Activity): RouteEntry = entries[activity] ?: bind(activity, newEntry(activity))
 
     fun onDestroyed(activity: Activity) {
         val entry = entries.remove(activity) ?: return
