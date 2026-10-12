@@ -17,9 +17,13 @@ internal class DestinationTracker {
     private val current = WeakHashMap<Activity, String>()
 
     fun onDestinationChanged(activity: Activity, route: String?, destinationId: Int) {
-        val key = RoutePattern.strip(route) ?: entryName(activity.resources, destinationId)
+        val key = routeKey(activity, route, destinationId)
         if (key == null) current.remove(activity) else current[activity] = key
     }
+
+    /** A destination's route key: its route pattern without arguments, else its id's entry name. */
+    fun routeKey(activity: Activity, route: String?, destinationId: Int): String? =
+        RoutePattern.strip(route) ?: entryName(activity.resources, destinationId)
 
     fun current(activity: Activity): String? = current[activity]
 

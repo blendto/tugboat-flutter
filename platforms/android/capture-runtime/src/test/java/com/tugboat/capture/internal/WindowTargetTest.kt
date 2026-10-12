@@ -9,6 +9,8 @@ import android.view.View
 import android.view.Window
 import android.view.WindowManager
 import com.tugboat.capture.CaptureStatus
+import com.tugboat.capture.MaskSnapshot
+import com.tugboat.capture.WindowMaskSupplier
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -71,13 +73,20 @@ class WindowTargetTest {
     private val copy = RecordingCopy { it.onPixelCopyFinished(PixelCopy.SUCCESS) }
     private val finished = mutableListOf<CaptureStatus>()
 
+    /** Records when masks are taken, relative to copy requests. */
+    private val events = mutableListOf<String>()
+    private val masks = WindowMaskSupplier {
+        events += "masks@${copy.requests}"
+        MaskSnapshot(emptyList(), structureSignature = "now")
+    }
+
     private fun window(): Window = Robolectric.buildActivity(Activity::class.java).setup().get().window
 
     private fun issue(
         window: Window,
         isCurrent: () -> Boolean = { true },
         windowCopy: WindowCopy = copy,
-    ) = WindowTarget(window, frame, windowCopy).issue(bitmap(), Handler(Looper.getMainLooper()), isCurrent) {
+    ) = WindowTarget(window, masks, frame, windowCopy).issue(bitmap(), Handler(Looper.getMainLooper()), isCurrent) {
         finished += it
     }
 
@@ -140,6 +149,42 @@ class WindowTargetTest {
     }
 
     @Test
+    fun masksAreTakenAfterTheCommittedFrameAndRightBeforeTheCopy() {
+        val target = WindowTarget(window(), masks, frame, copy)
+        target.issue(bitmap(), Handler(Looper.getMainLooper()), { true }) { finished += it }
+        assertTrue("nothing is taken before the frame", events.isEmpty())
+        assertNull(target.snapshot)
+
+        frame.commit()
+
+        assertEquals("taken once, before the single copy request", listOf("masks@0"), events)
+        assertEquals(1, copy.requests)
+        assertEquals("now", target.snapshot?.structureSignature)
+    }
+
+    @Test
+    fun noMasksAreTakenWhenTheFrameTurnsSecure() {
+        val window = window()
+        issue(window)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+
+        frame.commit()
+
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun aThrowingSupplierStillCopiesWithTheWholeFrameMasked() {
+        val target = WindowTarget(window(), { throw IllegalStateException("walk") }, frame, copy)
+        target.issue(bitmap(), Handler(Looper.getMainLooper()), { true }) { finished += it }
+
+        frame.commit()
+
+        assertEquals(MaskSnapshot.WHOLE_FRAME, target.snapshot)
+        assertEquals(listOf(CaptureStatus.Ok), finished)
+    }
+
+    @Test
     fun secureFlagSetWhileWaitingForTheFrameIsHonoured() {
         val window = window()
         issue(window)
@@ -195,7 +240,7 @@ class WindowTargetTest {
     @Test
     fun secureFlagSetAfterResolveIsHonouredOnTheMainThread() {
         val window = window()
-        val resolved = WindowSource(window).resolve() as SourceResolution.Ready
+        val resolved = WindowSource(window, masks).resolve() as SourceResolution.Ready
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         val bitmap = bitmap()
 
@@ -212,7 +257,7 @@ class WindowTargetTest {
         val bitmap = bitmap()
 
         val outcome =
-            copyOnCaptureThread(WindowTarget(window(), frame, copy), bitmap, timeoutMs = 50, isCurrent = current::get)
+            copyOnCaptureThread(WindowTarget(window(), frames = frame, copy = copy), bitmap, timeoutMs = 50, isCurrent = current::get)
 
         assertEquals(CaptureStatus.Timeout, outcome.status)
         assertFalse(outcome.callerOwnsDestination)

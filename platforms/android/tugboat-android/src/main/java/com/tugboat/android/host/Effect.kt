@@ -15,6 +15,8 @@ internal sealed interface Effect {
 
     data class FrameRelease(val handle: String) : Effect
 
+    data class CaptureRequest(val request: CaptureRequestEffect) : Effect
+
     /** A type this host does not execute; logged once and ignored. */
     data class Unknown(val type: String) : Effect
 }
@@ -28,6 +30,7 @@ internal object EffectParser {
         "timer.cancel" to ::timerCancel,
         "http.send" to ::httpSend,
         "frame.release" to ::frameRelease,
+        "capture.request" to { effect -> Effect.CaptureRequest(CaptureRequestEffect.from(effect)) },
     )
 
     /**

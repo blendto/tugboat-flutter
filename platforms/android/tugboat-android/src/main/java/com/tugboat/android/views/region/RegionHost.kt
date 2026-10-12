@@ -32,7 +32,7 @@ internal class RegionHost(val view: View, val region: ToolkitRegion) {
     fun focus(): RegionFocus? = AdapterGuard.run("region focus", null) { region.focus(view) }
 
     private companion object {
-        val UNREADABLE = RegionMasks.WholeFrame(MaskCoverageReason.RegionUnreadable)
+        val UNREADABLE = RegionMasks.WholeFrame(MaskCoverageReason.WalkExhausted)
     }
 }
 

@@ -8,8 +8,10 @@ import com.tugboat.capture.CaptureCoverage
 import com.tugboat.capture.CaptureRequest
 import com.tugboat.capture.CaptureResult
 import com.tugboat.capture.CaptureStatus
+import com.tugboat.capture.MaskSnapshot
 import com.tugboat.capture.NormalizedMask
 import com.tugboat.capture.RenderMode
+import com.tugboat.capture.WindowMaskSupplier
 import io.flutter.embedding.android.FlutterSurfaceView
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -51,6 +53,8 @@ class CapturePipelineTest {
             isCurrent: () -> Boolean,
         ): PixelCopyOutcome {
             targets += target
+            // A copy that reached PixelCopy took its masks on the main thread first.
+            if (status == CaptureStatus.Ok) (target as? WindowTarget)?.takeMasks()
             return PixelCopyOutcome(status)
         }
     }
@@ -81,6 +85,56 @@ class CapturePipelineTest {
 
     private fun CapturePipeline.run(source: CaptureSource): CaptureResult = capture(source, request) { true }
 
+    private fun windowSource(
+        activity: Activity,
+        masks: WindowMaskSupplier = WindowMaskSupplier { MaskSnapshot(request.masks) },
+    ) = WindowSource(activity.window, masks)
+
+    @Test
+    fun windowFramesUseTheMasksSuppliedAtCopyTimeAndReportThem() {
+        val core = RecordingCore()
+        val supplied = MaskSnapshot(listOf(NormalizedMask(0.0, 0.5, 0.5, 0.5)), structureSignature = "s1")
+        val pipeline = CapturePipeline(timeoutMs = 100, copier = RecordingCopier(), core = core)
+
+        val result = pipeline.run(windowSource(activity()) { supplied })
+
+        assertArrayEquals("the supplied mask, not request.masks", intArrayOf(0, 4, 4, 8), core.calls.single().first)
+        assertEquals(supplied, result.maskSnapshot)
+    }
+
+    @Test
+    fun aWholeFrameSnapshotMasksEverything() {
+        val core = RecordingCore()
+        val pipeline = CapturePipeline(timeoutMs = 100, copier = RecordingCopier(), core = core)
+
+        pipeline.run(windowSource(activity()) { MaskSnapshot(emptyList(), wholeFrame = true) })
+
+        assertArrayEquals(intArrayOf(0, 0, 8, 8), core.calls.single().first)
+    }
+
+    @Test
+    fun theDHashBaselineIsOfferedOnlyForTheSameStructure() {
+        val core = RecordingCore()
+        val pipeline = CapturePipeline(timeoutMs = 100, copier = RecordingCopier(), core = core)
+        val expecting = request.copy(lastStructureSignature = "s1")
+
+        pipeline.capture(windowSource(activity()) { MaskSnapshot(emptyList(), structureSignature = "s1") }, expecting) { true }
+        pipeline.capture(windowSource(activity()) { MaskSnapshot(emptyList(), structureSignature = "s2") }, expecting) { true }
+
+        assertEquals(listOf("previous", ""), core.calls.map { it.second })
+    }
+
+    @Test
+    fun aThrowingSupplierMasksTheWholeFrame() {
+        val core = RecordingCore()
+        val pipeline = CapturePipeline(timeoutMs = 100, copier = RecordingCopier(), core = core)
+
+        val result = pipeline.run(windowSource(activity()) { throw IllegalStateException("walk failed") })
+
+        assertArrayEquals(intArrayOf(0, 0, 8, 8), core.calls.single().first)
+        assertEquals(MaskSnapshot.WHOLE_FRAME, result.maskSnapshot)
+    }
+
     @Test
     fun bothSourcesShareOnePipelineAndDifferOnlyInSourceFields() {
         val activity = activity()
@@ -89,7 +143,7 @@ class CapturePipelineTest {
         val pipeline = CapturePipeline(timeoutMs = 100, copier = copier, core = core)
 
         val surface = pipeline.run(flutterSource(activity))
-        val window = pipeline.run(WindowSource(activity.window))
+        val window = pipeline.run(windowSource(activity))
 
         assertTrue(copier.targets[0] is SurfaceViewTarget)
         assertTrue(copier.targets[1] is WindowTarget)
@@ -123,7 +177,7 @@ class CapturePipelineTest {
         val pipeline =
             CapturePipeline(timeoutMs = 100, copier = RecordingCopier(), core = RecordingCore(status = 1))
 
-        val result = pipeline.run(WindowSource(activity().window))
+        val result = pipeline.run(windowSource(activity()))
 
         assertEquals(CaptureStatus.SkippedByDHash, result.status)
         assertEquals(CaptureCoverage.WindowComposite, result.coverage)
@@ -139,7 +193,7 @@ class CapturePipelineTest {
         val copier = RecordingCopier()
         val core = RecordingCore()
 
-        val result = CapturePipeline(timeoutMs = 100, copier = copier, core = core).run(WindowSource(activity.window))
+        val result = CapturePipeline(timeoutMs = 100, copier = copier, core = core).run(windowSource(activity))
 
         assertEquals(CaptureStatus.SecureWindow, result.status)
         assertNull(result.coverage)
@@ -155,7 +209,7 @@ class CapturePipelineTest {
         val pipeline =
             CapturePipeline(timeoutMs = 100, copier = RecordingCopier(CaptureStatus.SecureWindow), core = core)
 
-        val result = pipeline.run(WindowSource(activity().window))
+        val result = pipeline.run(windowSource(activity()))
 
         assertEquals(CaptureStatus.SecureWindow, result.status)
         assertNull(result.coverage)
@@ -170,7 +224,7 @@ class CapturePipelineTest {
                 throw UnsatisfiedLinkError("no core")
             }
 
-        val result = pipeline.run(WindowSource(activity().window))
+        val result = pipeline.run(windowSource(activity()))
 
         assertEquals(CaptureStatus.ProcessingFailed, result.status)
         assertNull(result.coverage)
@@ -180,7 +234,7 @@ class CapturePipelineTest {
     fun cancelledAfterCopyIsFrameless() {
         val pipeline = CapturePipeline(timeoutMs = 100, copier = RecordingCopier(), core = RecordingCore())
 
-        val result = pipeline.capture(WindowSource(activity().window), request) { false }
+        val result = pipeline.capture(windowSource(activity()), request) { false }
 
         assertEquals(CaptureStatus.Cancelled, result.status)
         assertNull(result.coverage)

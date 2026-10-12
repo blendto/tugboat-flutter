@@ -165,6 +165,9 @@ if [[ -n "$apple_pin" && -n "$apple_now" ]]; then
   fi
 fi
 
+# Membership checks below use `grep -x ... >/dev/null`, not `grep -q`: under
+# `pipefail`, `grep -q` exits at the first match and the upstream command
+# can die of SIGPIPE, which fails the whole pipeline at random.
 mapfile -t changed < <(
   {
     git diff --name-only "$BASE_SHA"
@@ -347,9 +350,9 @@ else
 fi
 
 if [[ "$needs_compat" -eq 1 ]]; then
-  if git diff --name-only "$BASE_SHA" | grep -qx "$compat_file"; then
+  if git diff --name-only "$BASE_SHA" | grep -x "$compat_file" >/dev/null; then
     echo "Compatibility table updated ($compat_file)."
-  elif git ls-files --others --exclude-standard | grep -qx "$compat_file"; then
+  elif git ls-files --others --exclude-standard | grep -x "$compat_file" >/dev/null; then
     echo "Compatibility table added ($compat_file)."
   else
     echo "::error::Adapter or public runtime API changed; update $compat_file."
@@ -359,8 +362,8 @@ else
   echo "No adapter/runtime API pairing change; compatibility table not required."
 fi
 
-if git diff --name-only "$BASE_SHA" | grep -qx "$plugin_gradle" \
-  || git ls-files --others --exclude-standard | grep -qx "$plugin_gradle"; then
+if git diff --name-only "$BASE_SHA" | grep -x "$plugin_gradle" >/dev/null \
+  || git ls-files --others --exclude-standard | grep -x "$plugin_gradle" >/dev/null; then
   if [[ -z "$plugin_pin" || -z "$runtime_now" ]]; then
     echo "::error::Could not compare Flutter capture-runtime pin to VERSION_NAME."
     exit 1
@@ -375,8 +378,8 @@ if git diff --name-only "$BASE_SHA" | grep -qx "$plugin_gradle" \
   fi
 fi
 
-if git diff --name-only "$BASE_SHA" | grep -qx "$plugin_ios_podspec" \
-  || git ls-files --others --exclude-standard | grep -qx "$plugin_ios_podspec"; then
+if git diff --name-only "$BASE_SHA" | grep -x "$plugin_ios_podspec" >/dev/null \
+  || git ls-files --others --exclude-standard | grep -x "$plugin_ios_podspec" >/dev/null; then
   if [[ -z "$apple_now" ]]; then
     echo "::error::Could not compare Flutter TugboatCaptureRuntime pin to podspec s.version."
     exit 1

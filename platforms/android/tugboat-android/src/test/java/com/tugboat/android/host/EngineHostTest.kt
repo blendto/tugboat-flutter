@@ -32,6 +32,7 @@ class EngineHostTest {
         frames = frames,
         clock = clock,
         onShutDown = { shutDowns++ },
+        captures = CaptureRequestSink.NONE,
     )
 
     private val factAt = HostTime(monoUs = 5_000, wallUs = 7_000)

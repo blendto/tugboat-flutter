@@ -18,7 +18,8 @@ sealed class RegionMasks {
 /**
  * Why a capture's masks are coarser than precise, or what precise masks
  * include: a closed vocabulary the host reports per frame (`capture.result`)
- * and the engine turns into a `capture_diagnostic`.
+ * and the engine turns into a `capture_diagnostic`. Every wire name is in the
+ * engine's `maskCoverage.reasons` set.
  */
 @TugboatToolkitApi
 enum class MaskCoverageReason(val wire: String) {
@@ -34,12 +35,21 @@ enum class MaskCoverageReason(val wire: String) {
     /** Interop Views inside a region are masked over their whole bounds. */
     Interop("interop"),
 
-    /** A region failed or was asked off the main thread. */
-    RegionUnreadable("regionUnreadable"),
-
-    /** The View tree could not be read. */
-    TreeUnreadable("treeUnreadable"),
-
-    /** Motion that layout bounds do not describe is running. */
+    /** Motion that layout bounds do not describe is running (whole frame). */
     Animating("animating"),
+
+    /** The window has no attached decor view (whole frame). */
+    NoDecor("noDecor"),
+
+    /** The decor view has no size yet (whole frame). */
+    NoWindowSize("noWindowSize"),
+
+    /** The walk failed: the View tree, or a region, could not be read (whole frame). */
+    WalkExhausted("walkExhausted"),
+
+    /** A `WebView` is masked over its whole bounds. */
+    WebView("webView"),
+
+    /** A `SurfaceView` / `TextureView` is masked over its whole bounds. */
+    SurfaceLayer("surfaceLayer"),
 }
