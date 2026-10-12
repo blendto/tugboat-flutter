@@ -30,6 +30,7 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-12 | `exploration.actionWindow` (action window events and `actionId` stamping) is deferred beyond this milestone; no engine code. | Native SDKs do not use exploration |
 | 2026-10-12 | `capture-runtime` 0.2.0 (unpublished): additive window capture, `capture(window, …)` with `WindowComposite` coverage. `SecureWindow` and `WindowComposite` are appended enum values. The Flutter plugin stays pinned to 0.1.0. | Native SDKs need app-window pixels; the Flutter path is unchanged (PR #84) |
 | 2026-10-12 | Flutter plugin compiles against `capture-runtime` 0.1.0 and 0.2.0: newer statuses (0.2.0 `SecureWindow`) map to the existing `cancelled`, `WindowComposite` to the existing Pigeon `windowComposite`; no Pigeon, Dart API or behaviour change (`tugboat` 0.10.11-dev.2). CI compiles the plugin against the pinned and the local runtime. | `cancelled` = no Dart fallback, no publish; a fallback status would let RepaintBoundary capture a screen the runtime refused. Keeps the automatic pin PR buildable after the main merge |
+| 2026-10-12 | New C14: the engine's pointer tracker forgets every contact on every teardown cause, not only on `paused`/`hidden`/`detached` as the Flutter widget does. Engine-only; decided during the phase 3c review (PR #87). | After `session_end` facts are dropped (C9), so a contact held across a session boundary could never lift and would join the next session's gestures |
 
 ## Gates before merging to main
 

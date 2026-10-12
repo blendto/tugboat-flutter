@@ -1,0 +1,876 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "interaction-released-cap",
+  "description": "Released taps stay claimable until their claim window closes; the sweep also caps them at interaction.maxReleased (8), evicting the oldest. Ten taps in quick succession: the sweep at the first deadline expires tap 1 and evicts tap 2, then re-arms for tap 3's deadline. Expired taps leave the claimable set but keep settling; at session end the eight still released are cancelled while taps 1 and 2, whose settles are cancelled, are dropped.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      },
+      "interaction": {
+        "settleDelayMs": 5000
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 10.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5105000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 10.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.sweep",
+              "atMonoUs": 6355000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-1",
+              "atMonoUs": 10105000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5110000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "down",
+            "x": 20.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5115000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "up",
+            "x": 20.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-2",
+              "atMonoUs": 10115000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5120000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "down",
+            "x": 30.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5125000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "up",
+            "x": 30.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-3",
+              "atMonoUs": 10125000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5130000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "down",
+            "x": 40.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5135000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "up",
+            "x": 40.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-4",
+              "atMonoUs": 10135000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5140000
+          },
+          "input": {
+            "pointerId": 5,
+            "phase": "down",
+            "x": 50.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5145000
+          },
+          "input": {
+            "pointerId": 5,
+            "phase": "up",
+            "x": 50.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-5",
+              "atMonoUs": 10145000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5150000
+          },
+          "input": {
+            "pointerId": 6,
+            "phase": "down",
+            "x": 60.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5155000
+          },
+          "input": {
+            "pointerId": 6,
+            "phase": "up",
+            "x": 60.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-6",
+              "atMonoUs": 10155000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5160000
+          },
+          "input": {
+            "pointerId": 7,
+            "phase": "down",
+            "x": 70.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5165000
+          },
+          "input": {
+            "pointerId": 7,
+            "phase": "up",
+            "x": 70.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-7",
+              "atMonoUs": 10165000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5170000
+          },
+          "input": {
+            "pointerId": 8,
+            "phase": "down",
+            "x": 80.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5175000
+          },
+          "input": {
+            "pointerId": 8,
+            "phase": "up",
+            "x": 80.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-8",
+              "atMonoUs": 10175000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5180000
+          },
+          "input": {
+            "pointerId": 9,
+            "phase": "down",
+            "x": 90.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5185000
+          },
+          "input": {
+            "pointerId": 9,
+            "phase": "up",
+            "x": 90.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-9",
+              "atMonoUs": 10185000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5190000
+          },
+          "input": {
+            "pointerId": 10,
+            "phase": "down",
+            "x": 100.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5195000
+          },
+          "input": {
+            "pointerId": 10,
+            "phase": "up",
+            "x": 100.0,
+            "y": 10.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-10",
+              "atMonoUs": 10195000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 6355000
+          },
+          "input": {
+            "timerId": "interaction.sweep"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.sweep",
+              "atMonoUs": 6375000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 6400000,
+            "wallUs": 1781827201400000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 120,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "cancelled"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 130,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "cancelled"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-5",
+                "atMs": 140,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "cancelled"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-6",
+                "atMs": 150,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "cancelled"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-7",
+                "atMs": 160,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "cancelled"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-8",
+                "atMs": 170,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "cancelled"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-9",
+                "atMs": 180,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "cancelled"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-10",
+                "atMs": 190,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "cancelled"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-11",
+                "atMs": 1400,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-1"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-2"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-3"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-4"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-5"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-6"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-7"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-8"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-9"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.settle.event-10"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "interaction.sweep"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-3",
+          "atMs": 120,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "cancelled"
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 130,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "cancelled"
+          }
+        },
+        {
+          "id": "event-5",
+          "atMs": 140,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "cancelled"
+          }
+        },
+        {
+          "id": "event-6",
+          "atMs": 150,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "cancelled"
+          }
+        },
+        {
+          "id": "event-7",
+          "atMs": 160,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "cancelled"
+          }
+        },
+        {
+          "id": "event-8",
+          "atMs": 170,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "cancelled"
+          }
+        },
+        {
+          "id": "event-9",
+          "atMs": 180,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "cancelled"
+          }
+        },
+        {
+          "id": "event-10",
+          "atMs": 190,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "cancelled"
+          }
+        },
+        {
+          "id": "event-11",
+          "atMs": 1400,
+          "type": "session_end",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        }
+      ]
+    }
+  }
+}

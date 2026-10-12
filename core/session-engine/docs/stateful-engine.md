@@ -500,13 +500,19 @@ readback.
 ```text
 input.pointer  {pointerId, phase: down|move|up|cancel, x, y,
                 device: touch|mouse|stylus|trackpad, tap?}
-input.panZoom  {pointerId, phase: start|update|end, panX, panY, scale}
-scroll         {scrollableId, phase: start|update|end|overscroll, offset,
-                axis, page?, anchor?}
+input.panZoom  {pointerId, phase: start|update|end, x, y,
+                panX?, panY?, scale?}          (update only)
+scroll         {scrollableId, phase: start|update|end|overscroll, offset?,
+                axis?, maxScrollExtent?, anchor?}   (overscroll: id only)
 focus          {kind: text_input|other|none}
 systemInput    {input: back|volume_up|volume_down|volume_mute|power|
                 media_play_pause}
 ```
+
+Phase 3c added `x, y` to `input.panZoom` (the contact position the end
+position builds on) and `maxScrollExtent` to `scroll` (sample
+`offsetNorm`), and dropped `page`, which only adapter-side semantic context
+reads. The [README](../README.md) is the field-level reference.
 
 Coordinates are logical pixels in the adapter's surface space. The engine
 normalises them against the provenance of the before-frame (section 8.2).
@@ -550,20 +556,26 @@ On `scroll` start the adapter attaches the scrollable's anchor. The
 
 ### 9.3 Subtleties the implementation must keep
 
-Each one gets a scenario fixture:
+Each one gets a scenario fixture in the phase that can express it:
 
 1. The claim runs before the epoch bump. The tap is woken only after the
-   barrier is registered.
+   barrier is registered. *(Phase 3d: needs navigation. Phase 3c provides
+   the claim API and the wake hook.)*
 2. Pointer-cancel marks even a pending swipe `cancelled`, but abandonment
-   keeps swipe and scroll gestures.
+   keeps swipe and scroll gestures. *(Phase 3c.)*
 3. Degraded tap observations publish immediately; others wait behind the
-   serialized publish order.
+   serialized publish order. *(Phase 3d: in phase 3c no work outlives the
+   message that started it, so every publication is immediate and the two
+   orders cannot differ. The serialized order belongs to 3d's FIFO
+   scheduler and route finalization.)*
 4. Replacing route work on one navigator cancels **all** waiting captures,
-   including tap and scroll captures.
+   including tap and scroll captures. *(Phase 3d.)*
 5. Teardown order on lifecycle and session events (section 4.2).
+   *(Phase 3c.)*
 6. Facts are applied in arrival order. Whether an `onTap` navigation arrives
    before or after its pointer-up fact decides `direct` versus
-   `delayedLikely`, so each adapter must document its order.
+   `delayedLikely`, so each adapter must document its order. *(Phase 3d:
+   needs navigation facts.)*
 
 A known Dart defect is fixed instead of preserved (change C12):
 
@@ -597,9 +609,12 @@ A new fixture kind, `engine.scenario`, under `conformance/engine/scenario/`:
   without claiming a section 11 change. Phase 3c and 3d scenarios use it
   where Dart cannot be driven (below). `engineOnly` implies it.
 - Until phase 3d the Dart runner compares event ids by order of first
-  appearance, because Dart's counter also mints `capture_request-N` ids the
-  engine does not mint before 3d. **Phase 3d must switch the Dart runner to
-  exact id comparison.** The C++ runner always compares exact ids.
+  appearance. Since phase 3c the engine mints `capture_request-N` for
+  interaction and input-observation captures, but Dart's counter also mints
+  them for captures the engine does not request before 3d (the `initial`
+  capture at session start, `lifecycle` on resume, route captures) and mints
+  `capture_execution-N`. **Phase 3d must switch the Dart runner to exact id
+  comparison.** The C++ runner always compares exact ids.
 
 How Dart stays in step, by phase:
 
@@ -632,6 +647,7 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C11 | Per-navigator transition suppression | One global `_skipCapture` | fewer `route_transition` drops | Yes |
 | C12 | Publish a linked scroll when a still-tap pointer goes up | Completion never published | yes, recovers lost scrolls | Yes |
 | C13 | Facts stamped before session start record `atMs` 0 (async-seam skew) | Cannot happen (Dart stamps on arrival) | small: no negative `atMs` | Yes (engine-only; approved by local orchestrator 2026-10-12) |
+| C14 | The pointer tracker forgets every contact on every teardown cause (session end and replacement too) | The widget resets `InputCapture` on `paused`/`hidden`/`detached` only, so a contact held across a session boundary can join the next session's gesture | small: a stale contact can no longer absorb a new pointer | Yes (engine-only; decided during the phase 3c review 2026-10-12) |
 
 ## 12. Open questions and decisions
 
