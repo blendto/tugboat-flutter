@@ -9,6 +9,9 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.Window
 import com.tugboat.capture.CaptureStatus
+import com.tugboat.capture.MaskSnapshot
+import com.tugboat.capture.WindowMaskSupplier
+import java.util.concurrent.atomic.AtomicReference
 
 /** Called once with the copy's outcome: `Ok`, or why there is no frame. */
 internal typealias CopyFinished = (CaptureStatus) -> Unit
@@ -47,19 +50,40 @@ internal class SurfaceViewTarget(
     }
 }
 
+/** A target whose masks are computed on the main thread at copy time. */
+internal interface MaskingTarget {
+    /** The snapshot taken just before the copy was requested; null if none was requested. */
+    val snapshot: MaskSnapshot?
+
+    /** How long taking [snapshot] ran on the main thread. */
+    val maskComputeMicros: Long
+}
+
 /**
  * A whole app window. `FLAG_SECURE` and the decor view are read
  * authoritatively here, on the main thread; capture-thread reads are only an
  * early exit. PixelCopy of a window returns its last queued buffer, which can
  * still hold a secure screen just after the flag is cleared, so the copy is
  * requested only after a frame drawn after the check has been committed, and
- * the flag is checked again at that point.
+ * the flag is checked again at that point. The masks are taken from [masks]
+ * in that same main-thread task, immediately before the request, so they
+ * describe the frame being copied; a supplier that throws masks everything.
  */
 internal class WindowTarget(
     private val window: Window,
+    private val masks: WindowMaskSupplier = WindowMaskSupplier { MaskSnapshot(emptyList()) },
     private val frames: FrameWaiter = CommittedFrameWaiter,
     private val copy: WindowCopy = PlatformWindowCopy,
-) : PixelCopyTarget {
+) : PixelCopyTarget, MaskingTarget {
+    private val taken = AtomicReference<MaskSnapshot?>()
+    private val supplierMicros = AtomicReference(0L)
+
+    override val snapshot: MaskSnapshot?
+        get() = taken.get()
+
+    override val maskComputeMicros: Long
+        get() = supplierMicros.get()
+
     override fun isAvailable(): Boolean = window.attachedDecor() != null
 
     override fun issue(
@@ -74,9 +98,25 @@ internal class WindowTarget(
             when {
                 !isCurrent() -> finish(CaptureStatus.Cancelled)
                 window.isSecure() -> finish(CaptureStatus.SecureWindow)
-                else -> requestCopy(finish) { listener -> copy.request(window, destination, listener, handler) }
+                else -> {
+                    takeMasks()
+                    requestCopy(finish) { listener -> copy.request(window, destination, listener, handler) }
+                }
             }
         }
+    }
+
+    /** Main thread; [issue] calls it right before requesting the copy. */
+    internal fun takeMasks() {
+        val start = System.nanoTime()
+        val supplied =
+            try {
+                masks.masksFor(window)
+            } catch (_: Throwable) {
+                MaskSnapshot.WHOLE_FRAME
+            }
+        supplierMicros.set((System.nanoTime() - start) / 1_000)
+        taken.set(supplied)
     }
 }
 

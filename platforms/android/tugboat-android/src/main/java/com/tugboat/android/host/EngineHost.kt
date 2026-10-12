@@ -27,7 +27,7 @@ internal class EngineHost(
     private val maxConsecutiveInternalErrors: Int = DEFAULT_MAX_CONSECUTIVE_INTERNAL_ERRORS,
     private val onShutDown: () -> Unit = {},
     /** Performs `capture.request`; it answers through [post] with `capture.result`. */
-    captures: CaptureRequestSink? = null,
+    captures: CaptureRequestSink,
 ) {
     private val timers = TimerExecutor(handler) { timerId ->
         guarded("timer") { postNow(HostMessages.TIMER_FIRED, HostMessages.timerFiredInput(timerId)) }
@@ -129,9 +129,8 @@ internal class EngineHost(
 
     /**
      * Lets the engine report undelivered work before its handle goes. Its
-     * effects run as usual except that no new IO, timer, or capture starts:
-     * `http.send`, `timer.schedule`, and `capture.request` are dropped,
-     * `frame.release` is honoured. An engine
+     * effects are dropped except `frame.release`, the one effect that only
+     * frees host memory: no new IO, timer, or capture starts. An engine
      * without `engine.dispose` (before phase 3b) answers `unsupported_message`,
      * which is logged and otherwise ignored.
      */
@@ -143,7 +142,7 @@ internal class EngineHost(
             return
         }
         EffectParser.parse(response.text())
-            .filterNot { it is Effect.HttpSend || it is Effect.TimerSchedule || it is Effect.CaptureRequest }
+            .filterIsInstance<Effect.FrameRelease>()
             .forEach { effect -> guarded("effect ${effect.javaClass.simpleName}") { effects.dispatch(effect) } }
     }
 
@@ -162,14 +161,13 @@ internal class EngineHost(
 
         /**
          * Starts a host on a new `tugboat-engine` thread; the host owns
-         * [transport]. [http] defaults to an [HttpExecutor] for [config].
+         * [transport] and closes [http] at shutdown.
          */
         fun start(
-            config: HostConfig,
             transport: EngineTransport,
             frames: FrameHandleTable,
-            http: HttpSender = HttpExecutor(config, frames::get),
-            captures: CaptureRequestSink? = null,
+            http: HttpSender,
+            captures: CaptureRequestSink,
         ): EngineHost {
             val thread = HandlerThread("tugboat-engine", Process.THREAD_PRIORITY_BACKGROUND).apply { start() }
             return EngineHost(

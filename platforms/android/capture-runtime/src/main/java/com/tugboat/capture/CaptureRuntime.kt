@@ -56,8 +56,23 @@ class CaptureRuntime(
      * after that check, so a screen drawn while the flag was set is not
      * copied after the flag is cleared.
      */
-    fun capture(window: Window, request: CaptureRequest, onComplete: (CaptureResult) -> Unit) {
-        enqueue(WindowSource(window), request, onComplete)
+    fun capture(window: Window, request: CaptureRequest, onComplete: (CaptureResult) -> Unit) =
+        capture(window, request, { MaskSnapshot(request.masks) }, onComplete)
+
+    /**
+     * [capture] of [window] with masks computed for the frame being copied:
+     * [masks] runs on the main thread right after the committed-frame wait and
+     * the `FLAG_SECURE` re-check, immediately before `PixelCopy.request`, and
+     * its masks replace `request.masks`. The result carries the snapshot it
+     * returned (`CaptureResult.maskSnapshot`).
+     */
+    fun capture(
+        window: Window,
+        request: CaptureRequest,
+        masks: WindowMaskSupplier,
+        onComplete: (CaptureResult) -> Unit,
+    ) {
+        enqueue(WindowSource(window, masks), request, onComplete)
     }
 
     fun cancel(requestId: Long) {

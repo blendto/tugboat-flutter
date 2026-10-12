@@ -68,9 +68,14 @@ internal class SessionEndWatcher(private val delegate: HttpSender) : HttpSender 
             }
         }
 
-        /** The engine retries 408, 429, 5xx, `error`, and `timeout`; anything else is final. */
+        /**
+         * Mirrors the engine's `classify` in `core/session-engine/src/transport.cpp`
+         * (fixture `delivery-status-classification`): 202 is accepted; 408, 429,
+         * 5xx, `error`, and `timeout` are retried; anything else is dropped for
+         * good. `EngineRetryRuleTest` fails if that rule changes.
+         */
         fun isFinal(outcome: TransportOutcome): Boolean =
             outcome is TransportOutcome.Http &&
-                outcome.status != 408 && outcome.status != 429 && outcome.status !in 500..599
+                outcome.status != 408 && outcome.status != 429 && outcome.status < 500
     }
 }

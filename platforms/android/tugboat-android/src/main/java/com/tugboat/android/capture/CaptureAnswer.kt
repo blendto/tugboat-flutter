@@ -1,5 +1,6 @@
 package com.tugboat.android.capture
 
+import com.tugboat.android.views.mask.MaskCoverage
 import org.json.JSONObject
 
 /**
@@ -46,8 +47,10 @@ internal data class CapturedFrame(
     val masked: Boolean,
     val byteLength: Int,
     val captureMicros: Long,
-    val dHash: String?,
-    val structureSignature: String?,
+    val dHash: String,
+    /** The visible structure the masks were computed from (copy time). */
+    val structureSignature: String,
+    val maskCoverage: MaskCoverage,
 )
 
 /** The capture boundary in logical pixels (dp) of the window's decor view. */
@@ -71,4 +74,7 @@ internal enum class CaptureFailure(val wire: String) {
     ReadbackFailed("readbackFailed"),
     MaskFailed("maskFailed"),
     EncodingFailed("encodingFailed"),
+
+    /** Sent only with [EngineVocabulary.SECURE_WINDOW_FAILURE]. */
+    SecureWindow("secureWindow"),
 }

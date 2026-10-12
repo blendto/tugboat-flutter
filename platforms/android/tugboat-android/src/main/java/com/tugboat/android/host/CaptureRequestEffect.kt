@@ -4,18 +4,17 @@ import org.json.JSONObject
 
 /**
  * The fields of a `capture.request` effect the host acts on
- * (stateful-engine.md section 8.2). `context`, `trigger`, `dropWhenBusy`, and
- * `notBeforeMonoUs` are the engine's bookkeeping: it already waited out the
- * not-before time and applied the busy rule, and it checks the context
- * itself when the answer arrives.
+ * (stateful-engine.md section 8.2). The others are the engine's
+ * bookkeeping: it already waited out `notBeforeMonoUs` and applied
+ * `dropWhenBusy`, checks `context` itself when the answer arrives, and
+ * `requireFreshPaint` needs nothing more here because the pixel runtime
+ * always copies a frame committed after the request reached it.
  */
 internal data class CaptureRequestEffect(
     /** `capture-N`; the `capture.result` echoes it. */
     val requestId: String,
-    val trigger: String,
     /** Capture even when the paint is unchanged; never answered `paintUnchanged`. */
     val force: Boolean,
-    val requireFreshPaint: Boolean,
     /** Multiplies the capture pixel ratio (the engine's `degradedScale` under budget pressure). */
     val scale: Double,
     val dHashBaseline: DHashBaseline?,
@@ -28,9 +27,7 @@ internal data class CaptureRequestEffect(
             }
             return CaptureRequestEffect(
                 requestId = effect.getString("requestId"),
-                trigger = effect.optString("trigger"),
                 force = effect.getBoolean("force"),
-                requireFreshPaint = effect.optBoolean("requireFreshPaint"),
                 scale = effect.optDouble("scale", 1.0).takeIf { it.isFinite() && it > 0 } ?: 1.0,
                 dHashBaseline = baseline,
             )
@@ -51,4 +48,9 @@ internal data class DHashBaseline(val dHash: String, val structureSignature: Str
  */
 internal fun interface CaptureRequestSink {
     fun onCaptureRequest(request: CaptureRequestEffect)
+
+    companion object {
+        /** Drops requests; the engine resolves each at its C18 answer deadline. For hosts that never capture. */
+        val NONE = CaptureRequestSink { }
+    }
 }

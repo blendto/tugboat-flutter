@@ -1,9 +1,8 @@
 package com.tugboat.android.sdk
 
 import android.util.Log
-import java.util.Timer
-import java.util.TimerTask
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * `stop()` in the order the engine needs: `session.end`, then (once the
@@ -18,36 +17,20 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 internal class StopSequence(private val maxDrainMs: Long = MAX_DRAIN_MS) {
     fun run(watcher: SessionEndWatcher, endSession: () -> Unit, finish: () -> Unit) {
-        val timer = Timer("tugboat-stop", true)
-        val finished = AtomicBoolean(false)
-        val finishOnce = object : TimerTask() {
-            override fun run() {
-                if (!finished.compareAndSet(false, true)) return
-                try {
-                    finish()
-                } catch (failure: Throwable) {
-                    Log.w(TAG, "stop failed", failure)
-                } finally {
-                    timer.cancel()
-                }
-            }
-        }
+        val settled = CountDownLatch(1)
+        watcher.whenSettled(settled::countDown)
         endSession()
-        watcher.whenSettled { schedule(timer, finishOnce, 0) }
-        schedule(timer, finishOnce, maxDrainMs)
-    }
-
-    /** A cancelled timer means the task already ran. */
-    private fun schedule(timer: Timer, task: TimerTask, delayMs: Long) {
-        try {
-            timer.schedule(wrap(task), delayMs)
-        } catch (_: IllegalStateException) {
-            // Already finished.
+        Thread({
+            try {
+                settled.await(maxDrainMs, TimeUnit.MILLISECONDS)
+                finish()
+            } catch (failure: Throwable) {
+                Log.w(TAG, "stop failed", failure)
+            }
+        }, "tugboat-stop").apply {
+            isDaemon = true
+            start()
         }
-    }
-
-    private fun wrap(task: TimerTask) = object : TimerTask() {
-        override fun run() = task.run()
     }
 
     companion object {

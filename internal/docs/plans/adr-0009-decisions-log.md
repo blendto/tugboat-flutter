@@ -70,12 +70,12 @@ its Dart path unchanged. No publishing and no merges to `main`.
 ## Gates before merging to main
 
 1. On merge to `main`, `publish-android.yml` (`tag_main`) auto-tags and
-   publishes `capture-runtime` 0.2.0, then opens an automatic Flutter pin PR.
-2. That pin PR compiles: the plugin maps 0.2.0's `SecureWindow` to
+   publishes `capture-runtime` 0.3.0, then opens an automatic Flutter pin PR.
+2. That pin PR compiles: the plugin maps 0.2.0/0.3.0's `SecureWindow` to
    `cancelled` and `WindowComposite` to the existing Pigeon value
    (`tugboat` 0.10.11-dev.2), and `android-runtime.yml` compiles the plugin
    against the pinned and the local runtime. The `main` PR description must
-   still say that merging publishes `capture-runtime` 0.2.0; the owner
+   still say that merging publishes `capture-runtime` 0.3.0; the owner
    decides at merge time.
 3. The instrumented window-capture tests
    (`:capture-runtime-test:connectedAndroidTest`) must have run on an

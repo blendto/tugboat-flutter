@@ -3,6 +3,8 @@ package com.tugboat.android.capture
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.Window
 import com.tugboat.android.views.AdapterGuard
@@ -23,6 +25,8 @@ internal class ForegroundWindow(
     private var activity: WeakReference<Activity>? = null
     private var decor: View? = null
     private var started = false
+    private val handler by lazy { Handler(Looper.getMainLooper()) }
+    private val waiting = ArrayList<Runnable>()
 
     private val layoutListener = View.OnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
         AdapterGuard.run("surface layout") { report(view) }
@@ -31,6 +35,21 @@ internal class ForegroundWindow(
     /** The foreground activity's window, or null in the background or before the first resume. */
     val window: Window?
         get() = activity?.get()?.takeUnless { it.isFinishing || it.isDestroyed }?.window
+
+    /**
+     * Runs [onDone] once: as soon as an activity window is in the foreground
+     * (at once if one is), or after [timeoutMs] without one.
+     */
+    fun awaitWindow(timeoutMs: Long, onDone: () -> Unit) {
+        if (window != null) return onDone()
+        val done = object : Runnable {
+            override fun run() {
+                if (waiting.remove(this)) onDone()
+            }
+        }
+        waiting += done
+        handler.postDelayed(done, timeoutMs)
+    }
 
     fun start() = AdapterGuard.run("foreground window start") {
         if (started) return@run
@@ -44,6 +63,7 @@ internal class ForegroundWindow(
         application.unregisterActivityLifecycleCallbacks(this)
         unhook()
         activity = null
+        releaseWaiting()
     }
 
     override fun onActivityResumed(activity: Activity) = AdapterGuard.run("foreground resumed") {
@@ -55,6 +75,7 @@ internal class ForegroundWindow(
             view.addOnLayoutChangeListener(layoutListener)
         }
         report(view)
+        releaseWaiting()
     }
 
     override fun onActivityDestroyed(activity: Activity) = AdapterGuard.run("foreground destroyed") {
@@ -76,6 +97,13 @@ internal class ForegroundWindow(
 
     private fun report(view: View) {
         CaptureGeometry.of(view)?.let { onBoundary(it.boundaryRect) }
+    }
+
+    private fun releaseWaiting() {
+        waiting.toList().forEach { done ->
+            handler.removeCallbacks(done)
+            done.run()
+        }
     }
 
     private fun unhook() {

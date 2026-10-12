@@ -1,5 +1,6 @@
 package com.tugboat.android.capture
 
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -17,12 +18,12 @@ internal object CaptureResultJson {
     /** One day, the engine's bound on every duration. */
     private const val MAX_MICROS = 86_400_000_000L
 
-    fun encode(answer: CaptureAnswer): String {
+    fun encode(answer: CaptureAnswer, maskCoverage: Boolean = EngineVocabulary.FRAME_MASK_COVERAGE): String {
         val input = JSONObject().put("requestId", answer.requestId)
         when (answer) {
             is CaptureAnswer.Captured -> {
                 input.put("outcome", "captured")
-                input.put("frame", frame(answer.frame))
+                input.put("frame", frame(answer.frame, maskCoverage))
                 input.put("boundaryRect", answer.boundaryRect.toJson())
                 input.put("timings", timings(answer.timings))
             }
@@ -36,7 +37,7 @@ internal object CaptureResultJson {
         return input.toString()
     }
 
-    private fun frame(frame: CapturedFrame): JSONObject {
+    private fun frame(frame: CapturedFrame, maskCoverage: Boolean): JSONObject {
         val json = JSONObject()
             .put("handle", frame.handle)
             .put("width", frame.width)
@@ -47,8 +48,13 @@ internal object CaptureResultJson {
             .put("captureMicros", clamp(frame.captureMicros))
             .put("requestedBackend", NATIVE_BACKEND)
             .put("resolvedBackend", NATIVE_BACKEND)
-        frame.dHash?.takeIf { it.isNotEmpty() }?.let { json.put("dHash", it) }
-        frame.structureSignature?.let { json.put("structureSignature", it) }
+        if (frame.dHash.isNotEmpty()) json.put("dHash", frame.dHash)
+        json.put("structureSignature", frame.structureSignature)
+        if (maskCoverage) {
+            val reasons = JSONArray()
+            frame.maskCoverage.reasons.forEach { reasons.put(it.wire) }
+            json.put("maskCoverage", JSONObject().put("mode", frame.maskCoverage.mode.wire).put("reasons", reasons))
+        }
         return json
     }
 

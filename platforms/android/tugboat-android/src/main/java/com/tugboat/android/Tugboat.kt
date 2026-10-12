@@ -24,8 +24,9 @@ import com.tugboat.android.sdk.TugboatRuntime
  * }
  * ```
  *
- * - Call [start] from `Application.onCreate`: activities created before it
- *   are not observed.
+ * - Call [start] once per process, from `Application.onCreate`: activities
+ *   created before it are not observed. After [stop], a new [start] observes
+ *   each activity from its next resume.
  * - Every method may be called from any thread; the work runs on the main
  *   thread in call order.
  * - Nothing here throws into the app. A failure is logged (tag `Tugboat`)
@@ -38,7 +39,6 @@ object Tugboat {
     // Main thread only.
     private var runtime: TugboatRuntime? = null
     private var sessionEpoch = 0
-    private var userIdSet = false
     private var userId: String? = null
     private var traitsInput: String? = null
 
@@ -56,14 +56,14 @@ object Tugboat {
         }
         val started = TugboatRuntime.start(application, config, sessionEpoch++) ?: return@onMain
         runtime = started
-        if (userIdSet) started.setUserId(userId)
+        // A new engine starts without a user id, so only a set one is sent.
+        userId?.let(started::setUserId)
         traitsInput?.let(started::setTraits)
     }
 
     /** The runtime user id stamped on later events; null clears it. Kept across [stop] and [start]. */
     @JvmStatic
     fun setUserId(id: String?) = onMain("setUserId") {
-        userIdSet = true
         userId = id
         runtime?.setUserId(id)
     }

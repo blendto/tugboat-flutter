@@ -137,6 +137,7 @@ internal class TugboatRuntime private constructor(
             val captures = CaptureCoordinator(
                 mainThread = main::post,
                 window = { foreground.window },
+                awaitWindow = foreground::awaitWindow,
                 masks = adapter::masks,
                 capturer = RuntimeWindowCapturer(),
                 frames = frames,
@@ -144,7 +145,7 @@ internal class TugboatRuntime private constructor(
                     host.post(HostMessages.CAPTURE_RESULT, answer.toInputJson(), clock.now(), answer.frameHandles)
                 },
             )
-            host = EngineHost.start(hostConfig, transport, frames, http = watcher, captures = captures)
+            host = EngineHost.start(transport, frames, http = watcher, captures = captures)
             host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, gesture).toString())
             host.post(SessionMessages.SESSION_START, SessionMessages.sessionStart(device, metadata, sessionEpoch), clock.now())
             val lifecycle = AppLifecycleBridge(post = { state ->

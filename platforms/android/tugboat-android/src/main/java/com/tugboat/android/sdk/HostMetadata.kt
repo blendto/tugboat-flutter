@@ -22,7 +22,6 @@ internal class HostMetadata(private val app: AppInfo, private val device: Device
         requirePositive("device.screenSize.height", device.screenHeightDp)
         requirePositive("device.screenDensity", device.density)
         requirePositive("device.screenDpi", device.densityDpi.toDouble())
-        requireText("ip.ip", PLACEHOLDER_IP)
         requireText("locale.language", device.locale.language)
         requireText("locale.tag", device.locale.toLanguageTag())
     }

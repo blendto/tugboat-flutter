@@ -13,7 +13,6 @@ import com.tugboat.android.capture.CapturedFrame
 import com.tugboat.android.engine.JniEngineTransport
 import com.tugboat.android.host.EngineHost
 import com.tugboat.android.host.FrameHandleTable
-import com.tugboat.android.host.HostConfig
 import com.tugboat.android.host.HostMessages
 import com.tugboat.android.host.HttpBody
 import com.tugboat.android.host.HttpRequest
@@ -60,7 +59,6 @@ class CollectorContractTest {
         assertEquals(emptyList<String>(), metadata.missingFields())
         val transport = checkNotNull(JniEngineTransport.open()) { "libtugboat_engine.so must load" }
         host = EngineHost.start(
-            HostConfig(config.collector.baseUrl, config.collector.apiKey, app.version, app.buildNumber, app.appId),
             transport,
             frames,
             http = http,
