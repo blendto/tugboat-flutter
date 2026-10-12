@@ -276,9 +276,15 @@ std::string check_markers(const Json& fixture, const std::string& kind,
                           const std::set<std::string>& change_ids) {
   const Json* engine_only = fixture.find("engineOnly");
   const Json* runners = fixture.find("runners");
-  if ((engine_only != nullptr || runners != nullptr) &&
+  const Json* dart_parity = fixture.find("dartParity");
+  if ((engine_only != nullptr || dart_parity != nullptr) &&
       kind != "engine.scenario") {
-    return "engineOnly and runners are only valid on engine.scenario";
+    return "engineOnly and dartParity are only valid on engine.scenario";
+  }
+  if (dart_parity != nullptr &&
+      (!dart_parity->is(Kind::kString) || dart_parity->text != "delivery" ||
+       runners != nullptr)) {
+    return "dartParity must be \"delivery\", without runners";
   }
   if (engine_only != nullptr && !is_id_list(*engine_only, change_ids)) {
     return "engineOnly must list distinct change ids from change_ids.json";

@@ -53,7 +53,41 @@ bool decode_anchor_lists(const ObjectReader& r, Anchor* out, Error* error) {
   return true;
 }
 
+constexpr AnchorToolkit kToolkits[] = {
+    AnchorToolkit::kView, AnchorToolkit::kCompose, AnchorToolkit::kSwiftUi,
+    AnchorToolkit::kUiKit, AnchorToolkit::kReactNative};
+
+// `toolkit`: absent, or one of the closed set.
+bool decode_toolkit(const ObjectReader& r, Anchor* out) {
+  std::optional<std::string> name;
+  if (!r.opt_string("toolkit", &name)) {
+    return false;
+  }
+  if (!name) {
+    return true;
+  }
+  for (AnchorToolkit toolkit : kToolkits) {
+    if (*name == anchor_toolkit_name(toolkit)) {
+      out->toolkit = toolkit;
+      return true;
+    }
+  }
+  return r.reject("toolkit",
+                  "expected view, compose, swiftui, uikit, or react-native");
+}
+
 }  // namespace
+
+const char* anchor_toolkit_name(AnchorToolkit toolkit) {
+  switch (toolkit) {
+    case AnchorToolkit::kView: return "view";
+    case AnchorToolkit::kCompose: return "compose";
+    case AnchorToolkit::kSwiftUi: return "swiftui";
+    case AnchorToolkit::kUiKit: return "uikit";
+    case AnchorToolkit::kReactNative: return "react-native";
+  }
+  return "view";
+}
 
 const char* stream_name(EventStream stream) {
   switch (stream) {
@@ -133,7 +167,7 @@ bool decode_anchor(const Value* json, const std::string& where,
   if (!r.check_keys({"schemaVersion", "widgetType", "role", "fingerprint",
                      "fingerprintConfidence", "tagFingerprint",
                      "fingerprintParts", "canonicalPath", "relativePosition",
-                     "enabled", "actions"}) ||
+                     "enabled", "actions", "toolkit"}) ||
       !r.opt_int("schemaVersion", &schema_version) ||
       !r.opt_string("widgetType", &anchor.widget_type) ||
       !r.opt_string("role", &anchor.role) ||
@@ -143,7 +177,7 @@ bool decode_anchor(const Value* json, const std::string& where,
       !r.opt_string("canonicalPath", &anchor.canonical_path) ||
       !r.opt_string("relativePosition", &anchor.relative_position) ||
       !r.opt_bool("enabled", &anchor.enabled) ||
-      !decode_anchor_lists(r, &anchor, error)) {
+      !decode_anchor_lists(r, &anchor, error) || !decode_toolkit(r, &anchor)) {
     return false;
   }
   anchor.schema_version = schema_version.value_or(1);
@@ -182,6 +216,9 @@ Value anchor_json(const Anchor& anchor) {
   }
   if (!anchor.actions.empty()) {
     out.set("actions", string_list(anchor.actions));
+  }
+  if (anchor.toolkit) {
+    out.set("toolkit", str(anchor_toolkit_name(*anchor.toolkit)));
   }
   return out;
 }

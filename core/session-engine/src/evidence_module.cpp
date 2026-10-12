@@ -1,5 +1,6 @@
-// Adapter and host evidence: `event.record`, `locale.set`, and
-// `identity.set` (docs/stateful-engine.md sections 4.3 and 7.2).
+// Adapter and host evidence: `event.record` and `locale.set`
+// (docs/stateful-engine.md section 4.3). `identity.set` is in
+// identity_module.cpp.
 #include <memory>
 #include <optional>
 #include <string>
@@ -138,33 +139,6 @@ std::unique_ptr<Command> decode_locale_set(const CommandInput& in,
   return std::make_unique<SetLocale>(std::move(*locale), *in.at);
 }
 
-// ---------------------------------------------------------- identity.set
-
-// Sets the runtime user id (null clears it). Events recorded afterwards
-// carry it; earlier records keep theirs (stamped at record time).
-class SetIdentity final : public Command {
- public:
-  explicit SetIdentity(OptString user_id) : user_id_(std::move(user_id)) {}
-
-  void apply(const ModuleRegistry&, EngineState* state, Output*) override {
-    state->identity.user_id = user_id_;
-    state->identity.set_explicitly = true;
-  }
-
- private:
-  OptString user_id_;
-};
-
-std::unique_ptr<Command> decode_identity(const CommandInput& in,
-                                         Error* error) {
-  const ObjectReader r(in.input, in.path, error);
-  OptString user_id;
-  if (!r.check_keys({"userId"}) || !r.opt_string("userId", &user_id)) {
-    return nullptr;
-  }
-  return std::make_unique<SetIdentity>(std::move(user_id));
-}
-
 }  // namespace
 
 void register_evidence_module(ModuleRegistry* registry) {
@@ -174,9 +148,6 @@ void register_evidence_module(ModuleRegistry* registry) {
   registry->add_command("locale.set",
                         {AtRule::kMono, SessionPolicy::kAny,
                          decode_locale_set});
-  registry->add_command("identity.set",
-                        {AtRule::kMonoAndWall, SessionPolicy::kAny,
-                         decode_identity});
   registry->add_engine_event_type("locale_changed");
 }
 

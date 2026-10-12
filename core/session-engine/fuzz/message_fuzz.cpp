@@ -11,15 +11,19 @@
 
 namespace {
 
-// Puts the engine in a live session so stateful messages reach session
-// logic, not only the "no session" paths.
+// Puts the engine in a live session with collector delivery on (tight
+// bounds, so eviction and gap paths run) so stateful messages reach session
+// and delivery logic, not only the "no session" paths.
 const char kConfigure[] =
     "{\"type\":\"engine.configure\",\"input\":{\"host\":{\"app\":{\"name\":"
     "\"a\",\"version\":\"1\",\"buildNumber\":\"1\",\"installationId\":\"i\","
     "\"appId\":\"x\"},\"device\":{\"id\":\"d\",\"platform\":\"android\","
     "\"screenSize\":{\"width\":1,\"height\":1},\"screenDensity\":1,"
     "\"screenDpi\":1,\"screenPixelDensity\":1},\"ip\":{\"ip\":\"0\"},"
-    "\"locale\":{}},\"limits\":{\"maxEvents\":4}}}";
+    "\"locale\":{}},\"limits\":{\"maxEvents\":4,\"maxFrames\":2},"
+    "\"collector\":{\"enabled\":true,\"batchSize\":2,\"maxPendingEvents\":3,"
+    "\"maxPendingBatches\":1,\"maxPendingFrames\":2,\"frameChunk\":2,"
+    "\"reportEventLaneGaps\":true}}}";
 const char kStart[] =
     "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
     "\"input\":{\"viewport\":{\"width\":1,\"height\":1},\"platform\":"
@@ -59,6 +63,18 @@ tb_session_status submit_raw(tb_session_engine* engine, const char* data,
     response->assign(out, len);
   }
   return status;
+}
+
+// Answers delivery request `http-<n>` with a status picked by `seed`, so
+// the fuzzed messages that follow run against accepted, retried, and dropped
+// deliveries.
+std::string transport_result(int n, uint8_t seed) {
+  static const int kStatuses[] = {202, 202, 400, 401, 408, 429, 500, 200};
+  return "{\"type\":\"transport.result\",\"at\":{\"monoUs\":1,"
+         "\"wallUs\":1},\"input\":{\"requestId\":\"http-" +
+         std::to_string(n) + "\",\"outcome\":\"http\",\"status\":" +
+         std::to_string(kStatuses[seed % 8]) +
+         ",\"body\":\"{\\\"sessionId\\\":\\\"s\\\"}\"}}";
 }
 
 std::string snapshot(tb_session_engine* engine) {
@@ -263,9 +279,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     submit(engine, bare);
     submit(engine, kConfigure);
     submit(engine, kStart);
+    submit(engine, transport_result(0, 0));
     submit(engine, timed);
+    submit(engine, transport_result(1, data[0]));
     submit(engine, "{\"type\":\"batch\",\"messages\":[" + timed + "," +
                        timed + "]}");
+    submit(engine, transport_result(2, data[0] >> 3));
   }
 
   // 3. A script of valid interaction facts, timers, and capture answers,

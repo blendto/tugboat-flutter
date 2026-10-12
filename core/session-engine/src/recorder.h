@@ -27,7 +27,8 @@ Event enrich(Event event, const Session& session,
 
 // Enriches `event`, appends it to `session` (the live session), emits its
 // event record stamped with the runtime user id, then trims. Append order
-// is record order.
+// is record order. Event record observers (module_registry.h) then see the
+// record.
 void record_event(EngineState* state, Session& session, Event event,
                   bool attach_action_context, Output* out);
 

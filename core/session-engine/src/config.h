@@ -64,6 +64,7 @@ struct CollectorConfig {
   int64_t identity_debounce_ms = 3000;
   int64_t background_flush_delay_ms = 500;
   int64_t end_drain_timeout_ms = 5000;  // change C5
+  int64_t answer_grace_ms = 5000;       // change C15
   bool report_event_lane_gaps = false;  // change C6
 };
 

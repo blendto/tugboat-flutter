@@ -123,6 +123,11 @@ using LifecycleHook = void (*)(const At& at, EngineState* state, Output* out);
 using FrameAcceptedHook = void (*)(const Frame& frame,
                                    const std::string& handle,
                                    EngineState* state, Output* out);
+// Sees every event record right after the recorder emits it (recorder.cpp),
+// in record order. Collector delivery queues events this way, so it sees
+// exactly what every other record consumer sees (design principle 5).
+using EventObserver = void (*)(const EventRecord& record, const At& at,
+                               EngineState* state, Output* out);
 
 class ModuleRegistry {
  public:
@@ -160,6 +165,11 @@ class ModuleRegistry {
   void run_frame_accepted(const Frame& frame, const std::string& handle,
                           EngineState* state, Output* out) const;
 
+  // Event record observers, in registration order.
+  void on_event_recorded(EventObserver observer);
+  void notify_event_recorded(const EventRecord& record, const At& at,
+                             EngineState* state, Output* out) const;
+
   // Event types the engine records itself; adapters cannot record them.
   void add_engine_event_type(const char* type);
   bool is_engine_event_type(const std::string& type) const;
@@ -173,6 +183,7 @@ class ModuleRegistry {
   std::map<std::string, TimerHandler> timers_;
   std::array<std::vector<LifecycleHook>, kLifecycleHookPointCount> hooks_;
   std::vector<FrameAcceptedHook> frame_accepted_;
+  std::vector<EventObserver> event_observers_;
   std::set<std::string> engine_event_types_;
 };
 

@@ -2,6 +2,8 @@
 
 #include <utility>
 
+#include "module_registry.h"
+
 namespace tugboat {
 namespace engine {
 
@@ -41,10 +43,15 @@ Event enrich(Event event, const Session& session,
 
 void record_event(EngineState* state, Session& session, Event event,
                   bool attach_action_context, Output* out) {
-  Event enriched = enrich(std::move(event), session, state->locale,
-                          attach_action_context);
-  out->records.push_back(EventRecord{enriched, state->identity.user_id});
-  session.append(std::move(enriched), state->config.limits.max_events);
+  const EventRecord record{
+      enrich(std::move(event), session, state->locale, attach_action_context),
+      state->identity.user_id};
+  out->records.push_back(record);
+  session.append(record.event, state->config.limits.max_events);
+  if (state->applying.modules != nullptr && state->applying.at) {
+    state->applying.modules->notify_event_recorded(record, *state->applying.at,
+                                                   state, out);
+  }
 }
 
 Event make_event(EngineState* state, const Session& session,

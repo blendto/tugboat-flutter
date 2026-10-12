@@ -3,6 +3,7 @@
 // hooks), the lifecycle transition table, record and effect JSON, and
 // configuration across sessions. Behaviour visible through the public
 // protocol is pinned by conformance/engine/scenario/ instead.
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,6 +33,7 @@ using tugboat::engine::FrameTrigger;
 using tugboat::engine::HealthRecord;
 using tugboat::engine::HttpLane;
 using tugboat::engine::HttpSend;
+using tugboat::engine::JsonBody;
 using tugboat::engine::LifecycleSignal;
 using tugboat::engine::LifecycleState;
 using tugboat::engine::ModuleRegistry;
@@ -303,6 +305,9 @@ void test_transition_table() {
       {S::kEnded, G::kSessionEnd, S::kEnded},
       {S::kEnded, G::kForegrounded, S::kEnded},
       {S::kEnded, G::kSessionStart, S::kActive},
+      {S::kIdle, G::kDispose, S::kDisposed},
+      {S::kEnded, G::kDispose, S::kDisposed},
+      {S::kDisposed, G::kSessionStart, S::kDisposed},
   };
   for (const Case& c : cases) {
     CHECK(tugboat::engine::transition(c.from, c.signal) == c.to);
@@ -320,8 +325,13 @@ void test_elapsed_ms() {
 void test_registry_types() {
   const std::vector<std::string> types =
       tugboat::engine::module_registry().types();
-  CHECK(types.size() == 19);
   CHECK(types.front() == "app.lifecycle");
+  for (const char* type :
+       {"engine.configure", "engine.dispose", "session.start", "session.end",
+        "identity.set", "traits.set", "capture.result", "transport.result",
+        "transport.flush", "timer.fired", "session.snapshot"}) {
+    CHECK(std::find(types.begin(), types.end(), type) != types.end());
+  }
   CHECK(tugboat::engine::module_registry().is_engine_event_type(
       "session_start"));
   CHECK(!tugboat::engine::module_registry().is_engine_event_type(
@@ -361,12 +371,11 @@ void test_effects_json() {
   std::vector<tugboat::engine::Effect> effects;
   effects.push_back(TimerSchedule{"t", 42});
   effects.push_back(TimerCancel{"t"});
-  Value body = Value::object();
-  body.set("sessionId", Value::string("s"));
   effects.push_back(HttpSend{"r-1", HttpLane::kLifecycle, "/v1/sessions",
-                             15000, body});
+                             15000, JsonBody{"{\"sessionId\":\"s\"}"}});
   MultipartBody multipart;
-  multipart.fields.emplace_back("frameNos", "[\"2\"]");
+  multipart.fields.emplace_back("sessionId", "s");
+  multipart.fields.emplace_back("frameMetadata", "[{\"id\":\"frame-2\"}]");
   multipart.frames.push_back({"h-2", "2.jpg"});
   effects.push_back(
       HttpSend{"r-2", HttpLane::kFrames, "/v1/frames", 15000, multipart});
@@ -385,11 +394,13 @@ void test_effects_json() {
       "[{\"type\":\"timer.schedule\",\"timerId\":\"t\",\"atMonoUs\":42},"
       "{\"type\":\"timer.cancel\",\"timerId\":\"t\"},"
       "{\"type\":\"http.send\",\"requestId\":\"r-1\",\"lane\":\"lifecycle\","
-      "\"path\":\"/v1/sessions\",\"timeoutMs\":15000,\"json\":{\"sessionId\":"
-      "\"s\"}},{\"type\":\"http.send\",\"requestId\":\"r-2\",\"lane\":"
-      "\"frames\",\"path\":\"/v1/frames\",\"timeoutMs\":15000,\"multipart\":"
-      "{\"fields\":{\"frameNos\":\"[\\\"2\\\"]\"},\"frames\":[{\"handle\":"
-      "\"h-2\",\"filename\":\"2.jpg\"}]}},{\"type\":\"frame.release\","
+      "\"path\":\"/v1/sessions\",\"timeoutMs\":15000,\"jsonBody\":"
+      "\"{\\\"sessionId\\\":\\\"s\\\"}\"},{\"type\":\"http.send\","
+      "\"requestId\":\"r-2\",\"lane\":\"frames\",\"path\":\"/v1/frames\","
+      "\"timeoutMs\":15000,\"multipart\":{\"fields\":[[\"sessionId\",\"s\"],"
+      "[\"frameMetadata\",\"[{\\\"id\\\":\\\"frame-2\\\"}]\"]],\"frames\":"
+      "[{\"handle\":\"h-2\",\"filename\":\"2.jpg\"}]}},{\"type\":"
+      "\"frame.release\","
       "\"handle\":\"h-2\"},{\"type\":\"capture.request\",\"requestId\":"
       "\"capture_request-3\",\"trigger\":\"route\",\"force\":false,"
       "\"requireFreshPaint\":true,\"dropWhenBusy\":false,\"notBeforeMonoUs\":"

@@ -43,7 +43,8 @@ std::string CaptureSeam::issue(const CaptureOwner& owner,
 
 std::optional<CaptureAnswer> CaptureSeam::on_result(
     const CaptureResult& result, int64_t at_ms, int64_t max_frames,
-    IdCounter* ids, Session* session, Output* out) {
+    IdCounter* ids, Session* session, FrameRetention* retention,
+    Output* out) {
   const auto it = requests_.find(result.request_id);
   if (it == requests_.end()) return std::nullopt;
   CaptureAnswer answer;
@@ -53,7 +54,7 @@ std::optional<CaptureAnswer> CaptureSeam::on_result(
   switch (result.outcome) {
     case CaptureResultOutcome::kCaptured: {
       answer.accepted = accept(*result.frame, trigger, at_ms, max_frames, ids,
-                               session, out);
+                               session, retention, out);
       answer.resolution = {CaptureOutcome::kFreshAccepted,
                            answer.accepted->frame.id};
       break;
@@ -81,7 +82,8 @@ std::optional<CaptureAnswer> CaptureSeam::on_result(
 FrameRecord CaptureSeam::accept(const CapturedFrame& captured,
                                 FrameTrigger trigger, int64_t at_ms,
                                 int64_t max_frames, IdCounter* ids,
-                                Session* session, Output* out) {
+                                Session* session, FrameRetention* retention,
+                                Output* out) {
   // Dart `_publishPhysicalCaptureResult`.
   Frame frame;
   frame.id = ids->next("frame");
@@ -111,10 +113,13 @@ FrameRecord CaptureSeam::accept(const CapturedFrame& captured,
 
   const FrameRecord record{captured.handle, frame};
   out->records.push_back(record);
-  // A trimmed frame keeps a tombstone so it can never be attached again.
+  retention->retain(frame.id, captured.handle, FrameOwner::kSession);
+  // A trimmed frame keeps a tombstone so it can never be attached again,
+  // and the session no longer references its bytes.
   for (const std::string& dropped :
        session->append_frame(std::move(frame), max_frames)) {
     provenance_[dropped].available = false;
+    retention->release(dropped, FrameOwner::kSession, out);
   }
   return record;
 }
