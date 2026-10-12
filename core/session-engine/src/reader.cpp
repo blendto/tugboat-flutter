@@ -142,5 +142,23 @@ bool ObjectReader::req_array(const char* key, const Value** out) const {
   return true;
 }
 
+bool read_non_empty(const ObjectReader& r, const char* key, std::string* out) {
+  if (!r.req_string(key, out)) return false;
+  return !out->empty() || r.reject(key, "must not be empty");
+}
+
+bool read_non_negative(const ObjectReader& r, const char* key, int64_t* out) {
+  if (!r.req_int(key, out)) return false;
+  return *out >= 0 || r.reject(key, "must not be negative");
+}
+
+bool reject_present(const ObjectReader& r,
+                    std::initializer_list<const char*> keys, const char* why) {
+  for (const char* key : keys) {
+    if (r.get(key) != nullptr) return r.reject(key, why);
+  }
+  return true;
+}
+
 }  // namespace engine
 }  // namespace tugboat

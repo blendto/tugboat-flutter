@@ -25,13 +25,74 @@ set(_tb_dc_sources
   ${_tb_dc}/double-conversion/string-to-double.cc
   ${_tb_dc}/double-conversion/strtod.cc)
 set(_tb_engine_sources
+  src/capture_budget.cpp
+  src/capture_diagnostics.cpp
+  src/capture_execution.cpp
+  src/capture_facts.cpp
+  src/capture_module.cpp
+  src/capture_scheduler.cpp
+  src/capture_seam.cpp
+  src/capture_types.cpp
+  src/clock.cpp
   src/collector.cpp
+  src/collector_mapping.cpp
+  src/config.cpp
+  src/coordination.cpp
+  src/coordination_module.cpp
   src/dart_time.cpp
+  src/delivery.cpp
+  src/delivery_gaps.cpp
+  src/delivery_lanes.cpp
+  src/delivery_module.cpp
+  src/engine.cpp
+  src/engine_module.cpp
+  src/event_queue.cpp
+  src/evidence_module.cpp
   src/fingerprint.cpp
+  src/flush_pass.cpp
+  src/frame_lane.cpp
+  src/frame_retention.cpp
+  src/frame_retention_module.cpp
+  src/frame_store.cpp
+  src/gesture_classifier.cpp
+  src/host.cpp
+  src/identity_module.cpp
+  src/input_observations.cpp
+  src/interaction_claims.cpp
+  src/interaction_facts.cpp
+  src/interaction_module.cpp
+  src/interaction_payload.cpp
+  src/interaction_publish.cpp
+  src/interaction_registry.cpp
+  src/interaction_transaction.cpp
   src/json.cpp
+  src/lifecycle.cpp
+  src/lifecycle_lane.cpp
+  src/models.cpp
+  src/module_registry.cpp
+  src/modules.cpp
+  src/navigation_facts.cpp
+  src/navigation_module.cpp
+  src/navigation_view.cpp
+  src/navigator_registry.cpp
+  src/output.cpp
+  src/pointer_interactions.cpp
+  src/pointer_tracker.cpp
   src/reader.cpp
+  src/recorder.cpp
+  src/route_barrier.cpp
+  src/route_capture.cpp
+  src/route_change.cpp
+  src/scroll_interactions.cpp
+  src/session.cpp
+  src/session_module.cpp
+  src/stateless_module.cpp
+  src/tap_evidence.cpp
+  src/tap_settle.cpp
   src/tb_session_engine.cpp
-  src/text.cpp)
+  src/teardown.cpp
+  src/text.cpp
+  src/transport.cpp)
 
 add_library(tugboat_session_engine STATIC ${_tb_engine_sources}
   ${_tb_dc_sources})
@@ -61,13 +122,35 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
   # Unit tests reach internal headers; the conformance runner uses only the
   # public C ABI.
   add_executable(tb_session_engine_test tests/tb_session_engine_test.cpp)
-  target_include_directories(tb_session_engine_test PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_executable(tb_session_engine_stateful_test
+    tests/tb_session_engine_stateful_test.cpp)
+  add_executable(tb_session_engine_interaction_test
+    tests/tb_session_engine_interaction_test.cpp)
+  add_executable(tb_session_engine_delivery_test
+    tests/tb_session_engine_delivery_test.cpp)
+  add_executable(tb_session_engine_capture_test
+    tests/tb_session_engine_capture_test.cpp)
+  foreach(_tb_unit IN ITEMS tb_session_engine_test
+                            tb_session_engine_stateful_test
+                            tb_session_engine_interaction_test
+                            tb_session_engine_delivery_test
+                            tb_session_engine_capture_test)
+    target_include_directories(${_tb_unit} PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  endforeach()
   add_executable(tb_session_engine_conformance
-    tests/tb_session_engine_conformance.cpp)
+    tests/tb_session_engine_conformance.cpp
+    tests/conformance/conformance_json.cpp
+    tests/conformance/scenario_runner.cpp)
+  target_include_directories(tb_session_engine_conformance PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests")
   target_compile_definitions(tb_session_engine_conformance PRIVATE
     TB_CONFORMANCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../conformance")
   foreach(_tb_test IN ITEMS tb_session_engine_test
+                            tb_session_engine_stateful_test
+                            tb_session_engine_interaction_test
+                            tb_session_engine_delivery_test
+                            tb_session_engine_capture_test
                             tb_session_engine_conformance)
     target_link_libraries(${_tb_test} PRIVATE tugboat_session_engine)
     target_compile_options(${_tb_test} PRIVATE -Wall -Wextra -Wpedantic -Werror)
@@ -83,6 +166,9 @@ if(TB_SESSION_ENGINE_FUZZ)
   foreach(_tb_fuzz IN ITEMS message_fuzz)
     add_executable(tb_${_tb_fuzz} fuzz/${_tb_fuzz}.cpp)
     target_link_libraries(tb_${_tb_fuzz} PRIVATE tugboat_session_engine)
+    # The fuzzer reads the module registry to cover every message type.
+    target_include_directories(tb_${_tb_fuzz} PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_compile_options(tb_${_tb_fuzz} PRIVATE
       -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer)
     target_link_options(tb_${_tb_fuzz} PRIVATE

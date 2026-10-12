@@ -9,6 +9,7 @@
 #include <initializer_list>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "json.h"
 #include "tugboat/tb_session_engine.h"
@@ -45,6 +46,11 @@ class ObjectReader {
   const std::string& path() const { return path_; }
   std::string child(const char* key) const { return path_ + "." + key; }
 
+  // Fails with `message` at the path of `key`. Always returns false.
+  bool reject(const char* key, std::string message) const {
+    return invalid(error_, child(key), std::move(message));
+  }
+
   // Fails when the object has a key outside `allowed`.
   bool check_keys(std::initializer_list<const char*> allowed) const;
 
@@ -70,6 +76,15 @@ class ObjectReader {
   std::string path_;
   Error* error_;
 };
+
+// Field rules shared by the fact decoders.
+// A required string that must not be empty.
+bool read_non_empty(const ObjectReader& r, const char* key, std::string* out);
+// A required integer that must not be negative.
+bool read_non_negative(const ObjectReader& r, const char* key, int64_t* out);
+// Fails when any of `keys` is present; `why` says when they are allowed.
+bool reject_present(const ObjectReader& r,
+                    std::initializer_list<const char*> keys, const char* why);
 
 }  // namespace engine
 }  // namespace tugboat

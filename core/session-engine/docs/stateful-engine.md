@@ -68,8 +68,8 @@ records next to effects.
 - `at.monoUs`: the host monotonic clock (section 5) at the moment the fact
   happened, not when it was submitted. Required on every stateful message.
 - `at.wallUs`: UTC epoch microseconds at the same moment. Required on
-  `session.start`, `session.end`, `identity.set`, and `transport.result`.
-  Optional elsewhere.
+  `session.start`, `session.end`, `identity.set`, `traits.set`, and
+  `transport.result`. Optional elsewhere.
 - `batch`: `{"type": "batch", "messages": [ … ]}` applies messages in order
   in one ABI call and returns the concatenated output. Adapters behind an
   asynchronous seam send one batch per UI frame.
@@ -92,16 +92,32 @@ records next to effects.
 | --- | --- | --- |
 | `timer.schedule` | `timerId`, `atMonoUs` | `timer.fired {timerId}` |
 | `timer.cancel` | `timerId` | none |
-| `http.send` | `requestId`, `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `json` (body) or `multipart` (`fields`, `frames: [{handle, filename}]`) | `transport.result` |
+| `http.send` | `requestId` (string, `http-N`), `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `jsonBody` (the body, already encoded) or `multipart` (`fields`: ordered `[name, value]` string pairs; `frames: [{handle, filename}]`) | `transport.result` |
 | `frame.release` | `handle` | none |
 | `capture.request` | section 8.2 | `capture.result` |
 | `outbox.write` / `outbox.remove` | section 7.8 (phase 3e) | none |
 
+Every `http.send` also arms `delivery.answer.<requestId>` at `timeoutMs +
+answerGraceMs`: without a `transport.result` by then, the engine treats the
+request as timed out and ignores a late answer (change C15).
+
+`engine.dispose {}` (`at` optional) is the host's last message before
+`tb_session_engine_destroy`, sent between sessions (a live session is ended
+first). The engine reports undelivered work (section 7.7), releases every
+frame it still references, and then admits no further command.
+
 A host executes effects in order. For `timer.schedule`, an existing timer
 with the same id is replaced.
 
+`http.send` carries the exact wire bytes of a JSON body as the string
+`jsonBody` (byte-identical to Dart's `jsonEncode`), so hosts never re-encode
+it. Multipart fields are ordered pairs, because the field order is part of
+the request. All values are strings. Headers (API key, app identity,
+content type) are the host's.
+
 `transport.result` input:
 `{requestId, outcome: "http" | "error" | "timeout", status?, body?}`.
+`requestId` echoes the effect's string id. `status` comes with `http` only.
 `body` is the first 64 KiB of the response; the engine parses `sessionId` and
 `traitsId` from it.
 
@@ -116,7 +132,7 @@ with the same id is replaced.
 | Navigator / route-instance counters | `_surfaces` | `nav-N` / `route-N` are reset per session. Adapters send opaque ids; the engine maps them (section 8.1). |
 | Viewport, platform, app info, locale | `TugboatSession` | From `session.start` and `engine.configure`. |
 | User id, traits, traits id | sink plus static fields | Owned by the engine. The host persists them across sessions if needed. |
-| Exploration run id, action id | controller | `exploration.actionWindow` messages |
+| Exploration run id, action id | controller | Run id from `session.start`; the `exploration.actionWindow` action id is deferred (section 13) |
 | Events, frame metadata, scroll samples | `TugboatSession` | Same limits: maxEvents 5000, maxFrames 500, 200 scroll samples, sticky `truncated`. Frame bytes stay in the host; handles are released per section 7.6. |
 | Epochs and generations | controller | routeEpoch (never reset), capture generation, visual observation generation, frame completion sequence, boundary generation, pointer generation |
 
@@ -153,8 +169,9 @@ with the same id is replaced.
   and requests a forced `lifecycle` capture. `detached` ends the session.
 - `session.end {reason}`. Idempotent. Emits `session_end`, then drains
   delivery (section 7.7).
-- After `session_end`, the engine rejects every event-producing message with
-  `invalid_message` (change C9).
+- After `session_end`, the engine accepts event-producing facts and drops
+  them without a record, as it does before the first session (change C9). A
+  batch that carries a late fact next to `session.end` is not rejected.
 
 ### 4.3 Adapter-produced events
 
@@ -214,7 +231,8 @@ behaviour on device.
 Derived values:
 
 - Event and frame `atMs`: `floor((fact.monoUs - session.startMonoUs) / 1000)`,
-  matching Dart's `Stopwatch.elapsedMilliseconds`.
+  matching Dart's `Stopwatch.elapsedMilliseconds`. A fact stamped before
+  its session started records `0` (change C13).
 - Collector `triggeredAt`: `startedAt + atMs`. This is unchanged.
 - Lifecycle record `atMs`:
   - Today `session_end` uses wall-clock subtraction and can go negative
@@ -252,8 +270,8 @@ again between sessions.
 | `gesture` | touchSlop, panSlop, scaleSlop, trackpadScaleThreshold. These are toolkit values: Flutter uses 18 / 36 / 18 / 1.08, Android uses `ViewConfiguration`, iOS uses UIKit recognizer defaults. |
 | `interaction` | claimWindowMs 1250, settleDelayMs 1000, maxReleased 8, scrollEndCaptureDelayMs 0, captureScrollSamples false, scrollCaptureIntervalMs 2000, factGraceMs |
 | `navigation` | routeBarrierTimeoutMs 5000, routeStackLimit 16 |
-| `capture` | budgetMs 60, budgetWindowMs 5000, degradedScale |
-| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs (change C5), reportEventLaneGaps false (change C6) |
+| `capture` | budgetMs 60, budgetWindowMs 5000, degradedScale, answerTimeoutMs 5000 (change C18) |
+| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs 5000 (change C5), reportEventLaneGaps false (change C6), answerGraceMs 5000 (change C15) |
 | `capabilities` | the `TugboatReplayConfig` evidence switches (inventory, semantic map, focus, system input, …) |
 
 ## 7. Collector delivery (phase 3b)
@@ -337,9 +355,12 @@ Event-side drops are silent today. With `reportEventLaneGaps` (default off, chan
 
 ### 7.6 Frames
 
-`frame.add {handle, frame}` registers an accepted frame. `frame` is the
-`TugboatFrame.toJson()` shape. In phases 3a–3c frames come from the adapter;
-phase 3d replaces this with `capture.result`.
+Frames have one entry path: a `captured` `capture.result` (section 8.2)
+that the capture seam accepts as `frame-N`. Delivery observes every accepted
+frame through a frame acceptance hook in the module registry and queues it;
+`capture.result` rejects a frame whose `requestedBackend` or
+`resolvedBackend` is outside the collector's closed vocabulary
+(`flutterRepaintBoundary`, `nativeCpuExperimental`).
 
 The upload is one multipart `http.send` with:
 
@@ -362,7 +383,11 @@ Handle release (refcount):
 - The engine emits `frame.release` only when both references are gone: the
   frame was accepted, dropped, or evicted, and was also trimmed from the
   session or the session ended.
-- Hosts keep bytes only until then.
+- Hosts keep bytes only until then. A captured frame nothing accepts (an
+  unknown or invalidated request, or no live session) is released at once.
+- A handle in a message the engine rejects (for example a `capture.result`
+  with a backend outside the vocabulary) never reaches the engine: no
+  `frame.release` follows, and the host keeps owning it.
 
 ### 7.7 Delivery gaps and session end
 
@@ -372,13 +397,33 @@ Handle release (refcount):
     the cumulative count is 1 or a power of two).
 - They become ordinary engine records, so health, factory sinks, and the
   in-memory session also see them (change C6). Their `atMs` uses the
-  monotonic clock (change C1).
+  monotonic clock (change C1). After `session_end` they are still records
+  and still delivered, but the closed in-memory session takes no more
+  events.
+- Event-lane gaps (opt-in, `reportEventLaneGaps`): `capture_diagnostic`
+  with `component: collector_event_upload`, `result: dropped`, `reason`
+  (`evicted` from the pending or retry queue, or `rejected` by a permanent
+  drop status), `statusCode?`, `eventCount`, and the cumulative
+  `droppedEventCount`, reported each time the cumulative count crosses a
+  power of two. Evictions caused by queueing a gap event are counted, not
+  reported.
 - Session end (change C5):
   1. `session.end` queues `session_end` but first drains frames and events
      until the lanes are empty or `endDrainTimeoutMs` passes.
-  2. `session_end` keeps retrying on triggers after the periodic timer stops.
+  2. `session_end` keeps retrying on triggers after the drain; the periodic
+     timer keeps running until every lane is empty, then stops.
   3. Anything still undelivered when the host disposes the engine is
-     reported once as a gap record.
+     reported once as a gap record. The host sends `engine.dispose {}`
+     (section 3) before `tb_session_engine_destroy`; the engine reports and
+     becomes inert. A new `session.start` that resets delivery reports what
+     it discards the same way. The report is a `health` record
+     (`component: collector_delivery`) with counters `undelivered*` (queued:
+     never sent, or waiting for a retry) and `inFlight*` (the request whose
+     answer is still pending, such as a replaced session's `session_end`),
+     each for `Lifecycle`, `Events`, and `Frames`.
+
+  `session_end`'s `triggeredAt` and `atMs` are the `session.end` fact's
+  time, not the time the drain ended.
 
   Today `session_end` goes first in its pass, and a failed end is never
   retried.
@@ -405,13 +450,25 @@ transport, and moving its policy into the engine buys little (Q4).
 
 ### 8.1 Navigation facts
 
-The adapter maps toolkit objects to stable opaque ids and sends:
+The adapter maps toolkit objects to stable opaque ids and sends (anchors
+it attaches anywhere may name their `toolkit`, section 9.1):
 
 ```text
 navigation {kind: push|pop|replace|remove, navigatorId, parentNavigatorId?,
-            route: {instanceId, name?, type, overlayKind, transitionMs},
-            departing?: {instanceId, name?, type}}
+            route?: {instanceId, name?, type, overlayKind, transitionMs},
+            departing?: {instanceId, name?, type?}}
 ```
+
+`route` is the destination: the pushed route, the replacement, or the route
+a pop or removal reveals; it is absent when none is (Dart's `previousRoute`
+can be null). `departing` names the route leaving or covered; only its id is read (it
+finds the stack entry). `name` and `type` are validated but not read:
+`route_change`'s `from*` fields come from the visible route, as in Dart,
+which has none for a session's first navigation. Every adapter knows its
+navigator, so `navigatorId` is required and Dart's unbound-navigator path
+has no counterpart. A navigator first named as a parent is numbered right
+after its child, as Dart's `idForNavigator` does; its own parent is learned
+from its first fact that names one.
 
 Toolkit mappings:
 
@@ -442,7 +499,19 @@ The route-capture work state machine moves as it is:
 
 Today's `_skipCapture` is one global flag. It becomes per navigator, so
 overlapping navigators no longer clear each other's suppression early
-(change C11).
+(change C11). A capture is suppressed while the navigator its request
+context names (the visible navigator) is in a transition, from that
+navigator's navigation with `transitionMs > 0` until its route deadline.
+
+Asynchronous Dart work maps onto two engine mechanisms:
+
+- **Deferred work.** A capture answer or a done route barrier resumes its
+  waiter after the command that produced it (Dart: a microtask), so the
+  waiter sees the state that command leaves, such as the route that
+  superseded its capture.
+- **The publication queue** (Dart `_queue`). Route finalization, settled
+  taps with a frame, and completed gestures publish in order; a route
+  finalize holds the queue until its route is done (section 9.3 #3).
 
 ### 8.2 Capture protocol
 
@@ -452,12 +521,40 @@ The engine schedules captures. The host or adapter performs them.
 capture.request {requestId, trigger, force, requireFreshPaint, dropWhenBusy,
                  notBeforeMonoUs, context: {routeEpoch, navigatorId,
                  routeInstanceId, boundaryGeneration},
-                 dHashBaseline, scale}
+                 dHashBaseline?: {dHash, structureSignature}, scale}
 capture.result  {requestId, outcome: captured|paintUnchanged|failed|cancelled,
-                 frame?: {handle, width, height, contentHash, dHash,
-                          structureSignature, masked, backend…},
-                 boundaryRect?, timings}
+                 frame?: {handle, width, height, contentHash, dHash?,
+                          structureSignature?, masked, backend…},
+                 boundaryRect?, failure?, timings?}
 ```
+
+- `requestId` names one physical capture (`capture-N`, its own counter).
+  The logical requests it serves keep Dart's `capture_request-N` ids, and
+  each execution's `capture_execution-N` is minted when it resolves, so the
+  shared id counter advances exactly as Dart's does.
+- The engine waits out each request's not-before time itself (timer
+  `capture.due`), so a later compatible request can still join it, as in
+  Dart's pump. `notBeforeMonoUs` has passed when the host sees the request.
+- `force` is Dart's attempt-level force (`force || freshPaint || no
+  compatible frame`): a forced request never answers `paintUnchanged` and
+  gets no baseline. `dropWhenBusy` is informative; the engine already
+  applied it.
+- `failure` names why a `failed` capture produced no frame (Dart
+  `ScreenshotCaptureFailure`). `timings` (`frameWaitMicros`,
+  `readbackMicros`, `maskMicros`, `encodeMicros`) feed the budget.
+- The host answers every request exactly once, by id. It must not
+  assume one request at a time: teardown abandons the capture in flight
+  (change C16), so a new `capture.request` can arrive while the host still
+  performs an earlier one. A late answer to an abandoned id is ignored and
+  its frame released.
+- Change C18: a request unanswered `capture.answerTimeoutMs` (default
+  5000) after it was issued (timer `capture.answer.<requestId>`) resolves
+  as `paint_readiness_timeout`; its `capture_diagnostic` carries `failure:
+  answer_timeout` and is recorded even without the `captureDiagnostics`
+  capability. A late answer to that id is ignored and its frame released.
+  A `paintUnchanged` answer to a forced request breaks the contract too: it
+  resolves as `capture_processing_failed` with `failure:
+  contract_violation`, always recorded.
 
 What the engine owns:
 
@@ -478,18 +575,30 @@ What the engine owns:
 
 Two rules to note:
 
-- **dHash baseline.** The engine offers it only when the adapter's
-  `structureSignature` equals the last accepted structure, as today. The
-  pixel runtime compares Hamming distance ≤ 2 against the baseline it was
-  given and reports a match as `captured` with `dHash` equal to the
-  baseline. The engine then applies `perceptual_hash_coalesced`.
-- **Staleness.** The engine checks it when the result arrives. A result
-  whose context no longer matches is `superseded_route_epoch`.
+- **dHash baseline.** The engine cannot know the next capture's structure
+  before it is made, so it sends the last accepted dHash together with the
+  structure it was captured with. The adapter offers the baseline to its
+  pixel runtime only when its current `structureSignature` equals that one,
+  as today. The pixel runtime compares Hamming distance ≤ 2 against the
+  baseline and reports a match as `captured` with `dHash` equal to the
+  baseline. The engine applies `perceptual_hash_coalesced` only when both
+  the dHash and the structure equal the offered baseline.
+- **Staleness.** The engine checks it before it asks the host and when the
+  result arrives. A context whose route epoch, route, or boundary
+  generation changed, or a capture generation advanced by navigation or
+  teardown, is `superseded_route_epoch`.
+- **Paint-unchanged retry.** Dart retries a paint-unchanged attempt once,
+  forced, when no compatible frame is left to reuse. With one capture in
+  flight the latest frame cannot change before the answer, so the engine
+  has no retry.
 
 The adapter keeps paint-signature checks, structure signatures, masks, and
 readback.
 
-`surface {boundaryRect, generation}` reports boundary transform changes.
+`surface {boundaryRect, generation}` reports boundary transform changes:
+`generation` is the adapter's boundary transform generation (Dart
+`_boundaryTransformGeneration`). The engine's observed boundary is the
+latest `surface` rect, or the `boundaryRect` of the latest accepted frame.
 
 ## 9. Interactions (phase 3c)
 
@@ -498,13 +607,19 @@ readback.
 ```text
 input.pointer  {pointerId, phase: down|move|up|cancel, x, y,
                 device: touch|mouse|stylus|trackpad, tap?}
-input.panZoom  {pointerId, phase: start|update|end, panX, panY, scale}
-scroll         {scrollableId, phase: start|update|end|overscroll, offset,
-                axis, page?, anchor?}
+input.panZoom  {pointerId, phase: start|update|end, x, y,
+                panX?, panY?, scale?}          (update only)
+scroll         {scrollableId, phase: start|update|end|overscroll, offset?,
+                axis?, maxScrollExtent?, anchor?}   (overscroll: id only)
 focus          {kind: text_input|other|none}
 systemInput    {input: back|volume_up|volume_down|volume_mute|power|
                 media_play_pause}
 ```
+
+Phase 3c added `x, y` to `input.panZoom` (the contact position the end
+position builds on) and `maxScrollExtent` to `scroll` (sample
+`offsetNorm`), and dropped `page`, which only adapter-side semantic context
+reads. The [README](../README.md) is the field-level reference.
 
 Coordinates are logical pixels in the adapter's surface space. The engine
 normalises them against the provenance of the before-frame (section 8.2).
@@ -523,6 +638,13 @@ normalises them against the provenance of the before-frame (section 8.2).
 
 On `scroll` start the adapter attaches the scrollable's anchor. The
 `scrollableId` stays stable for the scrollable's lifetime.
+
+An anchor from a native adapter may carry `toolkit`: `view`, `compose`,
+`swiftui`, `uikit`, or `react-native` (a closed set; anything else is
+`invalid_message`). It is evidence, never a fingerprint input. The engine
+passes it through unchanged into event records and into every collector
+`targetAnchor`, the interaction's reduced anchor included, as the last key.
+Flutter anchors carry none, so Flutter output is unchanged.
 
 ### 9.2 What moves into the engine
 
@@ -548,20 +670,27 @@ On `scroll` start the adapter attaches the scrollable's anchor. The
 
 ### 9.3 Subtleties the implementation must keep
 
-Each one gets a scenario fixture:
+Each one gets a scenario fixture in the phase that can express it:
 
 1. The claim runs before the epoch bump. The tap is woken only after the
-   barrier is registered.
+   barrier is registered. *(Phase 3d: needs navigation. Phase 3c provides
+   the claim API and the wake hook.)*
 2. Pointer-cancel marks even a pending swipe `cancelled`, but abandonment
-   keeps swipe and scroll gestures.
+   keeps swipe and scroll gestures. *(Phase 3c.)*
 3. Degraded tap observations publish immediately; others wait behind the
-   serialized publish order.
+   serialized publish order. *(Phase 3d decided: the serialized order is
+   kept, as in Dart. A route finalize holds the publication queue until its
+   route is done; settled taps with a frame and completed gestures publish
+   through that queue; a degraded tap observation publishes at once.
+   Fixture `navigation-publication-order`.)*
 4. Replacing route work on one navigator cancels **all** waiting captures,
-   including tap and scroll captures.
+   including tap and scroll captures. *(Phase 3d.)*
 5. Teardown order on lifecycle and session events (section 4.2).
+   *(Phase 3c.)*
 6. Facts are applied in arrival order. Whether an `onTap` navigation arrives
    before or after its pointer-up fact decides `direct` versus
-   `delayedLikely`, so each adapter must document its order.
+   `delayedLikely`, so each adapter must document its order. *(Phase 3d:
+   needs navigation facts.)*
 
 A known Dart defect is fixed instead of preserved (change C12):
 
@@ -589,7 +718,19 @@ A new fixture kind, `engine.scenario`, under `conformance/engine/scenario/`:
 - A scenario that encodes a section 11 change carries
   `"engineOnly": ["C5"]`, listing the change ids. The Dart runner skips it;
   the C++ runner runs every scenario. `engineOnly` is valid only on
-  `engine.scenario`, and its ids must be section 11 ids.
+  `engine.scenario`, and its ids must be section 11 ids, listed once in
+  `conformance/change_ids.json` for both runners.
+- `"runners": ["cpp"]` (default both) limits a scenario to the C++ runner
+  without claiming a section 11 change. Phase 3c and 3d scenarios use it
+  where Dart cannot be driven (below). `engineOnly` implies it.
+- Both runners compare exact ids (since phase 3d). The engine mints
+  `capture_request-N` and `capture_execution-N` where Dart does: the
+  `initial` capture at session start, the `lifecycle` capture on resume,
+  and one execution id per request a teardown cancels. The Dart runner does
+  not compare `capture.request` effects: its capture scheduler is held
+  async work. Before the first session Dart mints an id for a dropped
+  `app.lifecycle` event and the engine does not, so
+  `app-lifecycle-before-first-session` runs on the C++ runner only.
 
 How Dart stays in step, by phase:
 
@@ -617,10 +758,16 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C6 | Delivery gaps become engine records; event-lane drops can also report gaps | Frame lane only; invisible to other sinks | new `component` values | Records: yes. Event-lane gaps: opt-in, default off |
 | C7 | Per-engine id counter and non-contiguous `frameNo` | as stated | no | Keep (no change) |
 | C8 | 202-only acceptance | 200/201/204 count as drops | no | Keep (Q3) |
-| C9 | Reject events after `session_end` | Events can follow `session_end` | yes, removes stray events | Yes |
+| C9 | Drop (no record) events after `session_end` | Events can follow `session_end` | yes, removes stray events | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C10 | `session.start` on an active session ends it first | `clear()` replacement emits no `session_end` (test-only path) | yes | Yes |
-| C11 | Per-navigator transition suppression | One global `_skipCapture` | fewer `route_transition` drops | Yes |
+| C11 | Per-navigator transition suppression: a capture is suppressed while the navigator of its request context is in its own transition, until that navigator's route deadline | One global `_skipCapture`, which another navigator's navigation or deadline clears early, so Dart can capture mid-transition | more `route_transition` drops than Dart for overlapping navigators; never a capture during the requesting navigator's own transition (a frame taken mid-transition is worse than a dropped one) | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C12 | Publish a linked scroll when a still-tap pointer goes up | Completion never published | yes, recovers lost scrolls | Yes |
+| C13 | Facts stamped before session start record `atMs` 0 (async-seam skew) | Cannot happen (Dart stamps on arrival) | small: no negative `atMs` | Yes (engine-only; approved by local orchestrator 2026-10-12) |
+| C14 | The pointer tracker forgets every contact on every teardown cause (session end and replacement too) | The widget resets `InputCapture` on `paused`/`hidden`/`detached` only, so a contact held across a session boundary can join the next session's gesture | small: a stale contact can no longer absorb a new pointer | Yes (engine-only; decided during the phase 3c review 2026-10-12) |
+| C15 | Engine-side answer deadline: an `http.send` without a `transport.result` by `timeoutMs + answerGraceMs` (default 5000) is a timeout; a late answer is ignored | A hung request is bounded by the `http` client only | no (timing only) | Yes (engine-only; decided during the phase 3b review 2026-10-12) |
+| C16 | Teardown abandons the capture in flight instead of awaiting it: the next `capture.request` may be issued while the host still performs the abandoned one, whose late answer is ignored (frame released) | The scheduler waits for the platform capture to finish before the next one | no (an id gap: no late `capture_execution-N` for the abandoned capture) | Yes (engine-only; approved by local orchestrator 2026-10-12) |
+| C17 | Navigator and route-instance ids are per session | A route object keeps its `route-N` across sessions (`Expando`) while the counter restarts, so ids can collide | yes: `routeInstanceId` of a route seen in an earlier session | Yes (engine-only; approved by local orchestrator 2026-10-12) |
+| C18 | Capture answer deadline: a `capture.request` unanswered `capture.answerTimeoutMs` (default 5000) after it was issued resolves as `paint_readiness_timeout` with `capture_diagnostic` `failure: answer_timeout` (always recorded); a late answer is ignored (frame released) | No deadline (the frame wait times out on the UI thread) | yes: a route or interaction whose capture the host dropped is recorded without a frame instead of never | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 
 ## 12. Open questions and decisions
 
@@ -652,6 +799,10 @@ fixtures:
 | 3c | Interactions (section 9) |
 | 3d | Navigation and capture coordination (section 8) |
 | 3e | Durable outbox (section 7.8). Out of the current milestone; waits for Q2 |
+
+Deferred beyond this milestone: the exploration action window
+(`exploration.actionWindow`, `action_window_set` / `action_window_cleared`,
+and `actionId` stamping). Native SDKs do not use exploration.
 
 After 3d:
 

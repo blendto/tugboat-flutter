@@ -27,6 +27,7 @@ dependencyResolutionManagement {
 rootProject.name = "tugboat-android"
 include(":capture-runtime")
 include(":capture-runtime-test")
+include(":tugboat-android")
 
 val runtimeVersion =
     java.util.Properties()
