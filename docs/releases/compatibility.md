@@ -29,6 +29,10 @@ Flutter `0.8.16` compiles on Flutter 3.35 and consumes Android
 `TugboatCaptureRuntime` `0.1.0` from CocoaPods. Native capture stays
 opt-in. The first native-default adapter is still planned as Flutter `0.9.0`.
 
+Android `capture-runtime` `0.2.0` is unpublished. It adds window capture
+(`windowComposite`) and `CaptureStatus.SecureWindow` for native Android
+hosts. No adapter consumes it yet; Flutter `tugboat` still pins `0.1.0`.
+
 CI requires this table to change whenever Flutter adapter source or the
 public Android/C ABI or Apple Swift surface changes
 (`tool/ci/check-version-policy.sh`).

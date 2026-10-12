@@ -8,7 +8,7 @@ if [[ ! -f "$android/local.properties" ]]; then
   printf 'sdk.dir=%s\n' "$ANDROID_HOME" >"$android/local.properties"
 fi
 cd "$android"
-./gradlew :capture-runtime:test :capture-runtime-test:test :capture-runtime:assembleRelease :capture-runtime:publishAllPublicationsToLocalCaptureRepository
+./gradlew :capture-runtime:test :capture-runtime-test:test :capture-runtime-test:assembleAndroidTest :capture-runtime:assembleRelease :capture-runtime:publishAllPublicationsToLocalCaptureRepository
 ./gradlew :sample:assembleDebug
 # Native host (unpublished): engine JNI build, unit tests, instrumented-test APK.
 ./gradlew :tugboat-android:test :tugboat-android:assembleRelease :tugboat-android:assembleAndroidTest

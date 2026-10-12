@@ -28,6 +28,20 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-12 | Fixtures gain `runners` (`cpp`, `dart`; default both). `engineOnly` stays strictly for section 11 change ids and implies `cpp` only. The Dart runner reports an unmodelled message as a failure, never a silent skip. | Phase 3c/3d scenarios cannot drive Dart without claiming a behaviour change |
 | 2026-10-12 | `legacy_projection` is rejected as an `event.record` stream; the engine accepts schema 10 streams (`semantic`, `evidence`, `diagnostic`) only. | Dart session schema 10 removed it; the collector's wider accepted set is not a reason to emit it |
 | 2026-10-12 | `exploration.actionWindow` (action window events and `actionId` stamping) is deferred beyond this milestone; no engine code. | Native SDKs do not use exploration |
+| 2026-10-12 | `capture-runtime` 0.2.0 (unpublished): additive window capture, `capture(window, …)` with `WindowComposite` coverage. `SecureWindow` and `WindowComposite` are appended enum values. The Flutter plugin stays pinned to 0.1.0. | Native SDKs need app-window pixels; the Flutter path is unchanged (PR #84) |
+
+## Gates before merging to main
+
+1. On merge to `main`, `publish-android.yml` (`tag_main`) auto-tags and
+   publishes `capture-runtime` 0.2.0, then opens an automatic Flutter pin PR.
+2. That pin PR will not compile until `TugboatPlugin.kt`
+   `CaptureStatus.toPigeon()` / `CaptureCoverage.toPigeon()` handle
+   `SecureWindow` and `WindowComposite`, and Pigeon/Dart decide what
+   `secureWindow` maps to. Someone must own that change, with a `tugboat`
+   version bump, before or together with the `main` merge.
+3. The instrumented window-capture tests
+   (`:capture-runtime-test:connectedAndroidTest`) must have run on an
+   emulator or device.
 
 ## Open cross-repo questions
 
