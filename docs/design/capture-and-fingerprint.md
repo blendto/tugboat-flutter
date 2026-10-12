@@ -172,7 +172,12 @@ waiting events without a frame. Frames keep the `manual` trigger.
 
 Installing `TugboatReplay.navigatorObserver` is intended to record the standard
 Navigator push, pop, replace, and remove callbacks automatically. No
-per-navigation SDK call is required. Dialogs and `showModalBottomSheet`
+per-navigation SDK call is required. When a session starts, the SDK also emits
+one synthetic `route_change` with `navigation: session_start` for the route
+already visible on the observed navigator (including nested observers), so
+evidence before the first post-start navigation carries the correct route.
+Navigator-driven `route_change` values remain `route_push`, `route_replace`,
+`route_pop`, and `route_remove`. Dialogs and `showModalBottomSheet`
 instances can participate when their routes use that observed Navigator. Nested
 navigators require their own observer integration; native/system overlays
 remain outside the Flutter Navigator and repaint-boundary surface.

@@ -408,13 +408,15 @@ void main() {
     await tester.pump();
 
     final session = TugboatReplay.controller!.session!;
-    final routeChanges = session.events
-        .where((event) => event.type == 'route_change')
-        .toList();
-    expect(routeChanges, isNotEmpty);
-    final routeChange = routeChanges.first;
+    final routeChange = session.events
+        .where(
+          (event) =>
+              event.type == 'route_change' &&
+              event.data['navigation'] == 'route_push',
+        )
+        .last;
     expect(routeChange.data['route'], isNotNull);
-    expect(routeChange.data['navigation'], 'route_push');
+    expect(routeChange.data['fromRoute'], isNotNull);
     final routeChangeJson = routeChange.toJson();
     expect(routeChangeJson.containsKey('route'), isFalse);
     expect(routeChangeJson.containsKey('toRoute'), isFalse);

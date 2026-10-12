@@ -5,6 +5,7 @@
 | Flutter `tugboat` | 0.10.11-dev.3 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease with a test-only collector sink wall clock; no behaviour change. |
 | Flutter `tugboat` | 0.10.11-dev.2 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease; the Android plugin also compiles against newer runtime enum values; no behaviour change. |
 | Flutter `tugboat` | 0.10.11-dev.1 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease with test-only controller seams; no behaviour change. |
+| Flutter `tugboat` | 0.10.10 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; seeds the visible navigator route at session start via one `route_change` with `navigation: session_start` before the initial capture. |
 | Flutter `tugboat` | 0.10.9 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; isolates rejected frame batches and reports bounded collector upload diagnostics. |
 | Flutter `tugboat` | 0.10.8 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; dHash coalescing respects visible-structure changes and keeps its baseline; opt-in `focus_changed` / `system_input` evidence. |
 | Flutter `tugboat` | 0.10.7 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; API error `network_call` events carry a bounded `errorResponseBody` (4 KiB cap). |

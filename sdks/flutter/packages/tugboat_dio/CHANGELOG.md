@@ -1,3 +1,20 @@
+## 0.10.11-dev.3
+
+### Changed
+
+- Lockstep prerelease with `tugboat` 0.10.11-dev.3 (test-only seams for the
+  shared session-engine conformance scenarios; the Android plugin compiles
+  against newer `capture-runtime` versions). The Dio adapter has no runtime
+  behavior change.
+
+## 0.10.10
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.10 (the visible navigator route is
+  seeded at session start with one `route_change`, `navigation: session_start`).
+  The Dio adapter has no runtime behavior change.
+
 ## 0.10.9
 
 ### Changed
