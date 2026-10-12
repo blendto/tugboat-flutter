@@ -123,7 +123,7 @@ class ToolkitRegionFactsTest {
     @Test
     fun regionFocusIsReadWhenTheHostHasViewFocusAndRecheckedAfterInput() {
         val recorded = RecordingFacts()
-        val focus = FocusFactProducer(factClock(), recorded::emit)
+        val focus = FocusFactProducer(factClock(), recorded::emit).apply { activate() }
         region.focus = RegionFocus.Other
         focus.onGlobalFocusChanged(null, host)
         assertTrue("the host has View focus, its region focus may still settle", focus.onFrame(host))
@@ -143,7 +143,7 @@ class ToolkitRegionFactsTest {
     @Test
     fun aRegionHostThatNeverReportsTextInputSettlesAsOther() {
         val recorded = RecordingFacts()
-        val focus = FocusFactProducer(factClock(), recorded::emit)
+        val focus = FocusFactProducer(factClock(), recorded::emit).apply { activate() }
         region.focus = RegionFocus.Other
         focus.onGlobalFocusChanged(null, host)
         while (focus.onFrame(host)) Unit

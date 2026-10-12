@@ -32,7 +32,7 @@ class ComposeFocusTest {
     val rules: RuleChain = RuleChain.outerRule(ComposeInstallRule()).around(compose)
 
     private val facts = RecordingFacts()
-    private val focus = FocusFactProducer(factClock(), facts::emit)
+    private val focus = FocusFactProducer(factClock(), facts::emit).apply { activate() }
 
     @Before
     fun setUp() {

@@ -19,7 +19,7 @@ class FocusAndSystemInputTest {
 
     @Test
     fun focusKindsFollowTheFocusedView() {
-        val focus = FocusFactProducer(FactClock(clock), recorded::emit)
+        val focus = FocusFactProducer(FactClock(clock), recorded::emit).apply { activate() }
         val field = EditText(context)
         val button = Button(context)
 
@@ -40,9 +40,10 @@ class FocusAndSystemInputTest {
     @Test
     fun severalChangesWithinOneFrameReportWhereFocusSettled() {
         var frames = 0
-        val focus = FocusFactProducer(FactClock(clock), recorded::emit) { frames++ }
+        val focus = FocusFactProducer(FactClock(clock), recorded::emit, requestFrame = { frames++ }).apply { activate() }
         val field = EditText(context)
         val button = Button(context)
+        frames = 0 // activate() asked for one
 
         focus.onGlobalFocusChanged(null, button)
         focus.onGlobalFocusChanged(button, field)

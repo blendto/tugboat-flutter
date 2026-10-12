@@ -13,7 +13,7 @@ cd "$android"
 # Native host (unpublished): engine JNI build, unit tests, instrumented-test APK.
 ./gradlew :tugboat-android:test :tugboat-android:assembleRelease :tugboat-android:assembleAndroidTest
 # Native SDK sample app (Views + Compose), for emulator device tests against a local collector.
-./gradlew :tugboat-sample:assembleDebug
+./gradlew :tugboat-sample:testDebugUnitTest :tugboat-sample:assembleDebug
 # Compose adapter (unpublished): Robolectric unit tests and the release AAR.
 # Its end-to-end tests run in :tugboat-android:test above, on Compose UI 1.8.3.
 ./gradlew :tugboat-compose:test :tugboat-compose:assembleRelease
