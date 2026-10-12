@@ -83,7 +83,49 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -129,7 +171,7 @@
             },
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-1",
+              "timerId": "interaction.settle.event-3",
               "atMonoUs": 6360000
             }
           ]
@@ -157,7 +199,7 @@
             "monoUs": 6360000
           },
           "input": {
-            "timerId": "interaction.settle.event-1"
+            "timerId": "interaction.settle.event-3"
           }
         },
         "expect": {
@@ -165,7 +207,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-2",
+              "requestId": "capture-1",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -176,6 +218,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 11360000
             }
           ]
         }
@@ -223,7 +270,7 @@
             },
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-3",
+              "timerId": "interaction.settle.event-5",
               "atMonoUs": 7660000
             }
           ]
@@ -283,22 +330,7 @@
         },
         "expect": {
           "records": [],
-          "effects": [
-            {
-              "type": "capture.request",
-              "requestId": "capture_request-5",
-              "trigger": "interaction",
-              "force": true,
-              "requireFreshPaint": true,
-              "dropWhenBusy": false,
-              "notBeforeMonoUs": 6520000,
-              "context": {
-                "routeEpoch": 0,
-                "boundaryGeneration": 0
-              },
-              "scale": 1.0
-            }
-          ]
+          "effects": []
         }
       },
       {
@@ -452,22 +484,7 @@
         },
         "expect": {
           "records": [],
-          "effects": [
-            {
-              "type": "capture.request",
-              "requestId": "capture_request-10",
-              "trigger": "manual",
-              "force": false,
-              "requireFreshPaint": false,
-              "dropWhenBusy": false,
-              "notBeforeMonoUs": 6730000,
-              "context": {
-                "routeEpoch": 0,
-                "boundaryGeneration": 0
-              },
-              "scale": 1.0
-            }
-          ]
+          "effects": []
         }
       },
       {
@@ -484,7 +501,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-10",
                 "atMs": 1700,
                 "type": "interaction",
                 "stream": "semantic",
@@ -499,7 +516,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-5",
                 "atMs": 1400,
                 "type": "interaction",
                 "stream": "semantic",
@@ -514,7 +531,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-6",
                 "atMs": 1500,
                 "type": "interaction",
                 "stream": "semantic",
@@ -529,7 +546,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-8",
                 "atMs": 1600,
                 "type": "interaction",
                 "stream": "semantic",
@@ -544,7 +561,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-9",
+                "id": "event-11",
                 "atMs": 1730,
                 "type": "system_input",
                 "stream": "evidence",
@@ -558,7 +575,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-11",
+                "id": "event-16",
                 "atMs": 1800,
                 "type": "session_end",
                 "stream": "semantic",
@@ -570,7 +587,11 @@
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-3"
+              "timerId": "interaction.settle.event-5"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
             },
             {
               "type": "timer.cancel",
@@ -687,7 +708,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-8",
+          "id": "event-10",
           "atMs": 1700,
           "type": "interaction",
           "stream": "semantic",
@@ -698,7 +719,7 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-5",
           "atMs": 1400,
           "type": "interaction",
           "stream": "semantic",
@@ -709,7 +730,7 @@
           }
         },
         {
-          "id": "event-4",
+          "id": "event-6",
           "atMs": 1500,
           "type": "interaction",
           "stream": "semantic",
@@ -720,7 +741,7 @@
           }
         },
         {
-          "id": "event-6",
+          "id": "event-8",
           "atMs": 1600,
           "type": "interaction",
           "stream": "semantic",
@@ -731,7 +752,7 @@
           }
         },
         {
-          "id": "event-9",
+          "id": "event-11",
           "atMs": 1730,
           "type": "system_input",
           "stream": "evidence",
@@ -741,7 +762,7 @@
           }
         },
         {
-          "id": "event-11",
+          "id": "event-16",
           "atMs": 1800,
           "type": "session_end",
           "stream": "semantic",

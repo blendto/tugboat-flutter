@@ -1,7 +1,7 @@
 // Unit tests for the interaction module's parts (docs/stateful-engine.md
 // section 9): the pure gesture classifier, the pointer tracker's signals,
-// the registry's claim and sweep rules, the payload rules, the capture
-// seam, and the claim API phase 3d calls. End-to-end
+// the registry's claim and sweep rules, the payload rules, and the claim
+// API navigation calls. End-to-end
 // behaviour is pinned by conformance/engine/scenario/ instead.
 #include <memory>
 #include <optional>
@@ -10,8 +10,8 @@
 #include <variant>
 #include <vector>
 
-#include "capture_seam.h"
 #include "engine.h"
+#include "frame_store.h"
 #include "gesture_classifier.h"
 #include "interaction_claims.h"
 #include "interaction_payload.h"
@@ -200,17 +200,28 @@ void test_coordinate_and_payload() {
   frame.frame_id = "frame-1";
   frame.pixel_width = 100;
   frame.pixel_height = 200;
-  frame.boundary = BoundaryRect{0, 100, 400, 800};
-  CHECK(!sample_coordinate({10, 10}, nullptr).available);
-  CHECK(!sample_coordinate({10, 50}, &frame).available);  // outside
-  CHECK(sample_coordinate({400, 900}, &frame).available);  // edge inside
+  frame.context.boundary = BoundaryRect{0, 100, 400, 800};
+  RequestContext context;
+  context.boundary = BoundaryRect{0, 0, 10, 10};
+  CHECK(!sample_coordinate({10, 10}, nullptr, context).available);
+  CHECK(!sample_coordinate({10, 50}, &frame, context).available);  // outside
+  // The frame's own boundary wins over the observed one.
+  CHECK(sample_coordinate({400, 900}, &frame, context).available);
   FrameProvenance no_pixels = frame;
   no_pixels.pixel_width = 0;
-  CHECK(!sample_coordinate({10, 150}, &no_pixels).available);
+  CHECK(!sample_coordinate({10, 150}, &no_pixels, context).available);
+  // No observed boundary, or another boundary generation: no position.
+  CHECK(!sample_coordinate({10, 150}, &frame, RequestContext{}).available);
+  RequestContext moved = context;
+  moved.boundary_generation = 1;
+  CHECK(!sample_coordinate({10, 150}, &frame, moved).available);
+  FrameProvenance unbounded = frame;
+  unbounded.context.boundary.reset();
+  CHECK(sample_coordinate({5, 5}, &unbounded, context).available);
 
   InteractionOrigin origin;
   origin.interaction_id = "event-4";
-  origin.coordinate = sample_coordinate({200, 500}, &frame);
+  origin.coordinate = sample_coordinate({200, 500}, &frame, context);
   Transaction zoom(origin, 1);
   zoom.mark_cluster(Gesture::kZoomIn, 1.5, 2);
   zoom.end_position = Point{200, 1000};
@@ -237,72 +248,6 @@ void test_coordinate_and_payload() {
            "\"xNorm\":0.5,\"yNorm\":0.5},"
            "\"startOffset\":0.0,\"endOffset\":120.0}}");
   CHECK(event.anchor.has_value());
-}
-
-// ------------------------------------------------------------ capture seam
-
-// Issues one request and answers it.
-std::optional<CaptureAnswer> answer(CaptureSeam* seam, CaptureResult result,
-                                    int64_t at_ms, IdCounter* ids,
-                                    Session* session, Output* out) {
-  result.request_id = seam->issue({CaptureOwner::Kind::kGesture, "event-1"},
-                                  interaction_capture(0, {}), ids, out);
-  tugboat::engine::FrameRetention retention;
-  return seam->on_result(result, at_ms, 1, ids, session, &retention, out);
-}
-
-void test_capture_seam() {
-  Session session(SessionHeader{});
-  IdCounter ids;
-  Output out;
-  tugboat::engine::FrameRetention retention;
-  CaptureSeam seam;
-  CapturedFrame captured;
-  captured.handle = "h";
-  const CaptureResult with_frame{"", CaptureResultOutcome::kCaptured, captured};
-  const std::optional<CaptureAnswer> first =
-      answer(&seam, with_frame, 100, &ids, &session, &out);
-  CHECK(first->owner.key == "event-1");
-  CHECK(first->resolution.outcome == CaptureOutcome::kFreshAccepted);
-  CHECK(first->accepted->handle == "h");
-  CHECK(first->accepted->frame.id == *first->resolution.frame_id);
-  CHECK(seam.sequence() == 1);
-  // Unknown and already-answered ids are ignored.
-  CHECK(!seam.on_result({"capture_request-0", CaptureResultOutcome::kFailed,
-                         std::nullopt},
-                        0, 1, &ids, &session, &retention, &out));
-  const OptString first_id = first->resolution.frame_id;
-  ObservationBoundary boundary{"", 100, std::nullopt};
-  CHECK(seam.observed_after(first_id, boundary) == first_id);
-  boundary.at_ms = 101;
-  CHECK(!seam.observed_after(first_id, boundary));
-  boundary.at_ms = 0;
-  boundary.after_sequence = 1;
-  CHECK(!seam.observed_after(first_id, boundary));
-  boundary.session_id = "other";
-  boundary.after_sequence.reset();
-  CHECK(!seam.observed_after(first_id, boundary));
-  // maxFrames 1: the next frame trims the first, which becomes a tombstone.
-  const std::optional<CaptureAnswer> second =
-      answer(&seam, with_frame, 200, &ids, &session, &out);
-  CHECK(!seam.find(*first_id)->available);
-  CHECK(!seam.observed_after(first_id, {"", 0, std::nullopt}));
-  CHECK(session.truncated());
-  const std::optional<CaptureAnswer> reused =
-      answer(&seam, {"", CaptureResultOutcome::kPaintUnchanged, std::nullopt},
-             300, &ids, &session, &out);
-  CHECK(reused->resolution.frame_id == second->resolution.frame_id);
-  CHECK(!reused->accepted);
-  CHECK(out.records.size() == 2);  // two frame records, no reuse record
-  // Teardown invalidates outstanding requests; a session start forgets all.
-  const std::string late = seam.issue({CaptureOwner::Kind::kGesture, "x"},
-                                      interaction_capture(0, {}), &ids, &out);
-  seam.cancel_requests();
-  CHECK(!seam.on_result({late, CaptureResultOutcome::kFailed, std::nullopt},
-                        0, 1, &ids, &session, &retention, &out));
-  seam.reset();
-  CHECK(seam.latest("") == nullptr);
-  CHECK(seam.sequence() == 0);
 }
 
 // --------------------------------------------------------------- claim API
@@ -355,7 +300,8 @@ void test_claim_api() {
   InteractionClaim claim = claim_interaction_cause(&state, at, OptString("n"));
   CHECK(claim.outcome == ClaimOutcome::kClaimed);
   CHECK(claim.attribution == ClaimAttribution::kDirect);
-  CHECK_EQ(claim.interaction_id, "event-1");
+  // event-0 is session_start, capture_request-1 the initial capture.
+  CHECK_EQ(claim.interaction_id, "event-2");
   // Single use.
   CHECK(claim_interaction_cause(&state, at, std::nullopt).outcome ==
         ClaimOutcome::kNone);
@@ -371,7 +317,7 @@ void test_claim_api() {
   claim = claim_interaction_cause(&state, at, std::nullopt);
   CHECK(claim.outcome == ClaimOutcome::kClaimed);
   CHECK(claim.attribution == ClaimAttribution::kDelayedLikely);
-  CHECK_EQ(claim.interaction_id, "event-3");
+  CHECK_EQ(claim.interaction_id, "event-4");
   // Past the window (fact time) nothing is eligible.
   CHECK(send(&engine, pointer("down", 4, 50000)));
   CHECK(send(&engine, pointer("up", 4, 51000)));
@@ -399,12 +345,17 @@ void test_wake_claimed_tap() {
              "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
              "\"input\":{\"viewport\":{\"width\":1,\"height\":1},\"platform\":"
              "\"android\",\"sessionEpoch\":0}}"));
+  // The initial capture resolves, so the tap's capture is not queued.
+  CHECK(send(&engine,
+             "{\"type\":\"capture.result\",\"at\":{\"monoUs\":5000},"
+             "\"input\":{\"requestId\":\"capture-0\","
+             "\"outcome\":\"failed\"}}"));
   CHECK(send(&engine, pointer("down", 1, 10000)));
   CHECK(send(&engine, pointer("up", 1, 20000)));
   std::string json;
   CHECK(send(&engine,
              "{\"type\":\"timer.fired\",\"at\":{\"monoUs\":1020000},\"input\":"
-             "{\"timerId\":\"interaction.settle.event-1\"}}",
+             "{\"timerId\":\"interaction.settle.event-3\"}}",
              &json));
   CHECK(unit::contains(json, "\"atMonoUs\":1270000"));  // claim-window wait
   EngineState& state = engine.state();
@@ -412,12 +363,12 @@ void test_wake_claimed_tap() {
   CHECK(claim_interaction_cause(&state, at, std::nullopt).outcome ==
         ClaimOutcome::kClaimed);
   Output out;
-  wake_claimed_tap(&state, "event-1", at, &out);
+  wake_claimed_tap(&state, "event-3", at, &out);
   const std::string effects = to_json(effects_json(out.effects));
   CHECK(unit::contains(effects, "\"timer.cancel\""));
   CHECK(unit::contains(effects, "\"capture.request\""));
   Output again;
-  wake_claimed_tap(&state, "event-1", at, &again);  // already capturing
+  wake_claimed_tap(&state, "event-3", at, &again);  // already capturing
   CHECK(again.effects.empty());
 }
 
@@ -431,7 +382,6 @@ int main() {
   test_tracker_cancel_and_pan_zoom();
   test_registry_claimable_and_sweep();
   test_coordinate_and_payload();
-  test_capture_seam();
   test_claim_api();
   test_wake_claimed_tap();
   return unit::finish("interaction");

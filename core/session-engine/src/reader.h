@@ -77,6 +77,15 @@ class ObjectReader {
   Error* error_;
 };
 
+// Field rules shared by the fact decoders.
+// A required string that must not be empty.
+bool read_non_empty(const ObjectReader& r, const char* key, std::string* out);
+// A required integer that must not be negative.
+bool read_non_negative(const ObjectReader& r, const char* key, int64_t* out);
+// Fails when any of `keys` is present; `why` says when they are allowed.
+bool reject_present(const ObjectReader& r,
+                    std::initializer_list<const char*> keys, const char* why);
+
 }  // namespace engine
 }  // namespace tugboat
 

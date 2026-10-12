@@ -21,7 +21,7 @@ namespace {
 // then record `session_end`.
 void end_session(const ModuleRegistry& modules, Session& session, const At& at,
                  TeardownCause cause, EngineState* state, Output* out) {
-  modules.run_teardown(cause, state, out);
+  modules.run_teardown(cause, at, state, out);
   modules.run_hooks(LifecycleHookPoint::kSessionEnding, at, state, out);
   record_event(state, session,
                make_event(state, session, "session_end", at.mono_us), true,
@@ -65,7 +65,8 @@ class SessionStart final : public Command {
       end_session(modules, *live, at_, TeardownCause::kSessionEnd, state,
                   out);
     }
-    modules.run_teardown(TeardownCause::kSessionReplacement, state, out);
+    modules.run_teardown(TeardownCause::kSessionReplacement, at_, state,
+                         out);
     state->app_lifecycle.reset();
     if (input_.locale) {
       state->locale = input_.locale;
@@ -195,7 +196,12 @@ class AppLifecycle final : public Command {
              Output* out) override {
     Session& session = *state->live_session();
     if (info_.deactivates) {
-      modules.run_teardown(TeardownCause::kLifecycle, state, out);
+      modules.run_teardown(TeardownCause::kLifecycle, at_, state, out);
+    }
+    // Dart requests the `lifecycle` capture before it records the event.
+    if (info_.signal == LifecycleSignal::kForegrounded) {
+      modules.run_hooks(LifecycleHookPoint::kForegroundedBeforeRecord, at_,
+                        state, out);
     }
     if (state->app_lifecycle.observe(info_.state)) {
       Event event = make_event(state, session, info_.event_type, at_.mono_us);

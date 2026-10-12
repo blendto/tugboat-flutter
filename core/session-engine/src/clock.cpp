@@ -94,5 +94,13 @@ bool Timers::armed(const std::string& timer_id) const {
   return deadlines_.count(timer_id) != 0;
 }
 
+bool timer_key(const std::string& timer_id, const char* prefix,
+               std::string* key) {
+  const std::string head(prefix);
+  if (timer_id.compare(0, head.size(), head) != 0) return false;
+  *key = timer_id.substr(head.size());
+  return true;
+}
+
 }  // namespace engine
 }  // namespace tugboat
