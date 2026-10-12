@@ -1,4 +1,4 @@
-package com.tugboat.android.compose
+package com.tugboat.android.views.compose
 
 import android.graphics.RectF
 import android.view.View
@@ -10,7 +10,10 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import com.tugboat.android.compose.ComposeMasking
+import com.tugboat.android.compose.TugboatCompose
 import com.tugboat.android.toolkit.ToolkitRegions
+import com.tugboat.android.views.mask.MaskMode
 import com.tugboat.android.views.mask.MaskRect
 import com.tugboat.android.views.mask.WindowMasks
 import org.junit.Assert.assertEquals
@@ -25,14 +28,15 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * A `ComposeView` inside a Views screen routes through the Compose region:
- * Compose taps get Compose anchors below the host's Views path, and masks
- * come from its semantics instead of the Views fail-closed host rule.
+ * Compose taps get Compose anchors below the host's Views path, and, opted
+ * in, masks come from its semantics instead of the Views fail-closed host
+ * rule.
  */
 @RunWith(RobolectricTestRunner::class)
 class ComposeInViewsTest {
     private val compose = createAndroidComposeRule<ComponentActivity>()
 
-    private val regionRule = RegionRule()
+    private val regionRule = ComposeInstallRule(ComposeMasking.SemanticsBestEffort)
 
     @get:Rule
     val rules: RuleChain = RuleChain.outerRule(regionRule).around(compose)
@@ -77,11 +81,22 @@ class ComposeInViewsTest {
         assertFalse("the ComposeView is masked whole", result.rects.any { it.covers(normalized(boundsInDecor(composeView))) })
         assertTrue("the Views TextView is not masked", result.rects.any { it.covers(normalized(boundsInDecor(label))) })
         assertTrue("the Compose button text is not masked", result.rects.size >= 2)
+        assertEquals(MaskMode.Precise, result.coverage.mode)
+    }
+
+    @Test
+    fun theDefaultMasksTheComposeHostWholeAndTheViewsAsViews() {
+        TugboatCompose.install()
+        val result = WindowMasks.compute(compose.activity.window)
+        assertFalse(result.failClosed)
+        assertTrue("the ComposeView is not masked whole", result.rects.any { it.covers(normalized(boundsInDecor(composeView))) })
+        assertTrue("the Views TextView is not masked", result.rects.any { it.covers(normalized(boundsInDecor(label))) })
+        assertEquals(MaskMode.WholeHost, result.coverage.mode)
     }
 
     @Test
     fun withoutTheRegionTheComposeHostStaysFailClosed() {
-        ToolkitRegions.unregister(regionRule.region)
+        ToolkitRegions.all.toList().forEach(ToolkitRegions::unregister)
         val result = WindowMasks.compute(compose.activity.window)
         assertTrue("the ComposeView is not fail-closed", result.rects.any { it.covers(normalized(boundsInDecor(composeView))) })
     }

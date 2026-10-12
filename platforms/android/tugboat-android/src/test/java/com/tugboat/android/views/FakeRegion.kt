@@ -1,6 +1,5 @@
 package com.tugboat.android.views
 
-import android.app.Activity
 import android.content.Context
 import android.graphics.RectF
 import android.view.View
@@ -19,12 +18,10 @@ class FakeHostView(context: Context) : FrameLayout(context)
 /** A scriptable toolkit region hosting [FakeHostView]s; every answer can be replaced, or made to throw. */
 class FakeRegion : ToolkitRegion {
     var hit: RegionHit = RegionHit.Miss
-    var masks = RegionMasks(emptyList(), wholeFrame = false)
+    var masks: RegionMasks = RegionMasks.Rects(emptyList())
     var scrollables: List<RegionScrollable> = emptyList()
     var focus: RegionFocus? = null
-    var route: String? = null
     var throwing = false
-    val destinations = ArrayList<Pair<Activity, String?>>()
 
     override val toolkit = "compose"
     override val hostToken = "Fake"
@@ -33,17 +30,11 @@ class FakeRegion : ToolkitRegion {
 
     override fun targetAt(host: View, x: Float, y: Float): RegionHit = answer { hit }
 
-    override fun scrollables(host: View): List<RegionScrollable> = answer { scrollables }
+    override fun scrollablesAt(host: View, x: Float, y: Float): List<RegionScrollable> = answer { scrollables }
 
     override fun masks(host: View): RegionMasks = answer { masks }
 
     override fun focus(host: View): RegionFocus? = answer { focus }
-
-    override fun routeKey(host: View): String? = answer { route }
-
-    override fun onDestinationChanged(activity: Activity, route: String?) {
-        destinations += activity to route
-    }
 
     private fun <T> answer(value: () -> T): T = if (throwing) error("region failure") else value()
 

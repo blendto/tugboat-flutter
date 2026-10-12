@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -11,10 +9,12 @@ plugins {
 // below is the untracked `.local-maven`.
 val tugboatComposeVersion = "0.1.0"
 
-// Compose UI support (README "Compose versions"): the module compiles
-// against the floor of the tested range, so it never calls newer API, and
-// the unit tests run against the BOM below. `-Ptugboat.composeBom=...`
-// re-runs them against another tested release.
+// Compose UI support (README "Compose versions"). Compose UI is
+// `compileOnly`: a Compose app already ships it, and an app below the
+// tested floor is not force-upgraded; it fails the runtime version gate
+// (`ComposeUiVersion`) and its hosts are masked whole. The module compiles
+// against the floor, so it calls no newer API. The unit tests run against
+// the BOM below; `-Ptugboat.composeBom=2024.09.00` runs them on the floor.
 val composeUiFloor = "1.7.0"
 val composeTestBom = providers.gradleProperty("tugboat.composeBom").getOrElse("2025.06.01") // Compose UI 1.8.3
 
@@ -44,20 +44,17 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
-        val identityFixtures = rootProject.projectDir.resolve("../../conformance/fingerprint/identity_parts").canonicalFile
-        unitTests.all { test ->
-            test.systemProperty("tugboat.identityFixtures", identityFixtures.path)
-            test.inputs.dir(identityFixtures)
-        }
     }
 }
 
 dependencies {
     implementation(project(":tugboat-android"))
-    implementation("androidx.compose.ui:ui") {
+    compileOnly("androidx.compose.ui:ui") {
         version { require(composeUiFloor) }
     }
 
+    // Region-level tests only; the end-to-end tests through the Views
+    // adapter live in tugboat-android (`src/test/.../compose`).
     testImplementation(platform("androidx.compose:compose-bom:$composeTestBom"))
     testImplementation("androidx.compose.ui:ui")
     testImplementation("androidx.compose.foundation:foundation")
@@ -67,19 +64,6 @@ dependencies {
     testImplementation("androidx.activity:activity-compose:1.9.3")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
-}
-
-// The unit tests drive tugboat-android's internal Views adapter (anchors,
-// masks, facts) end to end, so they are compiled as a friend of its debug
-// classes of the same variant. Test-only: the module's own code uses the
-// public seam alone.
-tasks.withType<KotlinCompile>().configureEach {
-    val variant = Regex("compile(\\w+)UnitTestKotlin").matchEntire(name)?.groupValues?.get(1) ?: return@configureEach
-    friendPaths.from(
-        project(":tugboat-android").layout.buildDirectory.file(
-            "intermediates/compile_library_classes_jar/${variant.lowercase()}/bundleLibCompileToJar$variant/classes.jar",
-        ),
-    )
 }
 
 mavenPublishing {

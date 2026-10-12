@@ -1,4 +1,4 @@
-package com.tugboat.android.compose
+package com.tugboat.android.views.compose
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
@@ -11,7 +11,9 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performSemanticsAction
+import com.tugboat.android.views.RecordingFacts
 import com.tugboat.android.views.facts.FactTypes
+import com.tugboat.android.views.factClock
 import com.tugboat.android.views.input.FocusFactProducer
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -27,10 +29,10 @@ class ComposeFocusTest {
     private val compose = createAndroidComposeRule<ComponentActivity>()
 
     @get:Rule
-    val rules: RuleChain = RuleChain.outerRule(RegionRule()).around(compose)
+    val rules: RuleChain = RuleChain.outerRule(ComposeInstallRule()).around(compose)
 
     private val facts = RecordingFacts()
-    private val focus = FocusFactProducer(factClock(ManualClock()), facts::emit)
+    private val focus = FocusFactProducer(factClock(), facts::emit)
 
     @Before
     fun setUp() {

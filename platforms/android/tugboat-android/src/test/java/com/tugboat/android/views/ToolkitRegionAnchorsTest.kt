@@ -73,17 +73,6 @@ class ToolkitRegionAnchorsTest {
     }
 
     @Test
-    fun theRegionRouteKeyOverridesTheViewsRoute() {
-        region.hit = FakeRegion.target(listOf("Button#0"))
-        region.route = "checkout"
-        val anchor = tap(50f, 300f).getJSONObject("anchor")
-        assertEquals("checkout", anchor.getJSONObject("fingerprintParts").getString("routeKey"))
-        // Views targets keep the Views route.
-        val views = tap(10f, 10f).getJSONObject("anchor")
-        assertEquals("/home", views.getJSONObject("fingerprintParts").getString("routeKey"))
-    }
-
-    @Test
     fun theHostIsAKeptViewSoSiblingHostsGetOrdinals() {
         val second = FakeHostView(context)
         root.addView(second, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 100))

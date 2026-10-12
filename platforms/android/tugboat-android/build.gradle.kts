@@ -1,6 +1,9 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
+    // Only the unit tests have Composables (the Compose adapter's end-to-end
+    // tests); main code has none and no Compose dependency.
+    id("org.jetbrains.kotlin.plugin.compose")
     id("com.vanniktech.maven.publish")
 }
 
@@ -86,9 +89,27 @@ val optionalAndroidx = listOf(
     "androidx.recyclerview:recyclerview:1.3.2",
 )
 
+// The Compose adapter's end-to-end tests run here, against this module's
+// internals: `tugboat-compose` (which depends on this module) and Compose UI
+// test are test-only. `-Ptugboat.composeBom=2024.09.00` runs them on the
+// floor of the tested Compose range (README of tugboat-compose).
+val composeTestBom = providers.gradleProperty("tugboat.composeBom").getOrElse("2025.06.01")
+
 dependencies {
     optionalAndroidx.forEach { compileOnly(it) }
     optionalAndroidx.forEach { testImplementation(it) }
+    // The Compose compiler plugin (applied for the tests) refuses a
+    // compilation without the Compose runtime on its classpath. Main code
+    // uses no Compose; compileOnly keeps it out of the AAR and the POM.
+    compileOnly("androidx.compose.runtime:runtime:1.7.0")
+    testImplementation(project(":tugboat-compose"))
+    testImplementation(platform("androidx.compose:compose-bom:$composeTestBom"))
+    testImplementation("androidx.compose.ui:ui")
+    testImplementation("androidx.compose.foundation:foundation")
+    testImplementation("androidx.compose.material3:material3")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("androidx.compose.ui:ui-test-manifest")
+    testImplementation("androidx.activity:activity-compose:1.9.3")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

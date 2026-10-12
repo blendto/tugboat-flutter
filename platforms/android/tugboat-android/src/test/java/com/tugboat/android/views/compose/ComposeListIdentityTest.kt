@@ -1,7 +1,8 @@
-package com.tugboat.android.compose
+package com.tugboat.android.views.compose
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,13 +25,16 @@ import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** Lazy list items: `CollectionItemInfo` index, else traversal order (native SDK note 6.2). */
+/**
+ * Lazy list items (native SDK note 6.2): `[item:n]` from `CollectionItemInfo`;
+ * without it the on-screen order is not identity, so the item has no index.
+ */
 @RunWith(RobolectricTestRunner::class)
 class ComposeListIdentityTest {
     private val compose = createAndroidComposeRule<ComponentActivity>()
 
     @get:Rule
-    val rules: RuleChain = RuleChain.outerRule(RegionRule()).around(compose)
+    val rules: RuleChain = RuleChain.outerRule(ComposeInstallRule()).around(compose)
 
     private val list = LazyListState()
 
@@ -45,8 +49,9 @@ class ComposeListIdentityTest {
         }
     }
 
-    private fun scrollTo(index: Int) {
-        compose.runOnIdle { runBlocking { list.scrollToItem(index) } }
+    /** Scrolls by [px] pixels: rows move on screen, their on-screen order changes. */
+    private fun scrollBy(px: Float) {
+        compose.runOnIdle { runBlocking { list.scrollBy(px) } }
         compose.waitForIdle()
     }
 
@@ -54,27 +59,23 @@ class ComposeListIdentityTest {
         anchorResolver(compose.activity).tapAt(compose.activity, compose.onNodeWithText(text)).anchor()
 
     @Test
-    fun itemsUseCollectionItemInfoAcrossScrolls() {
+    fun collectionItemInfoGivesAStableMediumConfidenceIndex() {
         showList(withItemInfo = true)
-        assertEquals("Compose#0/Scrollable#0/[item:2]/Node#0", anchorOf("Row 2").getString("canonicalPath"))
-        scrollTo(20)
-        assertEquals("Compose#0/Scrollable#0/[item:21]/Node#0", anchorOf("Row 21").getString("canonicalPath"))
+        val before = anchorOf("Row 3")
+        assertEquals("Compose#0/Scrollable#0/[item:3]/Node#0", before.getString("canonicalPath"))
+        assertEquals("medium", before.getString("fingerprintConfidence"))
+        scrollBy(80f)
+        assertEquals(before.getString("fingerprint"), anchorOf("Row 3").getString("fingerprint"))
+        assertNoText(before, "Row 3")
     }
 
     @Test
-    fun withoutItemInfoTheIndexIsTraversalOrderOnScreen() {
+    fun withoutItemInfoTheRowHasNoIndexAndKeepsItsFingerprintWhileScrolling() {
         showList(withItemInfo = false)
-        assertEquals("Compose#0/Scrollable#0/[item:2]/Node#0", anchorOf("Row 2").getString("canonicalPath"))
-        scrollTo(20)
-        // Known gap: counted from the first item on screen.
-        assertEquals("Compose#0/Scrollable#0/[item:1]/Node#0", anchorOf("Row 21").getString("canonicalPath"))
-    }
-
-    @Test
-    fun listItemsAreMediumConfidenceAndTextFree() {
-        showList(withItemInfo = true)
-        val anchor = anchorOf("Row 3")
-        assertEquals("medium", anchor.getString("fingerprintConfidence"))
-        assertNoText(anchor, "Row 3")
+        val before = anchorOf("Row 3")
+        assertEquals("Compose#0/Scrollable#0/[item]/Node#0", before.getString("canonicalPath"))
+        assertEquals("low", before.getString("fingerprintConfidence"))
+        scrollBy(80f)
+        assertEquals(before.getString("fingerprint"), anchorOf("Row 3").getString("fingerprint"))
     }
 }

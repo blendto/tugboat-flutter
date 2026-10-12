@@ -1,9 +1,8 @@
 package com.tugboat.android.compose.semantics
 
 import android.graphics.RectF
+import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.semantics.SemanticsNode
-import kotlin.math.max
-import kotlin.math.min
 
 /** Semantics node geometry in host (`AndroidComposeView`) pixels, which is Compose's root space. */
 internal object NodeBounds {
@@ -17,20 +16,19 @@ internal object NodeBounds {
     }
 
     /**
-     * Mask bounds: the union of the clipped bounds and the unclipped layout
-     * box, because Compose does not clip children to their parents by
-     * default. Over-masks rather than under-masks.
+     * Mask bounds: the union of the semantics bounds (clipped) and the
+     * unclipped root bounding box of the node's layout coordinates, which
+     * maps through every `graphicsLayer` transform of the node and its
+     * ancestors. Compose does not clip children to their parents by default,
+     * so this over-masks rather than under-masks.
      */
     fun maskBounds(node: SemanticsNode): RectF {
-        val clipped = node.boundsInRoot
-        val origin = node.positionInRoot
-        val right = origin.x + node.size.width
-        val bottom = origin.y + node.size.height
-        return RectF(
-            min(clipped.left, origin.x),
-            min(clipped.top, origin.y),
-            max(clipped.right, right),
-            max(clipped.bottom, bottom),
-        )
+        val bounds = bounds(node)
+        val coordinates = node.layoutInfo.coordinates
+        if (coordinates.isAttached) {
+            val box = coordinates.findRootCoordinates().localBoundingBoxOf(coordinates, clipBounds = false)
+            bounds.union(box.left, box.top, box.right, box.bottom)
+        }
+        return bounds
     }
 }

@@ -4,7 +4,7 @@ import androidx.compose.ui.semantics.SemanticsNode
 import com.tugboat.android.compose.semantics.NodeRoles
 import com.tugboat.android.compose.semantics.NodeRules
 
-/** A node's canonical path segments below the Compose root. */
+/** A node's canonical path segments below the Compose root; [inListItem] only for a stably indexed item. */
 internal class NodePath(val segments: List<String>, val inListItem: Boolean)
 
 /**
@@ -15,8 +15,8 @@ internal class NodePath(val segments: List<String>, val inListItem: Boolean)
  * - Only kept nodes ([NodeRules.isKept]) get segments; the rest collapse.
  * - Ordinals count same-token siblings after filtering: the kept nodes (and
  *   list items) whose nearest kept ancestor is the same, in paint order.
- * - A list item adds `[item:<index>]` ([ListItems]) and scopes the ordinals
- *   of everything inside it.
+ * - A list item adds `[item:<index>]`, or `[item]` without a stable index
+ *   ([ListItems]), and scopes the ordinals of everything inside it.
  *
  * The Compose root is not part of the path; the Views adapter prefixes the
  * host's own path. Aliases and text never enter it.
@@ -30,11 +30,11 @@ internal object NodePaths {
         var parent = root
         var inListItem = false
         for (node in chain) {
-            val item = ListItems.index(parent, node)
+            val item = ListItems.of(parent, node)
             parent = node
             if (item != null) {
-                segments += "[item:$item]"
-                inListItem = true
+                segments += item.segment
+                inListItem = inListItem || item.indexed
                 scope = node
                 if (NodeRules.isKept(node)) segments += "${NodeRoles.token(node)}#0"
                 continue
@@ -60,7 +60,7 @@ internal object NodePaths {
         var ordinal = 0
         for ((parent, sibling) in filteredChildren(scope)) {
             if (sibling.id == node.id) return ordinal
-            if (ListItems.index(parent, sibling) == null && NodeRoles.token(sibling) == token) ordinal++
+            if (ListItems.of(parent, sibling) == null && NodeRoles.token(sibling) == token) ordinal++
         }
         return ordinal
     }
@@ -76,7 +76,7 @@ internal object NodePaths {
         for (child in parent.children) {
             when {
                 NodeRules.isExcluded(child) -> Unit
-                ListItems.index(parent, child) != null || NodeRules.isKept(child) -> out += parent to child
+                ListItems.of(parent, child) != null || NodeRules.isKept(child) -> out += parent to child
                 else -> collect(child, out)
             }
         }

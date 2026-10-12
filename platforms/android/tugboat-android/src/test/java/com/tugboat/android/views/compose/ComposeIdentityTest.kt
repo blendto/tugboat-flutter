@@ -1,4 +1,4 @@
-package com.tugboat.android.compose
+package com.tugboat.android.views.compose
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.clickable
@@ -16,6 +16,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
+import com.tugboat.android.compose.tugboatTag
 import com.tugboat.android.views.identity.IdentityHash
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -33,7 +34,7 @@ class ComposeIdentityTest {
     private val compose = createAndroidComposeRule<ComponentActivity>()
 
     @get:Rule
-    val rules: RuleChain = RuleChain.outerRule(RegionRule()).around(compose)
+    val rules: RuleChain = RuleChain.outerRule(ComposeInstallRule()).around(compose)
 
     @Before
     fun setUp() {

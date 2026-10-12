@@ -1,4 +1,4 @@
-package com.tugboat.android.compose
+package com.tugboat.android.views.compose
 
 import android.os.SystemClock
 import android.view.MotionEvent
@@ -7,6 +7,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import com.tugboat.android.compose.TugboatCompose
 import com.tugboat.android.host.EngineMessage
 import com.tugboat.android.toolkit.ToolkitRegions
 import com.tugboat.android.views.ViewsAdapter
@@ -51,7 +52,7 @@ class ComposeAdapterEndToEndTest {
 
     @After
     fun tearDown() {
-        ToolkitRegions.unregister(ComposeRegion.Default)
+        ToolkitRegions.all.toList().forEach(ToolkitRegions::unregister)
     }
 
     private fun tapContinue() {
@@ -80,8 +81,8 @@ class ComposeAdapterEndToEndTest {
         batches.flatten().filter { it.type == FactTypes.POINTER }.map { JSONObject(it.inputJson) }
 
     @Test
-    fun installIsIdempotent() {
-        assertEquals(1, ToolkitRegions.all.count { it === ComposeRegion.Default })
+    fun installingAgainReplacesTheRegion() {
+        assertEquals(1, ToolkitRegions.all.size)
     }
 
     @Test
