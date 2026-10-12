@@ -81,8 +81,13 @@ class WindowCaptureTest {
         }
     }
 
+    /**
+     * Drives the real committed-frame wait (two animation frames on API 26-28,
+     * the frame-commit callback on 29+) end to end. Emulators rarely hit the
+     * stale-buffer race itself; `WindowTargetTest` covers that ordering.
+     */
     @Test
-    fun captureRightAfterClearingSecureNeverCopiesTheSecureFrame() {
+    fun captureRightAfterClearingSecureCopiesTheNewFrame() {
         assumeTrue(Build.VERSION.SDK_INT >= CaptureRuntime.MIN_WINDOW_API)
         ActivityScenario.launch(WindowCaptureActivity::class.java).use { scenario ->
             val (window, width, height) = presentedWindow(scenario)
