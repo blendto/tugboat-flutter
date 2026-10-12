@@ -46,6 +46,19 @@ struct MaskAccumulator {
     add(view.convert(view.bounds, to: window))
   }
 
+  /// Adds a fail-closed box and records how much of the window it covers.
+  mutating func addBox(view: UIView) {
+    let frame = view.convert(view.bounds, to: window)
+    add(frame)
+    let bounds = window.bounds
+    let visible = frame.intersection(bounds)
+    guard !visible.isNull, bounds.width > 0, bounds.height > 0 else { return }
+    let fraction = Double((visible.width * visible.height) / (bounds.width * bounds.height))
+    if fraction.isFinite, fraction > stats.largestBoxFraction {
+      stats.largestBoxFraction = fraction
+    }
+  }
+
   mutating func add(layer: CALayer, padding: CGFloat = 0) {
     let frame = layer.convert(layer.bounds, to: window.layer)
     add(padding > 0 ? frame.insetBy(dx: -padding, dy: -padding) : frame)

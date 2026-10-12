@@ -16,8 +16,10 @@ import UIKit
 ///   under the point. A tag adds `tagFingerprint` (`routeKey` + `tag`) and
 ///   leaves the structural fingerprint unchanged.
 /// - **Confidence.** The floor of the route's and the path's. The path is
-///   `high` with a tag, `medium` inside a list cell (index path), `low`
-///   otherwise.
+///   `high` with a tag; `low` when it passes through a fail-closed box (a
+///   `Representable` segment: the SDK cannot see inside, so every target
+///   there shares the box's path); `medium` inside a list cell (index
+///   path); `low` otherwise.
 ///
 /// Main thread only.
 final class AnchorResolver {
@@ -61,7 +63,7 @@ final class AnchorResolver {
     screens.settle()
     let route = RouteKey.resolve(for: view, in: window, screen: screens.top)
     guard let path = CanonicalPathBuilder.build(root: route.root, target: view) else { return nil }
-    let pathConfidence: Confidence = tag != nil ? .high : (path.indexPath != nil ? .medium : .low)
+    let pathConfidence = AnchorResolver.pathConfidence(path, tagged: tag != nil)
     let kind = ViewTree.node(view).kind
     let structural = IdentityHash.fingerprint([(key: "routeKey", value: route.value), (key: "path", value: path.value)])
     return TargetAnchor(
@@ -77,6 +79,12 @@ final class AnchorResolver {
       enabled: tag == nil && kind.isTarget ? ViewKind.isEnabled(view) : nil,
       actions: tag == nil ? kind.actions(of: view) : []
     )
+  }
+
+  static func pathConfidence(_ path: CanonicalPath, tagged: Bool) -> Confidence {
+    if tagged { return .high }
+    if path.passesThroughBox || path.indexPath == nil { return .low }
+    return .medium
   }
 
   /// The deepest node of `lineage` (window first) that is a list cell or a

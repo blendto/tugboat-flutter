@@ -12,7 +12,7 @@ extension ViewKind {
     case .textInput: return "TextField"
     case .cell: return "Cell"
     case .scrollView: return "Scrollable"
-    case .representable, .webView, .renderer: return "Representable"
+    case .representable, .webView, .renderer: return CanonicalPath.boxToken
     case .internalPlatformView, .label, .image, .sdkOwned, .other: return nil
     }
   }

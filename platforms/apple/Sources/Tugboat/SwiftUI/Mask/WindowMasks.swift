@@ -75,7 +75,7 @@ enum WindowMasks {
       LayerWalk(classify: allowlist).walk(view, into: &acc)
       return true
     case .internalPlatformView:
-      guard let allowlist = allowlist, allowlist.walksPlatformView(String(describing: type(of: view))) else {
+      guard let allowlist = allowlist, allowlist.walksPlatformView(String(reflecting: type(of: view))) else {
         return box(view, .representable, into: &acc)
       }
       LayerWalk(classify: allowlist).walk(view, into: &acc)
@@ -98,7 +98,7 @@ enum WindowMasks {
         acc.stats.webViewBoxes += 1
       }
     }
-    acc.add(view: view)
+    acc.addBox(view: view)
     return false
   }
 }

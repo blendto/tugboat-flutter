@@ -75,7 +75,7 @@ enum ViewKind: Equatable {
       return .renderer
     }
     if name.contains("PlatformViewHost") {
-      return KnownPlatformViews.isInternal(name) ? .internalPlatformView : .representable
+      return KnownPlatformViews.isInternal(String(reflecting: cls)) ? .internalPlatformView : .representable
     }
     if name.contains("HostingView") { return .hosting }
     return .other
