@@ -17,8 +17,7 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 class IdentityHashConformanceTest {
     private val fixtures: List<File> =
-        File(System.getProperty("user.dir"), "../../../conformance/fingerprint/identity_parts")
-            .canonicalFile
+        File(System.getProperty("tugboat.identityFixtures") ?: "../../../conformance/fingerprint/identity_parts")
             .listFiles { file -> file.extension == "json" }
             .orEmpty()
             .sortedBy { it.name }

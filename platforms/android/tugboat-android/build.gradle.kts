@@ -55,6 +55,16 @@ android {
         unitTests.isReturnDefaultValues = true
         // The Views adapter tests resolve resource entry names (R.id.*).
         unitTests.isIncludeAndroidResources = true
+        // Byte-exact fixtures shared with the Apple host (conformance/host),
+        // and the identity-parts vectors the Views adapter hashes against.
+        val hostFixtures = rootProject.projectDir.resolve("../../conformance/host").canonicalFile
+        val identityFixtures = rootProject.projectDir.resolve("../../conformance/fingerprint/identity_parts").canonicalFile
+        unitTests.all { test ->
+            test.systemProperty("tugboat.hostFixtures", hostFixtures.path)
+            test.inputs.dir(hostFixtures)
+            test.systemProperty("tugboat.identityFixtures", identityFixtures.path)
+            test.inputs.dir(identityFixtures)
+        }
     }
 
     buildTypes {

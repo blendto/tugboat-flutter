@@ -320,7 +320,7 @@ void test_elapsed_ms() {
 void test_registry_types() {
   const std::vector<std::string> types =
       tugboat::engine::module_registry().types();
-  CHECK(types.size() == 13);
+  CHECK(types.size() == 19);
   CHECK(types.front() == "app.lifecycle");
   CHECK(tugboat::engine::module_registry().is_engine_event_type(
       "session_start"));

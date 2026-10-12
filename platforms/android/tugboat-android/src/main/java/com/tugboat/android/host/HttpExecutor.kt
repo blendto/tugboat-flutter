@@ -15,7 +15,8 @@ import java.util.concurrent.ScheduledThreadPoolExecutor
  * engine keeps at most one request in flight). Headers and bodies match the
  * Flutter `CollectorHttpSink`. `timeoutMs` is a total deadline
  * ([RequestDeadline]). Every failure, including an `Error`, becomes a
- * [TransportOutcome]; nothing is thrown to the caller.
+ * [TransportOutcome]; nothing is thrown to the caller. Every outcome is one
+ * the engine accepts ([CollectorResponse]).
  */
 internal class HttpExecutor(
     private val config: HostConfig,
@@ -58,7 +59,7 @@ internal class HttpExecutor(
             val status = connection.responseCode
             val body = readBody(connection, status, deadline)
             deadline.check()
-            TransportOutcome.Http(status, body)
+            CollectorResponse.outcome(status, body)
         } catch (failure: Throwable) {
             if (deadline?.expired == true || failure is SocketTimeoutException) {
                 TransportOutcome.Timeout
@@ -137,24 +138,21 @@ internal class HttpExecutor(
     }
 
     /**
-     * Reads at most [MAX_BODY_BYTES]. The stream is closed only on success: a
+     * Reads at most [CollectorResponse.MAX_BODY_BYTES] bytes. The stream is closed only on success: a
      * failed read leaves it to `disconnect()`, and closing a JDK keep-alive
      * stream that the deadline's disconnect handed to its drain thread blocks
      * until the drain ends.
      */
-    private fun readBody(connection: HttpURLConnection, status: Int, deadline: RequestDeadline): String {
-        val stream = (if (status >= 400) connection.errorStream else connection.inputStream) ?: return ""
+    private fun readBody(connection: HttpURLConnection, status: Int, deadline: RequestDeadline): ByteArray {
+        val stream = (if (status >= 400) connection.errorStream else connection.inputStream) ?: return ByteArray(0)
         val body = readPrefix(stream, deadline)
         stream.close()
-        return body.toString(Charsets.UTF_8)
+        return body
     }
 
     private class Payload(val contentType: String, val bytes: ByteArray)
 
     companion object {
-        /** `transport.result.body` carries at most this many bytes of the response. */
-        const val MAX_BODY_BYTES = 64 * 1024
-
         private const val TAG = "TugboatHttp"
 
         /** Dart's `http` adds the charset to the sink's `application/json`. */
@@ -165,7 +163,7 @@ internal class HttpExecutor(
         private fun daemon(task: Runnable, name: String) = Thread(task, name).apply { isDaemon = true }
 
         private fun readPrefix(stream: InputStream, deadline: RequestDeadline): ByteArray {
-            val buffer = ByteArray(MAX_BODY_BYTES)
+            val buffer = ByteArray(CollectorResponse.MAX_BODY_BYTES)
             var length = 0
             while (length < buffer.size) {
                 deadline.check()

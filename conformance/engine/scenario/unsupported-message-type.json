@@ -46,7 +46,7 @@
     "steps": [
       {
         "send": {
-          "type": "input.pointer",
+          "type": "example.unknown",
           "at": {
             "monoUs": 5000000
           },

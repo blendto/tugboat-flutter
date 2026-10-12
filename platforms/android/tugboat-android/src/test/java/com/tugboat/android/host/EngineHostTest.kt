@@ -37,6 +37,9 @@ class EngineHostTest {
     private val factAt = HostTime(monoUs = 5_000, wallUs = 7_000)
     private val factAtJson = """"at":{"monoUs":5000,"wallUs":7000}"""
 
+    /** `engine.dispose` stamped by the fake clock at shutdown. */
+    private val dispose = """{"type":"engine.dispose","at":{"monoUs":1000000,"wallUs":1791712345678901},"input":{}}"""
+
     private fun post(type: String, frameHandles: List<String> = emptyList()) =
         host.post(type, "{}", factAt, frameHandles)
 
@@ -232,7 +235,9 @@ class EngineHostTest {
         post("afterDisable")
         looper.idleFor(Duration.ofSeconds(1))
 
-        assertEquals(1 + EngineHost.DEFAULT_MAX_CONSECUTIVE_INTERNAL_ERRORS, transport.submitted.size)
+        assertEquals(2 + EngineHost.DEFAULT_MAX_CONSECUTIVE_INTERNAL_ERRORS, transport.submitted.size)
+        assertEquals("disabling disposes the engine too", dispose, transport.submitted.last())
+        assertEquals(transport.submitted.size, transport.submittedAtClose)
         assertFalse(host.isRunning)
         assertTrue(transport.closed)
         assertTrue(http.closed)
@@ -289,11 +294,58 @@ class EngineHostTest {
         post("afterClose")
         looper.idleFor(Duration.ofSeconds(1))
 
-        assertEquals(listOf("""{"type":"a",$factAtJson,"input":{}}"""), transport.submitted)
+        assertEquals(listOf("""{"type":"a",$factAtJson,"input":{}}""", dispose), transport.submitted)
+        assertEquals("engine.dispose comes before the handle is destroyed", 2, transport.submittedAtClose)
         assertTrue(transport.closed)
         assertTrue(http.closed)
         assertEquals(0, frames.size)
         assertEquals(1, shutDowns)
         assertFalse(host.isRunning)
+    }
+
+    @Test
+    fun disposeStartsNoNewWorkButReleasesFrames() {
+        val released = frames.put(byteArrayOf(1))
+        val kept = frames.put(byteArrayOf(2))
+        post("a", listOf(released, kept))
+        looper.idle()
+        transport.enqueue(
+            ok(
+                """{"type":"http.send","requestId":"http-1","lane":"events","path":"/v1/events/batch",""" +
+                    """"timeoutMs":1000,"jsonBody":"{}"}""",
+                """{"type":"timer.schedule","timerId":"t","atMonoUs":0}""",
+                """{"type":"frame.release","handle":"$released"}""",
+            ),
+        )
+        // The handle is destroyed before the frame table is cleared, so this
+        // sees what engine.dispose's own effects did.
+        var atHandleClose: Pair<Boolean, Boolean>? = null
+        transport.onClose = { atHandleClose = (frames[released] == null) to (frames[kept] == null) }
+
+        host.close()
+        looper.idleFor(Duration.ofSeconds(1))
+
+        assertEquals(dispose, transport.submitted.last())
+        assertEquals("no timer.fired after close", 2, transport.submitted.size)
+        assertTrue("no http.send after close", http.requests.isEmpty())
+        assertEquals("frame.release is honoured", true to false, atHandleClose)
+        assertEquals(0, frames.size)
+    }
+
+    @Test
+    fun anEngineWithoutDisposeIsStillDestroyed() {
+        transport.enqueue(
+            response(
+                EngineStatus.UNSUPPORTED_MESSAGE,
+                """{"error":{"status":"unsupported_message","message":"unknown message type"}}""",
+            ),
+        )
+        host.close()
+        looper.idle()
+
+        assertEquals(listOf(dispose), transport.submitted)
+        assertTrue(transport.closed)
+        assertTrue(http.closed)
+        assertEquals(1, shutDowns)
     }
 }

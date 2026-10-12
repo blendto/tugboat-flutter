@@ -105,6 +105,19 @@ void ModuleRegistry::run_hooks(LifecycleHookPoint point, const At& at,
   }
 }
 
+void ModuleRegistry::on_frame_accepted(FrameAcceptedHook hook) {
+  frame_accepted_.push_back(hook);
+}
+
+void ModuleRegistry::run_frame_accepted(const Frame& frame,
+                                        const std::string& handle,
+                                        EngineState* state,
+                                        Output* out) const {
+  for (FrameAcceptedHook hook : frame_accepted_) {
+    hook(frame, handle, state, out);
+  }
+}
+
 void ModuleRegistry::add_engine_event_type(const char* type) {
   engine_event_types_.insert(type);
 }

@@ -1,0 +1,509 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "focus-text-input-transitions",
+  "description": "Focus facts carry only the kind of the node holding primary focus. The engine keeps the previous kind (also without a session: here the text field was focused before the session started) and records focus_changed only for transitions into, out of, or between text inputs; churn between other nodes is ignored. Each event waits for one manual capture after the settle delay and publishes once: with the frame the capture produced or reused, else the latest frame when it completed after the input, else without a frame.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      },
+      "capabilities": {
+        "focusChanges": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "focus",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "kind": "text_input"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200010000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "focus",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "kind": "none"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture_request-2",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6100000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6100000
+          },
+          "input": {
+            "requestId": "capture_request-2",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-1",
+                "atMs": 90,
+                "type": "focus_changed",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200010000",
+                "data": {
+                  "focus": "none",
+                  "previousFocus": "text_input"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "focus",
+          "at": {
+            "monoUs": 6200000
+          },
+          "input": {
+            "kind": "text_input"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture_request-4",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 7200000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 7200000
+          },
+          "input": {
+            "requestId": "capture_request-4",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-4",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-capture_request-4",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-4",
+              "frame": {
+                "id": "frame-5",
+                "atMs": 2190,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-capture_request-4",
+                "masked": true,
+                "trigger": "manual",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200010000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 1190,
+                "type": "focus_changed",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200010000",
+                "afterFrame": "frame-5",
+                "data": {
+                  "focus": "text_input",
+                  "previousFocus": "none"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "focus",
+          "at": {
+            "monoUs": 7300000
+          },
+          "input": {
+            "kind": "text_input"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture_request-7",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 8300000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 8300000
+          },
+          "input": {
+            "requestId": "capture_request-7",
+            "outcome": "cancelled"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-6",
+                "atMs": 2290,
+                "type": "focus_changed",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200010000",
+                "data": {
+                  "focus": "text_input",
+                  "previousFocus": "text_input"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "focus",
+          "at": {
+            "monoUs": 8400000
+          },
+          "input": {
+            "kind": "other"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture_request-9",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 9400000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 9400000
+          },
+          "input": {
+            "requestId": "capture_request-9",
+            "outcome": "paintUnchanged"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-8",
+                "atMs": 3390,
+                "type": "focus_changed",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200010000",
+                "afterFrame": "frame-5",
+                "data": {
+                  "focus": "other",
+                  "previousFocus": "text_input"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "focus",
+          "at": {
+            "monoUs": 9500000
+          },
+          "input": {
+            "kind": "none"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "focus",
+          "at": {
+            "monoUs": 9600000
+          },
+          "input": {
+            "kind": "other"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200010000",
+        "captureSessionId": "session-1781827200010000",
+        "startedAt": "2026-06-19T00:00:00.010Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-5",
+          "atMs": 2190,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-capture_request-4",
+          "masked": true,
+          "trigger": "manual",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200010000"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200010000"
+        },
+        {
+          "id": "event-1",
+          "atMs": 90,
+          "type": "focus_changed",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200010000",
+          "data": {
+            "focus": "none",
+            "previousFocus": "text_input"
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 1190,
+          "type": "focus_changed",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200010000",
+          "afterFrame": "frame-5",
+          "data": {
+            "focus": "text_input",
+            "previousFocus": "none"
+          }
+        },
+        {
+          "id": "event-6",
+          "atMs": 2290,
+          "type": "focus_changed",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200010000",
+          "data": {
+            "focus": "text_input",
+            "previousFocus": "text_input"
+          }
+        },
+        {
+          "id": "event-8",
+          "atMs": 3390,
+          "type": "focus_changed",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200010000",
+          "afterFrame": "frame-5",
+          "data": {
+            "focus": "other",
+            "previousFocus": "text_input"
+          }
+        }
+      ]
+    }
+  }
+}

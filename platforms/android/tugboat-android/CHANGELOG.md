@@ -19,8 +19,12 @@ API.
 - Engine host: one handle driven from one `tugboat-engine` thread. Facts are
   posted with their own `at`. A non-`ok` status drops the message and releases
   its frame handles. Repeated `internal_error` shuts the host down.
+  Shutdown first submits `engine.dispose` (the engine reports undelivered
+  work), honouring its `frame.release` but starting no new IO or timers.
 - Effect executors:
   - `timer.schedule` / `timer.cancel` (uptime clock);
   - `http.send` (`HttpURLConnection`, Flutter collector headers and
-    multipart layout, `timeoutMs` as a total deadline, 64 KiB response body);
+    multipart layout, `timeoutMs` as a total deadline, a response body of
+    at most 64 KiB cut at a UTF-8 boundary, and statuses outside 100–599
+    reported as `error`, so the engine never rejects a `transport.result`);
   - `frame.release` (frame handle table).
