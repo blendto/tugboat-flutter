@@ -136,6 +136,7 @@ final class SwiftUIAdapter {
       onSample: { [weak self, weak window] sample in
         guard let self = self else { return }
         if sample.phase == .began, let window = window {
+          self.scroll.observe(at: sample.location, in: window)
           self.discoverScrollViews(in: window)
         }
         builder.facts(for: sample).forEach(self.batcher.add)
@@ -157,7 +158,12 @@ final class SwiftUIAdapter {
   }
 
   private func onFrame() {
-    screens.takeFacts().forEach(batcher.add)
+    let navigation = screens.takeFacts()
+    navigation.forEach(batcher.add)
+    if !navigation.isEmpty {
+      // A screen came or went: find its scroll views before a finger does.
+      attachments.values.compactMap { $0.window }.forEach(scroll.discover(in:))
+    }
     focus.onFrame()
     scroll.onFrame()
   }

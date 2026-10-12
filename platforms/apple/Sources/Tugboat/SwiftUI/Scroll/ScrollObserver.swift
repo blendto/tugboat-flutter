@@ -5,14 +5,21 @@ import UIKit
 /// section 5; SwiftUI `ScrollView` and `List` are backed by scroll views).
 ///
 /// - `discover(in:)` finds the scroll views of a window and observes each
-///   once. The adapter runs it when it attaches to a window and on pointer
-///   down (at most every 250 ms), so a scroll view is known before the
-///   finger moves it.
-/// - KVO marks a view dirty and requests a frame. On the frame, a first
-///   move sends `start` (at the resting offset, with the scroll view's
-///   anchor), then `update` with the latest offset (one per frame, at the
-///   time of the last change); an offset past either end sends one
-///   `overscroll` per scroll.
+///   once. The adapter runs it when it attaches to a window, after a
+///   navigation, and on pointer down (at most every 250 ms);
+///   `observe(at:in:)` observes the scroll views under a pointer-down point
+///   at once (no throttle), so a scroll view on a screen just pushed is
+///   known before the finger moves it.
+/// - A first move while a finger or momentum drives the view
+///   (`isTracking` / `isDragging` / `isDecelerating`) sends `start` at once,
+///   from the KVO callback, so it reaches the engine before that pointer's
+///   `up` and the engine links the scroll to the pointer. A programmatic
+///   first move sends `start` on the next frame, after every change in it
+///   has applied (an inset change alone is not a scroll). `start` is at the
+///   resting offset, with the scroll view's anchor.
+/// - KVO marks a view dirty and requests a frame. On the frame, `update`
+///   sends the latest offset (one per frame, at the time of the last
+///   change); an offset past either end sends one `overscroll` per scroll.
 /// - A scroll ends on the first frame where no finger or momentum drives
 ///   the view (`isTracking` / `isDragging` / `isDecelerating`) and the
 ///   offset has not changed for `idleMs`, which also ends programmatic and
@@ -83,6 +90,18 @@ final class ScrollObserver {
     }
   }
 
+  /// Observes the scroll views among `point`'s hit view and its ancestors
+  /// (window coordinates), not throttled: run on pointer down.
+  func observe(at point: CGPoint, in window: UIWindow) {
+    var current = window.hitTest(point, with: nil)
+    while let view = current {
+      if let scrollView = view as? UIScrollView, !(view is UITextView) {
+        observe(scrollView)
+      }
+      current = view.superview
+    }
+  }
+
   /// Sends the facts due this frame.
   func onFrame() {
     let now = clock.now()
@@ -134,7 +153,24 @@ final class ScrollObserver {
       state.firstChangeAt = now
     }
     state.lastChangeAt = now
+    if !state.active, let view = state.view, ScrollViewReading.isUserDriven(view) {
+      begin(view, state, at: now)
+    }
     requestFrame()
+  }
+
+  /// Sends `start` when `view` has left its resting offset; true once the
+  /// scroll is active.
+  @discardableResult
+  private func begin(_ view: UIScrollView, _ state: Tracked, at: HostTime) -> Bool {
+    guard ScrollViewReading.hasMoved(view, from: state.resting) else { return false }
+    state.axis = ScrollViewReading.axis(of: view, from: state.resting)
+    state.active = true
+    let resting = ScrollViewReading.metrics(of: view, axis: state.axis, at: state.resting)
+    emit(
+      ScrollFacts.fact(
+        id: ScrollViewReading.id(of: view), phase: .start, metrics: resting, at: at, anchor: anchorFor(view)))
+    return true
   }
 
   /// Sends `start` / `update` / `overscroll` for changes since the last frame.
@@ -145,11 +181,7 @@ final class ScrollObserver {
     state.lastChangeAt = nil
     let id = ScrollViewReading.id(of: view)
     if !state.active {
-      guard ScrollViewReading.hasMoved(view, from: state.resting) else { return }
-      state.axis = ScrollViewReading.axis(of: view, from: state.resting)
-      state.active = true
-      let resting = ScrollViewReading.metrics(of: view, axis: state.axis, at: state.resting)
-      emit(ScrollFacts.fact(id: id, phase: .start, metrics: resting, at: startedAt, anchor: anchorFor(view)))
+      guard begin(view, state, at: startedAt) else { return }
     }
     let metrics = ScrollViewReading.metrics(of: view, axis: state.axis)
     emit(ScrollFacts.fact(id: id, phase: .update, metrics: metrics, at: changedAt))
