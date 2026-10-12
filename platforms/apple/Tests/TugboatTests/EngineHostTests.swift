@@ -235,6 +235,10 @@ final class EngineHostTests: XCTestCase {
   func testConsecutiveInternalErrorsDisableTheHost() {
     _ = frames.put(Data([1]))
     transport.enqueue(ok("{\"type\":\"timer.schedule\",\"timerId\":\"t\",\"atMonoUs\":\(inMs(50))}"))
+    // Observe before posting, so a fire that beats the wait is still caught.
+    let noTimer = expectation(description: "the timer never fires")
+    noTimer.isInverted = true
+    transport.onSubmit = { if $0.contains("timer.fired") { noTimer.fulfill() } }
     let limit = EngineHost.defaultMaxConsecutiveInternalErrors
     for _ in 0..<limit {
       transport.enqueue(failure(.internalError))
@@ -249,9 +253,6 @@ final class EngineHostTests: XCTestCase {
     queue.resume()
     drain()
     post("afterDisable")
-    let noTimer = expectation(description: "the timer never fires")
-    noTimer.isInverted = true
-    transport.onSubmit = { if $0.contains("timer.fired") { noTimer.fulfill() } }
     wait(for: [noTimer], timeout: 0.3)
     drain()
 
@@ -292,12 +293,13 @@ final class EngineHostTests: XCTestCase {
   func testCloseRunsQueuedWorkThenReleasesEverything() {
     _ = frames.put(Data([1]))
     transport.enqueue(ok("{\"type\":\"timer.schedule\",\"timerId\":\"t\",\"atMonoUs\":\(inMs(50))}"))
-    post("a")
-    host.close()
-    post("afterClose")
+    // Observe before posting, so a fire that beats the wait is still caught.
     let noTimer = expectation(description: "the timer never fires")
     noTimer.isInverted = true
     transport.onSubmit = { if $0.contains("timer.fired") { noTimer.fulfill() } }
+    post("a")
+    host.close()
+    post("afterClose")
     wait(for: [noTimer], timeout: 0.3)
     drain()
 

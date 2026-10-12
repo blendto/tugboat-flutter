@@ -42,24 +42,31 @@ final class TimerExecutorTests: XCTestCase {
     queue.sync { timers.schedule(timerId: timerId, atMonoUs: atMonoUs) }
   }
 
-  /// Waits until `count` timers fired, then a little longer to catch extras.
+  /// Waits until `count` timers fired, then a little longer, and checks no
+  /// extra timer fired. Past deadlines can fire before this is called, so the
+  /// count check and the callback install run together on `queue`, where every
+  /// fire is recorded.
   private func waitForFires(_ count: Int, timeout: TimeInterval = 2, settle: TimeInterval = 0.15) {
-    let done = expectation(description: "\(count) timers fired")
-    done.expectedFulfillmentCount = max(count, 1)
-    done.assertForOverFulfill = false
-    if count == 0 {
-      done.isInverted = true
-    }
-    onFire.withLock { $0 = { done.fulfill() } }
-    wait(for: [done], timeout: count == 0 ? settle : timeout)
     if count > 0 {
-      let extra = expectation(description: "no more fires")
-      extra.isInverted = true
-      onFire.withLock { $0 = { extra.fulfill() } }
-      wait(for: [extra], timeout: settle)
+      let done = expectation(description: "\(count) timers fired")
+      done.assertForOverFulfill = false
+      let fires = self.fires
+      let onFire = self.onFire
+      queue.sync {
+        if fires.current.count >= count {
+          done.fulfill()
+        } else {
+          onFire.withLock { $0 = { if fires.current.count >= count { done.fulfill() } } }
+        }
+      }
+      wait(for: [done], timeout: timeout)
     }
+    let settled = expectation(description: "settle")
+    settled.isInverted = true
+    wait(for: [settled], timeout: settle)
     onFire.withLock { $0 = nil }
     queue.sync {}
+    XCTAssertEqual(fires.current.count, count, "exactly \(count) timers fired")
   }
 
   func testFiresAtOrAfterTheUptimeDeadline() {
@@ -125,7 +132,11 @@ final class TimerExecutorTests: XCTestCase {
       XCTAssertGreaterThanOrEqual(
         TimerExecutor.deadline(atMonoUs: atMonoUs).uptimeNanoseconds, UInt64(atMonoUs) * 1000)
     }
-    XCTAssertLessThanOrEqual(TimerExecutor.deadline(atMonoUs: -5).uptimeNanoseconds, 1)
+    // Darwin's DispatchTime stores mach ticks, so tiny values read back
+    // rounded to a tick (1 ns reads as 41 on Apple Silicon). Only require
+    // that a negative time maps to a deadline already in the past.
+    XCTAssertLessThanOrEqual(
+      TimerExecutor.deadline(atMonoUs: -5).uptimeNanoseconds, DispatchTime.now().uptimeNanoseconds)
     XCTAssertEqual(TimerExecutor.deadline(atMonoUs: Int64.max).uptimeNanoseconds, UInt64.max)
   }
 }
