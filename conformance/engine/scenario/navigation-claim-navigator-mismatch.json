@@ -526,6 +526,14 @@
             {
               "type": "timer.cancel",
               "timerId": "interaction.sweep"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-home"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-tab"
             }
           ]
         }

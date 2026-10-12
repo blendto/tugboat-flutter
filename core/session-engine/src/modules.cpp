@@ -9,6 +9,8 @@ ModuleRegistry build_module_registry() {
   register_engine_module(&registry);
   register_session_module(&registry);
   register_evidence_module(&registry);
+  register_identity_module(&registry);
+  register_frame_retention_module(&registry);
   register_delivery_module(&registry);
   register_interaction_module(&registry);
   register_navigation_module(&registry);

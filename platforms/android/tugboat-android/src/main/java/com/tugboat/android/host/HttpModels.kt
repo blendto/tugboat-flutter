@@ -24,7 +24,7 @@ internal data class FramePart(val handle: String, val filename: String)
 
 /** What a request came to; becomes the `transport.result` input. */
 internal sealed interface TransportOutcome {
-    /** Any HTTP response. [body] is at most [HttpExecutor.MAX_BODY_BYTES] bytes, decoded as UTF-8. */
+    /** An HTTP response with a status in 100–599. [body] is at most [CollectorResponse.MAX_BODY_BYTES] UTF-8 bytes. */
     data class Http(val status: Int, val body: String) : TransportOutcome
 
     object Error : TransportOutcome

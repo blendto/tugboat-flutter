@@ -1,0 +1,558 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-identity-debounce-merge",
+  "description": "User id and traits changes wait out identityDebounceMs after the last change and merge into one post: session_identify (triggered at the later change) when both changed, user_changed or traits_updated when one did. An unchanged user id or an equal traits bag is not a change.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": "user-configured"
+      },
+      "collector": {
+        "enabled": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            }
+          ]
+        }
+      },
+      {
+        "note": "debounce armed for 4 s",
+        "send": {
+          "type": "identity.set",
+          "at": {
+            "monoUs": 6000000,
+            "wallUs": 1781827201000000
+          },
+          "input": {
+            "userId": "user-2"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.identity",
+              "atMonoUs": 9000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "re-armed for 5 s; the two changes will merge",
+        "send": {
+          "type": "traits.set",
+          "at": {
+            "monoUs": 7000000,
+            "wallUs": 1781827202000000
+          },
+          "input": {
+            "traits": {
+              "plan": "pro"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.identity",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "the same user id: no change, the timer is not re-armed",
+        "send": {
+          "type": "identity.set",
+          "at": {
+            "monoUs": 7500000,
+            "wallUs": 1781827202500000
+          },
+          "input": {
+            "userId": "user-2"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "note": "an equal traits bag (shallow mapEquals): no change",
+        "send": {
+          "type": "traits.set",
+          "at": {
+            "monoUs": 7600000,
+            "wallUs": 1781827202600000
+          },
+          "input": {
+            "traits": {
+              "plan": "pro"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 8000000,
+            "wallUs": 1781827203000000
+          },
+          "input": {
+            "timerId": "delivery.flush"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 11000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "one session_identify, triggered at the traits change",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 10000000,
+            "wallUs": 1781827205000000
+          },
+          "input": {
+            "timerId": "delivery.identity"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"session_identify\",\"atMs\":2000,\"triggeredAt\":\"2026-06-19T00:00:02.000Z\",\"userId\":\"user-2\",\"traits\":{\"plan\":\"pro\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 30000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 10010000,
+            "wallUs": 1781827205010000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 11000000,
+            "wallUs": 1781827206000000
+          },
+          "input": {
+            "timerId": "delivery.flush"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 14000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "identity.set",
+          "at": {
+            "monoUs": 12000000,
+            "wallUs": 1781827207000000
+          },
+          "input": {
+            "userId": "user-3"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.identity",
+              "atMonoUs": 15000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 14000000,
+            "wallUs": 1781827209000000
+          },
+          "input": {
+            "timerId": "delivery.flush"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 17000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "a user change alone is user_changed",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 15000000,
+            "wallUs": 1781827210000000
+          },
+          "input": {
+            "timerId": "delivery.identity"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":7000,\"triggeredAt\":\"2026-06-19T00:00:07.000Z\",\"userId\":\"user-3\",\"traits\":{\"plan\":\"pro\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 35000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 15010000,
+            "wallUs": 1781827210010000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "traits.set",
+          "at": {
+            "monoUs": 16000000,
+            "wallUs": 1781827211000000
+          },
+          "input": {
+            "traits": {
+              "plan": "team"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.identity",
+              "atMonoUs": 19000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 17000000,
+            "wallUs": 1781827212000000
+          },
+          "input": {
+            "timerId": "delivery.flush"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 20000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "a traits change alone is traits_updated",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 19000000,
+            "wallUs": 1781827214000000
+          },
+          "input": {
+            "timerId": "delivery.identity"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-3",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"traits_updated\",\"atMs\":11000,\"triggeredAt\":\"2026-06-19T00:00:11.000Z\",\"userId\":\"user-3\",\"traits\":{\"plan\":\"team\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-3",
+              "atMonoUs": 39000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 19010000,
+            "wallUs": 1781827214010000
+          },
+          "input": {
+            "requestId": "http-3",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-3"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        }
+      ]
+    }
+  }
+}

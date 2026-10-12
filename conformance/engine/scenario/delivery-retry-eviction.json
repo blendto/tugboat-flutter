@@ -1,0 +1,594 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-retry-eviction",
+  "description": "The retry queue holds at most maxPendingBatches batches; a new retry evicts the oldest batch (silently while reportEventLaneGaps is off).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": "user-configured"
+      },
+      "collector": {
+        "enabled": true,
+        "batchSize": 1,
+        "maxPendingBatches": 2
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            }
+          ]
+        }
+      },
+      {
+        "note": "batchSize 1: every event triggers a pass",
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5100000,
+            "wallUs": 1781827200100000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e1"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 100,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e1"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-2\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 25100000
+            }
+          ]
+        }
+      },
+      {
+        "note": "retry: [[e1]]",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5110000,
+            "wallUs": 1781827200110000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 503
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5200000,
+            "wallUs": 1781827200200000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e2"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 200,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e2"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-2\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 25200000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5210000,
+            "wallUs": 1781827200210000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 503
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-3",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-3",
+              "atMonoUs": 25210000
+            }
+          ]
+        }
+      },
+      {
+        "note": "retry: [[e1], [e2]]",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5220000,
+            "wallUs": 1781827200220000
+          },
+          "input": {
+            "requestId": "http-3",
+            "outcome": "http",
+            "status": 503
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-3"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5300000,
+            "wallUs": 1781827200300000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e3"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 300,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e3"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-2\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 25300000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5310000,
+            "wallUs": 1781827200310000
+          },
+          "input": {
+            "requestId": "http-4",
+            "outcome": "http",
+            "status": 503
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-4"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-5",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-4\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-5",
+              "atMonoUs": 25310000
+            }
+          ]
+        }
+      },
+      {
+        "note": "[e3] joins the retry queue and evicts [e1]",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5320000,
+            "wallUs": 1781827200320000
+          },
+          "input": {
+            "requestId": "http-5",
+            "outcome": "http",
+            "status": 503
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-5"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 5400000,
+            "wallUs": 1781827200400000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-6",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-6",
+              "atMonoUs": 25400000
+            }
+          ]
+        }
+      },
+      {
+        "note": "[e2] accepted",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5410000,
+            "wallUs": 1781827200410000
+          },
+          "input": {
+            "requestId": "http-6",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-6"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-7",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-4\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-7",
+              "atMonoUs": 25410000
+            }
+          ]
+        }
+      },
+      {
+        "note": "[e3] accepted",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5420000,
+            "wallUs": 1781827200420000
+          },
+          "input": {
+            "requestId": "http-7",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-7"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-2",
+          "atMs": 100,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e1"
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 200,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e2"
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 300,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e3"
+          }
+        }
+      ]
+    }
+  }
+}

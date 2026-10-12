@@ -133,6 +133,18 @@ void ModuleRegistry::run_after_command(const At& at, EngineState* state,
   }
 }
 
+void ModuleRegistry::on_event_recorded(EventObserver observer) {
+  event_observers_.push_back(observer);
+}
+
+void ModuleRegistry::notify_event_recorded(const EventRecord& record,
+                                           const At& at, EngineState* state,
+                                           Output* out) const {
+  for (EventObserver observer : event_observers_) {
+    observer(record, at, state, out);
+  }
+}
+
 void ModuleRegistry::add_engine_event_type(const char* type) {
   engine_event_types_.insert(type);
 }

@@ -115,12 +115,13 @@ void test_frame_store_compatibility_and_trim() {
   IdCounter ids;
   Output out;
   FrameStore frames;
+  FrameRetention retention;
   RequestContext ctx = context(1);
   ctx.session_id = session.id();
   CapturedFrame first = captured("h1", "x");
   first.dhash = std::string("d1");
   first.structure_signature = std::string("s1");
-  const FrameRecord a = frames.accept(first, ctx, 10, 2, &ids, &session, &out);
+  const FrameRecord a = frames.accept(first, ctx, 10, 2, &ids, &session, &retention, &out);
   CHECK(frames.dhash_baseline()->dhash == "d1");
   CHECK(frames.compatible_latest(ctx)->frame_id == a.frame.id);
   RequestContext moved = ctx;
@@ -129,7 +130,7 @@ void test_frame_store_compatibility_and_trim() {
   CHECK(frames.surface_compatible_latest(moved) != nullptr);
   // A frame without a structure signature offers no baseline.
   const FrameRecord b =
-      frames.accept(captured("h2", "y"), ctx, 20, 2, &ids, &session, &out);
+      frames.accept(captured("h2", "y"), ctx, 20, 2, &ids, &session, &retention, &out);
   CHECK(!frames.dhash_baseline());
   // Reuse makes an older compatible frame the latest.
   CHECK(frames.reuse(a.frame.id, ctx) == a.frame.id);
@@ -137,7 +138,7 @@ void test_frame_store_compatibility_and_trim() {
   // maxFrames 2: c trims a (the latest), which leaves a tombstone, frees
   // its content hash, and hands "latest" to the newest retained frame.
   const FrameRecord c =
-      frames.accept(captured("h3", "z"), ctx, 30, 2, &ids, &session, &out);
+      frames.accept(captured("h3", "z"), ctx, 30, 2, &ids, &session, &retention, &out);
   CHECK(!frames.frame_with_content("x"));
   CHECK(frames.find(a.frame.id) == nullptr);  // unreferenced: forgotten
   CHECK(frames.latest(session.id())->frame_id == c.frame.id);
@@ -163,11 +164,12 @@ void test_execution_helpers() {
   IdCounter ids;
   Output out;
   FrameStore frames;
+  FrameRetention retention;
   RequestContext ctx = context(1);
   CapturedFrame first = captured("h1", "x");
   first.dhash = std::string("d");
   first.structure_signature = std::string("s");
-  frames.accept(first, ctx, 10, 5, &ids, &session, &out);
+  frames.accept(first, ctx, 10, 5, &ids, &session, &retention, &out);
   InFlightCapture flight;
   flight.capture = scheduled(FrameTrigger::kManual, "m", 0);
   flight.baseline = frames.dhash_baseline();

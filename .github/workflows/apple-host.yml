@@ -1,0 +1,29 @@
+# Build the Swift host (`Tugboat`) and run the package XCTests on an iOS
+# simulator (needs Xcode).
+name: Apple host
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'Package.swift'
+      - 'platforms/apple/**'
+      - 'core/session-engine/**'
+      - 'conformance/host/**'
+      - 'tool/ci/test-apple-host.sh'
+      - '.github/workflows/apple-host.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: swift build + xcodebuild test
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build and test
+        run: bash tool/ci/test-apple-host.sh

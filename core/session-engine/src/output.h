@@ -67,19 +67,29 @@ struct MultipartFrame {
   std::string filename;
 };
 
+// `multipart {fields, frames}`. `fields` are `[name, value]` string pairs in
+// wire order. `frames` are the file parts (form field `files`), in wire
+// order; the host resolves each part's bytes from its handle.
 struct MultipartBody {
   std::vector<std::pair<std::string, std::string>> fields;
   std::vector<MultipartFrame> frames;
 };
 
-// `http.send {requestId, lane, path, timeoutMs, json | multipart}`. The host
-// answers with `transport.result {requestId, …}`.
+// A JSON request body, already encoded: the exact UTF-8 text to put on the
+// wire (byte-identical to Dart's `jsonEncode`). Hosts never re-encode it.
+struct JsonBody {
+  std::string text;
+};
+
+// `http.send {requestId, lane, path, timeoutMs, jsonBody | multipart}`.
+// `requestId` is a string (`http-N`); the host answers with
+// `transport.result {requestId, …}` echoing it.
 struct HttpSend {
   std::string request_id;
   HttpLane lane = HttpLane::kEvents;
   std::string path;
   int64_t timeout_ms = 0;
-  std::variant<Value, MultipartBody> body;  // json body or multipart
+  std::variant<JsonBody, MultipartBody> body;
 };
 
 // `frame.release {handle}`: the host may drop the frame's bytes. No answer.

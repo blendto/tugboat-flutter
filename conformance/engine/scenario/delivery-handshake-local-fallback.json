@@ -1,0 +1,1593 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-handshake-local-fallback",
+  "description": "An accepted session_start whose body is empty, not JSON, not an object, or carries a missing, empty, or non-string sessionId falls back to the local session id (Dart _applyLifecycleResponse).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": "user-configured"
+      },
+      "collector": {
+        "enabled": true
+      }
+    },
+    "steps": [
+      {
+        "note": "a session whose session_start response has an empty body",
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "accepted; the local id becomes the collector session id",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": ""
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5020000,
+            "wallUs": 1781827200020000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "evidence"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 20,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "evidence"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "events are stamped with the local session id",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 5030000,
+            "wallUs": 1781827200030000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-2\",\"atMs\":20,\"triggeredAt\":\"2026-06-19T00:00:00.020Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"evidence\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"session-1781827200000000\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 25030000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5040000,
+            "wallUs": 1781827200040000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            }
+          ]
+        }
+      },
+      {
+        "note": "nothing left to drain: session_end goes out with the local id",
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 5050000,
+            "wallUs": 1781827200050000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 50,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_end\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:00.050Z\",\"userId\":\"user-configured\"}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 25050000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5060000,
+            "wallUs": 1781827200060000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.flush"
+            }
+          ]
+        }
+      },
+      {
+        "note": "a session whose session_start response has a body that is not JSON",
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 6000000,
+            "wallUs": 1781827201000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-5",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827201000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 9000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-3",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827201000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:01.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-3",
+              "atMonoUs": 26000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "accepted; the local id becomes the collector session id",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 6010000,
+            "wallUs": 1781827201010000
+          },
+          "input": {
+            "requestId": "http-3",
+            "outcome": "http",
+            "status": 202,
+            "body": "ok"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-3"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 6020000,
+            "wallUs": 1781827201020000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "evidence"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-7",
+                "atMs": 20,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827201000000",
+                "data": {
+                  "name": "evidence"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "events are stamped with the local session id",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 6030000,
+            "wallUs": 1781827201030000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-7\",\"atMs\":20,\"triggeredAt\":\"2026-06-19T00:00:01.020Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"evidence\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"session-1781827201000000\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 26030000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 6040000,
+            "wallUs": 1781827201040000
+          },
+          "input": {
+            "requestId": "http-4",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-4"
+            }
+          ]
+        }
+      },
+      {
+        "note": "nothing left to drain: session_end goes out with the local id",
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 6050000,
+            "wallUs": 1781827201050000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-9",
+                "atMs": 50,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827201000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-5",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827201000000\",\"eventType\":\"session_end\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:01.050Z\",\"userId\":\"user-configured\"}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-5",
+              "atMonoUs": 26050000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 6060000,
+            "wallUs": 1781827201060000
+          },
+          "input": {
+            "requestId": "http-5",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-5"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.flush"
+            }
+          ]
+        }
+      },
+      {
+        "note": "a session whose session_start response has a JSON body that is not an object",
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 7000000,
+            "wallUs": 1781827202000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-10",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827202000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 10000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-6",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827202000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:02.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-6",
+              "atMonoUs": 27000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-2",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 7000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "accepted; the local id becomes the collector session id",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 7010000,
+            "wallUs": 1781827202010000
+          },
+          "input": {
+            "requestId": "http-6",
+            "outcome": "http",
+            "status": 202,
+            "body": "[]"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-6"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 7020000,
+            "wallUs": 1781827202020000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "evidence"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-12",
+                "atMs": 20,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827202000000",
+                "data": {
+                  "name": "evidence"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "events are stamped with the local session id",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 7030000,
+            "wallUs": 1781827202030000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-7",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-12\",\"atMs\":20,\"triggeredAt\":\"2026-06-19T00:00:02.020Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"evidence\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"session-1781827202000000\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-7",
+              "atMonoUs": 27030000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 7040000,
+            "wallUs": 1781827202040000
+          },
+          "input": {
+            "requestId": "http-7",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-7"
+            }
+          ]
+        }
+      },
+      {
+        "note": "nothing left to drain: session_end goes out with the local id",
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 7050000,
+            "wallUs": 1781827202050000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-14",
+                "atMs": 50,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827202000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-8",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827202000000\",\"eventType\":\"session_end\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:02.050Z\",\"userId\":\"user-configured\"}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-8",
+              "atMonoUs": 27050000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 7060000,
+            "wallUs": 1781827202060000
+          },
+          "input": {
+            "requestId": "http-8",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-8"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.flush"
+            }
+          ]
+        }
+      },
+      {
+        "note": "a session whose session_start response has no sessionId",
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 8000000,
+            "wallUs": 1781827203000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-15",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827203000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 11000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-9",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827203000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:03.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-9",
+              "atMonoUs": 28000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-3",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 8000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "accepted; the local id becomes the collector session id",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 8010000,
+            "wallUs": 1781827203010000
+          },
+          "input": {
+            "requestId": "http-9",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-9"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 8020000,
+            "wallUs": 1781827203020000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "evidence"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-17",
+                "atMs": 20,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827203000000",
+                "data": {
+                  "name": "evidence"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "events are stamped with the local session id",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 8030000,
+            "wallUs": 1781827203030000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-10",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-17\",\"atMs\":20,\"triggeredAt\":\"2026-06-19T00:00:03.020Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"evidence\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"session-1781827203000000\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-10",
+              "atMonoUs": 28030000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 8040000,
+            "wallUs": 1781827203040000
+          },
+          "input": {
+            "requestId": "http-10",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-10"
+            }
+          ]
+        }
+      },
+      {
+        "note": "nothing left to drain: session_end goes out with the local id",
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 8050000,
+            "wallUs": 1781827203050000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-19",
+                "atMs": 50,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827203000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-11",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827203000000\",\"eventType\":\"session_end\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:03.050Z\",\"userId\":\"user-configured\"}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-11",
+              "atMonoUs": 28050000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 8060000,
+            "wallUs": 1781827203060000
+          },
+          "input": {
+            "requestId": "http-11",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-11"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.flush"
+            }
+          ]
+        }
+      },
+      {
+        "note": "a session whose session_start response has an empty sessionId",
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 9000000,
+            "wallUs": 1781827204000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-20",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827204000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 12000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-12",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827204000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:04.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-12",
+              "atMonoUs": 29000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-4",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 9000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "accepted; the local id becomes the collector session id",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9010000,
+            "wallUs": 1781827204010000
+          },
+          "input": {
+            "requestId": "http-12",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-12"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 9020000,
+            "wallUs": 1781827204020000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "evidence"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-22",
+                "atMs": 20,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827204000000",
+                "data": {
+                  "name": "evidence"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "events are stamped with the local session id",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 9030000,
+            "wallUs": 1781827204030000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-13",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-22\",\"atMs\":20,\"triggeredAt\":\"2026-06-19T00:00:04.020Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"evidence\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"session-1781827204000000\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-13",
+              "atMonoUs": 29030000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9040000,
+            "wallUs": 1781827204040000
+          },
+          "input": {
+            "requestId": "http-13",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-13"
+            }
+          ]
+        }
+      },
+      {
+        "note": "nothing left to drain: session_end goes out with the local id",
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 9050000,
+            "wallUs": 1781827204050000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-24",
+                "atMs": 50,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827204000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-14",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827204000000\",\"eventType\":\"session_end\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:04.050Z\",\"userId\":\"user-configured\"}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-14",
+              "atMonoUs": 29050000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9060000,
+            "wallUs": 1781827204060000
+          },
+          "input": {
+            "requestId": "http-14",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-14"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.flush"
+            }
+          ]
+        }
+      },
+      {
+        "note": "a session whose session_start response has a sessionId that is not a string",
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 10000000,
+            "wallUs": 1781827205000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-25",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827205000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 13000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-15",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827205000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:05.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-15",
+              "atMonoUs": 30000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-5",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 10000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "accepted; the local id becomes the collector session id",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 10010000,
+            "wallUs": 1781827205010000
+          },
+          "input": {
+            "requestId": "http-15",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":7}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-15"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 10020000,
+            "wallUs": 1781827205020000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "evidence"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-27",
+                "atMs": 20,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827205000000",
+                "data": {
+                  "name": "evidence"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "events are stamped with the local session id",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 10030000,
+            "wallUs": 1781827205030000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-16",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-27\",\"atMs\":20,\"triggeredAt\":\"2026-06-19T00:00:05.020Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"evidence\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"session-1781827205000000\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-16",
+              "atMonoUs": 30030000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 10040000,
+            "wallUs": 1781827205040000
+          },
+          "input": {
+            "requestId": "http-16",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-16"
+            }
+          ]
+        }
+      },
+      {
+        "note": "nothing left to drain: session_end goes out with the local id",
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 10050000,
+            "wallUs": 1781827205050000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-29",
+                "atMs": 50,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827205000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-17",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827205000000\",\"eventType\":\"session_end\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:05.050Z\",\"userId\":\"user-configured\"}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-17",
+              "atMonoUs": 30050000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 10060000,
+            "wallUs": 1781827205060000
+          },
+          "input": {
+            "requestId": "http-17",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-17"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.flush"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827205000000",
+        "captureSessionId": "session-1781827205000000",
+        "startedAt": "2026-06-19T00:00:05.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-25",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827205000000"
+        },
+        {
+          "id": "event-27",
+          "atMs": 20,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827205000000",
+          "data": {
+            "name": "evidence"
+          }
+        },
+        {
+          "id": "event-29",
+          "atMs": 50,
+          "type": "session_end",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827205000000"
+        }
+      ]
+    }
+  }
+}

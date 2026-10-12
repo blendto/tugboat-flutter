@@ -19,10 +19,17 @@ void register_engine_module(ModuleRegistry* registry);
 // session.start, session.end, app.lifecycle.
 void register_session_module(ModuleRegistry* registry);
 
-// event.record, locale.set, identity.set.
+// event.record, locale.set.
 void register_evidence_module(ModuleRegistry* registry);
 
-// Collector delivery (docs/stateful-engine.md section 7).
+// identity.set, traits.set.
+void register_identity_module(ModuleRegistry* registry);
+
+// The session's references to accepted frames (section 7.6).
+void register_frame_retention_module(ModuleRegistry* registry);
+
+// Collector delivery (docs/stateful-engine.md section 7): transport.result,
+// transport.flush.
 void register_delivery_module(ModuleRegistry* registry);
 
 // Interactions (section 9).

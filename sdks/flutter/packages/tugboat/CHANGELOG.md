@@ -1,3 +1,14 @@
+## 0.10.11-dev.3
+
+Prerelease. No change to shipped behaviour.
+
+### Internal
+
+- `CollectorHttpSink` takes a test-only `debugNow` wall clock for lifecycle
+  `triggeredAt` and upload diagnostic `atMs` (`DateTime.now` by default).
+  The shared session-engine delivery scenarios use it to drive the real
+  collector sink deterministically.
+
 ## 0.10.11-dev.2
 
 Prerelease. No change to shipped behaviour.

@@ -1,21 +1,35 @@
 // Runs `engine.scenario` fixtures (conformance/engine/scenario/) against the
-// real Dart controller, so the C++ session engine and the shipped Dart
-// session model are held to the same records.
+// real Dart controller and collector sink, so the C++ session engine and the
+// shipped Dart session model and `CollectorHttpSink` are held to the same
+// records and requests.
 //
 // How a scenario maps onto Dart:
 // - `engine.configure` becomes the controller's [TugboatReplayConfig]
-//   (`host.app` -> appInfo, `limits`), fixed for the controller's life.
-// - Each step's `at` drives the controller's clocks: `wallUs` through
-//   `debugNow` (session id, startedAt), `monoUs` through the injected
-//   elapsed clock (`atMs`).
+//   (`host.app` -> appInfo, `limits`) and, with `host`, a real
+//   [CollectorHttpSink] (`collector`, engine_scenario_delivery.dart), fixed
+//   for the run.
+// - Each step's `at` drives the clocks: `wallUs` through the controller's
+//   `debugNow` (session id, startedAt), `monoUs` through its injected
+//   elapsed clock (`atMs`) and the delivery scheduler's fake time.
 // - Messages call the controller's own entry points: `start`, `endSession`,
 //   `recordAppLifecycleState` (plus `endSession` on `detached`, as the
 //   widget does), `recordLocale`, and `debugRecordEvent` (the evidence
-//   recorder's admission and append path). `identity.set` drives a real
-//   [CollectorHttpSink], whose runtime user id is what Dart stamps at record
-//   time. `timer.fired` has no Dart counterpart; Dart owns no engine timers.
+//   recorder's admission and append path). `identity.set` and
+//   `traits.set` call the collector sink's
+//   `setUserId` / `setTraits`, whose runtime user id is what Dart stamps at
+//   record time. `transport.result` answers the sink's request and
+//   `transport.flush` calls its `flush`. `timer.fired` needs no call: the
+//   Dart timer fires as fake time reaches it.
 // - Records are the events the controller publishes to its capture sinks,
-//   in order, each with the collector sink's user id at that moment.
+//   in order, each with the collector sink's user id at that moment. With `collector.enabled`, the same publications feed the
+//   collector sink, as the controller's sink hub does.
+// - Effects: the `http.send` requests the collector sink makes during the
+//   step (see engine_scenario_delivery.dart for what is compared).
+//
+// What is not run: frames reach the engine only through `capture.result`
+// for an interaction's capture request (phase 3c), which the controller
+// cannot be driven to produce. Scenarios with frames run in delivery replay
+// mode instead (`dartParity: "delivery"`, engine_scenario_replay.dart).
 //
 // What is not compared:
 // - Fixtures whose `runners` exclude `dart` (including every `engineOnly`
@@ -26,32 +40,34 @@
 // - `attachActionContext`: Dart's evidence path never attaches action
 //   context; with no exploration action window (deferred beyond this
 //   milestone) both values enrich identically.
-// - `capture.request` effects. Dart's capture scheduler is async work this
-//   runner holds, so it never reaches the host. The ids it mints are still
-//   compared, exactly: `capture_request-N` when a session starts and on
-//   `resumed`, and `capture_execution-N` for each request a teardown
-//   cancels share the event-id counter, so every later event id depends on
-//   them. Any other effect is reported as unmodelled.
-// - Async work is held, never run: everything these scenarios cover happens
-//   synchronously in Dart, and held capture work cannot add records.
+// - `capture.request` effects (only `http.send` is compared). Dart's
+//   capture scheduler is async work this runner holds, so it never reaches
+//   the host. The ids it mints are still compared, exactly, in records,
+//   snapshots, and request bodies: `capture_request-N` when a session
+//   starts and on `resumed`, and `capture_execution-N` for each request a
+//   teardown cancels, share the event-id counter, so every later event id
+//   depends on them.
+// - The controller's own async work (captures) is held, never run:
+//   everything these scenarios cover happens synchronously in the
+//   controller, and held capture work cannot add records.
 import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:tugboat/src/capture_sink.dart';
-import 'package:tugboat/src/collector_http_sink.dart';
+import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/controller.dart';
 import 'package:tugboat/src/controller_clock.dart';
 import 'package:tugboat/src/models.dart';
 
 import 'conformance_fixture.dart';
+import 'engine_scenario_delivery.dart';
 
 /// Runs [fixture] on a fresh Dart controller. Returns one line per
 /// difference from the fixture's expectations; empty when Dart matches.
 List<String> runEngineScenarioOnDart(ConformanceFixture fixture) {
-  return _holdingAsyncWork(() => _ScenarioRun(fixture).run());
+  final scheduler = ScenarioScheduler();
+  return scheduler.run(() => _ScenarioRun(fixture, scheduler).run());
 }
 
 T _holdingAsyncWork<T>(T Function() body) => runZoned(
@@ -91,12 +107,13 @@ class _ScenarioClock implements TugboatElapsedClock {
   }
 }
 
-/// Collects every event the controller publishes, with the record-time
-/// user id.
+/// Collects every event the controller publishes, with the record-time user
+/// id, and hands each publication to [onPublish].
 class _RecordingSinks implements TugboatCaptureSinkFactory {
-  _RecordingSinks(this._userId);
+  _RecordingSinks(this._userId, this.onPublish);
 
   final String? Function() _userId;
+  final void Function(TugboatCaptureEnvelope envelope) onPublish;
   final List<Map<String, Object?>> records = [];
 
   @override
@@ -114,13 +131,22 @@ class _RecordingSink implements TugboatSessionCaptureSink {
 
   @override
   void accept(TugboatCaptureEnvelope envelope) {
+    final record = _record(envelope);
+    if (record == null) return;
+    _owner.records.add(record);
+    _owner.onPublish(envelope);
+  }
+
+  Map<String, Object?>? _record(TugboatCaptureEnvelope envelope) {
     final event = envelope.event;
-    if (envelope.kind != TugboatEnvelopeKind.event || event == null) return;
-    _owner.records.add({
+    if (envelope.kind != TugboatEnvelopeKind.event || event == null) {
+      return null;
+    }
+    return {
       'kind': 'event',
       'event': _plainJson(event.toJson()),
       'userId': _owner._userId(),
-    });
+    };
   }
 
   @override
@@ -152,14 +178,20 @@ typedef _ControllerIdentity = ({
 });
 
 class _ScenarioRun {
-  _ScenarioRun(this.fixture)
+  _ScenarioRun(this.fixture, this._scheduler)
     : _steps = (fixture.input['steps']! as List).cast<Map<String, Object?>>();
 
   final ConformanceFixture fixture;
+  final ScenarioScheduler _scheduler;
   final List<Map<String, Object?>> _steps;
   final _ScenarioClock _clock = _ScenarioClock();
-  late final _RecordingSinks _sinks = _RecordingSinks(() => _identity?.userId);
-  CollectorHttpSink? _identity;
+  late final _RecordingSinks _sinks = _RecordingSinks(
+    () => _delivery?.sink.userId,
+    (envelope) => _delivery?.forward(envelope),
+  );
+  ScenarioDelivery? _delivery;
+  bool _sessionEnded = false;
+  int _wallOffsetUs = 0;
   late final TugboatReplayController _controller;
   late final _ControllerIdentity _controllerIdentity;
 
@@ -173,17 +205,19 @@ class _ScenarioRun {
 
   List<String> _run() {
     _controllerIdentity = _firstStartIdentity();
-    _controller = _buildController();
+    _controller = _holdingAsyncWork(_buildController);
     for (var i = 0; i < _steps.length; i++) {
       final expect = _steps[i]['expect']! as Map<String, Object?>;
       if (expect.containsKey('error')) continue;
-      final before = _sinks.records.length;
+      final records = _sinks.records.length;
+      final effects = _delivery?.client.effects.length ?? 0;
       _send(_steps[i]['send']! as Map<String, Object?>);
+      _scheduler.flushMicrotasks();
       final path =
           r'$.input.steps['
           '$i'
           '].expect';
-      final mismatches = _compareStep(expect, before, path);
+      final mismatches = _compareStep(expect, records, effects, path);
       if (mismatches.isNotEmpty) return mismatches;
     }
     return _compareSnapshot();
@@ -191,22 +225,23 @@ class _ScenarioRun {
 
   List<String> _compareStep(
     Map<String, Object?> expect,
-    int before,
+    int records,
+    int effects,
     String path,
   ) {
-    final actual = _sinks.records.sublist(before);
     final out = diffJson(
       _plainJson(expect['records']),
-      _plainJson(actual),
+      _plainJson(_sinks.records.sublist(records)),
       '$path.records',
     );
-    final unmodelled = [
-      for (final effect in expect['effects']! as List)
-        if ((effect as Map)['type'] != 'capture.request') effect['type'],
-    ];
-    if (unmodelled.isNotEmpty) {
-      out.add('$path.effects: the Dart runner does not model $unmodelled');
-    }
+    final actual = _delivery?.client.effects.sublist(effects) ?? const [];
+    out.addAll(
+      diffJson(
+        comparableEffects(expect['effects']! as List),
+        actual,
+        '$path.effects',
+      ),
+    );
     return out;
   }
 
@@ -252,18 +287,17 @@ class _ScenarioRun {
 
   TugboatReplayController _buildController() {
     final configure = fixture.input['configure']! as Map<String, Object?>;
-    final unsupported = configure.keys.toSet().difference({'host', 'limits'});
+    final unsupported = configure.keys.toSet().difference({
+      'host',
+      'limits',
+      'collector',
+    });
     if (unsupported.isNotEmpty) {
       throw _Unmodelled('Dart runner does not model configure $unsupported');
     }
     final hostJson = configure['host'] as Map<String, Object?>?;
     final host = hostJson == null ? null : decodeConformanceHost(hostJson);
-    if (host != null) {
-      _identity = CollectorHttpSink(
-        config: host,
-        client: MockClient((_) async => http.Response('', 503)),
-      );
-    }
+    if (host != null) _delivery = _buildDelivery(host, configure);
     final limits =
         (configure['limits'] ?? const <String, Object?>{})
             as Map<String, Object?>;
@@ -282,6 +316,28 @@ class _ScenarioRun {
     )..debugNow = _clock.now;
   }
 
+  ScenarioDelivery _buildDelivery(
+    TugboatCollectorConfig host,
+    Map<String, Object?> configure,
+  ) {
+    try {
+      return ScenarioDelivery(
+        collector: scenarioCollector(
+          host,
+          (configure['collector'] ?? const <String, Object?>{})
+              as Map<String, Object?>,
+        ),
+        scheduler: _scheduler,
+        now: () => DateTime.fromMicrosecondsSinceEpoch(
+          _scheduler.nowUs + _wallOffsetUs,
+          isUtc: true,
+        ),
+      );
+    } on UnsupportedError catch (error) {
+      throw _Unmodelled(error.message ?? 'unsupported collector setting');
+    }
+  }
+
   void _send(Map<String, Object?> message) {
     final type = message['type']! as String;
     if (type == 'batch') {
@@ -296,21 +352,32 @@ class _ScenarioRun {
       throw _Unmodelled('Dart runner does not model $type');
     }
     handler(message['input']! as Map<String, Object?>);
+    _delivery?.drain();
   }
 
-  /// One Dart entry point per engine message type.
+  /// One Dart entry point per engine message type. Controller calls hold
+  /// the controller's async work; delivery runs on the scheduler.
   late final Map<String, void Function(Map<String, Object?> input)> _handlers =
       {
         'session.start': _start,
-        'session.end': (_) => unawaited(_controller.endSession()),
+        'session.end': (_) => _endSession(),
         'app.lifecycle': (input) => _appLifecycle(input['state']! as String),
         'identity.set': (input) =>
-            unawaited(_identity?.setUserId(input['userId'] as String?)),
-        'locale.set': (input) => _controller.recordLocale(
-          decodeConformanceLocale(input['locale'], 'locale')!,
+            unawaited(_delivery?.sink.setUserId(input['userId'] as String?)),
+        'traits.set': (input) => unawaited(
+          _delivery?.sink.setTraits(
+            Map<String, dynamic>.from(input['traits']! as Map),
+          ),
+        ),
+        'locale.set': (input) => _holdingAsyncWork(
+          () => _controller.recordLocale(
+            decodeConformanceLocale(input['locale'], 'locale')!,
+          ),
         ),
         'event.record': _recordEvent,
-        // Dart owns no engine timers; the engine ignores unknown timer ids.
+        'transport.result': (input) => _delivery?.client.answer(input),
+        'transport.flush': (_) => _delivery?.flush(),
+        // The Dart timer behind a `timer.fired` fired as time reached it.
         'timer.fired': (_) {},
         'engine.configure': _reconfigure,
       };
@@ -327,7 +394,11 @@ class _ScenarioRun {
     if (at == null) return;
     _clock.monoUs = at['monoUs']! as int;
     final wallUs = at['wallUs'] as int?;
-    if (wallUs != null) _clock.wallUs = wallUs;
+    if (wallUs != null) {
+      _clock.wallUs = wallUs;
+      _wallOffsetUs = wallUs - _clock.monoUs;
+    }
+    _scheduler.advanceTo(_clock.monoUs);
   }
 
   void _start(Map<String, Object?> input) {
@@ -338,23 +409,38 @@ class _ScenarioRun {
       );
     }
     final viewport = input['viewport']! as Map<String, Object?>;
-    _controller.start(
-      Size(
-        (viewport['width']! as num).toDouble(),
-        (viewport['height']! as num).toDouble(),
+    _holdingAsyncWork(
+      () => _controller.start(
+        Size(
+          (viewport['width']! as num).toDouble(),
+          (viewport['height']! as num).toDouble(),
+        ),
+        input['platform']! as String,
+        locale: decodeConformanceLocale(input['locale'], 'locale'),
       ),
-      input['platform']! as String,
-      locale: decodeConformanceLocale(input['locale'], 'locale'),
     );
+    _sessionEnded = false;
+    // The hub starts sinks before publishing `session_start`.
+    _delivery?.start(_controller.session!);
+  }
+
+  /// The controller's end is idempotent; its sink hub finishes each sink
+  /// once per session, so the collector sink ends once too.
+  void _endSession() {
+    if (_controller.session == null) return;
+    _holdingAsyncWork(() => unawaited(_controller.endSession()));
+    if (_sessionEnded) return;
+    _sessionEnded = true;
+    _delivery?.drain();
+    _delivery?.end();
   }
 
   void _appLifecycle(String name) {
     final state = AppLifecycleState.values.byName(name);
-    _controller.recordAppLifecycleState(state);
+    _holdingAsyncWork(() => _controller.recordAppLifecycleState(state));
+    _delivery?.appLifecycle(name);
     // TugboatReplay's widget ends the session on detached.
-    if (state == AppLifecycleState.detached) {
-      unawaited(_controller.endSession());
-    }
+    if (state == AppLifecycleState.detached) _endSession();
   }
 
   void _recordEvent(Map<String, Object?> input) {
@@ -362,12 +448,15 @@ class _ScenarioRun {
     final monoUs = _clock.monoUs;
     if (atMonoUs != null) _clock.monoUs = atMonoUs;
     final anchor = input['targetAnchor'] as Map<String, Object?>?;
-    _controller.debugRecordEvent(
-      type: input['eventType']! as String,
-      stream: TugboatEventStream.parse(input['stream'] as String?),
-      data:
-          (input['data'] ?? const <String, Object?>{}) as Map<String, Object?>,
-      targetAnchor: anchor == null ? null : decodeConformanceAnchor(anchor),
+    _holdingAsyncWork(
+      () => _controller.debugRecordEvent(
+        type: input['eventType']! as String,
+        stream: TugboatEventStream.parse(input['stream'] as String?),
+        data:
+            (input['data'] ?? const <String, Object?>{})
+                as Map<String, Object?>,
+        targetAnchor: anchor == null ? null : decodeConformanceAnchor(anchor),
+      ),
     );
     _clock.monoUs = monoUs;
   }

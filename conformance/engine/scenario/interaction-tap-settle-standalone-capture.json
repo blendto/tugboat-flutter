@@ -329,7 +329,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "frame.release",
+              "handle": "h-capture_request-2"
+            }
+          ]
         }
       }
     ]

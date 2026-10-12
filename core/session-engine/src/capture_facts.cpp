@@ -26,6 +26,18 @@ bool decode_rect(const Value& json, const std::string& path,
          r.req_double("height", &out->height);
 }
 
+// TugboatScreenshotCaptureBackend: a closed vocabulary on the collector
+// wire (`frameMetadata[].requestedBackend` / `resolvedBackend`).
+bool check_backend(const ObjectReader& r, const char* key,
+                   const OptString& value) {
+  if (!value || *value == "flutterRepaintBoundary" ||
+      *value == "nativeCpuExperimental") {
+    return true;
+  }
+  return r.reject(key,
+                  "expected flutterRepaintBoundary or nativeCpuExperimental");
+}
+
 bool decode_frame(const Value& json, const std::string& path,
                   CapturedFrame* out, Error* error) {
   const ObjectReader r(json, path, error);
@@ -45,7 +57,9 @@ bool decode_frame(const Value& json, const std::string& path,
       !read_non_negative(r, "captureMicros", &out->capture_micros) ||
       !r.opt_string("requestedBackend", &out->requested_backend) ||
       !r.opt_string("resolvedBackend", &out->resolved_backend) ||
-      !r.opt_string("fallbackReason", &out->fallback_reason)) {
+      !r.opt_string("fallbackReason", &out->fallback_reason) ||
+      !check_backend(r, "requestedBackend", out->requested_backend) ||
+      !check_backend(r, "resolvedBackend", out->resolved_backend)) {
     return false;
   }
   if (!masked) return r.reject("masked", "required");

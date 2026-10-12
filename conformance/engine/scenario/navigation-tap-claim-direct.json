@@ -370,6 +370,10 @@
             {
               "type": "timer.cancel",
               "timerId": "interaction.sweep"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-checkout"
             }
           ]
         }

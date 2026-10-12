@@ -185,7 +185,8 @@ GroupSpec collector_spec(CollectorConfig* c) {
            duration("jsonTimeoutMs", &c->json_timeout_ms),
            duration("identityDebounceMs", &c->identity_debounce_ms),
            duration("backgroundFlushDelayMs", &c->background_flush_delay_ms),
-           duration("endDrainTimeoutMs", &c->end_drain_timeout_ms)},
+           duration("endDrainTimeoutMs", &c->end_drain_timeout_ms),
+           duration("answerGraceMs", &c->answer_grace_ms)},
           {},
           {{"enabled", &c->enabled},
            {"reportEventLaneGaps", &c->report_event_lane_gaps}}};

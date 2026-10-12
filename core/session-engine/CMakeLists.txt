@@ -35,18 +35,28 @@ set(_tb_engine_sources
   src/capture_types.cpp
   src/clock.cpp
   src/collector.cpp
+  src/collector_mapping.cpp
   src/config.cpp
   src/coordination.cpp
   src/coordination_module.cpp
   src/dart_time.cpp
+  src/delivery.cpp
+  src/delivery_gaps.cpp
+  src/delivery_lanes.cpp
   src/delivery_module.cpp
   src/engine.cpp
   src/engine_module.cpp
+  src/event_queue.cpp
   src/evidence_module.cpp
   src/fingerprint.cpp
+  src/flush_pass.cpp
+  src/frame_lane.cpp
+  src/frame_retention.cpp
+  src/frame_retention_module.cpp
   src/frame_store.cpp
   src/gesture_classifier.cpp
   src/host.cpp
+  src/identity_module.cpp
   src/input_observations.cpp
   src/interaction_claims.cpp
   src/interaction_facts.cpp
@@ -57,6 +67,7 @@ set(_tb_engine_sources
   src/interaction_transaction.cpp
   src/json.cpp
   src/lifecycle.cpp
+  src/lifecycle_lane.cpp
   src/models.cpp
   src/module_registry.cpp
   src/modules.cpp
@@ -80,7 +91,8 @@ set(_tb_engine_sources
   src/tap_settle.cpp
   src/tb_session_engine.cpp
   src/teardown.cpp
-  src/text.cpp)
+  src/text.cpp
+  src/transport.cpp)
 
 add_library(tugboat_session_engine STATIC ${_tb_engine_sources}
   ${_tb_dc_sources})
@@ -114,11 +126,14 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
     tests/tb_session_engine_stateful_test.cpp)
   add_executable(tb_session_engine_interaction_test
     tests/tb_session_engine_interaction_test.cpp)
+  add_executable(tb_session_engine_delivery_test
+    tests/tb_session_engine_delivery_test.cpp)
   add_executable(tb_session_engine_capture_test
     tests/tb_session_engine_capture_test.cpp)
   foreach(_tb_unit IN ITEMS tb_session_engine_test
                             tb_session_engine_stateful_test
                             tb_session_engine_interaction_test
+                            tb_session_engine_delivery_test
                             tb_session_engine_capture_test)
     target_include_directories(${_tb_unit} PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -134,6 +149,7 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
   foreach(_tb_test IN ITEMS tb_session_engine_test
                             tb_session_engine_stateful_test
                             tb_session_engine_interaction_test
+                            tb_session_engine_delivery_test
                             tb_session_engine_capture_test
                             tb_session_engine_conformance)
     target_link_libraries(${_tb_test} PRIVATE tugboat_session_engine)

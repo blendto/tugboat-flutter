@@ -787,7 +787,24 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "frame.release",
+              "handle": "h-home"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-list"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-detail"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-home-again"
+            }
+          ]
         }
       }
     ]

@@ -19,7 +19,7 @@ yet; every Kotlin type is `internal`.
 | Host | `host/EngineHost` | Owns one handle and one `HandlerThread("tugboat-engine")`. See the threading notes below. |
 | Clock | `host/HostClock` | `monoUs` in the `SystemClock.uptimeMillis` timebase (`uptimeNanos` on API 35+), `wallUs` from `currentTimeMillis`. |
 | Effects | `host/Effect`, `EffectDispatcher` | `timer.schedule` / `timer.cancel` go to `TimerExecutor` (`Handler.postAtTime`). `http.send` goes to `HttpExecutor`. `frame.release` goes to `FrameHandleTable`. Unknown types are logged once. |
-| HTTP | `host/HttpExecutor`, `RequestDeadline`, `MultipartBody` | `HttpURLConnection` on one `tugboat-io` thread, with the Flutter collector headers and multipart layout. `jsonBody` is sent byte for byte. `timeoutMs` is a total deadline: a watchdog disconnects at it. The response body is capped at 64 KiB. |
+| HTTP | `host/HttpExecutor`, `RequestDeadline`, `CollectorResponse`, `MultipartBody` | `HttpURLConnection` on one `tugboat-io` thread, with the Flutter collector headers and multipart layout. `jsonBody` is sent byte for byte. `timeoutMs` is a total deadline: a watchdog disconnects at it. Every answer is one the engine accepts: the body is cut to at most 64 KiB at a UTF-8 boundary, and a status outside 100–599 becomes `error`. The multipart bytes are pinned by `conformance/host/multipart-request.golden`, shared with the Apple host. |
 
 `EngineHost` threading and failure rules:
 
@@ -30,6 +30,10 @@ yet; every Kotlin type is `internal`.
 - A non-`ok` status is logged. The message is dropped and its frame handles
   are released.
 - Three `internal_error`s in a row shut the host down.
+- Shutting down (`close`, or the `internal_error` limit) first submits
+  `engine.dispose` so the engine can report undelivered work. From its
+  response `frame.release` runs, but no `http.send` or `timer.schedule`
+  starts. Then the handle is destroyed.
 - Nothing thrown on the engine or IO thread escapes.
 
 ## Build and test

@@ -1,0 +1,1845 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-batch-formation",
+  "description": "Fresh events go out in batches of at most batchSize (10) until none is pending; events that arrive during a pass join it. The 10th pending event triggers a pass.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": "user-configured"
+      },
+      "collector": {
+        "enabled": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e0"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 10,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e0"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5011000,
+            "wallUs": 1781827200011000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e1"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 11,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e1"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5012000,
+            "wallUs": 1781827200012000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e2"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 12,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e2"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5013000,
+            "wallUs": 1781827200013000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e3"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-5",
+                "atMs": 13,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e3"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5014000,
+            "wallUs": 1781827200014000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e4"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-6",
+                "atMs": 14,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e4"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5015000,
+            "wallUs": 1781827200015000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e5"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-7",
+                "atMs": 15,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e5"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5016000,
+            "wallUs": 1781827200016000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e6"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-8",
+                "atMs": 16,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e6"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5017000,
+            "wallUs": 1781827200017000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e7"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-9",
+                "atMs": 17,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e7"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5018000,
+            "wallUs": 1781827200018000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e8"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-10",
+                "atMs": 18,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e8"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "the 10th pending event triggers a pass, but session_start is in flight",
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5019000,
+            "wallUs": 1781827200019000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e9"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-11",
+                "atMs": 19,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e9"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5020000,
+            "wallUs": 1781827200020000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e10"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-12",
+                "atMs": 20,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e10"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5021000,
+            "wallUs": 1781827200021000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e11"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-13",
+                "atMs": 21,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e11"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5022000,
+            "wallUs": 1781827200022000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e12"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-14",
+                "atMs": 22,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e12"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5023000,
+            "wallUs": 1781827200023000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e13"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-15",
+                "atMs": 23,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e13"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5024000,
+            "wallUs": 1781827200024000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e14"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-16",
+                "atMs": 24,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e14"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5025000,
+            "wallUs": 1781827200025000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e15"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-17",
+                "atMs": 25,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e15"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5026000,
+            "wallUs": 1781827200026000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e16"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-18",
+                "atMs": 26,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e16"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5027000,
+            "wallUs": 1781827200027000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e17"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-19",
+                "atMs": 27,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e17"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5028000,
+            "wallUs": 1781827200028000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e18"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-20",
+                "atMs": 28,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e18"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5029000,
+            "wallUs": 1781827200029000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e19"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-21",
+                "atMs": 29,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e19"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5030000,
+            "wallUs": 1781827200030000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e20"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-22",
+                "atMs": 30,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e20"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5031000,
+            "wallUs": 1781827200031000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e21"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-23",
+                "atMs": 31,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e21"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5032000,
+            "wallUs": 1781827200032000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "e22"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-24",
+                "atMs": 32,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "e22"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "the pass drains pending events in batches of at most 10",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5100000,
+            "wallUs": 1781827200100000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-2\",\"atMs\":10,\"triggeredAt\":\"2026-06-19T00:00:00.010Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e0\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-3\",\"atMs\":11,\"triggeredAt\":\"2026-06-19T00:00:00.011Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-4\",\"atMs\":12,\"triggeredAt\":\"2026-06-19T00:00:00.012Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-5\",\"atMs\":13,\"triggeredAt\":\"2026-06-19T00:00:00.013Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-6\",\"atMs\":14,\"triggeredAt\":\"2026-06-19T00:00:00.014Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e4\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-7\",\"atMs\":15,\"triggeredAt\":\"2026-06-19T00:00:00.015Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e5\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-8\",\"atMs\":16,\"triggeredAt\":\"2026-06-19T00:00:00.016Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e6\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-9\",\"atMs\":17,\"triggeredAt\":\"2026-06-19T00:00:00.017Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e7\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-10\",\"atMs\":18,\"triggeredAt\":\"2026-06-19T00:00:00.018Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e8\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-11\",\"atMs\":19,\"triggeredAt\":\"2026-06-19T00:00:00.019Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e9\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 25100000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5110000,
+            "wallUs": 1781827200110000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-12\",\"atMs\":20,\"triggeredAt\":\"2026-06-19T00:00:00.020Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e10\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-13\",\"atMs\":21,\"triggeredAt\":\"2026-06-19T00:00:00.021Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e11\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-14\",\"atMs\":22,\"triggeredAt\":\"2026-06-19T00:00:00.022Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e12\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-15\",\"atMs\":23,\"triggeredAt\":\"2026-06-19T00:00:00.023Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e13\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-16\",\"atMs\":24,\"triggeredAt\":\"2026-06-19T00:00:00.024Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e14\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-17\",\"atMs\":25,\"triggeredAt\":\"2026-06-19T00:00:00.025Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e15\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-18\",\"atMs\":26,\"triggeredAt\":\"2026-06-19T00:00:00.026Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e16\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-19\",\"atMs\":27,\"triggeredAt\":\"2026-06-19T00:00:00.027Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e17\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-20\",\"atMs\":28,\"triggeredAt\":\"2026-06-19T00:00:00.028Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e18\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-21\",\"atMs\":29,\"triggeredAt\":\"2026-06-19T00:00:00.029Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e19\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 25110000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5120000,
+            "wallUs": 1781827200120000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-3",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-22\",\"atMs\":30,\"triggeredAt\":\"2026-06-19T00:00:00.030Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e20\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-23\",\"atMs\":31,\"triggeredAt\":\"2026-06-19T00:00:00.031Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e21\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-24\",\"atMs\":32,\"triggeredAt\":\"2026-06-19T00:00:00.032Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e22\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-3",
+              "atMonoUs": 25120000
+            }
+          ]
+        }
+      },
+      {
+        "note": "pending is empty: the pass ends",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5130000,
+            "wallUs": 1781827200130000
+          },
+          "input": {
+            "requestId": "http-3",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-3"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5200000,
+            "wallUs": 1781827200200000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "f0"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-25",
+                "atMs": 200,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "f0"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5201000,
+            "wallUs": 1781827200201000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "f1"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-26",
+                "atMs": 201,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "f1"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5202000,
+            "wallUs": 1781827200202000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "f2"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-27",
+                "atMs": 202,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "f2"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5203000,
+            "wallUs": 1781827200203000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "f3"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-28",
+                "atMs": 203,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "f3"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5204000,
+            "wallUs": 1781827200204000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "f4"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-29",
+                "atMs": 204,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "f4"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5205000,
+            "wallUs": 1781827200205000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "f5"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-30",
+                "atMs": 205,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "f5"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5206000,
+            "wallUs": 1781827200206000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "f6"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-31",
+                "atMs": 206,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "f6"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5207000,
+            "wallUs": 1781827200207000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "f7"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-32",
+                "atMs": 207,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "f7"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5208000,
+            "wallUs": 1781827200208000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "f8"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-33",
+                "atMs": 208,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "f8"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "the 10th pending event triggers a pass",
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5300000,
+            "wallUs": 1781827200300000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "f9"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-34",
+                "atMs": 300,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "f9"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-25\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f0\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-26\",\"atMs\":201,\"triggeredAt\":\"2026-06-19T00:00:00.201Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-27\",\"atMs\":202,\"triggeredAt\":\"2026-06-19T00:00:00.202Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-28\",\"atMs\":203,\"triggeredAt\":\"2026-06-19T00:00:00.203Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-29\",\"atMs\":204,\"triggeredAt\":\"2026-06-19T00:00:00.204Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f4\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-30\",\"atMs\":205,\"triggeredAt\":\"2026-06-19T00:00:00.205Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f5\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-31\",\"atMs\":206,\"triggeredAt\":\"2026-06-19T00:00:00.206Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f6\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-32\",\"atMs\":207,\"triggeredAt\":\"2026-06-19T00:00:00.207Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f7\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-33\",\"atMs\":208,\"triggeredAt\":\"2026-06-19T00:00:00.208Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f8\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-34\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f9\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 25300000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5310000,
+            "wallUs": 1781827200310000
+          },
+          "input": {
+            "requestId": "http-4",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-4"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-2",
+          "atMs": 10,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e0"
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 11,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e1"
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 12,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e2"
+          }
+        },
+        {
+          "id": "event-5",
+          "atMs": 13,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e3"
+          }
+        },
+        {
+          "id": "event-6",
+          "atMs": 14,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e4"
+          }
+        },
+        {
+          "id": "event-7",
+          "atMs": 15,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e5"
+          }
+        },
+        {
+          "id": "event-8",
+          "atMs": 16,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e6"
+          }
+        },
+        {
+          "id": "event-9",
+          "atMs": 17,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e7"
+          }
+        },
+        {
+          "id": "event-10",
+          "atMs": 18,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e8"
+          }
+        },
+        {
+          "id": "event-11",
+          "atMs": 19,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e9"
+          }
+        },
+        {
+          "id": "event-12",
+          "atMs": 20,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e10"
+          }
+        },
+        {
+          "id": "event-13",
+          "atMs": 21,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e11"
+          }
+        },
+        {
+          "id": "event-14",
+          "atMs": 22,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e12"
+          }
+        },
+        {
+          "id": "event-15",
+          "atMs": 23,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e13"
+          }
+        },
+        {
+          "id": "event-16",
+          "atMs": 24,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e14"
+          }
+        },
+        {
+          "id": "event-17",
+          "atMs": 25,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e15"
+          }
+        },
+        {
+          "id": "event-18",
+          "atMs": 26,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e16"
+          }
+        },
+        {
+          "id": "event-19",
+          "atMs": 27,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e17"
+          }
+        },
+        {
+          "id": "event-20",
+          "atMs": 28,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e18"
+          }
+        },
+        {
+          "id": "event-21",
+          "atMs": 29,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e19"
+          }
+        },
+        {
+          "id": "event-22",
+          "atMs": 30,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e20"
+          }
+        },
+        {
+          "id": "event-23",
+          "atMs": 31,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e21"
+          }
+        },
+        {
+          "id": "event-24",
+          "atMs": 32,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "e22"
+          }
+        },
+        {
+          "id": "event-25",
+          "atMs": 200,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "f0"
+          }
+        },
+        {
+          "id": "event-26",
+          "atMs": 201,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "f1"
+          }
+        },
+        {
+          "id": "event-27",
+          "atMs": 202,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "f2"
+          }
+        },
+        {
+          "id": "event-28",
+          "atMs": 203,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "f3"
+          }
+        },
+        {
+          "id": "event-29",
+          "atMs": 204,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "f4"
+          }
+        },
+        {
+          "id": "event-30",
+          "atMs": 205,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "f5"
+          }
+        },
+        {
+          "id": "event-31",
+          "atMs": 206,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "f6"
+          }
+        },
+        {
+          "id": "event-32",
+          "atMs": 207,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "f7"
+          }
+        },
+        {
+          "id": "event-33",
+          "atMs": 208,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "f8"
+          }
+        },
+        {
+          "id": "event-34",
+          "atMs": 300,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "f9"
+          }
+        }
+      ]
+    }
+  }
+}

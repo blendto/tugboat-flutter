@@ -1,0 +1,3795 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-frame-chunks",
+  "description": "Frame uploads hold at most frameChunk (20) frames, taken from the pending frames sorted by frameNo.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "dartParity": "delivery",
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": "user-configured"
+      },
+      "collector": {
+        "enabled": true,
+        "maxPendingFrames": 25
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5100000,
+            "wallUs": 1781827200100000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5110000,
+            "wallUs": 1781827200110000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5120000,
+            "wallUs": 1781827200120000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5120000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5140000,
+            "wallUs": 1781827200140000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-2",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-2",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-2",
+              "frame": {
+                "id": "frame-5",
+                "atMs": 140,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-2",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-5",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5200000,
+            "wallUs": 1781827200200000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5210000,
+            "wallUs": 1781827200210000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5220000,
+            "wallUs": 1781827200220000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-2",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5220000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5240000,
+            "wallUs": 1781827200240000
+          },
+          "input": {
+            "requestId": "capture-2",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-5",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-5",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-5",
+              "frame": {
+                "id": "frame-9",
+                "atMs": 240,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-5",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-7",
+                "atMs": 200,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-5",
+                "afterFrame": "frame-9",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5300000,
+            "wallUs": 1781827200300000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5310000,
+            "wallUs": 1781827200310000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5320000,
+            "wallUs": 1781827200320000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-3",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5320000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5340000,
+            "wallUs": 1781827200340000
+          },
+          "input": {
+            "requestId": "capture-3",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-8",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-8",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-8",
+              "frame": {
+                "id": "frame-13",
+                "atMs": 340,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-8",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-11",
+                "atMs": 300,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-9",
+                "afterFrame": "frame-13",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5400000,
+            "wallUs": 1781827200400000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5410000,
+            "wallUs": 1781827200410000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5420000,
+            "wallUs": 1781827200420000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-4",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5420000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5440000,
+            "wallUs": 1781827200440000
+          },
+          "input": {
+            "requestId": "capture-4",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-11",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-11",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-11",
+              "frame": {
+                "id": "frame-17",
+                "atMs": 440,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-11",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-15",
+                "atMs": 400,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-13",
+                "afterFrame": "frame-17",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5500000,
+            "wallUs": 1781827200500000
+          },
+          "input": {
+            "pointerId": 5,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5510000,
+            "wallUs": 1781827200510000
+          },
+          "input": {
+            "pointerId": 5,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5520000,
+            "wallUs": 1781827200520000
+          },
+          "input": {
+            "pointerId": 5,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-5",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5520000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5540000,
+            "wallUs": 1781827200540000
+          },
+          "input": {
+            "requestId": "capture-5",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-14",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-14",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-14",
+              "frame": {
+                "id": "frame-21",
+                "atMs": 540,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-14",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-19",
+                "atMs": 500,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-17",
+                "afterFrame": "frame-21",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5600000,
+            "wallUs": 1781827200600000
+          },
+          "input": {
+            "pointerId": 6,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5610000,
+            "wallUs": 1781827200610000
+          },
+          "input": {
+            "pointerId": 6,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5620000,
+            "wallUs": 1781827200620000
+          },
+          "input": {
+            "pointerId": 6,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-6",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5620000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5640000,
+            "wallUs": 1781827200640000
+          },
+          "input": {
+            "requestId": "capture-6",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-17",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-17",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-17",
+              "frame": {
+                "id": "frame-25",
+                "atMs": 640,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-17",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-23",
+                "atMs": 600,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-21",
+                "afterFrame": "frame-25",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5700000,
+            "wallUs": 1781827200700000
+          },
+          "input": {
+            "pointerId": 7,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5710000,
+            "wallUs": 1781827200710000
+          },
+          "input": {
+            "pointerId": 7,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5720000,
+            "wallUs": 1781827200720000
+          },
+          "input": {
+            "pointerId": 7,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-7",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5720000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5740000,
+            "wallUs": 1781827200740000
+          },
+          "input": {
+            "requestId": "capture-7",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-20",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-20",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-20",
+              "frame": {
+                "id": "frame-29",
+                "atMs": 740,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-20",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-27",
+                "atMs": 700,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-25",
+                "afterFrame": "frame-29",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5800000,
+            "wallUs": 1781827200800000
+          },
+          "input": {
+            "pointerId": 8,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5810000,
+            "wallUs": 1781827200810000
+          },
+          "input": {
+            "pointerId": 8,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5820000,
+            "wallUs": 1781827200820000
+          },
+          "input": {
+            "pointerId": 8,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-8",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5820000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5840000,
+            "wallUs": 1781827200840000
+          },
+          "input": {
+            "requestId": "capture-8",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-23",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-23",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-23",
+              "frame": {
+                "id": "frame-33",
+                "atMs": 840,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-23",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-31",
+                "atMs": 800,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-29",
+                "afterFrame": "frame-33",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5900000,
+            "wallUs": 1781827200900000
+          },
+          "input": {
+            "pointerId": 9,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5910000,
+            "wallUs": 1781827200910000
+          },
+          "input": {
+            "pointerId": 9,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5920000,
+            "wallUs": 1781827200920000
+          },
+          "input": {
+            "pointerId": 9,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-9",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5920000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5940000,
+            "wallUs": 1781827200940000
+          },
+          "input": {
+            "requestId": "capture-9",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-26",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-26",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-26",
+              "frame": {
+                "id": "frame-37",
+                "atMs": 940,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-26",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-35",
+                "atMs": 900,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-33",
+                "afterFrame": "frame-37",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6000000,
+            "wallUs": 1781827201000000
+          },
+          "input": {
+            "pointerId": 10,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6010000,
+            "wallUs": 1781827201010000
+          },
+          "input": {
+            "pointerId": 10,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6020000,
+            "wallUs": 1781827201020000
+          },
+          "input": {
+            "pointerId": 10,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-10",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6020000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6040000,
+            "wallUs": 1781827201040000
+          },
+          "input": {
+            "requestId": "capture-10",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-29",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-29",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-29",
+              "frame": {
+                "id": "frame-41",
+                "atMs": 1040,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-29",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-39",
+                "atMs": 1000,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-37",
+                "afterFrame": "frame-41",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6100000,
+            "wallUs": 1781827201100000
+          },
+          "input": {
+            "pointerId": 11,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6110000,
+            "wallUs": 1781827201110000
+          },
+          "input": {
+            "pointerId": 11,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6120000,
+            "wallUs": 1781827201120000
+          },
+          "input": {
+            "pointerId": 11,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-11",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6120000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6140000,
+            "wallUs": 1781827201140000
+          },
+          "input": {
+            "requestId": "capture-11",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-32",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-32",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-32",
+              "frame": {
+                "id": "frame-45",
+                "atMs": 1140,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-32",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-43",
+                "atMs": 1100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-41",
+                "afterFrame": "frame-45",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6200000,
+            "wallUs": 1781827201200000
+          },
+          "input": {
+            "pointerId": 12,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6210000,
+            "wallUs": 1781827201210000
+          },
+          "input": {
+            "pointerId": 12,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6220000,
+            "wallUs": 1781827201220000
+          },
+          "input": {
+            "pointerId": 12,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-12",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6220000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6240000,
+            "wallUs": 1781827201240000
+          },
+          "input": {
+            "requestId": "capture-12",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-35",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-35",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-35",
+              "frame": {
+                "id": "frame-49",
+                "atMs": 1240,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-35",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-47",
+                "atMs": 1200,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-45",
+                "afterFrame": "frame-49",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6300000,
+            "wallUs": 1781827201300000
+          },
+          "input": {
+            "pointerId": 13,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6310000,
+            "wallUs": 1781827201310000
+          },
+          "input": {
+            "pointerId": 13,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6320000,
+            "wallUs": 1781827201320000
+          },
+          "input": {
+            "pointerId": 13,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-13",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6320000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6340000,
+            "wallUs": 1781827201340000
+          },
+          "input": {
+            "requestId": "capture-13",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-38",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-38",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-38",
+              "frame": {
+                "id": "frame-53",
+                "atMs": 1340,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-38",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-51",
+                "atMs": 1300,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-49",
+                "afterFrame": "frame-53",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6400000,
+            "wallUs": 1781827201400000
+          },
+          "input": {
+            "pointerId": 14,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6410000,
+            "wallUs": 1781827201410000
+          },
+          "input": {
+            "pointerId": 14,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6420000,
+            "wallUs": 1781827201420000
+          },
+          "input": {
+            "pointerId": 14,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-14",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6420000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6440000,
+            "wallUs": 1781827201440000
+          },
+          "input": {
+            "requestId": "capture-14",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-41",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-41",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-41",
+              "frame": {
+                "id": "frame-57",
+                "atMs": 1440,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-41",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-55",
+                "atMs": 1400,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-53",
+                "afterFrame": "frame-57",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6500000,
+            "wallUs": 1781827201500000
+          },
+          "input": {
+            "pointerId": 15,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6510000,
+            "wallUs": 1781827201510000
+          },
+          "input": {
+            "pointerId": 15,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6520000,
+            "wallUs": 1781827201520000
+          },
+          "input": {
+            "pointerId": 15,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-15",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6520000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6540000,
+            "wallUs": 1781827201540000
+          },
+          "input": {
+            "requestId": "capture-15",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-44",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-44",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-44",
+              "frame": {
+                "id": "frame-61",
+                "atMs": 1540,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-44",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-59",
+                "atMs": 1500,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-57",
+                "afterFrame": "frame-61",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6600000,
+            "wallUs": 1781827201600000
+          },
+          "input": {
+            "pointerId": 16,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6610000,
+            "wallUs": 1781827201610000
+          },
+          "input": {
+            "pointerId": 16,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6620000,
+            "wallUs": 1781827201620000
+          },
+          "input": {
+            "pointerId": 16,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-16",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6620000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6640000,
+            "wallUs": 1781827201640000
+          },
+          "input": {
+            "requestId": "capture-16",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-47",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-47",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-47",
+              "frame": {
+                "id": "frame-65",
+                "atMs": 1640,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-47",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-63",
+                "atMs": 1600,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-61",
+                "afterFrame": "frame-65",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6700000,
+            "wallUs": 1781827201700000
+          },
+          "input": {
+            "pointerId": 17,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6710000,
+            "wallUs": 1781827201710000
+          },
+          "input": {
+            "pointerId": 17,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6720000,
+            "wallUs": 1781827201720000
+          },
+          "input": {
+            "pointerId": 17,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-17",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6720000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6740000,
+            "wallUs": 1781827201740000
+          },
+          "input": {
+            "requestId": "capture-17",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-50",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-50",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-50",
+              "frame": {
+                "id": "frame-69",
+                "atMs": 1740,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-50",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-67",
+                "atMs": 1700,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-65",
+                "afterFrame": "frame-69",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6800000,
+            "wallUs": 1781827201800000
+          },
+          "input": {
+            "pointerId": 18,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6810000,
+            "wallUs": 1781827201810000
+          },
+          "input": {
+            "pointerId": 18,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6820000,
+            "wallUs": 1781827201820000
+          },
+          "input": {
+            "pointerId": 18,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-18",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6820000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6840000,
+            "wallUs": 1781827201840000
+          },
+          "input": {
+            "requestId": "capture-18",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-53",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-53",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-53",
+              "frame": {
+                "id": "frame-73",
+                "atMs": 1840,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-53",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-71",
+                "atMs": 1800,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-69",
+                "afterFrame": "frame-73",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6900000,
+            "wallUs": 1781827201900000
+          },
+          "input": {
+            "pointerId": 19,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6910000,
+            "wallUs": 1781827201910000
+          },
+          "input": {
+            "pointerId": 19,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 6920000,
+            "wallUs": 1781827201920000
+          },
+          "input": {
+            "pointerId": 19,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-19",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6920000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6940000,
+            "wallUs": 1781827201940000
+          },
+          "input": {
+            "requestId": "capture-19",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-56",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-56",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-56",
+              "frame": {
+                "id": "frame-77",
+                "atMs": 1940,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-56",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-75",
+                "atMs": 1900,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-73",
+                "afterFrame": "frame-77",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 7000000,
+            "wallUs": 1781827202000000
+          },
+          "input": {
+            "pointerId": 20,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 7010000,
+            "wallUs": 1781827202010000
+          },
+          "input": {
+            "pointerId": 20,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 7020000,
+            "wallUs": 1781827202020000
+          },
+          "input": {
+            "pointerId": 20,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-20",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 7020000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 7040000,
+            "wallUs": 1781827202040000
+          },
+          "input": {
+            "requestId": "capture-20",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-59",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-59",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-59",
+              "frame": {
+                "id": "frame-81",
+                "atMs": 2040,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-59",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-79",
+                "atMs": 2000,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-77",
+                "afterFrame": "frame-81",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 7100000,
+            "wallUs": 1781827202100000
+          },
+          "input": {
+            "pointerId": 21,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 7110000,
+            "wallUs": 1781827202110000
+          },
+          "input": {
+            "pointerId": 21,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 7120000,
+            "wallUs": 1781827202120000
+          },
+          "input": {
+            "pointerId": 21,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-21",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 7120000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 0.8
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 7140000,
+            "wallUs": 1781827202140000
+          },
+          "input": {
+            "requestId": "capture-21",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-62",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-62",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-62",
+              "frame": {
+                "id": "frame-85",
+                "atMs": 2140,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-62",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-83",
+                "atMs": 2100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-81",
+                "afterFrame": "frame-85",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "21 frames: a chunk of 20, then a chunk of 1",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 7500000,
+            "wallUs": 1781827202500000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "frames",
+              "path": "/v1/frames",
+              "timeoutMs": 15000,
+              "multipart": {
+                "fields": [
+                  [
+                    "sessionId",
+                    "srv-1"
+                  ],
+                  [
+                    "frameNos",
+                    "5,9,13,17,21,25,29,33,37,41,45,49,53,57,61,65,69,73,77,81"
+                  ],
+                  [
+                    "frameMetadata",
+                    "[{\"id\":\"frame-5\",\"atMs\":140,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-9\",\"atMs\":240,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-5\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-13\",\"atMs\":340,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-8\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-17\",\"atMs\":440,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-11\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-21\",\"atMs\":540,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-14\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-25\",\"atMs\":640,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-17\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-29\",\"atMs\":740,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-20\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-33\",\"atMs\":840,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-23\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-37\",\"atMs\":940,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-26\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-41\",\"atMs\":1040,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-29\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-45\",\"atMs\":1140,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-32\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-49\",\"atMs\":1240,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-35\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-53\",\"atMs\":1340,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-38\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-57\",\"atMs\":1440,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-41\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-61\",\"atMs\":1540,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-44\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-65\",\"atMs\":1640,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-47\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-69\",\"atMs\":1740,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-50\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-73\",\"atMs\":1840,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-53\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-77\",\"atMs\":1940,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-56\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"},{\"id\":\"frame-81\",\"atMs\":2040,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-59\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"}]"
+                  ]
+                ],
+                "frames": [
+                  {
+                    "handle": "h-capture_request-2",
+                    "filename": "5.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-5",
+                    "filename": "9.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-8",
+                    "filename": "13.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-11",
+                    "filename": "17.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-14",
+                    "filename": "21.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-17",
+                    "filename": "25.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-20",
+                    "filename": "29.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-23",
+                    "filename": "33.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-26",
+                    "filename": "37.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-29",
+                    "filename": "41.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-32",
+                    "filename": "45.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-35",
+                    "filename": "49.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-38",
+                    "filename": "53.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-41",
+                    "filename": "57.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-44",
+                    "filename": "61.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-47",
+                    "filename": "65.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-50",
+                    "filename": "69.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-53",
+                    "filename": "73.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-56",
+                    "filename": "77.jpg"
+                  },
+                  {
+                    "handle": "h-capture_request-59",
+                    "filename": "81.jpg"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 27500000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 7510000,
+            "wallUs": 1781827202510000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "frames",
+              "path": "/v1/frames",
+              "timeoutMs": 15000,
+              "multipart": {
+                "fields": [
+                  [
+                    "sessionId",
+                    "srv-1"
+                  ],
+                  [
+                    "frameNos",
+                    "85"
+                  ],
+                  [
+                    "frameMetadata",
+                    "[{\"id\":\"frame-85\",\"atMs\":2140,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-62\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"}]"
+                  ]
+                ],
+                "frames": [
+                  {
+                    "handle": "h-capture_request-62",
+                    "filename": "85.jpg"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 27510000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 7520000,
+            "wallUs": 1781827202520000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-3",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"afterFrame\":\"frame-5\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-7\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-5\",\"afterFrame\":\"frame-9\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-11\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-9\",\"afterFrame\":\"frame-13\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-15\",\"atMs\":400,\"triggeredAt\":\"2026-06-19T00:00:00.400Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-13\",\"afterFrame\":\"frame-17\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-19\",\"atMs\":500,\"triggeredAt\":\"2026-06-19T00:00:00.500Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-17\",\"afterFrame\":\"frame-21\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-23\",\"atMs\":600,\"triggeredAt\":\"2026-06-19T00:00:00.600Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-21\",\"afterFrame\":\"frame-25\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-27\",\"atMs\":700,\"triggeredAt\":\"2026-06-19T00:00:00.700Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-25\",\"afterFrame\":\"frame-29\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-31\",\"atMs\":800,\"triggeredAt\":\"2026-06-19T00:00:00.800Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-29\",\"afterFrame\":\"frame-33\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-35\",\"atMs\":900,\"triggeredAt\":\"2026-06-19T00:00:00.900Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-33\",\"afterFrame\":\"frame-37\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-39\",\"atMs\":1000,\"triggeredAt\":\"2026-06-19T00:00:01.000Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-37\",\"afterFrame\":\"frame-41\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-3",
+              "atMonoUs": 27520000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 7530000,
+            "wallUs": 1781827202530000
+          },
+          "input": {
+            "requestId": "http-3",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-3"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-43\",\"atMs\":1100,\"triggeredAt\":\"2026-06-19T00:00:01.100Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-41\",\"afterFrame\":\"frame-45\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-47\",\"atMs\":1200,\"triggeredAt\":\"2026-06-19T00:00:01.200Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-45\",\"afterFrame\":\"frame-49\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-51\",\"atMs\":1300,\"triggeredAt\":\"2026-06-19T00:00:01.300Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-49\",\"afterFrame\":\"frame-53\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-55\",\"atMs\":1400,\"triggeredAt\":\"2026-06-19T00:00:01.400Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-53\",\"afterFrame\":\"frame-57\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-59\",\"atMs\":1500,\"triggeredAt\":\"2026-06-19T00:00:01.500Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-57\",\"afterFrame\":\"frame-61\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-63\",\"atMs\":1600,\"triggeredAt\":\"2026-06-19T00:00:01.600Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-61\",\"afterFrame\":\"frame-65\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-67\",\"atMs\":1700,\"triggeredAt\":\"2026-06-19T00:00:01.700Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-65\",\"afterFrame\":\"frame-69\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-71\",\"atMs\":1800,\"triggeredAt\":\"2026-06-19T00:00:01.800Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-69\",\"afterFrame\":\"frame-73\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-75\",\"atMs\":1900,\"triggeredAt\":\"2026-06-19T00:00:01.900Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-73\",\"afterFrame\":\"frame-77\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-79\",\"atMs\":2000,\"triggeredAt\":\"2026-06-19T00:00:02.000Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-77\",\"afterFrame\":\"frame-81\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 27530000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-5",
+          "atMs": 140,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-2",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-9",
+          "atMs": 240,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-5",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-13",
+          "atMs": 340,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-8",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-17",
+          "atMs": 440,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-11",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-21",
+          "atMs": 540,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-14",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-25",
+          "atMs": 640,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-17",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-29",
+          "atMs": 740,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-20",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-33",
+          "atMs": 840,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-23",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-37",
+          "atMs": 940,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-26",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-41",
+          "atMs": 1040,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-29",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-45",
+          "atMs": 1140,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-32",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-49",
+          "atMs": 1240,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-35",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-53",
+          "atMs": 1340,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-38",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-57",
+          "atMs": 1440,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-41",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-61",
+          "atMs": 1540,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-44",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-65",
+          "atMs": 1640,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-47",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-69",
+          "atMs": 1740,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-50",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-73",
+          "atMs": 1840,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-53",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-77",
+          "atMs": 1940,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-56",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-81",
+          "atMs": 2040,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-59",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-85",
+          "atMs": 2140,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-62",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-3",
+          "atMs": 100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-5",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-7",
+          "atMs": 200,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-5",
+          "afterFrame": "frame-9",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-11",
+          "atMs": 300,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-9",
+          "afterFrame": "frame-13",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-15",
+          "atMs": 400,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-13",
+          "afterFrame": "frame-17",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-19",
+          "atMs": 500,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-17",
+          "afterFrame": "frame-21",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-23",
+          "atMs": 600,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-21",
+          "afterFrame": "frame-25",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-27",
+          "atMs": 700,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-25",
+          "afterFrame": "frame-29",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-31",
+          "atMs": 800,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-29",
+          "afterFrame": "frame-33",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-35",
+          "atMs": 900,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-33",
+          "afterFrame": "frame-37",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-39",
+          "atMs": 1000,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-37",
+          "afterFrame": "frame-41",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-43",
+          "atMs": 1100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-41",
+          "afterFrame": "frame-45",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-47",
+          "atMs": 1200,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-45",
+          "afterFrame": "frame-49",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-51",
+          "atMs": 1300,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-49",
+          "afterFrame": "frame-53",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-55",
+          "atMs": 1400,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-53",
+          "afterFrame": "frame-57",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-59",
+          "atMs": 1500,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-57",
+          "afterFrame": "frame-61",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-63",
+          "atMs": 1600,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-61",
+          "afterFrame": "frame-65",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-67",
+          "atMs": 1700,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-65",
+          "afterFrame": "frame-69",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-71",
+          "atMs": 1800,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-69",
+          "afterFrame": "frame-73",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-75",
+          "atMs": 1900,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-73",
+          "afterFrame": "frame-77",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-79",
+          "atMs": 2000,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-77",
+          "afterFrame": "frame-81",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-83",
+          "atMs": 2100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-81",
+          "afterFrame": "frame-85",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        }
+      ]
+    }
+  }
+}

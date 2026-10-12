@@ -38,6 +38,12 @@ internal object HostMessages {
     const val TIMER_FIRED = "timer.fired"
     const val TRANSPORT_RESULT = "transport.result"
 
+    /**
+     * The last message before the handle is destroyed: the engine reports
+     * undelivered work and becomes inert. Its input is empty.
+     */
+    const val ENGINE_DISPOSE = "engine.dispose"
+
     fun timerFiredInput(timerId: String): String = JSONObject().put("timerId", timerId).toString()
 
     fun transportResultInput(requestId: String, outcome: TransportOutcome): String {

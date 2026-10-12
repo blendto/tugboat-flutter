@@ -1,0 +1,609 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "anchor-toolkit",
+  "description": "An anchor's toolkit (view, compose, swiftui, uikit, react-native; closed set) travels from tap evidence and event.record into event records and the collector wire, in both the interaction's reduced targetAnchor and the generic envelope's full one. Any other value is invalid_message at its path. C++ only: the Dart controller cannot be driven by interaction facts, and Flutter anchors have no toolkit.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": "user-configured"
+      },
+      "collector": {
+        "enabled": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            }
+          ]
+        }
+      },
+      {
+        "note": "not in the closed set",
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5050000,
+            "wallUs": 1781827200050000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "targetAnchor": {
+              "fingerprint": "f00d",
+              "toolkit": "flutter"
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.targetAnchor.toolkit"
+          }
+        }
+      },
+      {
+        "note": "carried into the record and the wire",
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5060000,
+            "wallUs": 1781827200060000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "tapped"
+            },
+            "targetAnchor": {
+              "fingerprint": "beef",
+              "toolkit": "swiftui"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 60,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "targetAnchor": {
+                  "fingerprint": "beef",
+                  "toolkit": "swiftui"
+                },
+                "data": {
+                  "name": "tapped"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5100000,
+            "wallUs": 1781827200100000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "note": "tap evidence resolved at the down position, with its toolkit",
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5140000,
+            "wallUs": 1781827200140000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch",
+            "tap": {
+              "anchor": {
+                "widgetType": "android.widget.Button",
+                "role": "button",
+                "fingerprint": "f00d",
+                "canonicalPath": "root/0/1",
+                "toolkit": "view"
+              }
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.sweep",
+              "atMonoUs": 6390000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-4",
+              "atMonoUs": 6140000
+            }
+          ]
+        }
+      },
+      {
+        "note": "the settle delay passes; the tap waits out its claim window",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 6140000,
+            "wallUs": 1781827201140000
+          },
+          "input": {
+            "timerId": "interaction.settle.event-4"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-4",
+              "atMonoUs": 6390000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 6390000,
+            "wallUs": 1781827201390000
+          },
+          "input": {
+            "timerId": "interaction.sweep"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "note": "the claim window closed: the tap asks for its capture",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 6390000,
+            "wallUs": 1781827201390000
+          },
+          "input": {
+            "timerId": "interaction.settle.event-4"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6390000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "the tap interaction is published with the anchor's toolkit",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6420000,
+            "wallUs": 1781827201420000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-3",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-3",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-3",
+              "frame": {
+                "id": "frame-6",
+                "atMs": 1420,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-3",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "targetAnchor": {
+                  "widgetType": "android.widget.Button",
+                  "role": "button",
+                  "fingerprint": "f00d",
+                  "canonicalPath": "root/0/1",
+                  "toolkit": "view"
+                },
+                "afterFrame": "frame-6",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "tap",
+                  "targetFingerprint": "f00d"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "frames",
+              "path": "/v1/frames",
+              "timeoutMs": 15000,
+              "multipart": {
+                "fields": [
+                  [
+                    "sessionId",
+                    "srv-1"
+                  ],
+                  [
+                    "frameNos",
+                    "6"
+                  ],
+                  [
+                    "frameMetadata",
+                    "[{\"id\":\"frame-6\",\"atMs\":1420,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-3\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"}]"
+                  ]
+                ],
+                "frames": [
+                  {
+                    "handle": "h-capture_request-3",
+                    "filename": "6.jpg"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 26420000
+            }
+          ]
+        }
+      },
+      {
+        "note": "after the frame, both anchors reach the jsonBody with their toolkit",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 6500000,
+            "wallUs": 1781827201500000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":60,\"triggeredAt\":\"2026-06-19T00:00:00.060Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"targetAnchor\":{\"fingerprint\":\"beef\",\"toolkit\":\"swiftui\"},\"payload\":{\"name\":\"tapped\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-4\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"targetFingerprint\":\"f00d\",\"gesture\":\"tap\",\"targetAnchor\":{\"fingerprint\":\"f00d\",\"canonicalPath\":\"root/0/1\",\"widgetType\":\"android.widget.Button\",\"role\":\"button\",\"toolkit\":\"view\"},\"afterFrame\":\"frame-6\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 26500000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 6510000,
+            "wallUs": 1781827201510000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-6",
+          "atMs": 1420,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-3",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-3",
+          "atMs": 60,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "targetAnchor": {
+            "fingerprint": "beef",
+            "toolkit": "swiftui"
+          },
+          "data": {
+            "name": "tapped"
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "targetAnchor": {
+            "widgetType": "android.widget.Button",
+            "role": "button",
+            "fingerprint": "f00d",
+            "canonicalPath": "root/0/1",
+            "toolkit": "view"
+          },
+          "afterFrame": "frame-6",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "tap",
+            "targetFingerprint": "f00d"
+          }
+        }
+      ]
+    }
+  }
+}

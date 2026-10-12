@@ -19,8 +19,9 @@ namespace engine {
 //    └─────────────────────── ended ◄────────────────────────────────┘
 //
 // `ended` keeps the last session for `session.snapshot` until the next
-// `session.start`.
-enum class LifecycleState { kIdle, kActive, kBackground, kEnded };
+// `session.start`. `engine.dispose` (without a live session) makes the
+// engine `disposed`: it admits no further command.
+enum class LifecycleState { kIdle, kActive, kBackground, kEnded, kDisposed };
 
 // Flutter's AppLifecycleState, which every host maps its OS signals onto.
 enum class AppState { kPaused, kHidden, kInactive, kResumed, kDetached };
@@ -32,6 +33,7 @@ enum class LifecycleSignal {
   kForegrounded,  // resumed
   kInactive,
   kDetached,
+  kDispose,  // engine.dispose
 };
 
 LifecycleState transition(LifecycleState state, LifecycleSignal signal);

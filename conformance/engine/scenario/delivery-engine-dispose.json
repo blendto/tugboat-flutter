@@ -1,0 +1,587 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-engine-dispose",
+  "description": "engine.dispose, sent before tb_session_engine_destroy and only between sessions, reports the work the collector never confirmed once as a collector_delivery health record (undelivered: queued; inFlight: the request whose answer is pending), releases every frame delivery still references, and leaves the engine inert (change C6: the report is a record).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "engineOnly": [
+    "C6"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": "user-configured"
+      },
+      "collector": {
+        "enabled": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5100000,
+            "wallUs": 1781827200100000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5110000,
+            "wallUs": 1781827200110000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5120000,
+            "wallUs": 1781827200120000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5120000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            }
+          ]
+        }
+      },
+      {
+        "note": "the upload is in flight",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5140000,
+            "wallUs": 1781827200140000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-2",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-2",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-2",
+              "frame": {
+                "id": "frame-5",
+                "atMs": 140,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-2",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-5",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "frames",
+              "path": "/v1/frames",
+              "timeoutMs": 15000,
+              "multipart": {
+                "fields": [
+                  [
+                    "sessionId",
+                    "srv-1"
+                  ],
+                  [
+                    "frameNos",
+                    "5"
+                  ],
+                  [
+                    "frameMetadata",
+                    "[{\"id\":\"frame-5\",\"atMs\":140,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"}]"
+                  ]
+                ],
+                "frames": [
+                  {
+                    "handle": "h-capture_request-2",
+                    "filename": "5.jpg"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 25140000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5200000,
+            "wallUs": 1781827200200000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "pending"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-7",
+                "atMs": 200,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "pending"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "note": "a live session must end first",
+        "send": {
+          "type": "engine.dispose",
+          "at": {
+            "monoUs": 5300000,
+            "wallUs": 1781827200300000
+          },
+          "input": {}
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.type"
+          }
+        }
+      },
+      {
+        "note": "the session lets go of its frame; delivery still uploads it; session_end waits for the drain",
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 5400000,
+            "wallUs": 1781827200400000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-8",
+                "atMs": 400,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.endDrain",
+              "atMonoUs": 10400000
+            }
+          ]
+        }
+      },
+      {
+        "note": "one report: the held session_end and two events undelivered, one frame in flight; the frame is released and the timers cancelled",
+        "send": {
+          "type": "engine.dispose",
+          "at": {
+            "monoUs": 5500000,
+            "wallUs": 1781827200500000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "health",
+              "component": "collector_delivery",
+              "counters": {
+                "undeliveredLifecycle": 1,
+                "undeliveredEvents": 2,
+                "undeliveredFrames": 0,
+                "inFlightLifecycle": 0,
+                "inFlightEvents": 0,
+                "inFlightFrames": 1
+              }
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.flush"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.endDrain"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-capture_request-2"
+            }
+          ]
+        }
+      },
+      {
+        "note": "a disposed engine admits nothing",
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 5600000,
+            "wallUs": 1781827200600000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "late"
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.type"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5700000,
+            "wallUs": 1781827200700000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.type"
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-5",
+          "atMs": 140,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-2",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-3",
+          "atMs": 100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-5",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-7",
+          "atMs": 200,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "pending"
+          }
+        },
+        {
+          "id": "event-8",
+          "atMs": 400,
+          "type": "session_end",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        }
+      ]
+    }
+  }
+}

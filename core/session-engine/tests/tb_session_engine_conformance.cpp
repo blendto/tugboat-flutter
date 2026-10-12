@@ -52,7 +52,7 @@ const std::map<std::string, std::string> kKindDirectories = {
 
 const std::set<std::string> kEnvelopeKeys = {
     "fixtureFormat", "kind",     "name",       "description", "contract",
-    "input",         "expected", "engineOnly", "runners"};
+    "input",         "expected", "engineOnly", "runners",    "dartParity"};
 
 std::string read_file(const fs::path& path) {
   std::ifstream in(path, std::ios::binary);

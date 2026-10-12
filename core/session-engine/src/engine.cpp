@@ -23,7 +23,7 @@ struct Pending {
   LifecycleState lifecycle = LifecycleState::kIdle;
   // An event-producing fact without a live session: accepted, not applied.
   bool dropped = false;
-  // When the fact happened (absent on a configure sent without `at`).
+  // When the fact happened (absent on untimed messages).
   std::optional<At> at;
 };
 
@@ -77,8 +77,8 @@ bool decode_command(const ObjectReader& envelope, const CommandSpec& spec,
   }
   const CommandInput command_input{*input, envelope.child("input"), at};
   out->command = spec.decode(command_input, error);
-  out->path = envelope.path();
   out->at = at;
+  out->path = envelope.path();
   out->policy = spec.policy;
   return out->command != nullptr;
 }
@@ -232,6 +232,10 @@ class Dispatch {
                 Value* response) {
     Admission simulated{state_->lifecycle, state_->config.host.has_value()};
     for (Pending& p : *pending) {
+      if (simulated.lifecycle == LifecycleState::kDisposed) {
+        return invalid(error_, p.path + ".type",
+                       "the engine is disposed (engine.dispose)");
+      }
       p.lifecycle = simulated.lifecycle;
       p.dropped = p.policy == SessionPolicy::kEventProducing &&
                   !has_live_session(simulated.lifecycle);
@@ -246,6 +250,7 @@ class Dispatch {
     for (Pending& p : *pending) {
       if (p.dropped) continue;
       state_->lifecycle = p.lifecycle;
+      state_->applying = AppliedMessage{&modules_, p.at};
       p.command->apply(modules_, state_, &out);
       // Work the command deferred (coordination.h) sees the lifecycle the
       // command left.
@@ -254,6 +259,7 @@ class Dispatch {
       }
       if (p.at) modules_.run_after_command(*p.at, state_, &out);
     }
+    state_->applying = AppliedMessage();
     state_->lifecycle = simulated.lifecycle;
     *response = command_response(type, out);
     return true;

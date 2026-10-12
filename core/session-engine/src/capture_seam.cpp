@@ -299,7 +299,8 @@ ExecutionResult CaptureSeam::execute_captured(EngineState* state,
   Session& session = *state->live_session();
   const FrameRecord record = frames_.accept(
       frame, context, session.at_ms(at.mono_us),
-      state->config.limits.max_frames, &state->ids, &session, out);
+      state->config.limits.max_frames, &state->ids, &session,
+      &state->frame_retention, out);
   module_registry().run_frame_accepted(record.frame, record.handle, state,
                                        out);
   ExecutionResult accepted;

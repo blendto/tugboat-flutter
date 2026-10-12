@@ -42,7 +42,8 @@ void FrameStore::reset() {
 FrameRecord FrameStore::accept(const CapturedFrame& captured,
                                const RequestContext& context, int64_t at_ms,
                                int64_t max_frames, IdCounter* ids,
-                               Session* session, Output* out) {
+                               Session* session, FrameRetention* retention,
+                               Output* out) {
   Frame frame;
   frame.id = ids->next("frame");
   frame.at_ms = at_ms;
@@ -73,9 +74,14 @@ FrameRecord FrameStore::accept(const CapturedFrame& captured,
 
   const FrameRecord record{captured.handle, frame};
   out->records.push_back(record);
+  retention->retain(record.frame.id, captured.handle, FrameOwner::kSession);
   const std::vector<std::string> dropped =
       session->append_frame(std::move(frame), max_frames);
-  for (const std::string& id : dropped) trim(id, *session);
+  for (const std::string& id : dropped) {
+    trim(id, *session);
+    // The session no longer references the trimmed frame's bytes.
+    retention->release(id, FrameOwner::kSession, out);
+  }
   if (!dropped.empty()) forget_unreferenced(*session);
   return record;
 }

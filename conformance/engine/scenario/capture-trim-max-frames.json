@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "capture-trim-max-frames",
-  "description": "Beyond limits.maxFrames the oldest frame leaves the session (truncated). Its provenance stays only as a tombstone while an event names it, so it is never attached or reused again: a later capture with the same content is a new frame, not exact_content_reused. (Releasing the trimmed frame's host bytes belongs to collector delivery, phase 3b.)",
+  "description": "Beyond limits.maxFrames the oldest frame leaves the session (truncated). Its provenance stays only as a tombstone while an event names it, so it is never attached or reused again: a later capture with the same content is a new frame, not exact_content_reused. The session's reference to the trimmed frame's handle goes with it; without collector delivery that was the last one, so frame.release follows.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -292,7 +292,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "frame.release",
+              "handle": "h-a"
+            }
+          ]
         }
       },
       {
@@ -408,7 +413,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "frame.release",
+              "handle": "h-b"
+            }
+          ]
         }
       }
     ]

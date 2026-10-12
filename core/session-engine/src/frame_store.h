@@ -13,6 +13,7 @@
 #include <string>
 
 #include "capture_types.h"
+#include "frame_retention.h"
 #include "models.h"
 #include "output.h"
 #include "session.h"
@@ -74,9 +75,12 @@ class FrameStore {
   // `session` (trimming beyond `max_frames`), emits its frame record, and
   // makes it the latest frame. `context` is the request's, and the frame's
   // `boundaryRect` becomes its provenance boundary.
-  FrameRecord accept(const CapturedFrame& captured, const RequestContext& context,
-                     int64_t at_ms, int64_t max_frames, IdCounter* ids,
-                     Session* session, Output* out);
+  // The session's reference to the frame's handle is retained, and that of
+  // every trimmed frame released (`retention`).
+  FrameRecord accept(const CapturedFrame& captured,
+                     const RequestContext& context, int64_t at_ms,
+                     int64_t max_frames, IdCounter* ids, Session* session,
+                     FrameRetention* retention, Output* out);
 
   // Dart `_compatibleFrameFor`: the latest frame when it is available and
   // compatible with `context`, else nullptr.
