@@ -6,8 +6,8 @@
 #ifndef TUGBOAT_SESSION_ENGINE_POINTER_INTERACTIONS_H
 #define TUGBOAT_SESSION_ENGINE_POINTER_INTERACTIONS_H
 
-#include "interaction_turn.h"
 #include "pointer_tracker.h"
+#include "turn.h"
 
 namespace tugboat {
 namespace engine {
@@ -15,7 +15,7 @@ namespace engine {
 // Applies tracker signals in order. Pointer input is ignored while the app
 // is in the background (Dart `_acceptsPointerInput`); the tracker itself
 // keeps following contacts.
-void apply_pointer_signals(InteractionTurn& turn,
+void apply_pointer_signals(Turn& turn,
                            const PointerSignals& signals);
 
 // Teardown: abandons every pending pointer in pointer-down order. A tap

@@ -368,11 +368,3 @@ List<Map<String, Object?>> comparableEffects(List<Object?> effects) => [
             entry.key: entry.value,
       },
 ];
-
-/// Renames `"id":"event-N"` inside a JSON body with [rename], so bodies
-/// whose event ids differ only in numbering compare byte for byte.
-String canonBodyIds(String body, String Function(String id) rename) =>
-    body.replaceAllMapped(
-      RegExp(r'"id":"(event-\d+)"'),
-      (match) => '"id":"${rename(match[1]!)}"',
-    );

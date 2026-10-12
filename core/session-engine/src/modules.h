@@ -35,8 +35,14 @@ void register_delivery_module(ModuleRegistry* registry);
 // Interactions (section 9).
 void register_interaction_module(ModuleRegistry* registry);
 
-// Navigation and capture coordination (section 8).
+// Navigation (section 8.1).
 void register_navigation_module(ModuleRegistry* registry);
+
+// Capture coordination (section 8.2).
+void register_capture_module(ModuleRegistry* registry);
+
+// Deferred work after every command (coordination.h).
+void register_coordination_module(ModuleRegistry* registry);
 
 // A fresh registry holding every module. Tests extend a copy.
 ModuleRegistry build_module_registry();

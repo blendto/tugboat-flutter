@@ -17,7 +17,7 @@
 namespace tugboat {
 namespace engine {
 
-struct InteractionTurn;
+struct Turn;
 struct Transaction;
 
 // Dart `TugboatTargetResolutionFailureReason`.
@@ -59,7 +59,7 @@ bool decode_tap_evidence(const Value& json, const std::string& path,
 // is the pre-tap evidence attached on the primary `down`, and its inventory
 // is recorded as `scene_inventory` (deduped per session); otherwise it is
 // the evidence attached on `up`.
-void resolve_tap_evidence(InteractionTurn& turn, Transaction& tx,
+void resolve_tap_evidence(Turn& turn, Transaction& tx,
                           const std::optional<TapEvidence>& up_evidence);
 
 }  // namespace engine

@@ -1,6 +1,5 @@
 #include "interaction_facts.h"
 
-#include <initializer_list>
 #include <utility>
 
 #include "name_table.h"
@@ -60,35 +59,9 @@ constexpr NamedValue<SystemInput> kSystemInputs[] = {
     {"media_play_pause", SystemInput::kMediaPlayPause},
 };
 
-constexpr NamedValue<CaptureResultOutcome> kCaptureOutcomes[] = {
-    {"captured", CaptureResultOutcome::kCaptured},
-    {"paintUnchanged", CaptureResultOutcome::kPaintUnchanged},
-    {"failed", CaptureResultOutcome::kFailed},
-    {"cancelled", CaptureResultOutcome::kCancelled},
-};
-
 bool read_point(const ObjectReader& r, const char* x_key, const char* y_key,
                 Point* out) {
   return r.req_double(x_key, &out->x) && r.req_double(y_key, &out->y);
-}
-
-bool read_non_empty(const ObjectReader& r, const char* key, std::string* out) {
-  if (!r.req_string(key, out)) return false;
-  return !out->empty() || r.reject(key, "must not be empty");
-}
-
-bool read_non_negative(const ObjectReader& r, const char* key, int64_t* out) {
-  if (!r.req_int(key, out)) return false;
-  return *out >= 0 || r.reject(key, "must not be negative");
-}
-
-// Fails when any of `keys` is present: `why` says which phase allows it.
-bool reject_present(const ObjectReader& r,
-                    std::initializer_list<const char*> keys, const char* why) {
-  for (const char* key : keys) {
-    if (r.get(key) != nullptr) return r.reject(key, why);
-  }
-  return true;
 }
 
 bool decode_tap_field(const ObjectReader& r, PointerFact* out, Error* error) {
@@ -103,61 +76,6 @@ bool decode_tap_field(const ObjectReader& r, PointerFact* out, Error* error) {
     return false;
   }
   out->tap = std::move(evidence);
-  return true;
-}
-
-bool decode_boundary(const ObjectReader& r, CapturedFrame* frame,
-                     Error* error) {
-  const Value* json = nullptr;
-  if (!r.opt_object("boundaryRect", &json)) return false;
-  if (json == nullptr) return true;
-  const ObjectReader b(*json, r.child("boundaryRect"), error);
-  BoundaryRect rect;
-  if (!b.check_keys({"x", "y", "width", "height"}) ||
-      !b.req_double("x", &rect.x) || !b.req_double("y", &rect.y) ||
-      !b.req_double("width", &rect.width) ||
-      !b.req_double("height", &rect.height)) {
-    return false;
-  }
-  frame->boundary = rect;
-  return true;
-}
-
-// TugboatScreenshotCaptureBackend: a closed vocabulary on the collector
-// wire (`frameMetadata[].requestedBackend` / `resolvedBackend`).
-bool check_backend(const ObjectReader& r, const char* key,
-                   const OptString& value) {
-  if (!value || *value == "flutterRepaintBoundary" ||
-      *value == "nativeCpuExperimental") {
-    return true;
-  }
-  return r.reject(key,
-                  "expected flutterRepaintBoundary or nativeCpuExperimental");
-}
-
-bool decode_frame(const Value& json, const std::string& path,
-                  CapturedFrame* out, Error* error) {
-  const ObjectReader r(json, path, error);
-  std::optional<bool> masked;
-  if (!r.check_keys({"handle", "width", "height", "contentHash", "masked",
-                     "byteLength", "captureMicros", "requestedBackend",
-                     "resolvedBackend", "fallbackReason"}) ||
-      !read_non_empty(r, "handle", &out->handle) ||
-      !read_non_negative(r, "width", &out->width) ||
-      !read_non_negative(r, "height", &out->height) ||
-      !r.req_string("contentHash", &out->content_hash) ||
-      !r.opt_bool("masked", &masked) ||
-      !read_non_negative(r, "byteLength", &out->byte_length) ||
-      !read_non_negative(r, "captureMicros", &out->capture_micros) ||
-      !r.opt_string("requestedBackend", &out->requested_backend) ||
-      !r.opt_string("resolvedBackend", &out->resolved_backend) ||
-      !r.opt_string("fallbackReason", &out->fallback_reason) ||
-      !check_backend(r, "requestedBackend", out->requested_backend) ||
-      !check_backend(r, "resolvedBackend", out->resolved_backend)) {
-    return false;
-  }
-  if (!masked) return r.reject("masked", "required");
-  out->masked = *masked;
   return true;
 }
 
@@ -248,30 +166,6 @@ bool decode_system_input_fact(const Value& input, const std::string& path,
                               SystemInput* out, Error* error) {
   const ObjectReader r(input, path, error);
   return r.check_keys({"input"}) && read_named(r, "input", kSystemInputs, out);
-}
-
-bool decode_capture_result(const Value& input, const std::string& path,
-                           CaptureResult* out, Error* error) {
-  const ObjectReader r(input, path, error);
-  const Value* frame = nullptr;
-  if (!r.check_keys({"requestId", "outcome", "frame", "boundaryRect"}) ||
-      !read_non_empty(r, "requestId", &out->request_id) ||
-      !read_named(r, "outcome", kCaptureOutcomes, &out->outcome) ||
-      !r.opt_object("frame", &frame)) {
-    return false;
-  }
-  if (out->outcome != CaptureResultOutcome::kCaptured) {
-    return reject_present(r, {"frame", "boundaryRect"},
-                          "only allowed when captured");
-  }
-  if (frame == nullptr) return r.reject("frame", "required when captured");
-  CapturedFrame captured;
-  if (!decode_frame(*frame, r.child("frame"), &captured, error) ||
-      !decode_boundary(r, &captured, error)) {
-    return false;
-  }
-  out->frame = std::move(captured);
-  return true;
 }
 
 }  // namespace engine

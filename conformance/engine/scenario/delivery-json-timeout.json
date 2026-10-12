@@ -101,6 +101,46 @@
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-0",
               "atMonoUs": 12000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
             }
           ]
         }
@@ -240,7 +280,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-2",
+              "requestId": "capture-1",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -251,6 +291,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 12220000
             }
           ]
         }
@@ -264,7 +309,7 @@
             "wallUs": 1781827202240000
           },
           "input": {
-            "requestId": "capture_request-2",
+            "requestId": "capture-1",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-2",
@@ -283,7 +328,7 @@
               "kind": "frame",
               "handle": "h-capture_request-2",
               "frame": {
-                "id": "frame-3",
+                "id": "frame-5",
                 "atMs": 2240,
                 "width": 1080,
                 "height": 2400,
@@ -298,12 +343,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 2200,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-3",
+                "afterFrame": "frame-5",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "swipe"
@@ -313,6 +358,10 @@
             }
           ],
           "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
             {
               "type": "http.send",
               "requestId": "http-2",
@@ -327,17 +376,17 @@
                   ],
                   [
                     "frameNos",
-                    "3"
+                    "5"
                   ],
                   [
                     "frameMetadata",
-                    "[{\"id\":\"frame-3\",\"atMs\":2240,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"}]"
+                    "[{\"id\":\"frame-5\",\"atMs\":2240,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"}]"
                   ]
                 ],
                 "frames": [
                   {
                     "handle": "h-capture_request-2",
-                    "filename": "3.jpg"
+                    "filename": "5.jpg"
                   }
                 ]
               }
@@ -376,7 +425,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 2000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-1\",\"atMs\":2200,\"triggeredAt\":\"2026-06-19T00:00:02.200Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"afterFrame\":\"frame-3\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":2200,\"triggeredAt\":\"2026-06-19T00:00:02.200Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"afterFrame\":\"frame-5\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
             },
             {
               "type": "timer.schedule",
@@ -437,7 +486,7 @@
       },
       "frames": [
         {
-          "id": "frame-3",
+          "id": "frame-5",
           "atMs": 2240,
           "width": 1080,
           "height": 2400,
@@ -458,12 +507,12 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-3",
           "atMs": 2200,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-3",
+          "afterFrame": "frame-5",
           "data": {
             "interactionSchema": 2,
             "gesture": "swipe"

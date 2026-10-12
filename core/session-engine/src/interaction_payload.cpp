@@ -126,13 +126,17 @@ Value gesture_payload(const Transaction& tx) {
 }  // namespace
 
 CaptureCoordinate sample_coordinate(Point position,
-                                    const FrameProvenance* before_frame) {
+                                    const FrameProvenance* frame,
+                                    const RequestContext& context) {
   CaptureCoordinate coordinate;
-  if (before_frame == nullptr || !before_frame->boundary ||
-      before_frame->pixel_width <= 0 || before_frame->pixel_height <= 0) {
+  if (!context.boundary || frame == nullptr || frame->pixel_width <= 0 ||
+      frame->pixel_height <= 0 ||
+      frame->context.boundary_generation != context.boundary_generation) {
     return coordinate;
   }
-  const BoundaryRect& boundary = *before_frame->boundary;
+  const BoundaryRect& boundary = frame->context.boundary
+                                     ? *frame->context.boundary
+                                     : *context.boundary;
   if (boundary.width <= 0 || boundary.height <= 0) return coordinate;
   const Point local = position - Point{boundary.x, boundary.y};
   if (local.x < 0 || local.y < 0 || local.x > boundary.width ||

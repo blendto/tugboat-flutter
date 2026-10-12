@@ -111,7 +111,13 @@ struct EffectJson {
     out.set("dropWhenBusy", Value::boolean(effect.drop_when_busy));
     out.set("notBeforeMonoUs", Value::integer(effect.not_before_mono_us));
     out.set("context", capture_context_json(effect.context));
-    put_opt(&out, "dHashBaseline", effect.dhash_baseline);
+    if (effect.dhash_baseline) {
+      Value baseline = Value::object();
+      baseline.set("dHash", str(effect.dhash_baseline->dhash));
+      baseline.set("structureSignature",
+                   str(effect.dhash_baseline->structure_signature));
+      out.set("dHashBaseline", std::move(baseline));
+    }
     out.set("scale", Value::number(effect.scale));
     return out;
   }

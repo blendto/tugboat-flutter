@@ -1,7 +1,9 @@
-// What every interaction step works on: the engine state, the live session,
-// the fact's time, and the output it appends to. Not part of the C ABI.
-#ifndef TUGBOAT_SESSION_ENGINE_INTERACTION_TURN_H
-#define TUGBOAT_SESSION_ENGINE_INTERACTION_TURN_H
+// What every stateful step of a fact or timer works on: the engine state,
+// the live session, the fact's time, and the output it appends to.
+// Interactions, navigation, and capture coordination all run on one.
+// Not part of the C ABI.
+#ifndef TUGBOAT_SESSION_ENGINE_TURN_H
+#define TUGBOAT_SESSION_ENGINE_TURN_H
 
 #include <cstdint>
 
@@ -14,7 +16,7 @@ namespace engine {
 
 struct EngineState;
 
-struct InteractionTurn {
+struct Turn {
   EngineState* state;
   Session* session;  // the live session
   At at;             // when the fact (or timer) happened
@@ -31,4 +33,4 @@ struct InteractionTurn {
 }  // namespace engine
 }  // namespace tugboat
 
-#endif  // TUGBOAT_SESSION_ENGINE_INTERACTION_TURN_H
+#endif  // TUGBOAT_SESSION_ENGINE_TURN_H

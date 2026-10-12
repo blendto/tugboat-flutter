@@ -45,11 +45,11 @@ void ModuleRegistry::add_teardown(TeardownStage stage,
   teardown_[static_cast<size_t>(stage)].push_back(handler);
 }
 
-void ModuleRegistry::run_teardown(TeardownCause cause, EngineState* state,
-                                  Output* out) const {
+void ModuleRegistry::run_teardown(TeardownCause cause, const At& at,
+                                  EngineState* state, Output* out) const {
   for (TeardownStage stage : teardown_order(cause)) {
     for (TeardownHandler handler : teardown_[static_cast<size_t>(stage)]) {
-      handler(cause, state, out);
+      handler(cause, at, state, out);
     }
   }
 }
@@ -98,6 +98,10 @@ void ModuleRegistry::on_session_ending(LifecycleHook hook) {
   add_hook(LifecycleHookPoint::kSessionEnding, hook);
 }
 
+void ModuleRegistry::on_foregrounded_before_record(LifecycleHook hook) {
+  add_hook(LifecycleHookPoint::kForegroundedBeforeRecord, hook);
+}
+
 void ModuleRegistry::run_hooks(LifecycleHookPoint point, const At& at,
                                EngineState* state, Output* out) const {
   for (LifecycleHook hook : hooks_[static_cast<size_t>(point)]) {
@@ -115,6 +119,17 @@ void ModuleRegistry::run_frame_accepted(const Frame& frame,
                                         Output* out) const {
   for (FrameAcceptedHook hook : frame_accepted_) {
     hook(frame, handle, state, out);
+  }
+}
+
+void ModuleRegistry::on_after_command(AfterCommandHook hook) {
+  after_command_.push_back(hook);
+}
+
+void ModuleRegistry::run_after_command(const At& at, EngineState* state,
+                                       Output* out) const {
+  for (AfterCommandHook hook : after_command_) {
+    hook(at, state, out);
   }
 }
 

@@ -3,9 +3,10 @@
 #include <algorithm>
 #include <utility>
 
+#include "capture_seam.h"
 #include "engine_state.h"
-#include "interaction_claims.h"
 #include "interaction_publish.h"
+#include "navigation_view.h"
 
 namespace tugboat {
 namespace engine {
@@ -16,7 +17,7 @@ std::string timer_id(const std::string& start_id) {
   return kScrollEndTimerPrefix + start_id;
 }
 
-ScrollSample make_sample(const InteractionTurn& turn, const ScrollFact& fact,
+ScrollSample make_sample(const Turn& turn, const ScrollFact& fact,
                          const ScrollTracker& tracker) {
   ScrollSample sample;
   sample.at_ms = turn.now_ms();
@@ -32,19 +33,18 @@ ScrollSample make_sample(const InteractionTurn& turn, const ScrollFact& fact,
   return sample;
 }
 
-void append_sample(InteractionTurn& turn, ScrollSample sample) {
+void append_sample(Turn& turn, ScrollSample sample) {
   turn.session->append_scroll_sample(
       std::move(sample), turn.state->config.limits.max_scroll_samples);
 }
 
-void publish_all(EngineState* state, Session& session,
-                 const std::vector<std::string>& start_ids, Output* out) {
+void publish_all(Turn& turn, const std::vector<std::string>& start_ids) {
   for (const std::string& start_id : start_ids) {
-    publish_resolved_scroll(state, session, start_id, out);
+    publish_resolved_scroll(turn, start_id);
   }
 }
 
-void start_scroll(InteractionTurn& turn, const ScrollFact& fact) {
+void start_scroll(Turn& turn, const ScrollFact& fact) {
   EngineState& state = *turn.state;
   // A new scroll means the viewport is no longer idle.
   const std::vector<std::string> stale =
@@ -52,9 +52,11 @@ void start_scroll(InteractionTurn& turn, const ScrollFact& fact) {
   ScrollState& scrolls = state.interactions.scrolls;
   if (scrolls.trackers.count(fact.scrollable_id) == 0) {
     ScrollTracker tracker;
-    const FrameProvenance* before = state.captures.latest(turn.session->id());
+    const FrameProvenance* before = state.captures.frames().compatible_latest(
+        current_request_context(state, FrameTrigger::kScroll));
     if (before != nullptr) tracker.before_frame = before->frame_id;
     tracker.start_id = state.ids.next("event");
+    tracker.route_epoch = state.navigation.route_epoch;
     tracker.start_offset = fact.offset;
     tracker.anchor = fact.anchor;
     if (state.config.interaction.capture_scroll_samples) {
@@ -64,35 +66,53 @@ void start_scroll(InteractionTurn& turn, const ScrollFact& fact) {
     tracker.pointer_linked = link_scroll_start(&state, tracker.start_id);
     scrolls.trackers[fact.scrollable_id] = std::move(tracker);
   }
-  publish_all(&state, *turn.session, stale, turn.out);
+  publish_all(turn, stale);
 }
 
-void update_scroll(InteractionTurn& turn, const ScrollFact& fact) {
+// Change C1: the sample and screenshot cadences use the monotonic clock.
+bool interval_elapsed(const Turn& turn, const std::optional<int64_t>& last) {
+  const int64_t interval_ms =
+      turn.state->config.interaction.scroll_capture_interval_ms;
+  return !last || turn.at.mono_us - *last >= interval_ms * 1000;
+}
+
+void update_scroll(Turn& turn, const ScrollFact& fact) {
   EngineState& state = *turn.state;
   const auto it = state.interactions.scrolls.trackers.find(fact.scrollable_id);
   if (it == state.interactions.scrolls.trackers.end()) return;
   ScrollTracker& tracker = it->second;
   const InteractionConfig& config = state.config.interaction;
-  // Change C1: the sample cadence uses the monotonic clock.
-  const bool due = !tracker.last_sample_mono_us ||
-                   turn.at.mono_us - *tracker.last_sample_mono_us >=
-                       config.scroll_capture_interval_ms * 1000;
-  if (!config.capture_scroll_samples || !due) return;
-  tracker.last_sample_mono_us = turn.at.mono_us;
-  append_sample(turn, make_sample(turn, fact, tracker));
+  if (config.capture_scroll_samples &&
+      interval_elapsed(turn, tracker.last_sample_mono_us)) {
+    tracker.last_sample_mono_us = turn.at.mono_us;
+    append_sample(turn, make_sample(turn, fact, tracker));
+  }
+  // Dart `_captureScrollScreenshotIfDue`: low priority, dropped when the
+  // scheduler is busy.
+  if (config.capture_scroll_screenshots &&
+      interval_elapsed(turn, tracker.last_screenshot_mono_us)) {
+    tracker.last_screenshot_mono_us = turn.at.mono_us;
+    CaptureAsk ask;
+    ask.trigger = FrameTrigger::kScroll;
+    ask.drop_when_busy = true;
+    ask.settle_delay_ms = config.settle_delay_ms;
+    state.captures.request(turn, {}, ask);
+  }
 }
 
-void request_capture(InteractionTurn& turn, const std::string& start_id,
+// Dart `_completePointerLinkedScrollEnd`: a navigation since the scroll
+// started supersedes it, but the interaction capture is still made.
+void request_capture(Turn& turn, const std::string& start_id,
                      ScrollCompletion& completion) {
   EngineState& state = *turn.state;
   completion.stage = ScrollCompletion::Stage::kCapturing;
-  state.captures.issue(
-      {CaptureOwner::Kind::kScrollEnd, start_id},
-      interaction_capture(turn.at.mono_us, current_capture_context(state)),
-      &state.ids, turn.out);
+  completion.superseded =
+      completion.route_epoch != state.navigation.route_epoch;
+  state.captures.request(turn, {CaptureOwner::Kind::kScrollEnd, start_id},
+                         interaction_capture(start_id));
 }
 
-void end_scroll(InteractionTurn& turn, const ScrollFact& fact) {
+void end_scroll(Turn& turn, const ScrollFact& fact) {
   EngineState& state = *turn.state;
   ScrollState& scrolls = state.interactions.scrolls;
   const auto it = scrolls.trackers.find(fact.scrollable_id);
@@ -106,6 +126,7 @@ void end_scroll(InteractionTurn& turn, const ScrollFact& fact) {
   completion.facts.end_offset = fact.offset;
   completion.facts.overscroll_count = tracker.overscroll_count;
   completion.facts.anchor = tracker.anchor;
+  completion.route_epoch = tracker.route_epoch;
   scrolls.completions.put(tracker.start_id, std::move(completion));
   ScrollCompletion& stored = *scrolls.completions.find(tracker.start_id);
   const int64_t delay_ms = state.config.interaction.scroll_end_capture_delay_ms;
@@ -119,7 +140,7 @@ void end_scroll(InteractionTurn& turn, const ScrollFact& fact) {
 
 }  // namespace
 
-void record_scroll(InteractionTurn& turn, const ScrollFact& fact) {
+void record_scroll(Turn& turn, const ScrollFact& fact) {
   switch (fact.phase) {
     case ScrollPhase::kStart:
       start_scroll(turn, fact);
@@ -164,10 +185,29 @@ std::vector<std::string> cancel_scroll_end_delays(EngineState* state,
   return resolved;
 }
 
-void publish_resolved_scroll(EngineState* state, Session& session,
-                             const std::string& start_id, Output* out) {
-  ScrollState& scrolls = state->interactions.scrolls;
-  const ScrollCompletion* completion = scrolls.completions.find(start_id);
+namespace {
+
+void publish_scroll(Turn& turn, const std::string& start_id,
+                    const OptString& after_frame) {
+  ScrollState& scrolls = turn.state->interactions.scrolls;
+  const TransactionPtr* found = scrolls.interactions.find(start_id);
+  if (found == nullptr) return;
+  const TransactionPtr tx = *found;
+  tx->after_frame = after_frame;
+  scrolls.interactions.erase(start_id);
+  scrolls.completions.erase(start_id);
+  publish_interaction(turn.state, *turn.session, *tx, turn.out);
+}
+
+BarrierWaiter walk_waiter(const std::string& start_id) {
+  return {BarrierWaiter::Kind::kScrollWalk, start_id, std::nullopt};
+}
+
+}  // namespace
+
+void publish_resolved_scroll(Turn& turn, const std::string& start_id) {
+  ScrollState& scrolls = turn.state->interactions.scrolls;
+  ScrollCompletion* completion = scrolls.completions.find(start_id);
   const TransactionPtr* found = scrolls.interactions.find(start_id);
   if (completion == nullptr || found == nullptr ||
       completion->stage != ScrollCompletion::Stage::kResolved) {
@@ -176,43 +216,60 @@ void publish_resolved_scroll(EngineState* state, Session& session,
   const TransactionPtr tx = *found;
   // The final scroll facts do not depend on the capture.
   tx->scroll = completion->facts;
-  tx->after_frame =
-      completion->resolution
-          ? after_capture_frame(state->captures, *tx, session,
-                                *completion->resolution)
-          : std::nullopt;
-  scrolls.interactions.erase(start_id);
-  scrolls.completions.erase(start_id);
-  publish_interaction(state, session, *tx, out);
+  OptString frame;
+  if (completion->resolution) {
+    completion->stage = ScrollCompletion::Stage::kWalking;
+    if (begin_after_capture_walk(turn, *tx, *completion->resolution,
+                                 walk_waiter(start_id), &completion->walk,
+                                 &frame) == WalkStep::kWaiting) {
+      return;
+    }
+  }
+  publish_scroll(turn, start_id, frame);
 }
 
-void attach_scroll_interaction(EngineState* state, Session& session,
-                               const std::string& start_id,
-                               const TransactionPtr& tx, Output* out) {
+void scroll_route_barrier_done(Turn& turn, const std::string& start_id,
+                               const RouteWork& barrier) {
+  ScrollState& scrolls = turn.state->interactions.scrolls;
+  ScrollCompletion* completion = scrolls.completions.find(start_id);
+  const TransactionPtr* found = scrolls.interactions.find(start_id);
+  if (completion == nullptr || found == nullptr ||
+      completion->stage != ScrollCompletion::Stage::kWalking) {
+    return;
+  }
+  OptString frame;
+  if (continue_after_capture_walk(turn, **found, barrier,
+                                  walk_waiter(start_id), &completion->walk,
+                                  &frame) == WalkStep::kDone) {
+    publish_scroll(turn, start_id, frame);
+  }
+}
+
+void attach_scroll_interaction(Turn& turn, const std::string& start_id,
+                               const TransactionPtr& tx) {
   tx->stage = TransactionStage::kSettling;
-  state->interactions.scrolls.interactions.put(start_id, tx);
-  publish_resolved_scroll(state, session, start_id, out);
+  turn.state->interactions.scrolls.interactions.put(start_id, tx);
+  publish_resolved_scroll(turn, start_id);
 }
 
-void advance_scroll_end(InteractionTurn& turn, const std::string& start_id) {
+void advance_scroll_end(Turn& turn, const std::string& start_id) {
   ScrollCompletion* completion =
       turn.state->interactions.scrolls.completions.find(start_id);
   if (completion == nullptr ||
       completion->stage != ScrollCompletion::Stage::kDelaying) {
     return;
   }
-  // (Phase 3d: a route change since the scroll started takes Dart's
-  // superseded path here.)
   request_capture(turn, start_id, *completion);
 }
 
-void finish_scroll_end(InteractionTurn& turn, const std::string& start_id,
+void finish_scroll_end(Turn& turn, const std::string& start_id,
                        const CaptureResolution& resolution) {
   EngineState& state = *turn.state;
   ScrollState& scrolls = state.interactions.scrolls;
   ScrollCompletion* completion = scrolls.completions.find(start_id);
   if (completion == nullptr) return;
-  if (state.config.interaction.capture_scroll_samples) {
+  if (state.config.interaction.capture_scroll_samples &&
+      !completion->superseded) {
     if (ScrollSample* last = turn.session->last_scroll_sample()) {
       last->offset = completion->facts.end_offset;
       last->after_frame = resolution.outcome == CaptureOutcome::kFreshAccepted
@@ -226,7 +283,7 @@ void finish_scroll_end(InteractionTurn& turn, const std::string& start_id,
   }
   completion->stage = ScrollCompletion::Stage::kResolved;
   completion->resolution = resolution;
-  publish_resolved_scroll(&state, *turn.session, start_id, turn.out);
+  publish_resolved_scroll(turn, start_id);
 }
 
 void discard_scroll_completion(EngineState* state, const Transaction& tx,
@@ -243,6 +300,7 @@ void discard_scroll_completion(EngineState* state, const Transaction& tx,
           completion->stage = ScrollCompletion::Stage::kDiscarded;
           break;
         case ScrollCompletion::Stage::kResolved:
+        case ScrollCompletion::Stage::kWalking:
           scrolls.completions.erase(start_id);
           break;
         case ScrollCompletion::Stage::kDiscarded:
