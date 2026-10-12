@@ -1,4 +1,5 @@
 import Foundation
+import TugboatSessionEngine
 import XCTest
 
 @testable import Tugboat
@@ -193,7 +194,7 @@ final class EngineHostTests: XCTestCase {
   func testRejectedMessagesAreDroppedAndTheirFramesReleased() {
     let rejected = frames.put(Data([1]))
     let accepted = frames.put(Data([2]))
-    transport.enqueue(failure(.invalidMessage))
+    transport.enqueue(failure(TB_SESSION_INVALID_MESSAGE))
 
     post("bad", frameHandles: [rejected])
     post("good", frameHandles: [accepted])
@@ -207,7 +208,7 @@ final class EngineHostTests: XCTestCase {
 
   func testARejectedBatchReleasesEveryMessagesFrames() {
     let handles = (1...3).map { frames.put(Data([UInt8($0)])) }
-    transport.enqueue(failure(.invalidMessage))
+    transport.enqueue(failure(TB_SESSION_INVALID_MESSAGE))
 
     host.postBatch([
       EngineMessage(type: "a", inputJSON: "{}", at: factAt, frameHandles: Array(handles.prefix(2))),
@@ -241,7 +242,7 @@ final class EngineHostTests: XCTestCase {
     transport.onSubmit = { if $0.contains("timer.fired") { noTimer.fulfill() } }
     let limit = EngineHost.defaultMaxConsecutiveInternalErrors
     for _ in 0..<limit {
-      transport.enqueue(failure(.internalError))
+      transport.enqueue(failure(TB_SESSION_INTERNAL_ERROR))
     }
 
     queue.suspend()
@@ -265,7 +266,7 @@ final class EngineHostTests: XCTestCase {
   }
 
   func testOtherStatusesResetTheInternalErrorStreak() {
-    for status in [EngineStatus.internalError, .internalError, .invalidMessage, .internalError, .internalError] {
+    for status in [TB_SESSION_INTERNAL_ERROR, TB_SESSION_INTERNAL_ERROR, TB_SESSION_INVALID_MESSAGE, TB_SESSION_INTERNAL_ERROR, TB_SESSION_INTERNAL_ERROR] {
       transport.enqueue(failure(status))
     }
     for index in 0..<5 {
@@ -280,7 +281,7 @@ final class EngineHostTests: XCTestCase {
   func testUnknownAndMalformedEffectsAreIgnored() {
     transport.enqueue(
       ok("{\"type\":\"capture.request\"}", "{\"type\":\"capture.request\"}", "{\"type\":\"timer.cancel\"}"))
-    transport.enqueue(response(.ok, "not json"))
+    transport.enqueue(response(TB_SESSION_OK, "not json"))
     post("a")
     post("b")
     post("c")

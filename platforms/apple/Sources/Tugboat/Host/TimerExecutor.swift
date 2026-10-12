@@ -1,9 +1,12 @@
 import Dispatch
 
 /// Executes `timer.schedule` / `timer.cancel` with one `DispatchSourceTimer`
-/// per timer id on the engine queue. The engine's `atMonoUs` is in the
-/// `ProcessInfo.systemUptime` timebase (see `SystemHostClock`), which is the
-/// mach uptime clock `DispatchTime(uptimeNanoseconds:)` uses.
+/// per timer id on the engine queue. The engine's `atMonoUs` is in the host
+/// clock's timebase (`ProcessInfo.systemUptime`, see `SystemHostClock`). The
+/// timer is armed for the remaining time from `DispatchTime.now()`, which
+/// runs on the same mach uptime clock. The delay saturates, so no deadline
+/// can overflow. The two clocks are read a moment apart, so a timer may fire
+/// a hair early; `EngineHost` stamps a fire no earlier than its `atMonoUs`.
 ///
 /// Confined to `queue`; `onFired` runs there with the timer's deadline.
 final class TimerExecutor {
@@ -41,7 +44,8 @@ final class TimerExecutor {
       self?.fire(timerId: timerId, generation: generation, atMonoUs: atMonoUs)
     }
     pending[timerId] = Armed(source: timer, generation: generation)
-    timer.schedule(deadline: TimerExecutor.deadline(atMonoUs: atMonoUs), repeating: .never, leeway: .milliseconds(1))
+    let deadline = TimerExecutor.deadline(atMonoUs: atMonoUs, nowMonoUs: SystemHostClock().now().monoUs, now: .now())
+    timer.schedule(deadline: deadline, repeating: .never, leeway: .milliseconds(1))
     timer.resume()
   }
 
@@ -64,11 +68,16 @@ final class TimerExecutor {
     onFired(timerId, atMonoUs)
   }
 
-  /// One microsecond late, so converting nanoseconds to mach ticks (which
-  /// rounds down) never lets the timer fire before `atMonoUs`.
-  static func deadline(atMonoUs: Int64) -> DispatchTime {
-    guard atMonoUs > 0 else { return DispatchTime(uptimeNanoseconds: 1) }
-    let (nanos, overflow) = (UInt64(atMonoUs) + 1).multipliedReportingOverflow(by: 1000)
-    return DispatchTime(uptimeNanoseconds: overflow ? UInt64.max : nanos)
+  /// `now` plus the time from `nowMonoUs` to `atMonoUs`, saturating: a past
+  /// deadline is `now`, and a distant one never overflows. The delay is
+  /// capped where its nanoseconds still fit in `Int64` (about 292 years), so
+  /// nothing relies on Dispatch's own overflow handling.
+  static func deadline(atMonoUs: Int64, nowMonoUs: Int64, now: DispatchTime) -> DispatchTime {
+    let (remaining, overflow) = atMonoUs.subtractingReportingOverflow(nowMonoUs)
+    let delayUs = overflow ? (atMonoUs < 0 ? Int64.min : Int64.max) : remaining
+    guard delayUs > 0 else { return now }
+    return now + .microseconds(Int(clamping: min(delayUs, maxDelayUs)))
   }
+
+  static let maxDelayUs = Int64.max / 1000
 }

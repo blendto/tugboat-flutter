@@ -5,9 +5,7 @@ enum Effect: Equatable {
   case timerCancel(timerId: String)
   case httpSend(HTTPRequest)
   case frameRelease(handle: String)
-  /// Known but not executed until the toolkit adapters land (engine phase
-  /// 3d); logged once.
-  case captureRequest
-  /// A type this host does not know; logged once per type and ignored.
+  /// A type this host does not execute (including `capture.request` until
+  /// the toolkit adapters land); logged once per type and ignored.
   case unknown(type: String)
 }

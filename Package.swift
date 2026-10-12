@@ -86,7 +86,7 @@ let package = Package(
       name: "Tugboat",
       dependencies: ["TugboatSessionEngine"],
       path: "platforms/apple/Sources/Tugboat",
-      exclude: ["README.md"]
+      exclude: ["README.md", "CHANGELOG.md"]
     ),
     .testTarget(
       name: "TugboatTests",

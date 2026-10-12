@@ -1,4 +1,5 @@
 import Foundation
+import TugboatSessionEngine
 
 @testable import Tugboat
 
@@ -67,15 +68,15 @@ final class FakeEngineTransport: EngineTransport {
 }
 
 func ok(_ effects: String...) -> EngineResponse {
-  response(.ok, "{\"type\":\"test\",\"records\":[],\"effects\":[" + effects.joined(separator: ",") + "]}")
+  response(TB_SESSION_OK, "{\"type\":\"test\",\"records\":[],\"effects\":[" + effects.joined(separator: ",") + "]}")
 }
 
-func response(_ status: EngineStatus, _ json: String) -> EngineResponse {
+func response(_ status: tb_session_status, _ json: String) -> EngineResponse {
   EngineResponse(status: status, json: Data(json.utf8))
 }
 
-func failure(_ status: EngineStatus) -> EngineResponse {
-  response(status, "{\"error\":{\"status\":\"\(status.wireName)\",\"message\":\"test\"}}")
+func failure(_ status: tb_session_status) -> EngineResponse {
+  response(status, "{\"error\":{\"status\":\"\(String(cString: tb_session_status_name(status)))\",\"message\":\"test\"}}")
 }
 
 /// Records requests; answers only when the test calls `complete`.

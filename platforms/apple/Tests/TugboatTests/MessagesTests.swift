@@ -88,7 +88,7 @@ final class MessagesTests: XCTestCase {
         "X-PMKit-API-Key", "X-Tugboat-API-Key", "X-Platform", "X-App-Build", "X-App-Version", "X-App-Id",
         "X-Sdk-Version",
       ])
-    XCTAssertEqual(config.collectorHeaders.map { $0.value }, ["pmk_key", "pmk_key", "ios", "42", "1.2.3", "com.example.app", "0.1.0"])
+    XCTAssertEqual(config.collectorHeaders.map { $0.value }, ["pmk_key", "pmk_key", "ios", "42", "1.2.3", "com.example.app", TugboatVersion.current])
     XCTAssertFalse(config.description.contains("pmk_key"), "description never prints the key")
   }
 }

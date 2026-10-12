@@ -21,7 +21,7 @@ final class EffectParserTests: XCTestCase {
         .timerSchedule(timerId: "flush", atMonoUs: 4_000_000),
         .frameRelease(handle: "frame-1"),
         .timerCancel(timerId: "flush"),
-        .captureRequest,
+        .unknown(type: "capture.request"),
       ])
   }
 

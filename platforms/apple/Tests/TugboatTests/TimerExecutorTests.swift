@@ -81,13 +81,6 @@ final class TimerExecutorTests: XCTestCase {
     XCTAssertEqual(queue.sync { timers.scheduledCount }, 0)
   }
 
-  func testPastDeadlinesFireAtOnce() {
-    schedule("late", atMonoUs: 0)
-    schedule("negative", atMonoUs: -5)
-    waitForFires(2)
-    XCTAssertEqual(Set(fires.current.map { $0.timerId }), ["late", "negative"])
-  }
-
   func testSchedulingTheSameIdReplacesThePreviousTimer() {
     schedule("flush", atMonoUs: inMs(50))
     let due = inMs(250)
@@ -127,16 +120,37 @@ final class TimerExecutorTests: XCTestCase {
     XCTAssertEqual(queue.sync { timers.scheduledCount }, 0)
   }
 
-  func testDeadlinesAreNeverEarlierThanAtMonoUs() {
-    for atMonoUs: Int64 in [1, 999, 1_000_000, 81_234_567, 123_456_789_012] {
-      XCTAssertGreaterThanOrEqual(
-        TimerExecutor.deadline(atMonoUs: atMonoUs).uptimeNanoseconds, UInt64(atMonoUs) * 1000)
+  func testDeadlinesAreRelativeToNowAndSaturate() {
+    let now = DispatchTime(uptimeNanoseconds: 5_000_000_000)
+    let nowMonoUs: Int64 = 5_000_000
+
+    let soon = TimerExecutor.deadline(atMonoUs: nowMonoUs + 250_000, nowMonoUs: nowMonoUs, now: now)
+    // Darwin stores mach ticks, so allow a microsecond of rounding.
+    XCTAssertEqual(
+      Double(soon.uptimeNanoseconds), Double(now.uptimeNanoseconds + 250_000_000), accuracy: 1_000)
+
+    for past: Int64 in [nowMonoUs, nowMonoUs - 1, 0, -5, Int64.min] {
+      XCTAssertEqual(TimerExecutor.deadline(atMonoUs: past, nowMonoUs: nowMonoUs, now: now), now, "\(past)")
     }
-    // Darwin's DispatchTime stores mach ticks, so tiny values read back
-    // rounded to a tick (1 ns reads as 41 on Apple Silicon). Only require
-    // that a negative time maps to a deadline already in the past.
-    XCTAssertLessThanOrEqual(
-      TimerExecutor.deadline(atMonoUs: -5).uptimeNanoseconds, DispatchTime.now().uptimeNanoseconds)
-    XCTAssertEqual(TimerExecutor.deadline(atMonoUs: Int64.max).uptimeNanoseconds, UInt64.max)
+    XCTAssertEqual(TimerExecutor.deadline(atMonoUs: Int64.min, nowMonoUs: Int64.max, now: now), now)
+
+    let year: UInt64 = 365 * 86_400 * 1_000_000_000
+    for (atMonoUs, fromMonoUs) in [
+      (Int64(7_000_000_000_000_000), nowMonoUs), (Int64.max, nowMonoUs), (Int64.max, Int64(-1)),
+    ] {
+      let far = TimerExecutor.deadline(atMonoUs: atMonoUs, nowMonoUs: fromMonoUs, now: now)
+      XCTAssertGreaterThan(far.uptimeNanoseconds, now.uptimeNanoseconds + year, "\(atMonoUs)")
+    }
+  }
+
+  func testDistantAndPastDeadlinesNeverTrap() {
+    schedule("far", atMonoUs: 7_000_000_000_000_000)
+    schedule("max", atMonoUs: Int64.max)
+    schedule("negative", atMonoUs: -5)
+    schedule("past", atMonoUs: 0)
+    waitForFires(2)
+
+    XCTAssertEqual(Set(fires.current.map { $0.timerId }), ["negative", "past"])
+    XCTAssertEqual(queue.sync { timers.scheduledCount }, 2, "the distant timers stay armed")
   }
 }

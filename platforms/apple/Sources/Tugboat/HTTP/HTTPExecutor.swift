@@ -7,11 +7,9 @@ import Foundation
 /// `timeoutMs` is a total deadline: a watchdog on the IO queue answers
 /// `.timeout` and cancels the task (the request's `timeoutInterval` is only
 /// the idle timeout). Every request is answered exactly once; failures become
-/// `.error`, never a throw. All mutable state is confined to the IO queue.
+/// `.error`, never a throw, and every answer is one the engine accepts
+/// (`CollectorResponse`). All mutable state is confined to the IO queue.
 final class HTTPExecutor: HTTPSender {
-  /// `transport.result.body` carries at most this many bytes of the response.
-  static let maxBodyBytes = 64 * 1024
-
   /// Dart's `http` adds the charset to the sink's `application/json`.
   static let jsonContentType = "application/json; charset=utf-8"
   private static let jpegContentType = "image/jpeg"
@@ -119,7 +117,7 @@ final class HTTPExecutor: HTTPSender {
       self?.expire(taskId: taskId)
     }
     inFlight[taskId] = InFlight(task: task, watchdog: watchdog, onResult: onResult)
-    watchdog.schedule(deadline: .now() + .milliseconds(max(1, request.timeoutMs)), repeating: .never)
+    watchdog.schedule(deadline: .now() + .milliseconds(HTTPExecutor.timeoutMs(request)), repeating: .never)
     watchdog.resume()
     task.resume()
   }
@@ -131,11 +129,11 @@ final class HTTPExecutor: HTTPSender {
 
   func received(data: Data, taskId: Int) {
     guard let entry = inFlight[taskId] else { return }
-    let room = max(0, HTTPExecutor.maxBodyBytes - entry.body.count)
+    let room = max(0, CollectorResponse.maxBodyBytes - entry.body.count)
     entry.body.append(data.prefix(room))
-    guard entry.body.count >= HTTPExecutor.maxBodyBytes, let status = entry.status else { return }
+    guard entry.body.count >= CollectorResponse.maxBodyBytes, let status = entry.status else { return }
     // The engine only reads the first 64 KiB; stop downloading the rest.
-    finish(taskId: taskId, outcome: .http(status: status, body: String(decoding: entry.body, as: UTF8.self)))
+    finish(taskId: taskId, outcome: CollectorResponse.outcome(status: status, body: entry.body))
     entry.task.cancel()
   }
 
@@ -148,7 +146,7 @@ final class HTTPExecutor: HTTPSender {
       }
       finish(taskId: taskId, outcome: timedOut ? .timeout : .error)
     } else if let status = entry.status {
-      finish(taskId: taskId, outcome: .http(status: status, body: String(decoding: entry.body, as: UTF8.self)))
+      finish(taskId: taskId, outcome: CollectorResponse.outcome(status: status, body: entry.body))
     } else {
       finish(taskId: taskId, outcome: .error)
     }
@@ -174,7 +172,7 @@ final class HTTPExecutor: HTTPSender {
       return nil
     }
     guard let payload = payload(request.body) else { return nil }
-    let idleTimeout = TimeInterval(max(1, request.timeoutMs)) / 1000
+    let idleTimeout = TimeInterval(HTTPExecutor.timeoutMs(request)) / 1000
     var urlRequest = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: idleTimeout)
     urlRequest.httpMethod = "POST"
     for header in config.collectorHeaders {
@@ -204,6 +202,11 @@ final class HTTPExecutor: HTTPSender {
       let multipart = MultipartBody(fields: fields, files: files)
       return Payload(contentType: multipart.contentType, bytes: multipart.encoded())
     }
+  }
+
+  /// `timeoutMs` within 1 ms and one day, the engine's own duration range.
+  static func timeoutMs(_ request: HTTPRequest) -> Int {
+    min(max(1, request.timeoutMs), 86_400_000)
   }
 
   /// Dart's `Uri.resolve` on the base URL without trailing slashes; only

@@ -21,10 +21,10 @@ final class EffectDispatcherTests: XCTestCase {
       log: { message in logs.withLock { $0.append(message) } })
   }
 
-  func testUnhandledAndUnknownTypesAreLoggedOncePerType() {
+  func testUnknownTypesAreLoggedOncePerType() {
     let dispatcher = makeDispatcher()
     queue.sync {
-      for effect in [Effect.captureRequest, .captureRequest, .unknown(type: "a"), .unknown(type: "a"), .unknown(type: "b")] {
+      for effect in [Effect.unknown(type: "capture.request"), .unknown(type: "capture.request"), .unknown(type: "a"), .unknown(type: "a"), .unknown(type: "b")] {
         dispatcher.dispatch(effect)
       }
     }

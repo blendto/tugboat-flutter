@@ -1,4 +1,5 @@
 import Foundation
+import TugboatSessionEngine
 
 /// Owns one engine handle (`transport`) and drives it from one serial queue.
 /// `post*` may be called from any thread; every submit, response, and effect
@@ -131,13 +132,13 @@ final class EngineHost {
   /// Runs the effects of an `ok` response; false when the engine rejected
   /// the message.
   private func accept(_ response: EngineResponse) -> Bool {
-    if response.status == .internalError {
+    if response.status == TB_SESSION_INTERNAL_ERROR {
       onInternalError(response)
       return false
     }
     consecutiveInternalErrors = 0
-    guard response.status == .ok else {
-      HostLog.warning("engine dropped a message (\(response.status.wireName)): \(response.text)")
+    guard response.status == TB_SESSION_OK else {
+      HostLog.warning("engine dropped a message (\(response.statusName)): \(response.text)")
       return false
     }
     let parsed: [Effect]

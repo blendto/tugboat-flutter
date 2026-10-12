@@ -39,8 +39,6 @@ enum EffectParser {
       return .httpSend(try httpRequest(fields))
     case "frame.release":
       return .frameRelease(handle: try fields.string("handle"))
-    case "capture.request":
-      return .captureRequest
     default:
       return .unknown(type: type)
     }

@@ -37,16 +37,10 @@ final class EffectDispatcher {
       }
     case let .frameRelease(handle):
       frames.release(handle)
-    case .captureRequest:
-      logOnce("capture.request", "capture.request is not handled until the toolkit adapters land")
     case let .unknown(type):
-      logOnce(type, "ignoring unknown effect type \(type)")
-    }
-  }
-
-  private func logOnce(_ type: String, _ message: String) {
-    if reported.insert(type).inserted {
-      log(message)
+      if reported.insert(type).inserted {
+        log("ignoring unknown effect type \(type)")
+      }
     }
   }
 }

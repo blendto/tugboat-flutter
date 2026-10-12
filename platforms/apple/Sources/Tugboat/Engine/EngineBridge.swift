@@ -29,7 +29,7 @@ final class EngineBridge: EngineTransport {
     var created: OpaquePointer?
     let status = tb_session_engine_create_v1(&config, &created)
     guard status == TB_SESSION_OK, let handle = created else {
-      HostLog.error("session engine create failed (\(EngineStatus(code: Int(status.rawValue)).wireName))")
+      HostLog.error("session engine create failed (\(String(cString: tb_session_status_name(status))))")
       return nil
     }
     return EngineBridge(handle: handle)
@@ -37,7 +37,7 @@ final class EngineBridge: EngineTransport {
 
   func submit(_ message: Data) -> EngineResponse {
     guard let handle = handle else {
-      return EngineResponse(status: .invalidArgument, json: Data())
+      return EngineResponse(status: TB_SESSION_INVALID_ARGUMENT, json: Data())
     }
     var out: UnsafePointer<CChar>?
     var outLength = 0
@@ -50,7 +50,7 @@ final class EngineBridge: EngineTransport {
     if let out = out, outLength > 0 {
       json = Data(bytes: out, count: outLength)
     }
-    return EngineResponse(status: EngineStatus(code: Int(status.rawValue)), json: json)
+    return EngineResponse(status: status, json: json)
   }
 
   func close() {

@@ -68,7 +68,7 @@ final class HTTPExecutorTests: XCTestCase {
       "X-App-Build": "42",
       "X-App-Version": "1.2.3",
       "X-App-Id": "com.example.app",
-      "X-Sdk-Version": HostConfig.currentSDKVersion,
+      "X-Sdk-Version": TugboatVersion.current,
       "Content-Type": "application/json; charset=utf-8",
     ]
     for (name, value) in expected {
@@ -119,7 +119,18 @@ final class HTTPExecutorTests: XCTestCase {
       return XCTFail("expected an HTTP outcome")
     }
     XCTAssertEqual(status, 202)
-    XCTAssertEqual(body.utf8.count, HTTPExecutor.maxBodyBytes)
+    XCTAssertEqual(body.utf8.count, CollectorResponse.maxBodyBytes)
+  }
+
+  func testTruncationNeverSplitsACharacter() {
+    let kept = String(repeating: "x", count: CollectorResponse.maxBodyBytes - 1)
+    StubURLProtocol.reset { _ in .response(status: 202, headers: [:], body: Data((kept + "😀 and more").utf8)) }
+    XCTAssertEqual(perform(json("{}")), .http(status: 202, body: kept))
+  }
+
+  func testStatusesTheEngineWouldRejectAreErrors() {
+    StubURLProtocol.reset { _ in .response(status: 600, headers: [:], body: Data("odd".utf8)) }
+    XCTAssertEqual(perform(json("{}")), .error)
   }
 
   func testMultipartMatchesTheFlutterFrameUpload() {

@@ -27,14 +27,14 @@ final class EngineBridgeTests: XCTestCase {
   /// Same input and expected hash as conformance/fingerprint/label_hash/ascii.json.
   func testLabelHashMatchesTheConformanceFixture() {
     let response = submit("{\"type\":\"fingerprint.labelHash\",\"input\":{\"value\":\"Go\"}}")
-    XCTAssertEqual(response.status, .ok)
+    XCTAssertEqual(response.status, TB_SESSION_OK)
     let result = jsonObject(response.text)["result"] as? [String: Any]
     XCTAssertEqual(result?["hash"] as? String, "6cc8519b91584e8b")
   }
 
   func testMalformedMessagesReturnTheErrorDocument() {
     let response = submit("{not json")
-    XCTAssertEqual(response.status, .malformedMessage)
+    XCTAssertEqual(response.status, TB_SESSION_MALFORMED_MESSAGE)
     let error = jsonObject(response.text)["error"] as? [String: Any]
     XCTAssertEqual(error?["status"] as? String, "malformed_message")
   }
@@ -49,37 +49,28 @@ final class EngineBridgeTests: XCTestCase {
   }
 
   func testStatefulMessagesReachTheEngine() {
-    XCTAssertEqual(submit("{\"type\":\"engine.configure\",\"input\":{}}").status, .ok)
+    XCTAssertEqual(submit("{\"type\":\"engine.configure\",\"input\":{}}").status, TB_SESSION_OK)
     let snapshot = submit("{\"type\":\"session.snapshot\",\"input\":{}}")
-    XCTAssertEqual(snapshot.status, .ok)
+    XCTAssertEqual(snapshot.status, TB_SESSION_OK)
     let result = jsonObject(snapshot.text)["result"] as? [String: Any]
     XCTAssertTrue(result?["snapshot"] is NSNull, "no session yet")
   }
 
   func testUnknownTypesAreUnsupported() {
-    XCTAssertEqual(submit("{\"type\":\"no.such.type\",\"input\":{}}").status, .unsupportedMessage)
+    XCTAssertEqual(submit("{\"type\":\"no.such.type\",\"input\":{}}").status, TB_SESSION_UNSUPPORTED_MESSAGE)
   }
 
   func testSubmitAfterCloseIsAnInvalidArgument() {
     bridge.close()
     bridge.close()
     let response = submit("{\"type\":\"fingerprint.labelHash\",\"input\":{\"value\":\"Go\"}}")
-    XCTAssertEqual(response.status, .invalidArgument)
+    XCTAssertEqual(response.status, TB_SESSION_INVALID_ARGUMENT)
     XCTAssertTrue(response.json.isEmpty)
   }
 
-  func testStatusesMirrorTheCEnum() {
-    let statuses: [tb_session_status] = [
-      TB_SESSION_OK, TB_SESSION_INVALID_ARGUMENT, TB_SESSION_ABI_MISMATCH, TB_SESSION_MALFORMED_MESSAGE,
-      TB_SESSION_INVALID_MESSAGE, TB_SESSION_UNSUPPORTED_MESSAGE, TB_SESSION_CONTRACT_MISMATCH,
-      TB_SESSION_MESSAGE_TOO_LARGE, TB_SESSION_BUSY, TB_SESSION_OUT_OF_MEMORY, TB_SESSION_INTERNAL_ERROR,
-    ]
-    for status in statuses {
-      let mapped = EngineStatus(code: Int(status.rawValue))
-      XCTAssertEqual(mapped.rawValue, Int(status.rawValue))
-      XCTAssertEqual(mapped.wireName, String(cString: tb_session_status_name(status)))
-    }
-    XCTAssertEqual(EngineStatus(code: 99), .internalError, "unknown codes count as internal errors")
+  func testStatusNamesComeFromTheEngine() {
+    XCTAssertEqual(submit("{broken").statusName, "malformed_message")
+    XCTAssertEqual(EngineResponse(status: TB_SESSION_INTERNAL_ERROR, json: Data()).statusName, "internal_error")
   }
 
   /// The host driving the real engine: a stateless query and a rejected

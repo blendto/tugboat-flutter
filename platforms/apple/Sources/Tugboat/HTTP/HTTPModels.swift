@@ -30,8 +30,8 @@ struct FramePart: Equatable {
 
 /// What a request came to; becomes the `transport.result` input.
 enum TransportOutcome: Equatable {
-  /// Any HTTP response. `body` is at most `HTTPExecutor.maxBodyBytes` bytes,
-  /// decoded as UTF-8.
+  /// An HTTP response with a status in 100–599. `body` is at most
+  /// `CollectorResponse.maxBodyBytes` UTF-8 bytes.
   case http(status: Int, body: String)
   case error
   case timeout
