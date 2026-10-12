@@ -65,6 +65,9 @@ final class ContainerHostTests: XCTestCase {
       let described = String(describing: cls)
       let interesting = described.contains("PlatformViewHost") || described.contains("HostingView")
         || described.contains("Hosting") || depth < 8
+      if let keys = view.layer.animationKeys(), !keys.isEmpty {
+        print("TBANIM \(root) depth=\(depth) described=\(described) keys=\(keys)")
+      }
       if interesting {
         let kind = ViewKind.of(view, insideHosting: depth > 1)
         if described.contains("PlatformViewHost") {

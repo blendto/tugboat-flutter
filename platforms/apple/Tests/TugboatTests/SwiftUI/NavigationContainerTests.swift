@@ -57,11 +57,15 @@ final class NavigationContainerTests: XCTestCase {
     return window
   }
 
+  /// `TabView` is left out of the mask checks: on iOS 26.5 its floating tab
+  /// bar keeps a layer animation running, so its frames are masked whole
+  /// (`animating`, fail closed; decisions log). Its host is still walked
+  /// (`ContainerHostTests`).
   private var containers: [String] {
     if #available(iOS 16.0, *) {
-      return ["NavigationStack", "NavigationView", "TabView"]
+      return ["NavigationStack", "NavigationView"]
     }
-    return ["NavigationView", "TabView"]
+    return ["NavigationView"]
   }
 
   private func root(_ container: String, _ truth: TruthFrames) -> AnyView {
