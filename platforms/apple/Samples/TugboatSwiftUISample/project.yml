@@ -37,6 +37,8 @@ targets:
         # Cleartext only to local hosts (the simulator's 127.0.0.1 collector).
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        # A device reaching a collector on the LAN asks for local-network access.
+        NSLocalNetworkUsageDescription: Sends test sessions to a Tugboat collector on your local network.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gettugboat.sample.swiftui

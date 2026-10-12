@@ -11,8 +11,8 @@ device-test target of native SDK note section 10. Nothing is published.
 
 Navigation uses `NavigationStack` on iOS 16+ and a stack `NavigationView` on
 iOS 15. Hosting-controller tracking is off (`trackHostingControllers: false`),
-so routes come from `.tugboatScreen` only. Focus changes and the
-`systemInput` capability are on. `Tugboat.start` runs in
+so routes come from `.tugboatScreen` only. Focus changes are on (iOS has no
+system input facts yet). `Tugboat.start` runs in
 `application(_:didFinishLaunchingWithOptions:)` through an
 `@UIApplicationDelegateAdaptor`.
 
@@ -27,7 +27,10 @@ The collector URL and key come from launch arguments, read through the
 | `-TugboatCollectorKey <key>` | `pmk_blend-app-dev-secret` (rows are filed under app id `blend_app`) |
 
 `NSAppTransportSecurity` sets only `NSAllowsLocalNetworking`, so cleartext
-HTTP is allowed to loopback and `.local` hosts and nothing else. App fields:
+HTTP is allowed to loopback and `.local` hosts and nothing else.
+`NSLocalNetworkUsageDescription` is set, so on a device pointed at a LAN
+collector (`-TugboatCollectorURL http://<mac>.local:3000`) iOS asks for
+local-network access once. App fields:
 display name `Tugboat Sample`, version `1.0.0` (`MARKETING_VERSION`), build
 `1` (`CURRENT_PROJECT_VERSION`), app id `com.gettugboat.sample.swiftui`, and
 an installation id kept in user defaults.
@@ -67,6 +70,12 @@ xcrun simctl spawn booted log stream --level debug --predicate 'subsystem == "co
 
 To relaunch with a fresh session: `xcrun simctl terminate booted
 com.gettugboat.sample.swiftui`, then the `launch` command again.
+
+## Known gaps
+
+- Lifecycle is app-level (`UIApplication` notifications), not per scene.
+- No background task: after step 8 the app is suspended, so events still
+  pending then are delivered after the foreground in step 9, not before.
 
 ## Device-test script
 

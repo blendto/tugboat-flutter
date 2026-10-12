@@ -17,7 +17,7 @@
 | Flutter `tugboat` | 0.10.0 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; Device Farm launch inputs owned by the SDK; `hidden` + `paused` coalesce into one `app_backgrounded`. |
 | Flutter `tugboat` | 0.9.0 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; mode-free capture API with additive evidence capabilities. |
 | Flutter `tugboat` | 0.8.17 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; blank iOS engine captures retry with explicit hierarchy coverage. |
-| Apple `TugboatCaptureRuntime` | 0.2.0 | Unpublished. Additive `capture(view:request:maskSupplier:onComplete:)`: masks computed on the main thread immediately before each draw (`MaskSnapshot`); `CaptureRequest.lastStructureSignature`, `CaptureTimings.maskComputeMicros`, `CaptureResult.maskSnapshot`. No new `CaptureStatus` or `CaptureCoverage` cases. |
+| Apple `TugboatCaptureRuntime` | 0.2.0 | Unpublished. Additive `capture(view:request:maskSupplier:onComplete:)`: masks computed on the main thread immediately before each draw (`MaskSnapshot`); `CaptureRequest.lastStructureSignature` and `pixelsPerPoint`, `CaptureTimings.maskComputeMicros`, `CaptureResult.maskSnapshot`. No new `CaptureStatus` or `CaptureCoverage` cases. |
 | Apple `TugboatCaptureRuntime` | 0.1.1 | Rejects transparent and near-white captures and validates explicit view-hierarchy capture before encoding. |
 | Flutter `tugboat` | 0.8.16 | Same hosted runtimes as 0.8.15. iOS plugin looks up `registrar.viewController` at runtime so Flutter 3.35 hosts compile. |
 | Flutter `tugboat` | 0.8.15 | Android `com.gettugboat.sdk:capture-runtime:0.1.0` from Maven Central. Apple `TugboatCaptureRuntime` `0.1.0` from CocoaPods trunk. Plugin iOS floor 15. |
