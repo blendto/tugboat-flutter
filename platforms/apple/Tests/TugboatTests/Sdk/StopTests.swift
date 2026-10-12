@@ -23,9 +23,38 @@ final class StopTests: XCTestCase {
     XCTAssertFalse(SessionEndWatcher.isSessionEnd(events))
   }
 
+  /// `isFinal` repeats the engine's delivery rule; this pins the copy to
+  /// the engine source and its conformance fixture, so a change there fails
+  /// here and the watcher must follow.
+  func testTheEngineStillClassifiesStatusesThisWay() throws {
+    let root = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()  // Sdk
+      .deletingLastPathComponent()  // TugboatTests
+      .deletingLastPathComponent()  // Tests
+      .deletingLastPathComponent()  // apple
+      .deletingLastPathComponent()  // platforms
+      .deletingLastPathComponent()  // repository root
+    let source = try String(
+      contentsOf: root.appendingPathComponent("core/session-engine/src/transport.cpp"), encoding: .utf8)
+    let classify = try XCTUnwrap(source.components(separatedBy: "Verdict classify(").dropFirst().first)
+      .components(separatedBy: "\n}\n")[0]
+    XCTAssertTrue(classify.contains("if (result.outcome != TransportOutcome::kHttp) {\n    return Verdict::kRetry;"))
+    XCTAssertTrue(classify.contains("if (status == 202) {\n    return Verdict::kAccepted;"))
+    XCTAssertTrue(classify.contains("if (status == 408 || status == 429 || status >= 500) {\n    return Verdict::kRetry;"))
+    XCTAssertTrue(classify.contains("return Verdict::kDrop;"))
+    let fixture = try String(
+      contentsOf: root.appendingPathComponent("conformance/engine/scenario/delivery-status-classification.json"),
+      encoding: .utf8)
+    XCTAssertTrue(
+      fixture.contains(
+        "Only HTTP 202 is acceptance (C8 kept): 200, 201, 204, and every other 4xx drop the batch for good; "
+          + "408, 429, 5xx, a transport error, and a timeout queue it for retry."))
+  }
+
   func testRetriedOutcomesAreNotFinal() {
-    XCTAssertTrue(SessionEndWatcher.isFinal(.http(status: 202, body: "")))
-    XCTAssertTrue(SessionEndWatcher.isFinal(.http(status: 400, body: "")))
+    for status in [200, 201, 202, 204, 302, 400, 401, 404, 413, 499] {
+      XCTAssertTrue(SessionEndWatcher.isFinal(.http(status: status, body: "")), "\(status)")
+    }
     for outcome in [TransportOutcome.http(status: 408, body: ""), .http(status: 429, body: ""), .http(status: 503, body: ""), .error, .timeout] {
       XCTAssertFalse(SessionEndWatcher.isFinal(outcome), "\(outcome)")
     }

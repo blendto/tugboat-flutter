@@ -5,8 +5,27 @@ entry here must match it.
 
 ## 0.1.0
 
-Unpublished. Platform plumbing and the SwiftUI adapter. The only public API
-is the `.tugboatTag(_:)` and `.tugboatScreen(_:)` view modifiers.
+Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
+the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISample`).
+
+- Public API: `Tugboat.start(TugboatConfig)`, `setUserId`, `setTraits`,
+  `stop`; `TugboatConfig` (`Collector`, `App`, `MaskLevel`,
+  `captureFocusChanges`, `captureSystemInput`, `trackHostingControllers`);
+  the `.tugboatTag(_:)` and `.tugboatScreen(_:)` view modifiers. Idempotent
+  start; nothing throws or traps into the app.
+- Engine wiring: `engine.configure` with every `session_start` field the
+  collector requires (start is refused and logged when one is missing),
+  `limits`, the SwiftUI `gesture`, `capture.answerTimeoutMs` 5000,
+  `collector.enabled`, `focusChanges` / `systemInput`; `session.start`;
+  application notifications to `app.lifecycle`; `identity.set` /
+  `traits.set`; adapter facts (navigation included) as per-frame batches.
+- `stop()`: `session.end`, then `engine.dispose` and handle destruction once
+  the `session_end` post settled (bounded at 25 s, off the main thread).
+- Capture: `capture.request` drawn by `TugboatCaptureRuntime` 0.2.0
+  (`viewHierarchy`, the key window) with masks computed in the same
+  main-thread turn as the draw; every request answered once by id, in any
+  order (C16); every runtime status mapped explicitly; `frameMetadata`
+  backends `nativeCpuExperimental`; `surface` on window size changes.
 
 - SwiftUI adapter (internal): `input.pointer` (window points, unique contact
   ids, tap evidence at the down position), `scroll`, `navigation`, and
