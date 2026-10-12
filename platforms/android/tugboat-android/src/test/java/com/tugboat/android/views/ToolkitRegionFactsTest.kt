@@ -126,10 +126,27 @@ class ToolkitRegionFactsTest {
         val focus = FocusFactProducer(factClock(), recorded::emit)
         region.focus = RegionFocus.Other
         focus.onGlobalFocusChanged(null, host)
+        assertTrue("the host has View focus, its region focus may still settle", focus.onFrame(host))
+        assertTrue(recorded.facts.isEmpty())
         region.focus = RegionFocus.TextInput
-        assertFalse(focus.onFrame(host)) // no input since: no recheck
-        focus.onInput()
         focus.onFrame(host)
-        assertEquals(listOf("other", "text_input"), recorded.inputs("focus").map { it.getString("kind") })
+        assertEquals("one tap, one settled kind", listOf("text_input"), recorded.inputs("focus").map { it.getString("kind") })
+
+        region.focus = RegionFocus.Other
+        assertTrue(focus.onFrame(host)) // still rechecking after the change
+        while (focus.onFrame(host)) Unit
+        focus.onInput()
+        while (focus.onFrame(host)) Unit
+        assertEquals(listOf("text_input", "other"), recorded.inputs("focus").map { it.getString("kind") })
+    }
+
+    @Test
+    fun aRegionHostThatNeverReportsTextInputSettlesAsOther() {
+        val recorded = RecordingFacts()
+        val focus = FocusFactProducer(factClock(), recorded::emit)
+        region.focus = RegionFocus.Other
+        focus.onGlobalFocusChanged(null, host)
+        while (focus.onFrame(host)) Unit
+        assertEquals(listOf("other"), recorded.inputs("focus").map { it.getString("kind") })
     }
 }
