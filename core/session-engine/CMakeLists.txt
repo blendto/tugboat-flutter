@@ -114,9 +114,12 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
     tests/tb_session_engine_stateful_test.cpp)
   add_executable(tb_session_engine_interaction_test
     tests/tb_session_engine_interaction_test.cpp)
+  add_executable(tb_session_engine_capture_test
+    tests/tb_session_engine_capture_test.cpp)
   foreach(_tb_unit IN ITEMS tb_session_engine_test
                             tb_session_engine_stateful_test
-                            tb_session_engine_interaction_test)
+                            tb_session_engine_interaction_test
+                            tb_session_engine_capture_test)
     target_include_directories(${_tb_unit} PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src")
   endforeach()
@@ -131,6 +134,7 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
   foreach(_tb_test IN ITEMS tb_session_engine_test
                             tb_session_engine_stateful_test
                             tb_session_engine_interaction_test
+                            tb_session_engine_capture_test
                             tb_session_engine_conformance)
     target_link_libraries(${_tb_test} PRIVATE tugboat_session_engine)
     target_compile_options(${_tb_test} PRIVATE -Wall -Wextra -Wpedantic -Werror)
