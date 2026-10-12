@@ -21,3 +21,4 @@ platforms/android/local.properties
 crash-*
 leak-*
 timeout-*
+**/.kotlin/

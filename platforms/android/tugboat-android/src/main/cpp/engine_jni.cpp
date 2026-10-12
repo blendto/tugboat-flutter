@@ -65,8 +65,12 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /* reserved */) {
   }
   g_response_class = static_cast<jclass>(env->NewGlobalRef(local));
   env->DeleteLocalRef(local);
+  if (g_response_class == nullptr) {
+    clear_exception(env);
+    return JNI_ERR;
+  }
   g_response_ctor = env->GetMethodID(g_response_class, "<init>", "(I[B)V");
-  if (g_response_class == nullptr || g_response_ctor == nullptr) {
+  if (g_response_ctor == nullptr) {
     clear_exception(env);
     return JNI_ERR;
   }

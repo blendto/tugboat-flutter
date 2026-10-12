@@ -1,6 +1,7 @@
 package com.tugboat.android.host
 
 import android.util.Log
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -22,7 +23,7 @@ internal sealed interface Effect {
 internal object EffectParser {
     private const val TAG = "TugboatEngine"
 
-    private val parsers: Map<String, (EffectJson) -> Effect> = mapOf(
+    private val parsers: Map<String, (JSONObject) -> Effect> = mapOf(
         "timer.schedule" to ::timerSchedule,
         "timer.cancel" to ::timerCancel,
         "http.send" to ::httpSend,
@@ -32,60 +33,59 @@ internal object EffectParser {
     /**
      * Effects of a response, in order. A response without `effects` has
      * none; an effect that breaks its schema is logged and skipped.
+     * Throws [JSONException] when [response] is not a JSON object.
      */
     fun parse(response: String): List<Effect> {
-        val effects = RawJson.members(response)["effects"] ?: return emptyList()
-        return RawJson.elements(effects).mapNotNull(::parseEffect)
+        val effects = JSONObject(response).optJSONArray("effects") ?: return emptyList()
+        return (0 until effects.length()).mapNotNull { parseEffect(effects, it) }
     }
 
-    private fun parseEffect(raw: String): Effect? =
+    private fun parseEffect(effects: JSONArray, index: Int): Effect? =
         try {
-            val effect = EffectJson(raw)
-            val type = effect.fields.getString("type")
+            val effect = effects.getJSONObject(index)
+            val type = effect.getString("type")
             parsers[type]?.invoke(effect) ?: Effect.Unknown(type)
         } catch (error: JSONException) {
-            Log.w(TAG, "dropping malformed effect: ${error.message}")
+            Log.w(TAG, "dropping malformed effect $index: ${error.message}")
             null
         }
 
-    private fun timerSchedule(effect: EffectJson): Effect =
-        Effect.TimerSchedule(effect.fields.getString("timerId"), effect.fields.getLong("atMonoUs"))
+    private fun timerSchedule(effect: JSONObject): Effect =
+        Effect.TimerSchedule(effect.getString("timerId"), effect.getLong("atMonoUs"))
 
-    private fun timerCancel(effect: EffectJson): Effect = Effect.TimerCancel(effect.fields.getString("timerId"))
+    private fun timerCancel(effect: JSONObject): Effect = Effect.TimerCancel(effect.getString("timerId"))
 
-    private fun frameRelease(effect: EffectJson): Effect = Effect.FrameRelease(effect.fields.getString("handle"))
+    private fun frameRelease(effect: JSONObject): Effect = Effect.FrameRelease(effect.getString("handle"))
 
-    private fun httpSend(effect: EffectJson): Effect {
-        val raw = effect.raw
-        val body = raw["json"]?.let(HttpBody::Json)
-            ?: raw["multipart"]?.let(::multipart)
-            ?: throw JSONException("http.send needs json or multipart")
+    private fun httpSend(effect: JSONObject): Effect {
+        val body = when {
+            effect.has("jsonBody") -> HttpBody.Json(effect.getString("jsonBody"))
+            effect.has("multipart") -> multipart(effect.getJSONObject("multipart"))
+            else -> throw JSONException("http.send needs jsonBody or multipart")
+        }
         val request = HttpRequest(
-            requestIdJson = raw["requestId"] ?: throw JSONException("http.send needs requestId"),
-            lane = effect.fields.getString("lane"),
-            path = effect.fields.getString("path"),
-            timeoutMs = effect.fields.getInt("timeoutMs"),
+            requestId = effect.getString("requestId"),
+            lane = effect.getString("lane"),
+            path = effect.getString("path"),
+            timeoutMs = effect.getInt("timeoutMs"),
             body = body,
         )
         return Effect.HttpSend(request)
     }
 
-    private fun multipart(rawMultipart: String): HttpBody.Multipart {
-        val raw = RawJson.members(rawMultipart)
-        val fields = raw["fields"]?.let(RawJson::members).orEmpty().map { (name, value) ->
-            // Strings are sent as their value; any other JSON as its text.
-            name to if (value.startsWith('"')) RawJson.decodeString(value) else value
+    private fun multipart(multipart: JSONObject): HttpBody.Multipart {
+        val fields = multipart.getJSONArray("fields").mapItems { fields, i ->
+            val pair = fields.getJSONArray(i)
+            if (pair.length() != 2) throw JSONException("multipart field $i is not a [name, value] pair")
+            pair.getString(0) to pair.getString(1)
         }
-        val frames = RawJson.elements(raw["frames"] ?: "[]").map { frame ->
-            val json = JSONObject(frame)
-            FramePart(json.getString("handle"), json.getString("filename"))
+        val frames = multipart.getJSONArray("frames").mapItems { frames, i ->
+            val frame = frames.getJSONObject(i)
+            FramePart(frame.getString("handle"), frame.getString("filename"))
         }
         return HttpBody.Multipart(fields, frames)
     }
 
-    /** One effect, decoded ([fields]) and as raw member text ([raw]). */
-    private class EffectJson(text: String) {
-        val fields = JSONObject(text)
-        val raw: Map<String, String> by lazy { RawJson.members(text) }
-    }
+    private inline fun <T> JSONArray.mapItems(item: (JSONArray, Int) -> T): List<T> =
+        (0 until length()).map { item(this, it) }
 }

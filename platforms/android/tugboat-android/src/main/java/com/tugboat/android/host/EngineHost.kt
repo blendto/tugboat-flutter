@@ -13,9 +13,10 @@ import com.tugboat.android.engine.EngineTransport
  * looper behind [handler]. `post*` may be called from any thread; every
  * submit, response, and effect runs on that looper, in post order.
  *
- * Failures never reach the caller. A non-`ok` status is logged and the
- * message dropped; [maxConsecutiveInternalErrors] `internal_error`s in a row
- * shut the host down for good.
+ * Failures never reach the caller or crash the thread. A non-`ok` status is
+ * logged, the message dropped, and its frame handles released;
+ * [maxConsecutiveInternalErrors] `internal_error`s in a row shut the host
+ * down for good.
  */
 internal class EngineHost(
     private val transport: EngineTransport,
@@ -26,8 +27,10 @@ internal class EngineHost(
     private val maxConsecutiveInternalErrors: Int = DEFAULT_MAX_CONSECUTIVE_INTERNAL_ERRORS,
     private val onShutDown: () -> Unit = {},
 ) {
-    private val timers = TimerExecutor(handler) { timerId -> post(HostMessages.timerFired(timerId)) }
-    private val effects = EffectDispatcher(timers, http, frames, ::post)
+    private val timers = TimerExecutor(handler) { timerId ->
+        guarded("timer") { postNow(HostMessages.TIMER_FIRED, HostMessages.timerFiredInput(timerId)) }
+    }
+    private val effects = EffectDispatcher(timers, http, frames, ::postNow)
 
     /** Gates new posts; any thread reads it. */
     @Volatile
@@ -41,64 +44,59 @@ internal class EngineHost(
     val isRunning: Boolean
         get() = accepting
 
-    /** Submits [message], stamped with `at` = now unless it carries its own. */
-    fun post(message: String) {
-        val at = clock.now()
-        enqueue { HostMessages.stamped(message, at) }
-    }
-
-    /** Submits [messages] as one `batch`; each is stamped like [post]. */
-    fun postBatch(messages: List<String>) {
-        if (messages.isEmpty()) return
-        val at = clock.now()
-        enqueue { HostMessages.batch(messages.map { HostMessages.stamped(it, at) }) }
-    }
-
     /**
-     * Submits [message] without adding `at`, for the messages the engine
-     * rejects it on: `engine.configure`, queries, and stateless messages.
+     * Submits one fact that happened at [at]. [frameHandles] are handles the
+     * message passes to the engine; they are released if it is rejected.
      */
-    fun postUntimed(message: String) = enqueue { message }
+    fun post(type: String, inputJson: String, at: HostTime, frameHandles: List<String> = emptyList()) =
+        enqueue(EngineMessage(type, inputJson, at, frameHandles))
+
+    /** Submits [messages] as one all-or-nothing `batch`. */
+    fun postBatch(messages: List<EngineMessage>) {
+        if (messages.isEmpty()) return
+        enqueue(EngineMessage.batchJson(messages), messages.flatMap { it.frameHandles })
+    }
+
+    /** Submits a message the engine takes without `at`: `engine.configure`, queries, stateless messages. */
+    fun postUntimed(type: String, inputJson: String) = enqueue(EngineMessage(type, inputJson, at = null))
 
     /** Cancels timers, closes IO, destroys the handle, and frees frames, after already-posted work. */
     fun close() {
         accepting = false
-        handler.post(::shutDown)
+        handler.post { guarded("shutdown") { shutDown() } }
     }
 
-    private fun enqueue(message: () -> String) {
-        if (!accepting) return
-        handler.post {
-            if (active) process(message)
+    private fun postNow(type: String, inputJson: String) = post(type, inputJson, clock.now())
+
+    private fun enqueue(message: EngineMessage) = enqueue(message.toJson(), message.frameHandles)
+
+    private fun enqueue(json: String, frameHandles: List<String>) {
+        val queued = accepting && handler.post {
+            if (active) process(json, frameHandles) else release(frameHandles)
         }
+        if (!queued) release(frameHandles)
     }
 
-    private fun process(message: () -> String) {
-        try {
-            handle(transport.submit(message().toByteArray(Charsets.UTF_8)))
-        } catch (error: Exception) {
-            Log.e(TAG, "engine host failure", error)
-        }
+    private fun process(json: String, frameHandles: List<String>) {
+        val accepted = guarded("submit") { handle(transport.submit(json.toByteArray(Charsets.UTF_8))) } ?: false
+        if (!accepted) release(frameHandles)
     }
 
-    private fun handle(response: EngineResponse) {
+    /** True when the engine accepted the message. */
+    private fun handle(response: EngineResponse): Boolean {
         val status = response.status
         if (status == EngineStatus.INTERNAL_ERROR) {
             onInternalError(response)
-            return
+            return false
         }
         consecutiveInternalErrors = 0
         if (status != EngineStatus.OK) {
             Log.w(TAG, "engine dropped a message (${status.wireName}): ${response.text()}")
-            return
+            return false
         }
-        for (effect in EffectParser.parse(response.text())) {
-            try {
-                effects.dispatch(effect)
-            } catch (error: Exception) {
-                Log.e(TAG, "effect failed: $effect", error)
-            }
-        }
+        val parsed = guarded("response") { EffectParser.parse(response.text()) }.orEmpty()
+        parsed.forEach { effect -> guarded("effect ${effect.javaClass.simpleName}") { effects.dispatch(effect) } }
+        return true
     }
 
     private fun onInternalError(response: EngineResponse) {
@@ -111,15 +109,26 @@ internal class EngineHost(
         }
     }
 
+    private fun release(frameHandles: List<String>) = frameHandles.forEach(frames::release)
+
     private fun shutDown() {
         if (!active) return
         active = false
-        timers.cancelAll()
-        http.close()
-        transport.close()
-        frames.clear()
-        onShutDown()
+        guarded("timers") { timers.cancelAll() }
+        guarded("http") { http.close() }
+        guarded("transport") { transport.close() }
+        frames.close()
+        guarded("thread") { onShutDown() }
     }
+
+    /** Runs [block]; anything it throws is logged, never rethrown. */
+    private inline fun <T> guarded(what: String, block: () -> T): T? =
+        try {
+            block()
+        } catch (failure: Throwable) {
+            Log.e(TAG, "engine host $what failed", failure)
+            null
+        }
 
     companion object {
         const val DEFAULT_MAX_CONSECUTIVE_INTERNAL_ERRORS = 3
@@ -131,7 +140,7 @@ internal class EngineHost(
             return EngineHost(
                 transport = transport,
                 handler = Handler(thread.looper),
-                http = HttpExecutor(config, frames),
+                http = HttpExecutor(config, frames::get),
                 frames = frames,
                 onShutDown = { thread.quitSafely() },
             )

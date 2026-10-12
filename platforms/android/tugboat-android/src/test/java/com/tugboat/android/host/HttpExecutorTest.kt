@@ -7,7 +7,12 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.ServerSocket
+import java.net.Socket
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -17,7 +22,7 @@ class HttpExecutorTest {
     private val server = LocalHttpServer().apply { reply = { Response(202, "{\"sessionId\":\"s-1\"}") } }
     private val received = server.received
     private val frames = FrameHandleTable()
-    private val executor = HttpExecutor(config("http://127.0.0.1:${server.port}/"), frames)
+    private val executor = HttpExecutor(config("http://127.0.0.1:${server.port}/"), frames::get)
 
     @After
     fun tearDown() {
@@ -85,7 +90,7 @@ class HttpExecutorTest {
         val first = byteArrayOf(-1, -40, 1, 2)
         val second = byteArrayOf(-1, -40, 3)
         val request = HttpRequest(
-            requestIdJson = "\"r\"",
+            requestId = "http-1",
             lane = "frames",
             path = "/v1/frames",
             timeoutMs = 15_000,
@@ -116,7 +121,7 @@ class HttpExecutorTest {
         val handle = frames.put(byteArrayOf(1))
         frames.release(handle)
         val request = HttpRequest(
-            "\"r\"", "frames", "/v1/frames", 1000,
+            "http-1", "frames", "/v1/frames", 1000,
             HttpBody.Multipart(listOf("sessionId" to "s"), listOf(FramePart(handle, "1.jpg"))),
         )
 
@@ -141,7 +146,7 @@ class HttpExecutorTest {
     @Test
     fun connectionFailuresAreErrors() {
         val closedPort = ServerSocket(0).use { it.localPort }
-        val offline = HttpExecutor(config("http://127.0.0.1:$closedPort"), frames)
+        val offline = HttpExecutor(config("http://127.0.0.1:$closedPort"), frames::get)
         try {
             assertEquals(TransportOutcome.Error, offline.perform(json("{}")))
         } finally {
@@ -151,7 +156,7 @@ class HttpExecutorTest {
 
     @Test
     fun malformedBaseUrlsAreErrors() {
-        val broken = HttpExecutor(config("not a url"), frames)
+        val broken = HttpExecutor(config("not a url"), frames::get)
         try {
             assertEquals(TransportOutcome.Error, broken.perform(json("{}")))
         } finally {
@@ -183,8 +188,122 @@ class HttpExecutorTest {
         assertEquals(TransportOutcome.Error, outcome.get())
     }
 
+    @Test
+    fun aStalledUploadTimesOutAtTheTotalDeadline() {
+        val release = CountDownLatch(1)
+        // The peer accepts but never reads, so the write blocks once the socket buffers fill.
+        rawServer(receiveBuffer = 4096) { release.await(10, TimeUnit.SECONDS) }.use { stalled ->
+            val executor = HttpExecutor(config("http://127.0.0.1:${stalled.localPort}"), frames::get)
+            try {
+                val (outcome, elapsedMs) = timed { executor.perform(json("x".repeat(16 shl 20), timeoutMs = 500)) }
+                assertEquals(TransportOutcome.Timeout, outcome)
+                assertTrue("took $elapsedMs ms", elapsedMs in 450..2_000)
+            } finally {
+                release.countDown()
+                executor.close()
+            }
+        }
+    }
+
+    @Test
+    fun aDribblingResponseTimesOutAtTheTotalDeadline() {
+        // One byte every 50 ms never trips the per-read timeout.
+        rawServer { socket ->
+            val out = socket.getOutputStream()
+            out.write("HTTP/1.1 202 Accepted\r\nContent-Length: 100000\r\n\r\n".toByteArray())
+            repeat(100) {
+                out.write('x'.code)
+                out.flush()
+                Thread.sleep(50)
+            }
+        }.use { dribbling ->
+            val executor = HttpExecutor(config("http://127.0.0.1:${dribbling.localPort}"), frames::get)
+            try {
+                val (outcome, elapsedMs) = timed { executor.perform(json("{}", timeoutMs = 500)) }
+                assertEquals(TransportOutcome.Timeout, outcome)
+                assertTrue("took $elapsedMs ms", elapsedMs in 450..2_000)
+            } finally {
+                executor.close()
+            }
+        }
+    }
+
+    @Test
+    fun errorsWhileBuildingTheBodyAreErrorOutcomes() {
+        val failing = HttpExecutor(config("http://127.0.0.1:${server.port}"), frameBytes = { throw OutOfMemoryError("frame") })
+        try {
+            val request = HttpRequest(
+                "http-1", "frames", "/v1/frames", 1000,
+                HttpBody.Multipart(emptyList(), listOf(FramePart("frame-1", "1.jpg"))),
+            )
+            assertEquals(TransportOutcome.Error, failing.perform(request))
+            assertEquals(0, received.size)
+        } finally {
+            failing.close()
+        }
+    }
+
+    @Test
+    fun closeAnswersQueuedRequestsExactlyOnce() {
+        val accepted = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val stalledServer = rawServer(receiveBuffer = 4096) {
+            accepted.countDown()
+            release.await(10, TimeUnit.SECONDS)
+        }
+        stalledServer.use { stalled ->
+            val executor = HttpExecutor(config("http://127.0.0.1:${stalled.localPort}"), frames::get)
+            val answers = CopyOnWriteArrayList<Pair<String, TransportOutcome>>()
+            val done = CountDownLatch(2)
+            try {
+                executor.send(json("x".repeat(16 shl 20), timeoutMs = 500)) { answers += "running" to it; done.countDown() }
+                executor.send(json("{}")) { answers += "queued" to it; done.countDown() }
+                assertTrue("the first request is in flight", accepted.await(5, TimeUnit.SECONDS))
+                executor.close()
+
+                assertTrue(done.await(5, TimeUnit.SECONDS))
+                assertEquals(
+                    setOf("running" to TransportOutcome.Timeout, "queued" to TransportOutcome.Error),
+                    answers.toSet(),
+                )
+                assertEquals(2, answers.size)
+            } finally {
+                release.countDown()
+            }
+        }
+    }
+
+    @Test
+    fun aThrowingCallbackDoesNotStopTheExecutor() {
+        executor.send(json("{}")) { throw IllegalStateException("callback") }
+        val done = CountDownLatch(1)
+        executor.send(json("{}")) { done.countDown() }
+        assertTrue(done.await(5, TimeUnit.SECONDS))
+    }
+
+    private fun <T> timed(block: () -> T): Pair<T, Long> {
+        val start = System.nanoTime()
+        val result = block()
+        return result to (System.nanoTime() - start) / 1_000_000
+    }
+
+    /** A server that hands its first connection to [handle] and does nothing else. */
+    private fun rawServer(receiveBuffer: Int? = null, handle: (Socket) -> Unit): ServerSocket {
+        val server = ServerSocket()
+        receiveBuffer?.let { server.receiveBufferSize = it }
+        server.bind(InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0))
+        Thread {
+            try {
+                server.accept().use(handle)
+            } catch (closed: IOException) {
+                // The test is over.
+            }
+        }.apply { isDaemon = true }.start()
+        return server
+    }
+
     private fun json(body: String, path: String = "/v1/sessions", timeoutMs: Int = 5_000) =
-        HttpRequest("\"r\"", "lifecycle", path, timeoutMs, HttpBody.Json(body))
+        HttpRequest("http-1", "lifecycle", path, timeoutMs, HttpBody.Json(body))
 
     private fun config(baseUrl: String) = HostConfig(
         collectorBaseUrl = baseUrl,

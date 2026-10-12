@@ -42,12 +42,30 @@ class FrameHandleTableTest {
     }
 
     @Test
-    fun clearFreesEverything() {
+    fun closeFreesEverythingAndKeepsNothingAfterwards() {
         val table = FrameHandleTable()
         val handles = (1..3).map { table.put(byteArrayOf(it.toByte())) }
-        table.clear()
+        table.close()
         assertEquals(0, table.size)
         handles.forEach { assertNull(table[it]) }
+
+        val late = table.put(byteArrayOf(9))
+        assertNull(table[late])
+        assertEquals(0, table.size)
+    }
+
+    @Test
+    fun putsRacingCloseRetainNothing() {
+        val table = FrameHandleTable()
+        val pool = Executors.newFixedThreadPool(4)
+        try {
+            val puts = (1..400).map { pool.submit(Callable { table.put(byteArrayOf(0)) }) }
+            table.close()
+            puts.forEach { it.get() }
+            assertEquals(0, table.size)
+        } finally {
+            pool.shutdownNow()
+        }
     }
 
     @Test

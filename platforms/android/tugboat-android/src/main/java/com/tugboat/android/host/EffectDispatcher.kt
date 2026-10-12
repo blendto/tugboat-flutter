@@ -4,13 +4,14 @@ import android.util.Log
 
 /**
  * Routes each [Effect] to its executor. Runs on the engine thread; answers
- * (`timer.fired`, `transport.result`) go back through [post].
+ * (`transport.result`) go back through [post], stamped with the time they
+ * arrive.
  */
 internal class EffectDispatcher(
     private val timers: TimerExecutor,
     private val http: HttpSender,
     private val frames: FrameHandleTable,
-    private val post: (message: String) -> Unit,
+    private val post: (type: String, inputJson: String) -> Unit,
 ) {
     private val reportedUnknown = HashSet<String>()
 
@@ -19,7 +20,7 @@ internal class EffectDispatcher(
             is Effect.TimerSchedule -> timers.schedule(effect.timerId, effect.atMonoUs)
             is Effect.TimerCancel -> timers.cancel(effect.timerId)
             is Effect.HttpSend -> http.send(effect.request) { outcome ->
-                post(HostMessages.transportResult(effect.request.requestIdJson, outcome))
+                post(HostMessages.TRANSPORT_RESULT, HostMessages.transportResultInput(effect.request.requestId, outcome))
             }
             is Effect.FrameRelease -> frames.release(effect.handle)
             is Effect.Unknown -> if (reportedUnknown.add(effect.type)) {

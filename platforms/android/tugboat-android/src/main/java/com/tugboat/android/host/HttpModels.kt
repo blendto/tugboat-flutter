@@ -1,13 +1,8 @@
 package com.tugboat.android.host
 
-/**
- * One collector request from an `http.send` effect.
- *
- * [requestIdJson] is the effect's `requestId` as raw JSON; the host echoes it
- * verbatim in `transport.result`, whatever its JSON type.
- */
+/** One collector request from an `http.send` effect. */
 internal data class HttpRequest(
-    val requestIdJson: String,
+    val requestId: String,
     val lane: String,
     val path: String,
     val timeoutMs: Int,
@@ -15,7 +10,7 @@ internal data class HttpRequest(
 )
 
 internal sealed interface HttpBody {
-    /** An engine-built JSON body, sent byte for byte. */
+    /** The engine's pre-encoded `jsonBody`, sent byte for byte. */
     data class Json(val text: String) : HttpBody
 
     /**
@@ -39,7 +34,10 @@ internal sealed interface TransportOutcome {
 
 /** Executes `http.send` effects off the engine thread. */
 internal interface HttpSender {
-    /** Runs [request] asynchronously; [onResult] is called exactly once, from any thread. */
+    /**
+     * Runs [request] asynchronously. [onResult] is called exactly once, from
+     * any thread, whatever fails (a failure becomes [TransportOutcome.Error]).
+     */
     fun send(request: HttpRequest, onResult: (TransportOutcome) -> Unit)
 
     fun close() {}

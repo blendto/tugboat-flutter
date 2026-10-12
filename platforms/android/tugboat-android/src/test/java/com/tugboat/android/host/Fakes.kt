@@ -18,7 +18,7 @@ internal class FakeEngineTransport(vararg responses: EngineResponse) : EngineTra
     val submitThreads = CopyOnWriteArrayList<Thread>()
     var overlappingSubmits = 0
     var closed = false
-    var throwOnSubmit: RuntimeException? = null
+    var throwOnSubmit: Throwable? = null
 
     fun enqueue(response: EngineResponse) = queued.addLast(response)
 
