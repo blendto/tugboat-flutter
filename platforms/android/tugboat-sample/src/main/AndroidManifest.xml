@@ -17,11 +17,14 @@
             android:name=".DetailActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity" />
+        <!-- stateAlwaysHidden: no keyboard until a text field is tapped. -->
         <activity
             android:name=".ComposeWholeHostActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="stateAlwaysHidden" />
         <activity
             android:name=".ComposeSemanticsActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="stateAlwaysHidden" />
     </application>
 </manifest>

@@ -18,6 +18,11 @@ wiring, window capture, and the Android Views adapter.
   (`androidx.lifecycle:lifecycle-process`, the one new runtime dependency);
   `identity.set` / `traits.set`; adapter facts as per-frame batches with
   `navigation` facts on (engine phase 3d).
+- `trackNavigation` destinations are `navigation` facts on a navigator
+  nested under the activity's (`route_change` per destination, route names
+  without arguments).
+- Focus is reported once per frame where it settled: a Compose host taking
+  View focus before its text field does is one `text_input`.
 - `stop()`: `session.end`, then `engine.dispose` and handle destruction once
   the `session_end` post settled (bounded at 25 s).
 - Capture: `capture.request` answered with `capture-runtime` window capture

@@ -72,15 +72,19 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-12 | Android mask coverage reasons (`toolkit.MaskCoverageReason`, shared by the Views walk and toolkit regions) use only names in the engine's closed `maskCoverage.reasons` set: #94's `treeUnreadable` became `noDecor` / `noWindowSize` / `walkExhausted`, `regionUnreadable` became `walkExhausted`, and `webView` / `surfaceLayer` note fail-closed Views. A Compose host no region reads is `wholeHost` + `composeDefault`. `WindowMaskResult.coverage.toJson()` goes on `capture.result.frame.maskCoverage` only once engine PR #96 merges (`EngineVocabulary.FRAME_MASK_COVERAGE`); the current engine rejects unknown keys. | A reason outside the engine set would reject the whole `capture.result` once forwarded |
 | 2026-10-12 | Android SDK: a `capture.request` with no foreground window (the session's `initial` capture, requested from `Application.onCreate`) waits up to 3 s, inside the 5 s C18 deadline, for the first activity to resume; a decor view not laid out yet is retried once after its first traversal. `start` is documented as once per process; after `stop`, a new `start` observes activities from their next resume. | PR #95 review: otherwise the initial frame was always `boundary_unavailable` |
 | 2026-10-12 | Sample: `TugboatCompose.install` is called by the app (`SampleApplication`, default `WholeHost`); `tugboat-android` does not depend on Compose. Masking is process-wide, so the sample's `ComposeSemanticsActivity` installs `SemanticsBestEffort` in `onResume` and restores `WholeHost` in `onPause`; that screen draws nothing without semantics. | Orchestrator condition for the semantics opt-in; one sample shows both modes |
+| 2026-10-12 | Android `trackNavigation`: each `NavController` destination change is a `navigation` fact on a navigator nested under the activity's (`<activity route instanceId>/nav`, so it survives recreation); instance ids are `NavBackStackEntry.id`; `push` / `pop` / `replace` from the public current and previous back-stack entries; names without arguments, type `NavDestination`, overlay `page`, `transitionMs` 0. | PR #95 device test: in-Compose navigation produced no `route_change` |
+| 2026-10-12 | Android focus is evaluated once per frame after a View focus change and stamped with the change time; while a region host (Compose) holds View focus without reporting a text input, the evaluation waits up to 4 frames for its focus to settle. | PR #95 device test: one tap on a Compose text field gave `other` then `text_input` 40 ms apart |
+| 2026-10-12 | Events that share an `atMs` (millisecond resolution, as in Dart; for example `app_inactive` and `app_backgrounded`) are ordered by the session event sequence (`event-N`, minted in append order). No change. | PR #95 device test question |
 
 ## Gates before merging to main
 
 1. On merge to `main`, `publish-android.yml` (`tag_main`) auto-tags and
    publishes `capture-runtime` 0.3.0, then opens an automatic Flutter pin PR.
-2. That pin PR compiles: the plugin maps 0.2.0/0.3.0's `SecureWindow` to
-   `cancelled` and `WindowComposite` to the existing Pigeon value
-   (`tugboat` 0.10.11-dev.2), and `android-runtime.yml` compiles the plugin
-   against the pinned and the local runtime. The `main` PR description must
+2. That pin PR compiles: the plugin maps `SecureWindow` to `cancelled` and
+   `WindowComposite` to the existing Pigeon value (`tugboat`
+   0.10.11-dev.2), and `android-runtime.yml` compiles the plugin against the
+   pinned and the local runtime, which must pass against `capture-runtime`
+   0.3.0 (0.3.0's additions are additive with defaults). The `main` PR description must
    still say that merging publishes `capture-runtime` 0.3.0; the owner
    decides at merge time.
 3. The instrumented window-capture tests

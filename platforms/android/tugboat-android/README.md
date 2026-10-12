@@ -47,8 +47,13 @@ view.tugboatTag = "checkout"                  // developer alias
 - `setUserId` / `setTraits` survive `stop` and `start`. Traits JSON cannot
   carry (NaN, infinities) are ignored and logged.
 - `trackNavigation` needs `androidx.navigation` in the app (`compileOnly`
-  here). Destination route patterns (else the id's entry name) become route
-  keys for the controller's activity.
+  here). Destination route patterns without arguments (else the id's entry
+  name) become route keys for the controller's activity, and each
+  destination change is a `navigation` fact on the controller's own
+  navigator (`<activity route instanceId>/nav`, parent: the activity
+  navigator; instance ids are `NavBackStackEntry.id`; `push`, `pop`, or
+  `replace` from the current and previous back-stack entries;
+  `views/navigation/ControllerNavigation`).
 
 ## What it contains
 

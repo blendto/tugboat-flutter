@@ -28,8 +28,8 @@ installs the Compose adapter (`TugboatCompose.install(composeMasking =
 ComposeMasking.WholeHost)`), and sets traits `{sample: true}`. Masking is
 process-wide, so `ComposeSemanticsActivity` installs `SemanticsBestEffort`
 in `onResume` and restores `WholeHost` in `onPause`.
-`Tugboat.trackNavigation(navController)` feeds its destinations to the Views
-adapter's route keys.
+`Tugboat.trackNavigation(navController)` makes its destinations route keys
+and `route_change`s.
 
 ## Build, install, run
 
@@ -100,8 +100,10 @@ the Navigation route keys `rows` and `row` (arguments stripped).
     back, `ComposeWholeHostActivity` (step 10), `ComposeSemanticsActivity`
     (step 11), and `MainActivity` after each; a rotation recreates the
     activity but keeps its route, so it adds no `route_change`. Navigation
-    Compose destinations change route keys, not routes: no `route_change`
-    for `row/3`;
+    Compose destinations are routes too, on a navigator nested under the
+    activity's: `route_change` to `rows` when `ComposeSemanticsActivity`
+    opens, to `row` (step 11, `row/3` without its argument), and back to
+    `rows` on "Back";
   - `interaction` events (v2, no `stateAnchor`). As in Flutter, only taps
     resolve a target and scrolls carry their scrollable's anchor; swipe,
     pan, and zoom carry **no** `targetAnchor` (so no `toolkit`):
@@ -124,7 +126,9 @@ the Navigation route keys `rows` and `row` (arguments stripped).
   - `system_input` `back` (steps 5, 10, 11 for the presses that reach the
     app; a back press that only hides the keyboard goes to the keyboard);
   - lifecycle: `app_foregrounded` (launch, step 9), `app_inactive` and
-    `app_backgrounded` (step 8);
+    `app_backgrounded` (step 8). Two events can share an `atMs` (millisecond
+    resolution, as in Dart); their order is the session's event order
+    (`event-N`, minted in append order), not `atMs`;
   - the "Stop Tugboat" tap (step 12) as `interaction` `gesture: cancelled`
     with a `beforeFrame` and no `afterFrame`, just before `session_end`: the
     session ends while the tap is still settling, and ending a session

@@ -20,11 +20,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -53,7 +55,7 @@ class ComposeSemanticsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val navController = rememberNavController()
-            androidx.compose.runtime.LaunchedEffect(navController) { Tugboat.trackNavigation(navController) }
+            LaunchedEffect(navController) { Tugboat.trackNavigation(navController) }
             MaterialTheme { SemanticsNavHost(navController) }
         }
     }
@@ -82,6 +84,10 @@ private fun SemanticsNavHost(navController: NavHostController) {
 @Composable
 private fun RowsScreen(onRow: (Int) -> Unit) {
     var note by rememberSaveable { mutableStateOf("") }
+    // Nothing is focused when the screen opens (a focused field would raise the
+    // keyboard over the list): focus moves only when the field is tapped.
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(Unit) { focusManager.clearFocus(force = true) }
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.compose_semantics_title), style = MaterialTheme.typography.titleLarge)
         OutlinedTextField(
