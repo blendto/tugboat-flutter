@@ -25,12 +25,14 @@ internal data class CaptureGeometry(val widthPx: Int, val heightPx: Int, val den
         return scaled(widthPx, ratio) to scaled(heightPx, ratio)
     }
 
-    private fun scaled(px: Int, ratio: Double): Int = ceil(px / dp * ratio).toInt().coerceIn(1, px)
+    /** Rounds up, ignoring float noise (1080 x 0.6 is 648, not 649). */
+    private fun scaled(px: Int, ratio: Double): Int = ceil(px / dp * ratio - EPSILON).toInt().coerceIn(1, px)
 
     companion object {
         /** Flutter `TugboatReplayConfig.capturePixelRatio` default. */
         const val CAPTURE_PIXEL_RATIO = 0.75
         private const val MIN_SCALE = 0.1
+        private const val EPSILON = 1e-6
 
         /** Null when [decor] is missing or not laid out. */
         fun of(decor: View?): CaptureGeometry? {

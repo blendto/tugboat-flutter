@@ -68,8 +68,8 @@ class EffectParserTest {
     @Test
     fun unknownTypesAreKeptForTheDispatcher() {
         assertEquals(
-            listOf(Effect.Unknown("capture.request")),
-            EffectParser.parse(response("""{"type":"capture.request","requestId":"c"}""")),
+            listOf(Effect.Unknown("outbox.write")),
+            EffectParser.parse(response("""{"type":"outbox.write","key":"c"}""")),
         )
     }
 

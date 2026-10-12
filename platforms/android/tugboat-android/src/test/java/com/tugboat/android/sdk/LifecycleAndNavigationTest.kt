@@ -56,8 +56,8 @@ class LifecycleAndNavigationTest {
         val seen = ArrayList<Triple<Activity, String?, Int>>()
         val forwarder = DestinationForwarder(activity) { a, route, id -> seen += Triple(a, route, id) }
         val destination = NavDestination("test").apply {
-            id = 42
             route = "checkout/{orderId}"
+            id = 42 // after route: setting a route also sets the id
         }
 
         forwarder.onDestinationChanged(NavController(activity), destination, null)

@@ -87,7 +87,8 @@ internal class CaptureCoordinator(
             ?: return CaptureAnswer.Failed(request.requestId, CaptureFailure.LayoutUnavailable)
         val maskResult = masks(target)
         val signature = StructureSignature.of(geometry, maskResult)
-        val baseline = request.dHashBaseline?.takeIf { it.structureSignature == signature }
+        // A forced request must be answered with a fresh frame: it is never offered a baseline.
+        val baseline = request.dHashBaseline?.takeIf { !request.force && it.structureSignature == signature }
         val (width, height) = geometry.pixelSize(request.scale)
         inFlight[runtimeId] = InFlightCapture(
             requestId = request.requestId,
