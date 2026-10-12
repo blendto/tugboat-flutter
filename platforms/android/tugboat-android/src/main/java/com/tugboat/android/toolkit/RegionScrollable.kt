@@ -11,6 +11,6 @@ class RegionScrollable(
     val vertical: Boolean,
     val offsetPx: Float,
     val maxExtentPx: Float?,
-    /** The scrollable's own target, for the `start` fact's anchor. */
-    val target: RegionHit.Target?,
+    /** The scrollable's own target, for the `start` fact's anchor; resolved only when a scroll starts. */
+    val target: () -> RegionHit.Target?,
 )

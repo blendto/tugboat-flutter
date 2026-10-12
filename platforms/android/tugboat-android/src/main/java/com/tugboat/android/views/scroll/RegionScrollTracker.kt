@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import com.tugboat.android.host.HostTime
 import com.tugboat.android.toolkit.RegionHit
 import com.tugboat.android.toolkit.RegionScrollable
+import com.tugboat.android.views.AdapterGuard
 import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.ViewsFact
 import com.tugboat.android.views.identity.TargetAnchor
@@ -95,7 +96,8 @@ internal class RegionScrollTracker(
             if (metrics.offsetPx == state.metrics.offsetPx) continue
             if (!state.active) {
                 state.active = true
-                val anchor = scrollable.target?.let { anchorFor(host, it) }
+                val target = AdapterGuard.run("region scroll target", null) { scrollable.target() }
+                val anchor = target?.let { anchorFor(host, it) }
                 emit(ScrollFacts.fact(state.id, ScrollPhase.Start, state.metrics, density(), at, anchor))
             }
             state.metrics = metrics
