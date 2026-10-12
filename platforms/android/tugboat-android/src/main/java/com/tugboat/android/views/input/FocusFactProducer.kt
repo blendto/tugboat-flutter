@@ -1,6 +1,7 @@
 package com.tugboat.android.views.input
 
 import android.view.View
+import androidx.annotation.MainThread
 import android.view.ViewTreeObserver
 import com.tugboat.android.host.HostTime
 import com.tugboat.android.toolkit.RegionFocus
@@ -32,12 +33,15 @@ import org.json.JSONObject
  * it for [RECHECK_FRAMES] frames after each input event ([onInput]).
  *
  * **One focus across windows.** Focus is app-wide, as Dart's
- * `FocusManager` is: [state] (the last reported kind) is shared by every
- * window's producer, and a window that becomes active ([onWindowActive])
- * is evaluated like a focus change. Navigating from a focused field to
+ * `FocusManager` is: [state] (the last reported kind and the active window)
+ * is shared by every window's producer. A window that becomes active
+ * ([activate]) is evaluated like a focus change, and only the active window
+ * reports: a paused or stopped window whose focus changes, or that still
+ * has recheck frames, reports nothing. Navigating from a focused field to
  * another activity therefore reports that activity's kind (`none` or
  * `other`), and coming back reports `text_input` again.
  */
+@MainThread
 internal class FocusFactProducer(
     private val clock: FactClock,
     private val emit: (ViewsFact) -> Unit,
@@ -50,14 +54,23 @@ internal class FocusFactProducer(
     private var changedAt: HostTime? = null
 
     override fun onGlobalFocusChanged(oldFocus: View?, newFocus: View?) =
-        AdapterGuard.run("focus change") {
-            if (changedAt == null) changedAt = clock.now()
-            recheckFrames = RECHECK_FRAMES
-            requestFrame()
-        }
+        AdapterGuard.run("focus change") { markChanged() }
 
     /** This window became the active one: its focus is the app's focus now. */
-    fun onWindowActive() = onGlobalFocusChanged(null, null)
+    fun activate() {
+        state.activate(this)
+        markChanged()
+    }
+
+    /** This window is gone: it can no longer be the active one. */
+    fun deactivate() = state.deactivate(this)
+
+    /** Focus may have moved: evaluate it on the next frame, stamped now. */
+    private fun markChanged() {
+        if (changedAt == null) changedAt = clock.now()
+        recheckFrames = RECHECK_FRAMES
+        requestFrame()
+    }
 
     /** An input event happened: region focus may move on the next frames. */
     fun onInput() {
@@ -83,7 +96,7 @@ internal class FocusFactProducer(
     }
 
     private fun report(kind: String, at: HostTime) {
-        if (kind == state.lastKind) return
+        if (!state.isActive(this) || kind == state.lastKind) return
         state.lastKind = kind
         emit(ViewsFact(FactTypes.FOCUS, JSONObject().put("kind", kind), at))
     }
@@ -104,7 +117,25 @@ internal class FocusFactProducer(
     }
 }
 
-/** The last focus kind reported, shared by every window's [FocusFactProducer]. Main thread only. */
+/**
+ * App-wide focus, shared by every window's [FocusFactProducer]: the last
+ * kind reported and the active window (the producer of the most recently
+ * resumed activity, a session token, never the `Activity`). Only the active
+ * window reports.
+ */
+@MainThread
 internal class FocusState {
     var lastKind: String? = null
+    private var active: Any? = null
+
+    fun activate(window: Any) {
+        active = window
+    }
+
+    /** Clears the active window when it is [window]. */
+    fun deactivate(window: Any) {
+        if (active === window) active = null
+    }
+
+    fun isActive(window: Any): Boolean = active === window
 }

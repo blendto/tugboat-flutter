@@ -35,7 +35,7 @@ internal class WindowSession(
     private val anchors: AnchorResolver,
     private val emit: (ViewsFact) -> Unit,
     private val requestFrame: () -> Unit,
-    focusState: FocusState = FocusState(),
+    focusState: FocusState,
 ) : WindowEventObserver {
     private var attached = true
     private var decor: View? = null
@@ -76,7 +76,7 @@ internal class WindowSession(
 
     /** This window became the active one (its activity resumed): report its focus on the next frame. */
     fun onWindowActive() {
-        if (attached) focus.onWindowActive()
+        if (attached) focus.activate()
     }
 
     fun onFrame() {
@@ -89,6 +89,7 @@ internal class WindowSession(
     fun detach() {
         if (!attached) return
         attached = false
+        focus.deactivate()
         unhookDecor()
         recyclers?.detachAll()
         activity.window?.let(WindowCallbackInstaller::uninstall)

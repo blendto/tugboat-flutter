@@ -53,6 +53,35 @@ class FocusAcrossWindowsTest {
     }
 
     @Test
+    fun aBackgroundWindowWhoseFocusChangesReportsNothing() {
+        val first = Robolectric.buildActivity(FieldActivity::class.java).setup()
+        first.get().field.requestFocus()
+        assertEquals(listOf("text_input"), focusKinds())
+        first.pause()
+        Robolectric.buildActivity(PlainActivity::class.java).setup()
+        first.stop()
+        assertEquals(1, focusKinds().size)
+
+        // The stopped window's focus moves (and it has recheck frames pending).
+        first.get().field.clearFocus()
+        first.get().field.requestFocus()
+
+        assertEquals("only the active window reports", emptyList<String>(), focusKinds())
+    }
+
+    @Test
+    fun aDestroyedActiveWindowStopsReporting() {
+        val first = Robolectric.buildActivity(FieldActivity::class.java).setup()
+        first.get().field.requestFocus()
+        assertEquals(listOf("text_input"), focusKinds())
+
+        first.pause().stop().destroy()
+        first.get().field.clearFocus()
+
+        assertEquals(emptyList<String>(), focusKinds())
+    }
+
+    @Test
     fun aWindowWhoseFocusMatchesTheLastKindReportsNothing() {
         Robolectric.buildActivity(PlainActivity::class.java).setup()
         val firstKinds = focusKinds()
