@@ -1,6 +1,5 @@
 package com.tugboat.android.views.facts
 
-import android.view.Choreographer
 import com.tugboat.android.host.EngineMessage
 import com.tugboat.android.views.AdapterGuard
 
@@ -9,25 +8,13 @@ internal fun interface FactSink {
     fun postBatch(messages: List<EngineMessage>)
 }
 
-/** Runs a callback on the next UI frame; [ChoreographerFrames] in production. */
-internal fun interface FrameScheduler {
-    fun postFrame(callback: () -> Unit)
-}
-
-/** The main thread's `Choreographer`. Must be created on the main thread. */
-internal class ChoreographerFrames : FrameScheduler {
-    private val choreographer = Choreographer.getInstance()
-
-    override fun postFrame(callback: () -> Unit) = choreographer.postFrameCallback { callback() }
-}
-
 /**
  * Collects facts on the main thread and posts them once per frame as one
  * engine `batch` (native SDK note section 4). Each fact keeps its own time.
  *
- * [beforeFlush] runs first on every frame, so producers that settle on a
- * frame boundary (navigation, scroll idleness) can add their facts to the
- * same batch. Main thread only.
+ * Hooks registered with [onFrame] run first on every frame, so producers
+ * that settle on a frame boundary (fragment removals, scroll idleness) can
+ * add their facts to the same batch. Main thread only.
  */
 internal class FactBatcher(
     private val sink: FactSink,

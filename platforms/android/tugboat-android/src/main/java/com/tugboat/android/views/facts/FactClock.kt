@@ -20,7 +20,7 @@ internal class FactClock(private val clock: HostClock) {
     /** [event]'s time, with `wallUs` back-dated by the same amount. */
     fun at(event: InputEvent): HostTime = atMonoUs(eventMonoUs(event))
 
-    fun atMonoUs(monoUs: Long): HostTime {
+    private fun atMonoUs(monoUs: Long): HostTime {
         val now = clock.now()
         return HostTime(monoUs = monoUs, wallUs = now.wallUs - (now.monoUs - monoUs))
     }

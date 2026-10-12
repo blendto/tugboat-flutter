@@ -7,22 +7,6 @@ import android.view.View
 import com.tugboat.android.views.identity.Confidence
 import com.tugboat.android.views.identity.RouteKey
 import com.tugboat.android.views.identity.RouteResolver
-import java.util.WeakHashMap
-
-/** Root views of fragment routes, registered while their fragment is shown. Main thread only. */
-internal class RouteRoots {
-    private val roots = WeakHashMap<View, RouteEntry>()
-
-    operator fun get(view: View): RouteEntry? = roots[view]
-
-    operator fun set(view: View, entry: RouteEntry) {
-        roots[view] = entry
-    }
-
-    fun remove(view: View) {
-        roots.remove(view)
-    }
-}
 
 /**
  * Route keys for views (design note 6.1). A view inside a shown fragment's

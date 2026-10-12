@@ -1,13 +1,11 @@
 package com.tugboat.android.views.scroll
 
-import android.view.View
 import com.tugboat.android.host.HostTime
 import com.tugboat.android.views.facts.FactTypes
 import com.tugboat.android.views.facts.ViewsFact
 import com.tugboat.android.views.identity.ScrollMetrics
 import com.tugboat.android.views.identity.TargetAnchor
 import org.json.JSONObject
-import java.util.WeakHashMap
 
 /** Engine `scroll.phase` values. */
 internal enum class ScrollPhase(val wire: String) {
@@ -40,12 +38,4 @@ internal object ScrollFacts {
         }
         return ViewsFact(FactTypes.SCROLL, input, at)
     }
-}
-
-/** Stable opaque `scrollableId`s: one per scrollable instance, for its lifetime. */
-internal object ScrollableIds {
-    private val ids = WeakHashMap<View, String>()
-    private var next = 1L
-
-    fun of(view: View): String = synchronized(ids) { ids.getOrPut(view) { "view-scroll-${next++}" } }
 }

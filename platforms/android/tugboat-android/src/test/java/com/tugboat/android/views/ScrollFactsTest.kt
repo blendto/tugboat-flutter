@@ -103,6 +103,8 @@ class ScrollFactsTest {
         tracker.track(list)
         list.scrollBy(0, 300)
         assertEquals(listOf("start", "update", "end"), phases())
+        val offsets = recorded.inputs("scroll").map { it.getDouble("offset") }
+        assertEquals(listOf(0.0, 150.0, 150.0), offsets)
     }
 
     private fun recycler(count: Int): RecyclerView {

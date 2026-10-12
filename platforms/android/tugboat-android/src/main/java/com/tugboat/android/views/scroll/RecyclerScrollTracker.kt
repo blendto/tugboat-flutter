@@ -18,7 +18,8 @@ import java.util.WeakHashMap
  *
  * - `DRAGGING` or `SETTLING` from idle sends `start` with the list's anchor.
  * - `onScrolled` sends `update`; a scroll while idle (`scrollBy`,
- *   `scrollToPosition`) sends `start`, `update`, and `end` at once.
+ *   `scrollToPosition`) sends `start` (at the offset before it), `update`,
+ *   and `end` at once.
  * - Back to `IDLE` sends `end`. A drag that moved nothing while the list
  *   cannot scroll further one way sends `overscroll` first.
  *
@@ -60,16 +61,17 @@ internal class RecyclerScrollTracker(
             AdapterGuard.run("recycler scrolled") {
                 if (dx == 0 && dy == 0) return@run
                 val idle = list.scrollState == RecyclerView.SCROLL_STATE_IDLE
-                if (!active) start(list)
+                if (!active) start(list, restingDelta = dx + dy)
                 moved = true
                 send(list, ScrollPhase.Update)
                 if (idle) finish(list)
             }
 
-        private fun start(list: RecyclerView) {
+        /** [restingDelta] is the movement already applied when the start is noticed late (in `onScrolled`). */
+        private fun start(list: RecyclerView, restingDelta: Int = 0) {
             active = true
             moved = false
-            send(list, ScrollPhase.Start, anchorFor(list))
+            send(list, ScrollPhase.Start, anchorFor(list), restingDelta)
         }
 
         private fun finish(list: RecyclerView) {
@@ -78,8 +80,9 @@ internal class RecyclerScrollTracker(
             send(list, ScrollPhase.End)
         }
 
-        private fun send(list: RecyclerView, phase: ScrollPhase, anchor: TargetAnchor? = null) {
-            val metrics = Scrollables.metrics(list) ?: return
+        private fun send(list: RecyclerView, phase: ScrollPhase, anchor: TargetAnchor? = null, restingDelta: Int = 0) {
+            val current = Scrollables.metrics(list) ?: return
+            val metrics = current.copy(offsetPx = current.offsetPx - restingDelta)
             val density = list.resources.displayMetrics.density
             emit(ScrollFacts.fact(ScrollableIds.of(list), phase, metrics, density, clock.now(), anchor))
         }

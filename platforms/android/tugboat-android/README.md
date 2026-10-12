@@ -7,8 +7,8 @@ Maven coordinates `com.gettugboat.sdk:tugboat-android:0.1.0`, namespace
 [CHANGELOG](CHANGELOG.md)) and unpublished: the only repository is the
 untracked `.local-maven`.
 
-Status: platform plumbing only. There is no public API and no toolkit adapter
-yet; every Kotlin type is `internal`.
+Status: platform plumbing and the Android Views toolkit adapter. There is no
+public API yet; every Kotlin type is `internal`.
 
 ## What it contains
 
@@ -21,6 +21,8 @@ yet; every Kotlin type is `internal`.
 | Effects | `host/Effect`, `EffectDispatcher` | `timer.schedule` / `timer.cancel` go to `TimerExecutor` (`Handler.postAtTime`). `http.send` goes to `HttpExecutor`. `frame.release` goes to `FrameHandleTable`. Unknown types are logged once. |
 | HTTP | `host/HttpExecutor`, `RequestDeadline`, `MultipartBody` | `HttpURLConnection` on one `tugboat-io` thread, with the Flutter collector headers and multipart layout. `jsonBody` is sent byte for byte. `timeoutMs` is a total deadline: a watchdog disconnects at it. The response body is capped at 64 KiB. |
 
+| Views adapter | `views/` | Turns activity windows into engine facts and computes masks (below). |
+
 `EngineHost` threading and failure rules:
 
 - `post(type, inputJson, at, frameHandles)` and `postBatch` can be called from
@@ -31,6 +33,50 @@ yet; every Kotlin type is `internal`.
   are released.
 - Three `internal_error`s in a row shut the host down.
 - Nothing thrown on the engine or IO thread escapes.
+
+## Views adapter
+
+`views/ViewsAdapter` registers `ActivityLifecycleCallbacks` and produces the
+facts of the stateful engine (`core/session-engine/docs/stateful-engine.md`
+8.1 and 9.1). Facts are timestamped when they happen and posted once per
+frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
+
+| Fact | Source | Piece |
+| --- | --- | --- |
+| `input.pointer` | `Window.Callback.dispatchTouchEvent`, observed before the app | `callback/`, `input/PointerFactProducer` |
+| tap evidence | hit-test at the down point on an `up` within `touchSlop` | `identity/AnchorResolver` |
+| `scroll` | `OnScrollChangedListener` + offset diff; `RecyclerView.OnScrollListener` | `scroll/` |
+| `navigation` | activity lifecycle; androidx fragment lifecycle (recursive) | `navigation/` |
+| `focus` | `OnGlobalFocusChangeListener` | `input/FocusFactProducer` |
+| `systemInput` | allowlisted key-downs in `dispatchKeyEvent` | `input/SystemInputProducer` |
+
+- **Units.** Coordinates and scroll offsets are logical pixels (dp). The
+  host must send `GestureConfig.toEngineJson()` (from `ViewConfiguration`) as
+  `engine.configure.gesture`, so the engine and the adapter's tap check use
+  the same slop.
+- **Pointer ids.** Android recycles pointer ids; each contact gets a new,
+  process-wide increasing `pointerId`.
+- **Identity.** `docs/design/capture-and-fingerprint.md`, "Android Views
+  canonicalization". The fingerprint is hashed in Kotlin and tested against
+  every `conformance/fingerprint/identity_parts` vector.
+- **Masks.** `WindowMasks.compute(window)` returns rectangles normalized to
+  the decor view (the `capture-runtime` window rule): `TextView`,
+  `ImageView`, `VideoView`, and fail-closed `WebView` / `SurfaceView` /
+  `TextureView` bounds. It masks the whole frame when the tree cannot be
+  read.
+- **Optional androidx.** `core`, `fragment`, and `recyclerview` are
+  `compileOnly`; each is probed with `Class.forName` and used only when the
+  app ships it.
+- **`Window.Callback`.** Every method is forwarded to the replaced callback
+  exactly once. A marker interface prevents double wrapping; on each resume a
+  callback another SDK replaced is wrapped again, and only the outermost
+  Tugboat wrapper observes.
+- **Failures.** Every adapter callback is guarded; the first failure per site
+  is logged and nothing reaches the app.
+
+Known gaps: dialog and popup windows are not wrapped for pointer facts;
+predictive back is not observed; overscroll is reported for `RecyclerView`
+only; fragment `hide`/`show` is not reported; `transitionMs` is 0.
 
 ## Build and test
 

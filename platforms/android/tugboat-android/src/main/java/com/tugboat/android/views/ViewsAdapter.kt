@@ -61,15 +61,15 @@ internal class ViewsAdapter(
         batcher.onFrame(::onFrame)
     }
 
-    fun start() {
-        if (started) return
+    fun start() = AdapterGuard.run("start") {
+        if (started) return@run
         started = true
         application.registerActivityLifecycleCallbacks(this)
     }
 
     /** Detaches from every window and posts what is pending. */
-    fun stop() {
-        if (!started) return
+    fun stop() = AdapterGuard.run("stop") {
+        if (!started) return@run
         started = false
         application.unregisterActivityLifecycleCallbacks(this)
         sessions.values.toList().forEach(WindowSession::detach)
