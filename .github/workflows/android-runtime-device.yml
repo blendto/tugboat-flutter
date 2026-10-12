@@ -32,7 +32,7 @@ jobs:
           - api-level: 26
             target: default
           - api-level: 34
-            target: aosp_atd
+            target: google_apis
     steps:
       - name: Checkout
         uses: actions/checkout@v4
