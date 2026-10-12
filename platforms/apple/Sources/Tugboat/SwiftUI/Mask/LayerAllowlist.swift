@@ -20,12 +20,20 @@ struct LayerAllowlist: Equatable {
   /// smaller than its layout frame.
   static let imagePadding: CGFloat = 4
 
-  /// Verified majors. iOS 26.5, probe of 2026-10-11: text IoU 0.99-1.00,
-  /// image IoU 0.76.
+  /// Verified majors. iOS 26.5: the probe of 2026-10-11 (text IoU
+  /// 0.99-1.00, image IoU 0.76) and layer dumps on the CI simulator
+  /// (2026-10-12), which showed SF Symbols drawn either into an `ImageLayer`
+  /// or as a vector `ColorShapeLayer` (a `CAShapeLayer` subclass without
+  /// contents). The shape layer also draws non-rectangular shapes, which are
+  /// masked too (over-masking is accepted). Plain colour fills are
+  /// contents-less `CALayer`s and stay visible.
   static let verified: [Int: LayerAllowlist] = [
     26: LayerAllowlist(
       textClasses: ["_TtC7SwiftUIP33_863CCF9D49B535DAEB1C7D61BEE53B5914CGDrawingLayer"],
-      imageClasses: ["SwiftUI.ImageLayer"]
+      imageClasses: [
+        "SwiftUI.ImageLayer",
+        "_TtC7SwiftUIP33_E19F490D25D5E0EC8A24903AF958E34115ColorShapeLayer",
+      ]
     ),
   ]
 

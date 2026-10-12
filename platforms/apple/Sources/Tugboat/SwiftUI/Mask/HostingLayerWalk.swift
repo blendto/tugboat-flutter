@@ -9,9 +9,10 @@ import UIKit
 /// Each visible layer, the owner's own included:
 /// - an allowlisted text layer is masked over its frame;
 /// - an allowlisted image layer is masked over its frame padded by 4 pt;
-/// - any other layer with `contents` is masked over its frame fail-closed
-///   (unclassified);
-/// - a layer without contents (a container, a colour fill) is not masked.
+/// - any other layer with `contents`, or a `CAShapeLayer` with a path
+///   (SwiftUI draws vector symbols that way), is masked over its frame
+///   fail-closed (unclassified);
+/// - a layer without either (a container, a colour fill) is not masked.
 ///
 /// Sublayers are always walked. Hidden and transparent layers are skipped
 /// with their sublayers.
@@ -36,6 +37,11 @@ struct HostingLayerWalk {
     }
   }
 
+  private static func hasPath(_ layer: CALayer) -> Bool {
+    guard let shape = layer as? CAShapeLayer, let path = shape.path else { return false }
+    return !path.boundingBoxOfPath.isEmpty
+  }
+
   private func classify(_ layer: CALayer, into acc: inout MaskAccumulator) {
     let name = NSStringFromClass(type(of: layer))
     if allowlist.textClasses.contains(name) {
@@ -44,7 +50,7 @@ struct HostingLayerWalk {
     } else if allowlist.imageClasses.contains(name) {
       acc.stats.imageLayers += 1
       acc.add(layer: layer, padding: LayerAllowlist.imagePadding)
-    } else if layer.contents != nil {
+    } else if layer.contents != nil || HostingLayerWalk.hasPath(layer) {
       acc.stats.unclassifiedLayers += 1
       acc.stats.unclassifiedClasses[name, default: 0] += 1
       acc.add(layer: layer)
