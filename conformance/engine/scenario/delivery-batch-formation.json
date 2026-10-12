@@ -95,6 +95,25 @@
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-0",
               "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
             }
           ]
         }
@@ -120,7 +139,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-2",
                 "atMs": 10,
                 "type": "external_event",
                 "stream": "evidence",
@@ -156,7 +175,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-3",
                 "atMs": 11,
                 "type": "external_event",
                 "stream": "evidence",
@@ -192,7 +211,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-4",
                 "atMs": 12,
                 "type": "external_event",
                 "stream": "evidence",
@@ -228,7 +247,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-5",
                 "atMs": 13,
                 "type": "external_event",
                 "stream": "evidence",
@@ -264,7 +283,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-6",
                 "atMs": 14,
                 "type": "external_event",
                 "stream": "evidence",
@@ -300,7 +319,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-7",
                 "atMs": 15,
                 "type": "external_event",
                 "stream": "evidence",
@@ -336,7 +355,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-7",
+                "id": "event-8",
                 "atMs": 16,
                 "type": "external_event",
                 "stream": "evidence",
@@ -372,7 +391,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-9",
                 "atMs": 17,
                 "type": "external_event",
                 "stream": "evidence",
@@ -408,7 +427,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-9",
+                "id": "event-10",
                 "atMs": 18,
                 "type": "external_event",
                 "stream": "evidence",
@@ -445,7 +464,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-10",
+                "id": "event-11",
                 "atMs": 19,
                 "type": "external_event",
                 "stream": "evidence",
@@ -481,7 +500,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-11",
+                "id": "event-12",
                 "atMs": 20,
                 "type": "external_event",
                 "stream": "evidence",
@@ -517,7 +536,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-12",
+                "id": "event-13",
                 "atMs": 21,
                 "type": "external_event",
                 "stream": "evidence",
@@ -553,7 +572,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-13",
+                "id": "event-14",
                 "atMs": 22,
                 "type": "external_event",
                 "stream": "evidence",
@@ -589,7 +608,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-14",
+                "id": "event-15",
                 "atMs": 23,
                 "type": "external_event",
                 "stream": "evidence",
@@ -625,7 +644,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-15",
+                "id": "event-16",
                 "atMs": 24,
                 "type": "external_event",
                 "stream": "evidence",
@@ -661,7 +680,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-16",
+                "id": "event-17",
                 "atMs": 25,
                 "type": "external_event",
                 "stream": "evidence",
@@ -697,7 +716,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-17",
+                "id": "event-18",
                 "atMs": 26,
                 "type": "external_event",
                 "stream": "evidence",
@@ -733,7 +752,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-18",
+                "id": "event-19",
                 "atMs": 27,
                 "type": "external_event",
                 "stream": "evidence",
@@ -769,7 +788,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-19",
+                "id": "event-20",
                 "atMs": 28,
                 "type": "external_event",
                 "stream": "evidence",
@@ -805,7 +824,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-20",
+                "id": "event-21",
                 "atMs": 29,
                 "type": "external_event",
                 "stream": "evidence",
@@ -841,7 +860,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-21",
+                "id": "event-22",
                 "atMs": 30,
                 "type": "external_event",
                 "stream": "evidence",
@@ -877,7 +896,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-22",
+                "id": "event-23",
                 "atMs": 31,
                 "type": "external_event",
                 "stream": "evidence",
@@ -913,7 +932,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-23",
+                "id": "event-24",
                 "atMs": 32,
                 "type": "external_event",
                 "stream": "evidence",
@@ -956,7 +975,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-1\",\"atMs\":10,\"triggeredAt\":\"2026-06-19T00:00:00.010Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e0\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-2\",\"atMs\":11,\"triggeredAt\":\"2026-06-19T00:00:00.011Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-3\",\"atMs\":12,\"triggeredAt\":\"2026-06-19T00:00:00.012Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-4\",\"atMs\":13,\"triggeredAt\":\"2026-06-19T00:00:00.013Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-5\",\"atMs\":14,\"triggeredAt\":\"2026-06-19T00:00:00.014Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e4\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-6\",\"atMs\":15,\"triggeredAt\":\"2026-06-19T00:00:00.015Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e5\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-7\",\"atMs\":16,\"triggeredAt\":\"2026-06-19T00:00:00.016Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e6\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-8\",\"atMs\":17,\"triggeredAt\":\"2026-06-19T00:00:00.017Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e7\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-9\",\"atMs\":18,\"triggeredAt\":\"2026-06-19T00:00:00.018Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e8\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-10\",\"atMs\":19,\"triggeredAt\":\"2026-06-19T00:00:00.019Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e9\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+              "jsonBody": "{\"events\":[{\"id\":\"event-2\",\"atMs\":10,\"triggeredAt\":\"2026-06-19T00:00:00.010Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e0\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-3\",\"atMs\":11,\"triggeredAt\":\"2026-06-19T00:00:00.011Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-4\",\"atMs\":12,\"triggeredAt\":\"2026-06-19T00:00:00.012Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-5\",\"atMs\":13,\"triggeredAt\":\"2026-06-19T00:00:00.013Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-6\",\"atMs\":14,\"triggeredAt\":\"2026-06-19T00:00:00.014Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e4\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-7\",\"atMs\":15,\"triggeredAt\":\"2026-06-19T00:00:00.015Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e5\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-8\",\"atMs\":16,\"triggeredAt\":\"2026-06-19T00:00:00.016Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e6\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-9\",\"atMs\":17,\"triggeredAt\":\"2026-06-19T00:00:00.017Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e7\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-10\",\"atMs\":18,\"triggeredAt\":\"2026-06-19T00:00:00.018Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e8\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-11\",\"atMs\":19,\"triggeredAt\":\"2026-06-19T00:00:00.019Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e9\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
             },
             {
               "type": "timer.schedule",
@@ -992,7 +1011,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-11\",\"atMs\":20,\"triggeredAt\":\"2026-06-19T00:00:00.020Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e10\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-12\",\"atMs\":21,\"triggeredAt\":\"2026-06-19T00:00:00.021Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e11\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-13\",\"atMs\":22,\"triggeredAt\":\"2026-06-19T00:00:00.022Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e12\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-14\",\"atMs\":23,\"triggeredAt\":\"2026-06-19T00:00:00.023Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e13\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-15\",\"atMs\":24,\"triggeredAt\":\"2026-06-19T00:00:00.024Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e14\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-16\",\"atMs\":25,\"triggeredAt\":\"2026-06-19T00:00:00.025Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e15\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-17\",\"atMs\":26,\"triggeredAt\":\"2026-06-19T00:00:00.026Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e16\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-18\",\"atMs\":27,\"triggeredAt\":\"2026-06-19T00:00:00.027Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e17\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-19\",\"atMs\":28,\"triggeredAt\":\"2026-06-19T00:00:00.028Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e18\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-20\",\"atMs\":29,\"triggeredAt\":\"2026-06-19T00:00:00.029Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e19\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+              "jsonBody": "{\"events\":[{\"id\":\"event-12\",\"atMs\":20,\"triggeredAt\":\"2026-06-19T00:00:00.020Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e10\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-13\",\"atMs\":21,\"triggeredAt\":\"2026-06-19T00:00:00.021Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e11\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-14\",\"atMs\":22,\"triggeredAt\":\"2026-06-19T00:00:00.022Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e12\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-15\",\"atMs\":23,\"triggeredAt\":\"2026-06-19T00:00:00.023Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e13\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-16\",\"atMs\":24,\"triggeredAt\":\"2026-06-19T00:00:00.024Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e14\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-17\",\"atMs\":25,\"triggeredAt\":\"2026-06-19T00:00:00.025Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e15\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-18\",\"atMs\":26,\"triggeredAt\":\"2026-06-19T00:00:00.026Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e16\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-19\",\"atMs\":27,\"triggeredAt\":\"2026-06-19T00:00:00.027Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e17\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-20\",\"atMs\":28,\"triggeredAt\":\"2026-06-19T00:00:00.028Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e18\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-21\",\"atMs\":29,\"triggeredAt\":\"2026-06-19T00:00:00.029Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e19\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
             },
             {
               "type": "timer.schedule",
@@ -1028,7 +1047,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-21\",\"atMs\":30,\"triggeredAt\":\"2026-06-19T00:00:00.030Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e20\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-22\",\"atMs\":31,\"triggeredAt\":\"2026-06-19T00:00:00.031Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e21\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-23\",\"atMs\":32,\"triggeredAt\":\"2026-06-19T00:00:00.032Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e22\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+              "jsonBody": "{\"events\":[{\"id\":\"event-22\",\"atMs\":30,\"triggeredAt\":\"2026-06-19T00:00:00.030Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e20\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-23\",\"atMs\":31,\"triggeredAt\":\"2026-06-19T00:00:00.031Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e21\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-24\",\"atMs\":32,\"triggeredAt\":\"2026-06-19T00:00:00.032Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e22\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
             },
             {
               "type": "timer.schedule",
@@ -1083,7 +1102,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-24",
+                "id": "event-25",
                 "atMs": 200,
                 "type": "external_event",
                 "stream": "evidence",
@@ -1119,7 +1138,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-25",
+                "id": "event-26",
                 "atMs": 201,
                 "type": "external_event",
                 "stream": "evidence",
@@ -1155,7 +1174,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-26",
+                "id": "event-27",
                 "atMs": 202,
                 "type": "external_event",
                 "stream": "evidence",
@@ -1191,7 +1210,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-27",
+                "id": "event-28",
                 "atMs": 203,
                 "type": "external_event",
                 "stream": "evidence",
@@ -1227,7 +1246,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-28",
+                "id": "event-29",
                 "atMs": 204,
                 "type": "external_event",
                 "stream": "evidence",
@@ -1263,7 +1282,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-29",
+                "id": "event-30",
                 "atMs": 205,
                 "type": "external_event",
                 "stream": "evidence",
@@ -1299,7 +1318,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-30",
+                "id": "event-31",
                 "atMs": 206,
                 "type": "external_event",
                 "stream": "evidence",
@@ -1335,7 +1354,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-31",
+                "id": "event-32",
                 "atMs": 207,
                 "type": "external_event",
                 "stream": "evidence",
@@ -1371,7 +1390,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-32",
+                "id": "event-33",
                 "atMs": 208,
                 "type": "external_event",
                 "stream": "evidence",
@@ -1408,7 +1427,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-33",
+                "id": "event-34",
                 "atMs": 300,
                 "type": "external_event",
                 "stream": "evidence",
@@ -1427,7 +1446,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-24\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f0\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-25\",\"atMs\":201,\"triggeredAt\":\"2026-06-19T00:00:00.201Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-26\",\"atMs\":202,\"triggeredAt\":\"2026-06-19T00:00:00.202Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-27\",\"atMs\":203,\"triggeredAt\":\"2026-06-19T00:00:00.203Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-28\",\"atMs\":204,\"triggeredAt\":\"2026-06-19T00:00:00.204Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f4\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-29\",\"atMs\":205,\"triggeredAt\":\"2026-06-19T00:00:00.205Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f5\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-30\",\"atMs\":206,\"triggeredAt\":\"2026-06-19T00:00:00.206Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f6\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-31\",\"atMs\":207,\"triggeredAt\":\"2026-06-19T00:00:00.207Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f7\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-32\",\"atMs\":208,\"triggeredAt\":\"2026-06-19T00:00:00.208Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f8\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-33\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f9\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+              "jsonBody": "{\"events\":[{\"id\":\"event-25\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f0\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-26\",\"atMs\":201,\"triggeredAt\":\"2026-06-19T00:00:00.201Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-27\",\"atMs\":202,\"triggeredAt\":\"2026-06-19T00:00:00.202Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-28\",\"atMs\":203,\"triggeredAt\":\"2026-06-19T00:00:00.203Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-29\",\"atMs\":204,\"triggeredAt\":\"2026-06-19T00:00:00.204Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f4\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-30\",\"atMs\":205,\"triggeredAt\":\"2026-06-19T00:00:00.205Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f5\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-31\",\"atMs\":206,\"triggeredAt\":\"2026-06-19T00:00:00.206Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f6\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-32\",\"atMs\":207,\"triggeredAt\":\"2026-06-19T00:00:00.207Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f7\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-33\",\"atMs\":208,\"triggeredAt\":\"2026-06-19T00:00:00.208Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f8\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-34\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"f9\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
             },
             {
               "type": "timer.schedule",
@@ -1496,7 +1515,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-2",
           "atMs": 10,
           "type": "external_event",
           "stream": "evidence",
@@ -1506,7 +1525,7 @@
           }
         },
         {
-          "id": "event-2",
+          "id": "event-3",
           "atMs": 11,
           "type": "external_event",
           "stream": "evidence",
@@ -1516,7 +1535,7 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-4",
           "atMs": 12,
           "type": "external_event",
           "stream": "evidence",
@@ -1526,7 +1545,7 @@
           }
         },
         {
-          "id": "event-4",
+          "id": "event-5",
           "atMs": 13,
           "type": "external_event",
           "stream": "evidence",
@@ -1536,7 +1555,7 @@
           }
         },
         {
-          "id": "event-5",
+          "id": "event-6",
           "atMs": 14,
           "type": "external_event",
           "stream": "evidence",
@@ -1546,7 +1565,7 @@
           }
         },
         {
-          "id": "event-6",
+          "id": "event-7",
           "atMs": 15,
           "type": "external_event",
           "stream": "evidence",
@@ -1556,7 +1575,7 @@
           }
         },
         {
-          "id": "event-7",
+          "id": "event-8",
           "atMs": 16,
           "type": "external_event",
           "stream": "evidence",
@@ -1566,7 +1585,7 @@
           }
         },
         {
-          "id": "event-8",
+          "id": "event-9",
           "atMs": 17,
           "type": "external_event",
           "stream": "evidence",
@@ -1576,7 +1595,7 @@
           }
         },
         {
-          "id": "event-9",
+          "id": "event-10",
           "atMs": 18,
           "type": "external_event",
           "stream": "evidence",
@@ -1586,7 +1605,7 @@
           }
         },
         {
-          "id": "event-10",
+          "id": "event-11",
           "atMs": 19,
           "type": "external_event",
           "stream": "evidence",
@@ -1596,7 +1615,7 @@
           }
         },
         {
-          "id": "event-11",
+          "id": "event-12",
           "atMs": 20,
           "type": "external_event",
           "stream": "evidence",
@@ -1606,7 +1625,7 @@
           }
         },
         {
-          "id": "event-12",
+          "id": "event-13",
           "atMs": 21,
           "type": "external_event",
           "stream": "evidence",
@@ -1616,7 +1635,7 @@
           }
         },
         {
-          "id": "event-13",
+          "id": "event-14",
           "atMs": 22,
           "type": "external_event",
           "stream": "evidence",
@@ -1626,7 +1645,7 @@
           }
         },
         {
-          "id": "event-14",
+          "id": "event-15",
           "atMs": 23,
           "type": "external_event",
           "stream": "evidence",
@@ -1636,7 +1655,7 @@
           }
         },
         {
-          "id": "event-15",
+          "id": "event-16",
           "atMs": 24,
           "type": "external_event",
           "stream": "evidence",
@@ -1646,7 +1665,7 @@
           }
         },
         {
-          "id": "event-16",
+          "id": "event-17",
           "atMs": 25,
           "type": "external_event",
           "stream": "evidence",
@@ -1656,7 +1675,7 @@
           }
         },
         {
-          "id": "event-17",
+          "id": "event-18",
           "atMs": 26,
           "type": "external_event",
           "stream": "evidence",
@@ -1666,7 +1685,7 @@
           }
         },
         {
-          "id": "event-18",
+          "id": "event-19",
           "atMs": 27,
           "type": "external_event",
           "stream": "evidence",
@@ -1676,7 +1695,7 @@
           }
         },
         {
-          "id": "event-19",
+          "id": "event-20",
           "atMs": 28,
           "type": "external_event",
           "stream": "evidence",
@@ -1686,7 +1705,7 @@
           }
         },
         {
-          "id": "event-20",
+          "id": "event-21",
           "atMs": 29,
           "type": "external_event",
           "stream": "evidence",
@@ -1696,7 +1715,7 @@
           }
         },
         {
-          "id": "event-21",
+          "id": "event-22",
           "atMs": 30,
           "type": "external_event",
           "stream": "evidence",
@@ -1706,7 +1725,7 @@
           }
         },
         {
-          "id": "event-22",
+          "id": "event-23",
           "atMs": 31,
           "type": "external_event",
           "stream": "evidence",
@@ -1716,7 +1735,7 @@
           }
         },
         {
-          "id": "event-23",
+          "id": "event-24",
           "atMs": 32,
           "type": "external_event",
           "stream": "evidence",
@@ -1726,7 +1745,7 @@
           }
         },
         {
-          "id": "event-24",
+          "id": "event-25",
           "atMs": 200,
           "type": "external_event",
           "stream": "evidence",
@@ -1736,7 +1755,7 @@
           }
         },
         {
-          "id": "event-25",
+          "id": "event-26",
           "atMs": 201,
           "type": "external_event",
           "stream": "evidence",
@@ -1746,7 +1765,7 @@
           }
         },
         {
-          "id": "event-26",
+          "id": "event-27",
           "atMs": 202,
           "type": "external_event",
           "stream": "evidence",
@@ -1756,7 +1775,7 @@
           }
         },
         {
-          "id": "event-27",
+          "id": "event-28",
           "atMs": 203,
           "type": "external_event",
           "stream": "evidence",
@@ -1766,7 +1785,7 @@
           }
         },
         {
-          "id": "event-28",
+          "id": "event-29",
           "atMs": 204,
           "type": "external_event",
           "stream": "evidence",
@@ -1776,7 +1795,7 @@
           }
         },
         {
-          "id": "event-29",
+          "id": "event-30",
           "atMs": 205,
           "type": "external_event",
           "stream": "evidence",
@@ -1786,7 +1805,7 @@
           }
         },
         {
-          "id": "event-30",
+          "id": "event-31",
           "atMs": 206,
           "type": "external_event",
           "stream": "evidence",
@@ -1796,7 +1815,7 @@
           }
         },
         {
-          "id": "event-31",
+          "id": "event-32",
           "atMs": 207,
           "type": "external_event",
           "stream": "evidence",
@@ -1806,7 +1825,7 @@
           }
         },
         {
-          "id": "event-32",
+          "id": "event-33",
           "atMs": 208,
           "type": "external_event",
           "stream": "evidence",
@@ -1816,7 +1835,7 @@
           }
         },
         {
-          "id": "event-33",
+          "id": "event-34",
           "atMs": 300,
           "type": "external_event",
           "stream": "evidence",

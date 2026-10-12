@@ -47,6 +47,11 @@ bool decode_mono_us(const ObjectReader& r, const char* key,
 // late).
 int64_t elapsed_ms(int64_t start_mono_us, int64_t fact_mono_us);
 
+// The rest of `timer_id` after `prefix` (a module's timers are
+// `<prefix><key>`). False when it does not start with `prefix`.
+bool timer_key(const std::string& timer_id, const char* prefix,
+               std::string* key);
+
 // Deadlines of the host timers the engine has armed, keyed by timer id. A
 // timer id starts with the prefix of the module that owns it; the module
 // registry routes `timer.fired` by that prefix.

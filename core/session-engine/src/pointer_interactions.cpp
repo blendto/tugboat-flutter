@@ -5,13 +5,13 @@
 #include <utility>
 #include <vector>
 
-#include "tap_settle.h"
 #include "engine_state.h"
-#include "interaction_publish.h"
-#include "interaction_claims.h"
 #include "interaction_payload.h"
+#include "interaction_publish.h"
+#include "navigation_view.h"
 #include "scroll_interactions.h"
 #include "tap_evidence.h"
+#include "tap_settle.h"
 
 namespace tugboat {
 namespace engine {
@@ -26,7 +26,7 @@ void abandon_pending(EngineState* state, Session* session, int64_t pointer,
   }
 }
 
-void pointer_down(InteractionTurn& turn, const PointerDownSignal& signal) {
+void pointer_down(Turn& turn, const PointerDownSignal& signal) {
   EngineState& state = *turn.state;
   InteractionState& interactions = state.interactions;
   // A new gesture makes a waiting scroll-end frame stale.
@@ -38,12 +38,21 @@ void pointer_down(InteractionTurn& turn, const PointerDownSignal& signal) {
   }
   abandon_pending(&state, turn.session, signal.pointer, turn.out);
   const bool primary = !interactions.registry.has_pending();
-  const FrameProvenance* before = state.captures.latest(turn.session->id());
+  // Dart: the before-frame must be compatible with the tap's context; the
+  // coordinate may use a frame of the same surface in another boundary
+  // generation, which then reports no position.
+  const RequestContext context =
+      current_request_context(state, FrameTrigger::kTap);
+  const FrameStore& frames = state.captures.frames();
+  const FrameProvenance* before = frames.compatible_latest(context);
+  const FrameProvenance* coordinate_frame =
+      before != nullptr ? before : frames.surface_compatible_latest(context);
 
   InteractionOrigin origin;
   origin.interaction_id = state.ids.next("event");
   origin.route = current_route_stamp(state);
-  origin.coordinate = sample_coordinate(signal.position, before);
+  origin.coordinate =
+      sample_coordinate(signal.position, coordinate_frame, context);
   if (before != nullptr) origin.before_frame = before->frame_id;
   origin.at_ms = turn.now_ms();
   origin.start_position = signal.position;
@@ -57,11 +66,11 @@ void pointer_down(InteractionTurn& turn, const PointerDownSignal& signal) {
     tx->pre_tap_evidence = signal.tap;
   }
   for (const std::string& start_id : stale) {
-    publish_resolved_scroll(&state, *turn.session, start_id, turn.out);
+    publish_resolved_scroll(turn, start_id);
   }
 }
 
-void pointer_up(InteractionTurn& turn, const PointerUpSignal& signal) {
+void pointer_up(Turn& turn, const PointerUpSignal& signal) {
   EngineState& state = *turn.state;
   const TransactionPtr tx =
       state.interactions.registry.take_pending(signal.pointer);
@@ -71,16 +80,17 @@ void pointer_up(InteractionTurn& turn, const PointerUpSignal& signal) {
   const bool scroll_linked = !tx->scroll_start_ids.empty();
   if (is_pan_or_zoom(tx->gesture) && (is_zoom(tx->gesture) || !scroll_linked)) {
     tx->end_position = signal.position;
+    clear_causal_route_state(&state, tx->id());
     complete_gesture(turn, tx);
     return;
   }
   // Change C12: a tap that owns a scroll start completes as that scroll.
   if (skips_tap_settlement(tx->gesture) || scroll_linked) {
     tx->end_position = signal.position;
+    clear_causal_route_state(&state, tx->id());
     if (scroll_linked) {
       tx->gesture = Gesture::kScroll;
-      attach_scroll_interaction(&state, *turn.session,
-                                tx->scroll_start_ids.front(), tx, turn.out);
+      attach_scroll_interaction(turn, tx->scroll_start_ids.front(), tx);
     } else {
       tx->gesture = Gesture::kSwipe;
       complete_gesture(turn, tx);
@@ -92,12 +102,13 @@ void pointer_up(InteractionTurn& turn, const PointerUpSignal& signal) {
   start_tap_settle(turn, tx);
 }
 
-void pointer_cancel(InteractionTurn& turn, const PointerCancelSignal& signal) {
+void pointer_cancel(Turn& turn, const PointerCancelSignal& signal) {
   EngineState& state = *turn.state;
   InteractionRegistry& registry = state.interactions.registry;
   // Even a pending swipe is cancelled; abandonment would keep it.
   if (const TransactionPtr tx = registry.take_pending(signal.pointer)) {
     discard_scroll_completion(&state, *tx, turn.out);
+    clear_causal_route_state(&state, tx->id());
     tx->gesture = Gesture::kCancelled;
     publish_interaction(&state, *turn.session, *tx, turn.out);
   }
@@ -107,7 +118,7 @@ void pointer_cancel(InteractionTurn& turn, const PointerCancelSignal& signal) {
 }
 
 struct SignalVisitor {
-  InteractionTurn& turn;
+  Turn& turn;
 
   void operator()(const PointerDownSignal& signal) const {
     pointer_down(turn, signal);
@@ -140,7 +151,7 @@ struct SignalVisitor {
 
 }  // namespace
 
-void apply_pointer_signals(InteractionTurn& turn,
+void apply_pointer_signals(Turn& turn,
                            const PointerSignals& signals) {
   if (turn.state->lifecycle != LifecycleState::kActive) return;
   for (const PointerSignal& signal : signals) {

@@ -6,6 +6,7 @@
 #define TUGBOAT_SESSION_ENGINE_OUTPUT_H
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <variant>
@@ -104,17 +105,33 @@ struct CaptureContext {
   int64_t boundary_generation = 0;
 };
 
-// `capture.request {…}`: capture one frame. The host or adapter answers with
-// `capture.result {requestId, …}`.
+// The perceptual baseline a capture may coalesce into: the dHash of the
+// frame last accepted (or exactly reused) and the visible structure it was
+// captured with. Opaque tokens the engine only compares.
+struct DHashBaseline {
+  std::string dhash;
+  std::string structure_signature;
+};
+
+// `capture.request {…}` (design section 8.2): capture one frame now. The
+// host or adapter answers with `capture.result {requestId, …}`.
+// - `force`: capture even when the paint is unchanged (no `paintUnchanged`
+//   answer, no coalescing).
+// - `requireFreshPaint`: wait for a paint after the request.
+// - `dHashBaseline`: report a frame whose dHash is within Hamming distance
+//   2 of it, under the same visible structure, with `dHash` equal to the
+//   baseline (perceptual coalescing).
+// - `scale`: multiply the capture pixel ratio (`degradedScale` while the
+//   screenshot budget is degraded).
 struct CaptureRequest {
-  std::string request_id;
+  std::string request_id;  // `capture-N`
   FrameTrigger trigger = FrameTrigger::kManual;
   bool force = false;
   bool require_fresh_paint = false;
   bool drop_when_busy = false;
   int64_t not_before_mono_us = 0;
   CaptureContext context;
-  OptString dhash_baseline;
+  std::optional<DHashBaseline> dhash_baseline;
   double scale = 1.0;
 };
 

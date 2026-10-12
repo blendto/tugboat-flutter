@@ -25,11 +25,20 @@ set(_tb_dc_sources
   ${_tb_dc}/double-conversion/string-to-double.cc
   ${_tb_dc}/double-conversion/strtod.cc)
 set(_tb_engine_sources
+  src/capture_budget.cpp
+  src/capture_diagnostics.cpp
+  src/capture_execution.cpp
+  src/capture_facts.cpp
+  src/capture_module.cpp
+  src/capture_scheduler.cpp
   src/capture_seam.cpp
+  src/capture_types.cpp
   src/clock.cpp
   src/collector.cpp
   src/collector_mapping.cpp
   src/config.cpp
+  src/coordination.cpp
+  src/coordination_module.cpp
   src/dart_time.cpp
   src/delivery.cpp
   src/delivery_gaps.cpp
@@ -44,6 +53,7 @@ set(_tb_engine_sources
   src/frame_lane.cpp
   src/frame_retention.cpp
   src/frame_retention_module.cpp
+  src/frame_store.cpp
   src/gesture_classifier.cpp
   src/host.cpp
   src/identity_module.cpp
@@ -61,12 +71,18 @@ set(_tb_engine_sources
   src/models.cpp
   src/module_registry.cpp
   src/modules.cpp
+  src/navigation_facts.cpp
   src/navigation_module.cpp
+  src/navigation_view.cpp
+  src/navigator_registry.cpp
   src/output.cpp
   src/pointer_interactions.cpp
   src/pointer_tracker.cpp
   src/reader.cpp
   src/recorder.cpp
+  src/route_barrier.cpp
+  src/route_capture.cpp
+  src/route_change.cpp
   src/scroll_interactions.cpp
   src/session.cpp
   src/session_module.cpp
@@ -112,10 +128,13 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
     tests/tb_session_engine_interaction_test.cpp)
   add_executable(tb_session_engine_delivery_test
     tests/tb_session_engine_delivery_test.cpp)
+  add_executable(tb_session_engine_capture_test
+    tests/tb_session_engine_capture_test.cpp)
   foreach(_tb_unit IN ITEMS tb_session_engine_test
                             tb_session_engine_stateful_test
                             tb_session_engine_interaction_test
-                            tb_session_engine_delivery_test)
+                            tb_session_engine_delivery_test
+                            tb_session_engine_capture_test)
     target_include_directories(${_tb_unit} PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src")
   endforeach()
@@ -131,6 +150,7 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
                             tb_session_engine_stateful_test
                             tb_session_engine_interaction_test
                             tb_session_engine_delivery_test
+                            tb_session_engine_capture_test
                             tb_session_engine_conformance)
     target_link_libraries(${_tb_test} PRIVATE tugboat_session_engine)
     target_compile_options(${_tb_test} PRIVATE -Wall -Wextra -Wpedantic -Werror)

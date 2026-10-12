@@ -36,6 +36,9 @@ struct InteractionConfig {
   int64_t max_released = 8;
   int64_t scroll_end_capture_delay_ms = 0;
   bool capture_scroll_samples = false;
+  // Low-priority `scroll` captures while scrolling (Dart
+  // `captureScrollScreenshots`).
+  bool capture_scroll_screenshots = false;
   int64_t scroll_capture_interval_ms = 2000;
   int64_t fact_grace_ms = 0;
 };
@@ -49,6 +52,9 @@ struct CaptureConfig {
   int64_t budget_ms = 60;
   int64_t budget_window_ms = 5000;
   double degraded_scale = 0.8;
+  // Change C18: a capture the host has not answered this long after it was
+  // requested resolves as failed (`answer_timeout`).
+  int64_t answer_timeout_ms = 5000;
 };
 
 struct CollectorConfig {

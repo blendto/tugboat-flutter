@@ -1,6 +1,5 @@
-// The interaction facts of docs/stateful-engine.md section 9.1 and the
-// capture answer of section 8.2, as typed models, with their strict
-// decoders. Not part of the C ABI.
+// The interaction facts of docs/stateful-engine.md section 9.1, as typed
+// models, with their strict decoders. Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_INTERACTION_FACTS_H
 #define TUGBOAT_SESSION_ENGINE_INTERACTION_FACTS_H
 
@@ -8,7 +7,6 @@
 #include <optional>
 #include <string>
 
-#include "capture_seam.h"
 #include "interaction_types.h"
 #include "json.h"
 #include "models.h"
@@ -91,10 +89,6 @@ bool decode_focus_fact(const Value& input, const std::string& path,
                        FocusKind* out, Error* error);
 bool decode_system_input_fact(const Value& input, const std::string& path,
                               SystemInput* out, Error* error);
-// `capture.result`: `frame` (and optionally `boundaryRect`) is required
-// with `captured` and not allowed otherwise.
-bool decode_capture_result(const Value& input, const std::string& path,
-                           CaptureResult* out, Error* error);
 
 }  // namespace engine
 }  // namespace tugboat

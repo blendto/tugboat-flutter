@@ -41,8 +41,11 @@ const char kInteractionConfigure[] =
     "\"maxScrollSamples\":2},\"interaction\":{\"claimWindowMs\":3,"
     "\"settleDelayMs\":2,\"maxReleased\":2,\"scrollEndCaptureDelayMs\":1,"
     "\"captureScrollSamples\":true,\"scrollCaptureIntervalMs\":1,"
-    "\"factGraceMs\":1},\"capabilities\":{\"sceneInventory\":true,"
-    "\"focusChanges\":true,\"systemInput\":true}}}";
+    "\"factGraceMs\":1,\"captureScrollScreenshots\":true},"
+    "\"navigation\":{\"routeBarrierTimeoutMs\":4,\"routeStackLimit\":2},"
+    "\"capture\":{\"budgetMs\":1,\"budgetWindowMs\":5},"
+    "\"capabilities\":{\"sceneInventory\":true,\"focusChanges\":true,"
+    "\"systemInput\":true,\"captureDiagnostics\":true}}}";
 
 tb_session_status submit_raw(tb_session_engine* engine, const char* data,
                              size_t size, std::string* response) {
@@ -99,8 +102,9 @@ void submit(tb_session_engine* engine, const std::string& message) {
   submit(engine, message.data(), message.size());
 }
 
-// A script of valid interaction messages. Each byte pair picks a message and
-// its values; capture answers name request ids the engine actually issued.
+// A script of valid interaction, navigation, and capture messages. Each byte
+// pair picks a message and its values; capture answers name request ids the
+// engine actually issued, and timer fires name timers it armed.
 class InteractionScript {
  public:
   explicit InteractionScript(tb_session_engine* engine) : engine_(engine) {}
@@ -114,7 +118,8 @@ class InteractionScript {
         TB_SESSION_OK) {
       std::abort();
     }
-    remember_requests(response);
+    remember(response, "\"requestId\":\"", &issued_);
+    remember(response, "\"timerId\":\"", &timers_);
   }
 
  private:
@@ -128,19 +133,52 @@ class InteractionScript {
            input + "}}";
   }
 
-  void remember_requests(const std::string& response) {
-    static const std::string kKey = "\"requestId\":\"";
-    for (size_t pos = response.find(kKey); pos != std::string::npos;
-         pos = response.find(kKey, pos + 1)) {
-      const size_t start = pos + kKey.size();
+  // Collects every string value of `key` in `response`.
+  static void remember(const std::string& response, const std::string& key,
+                       std::vector<std::string>* out) {
+    for (size_t pos = response.find(key); pos != std::string::npos;
+         pos = response.find(key, pos + 1)) {
+      const size_t start = pos + key.size();
       const size_t end = response.find('"', start);
-      issued_.push_back(response.substr(start, end - start));
+      out->push_back(response.substr(start, end - start));
     }
   }
 
+  std::string timer(uint8_t value) const {
+    if (!timers_.empty() && value % 4 != 0) {
+      return timers_[value % timers_.size()];
+    }
+    static const char* const kTimer[] = {"interaction.settle.event-",
+                                         "interaction.scrollEnd.event-",
+                                         "navigation.deadline.",
+                                         "navigation.timeout."};
+    return value % 5 == 0 ? std::string("interaction.sweep")
+                          : kTimer[value % 4] + std::to_string(value % 64);
+  }
+
+  std::string navigation(uint8_t value) const {
+    static const char* const kKind[] = {"push", "pop", "replace", "remove"};
+    static const char* const kOverlay[] = {"page", "dialog", "sheet"};
+    std::string input = std::string("\"kind\":\"") + kKind[value % 4] +
+                        "\",\"navigatorId\":\"" +
+                        (value % 8 < 6 ? "root" : "inner") + "\"";
+    if (value % 8 >= 6) input += ",\"parentNavigatorId\":\"root\"";
+    if (value % 16 != 15) {
+      input += ",\"route\":{\"instanceId\":\"r" + std::to_string(value % 5) +
+               "\",\"name\":\"/" + std::to_string(value % 3) +
+               "\",\"type\":\"T\",\"overlayKind\":\"" +
+               kOverlay[value % 3] + "\",\"transitionMs\":" +
+               std::to_string(value % 3) + "}";
+    }
+    if (value % 2 == 1) {
+      input += ",\"departing\":{\"instanceId\":\"r" +
+               std::to_string(value / 2 % 5) + "\",\"type\":\"T\"}";
+    }
+    return fact("navigation", input);
+  }
+
   std::string request_id(uint8_t value) const {
-    return issued_.empty() ? "capture_request-0"
-                           : issued_[value % issued_.size()];
+    return issued_.empty() ? "capture-0" : issued_[value % issued_.size()];
   }
 
   std::string pointer(uint8_t value) const {
@@ -167,7 +205,7 @@ class InteractionScript {
     const std::string scrollable = "\"scrollableId\":\"s" +
                                    std::to_string(value % 3) + "\"";
     const std::string id = "\"requestId\":\"" + request_id(value) + "\"";
-    switch (op % 14) {
+    switch (op % 18) {
       case 0: case 1: case 2:
         return pointer(value);
       case 3:
@@ -197,24 +235,39 @@ class InteractionScript {
         return fact("capture.result",
                     id + ",\"outcome\":\"captured\",\"frame\":{"
                          "\"handle\":\"h\",\"width\":4,\"height\":4,"
-                         "\"contentHash\":\"c\",\"masked\":true,"
+                         "\"contentHash\":\"c" + std::to_string(value % 3) +
+                         "\",\"dHash\":\"d" + std::to_string(value % 2) +
+                         "\",\"structureSignature\":\"s" +
+                         std::to_string(value / 2 % 2) +
+                         "\",\"masked\":true,"
                          "\"byteLength\":1,\"captureMicros\":1},"
                          "\"boundaryRect\":{\"x\":0,\"y\":0,\"width\":400,"
-                         "\"height\":900}");
+                         "\"height\":900},\"timings\":{\"readbackMicros\":" +
+                         std::to_string(value * 10) + "}");
       case 10:
         return fact("capture.result", id + ",\"outcome\":\"" +
                                           kOutcome[value % 3] + "\"");
-      case 11: {
-        static const char* const kTimer[] = {"interaction.settle.event-",
-                                             "interaction.scrollEnd.event-"};
-        const std::string timer =
-            value % 3 == 0 ? std::string("interaction.sweep")
-                           : kTimer[value % 2] + std::to_string(value % 64);
-        return fact("timer.fired", "\"timerId\":\"" + timer + "\"");
-      }
+      case 11:
+        return fact("timer.fired", "\"timerId\":\"" + timer(value) + "\"");
       case 12:
         return fact("app.lifecycle",
                     std::string("\"state\":\"") + kLifecycle[value % 2] + "\"");
+      case 14:
+      case 15:
+        return navigation(value);
+      case 16:
+        return fact("surface",
+                    "\"boundaryRect\":{\"x\":0,\"y\":0,\"width\":" +
+                        std::to_string(300 + value % 2 * 100) +
+                        ",\"height\":900},\"generation\":" +
+                        std::to_string(value % 3));
+      case 17:
+        return fact("capture.result",
+                    id + ",\"outcome\":\"failed\",\"failure\":\"" +
+                        (value % 2 == 0 ? "paintTimedOut"
+                                        : "boundaryDetached") +
+                        "\",\"timings\":{\"frameWaitMicros\":" +
+                        std::to_string(value) + "}");
       default:  // end the session, or replace it with a new one
         return value % 2 == 0
                    ? fact("session.end", "")
@@ -227,6 +280,7 @@ class InteractionScript {
   tb_session_engine* engine_;
   int64_t mono_us_ = 0;
   std::vector<std::string> issued_;
+  std::vector<std::string> timers_;
 };
 
 void run_interaction_script(const uint8_t* data, size_t size,
@@ -287,8 +341,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     submit(engine, transport_result(2, data[0] >> 3));
   }
 
-  // 3. A script of valid interaction facts, timers, and capture answers,
-  //    so the interaction logic is reached past the decoders.
+  // 3. A script of valid interaction and navigation facts, timers, and
+  //    capture answers, so that logic is reached past the decoders.
   run_interaction_script(data, size, config);
 
   // 4. NULL / zero-length edge cases on the same handle.

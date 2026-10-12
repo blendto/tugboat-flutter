@@ -10,8 +10,8 @@
 #include <set>
 #include <string>
 
-#include "interaction_publish.h"
 #include "input_observations.h"
+#include "interaction_publish.h"
 #include "interaction_registry.h"
 #include "pointer_tracker.h"
 #include "scroll_interactions.h"

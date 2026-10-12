@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "interaction-capture-paint-unchanged",
-  "description": "A paintUnchanged capture answer reuses the session's latest frame. A tap's standalone capture accepts it as its afterFrame (Dart paint_generation_unchanged reuse matches the tap's origin). A completed swipe takes a frame only when it is fresh and temporal, else the latest frame when it completed after release: the reused frame is older, so the swipe has no afterFrame.",
+  "description": "Interaction captures are forced (they must observe a fresh paint), so a paintUnchanged answer to one breaks the host contract: the capture resolves as capture_processing_failed and records a capture_diagnostic with failure contract_violation, even without the captureDiagnostics capability. The tap then falls back to the latest frame, which completed before its release, so neither the tap nor the swipe has an afterFrame. (A reusable capture's paintUnchanged answer reuses the latest compatible frame: capture-reuse-decisions.)",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -81,7 +81,49 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
         }
       },
       {
@@ -127,7 +169,7 @@
             },
             {
               "type": "capture.request",
-              "requestId": "capture_request-2",
+              "requestId": "capture-1",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -138,6 +180,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10030000
             }
           ]
         }
@@ -149,7 +196,7 @@
             "monoUs": 5050000
           },
           "input": {
-            "requestId": "capture_request-2",
+            "requestId": "capture-1",
             "outcome": "captured",
             "frame": {
               "handle": "h-capture_request-2",
@@ -174,7 +221,7 @@
               "kind": "frame",
               "handle": "h-capture_request-2",
               "frame": {
-                "id": "frame-3",
+                "id": "frame-5",
                 "atMs": 50,
                 "width": 1080,
                 "height": 2400,
@@ -189,12 +236,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-1",
+                "id": "event-3",
                 "atMs": 10,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-3",
+                "afterFrame": "frame-5",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap"
@@ -203,7 +250,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
         }
       },
       {
@@ -244,7 +296,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-5",
+              "requestId": "capture-2",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -255,6 +307,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10240000
             }
           ]
         }
@@ -266,7 +323,7 @@
             "monoUs": 5280000
           },
           "input": {
-            "requestId": "capture_request-5",
+            "requestId": "capture-2",
             "outcome": "paintUnchanged"
           }
         },
@@ -275,13 +332,36 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-10",
+                "atMs": 280,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "version": 1,
+                  "outcome": "capture_processing_failed",
+                  "requestId": "capture_request-8",
+                  "executionId": "capture_execution-9",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "interaction",
+                  "visualEvidence": "unavailable",
+                  "interactionEvidence": "linked",
+                  "relatedEventId": "event-7",
+                  "failure": "contract_violation"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-7",
                 "atMs": 200,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
-                "beforeFrame": "frame-3",
-                "afterFrame": "frame-3",
+                "beforeFrame": "frame-5",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap",
@@ -296,7 +376,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
         }
       },
       {
@@ -356,7 +441,7 @@
           "effects": [
             {
               "type": "capture.request",
-              "requestId": "capture_request-7",
+              "requestId": "capture-3",
               "trigger": "interaction",
               "force": true,
               "requireFreshPaint": true,
@@ -367,6 +452,11 @@
                 "boundaryGeneration": 0
               },
               "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 10440000
             }
           ]
         }
@@ -378,7 +468,7 @@
             "monoUs": 5480000
           },
           "input": {
-            "requestId": "capture_request-7",
+            "requestId": "capture-3",
             "outcome": "paintUnchanged"
           }
         },
@@ -387,12 +477,36 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-14",
+                "atMs": 480,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "version": 1,
+                  "outcome": "capture_processing_failed",
+                  "requestId": "capture_request-12",
+                  "executionId": "capture_execution-13",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "interaction",
+                  "visualEvidence": "unavailable",
+                  "interactionEvidence": "linked",
+                  "relatedEventId": "event-11",
+                  "failure": "contract_violation"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-11",
                 "atMs": 400,
                 "type": "interaction",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
-                "beforeFrame": "frame-3",
+                "beforeFrame": "frame-5",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "swipe",
@@ -415,7 +529,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            }
+          ]
         }
       }
     ]
@@ -446,7 +565,7 @@
       },
       "frames": [
         {
-          "id": "frame-3",
+          "id": "frame-5",
           "atMs": 50,
           "width": 1080,
           "height": 2400,
@@ -467,25 +586,44 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-1",
+          "id": "event-3",
           "atMs": 10,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-3",
+          "afterFrame": "frame-5",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap"
           }
         },
         {
-          "id": "event-4",
+          "id": "event-10",
+          "atMs": 280,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "version": 1,
+            "outcome": "capture_processing_failed",
+            "requestId": "capture_request-8",
+            "executionId": "capture_execution-9",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "interaction",
+            "visualEvidence": "unavailable",
+            "interactionEvidence": "linked",
+            "relatedEventId": "event-7",
+            "failure": "contract_violation"
+          }
+        },
+        {
+          "id": "event-7",
           "atMs": 200,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
-          "beforeFrame": "frame-3",
-          "afterFrame": "frame-3",
+          "beforeFrame": "frame-5",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap",
@@ -498,12 +636,32 @@
           }
         },
         {
-          "id": "event-6",
+          "id": "event-14",
+          "atMs": 480,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "version": 1,
+            "outcome": "capture_processing_failed",
+            "requestId": "capture_request-12",
+            "executionId": "capture_execution-13",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "interaction",
+            "visualEvidence": "unavailable",
+            "interactionEvidence": "linked",
+            "relatedEventId": "event-11",
+            "failure": "contract_violation"
+          }
+        },
+        {
+          "id": "event-11",
           "atMs": 400,
           "type": "interaction",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
-          "beforeFrame": "frame-3",
+          "beforeFrame": "frame-5",
           "data": {
             "interactionSchema": 2,
             "gesture": "swipe",

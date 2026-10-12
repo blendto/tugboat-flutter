@@ -108,15 +108,22 @@ enum class LifecycleHookPoint {
   kBackgrounded,    // after `paused` / `hidden` teardown
   kForegrounded,    // on `resumed`
   kSessionEnding,   // after end teardown, before `session_end` is recorded
+  // On `resumed`, before `app_foregrounded` is recorded (Dart requests the
+  // `lifecycle` capture first).
+  kForegroundedBeforeRecord,
 };
 
-constexpr size_t kLifecycleHookPointCount = 4;
+constexpr size_t kLifecycleHookPointCount = 5;
 
-using TeardownHandler = void (*)(TeardownCause cause, EngineState* state,
-                                 Output* out);
+using TeardownHandler = void (*)(TeardownCause cause, const At& at,
+                                 EngineState* state, Output* out);
 using TimerHandler = void (*)(const std::string& timer_id, const At& at,
                               EngineState* state, Output* out);
 using LifecycleHook = void (*)(const At& at, EngineState* state, Output* out);
+// Runs after every applied command, in registration order (deferred work,
+// coordination.h).
+using AfterCommandHook = void (*)(const At& at, EngineState* state,
+                                  Output* out);
 // A frame was accepted into the live session; its frame record is already
 // in `out`. `handle` names the frame's bytes in the host. Collector delivery
 // (phase 3b) uses it to queue the frame lane and hold the handle.
@@ -142,7 +149,7 @@ class ModuleRegistry {
 
   // In-flight work torn down per stage, run in `teardown_order(cause)`.
   void add_teardown(TeardownStage stage, TeardownHandler handler);
-  void run_teardown(TeardownCause cause, EngineState* state,
+  void run_teardown(TeardownCause cause, const At& at, EngineState* state,
                     Output* out) const;
 
   // Timers whose ids start with `prefix` are routed to `handler`.
@@ -156,6 +163,7 @@ class ModuleRegistry {
   void on_backgrounded(LifecycleHook hook);
   void on_foregrounded(LifecycleHook hook);
   void on_session_ending(LifecycleHook hook);
+  void on_foregrounded_before_record(LifecycleHook hook);
   void run_hooks(LifecycleHookPoint point, const At& at, EngineState* state,
                  Output* out) const;
 
@@ -164,6 +172,10 @@ class ModuleRegistry {
   void on_frame_accepted(FrameAcceptedHook hook);
   void run_frame_accepted(const Frame& frame, const std::string& handle,
                           EngineState* state, Output* out) const;
+
+  // After every applied command, in registration order.
+  void on_after_command(AfterCommandHook hook);
+  void run_after_command(const At& at, EngineState* state, Output* out) const;
 
   // Event record observers, in registration order.
   void on_event_recorded(EventObserver observer);
@@ -183,6 +195,7 @@ class ModuleRegistry {
   std::map<std::string, TimerHandler> timers_;
   std::array<std::vector<LifecycleHook>, kLifecycleHookPointCount> hooks_;
   std::vector<FrameAcceptedHook> frame_accepted_;
+  std::vector<AfterCommandHook> after_command_;
   std::vector<EventObserver> event_observers_;
   std::set<std::string> engine_event_types_;
 };

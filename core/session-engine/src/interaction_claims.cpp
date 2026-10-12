@@ -3,8 +3,8 @@
 #include <vector>
 
 #include "engine_state.h"
-#include "interaction_turn.h"
 #include "tap_settle.h"
+#include "turn.h"
 
 namespace tugboat {
 namespace engine {
@@ -51,18 +51,15 @@ void wake_claimed_tap(EngineState* state, const std::string& interaction_id,
                       const At& at, Output* out) {
   Session* session = state->live_session();
   if (session == nullptr) return;
-  InteractionTurn turn{state, session, at, out};
+  Turn turn{state, session, at, out};
   wake_tap_settle(turn, interaction_id);
 }
 
-RouteStamp current_route_stamp(const EngineState& /*state*/) { return {}; }
-
-CaptureContext current_capture_context(const EngineState& state) {
-  const RouteStamp route = current_route_stamp(state);
-  CaptureContext context;
-  context.route_epoch = route.route_epoch;
-  context.navigator_id = route.navigator_id;
-  return context;
+void attach_route_frame(EngineState* state, const std::string& interaction_id,
+                        const OptString& frame_id) {
+  if (!frame_id) return;
+  const TransactionPtr tx = state->interactions.registry.find(interaction_id);
+  if (tx != nullptr) tx->after_frame = frame_id;
 }
 
 }  // namespace engine
