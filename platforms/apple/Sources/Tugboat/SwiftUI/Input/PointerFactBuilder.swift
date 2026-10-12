@@ -1,3 +1,6 @@
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 import Foundation
 
 /// Turns touch samples into `input.pointer` facts (stateful-engine.md 9.1).

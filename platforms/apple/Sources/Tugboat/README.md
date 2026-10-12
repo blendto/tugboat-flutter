@@ -8,9 +8,10 @@ depending on the internal `TugboatSessionEngine` target. Versioned on its own
 sent as `X-Sdk-Version` (see [CHANGELOG](CHANGELOG.md)). Unpublished: no
 podspec yet (it will be `TugboatSDK`, module `Tugboat`).
 
-Status: platform plumbing only. There is no public API and no toolkit adapter
-yet; every Swift type is internal. It mirrors the Android host in
-`platforms/android/tugboat-android`.
+Status: platform plumbing and the SwiftUI toolkit adapter. The only public
+API is two view modifiers, `.tugboatTag(_:)` and `.tugboatScreen(_:)`; the
+`Tugboat` facade and the capture wiring are later slices. It mirrors the
+Android host in `platforms/android/tugboat-android`.
 
 ## What it contains
 
@@ -24,6 +25,28 @@ yet; every Swift type is internal. It mirrors the Android host in
 | Timers | `Host/TimerExecutor` | One `DispatchSourceTimer` per id on the engine queue, armed for the time left until `atMonoUs` (saturating, so any `atMonoUs` is safe). Rescheduling replaces. A fire is stamped no earlier than its `atMonoUs`, or the engine would ignore it as stale. |
 | Frames | `Host/FrameHandleTable` | Thread-safe store of JPEG bytes behind never-reused opaque handles. |
 | HTTP | `HTTP/HTTPExecutor`, `HTTPSessionDelegate`, `CollectorResponse`, `MultipartBody` | Ephemeral `URLSession` with its delegate queue on `tugboat.io`. Same collector headers and multipart bytes as the Android host and the Flutter `CollectorHttpSink`. `jsonBody` is sent byte for byte. `timeoutMs` is a total deadline (watchdog), redirects are reported and not followed. Every answer is one the engine accepts: the body is cut to at most 64 KiB at a UTF-8 boundary, and a status outside 100–599 becomes `error`. |
+
+## SwiftUI adapter (`SwiftUI/`)
+
+Internal (`SwiftUIAdapter`), main thread only. It produces the facts of
+stateful-engine.md sections 8.1 and 9.1 and batches them once per frame
+(`CADisplayLink`) into `EngineHost.postBatch`, each with its own time. Rules
+are in native SDK note sections 2.1, 5 and 6.3, and in
+[capture-and-fingerprint.md](../../../../docs/design/capture-and-fingerprint.md)
+(SwiftUI canonicalization).
+
+| Piece | Where | Role |
+| --- | --- | --- |
+| Facts | `Facts/` | `FactBatcher` (frame hooks, one `batch` per frame), `DisplayLinkFrames`, `FactClock` (`UITouch.timestamp` is `systemUptime`, the host clock), a small ordered JSON writer. |
+| Pointer | `Input/WindowPointerRecognizer`, `PointerFactBuilder` | A recognizer on each window that becomes key: never cancels or delays touches, never prevents or is prevented, recognizes simultaneously, no swizzling. `input.pointer` in window points, a unique `pointerId` per contact, tap evidence on `up` under `touchSlop` resolved at the down position. |
+| Identity | `Identity/` | `.tugboatTag` frames (anchor preferences, `TagRegistry`) first, then UIKit hit-testing (text inputs, list cells with index paths, scroll views, representable hosts); route key from `.tugboatScreen`, else the hashed hosting-controller type; `toolkit: "swiftui"`. `IdentityHash` matches every `conformance/fingerprint/identity_parts` vector. |
+| Scroll | `Scroll/` | KVO on `contentOffset` of the window's scroll views; `start` (with the anchor), one `update` per frame, one `overscroll` per scroll, `end` when no finger or momentum drives it and it has been still for 100 ms. |
+| Navigation | `Navigation/`, `Modifiers/TugboatScreen` | `.tugboatScreen` appear and disappear on navigator `swiftui-screens`; optional hosting-controller appearance (one-time method exchange, opt-out) on `swiftui-hosting` until a screen is seen. |
+| Focus | `Input/FocusObserver` | `text_input` / `none` from `UITextField` / `UITextView` editing notifications. |
+| Masks | `Mask/` | `masks(for:)`: UIKit text, images, fail-closed web views and representables, and the allowlisted SwiftUI layers per iOS major (`LayerAllowlist`; iOS 26 verified). Unclassified layers with contents are masked; an unverified major masks a window with SwiftUI in full. |
+
+Known gaps: no system input (none in this milestone); the engine on this
+branch rejects `toolkit` in anchors and `navigation` facts (decisions log).
 
 `EngineHost` threading and failure rules:
 
@@ -59,3 +82,7 @@ xcodebuild test -scheme TugboatCaptureRuntime-Package \
 `fingerprint.labelHash` conformance fixture), the host with a fake engine and
 transport, real timers, the multipart golden bytes shared with the Android
 host (`conformance/host/multipart-request.golden`), and the HTTP executor against a `URLProtocol` stub.
+`TugboatTests/SwiftUI` tests the adapter on hosted SwiftUI views in a test
+window, including the layer-allowlist regression guard, which fails when a
+screen with text and an image shows no allowlisted layer class on a verified
+iOS major.

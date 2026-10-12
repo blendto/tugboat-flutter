@@ -226,6 +226,44 @@ fingerprint parts for diagnosis.
 not change the target fingerprint. `TugboatSubView` adds a developer-owned
 subview label for route-internal state and scroll attribution.
 
+### SwiftUI canonicalization
+
+The native Apple SDK (module `Tugboat`, ADR 0009, not yet published) builds
+the same parts for SwiftUI. The hash, `fingerprintParts`, and confidence tiers
+are shared; anchors add `toolkit: "swiftui"`, which is not a hash input.
+Without VoiceOver the in-process accessibility tree of a SwiftUI hosting view
+is empty, and SwiftUI text, images and buttons are not UIKit views, so
+identity comes from developer tags and from the UIKit views SwiftUI does use.
+
+- **Tags first.** `.tugboatTag("checkout")` registers its view's frame
+  through an anchor preference. A tap inside the smallest tagged frame at the
+  point resolves to that tag: `tagFingerprint` (`routeKey` + `tag`), `high`
+  confidence. Tags inside the top `.tugboatScreen` win over tags of covered
+  screens. The tag is transparent to structural identity.
+- **UIKit roles.** Otherwise the target is the nearest view, from UIKit
+  hit-testing at the point, with a role: `TextField` (`UITextField`,
+  `UITextView`), a list cell, `Scrollable` (`UIScrollView`), or
+  `Representable` (a `UIViewRepresentable` host, or an app-defined view inside
+  a hosting view). A tap on bare SwiftUI drawing without a tag has no target
+  (`no_actionable_candidate`).
+- **Segments.** `Token#<ordinal>` for each role view between the route root
+  and the target, plus `Host#<ordinal>` for nested hosting views. Ordinals
+  count same-token siblings after filtering. Hidden, transparent and
+  zero-size views are excluded with their subtrees. Visible text, images and
+  layer classes never enter identity.
+- **Lists.** A `List` cell (`UICollectionView` on iOS 16+, `UITableView` on
+  iOS 15) adds `[item:<section>.<row>]` from its index path; a tapped cell
+  ends with `Cell#0`.
+- **Route key.** The name of the `.tugboatScreen` on top of the screen
+  stack, else `host:<16 hex>`, the identity hash of the nearest hosting
+  controller's Swift type name (`medium`), else `swiftui:window` (`low`).
+  Paths start below that hosting controller's view.
+- **Confidence.** The floor of the route's and the path's. The path is
+  `high` with a tag, `medium` inside a list cell, and `low` otherwise.
+- **Coordinates.** Pointer positions and scroll offsets are points in window
+  coordinates; scroll offsets are relative to the resting start of the
+  content (the adjusted inset included).
+
 ### Locale evidence
 
 The capture root observes the active Flutter `Localizations` locale when the

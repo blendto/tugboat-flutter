@@ -5,7 +5,16 @@ entry here must match it.
 
 ## 0.1.0
 
-Unpublished. Platform plumbing only, with no public API and no toolkit adapter.
+Unpublished. Platform plumbing and the SwiftUI adapter. The only public API
+is the `.tugboatTag(_:)` and `.tugboatScreen(_:)` view modifiers.
+
+- SwiftUI adapter (internal): `input.pointer` (window points, unique contact
+  ids, tap evidence at the down position), `scroll`, `navigation`, and
+  `focus` facts, batched once per frame; SwiftUI identity (`.tugboatTag`
+  frames, UIKit roles, list index paths, `.tugboatScreen` route keys,
+  `toolkit: "swiftui"`); mask rectangles for `allTextAndMedia` from UIKit
+  views and a per-iOS-major SwiftUI layer allowlist (iOS 26), fail-closed
+  elsewhere.
 
 - `EngineBridge`: calls the session engine's C ABI directly through the
   `TugboatSessionEngine` SwiftPM target and copies each engine-owned
