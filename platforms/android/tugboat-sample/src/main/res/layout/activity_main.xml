@@ -68,6 +68,26 @@
             android:text="@string/show_dialog" />
 
         <Button
+            android:id="@+id/open_compose"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/open_compose" />
+
+        <Button
+            android:id="@+id/open_compose_semantics"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/open_compose_semantics" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
             android:id="@+id/stop_tugboat"
             android:layout_width="0dp"
             android:layout_height="wrap_content"

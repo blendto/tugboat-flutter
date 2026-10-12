@@ -5,6 +5,8 @@ import com.tugboat.android.AppInfo
 import com.tugboat.android.CollectorConfig
 import com.tugboat.android.Tugboat
 import com.tugboat.android.TugboatConfig
+import com.tugboat.android.compose.ComposeMasking
+import com.tugboat.android.compose.TugboatCompose
 import java.util.UUID
 
 /** Starts Tugboat before any activity exists, as the SDK requires. */
@@ -26,7 +28,10 @@ class SampleApplication : Application() {
                 captureSystemInput = true,
             ),
         )
-        Tugboat.setTraits(mapOf("sample" to true, "toolkit" to "view"))
+        // Compose hosts are read by the Compose adapter, masked whole by default;
+        // ComposeSemanticsActivity opts into semantics masking while resumed.
+        TugboatCompose.install(composeMasking = ComposeMasking.WholeHost)
+        Tugboat.setTraits(mapOf("sample" to true))
     }
 
     /** A UUID kept for the life of the install. */

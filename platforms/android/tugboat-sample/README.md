@@ -5,15 +5,30 @@ on an emulator against a local collector (native SDK note section 10). Not
 published. Application id `com.tugboat.sample`, minSdk 24 (frames need API
 26+; below that sessions carry events without frames).
 
-It has one Views screen (`MainActivity`) with a tagged button
-(`tugboatTag = "primary_action"`), a swipe area, a text field, a
-`RecyclerView` list of 50 rows, a dialog, a **Stop Tugboat** button, and a
-second screen (`DetailActivity`, text, an image, a tagged back button).
-`SampleApplication` starts Tugboat with focus and system-input capture on
-and sets traits `{sample: true, toolkit: "view"}`.
+Screens:
 
-A Compose screen joins once `:tugboat-compose` lands; until then the
-sample is Views only.
+- `MainActivity` (Views): a tagged button (`tugboatTag = "primary_action"`),
+  a swipe area, a text field, a `RecyclerView` list of 50 rows, a dialog,
+  buttons to the other screens, and a **Stop Tugboat** button.
+- `DetailActivity` (Views): text, an image, a tagged back button.
+- `ComposeWholeHostActivity` (Compose, default `ComposeMasking.WholeHost`):
+  a tagged button (`Modifier.tugboatTag("compose_primary")`), a text field,
+  and a `LazyColumn`. Every frame masks the whole Compose host.
+- `ComposeSemanticsActivity` (Compose, opted into
+  `ComposeMasking.SemanticsBestEffort` while resumed): a text field and a
+  `LazyColumn` of clickable rows (Navigation Compose destination `rows`); a
+  row opens `row/{index}` (route key `row`), with text, a described image,
+  and a tagged back button (`compose_back`). It draws nothing without
+  semantics (no undescribed images, no `Canvas` text), so semantics masks
+  cover everything private.
+
+`SampleApplication` starts Tugboat with focus and system-input capture on,
+installs the Compose adapter (`TugboatCompose.install(composeMasking =
+ComposeMasking.WholeHost)`), and sets traits `{sample: true}`. Masking is
+process-wide, so `ComposeSemanticsActivity` installs `SemanticsBestEffort`
+in `onResume` and restores `WholeHost` in `onPause`.
+`Tugboat.trackNavigation(navController)` feeds its destinations to the Views
+adapter's route keys.
 
 ## Build, install, run
 
@@ -58,38 +73,60 @@ Fresh install, collector running, logcat open:
    `adb shell settings put system user_rotation 1` and `… 0`).
 8. **Background**: press Home, wait 3 s.
 9. **Foreground**: reopen the app from recents, wait 2 s.
-10. **Stop**: tap "Stop Tugboat". Wait 10 s before checking the collector.
+10. **Compose, whole host**: tap "Compose". Tap "Tapped 0 times", fling the
+    list, tap the text field and type `abc`, press back twice (keyboard,
+    then screen). Wait 2 s.
+11. **Compose, semantics**: tap "Compose (semantics)". Fling the list, tap
+    "Row 3" (opens `row/3`), wait 2 s, tap "Back", then press the system back
+    key. Wait 2 s.
+12. **Stop**: tap "Stop Tugboat". Wait 10 s before checking the collector.
 
 ## Expected collector rows
 
 Session rows are filed under the app id `com.tugboat.sample` (key
 `pmk_blend-app-dev-secret`, collector app `blend_app`). Event `route` names
-are the activity class names.
+are the activity class names; inside `ComposeSemanticsActivity` anchors use
+the Navigation route keys `rows` and `row` (arguments stripped).
 
 - `pmkit.sessions`: one `session_start` (with `appInfo.version` 0.1.0,
   `buildNumber` 1, the full `device` object, `ipInfo.ip` `10.0.2.2`,
   `locale`, traits) and one `session_end` for the session.
 - `pmkit.raw_events`:
   - `route_change` for `com.tugboat.sample.MainActivity` (launch),
-    `com.tugboat.sample.DetailActivity` (step 5), and `MainActivity` again
-    on back; a rotation recreates the activity but keeps its route, so it
-    adds no `route_change`;
+    `com.tugboat.sample.DetailActivity` (step 5), `MainActivity` again on
+    back, `ComposeWholeHostActivity` (step 10), `ComposeSemanticsActivity`
+    (step 11), and `MainActivity` after each; a rotation recreates the
+    activity but keeps its route, so it adds no `route_change`. Navigation
+    Compose destinations change route keys, not routes: no `route_change`
+    for `row/3`;
   - `interaction` events (v2, no `stateAnchor`): a `tap` on the button
     (step 2, `targetAnchor.toolkit = "view"`, tag fingerprint from
     `primary_action`), a `scroll` on the list (step 3), a `swipe` (step 4),
     taps on "Open details" and the text field, all with
     `targetAnchor.toolkit = "view"`;
-  - `focus_changed` when the text field gains and loses focus (step 6);
-  - `system_input` `back` (step 5; the back press in step 6 goes to the
-    keyboard, not the app);
+  - Compose `interaction` events with `targetAnchor.toolkit = "compose"`:
+    the tap on the button (step 10, tag fingerprint from
+    `compose_primary`), the list `scroll`s (steps 10 and 11, scrollable ids
+    `compose-scroll-<n>`), taps on the text fields, on "Row 3" (route key
+    `rows`), and on "Back" (route key `row`, tag `compose_back`);
+  - `focus_changed` when the text fields gain and lose focus (steps 6, 10,
+    11);
+  - `system_input` `back` (steps 5, 10, 11 for the presses that reach the
+    app; a back press that only hides the keyboard goes to the keyboard);
   - lifecycle: `app_foregrounded` (launch, step 9), `app_inactive` and
     `app_backgrounded` (step 8).
 - `pmkit.frame_captures` and S3 `pmkit-frames/<sessionId>/<frameNo>.jpg`:
   frames for the initial capture, each route, interactions, and the
-  foreground. Every text, button, list row, the text field, and the image
-  are masked (filled rectangles); frames taken mid-transition are fully
-  masked. `frameMetadata` backends are `nativeCpuExperimental`.
+  foreground. Views screens: every text, button, list row, the text field,
+  and the image are masked (filled rectangles). `ComposeWholeHostActivity`:
+  the whole Compose area is one filled rectangle. `ComposeSemanticsActivity`:
+  texts, the text field, and the described image are masked individually;
+  button and row backgrounds stay visible. Frames taken mid-transition are
+  fully masked. `frameMetadata` backends are `nativeCpuExperimental`.
+  Mask coverage (`precise` / `wholeHost` / `wholeFrame`) is not on the wire
+  until engine PR #96 merges.
 - No 400s in the collector log.
 
 Known gaps: the dialog is a separate window, so it is not in frames and its
-taps are not recorded; predictive back is not observed.
+taps are not recorded; predictive back is not observed; Compose scroll
+offsets are approximate (per-frame samples).

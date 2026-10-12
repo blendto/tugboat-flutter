@@ -16,4 +16,10 @@
     <string name="details_body">The second screen. Press back to return.</string>
     <string name="back">Back</string>
     <string name="row">Row %1$d</string>
+    <string name="open_compose">Compose</string>
+    <string name="open_compose_semantics">Compose (semantics)</string>
+    <string name="compose_whole_host_title">Compose, whole-host masking</string>
+    <string name="compose_semantics_title">Compose, semantics masking</string>
+    <string name="compose_row_title">Compose row %1$s</string>
+    <string name="compose_image_description">Gallery placeholder</string>
 </resources>
