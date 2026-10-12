@@ -105,3 +105,8 @@ its Dart path unchanged. No publishing and no merges to `main`.
   (`flutterRepaintBoundary` | `nativeCpuExperimental`) on the collector.
   Native SDKs reuse `nativeCpuExperimental` until the collector adds native
   backend names.
+- **Collector `frame_captures.triggeredAt` is 1970.** pmkit-collector's
+  `src/domain/frame-captures.ts` reads `frameMetadata.atMs` as epoch
+  milliseconds, but it is session-relative (as Flutter's `TugboatFrame.atMs`).
+  Collector fix: session start + `atMs`. Not an SDK change (found in the
+  PR #95 device test).

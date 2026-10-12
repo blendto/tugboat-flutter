@@ -68,7 +68,9 @@ Fresh install, collector running, logcat open:
 5. **Open the second screen**: tap "Open details". Wait 2 s, then press
    the system back key (`adb shell input keyevent KEYCODE_BACK`).
 6. **Type** in the text field: tap it, type `hello`, press back to hide the
-   keyboard.
+   keyboard (on Android this keeps the field focused), then tap "Open
+   details" so focus leaves the field. Wait 2 s, then press the system back
+   key.
 7. **Rotate** to landscape, wait 2 s, rotate back to portrait, wait 2 s
    (`adb shell settings put system accelerometer_rotation 0`, then
    `adb shell settings put system user_rotation 1` and `… 0`).
@@ -114,12 +116,19 @@ the Navigation route keys `rows` and `row` (arguments stripped).
     `compose_primary`), taps on the text fields, on "Row 3" (route key
     `rows`), and on "Back" (route key `row`, tag `compose_back`), and the
     list `scroll`s (steps 10 and 11, anchored to the `LazyColumn`);
-  - `focus_changed` when the text fields gain and lose focus (steps 6, 10,
-    11);
+  - `focus_changed` with `focus: text_input` when a text field is tapped
+    (steps 6 and 10), and `focus: none` or `other` with
+    `previousFocus: text_input` when step 6 moves on to "Open details".
+    Hiding the keyboard does not clear focus on Android, so it records
+    nothing;
   - `system_input` `back` (steps 5, 10, 11 for the presses that reach the
     app; a back press that only hides the keyboard goes to the keyboard);
   - lifecycle: `app_foregrounded` (launch, step 9), `app_inactive` and
-    `app_backgrounded` (step 8).
+    `app_backgrounded` (step 8);
+  - the "Stop Tugboat" tap (step 12) as `interaction` `gesture: cancelled`
+    with a `beforeFrame` and no `afterFrame`, just before `session_end`: the
+    session ends while the tap is still settling, and ending a session
+    abandons pending taps as `cancelled` (Dart parity).
 - `pmkit.frame_captures` and S3 `pmkit-frames/<sessionId>/<frameNo>.jpg`:
   frames for the initial capture, each route, interactions, and the
   foreground. Views screens: every text, button, list row, the text field,
@@ -130,6 +139,10 @@ the Navigation route keys `rows` and `row` (arguments stripped).
   fully masked. `frameMetadata` backends are `nativeCpuExperimental`.
   Mask coverage (`precise` / `wholeHost` / `wholeFrame`) is not on the wire
   until engine PR #96 merges.
+  Frame sizes can step down mid-session (for example 309×686 to 247×549):
+  when captures exceed the screenshot budget (60 ms per 5 s, Dart parity),
+  later captures use `degradedScale` 0.8 until the window recovers. Expected
+  on slow emulators.
 - No 400s in the collector log.
 
 Known gaps: the dialog is a separate window, so it is not in frames and its
