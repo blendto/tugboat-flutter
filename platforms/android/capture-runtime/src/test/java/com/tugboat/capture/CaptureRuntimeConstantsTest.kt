@@ -8,6 +8,7 @@ class CaptureRuntimeConstantsTest {
     @Test
     fun nativeFloorAndDefaults() {
         assertEquals(24, CaptureRuntime.MIN_NATIVE_API)
+        assertEquals(26, CaptureRuntime.MIN_WINDOW_API)
         assertEquals(2_000L, CaptureRuntime.DEFAULT_TIMEOUT_MS)
         assertEquals(80, CaptureRuntime.JPEG_QUALITY)
         assertFalse(CaptureStatus.Cancelled.name.isEmpty())

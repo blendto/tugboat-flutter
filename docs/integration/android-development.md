@@ -9,7 +9,8 @@ The capture runtime lives in `platforms/android`.
 - Kotlin package: `com.tugboat.capture`
 - NDK: `28.2.13676358`
 - CMake: `3.22.1`
-- Native capture floor: API 24 (Flutter backend below that)
+- Native capture floor: API 24 (Flutter backend below that); window
+  capture (`capture(window, …)`, `windowComposite`) needs API 26
 - JPEG: platform encoder, quality 80
 - Public API golden: `platforms/android/capture-runtime/api.txt`
 
@@ -17,8 +18,11 @@ The capture runtime lives in `platforms/android`.
 bash tool/ci/build-android-runtime.sh
 ```
 
-That script unit-tests the runtime, builds the release AAR, publishes it to
-`.local-maven/`, and builds the sample once the AAR exists. After a public
+That script unit-tests the runtime, compiles the instrumented tests, builds
+the release AAR, publishes it to `.local-maven/`, and builds the sample once
+the AAR exists. Run the instrumented tests with
+`./gradlew :capture-runtime-test:connectedAndroidTest` on a device or
+emulator; CI runs them on API 26 and API 34 emulators. After a public
 Kotlin or C ABI change, bump `VERSION_NAME` and regenerate `api.txt`:
 
 ```sh

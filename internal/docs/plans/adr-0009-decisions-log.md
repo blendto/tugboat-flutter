@@ -28,7 +28,23 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-12 | Fixtures gain `runners` (`cpp`, `dart`; default both). `engineOnly` stays strictly for section 11 change ids and implies `cpp` only. The Dart runner reports an unmodelled message as a failure, never a silent skip. | Phase 3c/3d scenarios cannot drive Dart without claiming a behaviour change |
 | 2026-10-12 | `legacy_projection` is rejected as an `event.record` stream; the engine accepts schema 10 streams (`semantic`, `evidence`, `diagnostic`) only. | Dart session schema 10 removed it; the collector's wider accepted set is not a reason to emit it |
 | 2026-10-12 | `exploration.actionWindow` (action window events and `actionId` stamping) is deferred beyond this milestone; no engine code. | Native SDKs do not use exploration |
+| 2026-10-12 | `capture-runtime` 0.2.0 (unpublished): additive window capture, `capture(window, …)` with `WindowComposite` coverage. `SecureWindow` and `WindowComposite` are appended enum values. The Flutter plugin stays pinned to 0.1.0. | Native SDKs need app-window pixels; the Flutter path is unchanged (PR #84) |
 | 2026-10-12 | Flutter plugin compiles against `capture-runtime` 0.1.0 and 0.2.0: newer statuses (0.2.0 `SecureWindow`) map to the existing `cancelled`, `WindowComposite` to the existing Pigeon `windowComposite`; no Pigeon, Dart API or behaviour change (`tugboat` 0.10.11-dev.2). CI compiles the plugin against the pinned and the local runtime. | `cancelled` = no Dart fallback, no publish; a fallback status would let RepaintBoundary capture a screen the runtime refused. Keeps the automatic pin PR buildable after the main merge |
+
+## Gates before merging to main
+
+1. On merge to `main`, `publish-android.yml` (`tag_main`) auto-tags and
+   publishes `capture-runtime` 0.2.0, then opens an automatic Flutter pin PR.
+2. That pin PR compiles: the plugin maps 0.2.0's `SecureWindow` to
+   `cancelled` and `WindowComposite` to the existing Pigeon value
+   (`tugboat` 0.10.11-dev.2), and `android-runtime.yml` compiles the plugin
+   against the pinned and the local runtime. The `main` PR description must
+   still say that merging publishes `capture-runtime` 0.2.0; the owner
+   decides at merge time.
+3. The instrumented window-capture tests
+   (`:capture-runtime-test:connectedAndroidTest`) must have run on an
+   emulator or device. CI runs them on API 26 and 34
+   (`android-runtime-device.yml`).
 
 ## Open cross-repo questions
 
