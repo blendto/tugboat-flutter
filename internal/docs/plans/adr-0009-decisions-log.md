@@ -35,27 +35,11 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-12 | Android Views adapter units: coordinates and scroll offsets are dp (px / density); `gesture` comes from `ViewConfiguration` (touchSlop = scaled touch slop, panSlop = paging slop, scaleSlop = 2x touch slop, trackpad 1.08) and the host sends the adapter's `GestureConfig` in `engine.configure`. | One unit for engine slops and adapter tap evidence; stateful-engine.md section 6 says Android uses `ViewConfiguration` |
 | 2026-10-12 | Android Views route key: a view inside a shown fragment takes that fragment's key (destination at show time, else tag, else class) and paths start below the fragment's view, rather than the "top fragment" of the design note. Other views take the activity's current destination, else its class. | The containing fragment is right when several fragments are visible (master/detail, bottom bars); it reduces to the top fragment otherwise |
 | 2026-10-12 | Open before wiring the Views adapter to the engine: `navigation` is a phase 3d message, so navigation facts must not be posted to a real engine before 3d (the adapter gates them; `ViewsAdapter.postNavigationFacts`). `targetAnchor.toolkit` is accepted since phase 3b (PR #88). | Batches are all-or-nothing; the adapter emits both as the design note requires |
-
-## Gates before merging to main
-
-1. On merge to `main`, `publish-android.yml` (`tag_main`) auto-tags and
-   publishes `capture-runtime` 0.2.0, then opens an automatic Flutter pin PR.
-2. That pin PR compiles: the plugin maps 0.2.0's `SecureWindow` to
-   `cancelled` and `WindowComposite` to the existing Pigeon value
-   (`tugboat` 0.10.11-dev.2), and `android-runtime.yml` compiles the plugin
-   against the pinned and the local runtime. The `main` PR description must
-   still say that merging publishes `capture-runtime` 0.2.0; the owner
-   decides at merge time.
-3. The instrumented window-capture tests
-   (`:capture-runtime-test:connectedAndroidTest`) must have run on an
-   emulator or device. CI runs them on API 26 and 34
-   (`android-runtime-device.yml`).
-
-## Open cross-repo questions
-
-- **Q2: wire idempotency.** Batches, frames and lifecycle posts need an
-  idempotency key the collector deduplicates on before a durable outbox or
-  retry backoff (C4) can ship.
+| 2026-10-12 | Native SDK design note approved by the local orchestrator with review changes folded in: `capture-runtime` gains an additive Android window-capture API (0.2.0, unpublished) reporting `windowComposite`; the Flutter path is unchanged. Apple runtime unchanged (`viewHierarchy` on the key window). | Native apps have no `FlutterSurfaceView`; additive API leaves shipped behaviour unchanged |
+| 2026-10-12 | `toolkit` is emitted only on native anchors (`view`, `compose`, `swiftui`), inside `targetAnchor`; Flutter anchors keep their shipped shape. | Collector stores `targetAnchor` as free JSON; unknown top-level fields would be dropped |
+| 2026-10-12 | Native frames report `requestedBackend` / `resolvedBackend` = `nativeCpuExperimental`. | Collector treats backend as a closed enum; a new name would 400 |
+| 2026-10-12 | Apple podspec named `TugboatSDK` (module `Tugboat`). | Avoid a likely CocoaPods trunk name clash; nothing is published this milestone |
+| 2026-10-12 | SwiftUI: identity on `tugboatTag` frames, UIKit hit-testing, and list index paths; masks are the union of allowlisted SwiftUI text/image layer frames (images padded 4 pt), UIKit text views, and fail-closed web/representable hosts and unclassified layers. The allowlist is versioned per iOS major version; unverified versions mask the whole frame. | Probe on iOS 26.5: the accessibility tree is empty without VoiceOver, but text and images are separate layers (`SwiftUI.ImageLayer`, `…CGDrawingLayer`, IoU 0.76–1.00) |
 | 2026-10-12 | Phase 3d: `capture.request.requestId` names one physical capture (`capture-N`, own counter, like `http-N`); logical requests keep Dart's `capture_request-N` and executions mint `capture_execution-N` when they resolve, so the shared id counter advances exactly as Dart's. The engine waits out not-before times itself (timer `capture.due`). | Dart absorbs later requests into a waiting capture; an effect already issued cannot absorb. Exact ids let the Dart runner compare ids exactly |
 | 2026-10-12 | Phase 3d: the dHash baseline travels as `{dHash, structureSignature}`; the adapter offers it only under the same structure and the engine coalesces only when both match. `structureSignature`, `dHash` are opaque strings. | The engine cannot know the next capture's structure before it is made |
 | 2026-10-12 | Phase 3d: `surface.generation` is the adapter's boundary transform generation; the observed boundary is the latest `surface` rect or accepted frame `boundaryRect`. `navigation.departing` keeps the design shape `{instanceId, name?, type?}` (the Android and SwiftUI adapters send it) but only its id is read: `route_change` `from*` fields come from the visible route as in Dart, which has none for a session's first navigation, so filling them from `departing` would be an unlisted wire change; `navigation.route` is optional; `navigatorId` is required (no unbound-navigator path). | Only what the engine reads; every adapter knows its navigator |
@@ -76,3 +60,37 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-12 | Android SDK lifecycle: `ProcessLifecycleOwner` `ON_RESUME` → `resumed`, `ON_PAUSE` → `inactive`, `ON_STOP` → `paused`; `ipInfo.ip` is the placeholder `10.0.2.2`; device `id` is `Build.ID`; screen size in dp from display metrics. | Matches what Flutter's Android host reports |
 | 2026-10-12 | `tugboat-android` stays 0.1.0 while gaining its public API: it was never published. It now depends on `capture-runtime` (project dependency) and `androidx.lifecycle:lifecycle-process` 2.8.7; Jetpack Navigation is `compileOnly`. | ADR 0008 versioning applies from the first publish |
 | 2026-10-12 | The collector contract test (session_start body, `frameMetadata` backends) is instrumented: the engine runs only as the Android `.so`. CI runs it with the other `:tugboat-android` instrumented tests in `android-runtime-device.yml` (API 26 and 34 emulators); JVM tests pin the host-side inputs. | Native SDK note section 8 |
+
+## Gates before merging to main
+
+1. On merge to `main`, `publish-android.yml` (`tag_main`) auto-tags and
+   publishes `capture-runtime` 0.2.0, then opens an automatic Flutter pin PR.
+2. That pin PR compiles: the plugin maps 0.2.0's `SecureWindow` to
+   `cancelled` and `WindowComposite` to the existing Pigeon value
+   (`tugboat` 0.10.11-dev.2), and `android-runtime.yml` compiles the plugin
+   against the pinned and the local runtime. The `main` PR description must
+   still say that merging publishes `capture-runtime` 0.2.0; the owner
+   decides at merge time.
+3. The instrumented window-capture tests
+   (`:capture-runtime-test:connectedAndroidTest`) must have run on an
+   emulator or device. CI runs them on API 26 and 34
+   (`android-runtime-device.yml`).
+
+## Open items
+- **Secure-window failure value.** Android answers a `FLAG_SECURE` window
+  `failed readbackFailed`; a dedicated engine/collector failure value would
+  let diagnostics tell it apart.
+- **SwiftUI layer allowlist for iOS 15–25.** Only iOS 26 is verified. Re-run
+  `spike/swiftui-a11y-probe` on each older major version that the SDK must
+  support with per-layer masks; until then those versions mask the whole
+  frame.
+
+## Open cross-repo questions
+
+- **Q2: wire idempotency.** Batches, frames and lifecycle posts need an
+  idempotency key the collector deduplicates on before a durable outbox or
+  retry backoff (C4) can ship.
+- **Native backend names.** `frameMetadata` backend is a closed enum
+  (`flutterRepaintBoundary` | `nativeCpuExperimental`) on the collector.
+  Native SDKs reuse `nativeCpuExperimental` until the collector adds native
+  backend names.
