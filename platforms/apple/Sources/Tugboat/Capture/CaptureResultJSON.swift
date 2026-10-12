@@ -11,14 +11,16 @@ enum CaptureResultJSON {
   /// One day, the engine's bound on every duration.
   private static let maxMicros: Int64 = 86_400_000_000
 
-  static func encode(_ answer: CaptureAnswer, maskCoverage: Bool = EngineVocabulary.frameMaskCoverage) -> String {
+  static func encode(_ answer: CaptureAnswer) -> String {
     var input = JSONObject()
     input.set("requestId", answer.requestId)
     switch answer {
     case let .captured(_, frame, boundaryRect, timings):
       input.set("outcome", "captured")
-      input.set("frame", self.frame(frame, maskCoverage: maskCoverage))
-      input.set("boundaryRect", boundaryRect.json)
+      input.set("frame", self.frame(frame))
+      if let boundaryRect = boundaryRect {
+        input.set("boundaryRect", boundaryRect.json)
+      }
       input.set("timings", self.timings(timings))
     case let .failed(_, failure, timings):
       input.set("outcome", "failed")
@@ -32,7 +34,7 @@ enum CaptureResultJSON {
     return input.json
   }
 
-  private static func frame(_ frame: CapturedFrame, maskCoverage: Bool) -> JSONObject {
+  private static func frame(_ frame: CapturedFrame) -> JSONObject {
     var out = JSONObject()
     out.set("handle", frame.handle)
     out.set("width", Int64(frame.width))
@@ -47,12 +49,10 @@ enum CaptureResultJSON {
       out.set("dHash", frame.dHash)
     }
     out.set("structureSignature", frame.structureSignature)
-    if maskCoverage {
-      var coverage = JSONObject()
-      coverage.set("mode", frame.maskCoverage.mode)
-      coverage.set("reasons", .array(frame.maskCoverage.reasons.map { .string($0) }))
-      out.set("maskCoverage", coverage)
-    }
+    var coverage = JSONObject()
+    coverage.set("mode", frame.maskCoverage.mode.rawValue)
+    coverage.set("reasons", .array(frame.maskCoverage.reasons.map { .string($0.rawValue) }))
+    out.set("maskCoverage", coverage)
     return out
   }
 

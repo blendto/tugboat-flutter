@@ -31,7 +31,7 @@ final class SdkMessagesTests: XCTestCase {
   func testEngineConfigurationPinsEveryGroup() throws {
     let config = TugboatConfig(
       collector: .init(baseURL: try XCTUnwrap(URL(string: "http://127.0.0.1:3000")), apiKey: "k"), app: app,
-      captureFocusChanges: true, captureSystemInput: true)
+      captureFocusChanges: true)
     let json = EngineConfiguration.build(config: config, host: HostMetadata(app: app, device: device), gesture: .uiKitDefault).json
     XCTAssertEqual(
       json,
@@ -42,7 +42,7 @@ final class SdkMessagesTests: XCTestCase {
         + "\"timezone\":\"GMT-3\"}},\"limits\":{\"maxEvents\":5000,\"maxFrames\":500,\"maxScrollSamples\":200},"
         + "\"gesture\":{\"touchSlop\":10,\"panSlop\":20,\"scaleSlop\":20,\"trackpadScaleThreshold\":1.08},"
         + "\"capture\":{\"answerTimeoutMs\":5000},\"collector\":{\"enabled\":true},"
-        + "\"capabilities\":{\"focusChanges\":true,\"systemInput\":true}}")
+        + "\"capabilities\":{\"focusChanges\":true}}")
   }
 
   func testSessionStartCarriesTheActiveLocale() {

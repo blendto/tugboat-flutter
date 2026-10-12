@@ -5,7 +5,8 @@ import Foundation
 /// Without a mask supplier they are the request's. With one they come from
 /// the snapshot taken for that very draw; a supplied capture whose draw has
 /// no snapshot is masked whole (fail closed), and the dHash baseline counts
-/// only when the drawn structure is the one it was captured with.
+/// only when the drawn structure is known and is the one it was captured
+/// with (an empty signature on either side never skips).
 struct AppliedMasks {
   let masks: [NormalizedMask]
   let lastDHash: String
@@ -19,7 +20,7 @@ struct AppliedMasks {
     let snapshot = bitmap.maskSnapshot ?? .failClosed
     let masks = snapshot.wholeFrame ? MaskSnapshot.failClosed.masks : snapshot.masks
     let expected = request.lastStructureSignature
-    let sameStructure = expected.isEmpty || expected == snapshot.structureSignature
+    let sameStructure = !expected.isEmpty && expected == snapshot.structureSignature
     return AppliedMasks(masks: masks, lastDHash: sameStructure ? request.lastDHash : "", snapshot: snapshot)
   }
 }

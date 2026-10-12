@@ -37,7 +37,8 @@ public struct CaptureRequest
   public let lastDHash: String
   public let masks: [NormalizedMask]
   public let lastStructureSignature: String
-  public init( requestId: Int64, pixelWidth: Int, pixelHeight: Int, force: Bool, lastDHash: String = "", masks: [NormalizedMask] = [], lastStructureSignature: String = "" )
+  public let pixelsPerPoint: Double
+  public init( requestId: Int64, pixelWidth: Int, pixelHeight: Int, force: Bool, lastDHash: String = "", masks: [NormalizedMask] = [], lastStructureSignature: String = "", pixelsPerPoint: Double = 0 )
 public struct CaptureTimings
   public let surfaceCopyMicros: Int64
   public let maskFillMicros: Int64
@@ -79,14 +80,6 @@ public struct MaskSnapshot
   public let masks: [NormalizedMask]
   public let wholeFrame: Bool
   public let structureSignature: String
-  public let coverage: MaskCoverageSummary?
-  public init( masks: [NormalizedMask], wholeFrame: Bool = false, structureSignature: String = "", coverage: MaskCoverageSummary? = nil )
+  public let id: Int
+  public init( masks: [NormalizedMask], wholeFrame: Bool = false, structureSignature: String = "", id: Int = 0 )
   public static var failClosed: MaskSnapshot
-public struct MaskCoverageSummary
-  public let mode: MaskCoverageMode
-  public let reasons: [String]
-  public init(mode: MaskCoverageMode, reasons: [String] = [])
-public enum MaskCoverageMode
-  case precise
-  case wholeHost
-  case wholeFrame

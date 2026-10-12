@@ -15,7 +15,7 @@ final class EngineHost {
   private let queue: DispatchQueue
   private let http: HTTPSender
   private let frames: FrameHandleTable
-  private weak var captures: CaptureRequestSink?
+  private let captures: CaptureRequestSink
   private let clock: HostClock
   private let maxConsecutiveInternalErrors: Int
   private let onShutDown: () -> Void
@@ -44,7 +44,7 @@ final class EngineHost {
     queue: DispatchQueue,
     http: HTTPSender,
     frames: FrameHandleTable,
-    captures: CaptureRequestSink? = nil,
+    captures: CaptureRequestSink,
     clock: HostClock = SystemHostClock(),
     maxConsecutiveInternalErrors: Int = EngineHost.defaultMaxConsecutiveInternalErrors,
     onShutDown: @escaping () -> Void = {}
@@ -60,12 +60,13 @@ final class EngineHost {
   }
 
   /// Starts a host on a new `tugboat.engine` queue; the host owns
-  /// `transport` and `http`. `captures` is held weakly: its owner keeps it.
+  /// `transport`, `http`, and `captures` (which must not hold the host
+  /// strongly).
   static func start(
     transport: EngineTransport,
     frames: FrameHandleTable,
     http: HTTPSender,
-    captures: CaptureRequestSink?
+    captures: CaptureRequestSink
   ) -> EngineHost {
     EngineHost(
       transport: transport,
@@ -192,9 +193,8 @@ final class EngineHost {
   }
 
   /// Lets the engine report undelivered work before its handle goes. Its
-  /// effects run as usual except that no new IO, timer or capture starts:
-  /// `http.send`, `timer.schedule` and `capture.request` are dropped,
-  /// `frame.release` is honoured. An engine
+  /// effects are allow-listed: only `frame.release` runs; no IO, timer, or
+  /// capture starts. An engine
   /// without `engine.dispose` (before phase 3b) answers
   /// `unsupported_message`, which is logged and otherwise ignored.
   private func dispose() {
@@ -206,10 +206,7 @@ final class EngineHost {
     }
     guard let parsed = try? EffectParser.parse(response.json) else { return }
     for effect in parsed {
-      switch effect {
-      case .httpSend, .timerSchedule, .captureRequest:
-        continue
-      default:
+      if case .frameRelease = effect {
         effects.dispatch(effect)
       }
     }

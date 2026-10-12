@@ -3,40 +3,72 @@ import TugboatCaptureRuntime
 import UIKit
 
 /// The mask supplier for one capture. The pixel runtime calls `snapshot`
-/// on the main thread in the same turn as each draw, so the masks (fail
-/// closed, `WindowMasks`), the structure signature, and the boundary all
-/// describe the drawn frame; the request's arrival time plays no part.
-/// It keeps the boundary of the last draw for the `capture.result`.
+/// on the main thread in the same turn as each draw, after layout. That one
+/// reading of the window gives the draw its masks (fail closed,
+/// `WindowMasks`), its structure signature, its boundary (reported as
+/// `surface` before anything else of the capture), and, through the
+/// runtime's `pixelsPerPoint`, its pixel size; the time the request arrived
+/// plays no part.
+///
+/// Each draw is recorded under the snapshot id the runtime hands back, so
+/// the `capture.result` reports the coverage and boundary of the draw the
+/// frame actually came from.
 final class FrameMasks {
-  private let compute: (UIWindow) -> MaskResult
-  private let drawnGeometry = Locked<CaptureGeometry?>(nil)
-
-  init(compute: @escaping (UIWindow) -> MaskResult) {
-    self.compute = compute
+  /// What one draw was masked with, beyond what the runtime reads.
+  struct Drawn {
+    let geometry: CaptureGeometry
+    let coverage: MaskCoverage
   }
 
-  /// The window size at the last draw; nil until the runtime drew.
-  var geometry: CaptureGeometry? {
-    drawnGeometry.current
+  private let compute: (UIWindow) -> MaskResult
+  private let screen: () -> String?
+  private let onGeometry: (CaptureGeometry) -> Void
+  private let drawn = Locked<[Int: Drawn]>([:])
+
+  /// - Parameters:
+  ///   - compute: the adapter's mask walk.
+  ///   - screen: the current `.tugboatScreen` name, for the signature.
+  ///   - onGeometry: the drawn window size, before the draw (`surface`).
+  init(
+    compute: @escaping (UIWindow) -> MaskResult,
+    screen: @escaping () -> String? = { nil },
+    onGeometry: @escaping (CaptureGeometry) -> Void = { _ in }
+  ) {
+    self.compute = compute
+    self.screen = screen
+    self.onGeometry = onGeometry
+  }
+
+  /// The draw a runtime result came from; nil when nothing was supplied
+  /// for it (the runtime then masked the frame whole).
+  func drawn(_ snapshot: MaskSnapshot?) -> Drawn? {
+    guard let id = snapshot?.id else { return nil }
+    return drawn.withLock { $0[id] }
   }
 
   /// Main thread, inside the runtime's draw turn.
   func snapshot(for view: UIView) -> MaskSnapshot {
     guard let window = (view as? UIWindow) ?? view.window,
-      let geometry = CaptureGeometry(
-        width: Double(window.bounds.width), height: Double(window.bounds.height),
-        screenScale: Double(window.screen.scale))
+      let geometry = CaptureGeometry(width: Double(window.bounds.width), height: Double(window.bounds.height))
     else {
       return .failClosed
     }
-    drawnGeometry.withLock { $0 = geometry }
+    onGeometry(geometry)
     let result = compute(window)
-    let coverage = result.coverage.wire
+    let coverage = result.coverage
+    let signature = StructureSignature.of(
+      result, width: geometry.width, height: geometry.height,
+      controls: StructureProbe.controls(in: window), screen: screen())
+    let id = drawn.withLock { (draws: inout [Int: Drawn]) -> Int in
+      let id = draws.count + 1
+      draws[id] = Drawn(geometry: geometry, coverage: coverage)
+      return id
+    }
     return MaskSnapshot(
       masks: result.rects.map { NormalizedMask(x: $0.x, y: $0.y, width: $0.width, height: $0.height) },
-      wholeFrame: result.fallback != nil,
-      structureSignature: StructureSignature.of(result, width: geometry.width, height: geometry.height),
-      coverage: MaskCoverageSummary(mode: result.fallback == nil ? .precise : .wholeFrame, reasons: coverage.reasons)
+      wholeFrame: coverage.mode == .wholeFrame,
+      structureSignature: signature,
+      id: id
     )
   }
 }

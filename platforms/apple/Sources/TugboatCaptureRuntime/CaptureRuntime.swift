@@ -97,17 +97,13 @@ public final class CaptureRuntime {
     if ProcessInfo.processInfo.operatingSystemVersion.majorVersion < CaptureRuntime.minNativeApi {
       return reply(request, .unsupportedApi)
     }
-    if request.pixelWidth <= 0 || request.pixelHeight <= 0 {
-      return reply(request, .processingFailed)
-    }
-    if request.pixelWidth > Self.maxEdge || request.pixelHeight > Self.maxEdge
-      || request.pixelWidth > Self.maxPixels / request.pixelHeight
-    {
+    let sizing = PixelSizing(request)
+    if !sizing.followsBounds && PixelSizing.valid(request.pixelWidth, request.pixelHeight) == nil {
       return reply(request, .processingFailed)
     }
 
     let started = DispatchTime.now()
-    let drawOutcome = drawOnMain(view: view, request: request, maskSupplier: maskSupplier)
+    let drawOutcome = drawOnMain(view: view, sizing: sizing, maskSupplier: maskSupplier)
     let copyTimings = CaptureTimings(surfaceCopyMicros: elapsedMicros(from: started))
     if let early = haltIfNeeded(request, started, copyTimings) {
       return early
@@ -181,7 +177,7 @@ public final class CaptureRuntime {
 
   private func drawOnMain(
     view: UIView,
-    request: CaptureRequest,
+    sizing: PixelSizing,
     maskSupplier: ((UIView) -> MaskSnapshot)?
   ) -> (bitmap: NativeBitmap?, hasSurface: Bool) {
     var bitmap: NativeBitmap?
@@ -195,8 +191,7 @@ public final class CaptureRuntime {
       guard hasSurface else { return }
       bitmap = AppleViewCapture.capture(
         view: view,
-        pixelWidth: request.pixelWidth,
-        pixelHeight: request.pixelHeight,
+        sizing: sizing,
         coverage: self.coverage,
         masksBeforeDraw: masksBeforeDraw
       )
@@ -332,6 +327,4 @@ public final class CaptureRuntime {
     var cancelledId: Int64 = CaptureRuntime.noRequest
   }
 
-  private static let maxEdge = 8192
-  private static let maxPixels = 16_777_216
 }

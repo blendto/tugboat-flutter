@@ -12,6 +12,7 @@ extension TugboatRuntime {
     let surfaces: SurfaceObserver
     let captures: CaptureCoordinator
     let watcher: SessionEndWatcher
+    let session: SessionFlag
     let clock: HostClock
 
     static func assemble(config: TugboatConfig, transport: EngineTransport) -> Parts {
@@ -26,16 +27,14 @@ extension TugboatRuntime {
       )
       let watcher = SessionEndWatcher(delegate: HTTPExecutor(config: hostConfig, frameBytes: { frames.get($0) }))
       let ref = HostRef()
-      let surfaces = SurfaceObserver(
-        reporter: SurfaceReporter { input in
-          ref.host?.post(type: SurfaceReporter.factType, inputJSON: input, at: clock.now())
-        })
+      let reporter = SurfaceReporter { input in
+        ref.host?.post(type: SurfaceReporter.factType, inputJSON: input, at: clock.now())
+      }
       let captures = CaptureCoordinator(
         window: { KeyWindow.current() },
-        masks: { WindowMasks.compute($0) },
+        masks: { Parts.frameMasks(reporter) },
         capturer: RuntimeWindowCapturer(),
         frames: frames,
-        onSurface: { [weak surfaces] in surfaces?.report($0) },
         answer: { answer in
           ref.host?.post(
             type: HostMessages.captureResult, inputJSON: CaptureResultJSON.encode(answer), at: clock.now(),
@@ -47,18 +46,39 @@ extension TugboatRuntime {
       let adapter = SwiftUIAdapter(
         sink: host, hostClock: clock, gesture: .uiKitDefault,
         trackHostingControllers: config.trackHostingControllers)
+      let session = SessionFlag()
       let lifecycle = AppLifecycleBridge { state in
         ref.host?.post(type: SessionMessages.appLifecycle, inputJSON: SessionMessages.appLifecycleInput(state), at: clock.now())
+        // The engine ends the session on `detached`.
+        if state == AppLifecycleBridge.detached { session.isLive = false }
       }
       return Parts(
-        host: host, adapter: adapter, lifecycle: lifecycle, surfaces: surfaces, captures: captures, watcher: watcher,
-        clock: clock)
+        host: host, adapter: adapter, lifecycle: lifecycle, surfaces: SurfaceObserver(reporter: reporter),
+        captures: captures, watcher: watcher, session: session, clock: clock)
+    }
+
+    /// One capture's mask supplier: the adapter's mask walk, the current
+    /// `.tugboatScreen` for the structure, and the drawn size as `surface`.
+    private static func frameMasks(_ reporter: SurfaceReporter) -> FrameMasks {
+      FrameMasks(
+        compute: { WindowMasks.compute($0) },
+        screen: {
+          ScreenTracker.shared.settle()
+          return ScreenTracker.shared.top?.name
+        },
+        onGeometry: { reporter.observe($0.boundaryRect) }
+      )
     }
   }
 
   /// The host as the parts' closures see it.
   final class HostRef {
     weak var host: EngineHost?
+  }
+
+  /// Whether the session can still post `session_end`. Main thread only.
+  final class SessionFlag {
+    var isLive = true
   }
 }
 #endif

@@ -65,6 +65,7 @@ final class StopTests: XCTestCase {
     var ended = false
     StopSequence(maxDrain: 30).run(
       watcher: watcher,
+      awaitDrain: true,
       endSession: { ended = true },
       finish: { finishes.withLock { $0 += 1 } })
     XCTAssertTrue(ended, "session.end is posted on the caller's thread")
@@ -86,7 +87,7 @@ final class StopTests: XCTestCase {
   func testFinishRunsOnceAfterTheDeadlineWithoutAPost() {
     let finished = expectation(description: "finish")
     finished.assertForOverFulfill = true
-    StopSequence(maxDrain: 0.05).run(watcher: watcher, endSession: {}, finish: { finished.fulfill() })
+    StopSequence(maxDrain: 0.05).run(watcher: watcher, awaitDrain: true, endSession: {}, finish: { finished.fulfill() })
     wait(for: [finished], timeout: 2)
     // A late settle does not finish again.
     watcher.send(lifecycle("session_end")) { _ in }
@@ -100,7 +101,52 @@ final class StopTests: XCTestCase {
     watcher.send(lifecycle("session_end")) { _ in }
     http.complete(0, .http(status: 202, body: ""))
     let finished = expectation(description: "finish")
-    StopSequence(maxDrain: 30).run(watcher: watcher, endSession: {}, finish: { finished.fulfill() })
+    StopSequence(maxDrain: 30).run(watcher: watcher, awaitDrain: true, endSession: {}, finish: { finished.fulfill() })
     wait(for: [finished], timeout: 2)
+  }
+
+  func testWithoutADrainToAwaitItFinishesAtOnce() {
+    let finished = expectation(description: "finish")
+    var ended = false
+    StopSequence(maxDrain: 30).run(
+      watcher: watcher, awaitDrain: false, endSession: { ended = true }, finish: { finished.fulfill() })
+    wait(for: [finished], timeout: 2)
+    XCTAssertTrue(ended)
+  }
+
+  /// `session_end` never settles: once the deadline passed and the host
+  /// closed, nothing keeps the host, its HTTP sender, or its capture sink
+  /// alive (no cycle through the watcher's callback).
+  func testTheHostIsReleasedWhenSessionEndNeverSettles() {
+    weak var weakHost: EngineHost?
+    weak var weakWatcher: SessionEndWatcher?
+    weak var weakCaptures: RecordingCaptureSink?
+    let finished = expectation(description: "finish")
+    do {
+      let watcher = SessionEndWatcher(delegate: FakeHTTPSender())
+      let captures = RecordingCaptureSink()
+      let host = EngineHost(
+        transport: FakeEngineTransport(), queue: TestQueues.engine(), http: watcher, frames: FrameHandleTable(),
+        captures: captures)
+      weakHost = host
+      weakWatcher = watcher
+      weakCaptures = captures
+      // The post is sent and never answered.
+      watcher.send(lifecycle("session_end")) { _ in }
+      StopSequence(maxDrain: 0.05).run(
+        watcher: watcher, awaitDrain: true, endSession: {},
+        finish: {
+          host.close()
+          finished.fulfill()
+        })
+    }
+    wait(for: [finished], timeout: 2)
+    let deadline = Date().addingTimeInterval(2)
+    while weakHost != nil || weakWatcher != nil || weakCaptures != nil, Date() < deadline {
+      RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+    }
+    XCTAssertNil(weakHost)
+    XCTAssertNil(weakWatcher)
+    XCTAssertNil(weakCaptures)
   }
 }

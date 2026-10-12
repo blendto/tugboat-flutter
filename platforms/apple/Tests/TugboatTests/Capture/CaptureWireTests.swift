@@ -3,36 +3,33 @@ import XCTest
 
 @testable import Tugboat
 
-/// The `capture.result` and `surface` inputs, the capture size, the
+/// The `capture.result` and `surface` inputs, the capture pixel ratio, the
 /// structure signature, and the mask coverage vocabulary.
 final class CaptureWireTests: XCTestCase {
   private let frame = CapturedFrame(
     handle: "frame-1", width: 293, height: 633, contentHash: "abc", masked: true, byteLength: 1200,
     captureMicros: 4500, dHash: "0f0f", structureSignature: "s1",
-    maskCoverage: WireMaskCoverage(mode: "precise", reasons: ["webView", "surfaceLayer"]))
+    maskCoverage: MaskCoverage(mode: .precise, reasons: [.webView, .renderer]))
 
-  func testCapturedAnswerPinsTheNativeBackendOnBothFields() {
+  func testCapturedAnswerPinsTheNativeBackendAndTheMaskCoverage() {
     let answer = CaptureAnswer.captured(
       requestId: "capture-3", frame: frame, boundaryRect: BoundaryRect(x: 0, y: 0, width: 390, height: 844),
       timings: CaptureTimingsMicros(frameWaitMicros: 10, readbackMicros: 20, maskMicros: 30, encodeMicros: 40))
     XCTAssertEqual(
-      CaptureResultJSON.encode(answer, maskCoverage: false),
+      CaptureResultJSON.encode(answer),
       "{\"requestId\":\"capture-3\",\"outcome\":\"captured\",\"frame\":{\"handle\":\"frame-1\",\"width\":293,"
         + "\"height\":633,\"contentHash\":\"abc\",\"masked\":true,\"byteLength\":1200,\"captureMicros\":4500,"
         + "\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"nativeCpuExperimental\","
-        + "\"dHash\":\"0f0f\",\"structureSignature\":\"s1\"},\"boundaryRect\":{\"x\":0,\"y\":0,\"width\":390,"
-        + "\"height\":844},\"timings\":{\"frameWaitMicros\":10,\"readbackMicros\":20,\"maskMicros\":30,"
-        + "\"encodeMicros\":40}}")
+        + "\"dHash\":\"0f0f\",\"structureSignature\":\"s1\","
+        + "\"maskCoverage\":{\"mode\":\"precise\",\"reasons\":[\"webView\",\"renderer\"]}},"
+        + "\"boundaryRect\":{\"x\":0,\"y\":0,\"width\":390,\"height\":844},\"timings\":{\"frameWaitMicros\":10,"
+        + "\"readbackMicros\":20,\"maskMicros\":30,\"encodeMicros\":40}}")
     XCTAssertEqual(answer.frameHandles, ["frame-1"])
   }
 
-  func testMaskCoverageIsForwardedWhenTheEngineTakesIt() {
-    let answer = CaptureAnswer.captured(
-      requestId: "capture-3", frame: frame, boundaryRect: BoundaryRect(x: 0, y: 0, width: 1, height: 1),
-      timings: CaptureTimingsMicros())
-    let frameJSON = jsonObject(CaptureResultJSON.encode(answer, maskCoverage: true))["frame"] as? [String: Any]
-    XCTAssertEqual(
-      frameJSON?["maskCoverage"] as? NSDictionary, ["mode": "precise", "reasons": ["webView", "surfaceLayer"]])
+  func testAFrameWithoutARecordedDrawHasNoBoundary() {
+    let answer = CaptureAnswer.captured(requestId: "c", frame: frame, boundaryRect: nil, timings: CaptureTimingsMicros())
+    XCTAssertNil(jsonObject(CaptureResultJSON.encode(answer))["boundaryRect"])
   }
 
   func testFailedAndCancelledAnswers() {
@@ -72,42 +69,49 @@ final class CaptureWireTests: XCTestCase {
       ])
   }
 
-  func testPixelSizeFollowsFlutterAndTheEngineScale() throws {
-    let geometry = try XCTUnwrap(CaptureGeometry(width: 390, height: 844, screenScale: 3))
-    XCTAssertTrue(geometry.pixelSize(scale: 1) == (293, 633))
-    XCTAssertTrue(geometry.pixelSize(scale: 0.8) == (234, 507))
-    XCTAssertTrue(geometry.pixelSize(scale: 0) == (30, 64), "the scale is bounded below")
-    let tiny = try XCTUnwrap(CaptureGeometry(width: 1, height: 1, screenScale: 1))
-    XCTAssertTrue(tiny.pixelSize(scale: 1) == (1, 1))
-    XCTAssertNil(CaptureGeometry(width: 0, height: 10, screenScale: 2))
-    XCTAssertNil(CaptureGeometry(width: .infinity, height: 10, screenScale: 2))
+  func testPixelRatioFollowsFlutterAndTheEngineScale() {
+    XCTAssertEqual(CaptureGeometry.pixelsPerPoint(scale: 1), 0.75)
+    XCTAssertEqual(CaptureGeometry.pixelsPerPoint(scale: 0.8), 0.6, accuracy: 1e-9)
+    XCTAssertEqual(CaptureGeometry.pixelsPerPoint(scale: 0), 0.075, accuracy: 1e-9, "bounded below")
+    XCTAssertEqual(CaptureGeometry.pixelsPerPoint(scale: 5), 0.75, "bounded above")
+    XCTAssertEqual(CaptureGeometry.pixelsPerPoint(scale: .nan), 0.75)
+    XCTAssertNil(CaptureGeometry(width: 0, height: 10))
+    XCTAssertNil(CaptureGeometry(width: .infinity, height: 10))
+    XCTAssertEqual(CaptureGeometry(width: 390, height: 844)?.boundaryRect, BoundaryRect(x: 0, y: 0, width: 390, height: 844))
   }
 
-  func testStructureSignatureFollowsMaskGeometryOnly() {
+  func testStructureSignatureFollowsGeometryControlsAndScreen() {
     let rect = MaskRect(x: 0.1, y: 0.2, width: 0.3, height: 0.05)
     let base = MaskResult(rects: [rect], fallback: nil, stats: MaskStats())
     let same = MaskResult(rects: [rect], fallback: nil, stats: MaskStats(hostingViews: 3))
     let moved = MaskResult(rects: [MaskRect(x: 0.1, y: 0.25, width: 0.3, height: 0.05)], fallback: nil, stats: MaskStats())
-    let signature = StructureSignature.of(base, width: 390, height: 844)
-    XCTAssertEqual(signature, StructureSignature.of(same, width: 390, height: 844))
-    XCTAssertNotEqual(signature, StructureSignature.of(moved, width: 390, height: 844))
-    XCTAssertNotEqual(signature, StructureSignature.of(base, width: 844, height: 390))
+    let signature = StructureSignature.of(base, width: 390, height: 844, controls: [0x1_12], screen: "Home")
+    XCTAssertEqual(signature, StructureSignature.of(same, width: 390, height: 844, controls: [0x1_12], screen: "Home"))
+    XCTAssertNotEqual(signature, StructureSignature.of(moved, width: 390, height: 844, controls: [0x1_12], screen: "Home"))
+    XCTAssertNotEqual(signature, StructureSignature.of(base, width: 844, height: 390, controls: [0x1_12], screen: "Home"))
+    XCTAssertNotEqual(
+      signature, StructureSignature.of(base, width: 390, height: 844, controls: [0x1_32], screen: "Home"),
+      "a switch turned on changes it")
+    XCTAssertNotEqual(
+      signature, StructureSignature.of(base, width: 390, height: 844, controls: [0x1_12], screen: "Details"),
+      "another screen changes it")
     XCTAssertNotEqual(
       StructureSignature.of(.wholeFrame(.animating), width: 1, height: 1),
       StructureSignature.of(MaskResult(rects: [.fullFrame], fallback: nil, stats: MaskStats()), width: 1, height: 1))
+    XCTAssertFalse(signature.isEmpty)
   }
 
-  func testMaskCoverageUsesTheEngineVocabulary() {
+  func testEveryCoverageReasonIsInTheEngineVocabulary() {
+    // core/session-engine/README.md, `capture.result` `maskCoverage.reasons`.
     let engineReasons: Set<String> = [
-      "composeDefault", "composeVersionUnverified", "composeOwnerUnavailable", "interop", "animating",
-      "unverifiedLayerAllowlist", "walkExhausted", "noWindowSize", "noDecor", "representable", "webView",
-      "surfaceLayer", "unclassifiedLayer", "secureText",
+      "composeDefault", "composeVersionUnverified", "composeOwnerUnavailable", "interop", "regionUnreadable",
+      "treeUnreadable", "animating", "unverifiedLayerAllowlist", "walkExhausted", "noWindowSize", "noDecor",
+      "representable", "webView", "renderer", "surfaceLayer", "unclassifiedLayer", "secureText",
     ]
     for reason in MaskCoverage.Reason.allCases {
-      XCTAssertTrue(engineReasons.contains(MaskCoverage.wireName(reason)), "\(reason)")
+      XCTAssertTrue(engineReasons.contains(reason.rawValue), "\(reason)")
     }
-    XCTAssertEqual(MaskCoverage.wireName(.renderer), "surfaceLayer")
-    let whole = MaskResult.wholeFrame(.unverifiedLayerAllowlist(iOSMajor: 17)).coverage.wire
-    XCTAssertEqual(whole, WireMaskCoverage(mode: "wholeFrame", reasons: ["unverifiedLayerAllowlist"]))
+    XCTAssertEqual(MaskResult.wholeFrame(.unverifiedLayerAllowlist(iOSMajor: 17)).coverage.mode, .wholeFrame)
+    XCTAssertEqual(MaskCoverage.failClosed, MaskCoverage(mode: .wholeFrame, reasons: [.walkExhausted]))
   }
 }

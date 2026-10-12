@@ -5,10 +5,7 @@ import TugboatCaptureRuntime
 /// What the host knew when it asked the runtime for one capture.
 struct InFlightCapture {
   let requestId: String
-  /// The window size when the request reached the main thread; the
-  /// boundary when the draw never happened.
-  let requestGeometry: CaptureGeometry
-  /// The supplier, which keeps the boundary of the drawn frame.
+  /// The supplier, which records each draw's coverage and boundary.
   let masks: FrameMasks
   /// The engine's baseline, offered only to requests that are not forced.
   let offeredBaseline: DHashBaseline?
@@ -30,7 +27,8 @@ struct InFlightCapture {
 /// | `processingFailed` | `failed encodingFailed` |
 /// | `cancelled`, `disposed` | `cancelled` |
 ///
-/// iOS has no secure-window flag, so `secureWindow` is never answered.
+/// A captured frame reports the coverage and boundary of the draw it came
+/// from. iOS has no secure-window flag, so `secureWindow` is never answered.
 struct RuntimeOutcomes {
   let frames: FrameHandleTable
   let nanoTime: () -> UInt64
@@ -56,10 +54,10 @@ struct RuntimeOutcomes {
 
   private func captured(_ capture: InFlightCapture, _ result: CaptureResult) -> CaptureAnswer {
     let handle = frames.put(result.jpeg)
-    let structure = result.maskSnapshot?.structureSignature ?? ""
-    return capturedAnswer(
-      capture, result, handle: handle, byteLength: result.jpeg.count, dHash: result.dHash,
-      structureSignature: structure, contentHash: result.contentHash)
+    let frame = Frame(
+      handle: handle, byteLength: result.jpeg.count, dHash: result.dHash,
+      structureSignature: result.maskSnapshot?.structureSignature ?? "", contentHash: result.contentHash)
+    return capturedAnswer(capture, result, frame)
   }
 
   /// The runtime matched the baseline within its Hamming threshold under
@@ -70,40 +68,41 @@ struct RuntimeOutcomes {
     guard let baseline = capture.offeredBaseline else {
       return failed(capture, result, .readbackFailed)
     }
-    let handle = frames.put(Data())
-    return capturedAnswer(
-      capture, result, handle: handle, byteLength: 0, dHash: baseline.dHash,
+    let frame = Frame(
+      handle: frames.put(Data()), byteLength: 0, dHash: baseline.dHash,
       structureSignature: baseline.structureSignature, contentHash: "")
+    return capturedAnswer(capture, result, frame)
   }
 
-  private func capturedAnswer(
-    _ capture: InFlightCapture,
-    _ result: CaptureResult,
-    handle: String,
-    byteLength: Int,
-    dHash: String,
-    structureSignature: String,
-    contentHash: String
-  ) -> CaptureAnswer {
-    // A supplied capture always reports its snapshot; without one the
-    // runtime masked the frame whole.
-    let snapshot = result.maskSnapshot
-    let coverage = snapshot.map(RuntimeOutcomes.wire) ?? .failClosed
-    let masked = snapshot.map { $0.wholeFrame || !$0.masks.isEmpty } ?? true
+  /// The parts of a captured frame that differ between a fresh and a
+  /// coalesced answer.
+  private struct Frame {
+    let handle: String
+    let byteLength: Int
+    let dHash: String
+    let structureSignature: String
+    let contentHash: String
+  }
+
+  private func capturedAnswer(_ capture: InFlightCapture, _ result: CaptureResult, _ parts: Frame) -> CaptureAnswer {
+    // Without a recorded draw the runtime masked the frame whole.
+    let drawn = capture.masks.drawn(result.maskSnapshot)
+    let masked = result.maskSnapshot.map { $0.wholeFrame || !$0.masks.isEmpty } ?? true
     let frame = CapturedFrame(
-      handle: handle,
+      handle: parts.handle,
       width: result.width,
       height: result.height,
-      contentHash: contentHash,
+      contentHash: parts.contentHash,
       masked: masked,
-      byteLength: byteLength,
+      byteLength: parts.byteLength,
       captureMicros: elapsedMicros(since: capture.startedNanos),
-      dHash: dHash,
-      structureSignature: structureSignature,
-      maskCoverage: coverage
+      dHash: parts.dHash,
+      structureSignature: parts.structureSignature,
+      maskCoverage: drawn?.coverage ?? .failClosed
     )
-    let boundary = (capture.masks.geometry ?? capture.requestGeometry).boundaryRect
-    return .captured(requestId: capture.requestId, frame: frame, boundaryRect: boundary, timings: timings(capture, result))
+    return .captured(
+      requestId: capture.requestId, frame: frame, boundaryRect: drawn?.geometry.boundaryRect,
+      timings: timings(capture, result))
   }
 
   private func failed(_ capture: InFlightCapture, _ result: CaptureResult, _ failure: CaptureFailure) -> CaptureAnswer {
@@ -123,15 +122,6 @@ struct RuntimeOutcomes {
   private func elapsedMicros(since startNanos: UInt64) -> Int64 {
     let now = nanoTime()
     return now > startNanos ? Int64(clamping: (now - startNanos) / 1_000) : 0
-  }
-
-  private static func wire(_ snapshot: MaskSnapshot) -> WireMaskCoverage {
-    guard let coverage = snapshot.coverage else { return .failClosed }
-    switch coverage.mode {
-    case .precise: return WireMaskCoverage(mode: "precise", reasons: coverage.reasons)
-    case .wholeHost: return WireMaskCoverage(mode: "wholeHost", reasons: coverage.reasons)
-    case .wholeFrame: return WireMaskCoverage(mode: "wholeFrame", reasons: coverage.reasons)
-    }
   }
 }
 #endif

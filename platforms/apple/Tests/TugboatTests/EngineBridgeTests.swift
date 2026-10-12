@@ -82,7 +82,7 @@ final class EngineBridgeTests: XCTestCase {
     let queue = TestQueues.engine()
     let frames = FrameHandleTable()
     let http = FakeHTTPSender()
-    let host = EngineHost(transport: bridge, queue: queue, http: http, frames: frames)
+    let host = EngineHost(transport: bridge, queue: queue, http: http, frames: frames, captures: RecordingCaptureSink())
     let rejected = frames.put(Data([1]))
 
     host.postUntimed(type: "fingerprint.labelHash", inputJSON: "{\"value\":\"Go\"}")

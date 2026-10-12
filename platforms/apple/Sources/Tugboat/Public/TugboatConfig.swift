@@ -11,10 +11,6 @@ public struct TugboatConfig {
   /// Records `focus_changed` for text-input focus transitions (engine
   /// capability `focusChanges`).
   public var captureFocusChanges: Bool
-  /// Engine capability `systemInput`. iOS reports no system input facts in
-  /// this release, so it records nothing yet; it exists for parity with
-  /// Android.
-  public var captureSystemInput: Bool
   /// Reports SwiftUI hosting controllers' appearance as routes until the
   /// first `.tugboatScreen` appears. Installs a one-time method exchange on
   /// `UIViewController` appearance; set false to rely on `.tugboatScreen`
@@ -26,14 +22,12 @@ public struct TugboatConfig {
     app: App,
     maskLevel: MaskLevel = .allTextAndMedia,
     captureFocusChanges: Bool = false,
-    captureSystemInput: Bool = false,
     trackHostingControllers: Bool = true
   ) {
     self.collector = collector
     self.app = app
     self.maskLevel = maskLevel
     self.captureFocusChanges = captureFocusChanges
-    self.captureSystemInput = captureSystemInput
     self.trackHostingControllers = trackHostingControllers
   }
 

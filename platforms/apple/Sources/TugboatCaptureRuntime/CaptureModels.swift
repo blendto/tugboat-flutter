@@ -64,9 +64,14 @@ public struct CaptureRequest {
   /// Ignored when a mask supplier provides the masks.
   public let masks: [NormalizedMask]
   /// The visible structure `lastDHash` was captured with. With a mask
-  /// supplier, the dHash skip uses `lastDHash` only when this is empty or
-  /// equals the supplied `MaskSnapshot.structureSignature`.
+  /// supplier, the dHash skip uses `lastDHash` only when this and the
+  /// supplied `MaskSnapshot.structureSignature` are both non-empty and
+  /// equal; an unknown structure never skips.
   public let lastStructureSignature: String
+  /// When greater than 0, the bitmap is the view's bounds read in the draw
+  /// turn times this ratio (rounded up), and `pixelWidth` / `pixelHeight`
+  /// are ignored; 0 keeps the fixed size.
+  public let pixelsPerPoint: Double
 
   public init(
     requestId: Int64,
@@ -75,7 +80,8 @@ public struct CaptureRequest {
     force: Bool,
     lastDHash: String = "",
     masks: [NormalizedMask] = [],
-    lastStructureSignature: String = ""
+    lastStructureSignature: String = "",
+    pixelsPerPoint: Double = 0
   ) {
     self.requestId = requestId
     self.pixelWidth = pixelWidth
@@ -84,6 +90,7 @@ public struct CaptureRequest {
     self.lastDHash = lastDHash
     self.masks = masks
     self.lastStructureSignature = lastStructureSignature
+    self.pixelsPerPoint = pixelsPerPoint
   }
 }
 

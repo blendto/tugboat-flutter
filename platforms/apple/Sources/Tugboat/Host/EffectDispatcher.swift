@@ -4,7 +4,7 @@ final class EffectDispatcher {
   private let timers: TimerExecutor
   private let http: HTTPSender
   private let frames: FrameHandleTable
-  private weak var captures: CaptureRequestSink?
+  private let captures: CaptureRequestSink
   private let post: (_ type: String, _ inputJSON: String) -> Void
   private let log: (String) -> Void
   private var reported = Set<String>()
@@ -13,7 +13,7 @@ final class EffectDispatcher {
     timers: TimerExecutor,
     http: HTTPSender,
     frames: FrameHandleTable,
-    captures: CaptureRequestSink? = nil,
+    captures: CaptureRequestSink,
     post: @escaping (_ type: String, _ inputJSON: String) -> Void,
     log: @escaping (String) -> Void = HostLog.warning
   ) {
@@ -41,14 +41,6 @@ final class EffectDispatcher {
     case let .frameRelease(handle):
       frames.release(handle)
     case let .captureRequest(request):
-      // Without a sink the engine resolves the request at its C18 answer
-      // deadline (`paint_readiness_timeout`).
-      guard let captures = captures else {
-        if reported.insert("capture.request").inserted {
-          log("no capture sink; capture.request left to its answer deadline")
-        }
-        return
-      }
       captures.onCaptureRequest(request)
     case let .unknown(type):
       if reported.insert(type).inserted {

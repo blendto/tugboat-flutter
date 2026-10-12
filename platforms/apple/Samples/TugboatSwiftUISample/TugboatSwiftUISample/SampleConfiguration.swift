@@ -26,7 +26,6 @@ enum SampleConfiguration {
         installationId: installationId(defaults)
       ),
       captureFocusChanges: true,
-      captureSystemInput: true,
       // The sample relies on `.tugboatScreen` alone (native SDK note 5).
       trackHostingControllers: false
     )

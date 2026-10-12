@@ -6,6 +6,10 @@ import Foundation
 /// drained or `endDrainTimeoutMs` passed, and `engine.dispose` starts no
 /// new IO. Settled means accepted (202) or dropped for good (a status the
 /// engine does not retry); a retried outcome keeps waiting.
+///
+/// The engine does not say when delivery settled, so this repeats its retry
+/// rule (`isFinal`); `StopTests` pins the copy to the engine source and its
+/// conformance fixture, as Android's `EngineRetryRuleTest` does.
 final class SessionEndWatcher: HTTPSender {
   private struct State {
     var settled = false
@@ -29,8 +33,15 @@ final class SessionEndWatcher: HTTPSender {
     }
   }
 
+  /// Also drops a pending `whenSettled` callback.
   func close() {
+    stopWaiting()
     delegate.close()
+  }
+
+  /// Drops a pending `whenSettled` callback.
+  func stopWaiting() {
+    state.withLock { $0.onSettled = nil }
   }
 
   /// Runs `callback` once `session_end` settles (at once, on this thread,

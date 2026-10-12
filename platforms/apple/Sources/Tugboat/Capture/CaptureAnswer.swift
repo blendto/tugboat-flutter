@@ -1,7 +1,9 @@
 /// One `capture.result` (stateful-engine.md section 8.2). Every
 /// `capture.request` gets exactly one, by `requestId`.
 enum CaptureAnswer: Equatable {
-  case captured(requestId: String, frame: CapturedFrame, boundaryRect: BoundaryRect, timings: CaptureTimingsMicros)
+  /// `boundaryRect` is the window size of the draw the frame came from;
+  /// nil only when no draw was recorded (the frame is then masked whole).
+  case captured(requestId: String, frame: CapturedFrame, boundaryRect: BoundaryRect?, timings: CaptureTimingsMicros)
   case failed(requestId: String, failure: CaptureFailure, timings: CaptureTimingsMicros?)
   case cancelled(requestId: String)
 
@@ -38,17 +40,14 @@ struct CapturedFrame: Equatable {
   let dHash: String
   /// The visible structure the masks were computed from (draw time).
   let structureSignature: String
-  /// Which mask mode applied, in the engine's wire vocabulary.
-  let maskCoverage: WireMaskCoverage
+  /// Which mask mode applied to the drawn frame (sent as
+  /// `frame.maskCoverage`; every reason keeps its own name).
+  let maskCoverage: MaskCoverage
 }
 
-/// `maskCoverage {mode, reasons}` as the engine reads it.
-struct WireMaskCoverage: Equatable {
-  /// `precise`, `wholeHost`, or `wholeFrame`.
-  let mode: String
-  let reasons: [String]
-
-  static let failClosed = WireMaskCoverage(mode: "wholeFrame", reasons: [MaskCoverage.Reason.walkExhausted.rawValue])
+extension MaskCoverage {
+  /// A frame the runtime masked whole without a recorded draw.
+  static let failClosed = MaskCoverage(mode: .wholeFrame, reasons: [.walkExhausted])
 }
 
 /// The capture boundary in window points, at the window's origin.

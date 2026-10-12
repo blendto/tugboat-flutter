@@ -77,8 +77,7 @@ enum AppleViewCapture {
 
   static func capture(
     view: UIView,
-    pixelWidth: Int,
-    pixelHeight: Int,
+    sizing: PixelSizing,
     coverage: CaptureCoverage,
     masksBeforeDraw: MasksBeforeDraw? = nil
   ) -> NativeBitmap? {
@@ -86,8 +85,7 @@ enum AppleViewCapture {
     case .engineSurface:
       guard let bitmap = captureOnce(
         view: view,
-        pixelWidth: pixelWidth,
-        pixelHeight: pixelHeight,
+        sizing: sizing,
         coverage: .engineSurface,
         afterScreenUpdates: false,
         masksBeforeDraw: masksBeforeDraw
@@ -96,17 +94,17 @@ enum AppleViewCapture {
     case .viewHierarchy:
       return captureHierarchy(
         view: view,
-        pixelWidth: pixelWidth,
-        pixelHeight: pixelHeight,
+        sizing: sizing,
         masksBeforeDraw: masksBeforeDraw
       )
     }
   }
 
+  /// A complete draw wins; an incomplete one is kept as the fallback. Each
+  /// draw carries the snapshot taken for it, so the fallback keeps its own.
   private static func captureHierarchy(
     view: UIView,
-    pixelWidth: Int,
-    pixelHeight: Int,
+    sizing: PixelSizing,
     masksBeforeDraw: MasksBeforeDraw?
   ) -> NativeBitmap? {
     var incompleteCapture: NativeBitmap?
@@ -114,8 +112,7 @@ enum AppleViewCapture {
       guard
         let bitmap = captureOnce(
           view: view,
-          pixelWidth: pixelWidth,
-          pixelHeight: pixelHeight,
+          sizing: sizing,
           coverage: .viewHierarchy,
           afterScreenUpdates: afterScreenUpdates,
           masksBeforeDraw: masksBeforeDraw
@@ -134,14 +131,21 @@ enum AppleViewCapture {
 
   private static func captureOnce(
     view: UIView,
-    pixelWidth: Int,
-    pixelHeight: Int,
+    sizing: PixelSizing,
     coverage: CaptureCoverage,
     afterScreenUpdates: Bool,
     masksBeforeDraw: MasksBeforeDraw?
   ) -> NativeBitmap? {
+    if masksBeforeDraw != nil {
+      // Settle layout before the one bounds reading this draw, its size,
+      // and its masks all use.
+      view.layoutIfNeeded()
+    }
     let bounds = view.bounds
     if bounds.width <= 0 || bounds.height <= 0 {
+      return nil
+    }
+    guard let (pixelWidth, pixelHeight) = sizing.size(for: bounds.size) else {
       return nil
     }
     let stride = ((pixelWidth * 4 + 15) / 16) * 16

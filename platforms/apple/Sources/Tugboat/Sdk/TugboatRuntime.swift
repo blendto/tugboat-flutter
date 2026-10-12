@@ -12,6 +12,7 @@ final class TugboatRuntime {
   private let surfaces: SurfaceObserver
   private let captures: CaptureCoordinator
   private let watcher: SessionEndWatcher
+  private let session: SessionFlag
   private let clock: HostClock
   private var stopped = false
 
@@ -22,6 +23,7 @@ final class TugboatRuntime {
     surfaces = parts.surfaces
     captures = parts.captures
     watcher = parts.watcher
+    session = parts.session
     clock = parts.clock
   }
 
@@ -36,8 +38,8 @@ final class TugboatRuntime {
 
   /// Detaches every observer (pending facts are posted first), ends the
   /// session, waits off the main thread for its `session_end` post to
-  /// settle, then disposes the engine and the pixel runtime
-  /// (`StopSequence`).
+  /// settle (only when one will be posted), then disposes the engine and the
+  /// pixel runtime (`StopSequence`).
   func stop(sequence: StopSequence = StopSequence()) {
     guard !stopped else { return }
     stopped = true
@@ -49,6 +51,7 @@ final class TugboatRuntime {
     let clock = self.clock
     sequence.run(
       watcher: watcher,
+      awaitDrain: host.isRunning && session.isLive,
       endSession: {
         host.post(type: SessionMessages.sessionEnd, inputJSON: SessionMessages.sessionEndInput(), at: clock.now())
       },

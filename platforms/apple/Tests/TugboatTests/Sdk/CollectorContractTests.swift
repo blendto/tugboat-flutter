@@ -139,7 +139,7 @@ final class AnsweringCaptures: CaptureRequestSink {
     let frame = CapturedFrame(
       handle: frames.put(jpeg), width: 302, height: 656, contentHash: "sha-" + request.requestId, masked: true,
       byteLength: jpeg.count, captureMicros: 1000, dHash: "00ff00ff00ff00ff", structureSignature: "sig",
-      maskCoverage: WireMaskCoverage(mode: "precise", reasons: []))
+      maskCoverage: MaskCoverage(mode: .precise, reasons: []))
     let answer = CaptureAnswer.captured(
       requestId: request.requestId, frame: frame, boundaryRect: BoundaryRect(x: 0, y: 0, width: 402, height: 874),
       timings: CaptureTimingsMicros(readbackMicros: 500))

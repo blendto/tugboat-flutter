@@ -11,7 +11,7 @@ final class EffectDispatcherTests: XCTestCase {
   private let posts = Locked<[String]>([])
 
   private func makeDispatcher(
-    captures: CaptureRequestSink? = nil,
+    captures: CaptureRequestSink = RecordingCaptureSink(),
     onFired: @escaping (String, Int64) -> Void = { _, _ in }
   ) -> EffectDispatcher {
     let logs = self.logs
@@ -46,16 +46,6 @@ final class EffectDispatcherTests: XCTestCase {
     }
     XCTAssertEqual(sink.requests, [first, second])
     XCTAssertTrue(logs.current.isEmpty)
-  }
-
-  func testCaptureRequestsWithoutASinkAreLoggedOnce() {
-    let dispatcher = makeDispatcher()
-    let request = CaptureRequestEffect(requestId: "capture-1", force: true, requireFreshPaint: true, scale: 1, dHashBaseline: nil)
-    queue.sync {
-      dispatcher.dispatch(.captureRequest(request))
-      dispatcher.dispatch(.captureRequest(request))
-    }
-    XCTAssertEqual(logs.current.count, 1)
   }
 
   func testFrameReleaseFreesTheHandle() {
