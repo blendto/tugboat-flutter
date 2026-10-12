@@ -36,7 +36,8 @@ public struct CaptureRequest
   public let force: Bool
   public let lastDHash: String
   public let masks: [NormalizedMask]
-  public init( requestId: Int64, pixelWidth: Int, pixelHeight: Int, force: Bool, lastDHash: String = "", masks: [NormalizedMask] = [] )
+  public let lastStructureSignature: String
+  public init( requestId: Int64, pixelWidth: Int, pixelHeight: Int, force: Bool, lastDHash: String = "", masks: [NormalizedMask] = [], lastStructureSignature: String = "" )
 public struct CaptureTimings
   public let surfaceCopyMicros: Int64
   public let maskFillMicros: Int64
@@ -44,7 +45,8 @@ public struct CaptureTimings
   public let jpegMicros: Int64
   public let sha256Micros: Int64
   public let pixelReadbackMicros: Int64
-  public init( surfaceCopyMicros: Int64 = 0, maskFillMicros: Int64 = 0, dHashMicros: Int64 = 0, jpegMicros: Int64 = 0, sha256Micros: Int64 = 0, pixelReadbackMicros: Int64 = 0 )
+  public let maskComputeMicros: Int64
+  public init( surfaceCopyMicros: Int64 = 0, maskFillMicros: Int64 = 0, dHashMicros: Int64 = 0, jpegMicros: Int64 = 0, sha256Micros: Int64 = 0, pixelReadbackMicros: Int64 = 0, maskComputeMicros: Int64 = 0 )
 public struct CaptureResult
   public let requestId: Int64
   public let status: CaptureStatus
@@ -57,7 +59,8 @@ public struct CaptureResult
   public let timings: CaptureTimings
   public let renderMode: RenderMode
   public let incomplete: Bool
-  public init( requestId: Int64, status: CaptureStatus, coverage: CaptureCoverage? = nil, jpeg: Data = Data(), width: Int = 0, height: Int = 0, dHash: String = "", contentHash: String = "", timings: CaptureTimings = CaptureTimings(), renderMode: RenderMode = .unknown, incomplete: Bool = false )
+  public let maskSnapshot: MaskSnapshot?
+  public init( requestId: Int64, status: CaptureStatus, coverage: CaptureCoverage? = nil, jpeg: Data = Data(), width: Int = 0, height: Int = 0, dHash: String = "", contentHash: String = "", timings: CaptureTimings = CaptureTimings(), renderMode: RenderMode = .unknown, incomplete: Bool = false, maskSnapshot: MaskSnapshot? = nil )
 
 ## CaptureRuntime.swift
 public final class CaptureRuntime
@@ -67,5 +70,23 @@ public final class CaptureRuntime
   public init( timeoutMs: Int64 = CaptureRuntime.defaultTimeoutMs, coverage: CaptureCoverage = .engineSurface )
   public func capabilities() -> CaptureCapabilities
   public func capture(view: UIView, request: CaptureRequest, onComplete: @escaping (CaptureResult) -> Void)
+  public func capture( view: UIView, request: CaptureRequest, maskSupplier: @escaping (UIView) -> MaskSnapshot, onComplete: @escaping (CaptureResult) -> Void )
   public func cancel(requestId: Int64)
   public func dispose()
+
+## MaskSnapshot.swift
+public struct MaskSnapshot
+  public let masks: [NormalizedMask]
+  public let wholeFrame: Bool
+  public let structureSignature: String
+  public let coverage: MaskCoverageSummary?
+  public init( masks: [NormalizedMask], wholeFrame: Bool = false, structureSignature: String = "", coverage: MaskCoverageSummary? = nil )
+  public static var failClosed: MaskSnapshot
+public struct MaskCoverageSummary
+  public let mode: MaskCoverageMode
+  public let reasons: [String]
+  public init(mode: MaskCoverageMode, reasons: [String] = [])
+public enum MaskCoverageMode
+  case precise
+  case wholeHost
+  case wholeFrame

@@ -8,6 +8,9 @@ final class NativeBitmap {
   let pixels: UnsafeMutableRawPointer
   let coverage: CaptureCoverage
   let incomplete: Bool
+  /// The supplied masks for exactly this draw; nil without a supplier.
+  let maskSnapshot: MaskSnapshot?
+  let maskComputeMicros: Int64
   private var context: CGContext?
 
   init(
@@ -17,7 +20,9 @@ final class NativeBitmap {
     pixels: UnsafeMutableRawPointer,
     context: CGContext,
     coverage: CaptureCoverage,
-    incomplete: Bool
+    incomplete: Bool,
+    maskSnapshot: MaskSnapshot? = nil,
+    maskComputeMicros: Int64 = 0
   ) {
     self.width = width
     self.height = height
@@ -26,6 +31,8 @@ final class NativeBitmap {
     self.coverage = coverage
     self.context = context
     self.incomplete = incomplete
+    self.maskSnapshot = maskSnapshot
+    self.maskComputeMicros = maskComputeMicros
   }
 
   /// Sample both coverage modes for visible, non-near-white content before
@@ -62,12 +69,18 @@ final class NativeBitmap {
   }
 }
 
+/// Main thread only.
 enum AppleViewCapture {
+  /// Supplies the masks for one draw. Called on the main thread immediately
+  /// before each draw attempt, so the masks describe the drawn layout.
+  typealias MasksBeforeDraw = () -> MaskSnapshot
+
   static func capture(
     view: UIView,
     pixelWidth: Int,
     pixelHeight: Int,
-    coverage: CaptureCoverage
+    coverage: CaptureCoverage,
+    masksBeforeDraw: MasksBeforeDraw? = nil
   ) -> NativeBitmap? {
     switch coverage {
     case .engineSurface:
@@ -76,14 +89,16 @@ enum AppleViewCapture {
         pixelWidth: pixelWidth,
         pixelHeight: pixelHeight,
         coverage: .engineSurface,
-        afterScreenUpdates: false
+        afterScreenUpdates: false,
+        masksBeforeDraw: masksBeforeDraw
       ), bitmap.hasCapturedContent else { return nil }
       return bitmap
     case .viewHierarchy:
       return captureHierarchy(
         view: view,
         pixelWidth: pixelWidth,
-        pixelHeight: pixelHeight
+        pixelHeight: pixelHeight,
+        masksBeforeDraw: masksBeforeDraw
       )
     }
   }
@@ -91,7 +106,8 @@ enum AppleViewCapture {
   private static func captureHierarchy(
     view: UIView,
     pixelWidth: Int,
-    pixelHeight: Int
+    pixelHeight: Int,
+    masksBeforeDraw: MasksBeforeDraw?
   ) -> NativeBitmap? {
     var incompleteCapture: NativeBitmap?
     for afterScreenUpdates in [false, true] {
@@ -101,7 +117,8 @@ enum AppleViewCapture {
           pixelWidth: pixelWidth,
           pixelHeight: pixelHeight,
           coverage: .viewHierarchy,
-          afterScreenUpdates: afterScreenUpdates
+          afterScreenUpdates: afterScreenUpdates,
+          masksBeforeDraw: masksBeforeDraw
         ),
         bitmap.hasCapturedContent
       else {
@@ -120,7 +137,8 @@ enum AppleViewCapture {
     pixelWidth: Int,
     pixelHeight: Int,
     coverage: CaptureCoverage,
-    afterScreenUpdates: Bool
+    afterScreenUpdates: Bool,
+    masksBeforeDraw: MasksBeforeDraw?
   ) -> NativeBitmap? {
     let bounds = view.bounds
     if bounds.width <= 0 || bounds.height <= 0 {
@@ -154,6 +172,12 @@ enum AppleViewCapture {
       x: CGFloat(pixelWidth) / bounds.width,
       y: -CGFloat(pixelHeight) / bounds.height
     )
+    // Same main-thread turn as the draw below: nothing can change the
+    // layout in between.
+    let maskStart = DispatchTime.now()
+    let maskSnapshot = masksBeforeDraw?()
+    let maskMicros = maskSnapshot == nil
+      ? 0 : Int64((DispatchTime.now().uptimeNanoseconds - maskStart.uptimeNanoseconds) / 1_000)
     let incomplete = render(
       view: view,
       bounds: bounds,
@@ -168,7 +192,9 @@ enum AppleViewCapture {
       pixels: pixels,
       context: context,
       coverage: coverage,
-      incomplete: incomplete
+      incomplete: incomplete,
+      maskSnapshot: maskSnapshot,
+      maskComputeMicros: maskMicros
     )
   }
 

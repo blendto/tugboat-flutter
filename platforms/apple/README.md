@@ -1,6 +1,6 @@
 # Apple capture runtime
 
-Swift module and CocoaPod `TugboatCaptureRuntime` 0.1.0. Experimental iOS 15
+Swift module and CocoaPod `TugboatCaptureRuntime` (version and history in [CHANGELOG](CHANGELOG.md); 0.2.0 is unpublished). Experimental iOS 15
 CPU path: render the live Flutter layer into a bitmap, C++ masks/dHash, and
 ImageIO JPEG. Flutter's layer delegate preserves Metal content. The slower
 `drawHierarchy` path remains available through `CaptureCoverage.viewHierarchy`
