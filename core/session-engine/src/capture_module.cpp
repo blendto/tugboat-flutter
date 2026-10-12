@@ -43,6 +43,7 @@ void fire_capture_timer(const std::string& timer_id, const At& at,
 void teardown_capture_work(TeardownCause cause, const At& at,
                            EngineState* state, Output* out) {
   state->captures.invalidate(state, at, out, teardown_cancel_reason(cause));
+  state->captures.report_secure_windows(state, at, out);
 }
 
 void request_lifecycle_capture(FrameTrigger trigger, const At& at,

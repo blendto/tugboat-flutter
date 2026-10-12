@@ -1,7 +1,10 @@
 #include "capture_facts.h"
 
+#include <algorithm>
 #include <optional>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "name_table.h"
 
@@ -38,6 +41,54 @@ bool check_backend(const ObjectReader& r, const char* key,
                   "expected flutterRepaintBoundary or nativeCpuExperimental");
 }
 
+// `maskCoverage.reasons`: at most kMaxMaskReasons distinct names from the
+// closed set.
+bool decode_mask_reasons(const ObjectReader& r,
+                         std::vector<MaskReason>* out, Error* error) {
+  const Value* reasons = nullptr;
+  if (!r.req_array("reasons", &reasons)) return false;
+  if (reasons->items().size() > kMaxMaskReasons) {
+    return r.reject("reasons", "at most " + std::to_string(kMaxMaskReasons) +
+                                   " reasons");
+  }
+  for (size_t i = 0; i < reasons->items().size(); ++i) {
+    const Value& item = reasons->items()[i];
+    const std::string where =
+        r.child("reasons") + "[" + std::to_string(i) + "]";
+    if (!item.is_string()) return invalid(error, where, "expected string");
+    const std::optional<MaskReason> reason =
+        parse_mask_reason(item.as_string());
+    if (!reason) return invalid(error, where, "unknown mask reason");
+    if (std::find(out->begin(), out->end(), *reason) != out->end()) {
+      return invalid(error, where, "duplicate mask reason");
+    }
+    out->push_back(*reason);
+  }
+  return true;
+}
+
+// `frame.maskCoverage {mode, reasons}`, optional: which mask mode applied.
+bool decode_mask_coverage(const ObjectReader& frame,
+                          std::optional<MaskCoverage>* out, Error* error) {
+  const Value* json = nullptr;
+  if (!frame.opt_object("maskCoverage", &json)) return false;
+  if (json == nullptr) return true;
+  const ObjectReader r(*json, frame.child("maskCoverage"), error);
+  std::string mode;
+  if (!r.check_keys({"mode", "reasons"}) || !r.req_string("mode", &mode)) {
+    return false;
+  }
+  MaskCoverage coverage;
+  const std::optional<MaskMode> parsed = parse_mask_mode(mode);
+  if (!parsed) {
+    return r.reject("mode", "expected precise, wholeHost, or wholeFrame");
+  }
+  coverage.mode = *parsed;
+  if (!decode_mask_reasons(r, &coverage.reasons, error)) return false;
+  *out = std::move(coverage);
+  return true;
+}
+
 bool decode_frame(const Value& json, const std::string& path,
                   CapturedFrame* out, Error* error) {
   const ObjectReader r(json, path, error);
@@ -45,7 +96,7 @@ bool decode_frame(const Value& json, const std::string& path,
   if (!r.check_keys({"handle", "width", "height", "contentHash", "dHash",
                      "structureSignature", "masked", "byteLength",
                      "captureMicros", "requestedBackend", "resolvedBackend",
-                     "fallbackReason"}) ||
+                     "fallbackReason", "maskCoverage"}) ||
       !read_non_empty(r, "handle", &out->handle) ||
       !read_non_negative(r, "width", &out->width) ||
       !read_non_negative(r, "height", &out->height) ||
@@ -59,7 +110,8 @@ bool decode_frame(const Value& json, const std::string& path,
       !r.opt_string("resolvedBackend", &out->resolved_backend) ||
       !r.opt_string("fallbackReason", &out->fallback_reason) ||
       !check_backend(r, "requestedBackend", out->requested_backend) ||
-      !check_backend(r, "resolvedBackend", out->resolved_backend)) {
+      !check_backend(r, "resolvedBackend", out->resolved_backend) ||
+      !decode_mask_coverage(r, &out->mask_coverage, error)) {
     return false;
   }
   if (!masked) return r.reject("masked", "required");

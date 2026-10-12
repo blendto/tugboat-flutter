@@ -10,7 +10,10 @@
 //   each waiter by its own compatibility, with one `capture_execution-N`
 //   id per execution (one per request for cancellations and rejections),
 //   in Dart's id order. With the `captureDiagnostics` capability every
-//   resolution is a `capture_diagnostic` event.
+//   resolution is a `capture_diagnostic` event; without it, host contract
+//   failures always are, and a secure window once per route instance
+//   (capture_diagnostics.h). An accepted frame with `maskCoverage` always
+//   records a `capture_masking` diagnostic.
 // - Answers reach their owners as deferred work (coordination.h).
 // - Frame provenance, the latest frame, and the coalesce baselines are the
 //   frame store (frame_store.h); the screenshot budget is capture_budget.h.
@@ -26,6 +29,7 @@
 #include <vector>
 
 #include "capture_budget.h"
+#include "capture_diagnostics.h"
 #include "capture_execution.h"
 #include "capture_scheduler.h"
 #include "capture_types.h"
@@ -70,10 +74,14 @@ constexpr char kCaptureAnswerTimerPrefix[] = "capture.answer.";
 
 class CaptureSeam {
  public:
-  // Session start: forgets frames, baselines, and the observed boundary.
-  // The queue is empty by then (teardown invalidated it); the capture
-  // generation, the budget, and the host request counter carry on.
+  // Session start: forgets frames, baselines, the observed boundary, and
+  // the secure-window log. The queue is empty by then (teardown
+  // invalidated it); the capture generation, the budget, and the host
+  // request counter carry on.
   void reset();
+  // Teardown: records the secure-window repeats counted since the last
+  // report (SecureWindowLog).
+  void report_secure_windows(EngineState* state, const At& at, Output* out);
 
   // Mints `capture_request-N` for `owner` with the current context and
   // schedules it (or resolves it at once when suppressed or dropped).
@@ -160,11 +168,17 @@ class CaptureSeam {
                       const CaptureWaiter& waiter,
                       const std::string& execution_id,
                       const ExecutionResult& execution);
+  // Whether the waiter's diagnostic is recorded without the
+  // `captureDiagnostics` capability: host contract failures always, a
+  // secure window once per route instance (counting the others).
+  bool always_reported(const EngineState& state, const CaptureWaiter& waiter,
+                       const ExecutionResult& execution);
 
   FrameStore frames_;
   CaptureScheduler scheduler_;
   CaptureBudget budget_;
   BoundaryObservation boundary_;
+  SecureWindowLog secure_windows_;
   std::optional<int64_t> due_at_mono_us_;
 };
 

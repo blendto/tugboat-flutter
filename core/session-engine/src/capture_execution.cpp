@@ -8,6 +8,13 @@ const char* host_failure_name(HostFailure failure) {
                                                 : "contract_violation";
 }
 
+ExecutionResult failed_execution(const std::optional<CaptureFailure>& failure) {
+  ExecutionResult failed;
+  failed.outcome = failure_outcome(failure);
+  failed.secure_window = failure == CaptureFailure::kSecureWindow;
+  return failed;
+}
+
 ExecutionResult cancelled_execution(CancelReason reason) {
   ExecutionResult execution;
   execution.outcome = reason == CancelReason::kSupersededRoute
@@ -47,6 +54,7 @@ CaptureOutcome failure_outcome(const std::optional<CaptureFailure>& failure) {
     case CaptureFailure::kReadbackFailed:
     case CaptureFailure::kMaskFailed:
     case CaptureFailure::kEncodingFailed:
+    case CaptureFailure::kSecureWindow:
       return CaptureOutcome::kCaptureProcessingFailed;
   }
   return CaptureOutcome::kCaptureProcessingFailed;

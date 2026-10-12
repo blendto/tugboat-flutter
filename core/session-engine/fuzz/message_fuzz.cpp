@@ -109,11 +109,21 @@ class InteractionScript {
  public:
   explicit InteractionScript(tb_session_engine* engine) : engine_(engine) {}
 
-  // Oracle: a valid message is always accepted.
+  // Oracle: a valid message is always accepted; an invalid one is always
+  // rejected and changes nothing.
   void step(uint8_t op, uint8_t value) {
     mono_us_ += (value % 8) * 1000;
     const std::string message = build(op, value);
     std::string response;
+    if (op % 18 == 9 && invalid_mask_coverage(value)) {
+      const std::string before = snapshot(engine_);
+      if (submit_raw(engine_, message.data(), message.size(), &response) ==
+              TB_SESSION_OK ||
+          snapshot(engine_) != before) {
+        std::abort();
+      }
+      return;
+    }
     if (submit_raw(engine_, message.data(), message.size(), &response) !=
         TB_SESSION_OK) {
       std::abort();
@@ -177,6 +187,24 @@ class InteractionScript {
     return fact("navigation", input);
   }
 
+  // A captured frame's `maskCoverage`: absent, valid (an accepted frame
+  // records capture_masking), or invalid (the answer is rejected).
+  static std::string mask_coverage(uint8_t value) {
+    static const char* const kCoverage[] = {
+        "",
+        ",\"maskCoverage\":{\"mode\":\"wholeHost\",\"reasons\":"
+        "[\"composeDefault\",\"interop\"]}",
+        ",\"maskCoverage\":{\"mode\":\"precise\",\"reasons\":[]}",
+        ",\"maskCoverage\":{\"mode\":\"wholeFrame\",\"reasons\":"
+        "[\"renderer\",\"renderer\"]}",
+        ",\"maskCoverage\":{\"mode\":\"partial\",\"reasons\":[]}",
+    };
+    return kCoverage[value / 4 % 5];
+  }
+  static bool invalid_mask_coverage(uint8_t value) {
+    return value / 4 % 5 >= 3;
+  }
+
   std::string request_id(uint8_t value) const {
     return issued_.empty() ? "capture-0" : issued_[value % issued_.size()];
   }
@@ -202,6 +230,8 @@ class InteractionScript {
     static const char* const kOutcome[] = {"paintUnchanged", "failed",
                                            "cancelled"};
     static const char* const kLifecycle[] = {"paused", "resumed"};
+    static const char* const kFailure[] = {"paintTimedOut", "boundaryDetached",
+                                           "secureWindow"};
     const std::string scrollable = "\"scrollableId\":\"s" +
                                    std::to_string(value % 3) + "\"";
     const std::string id = "\"requestId\":\"" + request_id(value) + "\"";
@@ -240,7 +270,8 @@ class InteractionScript {
                          "\",\"structureSignature\":\"s" +
                          std::to_string(value / 2 % 2) +
                          "\",\"masked\":true,"
-                         "\"byteLength\":1,\"captureMicros\":1},"
+                         "\"byteLength\":1,\"captureMicros\":1" +
+                         mask_coverage(value) + "},"
                          "\"boundaryRect\":{\"x\":0,\"y\":0,\"width\":400,"
                          "\"height\":900},\"timings\":{\"readbackMicros\":" +
                          std::to_string(value * 10) + "}");
@@ -264,8 +295,7 @@ class InteractionScript {
       case 17:
         return fact("capture.result",
                     id + ",\"outcome\":\"failed\",\"failure\":\"" +
-                        (value % 2 == 0 ? "paintTimedOut"
-                                        : "boundaryDetached") +
+                        kFailure[value % 3] +
                         "\",\"timings\":{\"frameWaitMicros\":" +
                         std::to_string(value) + "}");
       default:  // end the session, or replace it with a new one

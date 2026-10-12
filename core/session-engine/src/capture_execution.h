@@ -42,6 +42,11 @@ struct ExecutionResult {
   // `budget`, `paint_generation`, `dhash`, or `content_hash`.
   OptString reuse_reason;
   std::optional<HostFailure> host_failure;
+  // The host refused to copy a secure window (`failed` with
+  // `secureWindow`): a `capture_diagnostic` `failure: secure_window`,
+  // reported without the `captureDiagnostics` capability once per route
+  // instance (capture_diagnostics.h).
+  bool secure_window = false;
   // The backend trace of the frame the host captured, if any.
   OptString requested_backend;
   OptString resolved_backend;
@@ -62,6 +67,10 @@ ExecutionResult reuse_compatible(FrameStore* frames,
 // Dart `_diagnosticOutcomeForFailure` for a host `failed` answer; no reason
 // is a processing failure.
 CaptureOutcome failure_outcome(const std::optional<CaptureFailure>& failure);
+
+// A host `failed` answer: its `failure_outcome`, flagged `secure_window`
+// for `secureWindow`.
+ExecutionResult failed_execution(const std::optional<CaptureFailure>& failure);
 
 // How a `captured` answer resolves (steps 4 to 6).
 enum class CapturedDisposition {

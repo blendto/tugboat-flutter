@@ -46,20 +46,22 @@ void record_gap(DeliveryContext& ctx, std::optional<GapReport> report) {
     return;
   }
   EngineState* state = ctx.state;
-  Event event;
-  event.id = std::move(report->id);
-  event.at_ms = ctx.session().at_ms(ctx.at.mono_us);  // change C1
-  event.type = "capture_diagnostic";
-  event.data = std::move(report->data);
-  if (Session* live = state->live_session()) {
-    record_event(state, *live, std::move(event), true, ctx.out);
+  // Dart's gap records: `collector-…` ids on the semantic stream.
+  Diagnostic gap;
+  gap.data = std::move(report->data);
+  gap.id = std::move(report->id);
+  gap.stream = EventStream::kSemantic;
+  if (state->live_session() != nullptr) {
+    record_diagnostic(state, ctx.at, ctx.out, std::move(gap));
     return;
   }
   // The session ended and its delivery is draining: the gap is still a
   // record and still goes to the collector, but the closed in-memory session
-  // takes no more events.
+  // takes no more events. Change C1: fact time, as for every event.
   const EventRecord record{
-      enrich(std::move(event), ctx.session(), state->locale, true),
+      enrich(diagnostic_event(state, ctx.session(), ctx.at.mono_us,
+                              std::move(gap)),
+             ctx.session(), state->locale, true),
       state->identity.user_id};
   ctx.out->records.push_back(record);
   queue_event(ctx, record);
