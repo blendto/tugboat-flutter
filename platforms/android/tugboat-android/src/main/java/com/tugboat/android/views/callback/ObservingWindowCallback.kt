@@ -29,7 +29,9 @@ internal interface TugboatWindowCallback : Window.Callback
  * Wraps the window callback it replaces ([delegate]) and forwards every
  * `Window.Callback` method to it, exactly once, returning its result. It
  * only observes touch and key events, before forwarding them, and never
- * consumes or alters anything. Observer failures are swallowed.
+ * consumes or alters anything. Observer failures are swallowed. Every
+ * parameter the platform does not declare `@NonNull` is nullable here, so
+ * no Kotlin null check can throw into the app.
  *
  * Several Tugboat wrappers can end up in one chain (another SDK wrapped
  * ours and we wrapped again on resume); only the outermost one observes an
@@ -39,23 +41,23 @@ internal class ObservingWindowCallback(
     val delegate: Window.Callback,
     private val observer: WindowEventObserver,
 ) : TugboatWindowCallback {
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        observeOnce { observer.onTouch(event) }
+    override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
+        if (event != null) observeOnce { observer.onTouch(event) }
         return withDepth { delegate.dispatchTouchEvent(event) }
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        observeOnce { observer.onKey(event) }
+    override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
+        if (event != null) observeOnce { observer.onKey(event) }
         return withDepth { delegate.dispatchKeyEvent(event) }
     }
 
-    override fun dispatchKeyShortcutEvent(event: KeyEvent): Boolean = delegate.dispatchKeyShortcutEvent(event)
+    override fun dispatchKeyShortcutEvent(event: KeyEvent?): Boolean = delegate.dispatchKeyShortcutEvent(event)
 
-    override fun dispatchTrackballEvent(event: MotionEvent): Boolean = delegate.dispatchTrackballEvent(event)
+    override fun dispatchTrackballEvent(event: MotionEvent?): Boolean = delegate.dispatchTrackballEvent(event)
 
-    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean = delegate.dispatchGenericMotionEvent(event)
+    override fun dispatchGenericMotionEvent(event: MotionEvent?): Boolean = delegate.dispatchGenericMotionEvent(event)
 
-    override fun dispatchPopulateAccessibilityEvent(event: AccessibilityEvent): Boolean =
+    override fun dispatchPopulateAccessibilityEvent(event: AccessibilityEvent?): Boolean =
         delegate.dispatchPopulateAccessibilityEvent(event)
 
     override fun onCreatePanelView(featureId: Int): View? = delegate.onCreatePanelView(featureId)
