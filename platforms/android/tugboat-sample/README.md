@@ -113,16 +113,25 @@ the Navigation route keys `rows` and `row` (arguments stripped).
     - `scroll` on the list (step 3), `targetAnchor` = the `RecyclerView`,
       `toolkit = "view"`;
     - `swipe` (step 4), without a `targetAnchor`;
+    - taps that open an activity carry the route frame as `afterFrame`
+      (the route change claims them), except the tap on "Compose
+      (semantics)" (step 11): that activity's NavHost reports its start
+      destination `rows` as a nested route right after the activity route,
+      and a tap whose route is followed by a route it did not cause keeps
+      only its `beforeFrame` (engine rule, as in Dart for a page with a
+      nested `Navigator`; the `rows` `route_change` carries the frame);
   - Compose `interaction` events with `targetAnchor.toolkit = "compose"`:
     the tap on the button (step 10, tag fingerprint from
     `compose_primary`), taps on the text fields, on "Row 3" (route key
     `rows`), and on "Back" (route key `row`, tag `compose_back`), and the
     list `scroll`s (steps 10 and 11, anchored to the `LazyColumn`);
   - `focus_changed` with `focus: text_input` when a text field is tapped
-    (steps 6 and 10), and `focus: none` or `other` with
-    `previousFocus: text_input` when step 6 moves on to "Open details".
-    Hiding the keyboard does not clear focus on Android, so it records
-    nothing;
+    (steps 6 and 10). Focus is app-wide, as in Dart: when step 6 opens
+    "Open details", the new window's focus is reported (`focus: none` or
+    `other`, `previousFocus: text_input`), and coming back reports the
+    still-focused field (`text_input`) again. Hiding the keyboard does not
+    clear focus on Android, so it records nothing. The Compose screens open
+    with nothing focused (no keyboard);
   - `system_input` `back` (steps 5, 10, 11 for the presses that reach the
     app; a back press that only hides the keyboard goes to the keyboard);
   - lifecycle: `app_foregrounded` (launch, step 9), `app_inactive` and
