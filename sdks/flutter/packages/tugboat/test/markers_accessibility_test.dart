@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,6 +35,18 @@ class _Node {
   bool get hasIdentifier => identifier.isNotEmpty;
 }
 
+/// Whether a node is focusable, across Flutter SDK versions.
+///
+/// Flutter 3.35 and earlier expose a bool `isFocused` (focused now) next to a
+/// separate bool `isFocusable`. Flutter 3.36+ replaces them with a single
+/// [Tristate] `isFocused`, where `none` means the node is not focusable.
+bool _isFocusable(SemanticsFlags flags) {
+  final dynamic state = flags;
+  final focused = state.isFocused;
+  if (focused is bool) return state.isFocusable == true;
+  return focused.toBoolOrNull() != null;
+}
+
 List<_Node> _snapshot(WidgetTester tester) {
   final root = tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!;
   final nodes = <_Node>[];
@@ -52,7 +62,7 @@ List<_Node> _snapshot(WidgetTester tester) {
         // ignore: deprecated_member_use
         flags: data.flags,
         actions: data.actions,
-        focusable: data.flagsCollection.isFocused != ui.Tristate.none,
+        focusable: _isFocusable(data.flagsCollection),
       ),
     );
     node.visitChildren((child) {
@@ -213,6 +223,22 @@ void main() {
       _focusable(untagged).map((node) => node.label),
     );
     expect(_focusable(accessible).length, 2);
+    handle.dispose();
+  });
+
+  testWidgets('untagged ElevatedButton exposes a focusable node', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+
+    final snapshot = await _pumpAndSnapshot(
+      tester,
+      ElevatedButton(onPressed: () {}, child: const Text('Pay')),
+    );
+
+    // Guards the focusable-count assertions above against a helper that
+    // reports false for every node.
+    expect(_focusable(snapshot), isNotEmpty);
     handle.dispose();
   });
 
