@@ -1,3 +1,12 @@
+## 0.10.11-dev.4
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.11-dev.4 (adds the
+  `.tugboatTag` / `.tugboatSensitive` / `.tugboatSubView` marker extensions and
+  an opt-in `accessibility` identifier on tags). The Dio adapter has no runtime
+  behavior change.
+
 ## 0.10.11-dev.3
 
 ### Changed
