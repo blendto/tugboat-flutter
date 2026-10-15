@@ -24,14 +24,30 @@ class TugboatSensitive extends StatelessWidget {
 ///
 /// Transparent to structural target and state identity; useful when runtime
 /// type names are obfuscated or when a control needs a durable id.
+///
+/// When [accessibility] is true, [id] is also published as the platform
+/// accessibility identifier through a [Semantics] node: Android resource-id and
+/// iOS `accessibilityIdentifier`, usable by Maestro, Appium, and XCUITest.
+/// It defaults to false (opt-in): on Material buttons the extra node splits
+/// the label from the control for screen readers (see the semantics gate in
+/// the SDK tests), so enable it only where the identifier is needed.
 class TugboatTag extends StatelessWidget {
-  const TugboatTag(this.id, {required this.child, super.key});
+  const TugboatTag(
+    this.id, {
+    required this.child,
+    this.accessibility = false,
+    super.key,
+  });
 
   final String id;
   final Widget child;
 
+  /// Whether [id] is exposed as the platform accessibility identifier.
+  final bool accessibility;
+
   @override
-  Widget build(BuildContext context) => child;
+  Widget build(BuildContext context) =>
+      accessibility ? Semantics(identifier: id, child: child) : child;
 }
 
 /// Tags the active sub-view inside a route (tab, wizard step, etc.).
@@ -61,8 +77,11 @@ class TugboatSubView extends StatelessWidget {
 extension TugboatMarkers on Widget {
   /// Declares a stable developer-owned alias for target matching.
   ///
-  /// Equivalent to `TugboatTag(id, child: this)`.
-  Widget tugboatTag(String id) => TugboatTag(id, child: this);
+  /// Equivalent to `TugboatTag(id, child: this, accessibility: accessibility)`.
+  /// Pass `accessibility: true` to also publish [id] as the platform
+  /// accessibility identifier (off by default).
+  Widget tugboatTag(String id, {bool accessibility = false}) =>
+      TugboatTag(id, accessibility: accessibility, child: this);
 
   /// Marks this subtree as always masked in screenshots.
   ///
