@@ -41,6 +41,7 @@ gates, canaries) are not listed below.
 - [0007 GPU processing deferred](decisions/0007-gpu-deferred.md)
 - [0008 Independent versioning](decisions/0008-independent-versioning.md)
 - [0009 Shared session engine](decisions/0009-shared-session-engine.md) (proposed)
+- [0010 SwiftUI accessibility identity](decisions/0010-swiftui-accessibility-identity.md) (proposed)
 
 ## Privacy
 
