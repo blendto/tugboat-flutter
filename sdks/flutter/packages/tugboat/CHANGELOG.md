@@ -1,3 +1,15 @@
+## 0.10.11-dev.4
+
+Prerelease.
+
+### Added
+
+- `TugboatMarkers` extension on `Widget` with modifier-style markers:
+  `.tugboatTag(id)`, `.tugboatSensitive()`, and `.tugboatSubView(label)`.
+  Each returns the matching `TugboatTag`, `TugboatSensitive`, or
+  `TugboatSubView` wrapper, so runtime behaviour, identity, fingerprints, and
+  masking are unchanged. The wrappers remain supported.
+
 ## 0.10.11-dev.3
 
 Prerelease. No change to shipped behaviour.
