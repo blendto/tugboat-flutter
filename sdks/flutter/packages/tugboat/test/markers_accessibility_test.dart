@@ -48,7 +48,7 @@ List<_Node> _snapshot(WidgetTester tester) {
         value: data.value,
         hint: data.hint,
         tooltip: data.tooltip,
-        identifier: data.identifier ?? '',
+        identifier: data.identifier,
         // ignore: deprecated_member_use
         flags: data.flags,
         actions: data.actions,
