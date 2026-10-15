@@ -2,7 +2,7 @@
 
 Jetpack Compose adapter for the native Android SDK
 ([ADR 0009](../../../docs/decisions/0009-shared-session-engine.md)).
-Maven coordinates `com.gettugboat.sdk:tugboat-compose:0.2.0`, namespace
+Maven coordinates `com.gettugboat.sdk:tugboat-compose:0.1.0`, namespace
 `com.tugboat.android.compose`, minSdk 24. Versioned on its own (ADR 0008, see
 [CHANGELOG](CHANGELOG.md)) and unpublished: the only repository is the
 untracked `.local-maven`.

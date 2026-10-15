@@ -7,7 +7,7 @@ plugins {
 
 // Versioned independently (ADR 0008). Unpublished: the only repository
 // below is the untracked `.local-maven`.
-val tugboatComposeVersion = "0.2.0"
+val tugboatComposeVersion = "0.1.0"
 
 // Compose UI support (README "Compose versions"). Compose UI is
 // `compileOnly`: a Compose app already ships it, and an app below the
