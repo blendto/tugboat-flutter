@@ -50,13 +50,6 @@ final class TagAccessibilityUITests: XCTestCase {
   }
 
   func testATaggedTextFieldIsFoundByItsTagAndMatchesItsTwin() {
-    for element in app.textFields.allElementsBoundByIndex {
-      if let snapshot = try? element.snapshot() {
-        print("TBA11Y textField snapshot \(snapshot.dictionaryRepresentation)")
-      }
-    }
-    let probe = app.textFields["a11y.name"].firstMatch
-    print("TBA11Y tagged value=\(String(describing: probe.value)) placeholder=\(String(describing: probe.placeholderValue))")
     assertTagged(app.textFields, "a11y.name", label: nil)
     let tagged = app.textFields["a11y.name"].firstMatch
     let twin = twin(in: app.textFields, of: tagged, excluding: "a11y.name")
@@ -120,15 +113,28 @@ final class TagAccessibilityUITests: XCTestCase {
     }
     XCTAssertEqual(tagged.label, twin.label, "label", file: file, line: line)
     XCTAssertEqual(tagged.elementType, twin.elementType, "type", file: file, line: line)
-    // A text field's placeholder value can lag its first appearance.
-    let sameValue = NSPredicate { _, _ in tagged.value as? String == twin.value as? String }
-    _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: sameValue, object: nil)], timeout: 5)
-    XCTAssertEqual(tagged.value as? String, twin.value as? String, "value", file: file, line: line)
+    // Every attribute the tree reports (type, label, value, placeholder,
+    // title, enabled, selected, focus, size classes) except the identifier
+    // and position. Read from one snapshot each: `XCUIElement.value` of an
+    // empty text field is inconsistent between queries (sometimes the
+    // placeholder, sometimes empty) while the snapshot has no value for both.
+    let taggedAttributes = attributes(of: tagged)
+    let twinAttributes = attributes(of: twin)
+    XCTAssertNotNil(taggedAttributes, file: file, line: line)
+    XCTAssertEqual(taggedAttributes, twinAttributes, "attributes", file: file, line: line)
     XCTAssertEqual(tagged.isEnabled, twin.isEnabled, "enabled", file: file, line: line)
     XCTAssertEqual(tagged.isSelected, twin.isSelected, "selected", file: file, line: line)
     XCTAssertEqual(tagged.isHittable, twin.isHittable, "hittable", file: file, line: line)
     XCTAssertEqual(tagged.frame.width, twin.frame.width, accuracy: 0.5, "width", file: file, line: line)
     XCTAssertEqual(tagged.frame.height, twin.frame.height, accuracy: 0.5, "height", file: file, line: line)
+  }
+
+  private func attributes(of element: XCUIElement) -> NSDictionary? {
+    guard var attributes = try? element.snapshot().dictionaryRepresentation else { return nil }
+    for name in ["identifier", "frame", "children"] {
+      attributes[XCUIElement.AttributeName(rawValue: name)] = nil
+    }
+    return attributes as NSDictionary
   }
 
   private func twin(in query: XCUIElementQuery, of tagged: XCUIElement, excluding tag: String) -> XCUIElement {
