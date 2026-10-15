@@ -19,9 +19,11 @@ extension View {
   ///
   /// Enable it on a single control, not on a container: SwiftUI gives every
   /// accessibility element inside a container the container's identifier.
-  /// An identifier the app sets on the same view wins over the tag's,
-  /// whichever side of `.tugboatTag` it is on. See the sample's
-  /// accessibility UI tests for measured results per control.
+  /// When a view has two identifiers the outermost wins, so an identifier
+  /// the app applies after `.tugboatTag` wins, and one applied before it is
+  /// replaced by the tag. Leave `accessibility` off on controls that already
+  /// have an identifier. See the sample's accessibility UI tests for
+  /// measured results per control.
   public func tugboatTag(_ tag: String, accessibility: Bool = false) -> some View {
     modifier(TugboatTagModifier(tag: tag, accessibility: accessibility))
   }

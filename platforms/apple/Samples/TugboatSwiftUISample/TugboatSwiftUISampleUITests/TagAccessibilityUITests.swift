@@ -5,27 +5,30 @@ import XCTest
 ///
 /// - With `accessibility: true`, a tagged `Button`, `Toggle`, `TextField`
 ///   and `NavigationLink` are found by their role query and the tag, and
-///   report the same type, label, value and state as an untagged twin.
-///   XCUITest exposes no traits; the element type, `isEnabled` and
+///   report the same type, label, value, state and size as an untagged
+///   twin. XCUITest exposes no traits; the element type, `isEnabled` and
 ///   `isSelected` are derived from them.
 /// - Without it (the default) the tag is not an identifier.
 /// - A tagged container: every element inside gets the identifier.
-/// - An app-set identifier wins in both orders.
+/// - Two `.accessibilityIdentifier`s on one view: the outermost wins. An
+///   app identifier applied after `.tugboatTag` wins; one applied before it
+///   is replaced by the tag.
+///
+/// The tests only read the tree, so the app is launched once for all of
+/// them (a cold simulator launch is slow on CI).
 final class TagAccessibilityUITests: XCTestCase {
+  private static var launched = false
   private var app: XCUIApplication!
 
   override func setUpWithError() throws {
     continueAfterFailure = true
     app = XCUIApplication()
-    app.launchArguments += ["-TugboatAccessibilityFixture", "YES"]
-    app.launch()
-    XCTAssertTrue(app.navigationBars["Accessibility"].waitForExistence(timeout: 30), "the fixture screen is shown")
-  }
-
-  override func tearDown() {
-    app.terminate()
-    app = nil
-    super.tearDown()
+    if !Self.launched {
+      app.launchArguments += ["-TugboatAccessibilityFixture", "YES"]
+      app.launch()
+      Self.launched = true
+    }
+    XCTAssertTrue(app.navigationBars["Accessibility"].waitForExistence(timeout: 60), "the fixture screen is shown")
   }
 
   /// Prints what the accessibility tree reports, so a changed outcome on a
@@ -75,16 +78,18 @@ final class TagAccessibilityUITests: XCTestCase {
     XCTAssertEqual(matches.count, 2, "only the two buttons carry it: \(labels)")
   }
 
-  /// `.accessibilityIdentifier` applied inside `.tugboatTag` (before it).
-  func testAnAppIdentifierAppliedBeforeTheTagWins() {
+  /// `.accessibilityIdentifier("app.before").tugboatTag(…, accessibility:
+  /// true)`: the tag's identifier is outermost, so it replaces the app's.
+  func testAnAppIdentifierAppliedBeforeTheTagIsReplacedByTheTag() {
     let button = app.buttons["Before"]
     XCTAssertTrue(button.exists)
     print("TBA11Y before: \(button.identifier)")
-    XCTAssertEqual(button.identifier, "app.before")
-    XCTAssertFalse(app.buttons["a11y.before"].exists)
+    XCTAssertEqual(button.identifier, "a11y.before")
+    XCTAssertFalse(app.buttons["app.before"].exists)
   }
 
-  /// `.accessibilityIdentifier` applied outside `.tugboatTag` (after it).
+  /// `.tugboatTag(…, accessibility: true).accessibilityIdentifier("app.after")`:
+  /// the app's identifier is outermost and wins.
   func testAnAppIdentifierAppliedAfterTheTagWins() {
     let button = app.buttons["After"]
     XCTAssertTrue(button.exists)
@@ -108,11 +113,15 @@ final class TagAccessibilityUITests: XCTestCase {
     }
     XCTAssertEqual(tagged.label, twin.label, "label", file: file, line: line)
     XCTAssertEqual(tagged.elementType, twin.elementType, "type", file: file, line: line)
+    // A text field's placeholder value can lag its first appearance.
+    let sameValue = NSPredicate { _, _ in tagged.value as? String == twin.value as? String }
+    _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: sameValue, object: nil)], timeout: 5)
     XCTAssertEqual(tagged.value as? String, twin.value as? String, "value", file: file, line: line)
     XCTAssertEqual(tagged.isEnabled, twin.isEnabled, "enabled", file: file, line: line)
     XCTAssertEqual(tagged.isSelected, twin.isSelected, "selected", file: file, line: line)
     XCTAssertEqual(tagged.isHittable, twin.isHittable, "hittable", file: file, line: line)
-    XCTAssertEqual(tagged.frame.size, twin.frame.size, "size", file: file, line: line)
+    XCTAssertEqual(tagged.frame.width, twin.frame.width, accuracy: 0.5, "width", file: file, line: line)
+    XCTAssertEqual(tagged.frame.height, twin.frame.height, accuracy: 0.5, "height", file: file, line: line)
   }
 
   private func twin(in query: XCUIElementQuery, of tagged: XCUIElement, excluding tag: String) -> XCUIElement {

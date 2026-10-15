@@ -15,6 +15,9 @@ fi
 
 udid="$(bash "$root/tool/ci/apple-simulator-udid.sh")"
 echo "Simulator: $udid"
+# Boot first: a cold boot inside the first app launch times out on CI.
+xcrun simctl boot "$udid" 2>/dev/null || true
+xcrun simctl bootstatus "$udid" -b
 
 xcodebuild test \
   -project "$sample/TugboatSwiftUISample.xcodeproj" \

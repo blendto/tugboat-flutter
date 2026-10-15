@@ -327,8 +327,9 @@ identity comes from developer tags and from the UIKit views SwiftUI does use.
   `accessibilityIdentifier`, never the marker's. Identity does not read
   accessibility identifiers, so the target fingerprint, canonical path, tag
   alias and structure signature are the same with or without it. On a
-  container SwiftUI gives every element inside the identifier, and an
-  identifier the app sets on the same view wins in either order.
+  container SwiftUI gives every element inside the identifier. With two
+  identifiers on one view the outermost wins, so an app identifier applied
+  before `.tugboatTag` is replaced by the tag and one applied after it wins.
 - **UIKit roles.** Otherwise the target is the nearest view, from UIKit
   hit-testing at the point, with a role: `TextField` (`UITextField`,
   `UITextView`), a list cell, `Scrollable` (`UIScrollView`), or

@@ -35,10 +35,12 @@ someView.tugboatScreen("Checkout")      // route identity for a screen
   the identifier is not part of Tugboat identity (target fingerprint,
   canonical path, tag alias and structure signature are the same either
   way). Enable it on a single control: on a container, SwiftUI gives every
-  element inside the container's identifier. An identifier the app sets on
-  the same view wins in either order. Measured by the sample's
-  `TugboatSwiftUISampleUITests`. There is no UIKit tag API, so there is no
-  UIKit equivalent.
+  element inside the container's identifier. With two identifiers on one
+  view the outermost wins: the app's `.accessibilityIdentifier` applied
+  after `.tugboatTag` wins, one applied before it is replaced by the tag, so
+  leave the option off on controls that already have one. Measured by the
+  sample's `TugboatSwiftUISampleUITests`. There is no UIKit tag API, so
+  there is no UIKit equivalent.
 
 - Call `start` from `application(_:didFinishLaunchingWithOptions:)` (SwiftUI
   apps use `@UIApplicationDelegateAdaptor`). Every method may be called from
