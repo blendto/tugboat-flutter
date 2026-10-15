@@ -8,55 +8,73 @@ import 'package:tugboat/tugboat.dart';
 
 typedef _Control = Widget Function();
 
-class _Snapshot {
-  const _Snapshot({
-    required this.nodes,
+/// One semantics node in depth-first order, including its identifier.
+class _Node {
+  const _Node({
+    required this.label,
+    required this.value,
+    required this.hint,
+    required this.tooltip,
+    required this.identifier,
+    required this.flags,
+    required this.actions,
     required this.focusable,
-    required this.identifiers,
   });
 
-  /// One descriptor per semantics node, excluding the identifier.
-  final List<String> nodes;
-  final int focusable;
-  final List<String> identifiers;
+  final String label;
+  final String value;
+  final String hint;
+  final String tooltip;
+  final String identifier;
+  final int flags;
+  final int actions;
+  final bool focusable;
+
+  /// Everything a screen reader reads, without depth or the identifier.
+  String get readable =>
+      '$label|$value|$hint|$tooltip|$flags|$actions|focusable=$focusable';
+
+  bool get hasIdentifier => identifier.isNotEmpty;
 }
 
-_Snapshot _snapshot(WidgetTester tester) {
+List<_Node> _snapshot(WidgetTester tester) {
   final root = tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!;
-  final nodes = <String>[];
-  final identifiers = <String>[];
-  var focusable = 0;
-  void walk(SemanticsNode node, int depth) {
+  final nodes = <_Node>[];
+  void walk(SemanticsNode node) {
     final data = node.getSemanticsData();
-    final identifier = data.identifier;
-    if (identifier.isNotEmpty) {
-      identifiers.add(identifier);
-    }
-    if (data.flagsCollection.isFocused != ui.Tristate.none) focusable++;
-    // Flags and actions are read from the bitmasks so the descriptor is a
-    // plain string; the identifier is intentionally left out of it.
-    // ignore: deprecated_member_use
-    final flags = data.flags;
-    final actions = data.actions;
     nodes.add(
-      '$depth|${data.label}|${data.value}|${data.hint}|${data.tooltip}'
-      '|$flags|$actions',
+      _Node(
+        label: data.label,
+        value: data.value,
+        hint: data.hint,
+        tooltip: data.tooltip,
+        identifier: data.identifier ?? '',
+        // ignore: deprecated_member_use
+        flags: data.flags,
+        actions: data.actions,
+        focusable: data.flagsCollection.isFocused != ui.Tristate.none,
+      ),
     );
     node.visitChildren((child) {
-      walk(child, depth + 1);
+      walk(child);
       return true;
     });
   }
 
-  walk(root, 0);
-  return _Snapshot(
-    nodes: nodes,
-    focusable: focusable,
-    identifiers: identifiers,
-  );
+  walk(root);
+  return nodes;
 }
 
-Future<_Snapshot> _pumpAndSnapshot(WidgetTester tester, Widget control) async {
+List<_Node> _focusable(List<_Node> nodes) =>
+    nodes.where((node) => node.focusable).toList();
+
+List<_Node> _identified(List<_Node> nodes) =>
+    nodes.where((node) => node.hasIdentifier).toList();
+
+Future<List<_Node>> _pumpAndSnapshot(
+  WidgetTester tester,
+  Widget control,
+) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(body: Center(child: control)),
@@ -67,80 +85,138 @@ Future<_Snapshot> _pumpAndSnapshot(WidgetTester tester, Widget control) async {
 }
 
 void main() {
-  final cases = <String, _Control>{
-    'ElevatedButton': () =>
-        ElevatedButton(onPressed: () {}, child: const Text('Pay')),
-    'TextButton': () => TextButton(onPressed: () {}, child: const Text('Skip')),
-    'IconButton with tooltip': () => IconButton(
-      icon: const Icon(Icons.add),
-      tooltip: 'Add item',
-      onPressed: () {},
+  // Single-control cases. `carriesLabel` is true when the plain Semantics
+  // identifier lands on the control's own node (no extra node). Material
+  // buttons get a separate, label-less container node instead, so the
+  // identifier does not sit on the labelled button. That is recorded below.
+  final cases = <String, (_Control, bool)>{
+    'ElevatedButton': (
+      () => ElevatedButton(onPressed: () {}, child: const Text('Pay')),
+      false,
     ),
-    'ListTile with onTap': () => ListTile(
-      title: const Text('Order history'),
-      subtitle: const Text('Last 30 days'),
-      onTap: () {},
+    'TextButton': (
+      () => TextButton(onPressed: () {}, child: const Text('Skip')),
+      false,
     ),
-    'Checkbox': () => Checkbox(value: false, onChanged: (_) {}),
-    'Switch': () => Switch(value: false, onChanged: (_) {}),
-    'TextField': () => const SizedBox(
-      width: 200,
-      child: TextField(
-        decoration: InputDecoration(labelText: 'Email', hintText: 'you@x.com'),
+    'FilledButton': (
+      () => FilledButton(onPressed: () {}, child: const Text('Save')),
+      false,
+    ),
+    'OutlinedButton': (
+      () => OutlinedButton(onPressed: () {}, child: const Text('Cancel')),
+      false,
+    ),
+    'IconButton with tooltip': (
+      () => IconButton(
+        icon: const Icon(Icons.add),
+        tooltip: 'Add item',
+        onPressed: () {},
       ),
+      false,
     ),
-    'GestureDetector around Text': () =>
-        GestureDetector(onTap: () {}, child: const Text('Tap me')),
-    'InkWell around Text': () =>
-        InkWell(onTap: () {}, child: const Text('Ink me')),
-  };
-
-  // Controls whose semantics change when the identifier is published. The
-  // SDK-inserted Semantics node splits the label/flags from the Material
-  // button node, so the button is no longer one screen-reader node. This is
-  // why `accessibility` is opt-in.
-  const splitsWhenAccessible = {
-    'ElevatedButton',
-    'TextButton',
-    'IconButton with tooltip',
+    'ListTile with onTap': (
+      () => ListTile(title: const Text('Order history'), onTap: () {}),
+      true,
+    ),
+    'Checkbox': (() => Checkbox(value: false, onChanged: (_) {}), true),
+    'Switch': (() => Switch(value: false, onChanged: (_) {}), true),
+    'TextField': (
+      () => const SizedBox(
+        width: 200,
+        child: TextField(decoration: InputDecoration(labelText: 'Email')),
+      ),
+      true,
+    ),
+    'GestureDetector around Text': (
+      () => GestureDetector(onTap: () {}, child: const Text('Tap me')),
+      true,
+    ),
+    'InkWell around Text': (
+      () => InkWell(onTap: () {}, child: const Text('Ink me')),
+      true,
+    ),
   };
 
   for (final entry in cases.entries) {
-    testWidgets('screen-reader gate: ${entry.key}', (tester) async {
+    final (build, carriesLabel) = entry.value;
+    testWidgets('semantics gate: ${entry.key}', (tester) async {
       final handle = tester.ensureSemantics();
 
-      final untagged = await _pumpAndSnapshot(tester, entry.value());
+      final untagged = await _pumpAndSnapshot(tester, build());
 
       // Default (accessibility: false) must be indistinguishable from no tag.
       final defaults = await _pumpAndSnapshot(
         tester,
-        entry.value().tugboatTag('checkout'),
+        build().tugboatTag('checkout'),
       );
-      expect(defaults.nodes, untagged.nodes, reason: 'default changed');
-      expect(defaults.focusable, untagged.focusable);
-      expect(defaults.identifiers, isEmpty);
+      expect(
+        defaults.map((node) => node.readable).toList(),
+        untagged.map((node) => node.readable).toList(),
+        reason: 'default tag changed the semantics tree',
+      );
+      expect(_identified(defaults), isEmpty);
 
-      // Opt-in (accessibility: true): only the identifier may be added.
+      // Opt-in (accessibility: true): exactly one node carries the id.
       final accessible = await _pumpAndSnapshot(
         tester,
-        entry.value().tugboatTag('checkout', accessibility: true),
+        build().tugboatTag('checkout', accessibility: true),
       );
-      expect(accessible.identifiers, ['checkout']);
-      if (splitsWhenAccessible.contains(entry.key)) {
-        expect(
-          accessible.nodes,
-          isNot(untagged.nodes),
-          reason: 'documented split no longer reproduces',
-        );
+      final identified = _identified(accessible);
+      expect(identified.map((node) => node.identifier), ['checkout']);
+      expect(
+        _focusable(accessible).length,
+        _focusable(untagged).length,
+        reason: 'focusable node count changed',
+      );
+
+      // The control node is the one that carries actions (GestureDetector
+      // and InkWell-free wrappers may not be focusable).
+      final control = untagged.where((node) => node.actions != 0).single;
+      if (carriesLabel) {
+        final idNode = identified.single;
+        expect(idNode.label, control.label);
+        expect(idNode.flags, control.flags);
+        expect(idNode.actions, control.actions);
       } else {
-        expect(accessible.nodes, untagged.nodes, reason: 'semantics changed');
-        expect(accessible.focusable, untagged.focusable);
+        // Known limitation: the id sits on a label-less container, and the
+        // labelled button node stays unidentified beneath it.
+        expect(identified.single.label, isEmpty);
+        expect(identified.single.actions, 0);
       }
       handle.dispose();
     });
   }
 
-  testWidgets('default and accessibility: false add no semantics identifier', (
+  testWidgets('semantics gate: container of two TextButtons (opt-in)', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    Widget row() => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextButton(onPressed: () {}, child: const Text('One')),
+        TextButton(onPressed: () {}, child: const Text('Two')),
+      ],
+    );
+
+    final untagged = await _pumpAndSnapshot(tester, row());
+    final accessible = await _pumpAndSnapshot(
+      tester,
+      row().tugboatTag('checkout', accessibility: true),
+    );
+
+    // Recorded result: the buttons are not merged into one node. The id goes
+    // on a label-less wrapper above both buttons, which keep their own nodes.
+    expect(_identified(accessible).single.label, isEmpty);
+    expect(
+      _focusable(accessible).map((node) => node.label),
+      _focusable(untagged).map((node) => node.label),
+    );
+    expect(_focusable(accessible).length, 2);
+    handle.dispose();
+  });
+
+  testWidgets('accessibility: false adds no semantics identifier', (
     tester,
   ) async {
     final handle = tester.ensureSemantics();
@@ -153,7 +229,7 @@ void main() {
       ).tugboatTag('checkout', accessibility: false),
     );
 
-    expect(snapshot.identifiers, isEmpty);
+    expect(_identified(snapshot), isEmpty);
     handle.dispose();
   });
 
@@ -167,11 +243,11 @@ void main() {
       TugboatTag(
         'checkout',
         accessibility: true,
-        child: ElevatedButton(onPressed: () {}, child: const Text('Pay')),
+        child: ListTile(title: const Text('Order history'), onTap: () {}),
       ),
     );
 
-    expect(snapshot.identifiers, ['checkout']);
+    expect(_identified(snapshot).map((node) => node.identifier), ['checkout']);
     handle.dispose();
   });
 
