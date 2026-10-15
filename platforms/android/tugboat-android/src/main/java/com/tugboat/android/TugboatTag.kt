@@ -10,6 +10,13 @@ import com.tugboat.android.views.identity.ViewTags
  * `tagFingerprint` that survives layout changes. It is transparent to the
  * structural fingerprint and never contains user content. Null or empty
  * removes it.
+ *
+ * It has no accessibility option, unlike Compose's `Modifier.tugboatTag`:
+ * test tools (Maestro, Appium, UiAutomator) read a view's resource-id from
+ * its `android:id`, whose entry name Tugboat already uses as the alias when
+ * the view has no `tugboatTag` and no other view under its route root has
+ * the same id. Tugboat installs no `AccessibilityDelegate`, so the app's own
+ * delegate is never replaced.
  */
 var View.tugboatTag: String?
     get() = ViewTags.alias(this)

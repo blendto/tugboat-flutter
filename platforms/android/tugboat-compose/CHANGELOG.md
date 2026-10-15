@@ -1,5 +1,19 @@
 # tugboat-compose
 
+## 0.2.0
+
+Unpublished.
+
+- `Modifier.tugboatTag(tag, accessibility = false)`: `accessibility = true`
+  also sets `testTag(tag)` on the same node, so UI tests find the control
+  with `onNodeWithTag(tag)`. Identity (fingerprint, canonical path, alias,
+  structure signature) and the node's label, role, and actions are
+  unchanged. Off by default: a node keeps one `testTag`, the first in the
+  modifier chain, so the option can replace an app's own. Test tools that
+  read the accessibility tree see it as a resource-id only under
+  `semantics { testTagsAsResourceId = true }`, which Tugboat does not set.
+  The one-argument call is source- and binary-compatible (`@JvmOverloads`).
+
 ## 0.1.0
 
 Unpublished. The Jetpack Compose adapter for the native Android SDK.

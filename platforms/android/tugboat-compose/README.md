@@ -2,7 +2,7 @@
 
 Jetpack Compose adapter for the native Android SDK
 ([ADR 0009](../../../docs/decisions/0009-shared-session-engine.md)).
-Maven coordinates `com.gettugboat.sdk:tugboat-compose:0.1.0`, namespace
+Maven coordinates `com.gettugboat.sdk:tugboat-compose:0.2.0`, namespace
 `com.tugboat.android.compose`, minSdk 24. Versioned on its own (ADR 0008, see
 [CHANGELOG](CHANGELOG.md)) and unpublished: the only repository is the
 untracked `.local-maven`.
@@ -17,7 +17,34 @@ it).
 | --- | --- |
 | `TugboatCompose.install(composeMasking = ComposeMasking.WholeHost)` | Called by the SDK facade when the app ships this module. Registers the Compose region with the Views adapter. Installing again replaces the choice. Never throws. |
 | `ComposeMasking` | `WholeHost` (default) or `SemanticsBestEffort` (below). |
-| `Modifier.tugboatTag("checkout")` | Developer alias, like `View.tugboatTag`. A high-confidence `tagFingerprint`; the structural fingerprint is unchanged. |
+| `Modifier.tugboatTag("checkout", accessibility = false)` | Developer alias, like `View.tugboatTag`. A high-confidence `tagFingerprint`; the structural fingerprint is unchanged. `accessibility = true` also sets `testTag` (below). |
+
+### Tags in UI tests
+
+`Modifier.tugboatTag(tag, accessibility = true)` also sets `testTag(tag)` on
+the same node, so one id serves Tugboat and UI tests: `onNodeWithTag(tag)`
+finds the merged control (a `Button` with its `Text`), in the merged and the
+unmerged tree. Tugboat identity (fingerprint, canonical path, alias,
+structure signature) is the same as without it, and so are the node's
+label, role, and actions. An empty tag sets nothing.
+
+- Tag the control itself. `testTag` does not merge up, so on a child of a
+  merged control (a `Text` inside a `Button`) it stays on the child and is
+  found only with `useUnmergedTree = true`; the Tugboat alias still goes to
+  the merged control.
+- Test tools that read the accessibility tree (Maestro, Appium,
+  UiAutomator) see a `testTag` as a resource-id only under an ancestor with
+  `Modifier.semantics { testTagsAsResourceId = true }`. Tugboat does not
+  set it; the app opts in.
+- It is off by default because a node keeps one `testTag`, the one first in
+  the modifier chain:
+
+  | Modifier chain | `testTag` in the semantics tree | Tugboat alias |
+  | --- | --- | --- |
+  | `.testTag("app").tugboatTag("pay", accessibility = true)` | `app` | `pay` |
+  | `.tugboatTag("pay", accessibility = true).testTag("app")` | `pay` (the app's tag is gone) | `pay` |
+
+  Keep `accessibility = false` on nodes that already have a `testTag`.
 
 ## Masking
 
