@@ -233,9 +233,13 @@ fingerprint. With `accessibility: true` the id is also published as a
 `Semantics` identifier (platform accessibility identifier). The SDK's
 `Semantics` node is already excluded from structural identity, and the
 identifier is not part of the fingerprint or state signature. The option is
-off by default. On Material buttons the identifier lands on a label-less parent
-node, not the labelled button, and on a container it sits above the whole
-subtree, so enable it only on a single non-button control. `.tugboatSubView(label)` (equivalent to `TugboatSubView`) adds a
+off by default. Enable it on a single control, not on a container: on a
+container the identifier sits above the whole subtree, so it does not identify
+the controls inside it. On Material buttons (`ButtonStyleButton` and Material 3
+`IconButton`) the identifier sits on a label-less parent node with the button's
+bounds rather than on the labelled button. Screen-reader focus is unchanged,
+id-based lookups work, and role-based button queries do not match.
+`.tugboatSubView(label)` (equivalent to `TugboatSubView`) adds a
 developer-owned subview label for route-internal state and scroll attribution.
 `.tugboatSensitive()` is equivalent to `TugboatSensitive`.
 
