@@ -593,10 +593,15 @@ FilledButton(onPressed: submit, child: const Text('Submit')).tugboatTag(
 ```
 
 Pass `accessibility: true` to also publish the id as the platform accessibility
-identifier (Android resource-id, iOS `accessibilityIdentifier`), so Maestro,
-Appium, and XCUITest can target the control. It is off by default: on Material
-buttons the identifier node splits the label from the control for screen
-readers, so enable it only where a UI test needs it.
+identifier (Android resource-id, iOS `accessibilityIdentifier`). It is off by
+default. Enable it on a single control, not on a container: the identifier is
+placed on a node above the control's subtree, so it does not identify the
+controls inside a container. On Material buttons (`ElevatedButton`,
+`TextButton`, `FilledButton`, `OutlinedButton`, `IconButton`) the identifier
+lands on a label-less parent node above the labelled button, not on the button
+node itself. For non-button controls (`ListTile`, `Checkbox`, `Switch`,
+`TextField`, `GestureDetector`, `InkWell`) it sits on the control's own node
+and the screen-reader semantics are otherwise unchanged.
 
 ```dart
 FilledButton(onPressed: submit, child: const Text('Submit')).tugboatTag(
