@@ -109,8 +109,8 @@ the same whether it is on or off.
 | Platform | What `accessibility: true` sets | Caveats |
 | --- | --- | --- |
 | Flutter | `Semantics(identifier:)` around the control (Android resource-id, iOS `accessibilityIdentifier`) | Use it on a single control, not a container. On Material buttons the identifier lands on a label-less parent node above the labelled button. |
-| SwiftUI | `.accessibilityIdentifier(tag)` on the tagged view | SWIFTUI_CAVEATS |
-| Compose | `testTag(tag)` on the same node | A node keeps one `testTag`, the first in the modifier chain: put `.tugboatTag(..., accessibility = true)` after an existing `testTag` to keep yours, or leave the option off. Test tools that read the accessibility tree see a `testTag` as a resource-id only under an ancestor with `Modifier.semantics { testTagsAsResourceId = true }`, which Tugboat does not set. |
+| SwiftUI | `.accessibilityIdentifier(tag)` on the tagged view | Use it on a single control: on a container, SwiftUI gives every element inside the container's identifier. When a view has two identifiers the outermost wins: an app `.accessibilityIdentifier` applied after `.tugboatTag` keeps yours, one applied before it is replaced by the tag. Leave the option off on controls that already have one. |
+| Compose | `testTag(tag)` on the same node | A node keeps one `testTag`, the first in the modifier chain: a `testTag` before `.tugboatTag(..., accessibility = true)` keeps yours, one after it is replaced by the tag (the opposite order from SwiftUI). Leave the option off on nodes that already have one. Put the tag on the control itself: a `testTag` does not merge up from a child. Test tools that read the accessibility tree see a `testTag` as a resource-id only under an ancestor with `Modifier.semantics { testTagsAsResourceId = true }`, which Tugboat does not set. |
 | Views | No option | Test tools read the resource-id from `android:id`, which Tugboat already uses (see below). Tugboat installs no `AccessibilityDelegate`. |
 
 ```dart
