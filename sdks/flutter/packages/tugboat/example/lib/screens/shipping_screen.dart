@@ -48,11 +48,9 @@ class _ShippingScreenState extends State<ShippingScreen> {
           DemoSection(
             title: 'Address',
             children: [
-              const TugboatSensitive(
-                child: TextField(
-                  decoration: InputDecoration(labelText: 'Street address'),
-                ),
-              ),
+              const TextField(
+                decoration: InputDecoration(labelText: 'Street address'),
+              ).tugboatSensitive(),
               const SizedBox(height: 12),
               const Row(
                 children: [
