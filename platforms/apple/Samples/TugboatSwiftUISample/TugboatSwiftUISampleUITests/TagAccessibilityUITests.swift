@@ -50,6 +50,13 @@ final class TagAccessibilityUITests: XCTestCase {
   }
 
   func testATaggedTextFieldIsFoundByItsTagAndMatchesItsTwin() {
+    for element in app.textFields.allElementsBoundByIndex {
+      if let snapshot = try? element.snapshot() {
+        print("TBA11Y textField snapshot \(snapshot.dictionaryRepresentation)")
+      }
+    }
+    let probe = app.textFields["a11y.name"].firstMatch
+    print("TBA11Y tagged value=\(String(describing: probe.value)) placeholder=\(String(describing: probe.placeholderValue))")
     assertTagged(app.textFields, "a11y.name", label: nil)
     let tagged = app.textFields["a11y.name"].firstMatch
     let twin = twin(in: app.textFields, of: tagged, excluding: "a11y.name")
