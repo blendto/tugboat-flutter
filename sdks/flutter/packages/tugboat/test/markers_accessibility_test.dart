@@ -28,8 +28,9 @@ _Snapshot _snapshot(WidgetTester tester) {
   var focusable = 0;
   void walk(SemanticsNode node, int depth) {
     final data = node.getSemanticsData();
-    if (data.identifier case final id? when id.isNotEmpty) {
-      identifiers.add(id);
+    final identifier = data.identifier;
+    if (identifier.isNotEmpty) {
+      identifiers.add(identifier);
     }
     if (data.flagsCollection.isFocused != ui.Tristate.none) focusable++;
     // Flags and actions are read from the bitmasks so the descriptor is a
