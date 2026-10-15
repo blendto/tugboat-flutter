@@ -9,6 +9,12 @@ Prerelease.
   Each returns the matching `TugboatTag`, `TugboatSensitive`, or
   `TugboatSubView` wrapper, so runtime behaviour, identity, fingerprints, and
   masking are unchanged. The wrappers remain supported.
+- `TugboatTag` and `.tugboatTag` take `accessibility` (default `false`). When
+  true, the id is also published as the platform accessibility identifier
+  (Android resource-id, iOS `accessibilityIdentifier`) for Maestro, Appium, and
+  XCUITest. It is opt-in because the extra semantics node splits Material
+  button labels from the control for screen readers. Identity and masking are
+  unchanged either way.
 
 ## 0.10.11-dev.3
 

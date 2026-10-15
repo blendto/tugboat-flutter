@@ -229,7 +229,12 @@ fingerprint parts for diagnosis.
 `.tugboatTag(id)` (equivalent to the `TugboatTag` wrapper) and a stable
 `ValueKey<String>` can add a high-confidence `tagFingerprint`. A tag is
 transparent to structural identity: adding it does not change the target
-fingerprint. `.tugboatSubView(label)` (equivalent to `TugboatSubView`) adds a
+fingerprint. With `accessibility: true` the id is also published as a
+`Semantics` identifier (platform accessibility identifier). The SDK's
+`Semantics` node is already excluded from structural identity, and the
+identifier is not part of the fingerprint or state signature. The option is
+off by default because the extra node changes what screen readers see on
+Material buttons. `.tugboatSubView(label)` (equivalent to `TugboatSubView`) adds a
 developer-owned subview label for route-internal state and scroll attribution.
 `.tugboatSensitive()` is equivalent to `TugboatSensitive`.
 

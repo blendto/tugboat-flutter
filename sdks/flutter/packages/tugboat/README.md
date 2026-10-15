@@ -592,6 +592,19 @@ FilledButton(onPressed: submit, child: const Text('Submit')).tugboatTag(
 ),
 ```
 
+Pass `accessibility: true` to also publish the id as the platform accessibility
+identifier (Android resource-id, iOS `accessibilityIdentifier`), so Maestro,
+Appium, and XCUITest can target the control. It is off by default: on Material
+buttons the identifier node splits the label from the control for screen
+readers, so enable it only where a UI test needs it.
+
+```dart
+FilledButton(onPressed: submit, child: const Text('Submit')).tugboatTag(
+  'checkout-submit',
+  accessibility: true,
+),
+```
+
 `.tugboatSubView(label)` adds a developer-owned section label useful for nested
 content and scroll attribution:
 
