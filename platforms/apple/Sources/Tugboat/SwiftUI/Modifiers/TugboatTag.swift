@@ -8,29 +8,54 @@ extension View {
   /// SwiftUI drawing does not have. Use a name that is unique within the
   /// screen and does not change between builds or locales, such as
   /// `"checkout"`. The tag never contains visible text and does not change
-  /// layout, hit-testing, or accessibility.
-  public func tugboatTag(_ tag: String) -> some View {
-    modifier(TugboatTagModifier(tag: tag))
+  /// layout or hit-testing.
+  ///
+  /// When `accessibility` is true, `tag` is also set as this view's
+  /// `accessibilityIdentifier`, so UI tests (XCUITest, Maestro, Appium) and
+  /// exploration runs find the control by the same id. It defaults to false
+  /// (opt-in) because apps often set their own identifiers for UI tests.
+  /// Label, traits and VoiceOver focus are unchanged, and the identifier is
+  /// not part of Tugboat identity.
+  ///
+  /// Enable it on a single control, not on a container: SwiftUI gives every
+  /// accessibility element inside a container the container's identifier.
+  /// An identifier the app sets on the same view wins over the tag's,
+  /// whichever side of `.tugboatTag` it is on. See the sample's
+  /// accessibility UI tests for measured results per control.
+  public func tugboatTag(_ tag: String, accessibility: Bool = false) -> some View {
+    modifier(TugboatTagModifier(tag: tag, accessibility: accessibility))
   }
 }
 
 /// Places a `TagMarkerView` behind the tagged content, sized to it, and
-/// keeps it registered while it is in the view tree.
+/// keeps it registered while it is in the view tree. With `accessibility`,
+/// the content (never the marker) also gets `tag` as its identifier.
 struct TugboatTagModifier: ViewModifier {
   let tag: String
+  let accessibility: Bool
   let registry: TagRegistry
 
-  init(tag: String, registry: TagRegistry = .shared) {
+  init(tag: String, accessibility: Bool = false, registry: TagRegistry = .shared) {
     self.tag = tag
+    self.accessibility = accessibility
     self.registry = registry
   }
 
   func body(content: Content) -> some View {
-    content.background(
+    identified(content).background(
       TagMarker(tag: tag, registry: registry)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     )
+  }
+
+  @ViewBuilder
+  private func identified(_ content: Content) -> some View {
+    if accessibility {
+      content.accessibilityIdentifier(tag)
+    } else {
+      content
+    }
   }
 }
 

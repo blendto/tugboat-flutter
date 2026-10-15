@@ -9,7 +9,11 @@ struct SampleApp: App {
   var body: some Scene {
     WindowGroup {
       NavigationContainer {
-        HomeScreen()
+        if UserDefaults.standard.bool(forKey: "TugboatAccessibilityFixture") {
+          AccessibilityFixtureScreen()
+        } else {
+          HomeScreen()
+        }
       }
     }
   }
