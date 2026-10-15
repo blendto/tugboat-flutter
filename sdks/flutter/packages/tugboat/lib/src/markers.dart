@@ -26,11 +26,16 @@ class TugboatSensitive extends StatelessWidget {
 /// type names are obfuscated or when a control needs a durable id.
 ///
 /// When [accessibility] is true, [id] is also published as the platform
-/// accessibility identifier through a [Semantics] node: Android resource-id and
-/// iOS `accessibilityIdentifier`, usable by Maestro, Appium, and XCUITest.
-/// It defaults to false (opt-in): on Material buttons the extra node splits
-/// the label from the control for screen readers (see the semantics gate in
-/// the SDK tests), so enable it only where the identifier is needed.
+/// accessibility identifier through a [Semantics] node (Android resource-id,
+/// iOS `accessibilityIdentifier`). It defaults to false (opt-in).
+///
+/// Enable it on a single control, not on a container: the identifier goes on
+/// a node above the control's subtree, so on a container it does not identify
+/// the individual controls inside. On Material buttons (ElevatedButton,
+/// TextButton, FilledButton, OutlinedButton, IconButton) the identifier lands
+/// on a label-less parent node above the labelled button, so it is not on the
+/// button node itself. See the semantics gate in the SDK tests for measured
+/// results per control.
 class TugboatTag extends StatelessWidget {
   const TugboatTag(
     this.id, {
@@ -79,7 +84,8 @@ extension TugboatMarkers on Widget {
   ///
   /// Equivalent to `TugboatTag(id, child: this, accessibility: accessibility)`.
   /// Pass `accessibility: true` to also publish [id] as the platform
-  /// accessibility identifier (off by default).
+  /// accessibility identifier on this control (off by default; see
+  /// [TugboatTag] for limits on buttons and containers).
   Widget tugboatTag(String id, {bool accessibility = false}) =>
       TugboatTag(id, accessibility: accessibility, child: this);
 
