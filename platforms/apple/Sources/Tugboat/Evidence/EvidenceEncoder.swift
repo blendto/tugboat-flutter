@@ -121,7 +121,7 @@ struct ValueWriter {
   /// An error body that is a string: cut to a prefix of whole code points
   /// longer than 4096 UTF-8 bytes.
   mutating func writeTextBody(_ text: String) {
-    out += JSONText.quoted(ValueWriter.prefix(text, longerThan: ValueWriter.errorBodyTextBytes) { $0.utf8.count })
+    out += JSONText.quoted(ValueWriter.prefix(text, longerThan: ValueWriter.errorBodyTextBytes) { ValueWriter.utf8Bytes($0) })
   }
 
   /// Writes a value Dart's encoding counts.
@@ -247,7 +247,17 @@ struct ValueWriter {
   /// A string or key of an error body: cut to at least 4097 UTF-16 units,
   /// at a code point boundary.
   private static func errorBodyString(_ value: String) -> String {
-    prefix(value, longerThan: errorBodyStringUnits - 1) { $0.utf16.count }
+    prefix(value, longerThan: errorBodyStringUnits - 1) { $0.value > 0xFFFF ? 2 : 1 }
+  }
+
+  /// UTF-8 length of one code point (`Unicode.Scalar.utf8` needs macOS 10.15).
+  static func utf8Bytes(_ scalar: Unicode.Scalar) -> Int {
+    switch scalar.value {
+    case 0..<0x80: return 1
+    case 0x80..<0x800: return 2
+    case 0x800..<0x10000: return 3
+    default: return 4
+    }
   }
 
   /// `value` when its `size` is at most `limit`, else its shortest prefix of
