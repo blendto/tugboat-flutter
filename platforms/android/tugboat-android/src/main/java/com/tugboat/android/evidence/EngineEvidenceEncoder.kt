@@ -15,6 +15,8 @@ import com.tugboat.android.adapter.HttpErrorBody
  * - The mandatory bounds of 4.4 (parameters) and 4.5 (error bodies): they
  *   bound this host's work and the message, and only leave out what Dart
  *   never reads.
+ * - Error bodies an HTTP-client adapter read as bytes (4.5, [HttpErrorBody]):
+ *   `jsonText` whole, text as a `String` body.
  */
 internal object EngineEvidenceEncoder : EvidenceEncoder {
     override fun externalEvent(event: ExternalEventInput): String {

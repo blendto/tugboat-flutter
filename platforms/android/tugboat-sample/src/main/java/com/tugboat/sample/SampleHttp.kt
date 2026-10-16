@@ -35,9 +35,8 @@ internal object SampleHttp {
 
     /**
      * One real request, `GET <collector>/sample/orders/42?ref=sample`. The
-     * collector has no such path: it answers with an error status, which
-     * Tugboat records with its bounded error body. The query and the header
-     * are never recorded.
+     * collector has no such path: it answers 404, which Tugboat records with
+     * its bounded error body. The query and the header are never recorded.
      */
     fun loadOrder() {
         val url = "${BuildConfig.COLLECTOR_URL.trimEnd('/')}/sample/orders/42?ref=sample"

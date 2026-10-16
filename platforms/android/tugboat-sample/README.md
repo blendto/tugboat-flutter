@@ -34,8 +34,13 @@ Coded events and network calls: "Tap me" records the coded event
 `PRIMARY_TAPPED` through `Tugboat.eventHook(source = "sample",
 parameterPolicy = ParameterPolicy.allowList(setOf("taps")))`, and "Open
 details" records one manual call, `Tugboat.beginNetworkCall("GET",
-"/details/42")`, completed with status 200 after 200 ms (the sample makes
-no request).
+"/details/42")`, completed with status 200 after 200 ms (it stands in for a
+request), and makes one real request through `SampleHttp`'s OkHttp client:
+`GET <collectorUrl>/sample/orders/42?ref=sample` with an `Authorization`
+header, recorded by `TugboatOkHttpInterceptor` (added first, outermost;
+[`tugboat-okhttp`](../tugboat-okhttp/README.md)) as route
+`/sample/orders/{id}`. The collector has no such path and answers 404,
+recorded with its bounded error body.
 
 ## Build, install, run
 
@@ -143,7 +148,12 @@ the Navigation route keys `rows` and `row` (arguments stripped).
   - `external_event` (`stream: evidence`) `PRIMARY_TAPPED` with `source:
     sample`, `parameterKeys` `[taps, screen]`, and only `taps` in
     `parameters` (step 2), and `network_call` `GET /details/42`, `outcome:
-    response`, `statusCode: 200`, `durationMs` about 200 (step 5 and step 6);
+    response`, `statusCode: 200`, `durationMs` about 200 (step 5 and step 6),
+    and with each a `network_call` `GET /sample/orders/{id}` from the OkHttp
+    interceptor, `outcome: response`, `statusCode: 404` (the local pmkit
+    collector's answer for an unknown path), `errorResponseBody` `404 Not
+    Found` with `errorResponseBodyCapture.format: text`, and no query,
+    header, or host anywhere in the event;
   - lifecycle: `app_foregrounded` (launch, step 9), `app_inactive` and
     `app_backgrounded` (step 8). Two events can share an `atMs` (millisecond
     resolution, as in Dart); their order is the session's event order
@@ -170,7 +180,7 @@ the Navigation route keys `rows` and `row` (arguments stripped).
   when captures exceed the screenshot budget (60 ms per 5 s, Dart parity),
   later captures use `degradedScale` 0.8 until the window recovers. Expected
   on slow emulators.
-- No 400s in the collector log.
+- No 400s in the collector log for SDK uploads. The sample's own `GET /sample/orders/42` (steps 5 and 6) is answered 404, as expected.
 
 Known gaps: the dialog is a separate window, so it is not in frames and its
 taps are not recorded; predictive back is not observed; Compose scroll
