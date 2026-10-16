@@ -35,7 +35,7 @@ inherits an action context (`attachActionContext: false`, section 4.4).
 | `name` | string | Event name, sent in full. Trimmed (Dart `String.trim`) and cut to 256 UTF-16 code units. Empty after trimming: nothing is recorded. |
 | `source` | string, optional | Hook source, sent in full. Trimmed and cut to 128 units. Empty after trimming: omitted. |
 | `policy` | object | `{mode, allowedKeys?}`. `mode` is `names_only`, `allow_list`, `transform`, or `allow_all`. `allowedKeys` (array of strings) is required with `allow_list` and not allowed otherwise. |
-| `parameters` | value, optional | A `map` value (section 2) holding the parameters, with the rules in section 3.1. Absent, `null`, or a map without entries: no parameters. |
+| `parameters` | value, optional | A `map` value (section 2) holding the parameters, written by the rules in section 4.4 and read by section 3.1. Absent, `null`, or a map without entries: no parameters. |
 | `atMonoUs` | integer, optional | Fact time. Default `at.monoUs`. |
 
 The recorded `external_event` data is, in this key order:
@@ -55,7 +55,7 @@ The recorded `external_event` data is, in this key order:
 | `statusCode` | integer, optional | HTTP status. Recorded when present. |
 | `outcome` | string | `response`, `network_error`, or `cancelled`. |
 | `attemptCount` | integer, optional | Recorded only when greater than 0. |
-| `errorResponseBody` | object, optional | `{"value": <value>}` or `{"jsonText": "<text>"}` (section 3.2). Used only when `statusCode` is 400 or more; otherwise ignored. |
+| `errorResponseBody` | object, optional | `{"value": <value>}` or `{"jsonText": "<text>"}` (section 3.2). Read only when `statusCode` is 400 or more. It is validated either way: an invalid body rejects the message. |
 
 `durationMs` is `floor((end - sessionStart) / 1000) - floor((start -
 sessionStart) / 1000)`, clamped to `[0, 86400000]`: Dart subtracts two
@@ -100,7 +100,8 @@ Map entries:
 
 - `[key, value]`: `key` is a JSON string.
 - `{"nonStringKeys": n}`: `n` (≥ 1) consecutive entries whose keys are not
-  strings. Their values are never read, so they are not sent.
+  strings. Their values are never read, so they are not sent. In parameters
+  it also stands for keys that are strings but invalid (section 4.4).
 
 Rules:
 
@@ -115,13 +116,17 @@ Rules:
   parameters map itself is written out once as an ordinary map. Cycles are
   identity: a collection is an ancestor when it is the same instance, not an
   equal one.
+- A repeated key is invalid in a parameters map. In an error body map it is
+  kept in order (a host's cut can make two long keys equal, section 4.5).
 - `drop` anywhere else, an unknown tag, a bad count, or a `ref` above the
-  value's root is an invalid message.
+  value's root is an invalid message, wherever it appears: an invalid
+  `errorResponseBody` rejects the message even when `statusCode` is below
+  400. Hosts never send one.
 
 Items the host did not send (`omitted`) are evaluated as unsupported values,
 and omitted map entries as string-keyed entries with unsupported values. The
-elision rules in section 4 only omit items Dart never reaches, so that stand-in
-is exact.
+rules in section 4 only omit items Dart never reaches, so that stand-in is
+exact.
 
 ## 3. Engine semantics
 
@@ -157,7 +162,8 @@ is exact.
 
 ### 3.2 Error body (Dart `snapshotNetworkErrorResponseBody`)
 
-Only for `statusCode` ≥ 400. `{"value": v}` is the body as Dart receives it:
+Read only for `statusCode` ≥ 400 (below that it is still validated).
+`{"value": v}` is the body as Dart receives it:
 
 - `null` or unsupported: no body.
 - A string: `format: text`. Kept whole when its UTF-8 length is at most 4096
@@ -178,17 +184,22 @@ Only for `statusCode` ≥ 400. `{"value": v}` is the body as Dart receives it:
   4096 bytes.
 
 `{"jsonText": t}` is a body the host did not decode. The engine decodes it
-as Dart's `jsonDecode` does (duplicate keys keep the first position and the
-last value) and continues as for `{"value": ...}`. Empty text means no body,
-as Dio returns `null` for an empty JSON response. Text that is not valid
-JSON, or nests deeper than 512, is treated as `{"value": t}` (a text body).
+as Dart's `jsonDecode` does: repeated keys keep the first position and the
+last value, lone surrogates in strings are kept, and nesting has no limit
+(subtrees below the depth Dart reads are checked and skipped). It then
+continues as for `{"value": ...}`. Empty text means no body, as Dio returns
+`null` for an empty JSON response. Text that is not valid JSON is treated as
+`{"value": t}` (a text body).
 
 Error-body `representation` is `native` except for `serialized_prefix`.
 
 ## 4. Host obligations
 
 Kotlin (`tugboat-android`) and Swift (`Tugboat`) implement exactly this.
-Anything not listed stays in the engine.
+Anything not listed stays in the engine. Sections 4.4 and 4.5 are
+mandatory: they bound the host's own work and the message size, and each
+rule only leaves out what Dart never reads, so the event stays
+byte-identical.
 
 ### 4.1 Typed values
 
@@ -198,13 +209,26 @@ Anything not listed stays in the engine.
   `Array<*>` → list; `Map` → map; everything else, including `Char`,
   `BigInteger`, `BigDecimal`, primitive arrays, and the drop sentinel nested
   inside a value, → `unsupported`.
-- Swift: `nil`/`NSNull` → `null`; `Bool` (and a boolean `NSNumber`) →
-  boolean; `String` → string; signed and unsigned integers that fit in
-  `Int64` → integer (larger `UInt64` → `unsupported`); `Double`, `Float`,
-  `CGFloat` (and a floating `NSNumber`) → `double`; `Array`/`NSArray` →
-  list; `Set`/`NSSet` → `iterable`; `Dictionary`/`NSDictionary` → map;
-  everything else, including `Character`, `Decimal`, `Data`, `Date`, and the
-  drop sentinel nested inside a value, → `unsupported`.
+- Swift: classify an `Any` in this order, so bridging cannot change the
+  answer:
+  1. `nil`, `Optional.none`, or `NSNull` → `null`.
+  2. `NSNumber` (every bridged `Bool`, integer, and floating value lands
+     here; test it before the Swift types): if
+     `CFGetTypeID(n) == CFBooleanGetTypeID()` → boolean; else if
+     `CFNumberIsFloatType(n)` → `double` (`n.doubleValue`); else an integer:
+     `n.int64Value` when it represents the value exactly (for a `UInt64`
+     above `Int64.max` it does not) → integer, otherwise `unsupported`.
+  3. `Bool` → boolean; `Int`, `Int8`…`Int64`, `UInt`, `UInt8`…`UInt64` →
+     integer when it fits in `Int64`, otherwise `unsupported`; `Double`,
+     `Float`, `CGFloat` → `double`.
+  4. `String` → string.
+  5. `Array`/`NSArray` → list; `Set`/`NSSet` → `iterable`;
+     `Dictionary`/`NSDictionary` → map.
+  6. Everything else, including `Character`, `Decimal`, `Data`, `Date`, and
+     the drop sentinel nested inside a value, → `unsupported`.
+
+  An analytics parameter `1.0` (a floating `NSNumber`) is a `double`, never
+  the integer `1`.
 - Lone surrogates (Kotlin strings can hold them) must be written as
   `\uXXXX`; `org.json` writes them raw, and the UTF-8 conversion then
   replaces them. Swift strings cannot hold them.
@@ -221,6 +245,9 @@ The engine keeps the host's order, and Dart's limits depend on it.
   Dart has no equivalent, and a Swift event can differ from a Kotlin or Dart
   one with the same keys when a limit cuts the map.
 
+"Visit order" below is this order, depth first: a collection's items in
+order, each item's own contents before the next item.
+
 ### 4.3 The transform contract
 
 Under `transform` the host calls the closure exactly once for each entry
@@ -228,51 +255,88 @@ among the first 64, in order, whose key is valid (a string of 1 to 128
 UTF-16 units: Kotlin `String.length`, Swift `key.utf16.count`), and never for
 any other entry. It sends the result as the entry's value: the encoded
 return value, or `{"drop": true}` when the closure returned the drop
-sentinel or threw. Entries with invalid keys are sent with value `null`.
-The engine applies everything else (the policy mode label, limits,
-encoding).
+sentinel or threw. Entries with invalid keys go into `nonStringKeys` runs.
+Entries after the 64th are never sent (section 4.4); if a host sends them
+anyway, their values are never read. The engine applies everything else (the
+policy mode label, limits, encoding).
 
-### 4.4 Required bounds
+### 4.4 Parameters
 
-These keep messages within the engine's default nesting depth (64):
+Keys:
 
-- Parameters: a value at depth 5 or more (top-level values are depth 1)
-  is sent as `{"unsupported": true}`.
-- Error bodies: a list, map, or iterable at depth 6 or more (the root is
-  depth 0) is sent as `{"unsupported": true}`. Strings, numbers, booleans,
-  and `null` at that depth are still sent.
-- Cycles are sent as `ref`.
+- A key is valid when it is a string of 1 to 128 UTF-16 units. Consecutive
+  entries with invalid keys (not strings, empty, or longer) are sent as one
+  `{"nonStringKeys": n}` run, at every level.
 
-### 4.5 Elision (optional, exact)
+Top level:
 
-A host may omit what Dart never reads. Every rule keeps the event
-byte-identical:
+- Send the first 64 entries (a run counts each entry it stands for), then
+  `omitted` = the exact number of further entries. Dart counts them all.
+- A value the engine never reads is sent as `null` and is not encoded: every
+  value under `names_only`, and the values of keys outside `allowedKeys`
+  under `allow_list`.
 
-- Parameters, top level: send the first 64 entries, then `omitted` = the
-  exact number of further entries (Dart counts them all). `omitted` on the
-  parameters map requires 64 sent entries.
-- Values the engine never reads may be sent as `null`: every value under
-  `names_only`, values of keys outside `allowedKeys` under `allow_list`, and
-  values of invalid keys.
-- Parameters, nested: a string longer than 1024 units may be sent as
-  `{"unsupported": true}`. An entry whose key is a string that is empty or
-  longer than 128 units may be folded into a `nonStringKeys` run. A list or
-  iterable may stop after its 257th item, and a map after its 257th entry
-  with a valid key (the item budget ends it by then), without `omitted`.
-- Error bodies: a list, map, or iterable may send its first 128 items with
-  `omitted` ≥ 1 (any count). A string or key may be cut to its first 4097
-  UTF-16 units. A text body may be cut to any prefix longer than 4096 UTF-8
-  bytes (whole characters only; a byte-oriented host decodes the first 4100
-  bytes and drops a trailing partial character). A host may stop writing a
-  `value` body after it has written 4097 lists, maps, strings, numbers,
-  booleans, or `null`s (not counting `unsupported`, `ref`, `iterable` and its
-  contents, or map entries with non-string keys), closing the open
-  collections, because Dart's encoding is then past 4096 bytes.
-- Error bodies for status codes below 400 are never read: do not read or
-  send them.
+Inside each value that is read (top-level values are depth 1):
+
+- A value at depth 5 or more is sent as `{"unsupported": true}`, without
+  reading it.
+- A string longer than 1024 UTF-16 units is sent as `{"unsupported": true}`.
+- Item budget. The host keeps one counter `c`, starting at 0, for the whole
+  parameters tree. Walking the read values in visit order, a counted slot is
+  a list or iterable item, or a map entry whose key is valid (run entries are
+  never counted). At each counted slot:
+  - if `c` is below 256: `c += 1`, then send the slot (encoding its value,
+    which may count further slots);
+  - if `c` is 256: send `"omitted": 1` on this collection and stop sending
+    it. Nothing after that slot in this collection is read.
+
+  Later collections follow the same rule, so after the budget each one sends
+  its leading run (if any) and `"omitted": 1` at its first counted slot, or
+  is empty. The walk never descends into more than 256 items.
+
+### 4.5 Error bodies
+
+Sources:
+
+- A decoded value the app passes to `complete`/`fail` (the manual API):
+  `{"value": <encoded value>}` with the rules below. A string is a text
+  body.
+- A byte-reading adapter (OkHttp, URLSession; slice N2) peeks at most 64 KiB
+  of the body, never consuming it:
+  - when the peek holds the complete body and `Content-Type` is JSON
+    (`application/json` or a `+json` subtype), send `{"jsonText": <body
+    decoded as UTF-8>}`;
+  - otherwise send `{"value": <the decoded text>}`, cut to the complete
+    characters of the first 4100 bytes (any prefix longer than 4096 UTF-8
+    bytes keeps the text body exact).
+
+  So a JSON body over 64 KiB is recorded as `text` where Dio would record a
+  json `serialized_prefix`. Both are cut to 4096 bytes; only bodies Dart
+  truncates anyway are affected.
+- Bodies for status codes below 400 are never read or sent.
+
+Encoding a value body (the root is depth 0):
+
+- A list, map, or iterable at depth 6 or more is sent as
+  `{"unsupported": true}`. Strings, numbers, booleans, and `null` at that
+  depth are still sent.
+- Per collection: send only the first 128 items (a map's first 128 entries,
+  each non-string key counting as one entry of its run), then
+  `"omitted": n` with `n ≥ 1` when there are more. Items past the 128th are
+  never read.
+- A string or a key longer than 4097 UTF-16 units is cut to its first 4097
+  units. A cut can make two keys equal; the engine keeps both.
+- Node budget. The host counts the nodes it writes within those caps, in
+  visit order: every list, map, string, finite number, boolean, and `null`
+  it sends, except anything inside an `iterable` and the values under
+  non-string keys (which are not sent). `unsupported`, non-finite doubles,
+  and `ref` are not counted. When the count reaches 4097, the host stops:
+  it writes nothing more and closes the open collections. Each counted node
+  adds at least one byte to Dart's encoding, so the encoding is past 4096
+  bytes before the cut.
 
 Not elided: `name` and `source` are sent in full (trimming needs both ends),
-and `jsonText` must be the complete body to be exact.
+and `jsonText` must be the complete body.
 
 ### 4.6 Tokens and timing (unchanged host work)
 
