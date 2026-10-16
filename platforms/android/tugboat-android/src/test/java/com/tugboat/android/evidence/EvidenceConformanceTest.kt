@@ -36,10 +36,14 @@ class EvidenceConformanceTest {
 
     @Test
     fun theEncoderSendsEachFixturesInput() {
-        val mismatches = fixtures.filter { it.notForManualApi() == null && it.name !in ELIDED }.mapNotNull { fixture ->
+        val mismatches = fixtures.filter { it.notForManualApi() == null }.mapNotNull { fixture ->
             val expected = canonical(expectedInput(fixture))
             val actual = canonical(JSONObject(fixture.encode()).apply { if (!fixture.input.has("atMonoUs")) remove("atMonoUs") })
-            if (expected == actual) null else "${fixture.path}\n  expected $expected\n  actual   $actual"
+            when {
+                fixture.name in ELIDED -> if (expected != actual) null else "${fixture.path} is listed as elided but encodes as its input"
+                expected == actual -> null
+                else -> "${fixture.path}\n  expected $expected\n  actual   $actual"
+            }
         }
         assertEquals(mismatches.joinToString("\n"), 0, mismatches.size)
     }
@@ -89,7 +93,6 @@ class EvidenceConformanceTest {
             "unsupported-values" to "nested invalid keys folded into one nonStringKeys run",
             "json-body-129-items" to "128 items, then omitted",
             "json-body-depth-5-kept-6-unsupported" to "a collection at depth 6 is sent unsupported (required bound)",
-            "json-body-many-values-prefix" to "128 items per map, then omitted",
             "json-body-non-string-keys" to "128 entries, then omitted",
             "text-body-multibyte-boundary" to "the text body is cut to 4097 units",
             "text-body-surrogate-pair-boundary" to "the text body is cut to 4097 units, keeping the pair",
