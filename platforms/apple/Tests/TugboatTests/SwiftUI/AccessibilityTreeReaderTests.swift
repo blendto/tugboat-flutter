@@ -117,6 +117,18 @@ final class AccessibilityTreeReaderTests: XCTestCase {
     XCTAssertFalse(String(describing: leaf).contains("ada"), "the identifier's value is never kept")
   }
 
+  func testAnIdentifierAnsweredWithoutTheProtocolCounts() {
+    XCTAssertFalse(FakeAXNode(.zero, identifier: nil) is UIAccessibilityIdentification)
+    let root = FakeAXContainer(.zero, [
+      FakeAXNode(CGRect(x: 0, y: 0, width: 40, height: 40), identifier: "first"),
+      FakeAXNode(CGRect(x: 50, y: 0, width: 40, height: 40), identifier: "second"),
+      FakeAXNode(CGRect(x: 100, y: 0, width: 40, height: 40), identifier: nil),
+    ])
+
+    XCTAssertEqual(read(root, at: CGPoint(x: 60, y: 10))?.segment, "AXIdentified#1")
+    XCTAssertEqual(read(root, at: CGPoint(x: 110, y: 10)), AccessibilityLeaf(token: "AXButton", ordinal: 0, role: "button"))
+  }
+
   func testTraitsMapOntoSharedRoleNames() {
     XCTAssertEqual(AccessibilityRole.role(of: .button), "button")
     XCTAssertEqual(AccessibilityRole.role(of: .link), "link")

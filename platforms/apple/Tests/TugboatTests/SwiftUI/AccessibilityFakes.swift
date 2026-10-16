@@ -80,6 +80,21 @@ final class FakeAXHostingView: UIView {
   }
 }
 
+/// An element shaped like SwiftUI's `AccessibilityNode`: it answers the
+/// `accessibilityIdentifier` getter without declaring
+/// `UIAccessibilityIdentification`.
+final class FakeAXNode: NSObject {
+  @objc var accessibilityIdentifier: String?
+
+  init(_ frame: CGRect, identifier: String?) {
+    accessibilityIdentifier = identifier
+    super.init()
+    isAccessibilityElement = true
+    accessibilityFrame = frame
+    accessibilityTraits = .button
+  }
+}
+
 /// An accessibility element (never a container).
 func axElement(_ frame: CGRect, _ traits: UIAccessibilityTraits = [], identifier: String? = nil) -> UIAccessibilityElement {
   let element = UIAccessibilityElement(accessibilityContainer: NSObject())

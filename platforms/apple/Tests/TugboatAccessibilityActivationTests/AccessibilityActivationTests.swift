@@ -156,9 +156,14 @@ final class AccessibilityActivationTests: XCTestCase {
   private func dumpTree(_ node: NSObject, in window: UIWindow, depth: Int = 0) {
     guard depth < 8 else { return }
     for child in Self.children(of: node) {
-      let identified = ((child as? UIAccessibilityIdentification)?.accessibilityIdentifier ?? "").isEmpty == false
+      // SwiftUI's `AccessibilityNode` answers the getter without declaring
+      // `UIAccessibilityIdentification`, so the cast alone misses it.
+      let getter = #selector(getter: UIAccessibilityIdentification.accessibilityIdentifier)
+      let conforms = child is UIAccessibilityIdentification
+      let value = child.responds(to: getter) ? child.perform(getter)?.takeUnretainedValue() as? String : nil
+      let identified = !(value ?? "").isEmpty
       let frame = window.convert(child.accessibilityFrame, from: window.screen.coordinateSpace)
-      print("TBDUMP \(String(repeating: "  ", count: depth))\(type(of: child)) element \(child.isAccessibilityElement) traits \(child.accessibilityTraits.rawValue) identified \(identified) frame \(frame)")
+      print("TBDUMP \(String(repeating: "  ", count: depth))\(type(of: child)) element \(child.isAccessibilityElement) traits \(child.accessibilityTraits.rawValue) identified \(identified) (conforms \(conforms)) frame \(frame)")
       dumpTree(child, in: window, depth: depth + 1)
     }
   }
