@@ -96,7 +96,8 @@ UIKit-resolved taps keep exactly today's anchors.
   smallest element (`isAccessibilityElement`) whose frame contains it.
   Frames are converted from screen to window coordinates. The descent reads
   at most 256 elements; over that budget the tap keeps today's result.
-- The adapter reads the element's `accessibilityIdentifier` and
+- The adapter reads each visited element's frame, whether its
+  `accessibilityIdentifier` is set (never keeping the value), and its
   `accessibilityTraits`. Nothing else.
 - **Labels are not read or sent.** `accessibilityLabel` and `Value` carry
   visible, localized and often user-specific text ("Message from Ada",
@@ -140,9 +141,9 @@ engine change.
 
 The identifier carries the same data-derived-ID risk as Compose's
 `testTag` fallback and Flutter's `ValueKey<String>`: apps often write
-`accessibilityIdentifier("row_\(item.id)")`. Identifiers pass through the
-same filter that the planned `ValueKey`/`testTag` follow-up defines. That
-filter is not settled, so identifiers are not used as an alias at all: the
+`accessibilityIdentifier("row_\(item.id)")`. Using identifiers as aliases
+needs the same filter that the planned `ValueKey`/`testTag` follow-up
+defines. That filter is not settled, so identifiers are not used as an alias at all: the
 element gives an `AXIdentified` path segment, without its value. Using
 them as aliases (`tagFingerprint`, `high`) waits for the filter.
 
