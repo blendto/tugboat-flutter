@@ -135,7 +135,7 @@ already has as the alias. A `tugboatTag` always wins.
 | Platform | Fallback | Notes |
 | --- | --- | --- |
 | Flutter | A `ValueKey<String>` on the widget | Any string `ValueKey` is used, including keys built from data in lists. Avoid data-derived string keys on controls, or tag the control. |
-| SwiftUI | None | `accessibilityIdentifier` is not read. |
+| SwiftUI | None by default; opt-in accessibility-tree identity ([ADR 0010](../decisions/0010-swiftui-accessibility-identity.md)) | By default nothing is read. With `swiftUIAccessibilityIdentity` on or sampled in (iOS 18 only), untagged taps read the element's `accessibilityIdentifier` and traits as path evidence only (`AXIdentified#<k>`, `AX<Role>#<k>`): never as an alias, and the identifier's value is never sent. It has a lasting scroll, CPU and memory cost per process; see the [SDK README](../../platforms/apple/Sources/Tugboat/README.md#accessibility-tree-identity-opt-in-adr-0010) before turning it on. |
 | Compose | `testTag` | Any `testTag` is used, including tags built from data, such as `testTag("row_${item.id}")`. Avoid data-derived test tags, or tag the control. |
 | Views | The entry name of the view's `android:id` | Only when no other view under the screen's root has the same id, and only for ids from the app's resources (not generated ids). Skipped when resource names look obfuscated. |
 
