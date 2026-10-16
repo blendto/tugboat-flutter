@@ -1,6 +1,7 @@
 package com.tugboat.android.evidence
 
 import com.tugboat.android.ParameterPolicy
+import com.tugboat.android.adapter.HttpErrorBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -304,6 +305,29 @@ class EngineEvidenceEncoderTest {
         val pairAtCut = "a".repeat(4096) + "\uD83D\uDE00" + "tail"
         assertEquals("\"${"a".repeat(4096)}\uD83D\uDE00\"", bodyValue(pairAtCut))
         assertEquals("\"${"a".repeat(4097)}\"", bodyValue("a".repeat(4097)))
+    }
+
+    @Test
+    fun anAdaptersJsonTextBodyIsSentWholeAndItsTextBodyAsAString() {
+        val long = "{\"message\":\"${"x".repeat(10_000)}\"}"
+        assertTrue(
+            body(422, HttpErrorBody.jsonText(long))
+                .endsWith(",\"statusCode\":422,\"outcome\":\"response\",\"errorResponseBody\":{\"jsonText\":\"{\\\"message\\\":\\\"${"x".repeat(10_000)}\\\"}\"}}"),
+        )
+        // A lone surrogate is escaped, as in every string; an empty body is sent (the engine records none).
+        assertTrue(body(500, HttpErrorBody.jsonText("\"\uD800\"")).endsWith("{\"jsonText\":\"\\\"\\ud800\\\"\"}}"))
+        assertTrue(body(500, HttpErrorBody.jsonText("")).endsWith("{\"jsonText\":\"\"}}"))
+
+        assertEquals("\"plain\"", bodyValue(HttpErrorBody.text("plain")))
+        assertEquals("\"${"a".repeat(4097)}\"", bodyValue(HttpErrorBody.text("a".repeat(5000))))
+        assertEquals("\"\"", bodyValue(HttpErrorBody.text("")))
+    }
+
+    @Test
+    fun anAdaptersBodyBelowStatus400IsNotSent() {
+        assertFalse(body(399, HttpErrorBody.jsonText("{}")).contains("errorResponseBody"))
+        assertFalse(body(200, HttpErrorBody.text("ok")).contains("errorResponseBody"))
+        assertFalse(body(null, HttpErrorBody.text("ok")).contains("errorResponseBody"))
     }
 
     @Test

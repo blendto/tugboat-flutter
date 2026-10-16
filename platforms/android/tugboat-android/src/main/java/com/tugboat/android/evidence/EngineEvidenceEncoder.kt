@@ -1,6 +1,7 @@
 package com.tugboat.android.evidence
 
 import com.tugboat.android.ParameterPolicy
+import com.tugboat.android.adapter.HttpErrorBody
 
 /**
  * The engine's evidence encoding (`core/session-engine/docs/evidence-messages.md`):
@@ -54,11 +55,23 @@ internal object EngineEvidenceEncoder : EvidenceEncoder {
         return out.append('}').toString()
     }
 
-    /** A `String` is a text body, a `ByteArray` no body, anything else a value. */
+    /**
+     * A `String` is a text body, a `ByteArray` no body, an adapter's
+     * [HttpErrorBody] a `jsonText` (sent whole) or text body, anything else a
+     * value.
+     */
     private fun writeErrorBody(out: StringBuilder, body: Any?) {
         if (body == null || body is ByteArray) return
+        if (body is HttpErrorBody && body.isJsonText) {
+            out.append(",\"errorResponseBody\":{\"jsonText\":").appendJsonString(body.body).append('}')
+            return
+        }
         out.append(",\"errorResponseBody\":{\"value\":")
-        if (body is String) out.appendJsonString(textBodyPrefix(body)) else BodyWriter(out).writeRoot(body)
+        when (body) {
+            is String -> out.appendJsonString(textBodyPrefix(body))
+            is HttpErrorBody -> out.appendJsonString(textBodyPrefix(body.body))
+            else -> BodyWriter(out).writeRoot(body)
+        }
         out.append('}')
     }
 

@@ -1,5 +1,6 @@
 package com.tugboat.android.evidence
 
+import com.tugboat.android.adapter.HttpErrorBody
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -35,8 +36,15 @@ class EvidenceConformanceTest {
     }
 
     @Test
+    fun jsonTextFixturesAreSentThroughTheAdapterBodyPath() {
+        val jsonText = fixtures.filter { it.notForKotlinHost() == null && it.input.optJSONObject("errorResponseBody")?.has("jsonText") == true }
+        assertTrue(jsonText.size >= 10)
+        jsonText.forEach { assertTrue(it.path, it.hostCall().errorResponseBody is HttpErrorBody) }
+    }
+
+    @Test
     fun theEncoderSendsEachFixturesInput() {
-        val mismatches = fixtures.filter { it.notForManualApi() == null }.mapNotNull { fixture ->
+        val mismatches = fixtures.filter { it.notForKotlinHost() == null }.mapNotNull { fixture ->
             val expected = canonical(expectedInput(fixture))
             val actual = canonical(JSONObject(fixture.encode()).apply { if (!fixture.input.has("atMonoUs")) remove("atMonoUs") })
             when {
