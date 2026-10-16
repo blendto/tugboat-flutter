@@ -84,31 +84,42 @@ call.fail(NetworkFailure.NETWORK_ERROR)      // or CANCELLED; fail(failure, stat
   search terms, feedback, ids, and other user content), `namesOnly` (keys,
   no values), `allowList(keys)`, and `transform { key, value -> … }`, which
   returns the value to keep or `ParameterPolicy.DROP`. The transform runs on
-  the calling thread, once per top-level key, before `record` returns; one
-  that throws drops that key's value.
-- **Values.** `null`, strings, booleans, numbers, maps with string keys,
-  lists, and arrays. Anything else, NaN and infinities, and cycles are
-  recorded as unsupported, never by their `toString`.
-- **The engine bounds everything.** Kotlin runs the transform and encodes
-  the values; the session engine applies the policy, the limits (the same as
-  Flutter's `TugboatParameterLimits` and `TugboatNetworkLimits`), the label
-  bounds, the route rule, the error-body rule, and `durationMs`, so every
-  platform records the same bytes for the same input.
+  the calling thread before `record` returns, exactly once for each entry
+  among the first 64 whose key is a string of 1 to 128 characters, in map
+  order; one that throws drops that key's value.
+- **Values.** `null`, `Boolean`, `String`, `Byte` / `Short` / `Int` /
+  `Long`, `Float` / `Double`, `List`, `Array<*>`, other `Iterable`s (sets),
+  and `Map`s in their own iteration order (use a `LinkedHashMap` for a
+  stable order: the limits cut by it). Anything else (`Char`, `BigInteger`,
+  `BigDecimal`, primitive arrays, a nested `DROP`), non-finite numbers,
+  non-string keys, and cycles are dropped and counted, never sent by their
+  `toString`.
+- **The engine bounds everything** (`core/session-engine/docs/evidence-messages.md`).
+  Kotlin runs the transform and writes the values in the engine's value
+  encoding (`evidence/EngineEvidenceEncoder`); the session engine applies the
+  policy, the limits (Flutter's `TugboatParameterLimits` and
+  `TugboatNetworkLimits`), name, source, method, and route rules, the
+  error-body rule, and `durationMs`, so every platform records the same
+  bytes for the same input. Kotlin leaves out only what the engine would
+  never read: entries past the first 64 (counted), values `namesOnly` or the
+  allow list do not keep, and items past the limits.
 - **Routes** are paths you choose: an absolute path, which may hold dynamic
   ids, never a URL or query. A null or blank route gives a call that
-  records nothing; the engine drops a route with a scheme, query, fragment,
-  percent-encoding, backslash, or whitespace. Route paths can contain user or
-  tenant ids: apply your own privacy policy.
-- **Error bodies** are kept only for status 400 or more, bounded: a `String`
-  is text, a `Map` or `List` is JSON, a `ByteArray` is not kept. The SDK
-  never reads URLs, query strings, headers, request bodies, or transport
-  error text.
+  records nothing. The engine records nothing for a route with a scheme,
+  query, fragment, percent-encoding, backslash, or whitespace, nor for an
+  empty or overlong method; the call still looks live to the app. Route
+  paths can contain user or tenant ids: apply your own privacy policy.
+- **Error bodies** are read and kept only for status 400 or more, bounded
+  to 4 KiB: a `String` is text, a `Map` or `List` is JSON, a `ByteArray` is
+  not kept. The SDK never reads URLs, query strings, headers, request
+  bodies, or transport error text.
 - **Threads and time.** Every call works from any thread. The time is taken
   on the calling thread (the host clock, the engine's `at`): `record`'s and
   `beginNetworkCall`'s at the call, the end time at `complete` or `fail`.
   The message then goes on the engine host's submission path.
 - **One finish.** A call's first `complete` or `fail` wins (atomically); a
-  later one of either kind is ignored.
+  later one of either kind is ignored. An encoding failure (for example a
+  map changed by another thread while it is read) drops that evidence.
 - **No-ops, never throws.** While Tugboat is not started, stopped, or
   disabled, `record` does nothing and `beginNetworkCall` returns a call that
   records nothing. A call begun before `stop` records nothing when it
