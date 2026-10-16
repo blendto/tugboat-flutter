@@ -264,8 +264,10 @@ byte-identical:
   UTF-16 units. A text body may be cut to any prefix longer than 4096 UTF-8
   bytes (whole characters only; a byte-oriented host decodes the first 4100
   bytes and drops a trailing partial character). A host may stop writing a
-  `value` body after 4097 values other than `unsupported`, closing the open
-  collections, because the encoding is then past 4096 bytes.
+  `value` body after it has written 4097 lists, maps, strings, numbers,
+  booleans, or `null`s (not counting `unsupported`, `ref`, `iterable` and its
+  contents, or map entries with non-string keys), closing the open
+  collections, because Dart's encoding is then past 4096 bytes.
 - Error bodies for status codes below 400 are never read: do not read or
   send them.
 
