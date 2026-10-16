@@ -269,7 +269,7 @@ this section. On iOS 26.5 with VoiceOver off:
 | Lists | `List` is a `UICollectionView` on iOS 16+ (`UpdateCoalescingCollectionView` with `ListCollectionViewCell` on iOS 26.5) and a `UITableView` on iOS 15. The cell's index path gives `[item:section.row]`. |
 | Scroll | SwiftUI `ScrollView` is a `HostingScrollView` (`UIScrollView`), so KVO on `contentOffset` works. |
 | Route key | The `.tugboatScreen` name, then the hosting controller's Swift type name. Swift type names are not obfuscated, but they are long, so they are hashed and score `medium`. |
-| Not used | The accessibility tree, and drawing-layer classes. Layers are used for masking only, never for identity. |
+| Not used | The accessibility tree (by default: ADR 0010 adds an opt-in, iOS 18-gated fallback for untagged taps), and drawing-layer classes. Layers are used for masking only, never for identity. |
 
 **Masking**
 

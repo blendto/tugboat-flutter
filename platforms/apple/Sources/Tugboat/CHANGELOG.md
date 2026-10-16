@@ -10,7 +10,8 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
 
 - Public API: `Tugboat.start(TugboatConfig)`, `setUserId`, `setTraits`,
   `stop`; `TugboatConfig` (`Collector`, `App`, `MaskLevel`,
-  `captureFocusChanges`, `trackHostingControllers`);
+  `captureFocusChanges`, `trackHostingControllers`,
+  `swiftUIAccessibilityIdentity`);
   the `.tugboatTag(_:accessibility:)` and `.tugboatScreen(_:)` view
   modifiers. Idempotent start; nothing throws or traps into the app.
 - `.tugboatTag(_:accessibility:)`: `accessibility: true` (default false)
@@ -18,6 +19,16 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   and exploration runs; the marker stays hidden from accessibility and
   identity is unchanged. `.tugboatTag("x")` still compiles. Measured by the
   sample's XCUITests (`TugboatSwiftUISampleUITests`, CI job `sample-ui`).
+- `TugboatConfig.swiftUIAccessibilityIdentity` (ADR 0010): opt-in identity
+  for untagged SwiftUI taps from the in-process accessibility tree, `.off`
+  by default, `.sampled(rate:)` drawn once per process launch, or `.on`.
+  Only on iOS 18 (elsewhere as `.off`). Taps that would be
+  `no_actionable_candidate`, or resolve to a list cell or scroll view, get
+  an `AXIdentified#<k>` or `AX<Role>#<k>` path segment; the identifier's
+  value, labels and values are never sent. The tree is built once per
+  process on the main queue's next turn after the first such tap, and its
+  measured scroll, CPU and memory cost lasts for the process (see the
+  README). Tagged and UIKit taps are unchanged.
 - Engine wiring: `engine.configure` with every `session_start` field the
   collector requires (start is refused and logged when one is missing),
   `limits`, the SwiftUI `gesture`, `capture.answerTimeoutMs` 5000,

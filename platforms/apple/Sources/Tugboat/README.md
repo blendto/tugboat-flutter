@@ -17,7 +17,8 @@ version is `TugboatVersion.current` in `TugboatVersion.swift`, sent as
 Tugboat.start(TugboatConfig(
   collector: .init(baseURL: url, apiKey: key),
   app: .init(name: name, version: version, buildNumber: build, appId: bundleId, installationId: installId),
-  captureFocusChanges: true))           // optional; also trackHostingControllers
+  captureFocusChanges: true))           // optional; also trackHostingControllers,
+                                        // swiftUIAccessibilityIdentity (off)
 Tugboat.setUserId("user-1")             // nil clears; kept across stop/start
 Tugboat.setTraits(["plan": "pro"])      // JSON values; kept across stop/start
 Tugboat.stop()
@@ -42,6 +43,12 @@ someView.tugboatScreen("Checkout")      // route identity for a screen
   sample's `TugboatSwiftUISampleUITests`. There is no UIKit tag API, so
   there is no UIKit equivalent.
 
+- `swiftUIAccessibilityIdentity` (`.off` by default, `.sampled(rate:)`,
+  `.on`) lets untagged SwiftUI taps take identity from the in-process
+  accessibility tree. It is costly and cannot be undone for the process;
+  read [Accessibility-tree identity](#accessibility-tree-identity-opt-in-adr-0010)
+  before turning it on. `.tugboatTag` is the recommended path.
+
 - Call `start` from `application(_:didFinishLaunchingWithOptions:)` (SwiftUI
   apps use `@UIApplicationDelegateAdaptor`). Every method may be called from
   any thread; work runs on the main thread in call order.
@@ -56,6 +63,80 @@ someView.tugboatScreen("Checkout")      // route identity for a screen
   on a background `tugboat-stop` thread; at once when no `session_end` will
   be posted (the host stopped, or `willTerminate` already ended the
   session). The main thread never waits.
+
+## Accessibility-tree identity (opt-in, ADR 0010)
+
+[ADR 0010](../../../../docs/decisions/0010-swiftui-accessibility-identity.md).
+A tap on an untagged SwiftUI `Button` drawn in a hosting view has no UIKit
+view, so without a tag it is `no_actionable_candidate`, and a button in a
+`List` row resolves to the row. SwiftUI's accessibility tree knows these
+controls, but iOS builds it in-process only for an assistive client. With
+`TugboatConfig(…, swiftUIAccessibilityIdentity: .on)` (or
+`.sampled(rate: 0.05)`) the adapter builds and reads it for those taps.
+
+```swift
+TugboatConfig(collector: collector, app: app, swiftUIAccessibilityIdentity: .sampled(rate: 0.05))
+```
+
+Prefer `.tugboatTag("checkout")` (optionally `accessibility: true`) on the
+controls that matter: it is free, `high` confidence, and survives layout
+changes. Turn this on only to learn about untagged screens, and sample it.
+
+**Pros**
+
+- Identity and control type for untagged SwiftUI controls, with no code
+  changes: `AXButton#1` with `role: button` instead of
+  `no_actionable_candidate`, or `…/Cell#0/AXButton#0` instead of the row.
+- App-set `accessibilityIdentifier`s become reachable: an identified element
+  is told apart as `AXIdentified#<k>` now, and the identifier becomes an
+  alias once a filter for data-derived ids (`row_\(item.id)`) exists.
+
+**Cons** (iPhone 12, iOS 18.6.2, Release build)
+
+- A one-time main-thread stall of about 85–300 ms when the tree is built.
+  It runs on the main queue's next turn after the first qualifying tap of a
+  process, never between touch down and up; that tap is reported as with the
+  option off.
+- The cost starts at the first tree read and cannot be turned off for the
+  rest of the process: LazyVStack scroll main-thread time +104%, state
+  updates +55%, process CPU +31%, memory +5 MB; scrolling in
+  TugboatSwiftUISample +27%.
+- The app's `@Environment(\.accessibilityEnabled)` becomes true for the
+  rest of the process, so UI that adapts to assistive users adapts for
+  everyone in it.
+- It relies on an undocumented UIKit side effect of the public
+  `accessibilityActivate()`, which Apple can change in any release.
+- `accessibilityHitTest(_:)` stays nil, so a tap is matched to the smallest
+  element whose frame contains it.
+- Pendo documents a lazy-stack hang on iOS 26 with the tree built (Apple
+  FB21851974).
+
+**Rules**
+
+- `.off` (the default) never builds or reads the tree, even when VoiceOver
+  is running.
+- Only iOS 18 is verified (the only OS measured). On any other major the
+  option behaves as `.off` and logs once. iOS 17 and 26 are added after a
+  device re-measure.
+- `.sampled(rate:)` (clamped to 0...1) is drawn once per process launch; a
+  process that is not sampled in never reads the tree, in any session.
+- The tree is built once per process, lazily, on the first qualifying tap,
+  and not at all when VoiceOver or Switch Control already runs (it then
+  exists and is read directly).
+- Only taps that resolve to `no_actionable_candidate`, or to a list cell or
+  scroll view, ask. Tagged taps, text inputs, UIKit controls and
+  representables keep exactly today's anchors.
+- The descent enters only containers whose frame contains the point, reads
+  at most 256 elements (over that, today's result), and reads only
+  `accessibilityIdentifier` (whether it is set), `accessibilityTraits` and
+  frames. Labels and values are never read or sent; the identifier's value
+  is never sent and is not used as a tag or alias.
+- Anchors: path segment `AXIdentified#<k>` (no `role`) or `AX<Role>#<k>`
+  (`switch`, `button`, `link`, `textField`, `adjustable`, `image`,
+  `header`; else `AXElement` with no `role`), `widgetType: SwiftUIView`, no
+  `actions` or `enabled`, `low` confidence (`medium` in a list cell). The
+  extra segment changes the structural fingerprint of those taps in
+  sampled-in processes: treat turning it on as an identity-source change.
 
 ## SDK wiring (`Public/`, `Sdk/`, `Capture/`)
 
@@ -97,7 +178,7 @@ are in native SDK note sections 2.1, 5 and 6.3, and in
 | --- | --- | --- |
 | Facts | `Facts/` | `FactBatcher` (frame hooks, one `batch` per frame), `DisplayLinkFrames`, `FactClock` (`UITouch.timestamp` is `systemUptime`, the host clock), a small ordered JSON writer. |
 | Pointer | `Input/WindowPointerRecognizer`, `PointerFactBuilder` | A recognizer on each window that becomes key: never cancels or delays touches, never prevents or is prevented, recognizes simultaneously, no swizzling. `input.pointer` in window points, a unique `pointerId` per contact, tap evidence on `up` under `touchSlop` resolved at the down position. |
-| Identity | `Identity/` | `ViewTree` / `ViewKind` classify every view once per walk. `.tugboatTag` markers (`TagMarkerView`, matched within the hit window and hosting root) first, then UIKit hit-testing (text inputs, list cells with index paths, scroll views, representable hosts); route key from `.tugboatScreen`, else the hashed hosting-controller type; `toolkit: "swiftui"`. `IdentityHash` matches every `conformance/fingerprint/identity_parts` vector. |
+| Identity | `Identity/` | `ViewTree` / `ViewKind` classify every view once per walk. `.tugboatTag` markers (`TagMarkerView`, matched within the hit window and hosting root) first, then UIKit hit-testing (text inputs, list cells with index paths, scroll views, representable hosts), then, opt-in, the accessibility tree (`AccessibilityIdentity/`: `AccessibilityIdentitySource` gate and activation, `AccessibilityTreeReader` descent, ADR 0010); route key from `.tugboatScreen`, else the hashed hosting-controller type; `toolkit: "swiftui"`. `IdentityHash` matches every `conformance/fingerprint/identity_parts` vector. |
 | Scroll | `Scroll/` | KVO on `contentOffset` of the window's scroll views; `start` (with the anchor), one `update` per frame, one `overscroll` per scroll, `end` when no finger or momentum drives it and it has been still for 100 ms. |
 | Navigation | `Navigation/`, `Modifiers/TugboatScreen` | `.tugboatScreen` appear and disappear on navigator `swiftui-screens`; optional hosting-controller appearance (one-time method exchange, opt-out) on `swiftui-hosting` until a screen is seen. |
 | Focus | `Input/FocusObserver` | `text_input` / `none` from `UITextField` / `UITextView` editing notifications. |
@@ -150,6 +231,13 @@ host (`conformance/host/multipart-request.golden`), and the HTTP executor agains
 window, including the layer-allowlist regression guard, which fails when a
 screen with text and an image shows no allowlisted layer class on a verified
 iOS major.
+
+`TugboatTests/SwiftUI/Accessibility*Tests` check the ADR 0010 descent,
+anchors and policy against scripted accessibility trees, and that tagged and
+UIKit taps are byte-identical with the option on. The separate
+`TugboatAccessibilityActivationTests` bundle activates a real hosting view
+with no assistive client attached (the built tree lasts for the process, so
+it never runs inside `TugboatTests`).
 
 The `accessibility` option of `.tugboatTag` is checked in the real
 accessibility tree by the SwiftUI sample's XCUITests
