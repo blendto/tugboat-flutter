@@ -25,10 +25,12 @@ core/session-engine/
   tests/tb_session_engine_interaction_test.cpp  unit tests (classifier, registry, ledger, claims)
   tests/tb_session_engine_delivery_test.cpp  unit tests (delivery)
   tests/tb_session_engine_capture_test.cpp  unit tests (scheduler, frame store, budget, navigator registry)
+  tests/tb_session_engine_evidence_test.cpp  unit tests (Dart strings, repeated JSON keys, bounded work)
   tests/tb_session_engine_conformance.cpp  fixture runner (public ABI only)
-  tests/conformance/                    runner JSON reader, diff, scenario runner
+  tests/conformance/                    runner JSON reader, diff, scenario and evidence runners
   fuzz/message_fuzz.cpp                 libFuzzer target for submit
   docs/stateful-engine.md               accepted stateful design
+  docs/evidence-messages.md             evidence messages, value encoding, host obligations
   third_party/double-conversion/        vendored, see "Third-party code"
 ```
 
@@ -43,6 +45,8 @@ core/session-engine/
 | `engine_module.cpp` | `engine.configure`, `engine.dispose`, `session.snapshot`, `timer.fired`. |
 | `session_module.cpp` | `session.start`, `session.end`, `app.lifecycle`. |
 | `evidence_module.cpp` | `event.record`, `locale.set`. |
+| `evidence_messages.cpp` | `evidence.externalEvent`, `evidence.networkCall` ([docs/evidence-messages.md](docs/evidence-messages.md)): decoding, the no-session and stale-call drops, duration, recording. |
+| `evidence_value`, `evidence_parameters`, `evidence_network`, `dart_string` | The typed value encoding (validation and a view over encoded or decoded JSON); Dart's parameter policy and limits; method, route, and error-body normalization (one pass that stops at the 4 KiB cap); Dart `String` length, cut, and trim on WTF-8. |
 | `identity_module.cpp` | `identity.set`, `traits.set`: the runtime user id and the traits bag, with change detection. |
 | `frame_retention`, `frame_retention_module.cpp` | Who references each accepted frame: the session (taken and trimmed by the capture seam, dropped at session end) and delivery; `frame.release` once both let go (design section 7.6). |
 | `stateless_module.cpp` | The stateless operations (`fingerprint.cpp`, `collector.cpp`). |
@@ -589,6 +593,12 @@ Highlights:
   so even overflowing inputs format like Dart. Values outside Dart's
   `DateTime` range are `invalid_message`, where Dart throws a `RangeError`.
   Years outside 0..9999 use `±YYYYYY`.
+- **Evidence.** `evidence.externalEvent` and `evidence.networkCall` data
+  equals `TugboatEvidenceRecorder`'s, byte for byte (the `conformance/
+  evidence/` fixtures run on both runners). Two differences are deliberate:
+  a `network_call` keeps its start as `atMs` (C19; Dart stamps the finish),
+  and a non-ASCII method records nothing (Dart upper-cases it with Unicode
+  simple case mapping).
 - **Mapping.** Behavior follows `collector_mapper.dart` exactly: envelope
   inconsistencies, `userId: null` versus an omitted `sessionId`, the
   `session_start` locale merge, traits over traitsId, and no clamping of a
