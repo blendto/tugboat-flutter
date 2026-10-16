@@ -107,7 +107,10 @@ changes. Turn this on only to learn about untagged screens, and sample it.
 - It relies on an undocumented UIKit side effect of the public
   `accessibilityActivate()`, which Apple can change in any release.
 - `accessibilityHitTest(_:)` stays nil, so a tap is matched to the smallest
-  element whose frame contains it.
+  element whose frame contains it. An element's frame can be smaller than
+  the control's tappable area (on the iOS 26.5 simulator a plain `Button`'s
+  element is its label's frame), so a tap on the padding keeps today's
+  result.
 - Pendo documents a lazy-stack hang on iOS 26 with the tree built (Apple
   FB21851974).
 
