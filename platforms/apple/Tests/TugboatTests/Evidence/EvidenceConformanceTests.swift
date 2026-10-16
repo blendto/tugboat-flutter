@@ -300,7 +300,12 @@ final class FixtureDecoder {
 enum SwiftOrder {
   static func apply(to input: [String: Any]) -> [String: Any] {
     var out = input
-    if let parameters = input["parameters"] { out["parameters"] = value(parameters, parameters: true) }
+    if var parameters = input["parameters"] as? [String: Any], let entries = parameters["map"] as? [Any] {
+      // Top level: the decoder stands omitted entries in as invalid keys,
+      // which the engine counts the same, so `omitted` stays as it is.
+      parameters["map"] = ordered(entries, parameters: true)
+      out["parameters"] = parameters
+    }
     if var body = input["errorResponseBody"] as? [String: Any], let inner = body["value"] {
       body["value"] = value(inner, parameters: false)
       out["errorResponseBody"] = body
@@ -312,7 +317,14 @@ enum SwiftOrder {
     if let items = json as? [Any] { return items.map { value($0, parameters: parameters) } }
     guard var tag = json as? [String: Any] else { return json }
     if let items = tag["list"] as? [Any] { tag["list"] = items.map { value($0, parameters: parameters) } }
-    if let entries = tag["map"] as? [Any] { tag["map"] = ordered(entries, parameters: parameters) }
+    if var entries = tag["map"] as? [Any] {
+      // A nested omitted entry is a string-keyed unsupported value to the
+      // decoder, so it sorts with the string keys, before the run.
+      for index in 0..<(tag.removeValue(forKey: "omitted") as? Int ?? 0) {
+        entries.append([FixtureDecoder.omittedKey(index), ["unsupported": true]])
+      }
+      tag["map"] = ordered(entries, parameters: parameters)
+    }
     return tag
   }
 
