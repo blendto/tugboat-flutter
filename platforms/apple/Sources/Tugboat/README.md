@@ -136,8 +136,8 @@ call.complete(statusCode: 422, errorResponseBody: ["error": "invalid_order"])
   from a Kotlin or Dart one with the same keys. The SDK reads and sends
   only what Dart reads: the first 64 parameters, 256 collection items
   across the whole parameters tree, values to depth 4, and in error bodies
-  128 items per collection, strings cut at 4097 UTF-16 units, and at most
-  4097 values.
+  128 items per collection, strings cut at 4097 UTF-16 units, at most 4097
+  values, and writing stops once its strings and keys pass 4096 units.
 
 ## Accessibility-tree identity (opt-in, ADR 0010)
 
