@@ -360,5 +360,18 @@ Instrumented tests load the real library:
   `ipInfo.ip`, locale) and `frameMetadata[].requestedBackend` /
   `resolvedBackend` = `nativeCpuExperimental`.
 
+- `evidence/EvidenceFixturesDeviceTest` rebuilds every
+  `conformance/evidence` fixture (packaged as test assets) as the Kotlin
+  values a host passes, encodes them, and checks that the real engine records
+  the fixture's `expected.data`. `sdk/EvidenceContractTest` delivers an
+  `external_event` and a `network_call` to the collector through
+  `EngineHost`.
+
 JVM tests pin the host's side of the same contract (`HostMetadataTest`,
-`CaptureResultJsonTest`).
+`CaptureResultJsonTest`). `evidence/EvidenceConformanceTest` checks that the
+same rebuilt values encode to each fixture's engine input, except for a listed
+set where the encoder uses an exact elision (section 4.5 of
+`core/session-engine/docs/evidence-messages.md`); the device test covers those.
+The fixture reader (`src/testShared`) is shared by both source sets.
+`jsonText` bodies (undecoded HTTP bodies) are for HTTP-client adapters, not
+the manual API, and are not run here.
