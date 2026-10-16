@@ -20,6 +20,12 @@ wiring, window capture, and the Android Views adapter.
   the transform and encodes the values; the engine (`evidence.externalEvent`,
   `evidence.networkCall`) applies the policy, the limits, and the error-body
   rule, as Flutter does.
+- HTTP-adapter seam (`com.tugboat.android.adapter`, opt-in
+  `@TugboatAdapterApi`, not app API) for `tugboat-okhttp`:
+  `HttpErrorBody.jsonText` / `text` as an `errorResponseBody` (the encoder
+  sends `{"jsonText": …}` whole, or `{"value": …}` as a text body),
+  `TugboatAdapters.isAcceptingEvidence`, and `tapEvidenceForTesting`. The
+  `jsonText` conformance fixtures now run through this path (JVM and device).
 - Docs: `View.tugboatTag` has no accessibility option. UI test tools read
   the resource-id from `android:id`, which the resolver already uses as the
   alias fallback; no `AccessibilityDelegate` is installed (it would replace

@@ -15,7 +15,9 @@ import org.junit.runner.RunWith
  * Kotlin values a host passes and encoded by [EngineEvidenceEncoder], through
  * the real engine: the recorded `data` must equal `expected.data`, key order
  * included. This covers the fixtures whose input the encoder elides
- * (`EvidenceConformanceTest.ELIDED`). Runs as the C++ runner does: a fresh
+ * (`EvidenceConformanceTest.ELIDED`), and the `jsonText` fixtures through
+ * the HTTP-adapter body path ([com.tugboat.android.adapter.HttpErrorBody],
+ * what `tugboat-okhttp` passes). Runs as the C++ runner does: a fresh
  * engine, `engine.configure`, `session.start` at 0, then the message.
  */
 @RunWith(AndroidJUnit4::class)
@@ -32,8 +34,10 @@ class EvidenceFixturesDeviceTest {
 
     @Test
     fun theRealEngineRecordsEachFixturesExpectedData() {
-        val run = fixtures.filter { it.notForManualApi() == null }
+        val run = fixtures.filter { it.notForKotlinHost() == null }
         assertTrue("fixtures are packaged", run.size >= 80)
+        // jsonText bodies go through the HTTP-adapter body path (HttpErrorBody, tugboat-okhttp).
+        assertTrue("jsonText fixtures run", run.count { it.input.optJSONObject("errorResponseBody")?.has("jsonText") == true } >= 10)
         val failures = run.mapNotNull { fixture -> mismatch(fixture) }
         assertEquals(failures.joinToString("\n"), 0, failures.size)
     }

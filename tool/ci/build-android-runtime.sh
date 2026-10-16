@@ -20,3 +20,8 @@ cd "$android"
 # The other end of the tested Compose UI range (1.7.0, BOM 2024.09.00).
 ./gradlew -Ptugboat.composeBom=2024.09.00 :tugboat-compose:testDebugUnitTest \
   :tugboat-android:testDebugUnitTest --tests 'com.tugboat.android.views.compose.*'
+# OkHttp adapter (unpublished): Robolectric + MockWebServer tests on OkHttp
+# 5.3.2 and the release AAR, then the tests on the floor (3.14.9) and 4.12.0.
+./gradlew :tugboat-okhttp:test :tugboat-okhttp:assembleRelease
+./gradlew -Ptugboat.okhttpTest=3.14.9 :tugboat-okhttp:testDebugUnitTest
+./gradlew -Ptugboat.okhttpTest=4.12.0 :tugboat-okhttp:testDebugUnitTest

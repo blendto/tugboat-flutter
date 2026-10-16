@@ -12,7 +12,9 @@ engine wiring, window capture with masks, and a sample app
 ([`tugboat-sample`](../tugboat-sample/README.md)). The app API is the
 `com.tugboat.android` package below. The opt-in toolkit-region seam
 (`com.tugboat.android.toolkit`, below), which `tugboat-compose` implements,
-is public but not app API; everything else is `internal`.
+and the opt-in HTTP-adapter seam (`com.tugboat.android.adapter`, below),
+which `tugboat-okhttp` uses, are public but not app API; everything else is
+`internal`.
 
 ## Public API
 
@@ -127,6 +129,9 @@ call.fail(NetworkFailure.NETWORK_ERROR)      // or CANCELLED; fail(failure, stat
   Nothing throws into the app.
 - Both are on `stream: evidence` and never take an action context or UI
   anchor.
+- **OkHttp.** [`tugboat-okhttp`](../tugboat-okhttp/README.md)'s
+  `TugboatOkHttpInterceptor` records each OkHttp call this way, as
+  `tugboat_dio` does for Dio.
 
 ## What it contains
 
@@ -333,6 +338,20 @@ a throw counts as "cannot read"):
 | Focus | When a region host has View focus, its region reports the kind; it is re-read for four frames after each touch-up or key event (only when a region is registered), because region focus moves without a View focus change. |
 | Navigation | `onDestinationChanged(activity, route, id)`: `DestinationTracker` strips route arguments (`navigation/RoutePattern`), once, for every toolkit and for navigation facts. |
 
+## HTTP-adapter seam
+
+An HTTP-client adapter ([`tugboat-okhttp`](../tugboat-okhttp/README.md))
+records calls through the public `Tugboat.beginNetworkCall` API and needs
+three more things, in `com.tugboat.android.adapter`. They need
+`@OptIn(TugboatAdapterApi::class)`: public only because Kotlin `internal`
+does not cross modules, and not app API.
+
+| Type | Use |
+| --- | --- |
+| `HttpErrorBody.jsonText(body)` / `HttpErrorBody.text(text)` | An error body read as bytes (section 4.5 of `evidence-messages.md`, "a byte-reading adapter"), passed as `errorResponseBody`. The encoder sends `{"jsonText": body}` (whole, for the engine to parse) or `{"value": text}` (cut to 4097 units, as a `String` body). Read only for status 400 or more, like every body. |
+| `TugboatAdapters.isAcceptingEvidence` | Whether a call begun now would be recorded, so the adapter runs the app's route resolver only then (as `tugboat_dio`). |
+| `TugboatAdapters.tapEvidenceForTesting(sink)` | Tests only: the evidence path's engine inputs go to `sink` until closed (the real recorder and encoder). |
+
 ## Build and test
 
 From `platforms/android`:
@@ -373,5 +392,5 @@ same rebuilt values encode to each fixture's engine input, except for a listed
 set where the encoder uses an exact elision (section 4.5 of
 `core/session-engine/docs/evidence-messages.md`); the device test covers those.
 The fixture reader (`src/testShared`) is shared by both source sets.
-`jsonText` bodies (undecoded HTTP bodies) are for HTTP-client adapters, not
-the manual API, and are not run here.
+`jsonText` fixtures (undecoded HTTP bodies) are rebuilt as
+`HttpErrorBody.jsonText`, the adapter body path below, and run in both.
