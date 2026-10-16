@@ -185,7 +185,7 @@ final class EvidenceEncoderTests: XCTestCase {
     let dictionary = NSMutableDictionary()
     dictionary["self"] = dictionary
     // `[String: Any]` bridged from the same instance: its value is written once as a map.
-    let parameters = HostParameterList(entries: [HostParameter(key: "self", value: .kept(dictionary))], omitted: 0)
+    let parameters = HostParameterList(entries: [HostParameter(key: "self", value: .kept(dictionary))], invalidKeys: 0, omitted: 0)
     XCTAssertEqual(
       EvidenceEncoder.parameters(parameters), "{\"map\":[[\"self\",{\"map\":[[\"self\",{\"ref\":1}]]}]]}")
   }
