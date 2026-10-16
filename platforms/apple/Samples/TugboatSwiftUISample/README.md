@@ -6,7 +6,7 @@ device-test target of native SDK note section 10. Nothing is published.
 
 | Screen | Route (`.tugboatScreen`) | Content |
 | --- | --- | --- |
-| Home | `Home` | "Add to cart" button (`.tugboatTag("add-to-cart")`), a swipe card (`swipe-area`), "Open details" link (`open-details`), "Stop Tugboat" button (`stop-tugboat`), a `List` of 60 rows with SF Symbols |
+| Home | `Home` | "Add to cart" button (`.tugboatTag("add-to-cart")`), a swipe card (`swipe-area`), "Open details" link (`open-details`), "Stop Tugboat" button (`stop-tugboat`), "Log in (event)" (`log-in-event`) and "Load order" (`load-order`) buttons (`EvidenceDemo`), a `List` of 60 rows with SF Symbols |
 | Details | `Details` | a `TextField` (`note-field`) and a `ScrollView` of 30 text cards |
 | Accessibility fixture | `AccessibilityFixture` | only with `-TugboatAccessibilityFixture YES`, in place of Home: `Button`, `Toggle`, `TextField` and `NavigationLink` tagged with `accessibility: true`, each with an untagged twin; a tagged `VStack` of two buttons; app identifiers before and after the tag; a tag with the default `accessibility: false` |
 
@@ -21,6 +21,12 @@ so routes come from `.tugboatScreen` only. Focus changes are on (iOS has no
 system input facts yet). `Tugboat.start` runs in
 `application(_:didFinishLaunchingWithOptions:)` through an
 `@UIApplicationDelegateAdaptor`.
+
+`EvidenceDemo` shows the evidence API: **Log in (event)** records the coded
+event `USER_LOGIN` through `Tugboat.eventHook(source: "analytics",
+parameterPolicy: .allowList(["method"]))`, and **Load order** begins a manual
+network call (`GET /orders/42`) that a background queue completes 0.3 s later
+with a 404 and the JSON error body `{"error": "order_not_found"}`.
 
 ## Collector
 
@@ -100,7 +106,8 @@ With the local collector running on port 3000:
    frame), then Device > Rotate Right (Cmd-Right).
 8. Background: `xcrun simctl launch booted com.apple.Preferences` (or Shift-Cmd-H). Wait 2 s.
 9. Foreground: `xcrun simctl launch booted com.gettugboat.sample.swiftui`.
-10. Go back to Home and tap **Stop Tugboat**. Delivery of the last events and
+10. Go back to Home, tap **Log in (event)** and **Load order** (wait until it
+    reads `Order: 404`), then tap **Stop Tugboat**. Delivery of the last events and
     `session_end` finishes in the background (at most about 25 s).
 
 ## Expected collector rows (ClickHouse `pmkit`)
@@ -125,6 +132,13 @@ With the local collector running on port 3000:
     the first one after a rotation (no landscape frame yet; the next ones
     have it);
   - `focus_changed` when the text field gains and loses focus;
+  - `external_event` (`stream: evidence`, step 10): `source` `analytics`,
+    `name` `USER_LOGIN`, `parameterKeys` `["email", "method"]`,
+    `parameters` `{"method": "email"}`, `capture.values` `allow_list`;
+  - `network_call` (`stream: evidence`, step 10): `method` `GET`, `route`
+    `/orders/42`, `statusCode` 404, `outcome` `response`, `durationMs` about
+    300, `errorResponseBody` `{"error": "order_not_found"}` with
+    `errorResponseBodyCapture.format` `json`;
   - `app_inactive`, `app_backgrounded` (step 8), `app_inactive`,
     `app_foregrounded` (step 9);
   - no `stateAnchor` on any v2 interaction.

@@ -14,6 +14,21 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   `swiftUIAccessibilityIdentity`);
   the `.tugboatTag(_:accessibility:)` and `.tugboatScreen(_:)` view
   modifiers. Idempotent start; nothing throws or traps into the app.
+- Coded events and network calls, the Flutter evidence API:
+  `Tugboat.eventHook(source:parameterPolicy:)` → `TugboatEventHook.record(_:parameters:)`
+  (`external_event`), with `TugboatParameterPolicy` `.allowAll` (default),
+  `.namesOnly`, `.allowList`, `.transform` and the `.drop` sentinel; and
+  `Tugboat.beginNetworkCall(method:route:)` → `TugboatNetworkCall`
+  `complete(statusCode:attemptCount:errorResponseBody:)` /
+  `fail(_:statusCode:attemptCount:errorResponseBody:)` with
+  `TugboatNetworkFailure` `.networkError` / `.cancelled` (`network_call`).
+  Callable from any thread; the time is taken on the calling thread. A
+  token counts only its first `complete` or `fail`; a nil or empty route,
+  or a call while not started, stopped or disabled, records nothing. The
+  session engine applies the policy, limits and error-body rule
+  (`evidence.externalEvent`, `evidence.networkCall`); the SDK runs a
+  `transform`, sorts keys, and encodes values. The sample records one
+  event and one call.
 - `.tugboatTag(_:accessibility:)`: `accessibility: true` (default false)
   also sets the tag as the content's `accessibilityIdentifier`, for UI tests
   and exploration runs; the marker stays hidden from accessibility and

@@ -2,7 +2,7 @@ import SwiftUI
 import Tugboat
 
 /// The first screen: a tagged button, a swipe area, a link to the second
-/// screen, a stop button, and a `List`.
+/// screen, a stop button, a coded event and a network call, and a `List`.
 struct HomeScreen: View {
   @State private var cartCount = 0
   @State private var stopped = false
@@ -34,6 +34,8 @@ struct HomeScreen: View {
       }
       .disabled(stopped)
       .tugboatTag("stop-tugboat")
+
+      EvidenceDemo()
 
       List(1...60, id: \.self) { row in
         HStack {
