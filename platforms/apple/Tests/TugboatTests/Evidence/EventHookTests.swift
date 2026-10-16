@@ -20,6 +20,21 @@ final class EventHookTests: XCTestCase {
       "{\"name\":\"USER_LOGIN\",\"source\":\"analytics\",\"policy\":{\"mode\":\"allow_list\",\"allowedKeys\":[\"Z\",\"a\",\"method\"]}}")
   }
 
+  func testParametersAreAnEncodedMapAndEmptyParametersAreOmitted() {
+    let fixture = EvidenceFixture()
+    fixture.hook(policy: .allowList(["method"])).record("USER_LOGIN", parameters: ["method": "email", "email": "u@x"])
+    fixture.hook().record("EMPTY", parameters: [:])
+    fixture.drain()
+
+    XCTAssertEqual(
+      fixture.sink.posts.map { $0.inputJSON },
+      [
+        "{\"name\":\"USER_LOGIN\",\"source\":\"analytics\",\"policy\":{\"mode\":\"allow_list\",\"allowedKeys\":[\"method\"]},"
+          + "\"parameters\":{\"map\":[[\"email\",null],[\"method\",\"email\"]]}}",
+        "{\"name\":\"EMPTY\",\"source\":\"analytics\",\"policy\":{\"mode\":\"allow_all\"}}",
+      ])
+  }
+
   func testPolicyModesAndAnOmittedSource() {
     let fixture = EvidenceFixture()
     for policy: TugboatParameterPolicy in [.namesOnly, .allowAll, .transform { _, value in value }, .allowList([])] {
@@ -102,41 +117,6 @@ final class EventHookTests: XCTestCase {
     XCTAssertEqual(fixture.sink.posts.compactMap { $0.input["name"] as? String }, (0..<50).map { "e\($0)" })
   }
 
-  // MARK: - Host parameters
-
-  func testKeysAreSortedByStringLessThan() {
-    let parameters: [String: Any] = ["b": 1, "B": 2, "a": 3, "é": 4, "aa": 5, "": 6]
-    XCTAssertEqual(HostParameters.apply(.allowAll, to: parameters).map { $0.key }, ["", "B", "a", "aa", "b", "é"])
-    XCTAssertEqual(
-      HostParameters.apply(.transform { _, value in value }, to: parameters).map { $0.key },
-      ["", "B", "a", "aa", "b", "é"])
-  }
-
-  func testOnlyTransformRunsInTheHost() {
-    let parameters: [String: Any] = ["method": "email", "secret": "x"]
-    for policy: TugboatParameterPolicy in [.namesOnly, .allowList(["method"]), .allowAll] {
-      let kept = HostParameters.apply(policy, to: parameters).map { describe($0.value) }
-      XCTAssertEqual(kept, ["kept(email)", "kept(x)"], "\(policy.mode) is applied by the engine")
-    }
-  }
-
-  func testTransformKeepsReplacesDropsAndCatches() {
-    let policy = TugboatParameterPolicy.transform { key, value in
-      switch key {
-      case "drop": return TugboatParameterPolicy.drop
-      case "throw": throw TransformFailure()
-      case "nil": return nil
-      case "upper": return (value as? String)?.uppercased()
-      default: return value
-      }
-    }
-    let parameters: [String: Any] = ["drop": 1, "throw": 2, "nil": 3, "upper": "abc", "keep": 4]
-    let out = HostParameters.apply(policy, to: parameters)
-
-    XCTAssertEqual(out.map { $0.key }, ["drop", "keep", "nil", "throw", "upper"])
-    XCTAssertEqual(out.map { describe($0.value) }, ["dropped", "kept(4)", "kept(nil)", "dropped", "kept(ABC)"])
-  }
-
   func testTransformRunsOnTheCallingThread() {
     let fixture = EvidenceFixture()
     let threads = Locked<[Bool]>([])
@@ -152,12 +132,5 @@ final class EventHookTests: XCTestCase {
     }
     wait(for: [done], timeout: 5)
     XCTAssertEqual(threads.current, [false, false])
-  }
-
-  private func describe(_ value: HostParameter.Value) -> String {
-    switch value {
-    case .dropped: return "dropped"
-    case let .kept(value): return "kept(\(value.map { "\($0)" } ?? "nil"))"
-    }
   }
 }

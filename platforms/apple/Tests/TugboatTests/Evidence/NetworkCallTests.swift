@@ -39,6 +39,24 @@ final class NetworkCallTests: XCTestCase {
     XCTAssertNil(inputs[2]["statusCode"])
   }
 
+  func testTheErrorBodyIsSentOnlyForAStatusOf400OrMore() {
+    let fixture = EvidenceFixture()
+    let body: [String: Any] = ["error": "invalid"]
+    fixture.begin().complete(statusCode: 399, errorResponseBody: body)
+    fixture.begin().complete(errorResponseBody: body)
+    fixture.begin().complete(statusCode: 400, errorResponseBody: body)
+    fixture.begin().fail(.networkError, statusCode: 503, errorResponseBody: "down")
+    fixture.begin().complete(statusCode: 500, errorResponseBody: Data("{}".utf8))
+    fixture.drain()
+
+    let bodies = fixture.sink.posts.map { post -> String in
+      guard let range = post.inputJSON.range(of: ",\"errorResponseBody\":") else { return "none" }
+      return String(post.inputJSON[range.upperBound...].dropLast())
+    }
+    XCTAssertEqual(
+      bodies, ["none", "none", "{\"value\":{\"map\":[[\"error\",\"invalid\"]]}}", "{\"value\":\"down\"}", "none"])
+  }
+
   func testMethodAndRouteArePassedThroughUnchanged() {
     let fixture = EvidenceFixture()
     fixture.begin(method: " get ", route: "/search?q=\"x\"").complete(statusCode: 200)

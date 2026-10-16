@@ -1,12 +1,15 @@
-/// The `evidence.externalEvent` and `evidence.networkCall` inputs. The engine
-/// bounds every field and applies the parameter policy and the error-body
-/// rule; the host passes values through, after running a `transform` and
-/// encoding typed values (`EvidenceEncoder`).
+/// The `evidence.externalEvent` and `evidence.networkCall` inputs
+/// (core/session-engine/docs/evidence-messages.md section 1). The engine
+/// validates and bounds every field and applies the parameter policy and
+/// the error-body rule, so name, source, method, and route are sent raw. The
+/// host runs a `transform` (`HostParameters`) and encodes typed values
+/// (`EvidenceEncoder`).
 enum EvidenceMessages {
   static let externalEvent = "evidence.externalEvent"
   static let networkCall = "evidence.networkCall"
 
-  /// `{name, source?, policy {mode, allowedKeys?}, parameters?}`.
+  /// `{name, source?, policy {mode, allowedKeys?}, parameters?}`; the fact
+  /// time is the message's `at`.
   static func externalEventInput(
     name: String, source: String?, policy: TugboatParameterPolicy, parameters: [String: Any]?
   ) -> String {
@@ -15,10 +18,8 @@ enum EvidenceMessages {
       out += ",\"source\":" + JSONText.quoted(source)
     }
     out += ",\"policy\":" + policyJSON(policy)
-    if let parameters = parameters,
-      let encoded = EvidenceEncoder.parameters(HostParameters.apply(policy, to: parameters))
-    {
-      out += ",\"parameters\":" + encoded
+    if let parameters = parameters, !parameters.isEmpty {
+      out += ",\"parameters\":" + EvidenceEncoder.parameters(HostParameters.apply(policy, to: parameters))
     }
     return out + "}"
   }
@@ -33,7 +34,8 @@ enum EvidenceMessages {
   }
 
   /// `{method, route, startMonoUs, endMonoUs, statusCode?, outcome,
-  /// attemptCount?, errorResponseBody?}`.
+  /// attemptCount?, errorResponseBody?}`. The body is read only for a
+  /// status of 400 or more (section 4.5).
   static func networkCallInput(_ call: NetworkCallFacts) -> String {
     var out = "{\"method\":" + JSONText.quoted(call.method)
     out += ",\"route\":" + JSONText.quoted(call.route)
@@ -46,7 +48,9 @@ enum EvidenceMessages {
     if let attemptCount = call.attemptCount {
       out += ",\"attemptCount\":\(attemptCount)"
     }
-    if let body = call.errorResponseBody, let encoded = EvidenceEncoder.errorResponseBody(body) {
+    if let statusCode = call.statusCode, statusCode >= 400, let body = call.errorResponseBody,
+      let encoded = EvidenceEncoder.errorResponseBody(body)
+    {
       out += ",\"errorResponseBody\":" + encoded
     }
     return out + "}"
