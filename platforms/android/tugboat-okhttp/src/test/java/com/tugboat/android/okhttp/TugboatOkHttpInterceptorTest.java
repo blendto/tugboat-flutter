@@ -44,6 +44,13 @@ public class TugboatOkHttpInterceptorTest {
     private static final String SECRET_HEADER = "SECRET_HEADER";
     private static final String SECRET_BODY = "SECRET_BODY";
 
+    /**
+     * Headers that never arrive in time (timeouts are 200-300 ms). Under 5 s:
+     * the sleeping server thread is not interrupted, and older MockWebServers
+     * give up shutting down (an IOException) after waiting 5 s for it.
+     */
+    private static final long SLOW_HEADERS_SECONDS = 2;
+
     /** The path, so the query never reaches the route. */
     private static final Function1<Request, String> PATH = request -> request.url().encodedPath();
 
@@ -202,7 +209,7 @@ public class TugboatOkHttpInterceptorTest {
 
     @Test
     public void aReadTimeoutIsANetworkErrorAndIsRethrown() throws Exception {
-        server.enqueue(new MockResponse().setHeadersDelay(5, TimeUnit.SECONDS));
+        server.enqueue(new MockResponse().setHeadersDelay(SLOW_HEADERS_SECONDS, TimeUnit.SECONDS));
         OkHttpClient client = builder().readTimeout(200, TimeUnit.MILLISECONDS).build();
 
         try {
@@ -219,7 +226,7 @@ public class TugboatOkHttpInterceptorTest {
 
     @Test
     public void aCallTimeoutIsANetworkErrorNotACancel() throws Exception {
-        server.enqueue(new MockResponse().setHeadersDelay(5, TimeUnit.SECONDS));
+        server.enqueue(new MockResponse().setHeadersDelay(SLOW_HEADERS_SECONDS, TimeUnit.SECONDS));
         OkHttpClient client = builder().callTimeout(300, TimeUnit.MILLISECONDS).build();
 
         try {
@@ -235,7 +242,7 @@ public class TugboatOkHttpInterceptorTest {
 
     @Test
     public void aCancelledCallIsCancelledAndIsRethrown() throws Exception {
-        server.enqueue(new MockResponse().setHeadersDelay(5, TimeUnit.SECONDS));
+        server.enqueue(new MockResponse().setHeadersDelay(SLOW_HEADERS_SECONDS, TimeUnit.SECONDS));
         Call call = builder().build().newCall(get("/feed"));
         AtomicReference<Throwable> thrown = new AtomicReference<>();
         Thread caller = new Thread(() -> {
