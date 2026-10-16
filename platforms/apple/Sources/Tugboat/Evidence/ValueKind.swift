@@ -97,27 +97,24 @@ enum ValueKind {
 
   private static let scalars: [ObjectIdentifier: (Any) -> ValueKind] = [
     ObjectIdentifier(Bool.self): { .bool($0 as? Bool ?? false) },
-    ObjectIdentifier(Int.self): { signed($0 as? Int) },
-    ObjectIdentifier(Int8.self): { signed($0 as? Int8) },
-    ObjectIdentifier(Int16.self): { signed($0 as? Int16) },
-    ObjectIdentifier(Int32.self): { signed($0 as? Int32) },
-    ObjectIdentifier(Int64.self): { signed($0 as? Int64) },
-    ObjectIdentifier(UInt.self): { unsigned($0 as? UInt) },
-    ObjectIdentifier(UInt8.self): { unsigned($0 as? UInt8) },
-    ObjectIdentifier(UInt16.self): { unsigned($0 as? UInt16) },
-    ObjectIdentifier(UInt32.self): { unsigned($0 as? UInt32) },
-    ObjectIdentifier(UInt64.self): { unsigned($0 as? UInt64) },
+    ObjectIdentifier(Int.self): { int64($0 as? Int) },
+    ObjectIdentifier(Int8.self): { int64($0 as? Int8) },
+    ObjectIdentifier(Int16.self): { int64($0 as? Int16) },
+    ObjectIdentifier(Int32.self): { int64($0 as? Int32) },
+    ObjectIdentifier(Int64.self): { int64($0 as? Int64) },
+    ObjectIdentifier(UInt.self): { int64($0 as? UInt) },
+    ObjectIdentifier(UInt8.self): { int64($0 as? UInt8) },
+    ObjectIdentifier(UInt16.self): { int64($0 as? UInt16) },
+    ObjectIdentifier(UInt32.self): { int64($0 as? UInt32) },
+    ObjectIdentifier(UInt64.self): { int64($0 as? UInt64) },
     ObjectIdentifier(Double.self): { ($0 as? Double).map { .double($0) } ?? .unsupported },
     ObjectIdentifier(Float.self): { ($0 as? Float).map { .double(Double($0)) } ?? .unsupported },
     ObjectIdentifier(CGFloat.self): { ($0 as? CGFloat).map { .double(Double($0)) } ?? .unsupported },
   ]
 
-  private static func signed<T: BinaryInteger>(_ value: T?) -> ValueKind {
+  /// An integer within Int64; a larger one (only `UInt`/`UInt64`) is unsupported.
+  private static func int64<T: BinaryInteger>(_ value: T?) -> ValueKind {
     value.flatMap { Int64(exactly: $0) }.map { .integer($0) } ?? .unsupported
-  }
-
-  private static func unsigned<T: BinaryInteger>(_ value: T?) -> ValueKind {
-    signed(value)
   }
 
   private static func ofNumber(_ number: NSNumber) -> ValueKind {
@@ -131,7 +128,7 @@ enum ValueKind {
     case "f", "d":
       return .double(number.doubleValue)
     case "Q", "L", "I", "S", "C":
-      return signed(number.uint64Value)
+      return int64(number.uint64Value)
     default:
       return .integer(number.int64Value)
     }
