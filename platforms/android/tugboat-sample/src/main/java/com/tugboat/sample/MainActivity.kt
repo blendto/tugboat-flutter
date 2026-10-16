@@ -4,10 +4,13 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Button
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.tugboat.android.ParameterPolicy
 import com.tugboat.android.Tugboat
 import com.tugboat.android.tugboatTag
 
@@ -29,11 +32,18 @@ class MainActivity : Activity() {
         count.text = getString(R.string.tap_count, taps)
         findViewById<Button>(R.id.primary_action).apply {
             tugboatTag = "primary_action"
-            setOnClickListener { count.text = getString(R.string.tap_count, ++taps) }
+            setOnClickListener {
+                count.text = getString(R.string.tap_count, ++taps)
+                // A coded event, as an app would forward its analytics events.
+                events.record("PRIMARY_TAPPED", mapOf("taps" to taps, "screen" to "main"))
+            }
         }
         findViewById<Button>(R.id.open_details).apply {
             tugboatTag = "open_details"
-            setOnClickListener { startActivity(Intent(this@MainActivity, DetailActivity::class.java)) }
+            setOnClickListener {
+                loadDetails()
+                startActivity(Intent(this@MainActivity, DetailActivity::class.java))
+            }
         }
         findViewById<Button>(R.id.show_dialog).setOnClickListener { showDialog() }
         findViewById<Button>(R.id.open_compose).setOnClickListener {
@@ -58,6 +68,16 @@ class MainActivity : Activity() {
         outState.putInt(KEY_TAPS, taps)
     }
 
+    /**
+     * A manual network call. The sample makes no request: it stands in for
+     * one that answers after 200 ms. A real app finishes the call where its
+     * HTTP client reports the status (or the failure).
+     */
+    private fun loadDetails() {
+        val call = Tugboat.beginNetworkCall(method = "GET", route = "/details/42")
+        Handler(Looper.getMainLooper()).postDelayed({ call.complete(statusCode = 200) }, 200)
+    }
+
     private fun showDialog() {
         AlertDialog.Builder(this)
             .setTitle(R.string.dialog_title)
@@ -69,5 +89,8 @@ class MainActivity : Activity() {
     private companion object {
         const val KEY_TAPS = "taps"
         const val ROWS = 50
+
+        // Only `taps` keeps its value; `screen` is recorded as a key only.
+        val events = Tugboat.eventHook(source = "sample", parameterPolicy = ParameterPolicy.allowList(setOf("taps")))
     }
 }

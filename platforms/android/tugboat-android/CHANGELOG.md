@@ -10,6 +10,16 @@ wiring, window capture, and the Android Views adapter.
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
   `CollectorConfig`, `AppInfo`, `MaskLevel`. Idempotent start; nothing
   throws into the app.
+- Coded events and manual network calls: `Tugboat.eventHook(source,
+  parameterPolicy).record(name, parameters)` (`external_event`) and
+  `Tugboat.beginNetworkCall(method, route)` with `complete(statusCode,
+  attemptCount, errorResponseBody)` / `fail(NetworkFailure, …)`
+  (`network_call`), with `ParameterPolicy` `allowAll` (default), `namesOnly`,
+  `allowList`, `transform` + `DROP`. Callable from any thread, timed on the
+  calling thread, one finish per call, no-ops while not started. Kotlin runs
+  the transform and encodes the values; the engine (`evidence.externalEvent`,
+  `evidence.networkCall`) applies the policy, the limits, and the error-body
+  rule, as Flutter does.
 - Docs: `View.tugboatTag` has no accessibility option. UI test tools read
   the resource-id from `android:id`, which the resolver already uses as the
   alias fallback; no `AccessibilityDelegate` is installed (it would replace

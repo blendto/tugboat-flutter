@@ -30,6 +30,12 @@ process-wide, so `ComposeSemanticsActivity` installs `SemanticsBestEffort`
 in `onResume` and restores `WholeHost` in `onPause`.
 `Tugboat.trackNavigation(navController)` makes its destinations route keys
 and `route_change`s.
+Coded events and network calls: "Tap me" records the coded event
+`PRIMARY_TAPPED` through `Tugboat.eventHook(source = "sample",
+parameterPolicy = ParameterPolicy.allowList(setOf("taps")))`, and "Open
+details" records one manual call, `Tugboat.beginNetworkCall("GET",
+"/details/42")`, completed with status 200 after 200 ms (the sample makes
+no request).
 
 ## Build, install, run
 
@@ -134,6 +140,10 @@ the Navigation route keys `rows` and `row` (arguments stripped).
     with nothing focused (no keyboard);
   - `system_input` `back` (steps 5, 10, 11 for the presses that reach the
     app; a back press that only hides the keyboard goes to the keyboard);
+  - `external_event` (`stream: evidence`) `PRIMARY_TAPPED` with `source:
+    sample`, `parameterKeys` `[taps, screen]`, and only `taps` in
+    `parameters` (step 2), and `network_call` `GET /details/42`, `outcome:
+    response`, `statusCode: 200`, `durationMs` about 200 (step 5 and step 6);
   - lifecycle: `app_foregrounded` (launch, step 9), `app_inactive` and
     `app_backgrounded` (step 8). Two events can share an `atMs` (millisecond
     resolution, as in Dart); their order is the session's event order
