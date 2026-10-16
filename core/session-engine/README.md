@@ -282,6 +282,8 @@ message `input`. The field-level vocabulary is in
 | `session.end` | mono + wall | `{reason?}` (`session_end` or `dispose`) | Tears down in-flight work and records `session_end`. Idempotent. |
 | `app.lifecycle` | mono | `{state}`: `paused`, `hidden`, `inactive`, `resumed`, `detached` | `paused`/`hidden`/`detached` tear down in-flight work. Records `app_backgrounded`, `app_foregrounded`, `app_inactive`, or `app_detached` with `data.state`, dropping consecutive duplicates by state or event type. `detached` then ends the session. |
 | `event.record` | mono | `{eventType, stream, attachActionContext, data?, targetAnchor?, atMonoUs?}` | Records a toolkit-produced event (`scene_inventory`, `network_call`, `external_event`, …). `atMonoUs` (default `at.monoUs`) is the fact time. `stream` is `semantic`, `evidence`, or `diagnostic` (session schema 10). Types the engine records itself are rejected. |
+| `evidence.externalEvent` | mono | `{name, source?, policy {mode, allowedKeys?}, parameters?, atMonoUs?}` | Records an `external_event` (evidence stream, no action context) after applying Flutter's parameter policy (`names_only`, `allow_list`, `transform` with host-run results, `allow_all`), parameter limits, and name/source bounding. `parameters` uses the typed value encoding of [docs/evidence-messages.md](docs/evidence-messages.md). An empty name records nothing. |
+| `evidence.networkCall` | mono | `{method, route, startMonoUs, endMonoUs?, statusCode?, outcome, attemptCount?, errorResponseBody?}` | Records a `network_call` at `startMonoUs` (C19) with `durationMs` from the two monotonic times, after Flutter's method and route normalization and, for `statusCode` ≥ 400, error-body normalization (`errorResponseBody` is `{value}` or `{jsonText}`). An invalid method or route, or a call that began before the live session, records nothing. |
 | `locale.set` | mono | `{locale}` | Dedupes against the current locale, updates it, and records `locale_changed` (evidence stream, `data.previousLocale?`, `data.locale`) while a session is live. |
 | `identity.set` | mono + wall | `{userId}` (string or null) | Sets the runtime user id stamped on later records. A change is posted to the collector after the identity debounce. |
 | `traits.set` | mono + wall | `{traits}` (object) | Replaces the host's traits bag (it survives sessions). A bag equal to the current one (Dart `mapEquals`: shallow, nested containers never equal) is no change; a change is posted after the identity debounce. |
@@ -309,7 +311,8 @@ handle, in Dart's order; it is never reset per session (C7, kept). The
 host's `capture-N` request ids have their own counter. The exploration action window (`actionId` stamping) is
 not part of the engine; `actionId` passes through.
 
-Event-producing facts (`event.record`, `app.lifecycle`, `navigation`,
+Event-producing facts (`event.record`, `evidence.externalEvent`,
+`evidence.networkCall`, `app.lifecycle`, `navigation`,
 `surface`, and the interaction facts except `focus`) without a live session, before
 the first session or after `session_end` (change C9), are accepted and
 dropped: no record, no id. `capture.result` without a live session releases
