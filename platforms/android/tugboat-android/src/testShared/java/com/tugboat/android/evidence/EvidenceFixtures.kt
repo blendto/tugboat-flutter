@@ -140,7 +140,10 @@ internal class EvidenceFixture(val path: String, json: JSONObject) {
         for (i in 0 until entries.length()) {
             val entry = entries.get(i)
             if (entry is JSONArray) {
-                out[entry.getString(0)] = decodeValue(entry.get(1), ancestors)
+                var key = entry.getString(0)
+                // A repeated key is an error body's cut key: the host had longer, distinct keys.
+                while (key in out && key.length >= EngineEvidenceEncoder.BODY_STRING_UNITS) key += "~"
+                out[key] = decodeValue(entry.get(1), ancestors)
             } else {
                 repeat((entry as JSONObject).getInt("nonStringKeys")) { out[NonStringKey()] = null }
             }
