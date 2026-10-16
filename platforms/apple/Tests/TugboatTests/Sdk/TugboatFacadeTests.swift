@@ -39,6 +39,21 @@ final class TugboatFacadeTests: XCTestCase {
     Tugboat.stop()
   }
 
+  func testEvidenceIsAdmittedOnlyWhileStarted() {
+    let events = Tugboat.eventHook(source: "tests", parameterPolicy: .namesOnly)
+    events.record("BEFORE_START")
+    XCTAssertNil(EvidenceChannel.shared.admit())
+    Tugboat.start(config())
+    XCTAssertNotNil(EvidenceChannel.shared.admit())
+    events.record("STARTED", parameters: ["k": 1])
+    let call = Tugboat.beginNetworkCall(method: "GET", route: "/orders/1")
+    call.complete(statusCode: 200)
+    call.fail(.networkError)
+    Tugboat.stop()
+    XCTAssertNil(EvidenceChannel.shared.admit())
+    Tugboat.beginNetworkCall(method: "GET", route: "/orders/2").complete(statusCode: 200)
+  }
+
   func testCallsFromABackgroundThreadRunOnMain() {
     let done = expectation(description: "started from a background thread")
     DispatchQueue.global().async {

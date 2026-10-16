@@ -75,7 +75,8 @@ final class EventHookTests: XCTestCase {
     let hook = fixture.hook()
     fixture.channel.open(fixture.sink)
     hook.record("first")
-    fixture.channel.close()
+    // `stop` closes the channel on the main thread, after the hops queued before it.
+    fixture.hop.sync { fixture.channel.close() }
     let next = RecordingEvidenceSink()
     fixture.channel.open(next)
     hook.record("second")

@@ -25,7 +25,16 @@ Tugboat.stop()
 someView.tugboatTag("checkout")         // developer alias for a target
 someView.tugboatTag("checkout", accessibility: true) // also its accessibilityIdentifier
 someView.tugboatScreen("Checkout")      // route identity for a screen
+
+let events = Tugboat.eventHook(source: "analytics", parameterPolicy: .allowList(["method"]))
+events.record("USER_LOGIN", parameters: ["method": "email"])
+let call = Tugboat.beginNetworkCall(method: "GET", route: "/orders/123")
+call.complete(statusCode: 200)          // complete(statusCode:attemptCount:errorResponseBody:)
+call.fail(.networkError)                // or .cancelled; fail(_:statusCode:attemptCount:errorResponseBody:)
 ```
+
+See [Coded events and network calls](#coded-events-and-network-calls) for
+the evidence API.
 
 - `.tugboatTag(_:accessibility:)` with `accessibility: true` also sets the tag
   as the view's `accessibilityIdentifier`, so XCUITest, Maestro, Appium and
@@ -63,6 +72,56 @@ someView.tugboatScreen("Checkout")      // route identity for a screen
   on a background `tugboat-stop` thread; at once when no `session_end` will
   be posted (the host stopped, or `willTerminate` already ended the
   session). The main thread never waits.
+
+## Coded events and network calls
+
+The same evidence as the Flutter `TugboatReplay.eventHook` and
+`beginNetworkCall`: `external_event` and `network_call` events on
+`stream: evidence`, with the same payloads, so the collector and Context
+Graph treat them the same. They never inherit an action context or UI
+anchors.
+
+```swift
+let events = Tugboat.eventHook(source: "analytics", parameterPolicy: .allowList(["method"]))
+events.record("USER_LOGIN", parameters: ["method": "email"])
+
+let call = Tugboat.beginNetworkCall(method: "GET", route: "/orders/123")
+call.complete(statusCode: 422, errorResponseBody: ["error": "invalid_order"])
+```
+
+- `TugboatParameterPolicy`: `.allowAll` (the default: JSON-safe values
+  within hard limits, which can include user content), `.namesOnly` (keys
+  only), `.allowList(Set<String>)`, or `.transform { key, value in … }`,
+  which returns the value to keep (`nil` is kept as null) or
+  `TugboatParameterPolicy.drop`. A transform that throws drops that value.
+  Parameter keys are always reported.
+- A hook holds no session: make it once, before or after `start`; each
+  `record` goes to the session running at that moment.
+- A network call is one logical request. `route` is a path the app
+  chooses (for example from its router, dynamic ids allowed), never a full
+  URL. Query strings, headers, request bodies and transport error text are
+  never recorded. `complete` or `fail` takes an optional `statusCode`,
+  `attemptCount` and `errorResponseBody`; the body is kept, bounded, only
+  for a status of 400 or more: a `String` as text, a dictionary or array of
+  JSON values (`NSDictionary` and `NSArray` too) as JSON. `Data` and other
+  values give no body. The duration runs from `beginNetworkCall` to
+  `complete` or `fail` on the monotonic host clock.
+- Only the first `complete` or `fail` of a token counts. A nil or empty
+  route, or a call while Tugboat is not started, stopped, or disabled,
+  gives a token that records nothing; so does finishing a call after its
+  session ended.
+- Every method may be called from any thread. The time is taken, a
+  `transform` runs, and the values are read on the calling thread, before
+  the call returns; the message then goes to the main thread in call
+  order. Evidence recorded before a `start` made from a background thread
+  has run on the main thread is dropped.
+- The session engine applies the policy, the hard limits (Flutter's
+  `TugboatParameterLimits` and `TugboatNetworkLimits`), label bounding,
+  method and route validation, the error-body rule and `durationMs`, so
+  every platform shares one implementation. The SDK only runs a
+  `transform`, sorts dictionary keys by `String <` (Swift dictionaries
+  have no order), and converts Swift values to the engine's input
+  encoding (`Evidence/EvidenceEncoder`).
 
 ## Accessibility-tree identity (opt-in, ADR 0010)
 
@@ -146,6 +205,7 @@ changes. Turn this on only to learn about untagged screens, and sample it.
 | Piece | Where | Role |
 | --- | --- | --- |
 | Facade | `Public/Tugboat`, `TugboatConfig` | Thin: main-thread hop, idempotency, user id and traits kept across sessions. |
+| Evidence | `Evidence/` | `TugboatEventHook`, `TugboatNetworkCall` and `TugboatParameterPolicy`; `EvidenceChannel` admits them into the open session (opened by `start`, closed by `stop`), stamps the time on the calling thread, and hops to the main thread; `EvidenceMessages` builds `evidence.externalEvent` / `evidence.networkCall`; `EvidenceEncoder` converts the values. |
 | Composition root | `Sdk/TugboatRuntime`, `RuntimeParts` | Builds and owns one engine host, the SwiftUI adapter, the capture coordinator, the surface observer, and the lifecycle bridge. Closures reach the host weakly. |
 | Configuration | `Sdk/HostMetadata`, `DeviceSnapshot`, `EngineConfiguration`, `SessionMessages` | `engine.configure`: `host` with every `session_start` field the collector requires (device id `identifierForVendor`, `platform: ios`, screen size in points, `scale` as both densities, dpi `scale × 160`, `ipInfo.ip` placeholder `127.0.0.1` as Flutter on iOS, configured locale with timezone), the Dart `limits`, `gesture` = `GestureConfig.uiKitDefault`, `capture.answerTimeoutMs` 5000, `collector.enabled`, `focusChanges` (no `systemInput`: iOS has no system input facts yet). `session.start` with the key window's viewport and the active locale. |
 | Lifecycle | `Sdk/AppLifecycleBridge` | Application notifications to `app.lifecycle`: active `resumed`, resign `inactive`, background `paused`, will-enter-foreground `inactive`, terminate `detached`. |
