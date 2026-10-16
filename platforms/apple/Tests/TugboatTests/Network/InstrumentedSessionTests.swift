@@ -210,13 +210,13 @@ final class InstrumentedSessionTests: XCTestCase {
     XCTAssertEqual(resolved.read().count, 1, "the resolver runs once per call")
   }
 
-  func testAnAuthChallengeGoesToTheAppAndItsRetryIsOneEvent() throws {
+  func testAnAuthChallengeGoesToTheAppAndTheTaskIsOneEvent() throws {
     NetworkStubProtocol.reset(["/orders/123": .challenge(then: .ok(200, "application/json", "{\"ok\":true}"))])
     let delegate = appDelegate()
     let snapshot = run(request("/orders/123"), on: session(delegate: delegate), delegate: delegate)
 
     XCTAssertTrue(snapshot.calls.contains("didReceiveChallenge"), "the app's delegate answers the challenge: \(snapshot.calls)")
-    XCTAssertEqual(snapshot.statusCodes, [200], "the app's credential was used")
+    XCTAssertEqual(snapshot.statusCodes, [200])
     let posts = self.posts(1)
     XCTAssertEqual(posts.count, 1)
     XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 200)

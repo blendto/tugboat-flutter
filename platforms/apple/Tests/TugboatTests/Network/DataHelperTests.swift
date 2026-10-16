@@ -143,7 +143,7 @@ final class DataHelperTests: XCTestCase {
     let (_, response) = try await Tugboat.data(
       for: request("/orders/123"), session: session, delegate: delegate, route: "/orders/123")
 
-    XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200, "the app's credential was used")
+    XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
     XCTAssertTrue(delegate.snapshot.calls.contains("didReceiveChallenge"))
     let posts = try await self.posts(1)
     XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 200)

@@ -132,7 +132,9 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
 
     XCTAssertEqual(response.data, Data(body.utf8))
     let text = try XCTUnwrap((inputs(1).first?["errorResponseBody"] as? [String: Any])?["value"] as? String)
-    XCTAssertEqual(text, String(body.prefix(4100)))
+    // Cut to whole characters within 4100 bytes, then (as every text body)
+    // to 4097 UTF-16 units: both past the engine's 4096-byte cut.
+    XCTAssertEqual(text, String(body.prefix(4097)))
   }
 
   func testATimeoutIsANetworkError() {

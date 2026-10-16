@@ -13,7 +13,10 @@ final class NetworkStubProtocol: URLProtocol, URLAuthenticationChallengeSender {
     case failure(URLError.Code)
     /// A 302 to `location`; the session follows it with a new request.
     case redirect(location: String)
-    /// An HTTP Basic challenge: a credential gets `then`, anything else a 401.
+    /// An HTTP Basic challenge, then `then` 0.3 s later. URLSession hands a
+    /// protocol's challenge to the delegate but does not route the
+    /// delegate's answer back to the protocol's sender, so the stub answers
+    /// on its own once the delegate has had it.
     indirect case challenge(then: Reply)
     /// Never answers; only cancellation ends the request.
     case hang
@@ -96,7 +99,9 @@ final class NetworkStubProtocol: URLProtocol, URLAuthenticationChallengeSender {
       else { return }
       client.urlProtocol(self, wasRedirectedTo: URLRequest(url: target.absoluteURL), redirectResponse: response)
     case let .challenge(then):
+      pendingLock.lock()
       pendingAfterChallenge = then
+      pendingLock.unlock()
       let space = URLProtectionSpace(
         host: url.host ?? "", port: url.port ?? 443, protocol: url.scheme, realm: "stub",
         authenticationMethod: NSURLAuthenticationMethodHTTPBasic)
@@ -107,31 +112,47 @@ final class NetworkStubProtocol: URLProtocol, URLAuthenticationChallengeSender {
         didReceive: URLAuthenticationChallenge(
           protectionSpace: space, proposedCredential: nil, previousFailureCount: 0, failureResponse: failure,
           error: nil, sender: self))
+      DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        self?.answerPendingChallenge()
+      }
     case .hang:
       break
+    }
+  }
+
+  private let pendingLock = NSLock()
+
+  /// Sends the reply after a challenge once, whichever path gets here first.
+  private func answerPendingChallenge() {
+    pendingLock.lock()
+    let reply = pendingAfterChallenge
+    pendingAfterChallenge = nil
+    pendingLock.unlock()
+    if let reply = reply {
+      answer(reply)
     }
   }
 
   // MARK: - URLAuthenticationChallengeSender
 
   func use(_ credential: URLCredential, for challenge: URLAuthenticationChallenge) {
-    answer(pendingAfterChallenge ?? .ok(200))
+    answerPendingChallenge()
   }
 
   func continueWithoutCredential(for challenge: URLAuthenticationChallenge) {
-    answer(.ok(401))
+    answerPendingChallenge()
   }
 
   func cancel(_ challenge: URLAuthenticationChallenge) {
-    answer(.failure(.userCancelledAuthentication))
+    answerPendingChallenge()
   }
 
   func performDefaultHandling(for challenge: URLAuthenticationChallenge) {
-    answer(.ok(401))
+    answerPendingChallenge()
   }
 
   func rejectProtectionSpaceAndContinue(with challenge: URLAuthenticationChallenge) {
-    answer(.ok(401))
+    answerPendingChallenge()
   }
 }
 #endif
