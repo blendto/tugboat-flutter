@@ -27,6 +27,11 @@ final class TugboatRuntime {
     clock = parts.clock
   }
 
+  /// Where coded events and network calls go; any thread.
+  var evidenceSink: EvidenceSink {
+    host
+  }
+
   func setUserId(_ userId: String?) {
     host.post(type: SessionMessages.identitySet, inputJSON: SessionMessages.identityInput(userId), at: clock.now())
   }
