@@ -226,10 +226,22 @@ A target fingerprint is derived from `routeKey + canonicalPath`. The serialized
 position metadata, enabled/actions metadata, confidence, and compact
 fingerprint parts for diagnosis.
 
-`TugboatTag` and a stable `ValueKey<String>` can add a high-confidence
-`tagFingerprint`. A tag is transparent to structural identity: adding it does
-not change the target fingerprint. `TugboatSubView` adds a developer-owned
-subview label for route-internal state and scroll attribution.
+`.tugboatTag(id)` (equivalent to the `TugboatTag` wrapper) and a stable
+`ValueKey<String>` can add a high-confidence `tagFingerprint`. A tag is
+transparent to structural identity: adding it does not change the target
+fingerprint. With `accessibility: true` the id is also published as a
+`Semantics` identifier (platform accessibility identifier). The SDK's
+`Semantics` node is already excluded from structural identity, and the
+identifier is not part of the fingerprint or state signature. The option is
+off by default. Enable it on a single control, not on a container: on a
+container the identifier sits above the whole subtree, so it does not identify
+the controls inside it. On Material buttons (`ButtonStyleButton` and Material 3
+`IconButton`) the identifier sits on a label-less parent node with the button's
+bounds rather than on the labelled button. Screen-reader focus is unchanged,
+id-based lookups work, and role-based button queries do not match.
+`.tugboatSubView(label)` (equivalent to `TugboatSubView`) adds a
+developer-owned subview label for route-internal state and scroll attribution.
+`.tugboatSensitive()` is equivalent to `TugboatSensitive`.
 
 ### Android Views canonicalization
 
@@ -375,7 +387,7 @@ evidence, target anchors, and frame hashes for raw replay facts.
 
 Confidence is the floor of route and structural evidence:
 
-- `high`: explicit developer alias such as `TugboatTag`/stable value key;
+- `high`: explicit developer alias such as `.tugboatTag(id)`/stable value key;
 - `medium`: usable structural path and/or structural route fallback;
 - `low`: ambiguous structure, bare collapsed item, or insufficient actionable
   evidence.
@@ -391,8 +403,9 @@ accessibility, tooltip, or icon-label strings as target identity.
 Developer-authored identity strings can still be emitted:
 
 - named routes;
-- `TugboatTag.id` in target fingerprint parts, plus its hash alias;
-- `TugboatSubView.label`;
+- the `.tugboatTag(id)` / `TugboatTag.id` value in target fingerprint parts,
+  plus its hash alias;
+- the `.tugboatSubView(label)` / `TugboatSubView.label` value;
 - widget type names or configured `widgetNames` replacements;
 - canonical structural paths.
 

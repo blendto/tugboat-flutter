@@ -1,3 +1,21 @@
+## 0.10.11-dev.4
+
+Prerelease.
+
+### Added
+
+- `TugboatMarkers` extension on `Widget` with modifier-style markers:
+  `.tugboatTag(id)`, `.tugboatSensitive()`, and `.tugboatSubView(label)`.
+  Each returns the matching `TugboatTag`, `TugboatSensitive`, or
+  `TugboatSubView` wrapper, so runtime behaviour, identity, fingerprints, and
+  masking are unchanged. The wrappers remain supported.
+- `TugboatTag` and `.tugboatTag` take `accessibility` (default `false`). When
+  true, the id is also published as the platform accessibility identifier
+  (Android resource-id, iOS `accessibilityIdentifier`). Enable it on a single
+  control, not a container. On Material buttons the identifier lands on a
+  label-less parent node rather than the button node, so it is not on the
+  button itself. Identity and masking are unchanged either way.
+
 ## 0.10.11-dev.3
 
 Prerelease. No change to shipped behaviour.
