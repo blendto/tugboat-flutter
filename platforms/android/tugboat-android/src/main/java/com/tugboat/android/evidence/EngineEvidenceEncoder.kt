@@ -11,8 +11,9 @@ import com.tugboat.android.ParameterPolicy
  * - Values (section 2, 4.1): typed Kotlin values in the engine's value grammar.
  * - Transform (4.3): the closure runs here, once per valid key among the first
  *   64 entries, in order.
- * - Required bounds (4.4) and the exact elisions of 4.5, which only leave out
- *   what Dart never reads.
+ * - The mandatory bounds of 4.4 (parameters) and 4.5 (error bodies): they
+ *   bound this host's work and the message, and only leave out what Dart
+ *   never reads.
  */
 internal object EngineEvidenceEncoder : EvidenceEncoder {
     override fun externalEvent(event: ExternalEventInput): String {
@@ -94,8 +95,8 @@ internal object EngineEvidenceEncoder : EvidenceEncoder {
     const val PARAMETER_UNSUPPORTED_DEPTH = 5
     const val MAX_PARAMETER_STRING_UNITS = 1024
 
-    /** The shared item budget is 256, so the 257th item always ends a collection. */
-    const val PARAMETER_ITEMS_SENT = 257
+    /** Counted slots (list and iterable items, valid-key map entries) across the whole parameters tree. */
+    const val PARAMETER_ITEM_BUDGET = 256
 
     // Section 3.2 / 4.4 / 4.5, error bodies.
     const val ERROR_STATUS = 400
@@ -107,10 +108,17 @@ internal object EngineEvidenceEncoder : EvidenceEncoder {
     const val BODY_NODES_SENT = 4097
 }
 
-/** Writes the parameters map: the top-level rules, the policy's value reads, and the transform. */
+/**
+ * Writes the parameters map (section 4.4): invalid keys as `nonStringKeys`
+ * runs at every level, the first 64 top-level entries, the policy's reads,
+ * the transform, and one item budget for the whole tree.
+ */
 private class ParameterWriter(private val out: StringBuilder, private val policy: ParameterPolicy) {
     /** Collections currently being written, innermost last; the parameters map itself is never one. */
     private val ancestors = ArrayList<Any>()
+
+    /** Counted slots sent so far, across every read value (`c` in 4.4). */
+    private var items = 0
 
     fun writeParameters(parameters: Map<*, *>) {
         out.append("{\"map\":[")
@@ -120,11 +128,11 @@ private class ParameterWriter(private val out: StringBuilder, private val policy
         while (sent < EngineEvidenceEncoder.MAX_TOP_LEVEL_ENTRIES && iterator.hasNext()) {
             val (key, value) = iterator.next()
             sent++
-            if (key !is String) {
+            if (!isValidKey(key)) {
                 entries.nonStringKey()
                 continue
             }
-            entries.beginEntry(key)
+            entries.beginEntry(key as String)
             writeTopLevelValue(key, value)
             out.append(']')
         }
@@ -134,12 +142,8 @@ private class ParameterWriter(private val out: StringBuilder, private val policy
         out.append('}')
     }
 
-    /** Values the engine never reads are sent as `null` (4.5); invalid keys must be (4.3). */
+    /** Values the engine never reads are sent as `null`, unread. */
     private fun writeTopLevelValue(key: String, value: Any?) {
-        if (!isValidKey(key)) {
-            out.append("null")
-            return
-        }
         when (policy.mode) {
             ParameterPolicy.Mode.NamesOnly -> out.append("null")
             ParameterPolicy.Mode.AllowList -> if (key in policy.allowedKeys) writeValue(value, 1) else out.append("null")
@@ -164,7 +168,6 @@ private class ParameterWriter(private val out: StringBuilder, private val policy
             return
         }
         if (value is String) {
-            // Dart drops a longer string; unsupported is the same drop (4.5).
             if (value.length > EngineEvidenceEncoder.MAX_PARAMETER_STRING_UNITS) out.append(UNSUPPORTED) else out.appendJsonString(value)
             return
         }
@@ -184,56 +187,75 @@ private class ParameterWriter(private val out: StringBuilder, private val policy
 
     private fun writeCollection(value: Any, depth: Int) {
         when (value) {
-            is List<*> -> writeItems(value.iterator(), depth, tag = null)
-            is Array<*> -> writeItems(value.iterator(), depth, tag = null)
+            is List<*> -> writeItems(value.iterator(), depth, tag = "list")
+            is Array<*> -> writeItems(value.iterator(), depth, tag = "list")
             is Map<*, *> -> writeMap(value, depth)
             is Iterable<*> -> writeItems(value.iterator(), depth, tag = "iterable")
             else -> out.append(UNSUPPORTED)
         }
     }
 
-    /** The item budget ends a collection by its 257th item (4.5): no `omitted`. */
-    private fun writeItems(items: Iterator<*>, depth: Int, tag: String?) {
-        if (tag != null) out.append("{\"").append(tag).append("\":")
-        out.append('[')
-        var sent = 0
-        while (sent < EngineEvidenceEncoder.PARAMETER_ITEMS_SENT && items.hasNext()) {
-            if (sent > 0) out.append(',')
-            writeValue(items.next(), depth + 1)
-            sent++
-        }
-        out.append(']')
-        if (tag != null) out.append('}')
+    /** False, without taking a slot, once the budget is spent: the collection then ends with `"omitted": 1`. */
+    private fun takeSlot(): Boolean {
+        if (items >= EngineEvidenceEncoder.PARAMETER_ITEM_BUDGET) return false
+        items++
+        return true
     }
 
-    /** Invalid keys fold into `nonStringKeys` runs; the 257th valid entry ends the map (4.5). */
+    /** A list is a bare array unless the budget cuts it. */
+    private fun writeItems(iterator: Iterator<*>, depth: Int, tag: String) {
+        val start = out.length
+        out.append('[')
+        var sent = 0
+        var cut = false
+        while (iterator.hasNext()) {
+            if (!takeSlot()) {
+                cut = true
+                break
+            }
+            if (sent++ > 0) out.append(',')
+            writeValue(iterator.next(), depth + 1)
+        }
+        out.append(']')
+        if (tag == "list" && !cut) return
+        out.insert(start, "{\"$tag\":")
+        if (cut) out.append(",\"omitted\":1")
+        out.append('}')
+    }
+
     private fun writeMap(map: Map<*, *>, depth: Int) {
         out.append("{\"map\":[")
         val entries = EntryList(out)
-        var valid = 0
         val iterator = map.entries.iterator()
-        while (valid < EngineEvidenceEncoder.PARAMETER_ITEMS_SENT && iterator.hasNext()) {
+        var cut = false
+        while (iterator.hasNext()) {
             val (key, value) = iterator.next()
-            if (key !is String || !isValidKey(key)) {
+            if (!isValidKey(key)) {
                 entries.nonStringKey()
                 continue
             }
-            valid++
-            entries.beginEntry(key)
+            if (!takeSlot()) {
+                cut = true
+                break
+            }
+            entries.beginEntry(key as String)
             writeValue(value, depth + 1)
             out.append(']')
         }
         entries.finish()
-        out.append("]}")
+        out.append(']')
+        if (cut) out.append(",\"omitted\":1")
+        out.append('}')
     }
 
-    private fun isValidKey(key: String) = key.isNotEmpty() && key.length <= EngineEvidenceEncoder.MAX_KEY_UNITS
+    private fun isValidKey(key: Any?) = key is String && key.isNotEmpty() && key.length <= EngineEvidenceEncoder.MAX_KEY_UNITS
 }
 
 /**
- * Writes an error body (section 3.2): first 128 items with `omitted`, strings
- * and keys cut to 4097 units, and no more items once 4097 nodes are written
- * (4.5), all exact because Dart's encoding is past 4096 bytes by then.
+ * Writes an error body (section 4.5): collections at depth 6 or more
+ * unsupported, the first 128 items of each collection with `omitted`, strings
+ * and keys cut to 4097 units, and nothing more once 4097 nodes are written,
+ * all exact because Dart's encoding is past 4096 bytes by then.
  */
 private class BodyWriter(private val out: StringBuilder) {
     private val ancestors = ArrayList<Any>()
@@ -254,7 +276,8 @@ private class BodyWriter(private val out: StringBuilder) {
             return
         }
         if (out.appendScalar(value)) {
-            count()
+            // unsupported values and non-finite doubles are not nodes.
+            if (isNode(value)) count()
             return
         }
         if (!isCollection(value)) {
@@ -351,6 +374,13 @@ private class BodyWriter(private val out: StringBuilder) {
 
     private fun cut(value: String) =
         if (value.length > EngineEvidenceEncoder.BODY_STRING_UNITS) value.substring(0, EngineEvidenceEncoder.BODY_STRING_UNITS) else value
+
+    private fun isNode(value: Any?) = when (value) {
+        null, is Boolean, is Byte, is Short, is Int, is Long -> true
+        is Double -> value.isFinite()
+        is Float -> value.isFinite()
+        else -> false
+    }
 
     private fun isCollection(value: Any?) = value is List<*> || value is Array<*> || value is Map<*, *> || value is Iterable<*>
 }

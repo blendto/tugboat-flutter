@@ -78,18 +78,20 @@ class EvidenceConformanceTest {
 
     private companion object {
         /**
-         * Fixtures whose input the encoder writes differently, by an exact
-         * elision of evidence-messages.md section 4.5 (the same record): the
-         * device test checks their engine output.
+         * Fixtures whose input the encoder writes differently, by the
+         * mandatory bounds of evidence-messages.md sections 4.4 and 4.5 (the
+         * same record): the device test checks their engine output.
          */
         val ELIDED = mapOf(
             "collection-budget-shared" to "nested invalid keys folded into one nonStringKeys run",
+            "collection-items-257" to "the item budget stops the list at its 257th item with omitted",
+            "transform-results" to "an invalid key is a nonStringKeys run",
             "depth-5-dropped" to "a value at depth 5 is sent unsupported (required bound)",
             "omitted-items-stand-in" to "the stand-ins are sent as the unsupported values they stand for",
             "run-counts-towards-64" to "64 top-level entries, then omitted",
             "string-1024-and-1025" to "a string over 1024 units is sent unsupported",
-            "top-level-invalid-keys" to "values of invalid top-level keys are sent as null",
-            "top-level-key-length-surrogates" to "the 129-unit key's value is sent as null",
+            "top-level-invalid-keys" to "invalid top-level keys are nonStringKeys runs",
+            "top-level-key-length-surrogates" to "the 129-unit key is a nonStringKeys run",
             "unsupported-values" to "nested invalid keys folded into one nonStringKeys run",
             "json-body-129-items" to "128 items, then omitted",
             "json-body-depth-5-kept-6-unsupported" to "a collection at depth 6 is sent unsupported (required bound)",

@@ -139,6 +139,17 @@ class EngineEvidenceEncoderTest {
     }
 
     @Test
+    fun invalidTopLevelKeysAreRunsThatCountTowardsSixtyFour() {
+        val parameters = linkedMapOf<Any?, Any?>("ok" to 1, "" to 2, "k".repeat(129) to 3, null to 4, "k".repeat(128) to 5)
+        (0 until 70).forEach { parameters[it] = it }
+
+        assertEquals(
+            "{\"map\":[[\"ok\",1],{\"nonStringKeys\":3},[\"${"k".repeat(128)}\",5],{\"nonStringKeys\":59}],\"omitted\":11}",
+            parameters(ParameterPolicy.allowAll, parameters),
+        )
+    }
+
+    @Test
     fun theTopLevelSendsSixtyFourEntriesAndCountsTheRest() {
         val many = (0 until 70).associate { "k$it" to it }
         val json = parameters(ParameterPolicy.allowAll, many)
@@ -179,7 +190,7 @@ class EngineEvidenceEncoderTest {
         assertTrue(
             json,
             json.startsWith(
-                "{\"map\":[[\"a\",\"t1\"],[\"\",null],[\"${"x".repeat(129)}\",null],{\"nonStringKeys\":1},[\"drop\",{\"drop\":true}]," +
+                "{\"map\":[[\"a\",\"t1\"],{\"nonStringKeys\":3},[\"drop\",{\"drop\":true}]," +
                     "[\"throws\",{\"drop\":true}],[\"nulled\",null],[\"nested\",[{\"unsupported\":true}]],[\"p0\",\"t0\"],",
             ),
         )
@@ -187,17 +198,61 @@ class EngineEvidenceEncoderTest {
     }
 
     @Test
-    fun nestedElisionLeavesOutOnlyWhatTheItemBudgetNeverReaches() {
+    fun longStringsAreUnsupported() {
         assertEquals("{\"unsupported\":true}", value("x".repeat(1025)))
         assertEquals("\"${"x".repeat(1024)}\"", value("x".repeat(1024)))
-        val first257 = (0 until 257).joinToString(",")
-        assertEquals("[$first257]", value((0 until 300).toList()))
-        assertEquals("{\"iterable\":[$first257]}", value((0 until 300).toSet()))
+    }
+
+    @Test
+    fun oneCollectionStopsAtTheItemBudgetWithOmitted() {
+        val first256 = (0 until 256).joinToString(",")
+        assertEquals("[$first256]", value((0 until 256).toList()))
+        assertEquals("{\"list\":[$first256],\"omitted\":1}", value((0 until 300).toList()))
+        assertEquals("{\"iterable\":[$first256],\"omitted\":1}", value((0 until 300).toSet()))
         val wide = LinkedHashMap<Any?, Any?>()
         wide[""] = 0
         (0 until 300).forEach { wide["k$it"] = it }
-        val entries = (0 until 257).joinToString(",") { "[\"k$it\",$it]" }
-        assertEquals("{\"map\":[{\"nonStringKeys\":1},$entries]}", value(wide))
+        val entries = (0 until 256).joinToString(",") { "[\"k$it\",$it]" }
+        assertEquals("{\"map\":[{\"nonStringKeys\":1},$entries],\"omitted\":1}", value(wide))
+    }
+
+    @Test
+    fun theItemBudgetIsSharedAcrossTheTreeInVisitOrder() {
+        val parameters = linkedMapOf<String, Any?>(
+            // 4 slots, depth first: the inner list, its 2 items, then "z"; "b" takes 250 and "c" the last 2.
+            "a" to listOf(listOf(1, 2), "z"),
+            "b" to (0 until 250).toList(),
+            "c" to (0 until 10).toList(),
+            "d" to emptyList<Any>(),
+            "e" to linkedMapOf<Any?, Any?>(7 to "run", "k" to 1),
+            "f" to setOf(1),
+            "g" to "scalars still go",
+        )
+
+        assertEquals(
+            "{\"map\":[[\"a\",[[1,2],\"z\"]],[\"b\",[${(0 until 250).joinToString(",")}]]," +
+                "[\"c\",{\"list\":[0,1],\"omitted\":1}],[\"d\",[]]," +
+                "[\"e\",{\"map\":[{\"nonStringKeys\":1}],\"omitted\":1}],[\"f\",{\"iterable\":[],\"omitted\":1}]," +
+                "[\"g\",\"scalars still go\"]]}",
+            parameters(ParameterPolicy.allowAll, parameters),
+        )
+    }
+
+    @Test
+    fun unreadValuesAreNotEncodedAndDoNotSpendTheBudget() {
+        val reads = mutableListOf<Int>()
+        val watched = object : AbstractList<Int>() {
+            override val size get() = 300
+            override fun get(index: Int): Int = index.also { reads += it }
+        }
+        val parameters = linkedMapOf<String, Any?>("hidden" to watched, "shown" to (0 until 3).toList())
+
+        assertEquals(
+            "{\"map\":[[\"hidden\",null],[\"shown\",[0,1,2]]]}",
+            parameters(ParameterPolicy.allowList(setOf("shown")), parameters),
+        )
+        assertEquals("{\"map\":[[\"hidden\",null],[\"shown\",null]]}", parameters(ParameterPolicy.namesOnly, parameters))
+        assertTrue(reads.isEmpty())
     }
 
     @Test
@@ -270,6 +325,15 @@ class EngineEvidenceEncoderTest {
         val cyclic = mutableListOf<Any?>()
         cyclic.add(cyclic)
         assertEquals("[{\"ref\":1}]", bodyValue(cyclic))
+    }
+
+    @Test
+    fun nonFiniteDoublesUnsupportedValuesAndIterablesAreNotNodes() {
+        val nan = "{\"double\":\"NaN\"}"
+        val row = List(128) { nan }.joinToString(",", "[", "]")
+        assertEquals(List(40) { row }.joinToString(",", "[", "]"), bodyValue(List(40) { List(128) { Double.NaN } }))
+        val unsupported = List(128) { "{\"unsupported\":true}" }.joinToString(",", "[", "]")
+        assertEquals(List(40) { unsupported }.joinToString(",", "[", "]"), bodyValue(List(40) { List(128) { 'c' } }))
     }
 
     @Test
