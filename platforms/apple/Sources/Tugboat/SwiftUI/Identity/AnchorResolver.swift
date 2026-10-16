@@ -8,10 +8,18 @@ import UIKit
 ///   hit-testing at the point, then the nearest ancestor that is a target
 ///   kind: text input, list cell, scroll view, representable. A hit on bare
 ///   SwiftUI drawing with none of those is `no_actionable_candidate`.
+/// - **Accessibility refinement** (ADR 0010, opt-in). A tap with no target,
+///   or on a list cell or scroll view (no control under it), asks the
+///   `AccessibilityLeafSource` once for the accessibility element at the
+///   point. An answer adds its `AX…#<k>` segment to the path of the
+///   container (the hosting view when there is no target), with the
+///   element's `role`; nil keeps today's result. Tagged taps, text inputs,
+///   UIKit controls and representables never ask.
 /// - **Tagged anchors** describe the tag, not the UIKit view around it:
 ///   `widgetType` is the neutral `SwiftUIView`, and `role`, `actions` and
 ///   `enabled` are omitted (a tagged button inside a scroll view is not
-///   `scrollable`).
+///   `scrollable`). Accessibility-refined anchors are the same, with the
+///   element's `role` when its traits map to one.
 /// - **Fingerprint.** Hash of `routeKey` + the canonical path of the view
 ///   under the point. A tagged target's path ends in `Tagged#<k>`, `k` its
 ///   marker's layout-order ordinal within its hosting view, so tagged
@@ -19,10 +27,10 @@ import UIKit
 ///   fingerprints; the tag value never enters the path. A tag also adds
 ///   `tagFingerprint` (`routeKey` + `tag`), the high-confidence alias.
 /// - **Confidence.** The floor of the route's and the path's. The path is
-///   `high` with a tag; `low` when it passes through a fail-closed box (a
-///   `Representable` segment: the SDK cannot see inside, so every target
-///   there shares the box's path); `medium` inside a list cell (index
-///   path); `low` otherwise.
+///   `high` with a tag (never from the accessibility tree); `low` when it
+///   passes through a fail-closed box (a `Representable` segment: the SDK
+///   cannot see inside, so every target there shares the box's path);
+///   `medium` inside a list cell (index path); `low` otherwise.
 ///
 /// Main thread only.
 final class AnchorResolver {
@@ -30,10 +38,12 @@ final class AnchorResolver {
 
   private let tags: TagRegistry
   private let screens: ScreenTracker
+  private let accessibility: AccessibilityLeafSource?
 
-  init(tags: TagRegistry, screens: ScreenTracker) {
+  init(tags: TagRegistry, screens: ScreenTracker, accessibility: AccessibilityLeafSource? = nil) {
     self.tags = tags
     self.screens = screens
+    self.accessibility = accessibility
   }
 
   /// Tap evidence for a touch whose down was at `point` (window points).
@@ -43,18 +53,22 @@ final class AnchorResolver {
     let root = lineage.first { $0.kind == .hosting }?.view ?? window
     if let tagged = tags.marker(at: point, in: window, root: root) {
       let base = AnchorResolver.nearestTarget(in: lineage) ?? lineage.last { $0.kind == .hosting }?.view ?? hit ?? window
-      let tag = Tagging(value: tagged.tugboatTag, ordinal: tags.layoutOrdinal(of: tagged))
-      return evidence(anchor(for: base, in: window, tag: tag))
+      let segment = "\(CanonicalPath.taggedToken)#\(tags.layoutOrdinal(of: tagged))"
+      return evidence(anchor(for: base, in: window, leaf: Leaf(segment: segment, tag: tagged.tugboatTag, role: nil)))
     }
     guard hit != nil else { return .failed(.noTargetAtPoint) }
-    guard let target = AnchorResolver.nearestTarget(in: lineage) else { return .failed(.noActionableCandidate) }
-    return evidence(anchor(for: target, in: window, tag: nil as Tagging?))
+    let target = AnchorResolver.nearestTarget(in: lineage)
+    if let refined = accessibilityRefinement(of: target, lineage: lineage, in: window, at: point) {
+      return .anchor(refined)
+    }
+    guard let target = target else { return .failed(.noActionableCandidate) }
+    return evidence(anchor(for: target, in: window, leaf: nil))
   }
 
   /// The anchor of `view` (a scrollable at scroll start), or nil when it is
   /// not in `window`.
   func anchor(for view: UIView, in window: UIWindow) -> TargetAnchor? {
-    anchor(for: view, in: window, tag: nil as Tagging?)
+    anchor(for: view, in: window, leaf: nil)
   }
 
   private func evidence(_ anchor: TargetAnchor?) -> TapEvidence {
@@ -62,26 +76,49 @@ final class AnchorResolver {
     return .anchor(anchor)
   }
 
-  /// A tap's tag: its value (the alias) and its marker's layout ordinal
-  /// (the structural path segment).
-  private struct Tagging {
-    let value: String
-    let ordinal: Int
+  /// What a tap names inside `view` rather than `view` itself: a tag's
+  /// marker (`Tagged#<layout ordinal>`, the tag value as alias) or an
+  /// accessibility element (`AX…#<k>`, its role). Either describes SwiftUI
+  /// content, not the UIKit view around it.
+  private struct Leaf {
+    let segment: String
+    let tag: String?
+    let role: String?
   }
 
-  private func anchor(for view: UIView, in window: UIWindow, tag tagging: Tagging?) -> TargetAnchor? {
+  /// The one ADR 0010 seam: nil unless the tap has no target, or its target
+  /// is a container with no control under it, and the accessibility source
+  /// finds an element there.
+  private func accessibilityRefinement(
+    of target: UIView?, lineage: [ViewNode], in window: UIWindow, at point: CGPoint
+  ) -> TargetAnchor? {
+    guard let source = accessibility, let root = lineage.last(where: { $0.kind == .hosting })?.view else { return nil }
+    if let target = target, !AnchorResolver.isContainer(target) { return nil }
+    guard let element = source.leaf(at: point, in: window, root: root) else { return nil }
+    return anchor(for: target ?? root, in: window, leaf: Leaf(segment: element.segment, tag: nil, role: element.role))
+  }
+
+  /// A list cell or a scroll view: targets that hold SwiftUI controls
+  /// without a UIKit view of their own.
+  private static func isContainer(_ view: UIView) -> Bool {
+    if CanonicalPathBuilder.itemIndexPath(of: view) != nil { return true }
+    let kind = ViewTree.node(view).kind
+    return kind == .cell || kind == .scrollView
+  }
+
+  private func anchor(for view: UIView, in window: UIWindow, leaf: Leaf?) -> TargetAnchor? {
     guard view === window || view.isDescendant(of: window) else { return nil }
     screens.settle()
     let route = RouteKey.resolve(for: view, in: window, screen: screens.top)
     guard let base = CanonicalPathBuilder.build(root: route.root, target: view) else { return nil }
-    let path = tagging.map { base.appending("\(CanonicalPath.taggedToken)#\($0.ordinal)") } ?? base
-    let tag = tagging?.value
+    let path = leaf.map { base.appending($0.segment) } ?? base
+    let tag = leaf?.tag
     let pathConfidence = AnchorResolver.pathConfidence(path, tagged: tag != nil)
     let kind = ViewTree.node(view).kind
     let structural = IdentityHash.fingerprint([(key: "routeKey", value: route.value), (key: "path", value: path.value)])
     return TargetAnchor(
-      widgetType: tag == nil ? kind.widgetType(of: view) : AnchorResolver.taggedWidgetType,
-      role: tag == nil ? kind.anchorRole(of: view) : nil,
+      widgetType: leaf == nil ? kind.widgetType(of: view) : AnchorResolver.taggedWidgetType,
+      role: leaf == nil ? kind.anchorRole(of: view) : leaf?.role,
       fingerprint: structural,
       confidence: Confidence.floor(route.confidence, pathConfidence),
       tagFingerprint: tag.map { IdentityHash.fingerprint([(key: "routeKey", value: route.value), (key: "tag", value: $0)]) },
@@ -89,8 +126,8 @@ final class AnchorResolver {
       tag: tag,
       canonicalPath: path.value,
       relativePosition: AnchorResolver.relativePosition(of: view, in: window),
-      enabled: tag == nil && kind.isTarget ? ViewKind.isEnabled(view) : nil,
-      actions: tag == nil ? kind.actions(of: view) : []
+      enabled: leaf == nil && kind.isTarget ? ViewKind.isEnabled(view) : nil,
+      actions: leaf == nil ? kind.actions(of: view) : []
     )
   }
 

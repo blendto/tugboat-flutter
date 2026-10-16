@@ -1,7 +1,7 @@
 # ADR 0010: Opt-in accessibility-tree identity for SwiftUI taps
 
-Status: Proposed
-Date: 2026-10-15
+Status: Accepted
+Date: 2026-10-16
 
 ## Context
 
@@ -94,8 +94,10 @@ UIKit-resolved taps keep exactly today's anchors.
 - No full-tree walk. From the hosting view, descend only into accessibility
   containers whose `accessibilityFrame` contains the tap point, and take the
   smallest element (`isAccessibilityElement`) whose frame contains it.
-  Frames are converted from screen to window coordinates.
-- The adapter reads the element's `accessibilityIdentifier` and
+  Frames are converted from screen to window coordinates. The descent reads
+  at most 256 elements; over that budget the tap keeps today's result.
+- The adapter reads each visited element's frame, whether its
+  `accessibilityIdentifier` is set (never keeping the value), and its
   `accessibilityTraits`. Nothing else.
 - **Labels are not read or sent.** `accessibilityLabel` and `Value` carry
   visible, localized and often user-specific text ("Message from Ada",
@@ -110,20 +112,27 @@ UIKit-resolved taps keep exactly today's anchors.
 The fallback changes only the tap anchor. There is no new wire field and no
 engine change.
 
-- **With an identifier**, the identifier is the alias, as `testTag` is for
-  Compose: a `tagFingerprint` (`routeKey` + identifier), `tag` in
-  `fingerprintParts`, `high` path confidence. The structural path is the
-  base path plus `AXIdentified#<k>`, where `k` is the element's ordinal
-  among identified elements on the descent. `widgetType` is
-  `SwiftUIView` and `role`, `actions` and `enabled` are omitted, as for a
-  `.tugboatTag`.
+- **With an identifier**, the path is the base path plus
+  `AXIdentified#<k>`, where `k` is the number of identified elements before
+  it on the descent (at each level, the siblings before the container the
+  descent went into, then its own siblings). The identifier is **not** an
+  alias yet (no `tagFingerprint`, no `tag` in `fingerprintParts`) and its
+  value never leaves the device; see the data-derived-ID paragraph below.
+  `role` is omitted.
 - **Without an identifier**, the path is the base path plus `AX<Role>#<k>`,
-  with `k` the element's ordinal among siblings of that role. `Role` comes
-  from traits, mapped onto the role names anchors already use (`button`,
-  `textField`, `link`, `image`, `adjustable`; `toggle` where the OS
-  exposes it); anything else is `AXElement`. Traits that map to no role
-  give no `role` field. Confidence is `low`, or
-  `medium` inside a list cell, the same rules as other structural paths.
+  with `k` the element's ordinal among its siblings of that role that have
+  no identifier. `Role` comes from traits, mapped onto the role names
+  anchors already use: `switch` (the `toggleButton` trait, iOS 17+; the
+  name Compose and Flutter anchors give toggles), `button`, `link`,
+  `textField` (`searchField`), `adjustable`, `image`, `header`, checked in
+  that order. Anything else is `AXElement`, with no `role` field.
+- Both are `widgetType` `SwiftUIView`, the neutral type `.tugboatTag`
+  anchors use, with `actions` and `enabled` omitted: the element is SwiftUI
+  content, not the UIKit view around it. Confidence is `low`, or `medium`
+  inside a list cell, the same rules as other structural paths.
+- The base path is the container's (`…/[item:0.3]/Cell#0`,
+  `Scrollable#0`), or the hosting view's (`Root#0`, replaced by the
+  segment) when the tap had no target.
 - `toolkit` stays `swiftui` and `fingerprintSchemaVersion` is unchanged.
   The `AX` path tokens tell consumers which anchors came from the tree.
   Taps that anchored on a list cell or a scroll view get a deeper path,
@@ -132,11 +141,38 @@ engine change.
 
 The identifier carries the same data-derived-ID risk as Compose's
 `testTag` fallback and Flutter's `ValueKey<String>`: apps often write
-`accessibilityIdentifier("row_\(item.id)")`. Identifiers pass through the
-same filter that the planned `ValueKey`/`testTag` follow-up defines. If
-that filter is not settled first, they are not used as an alias at all
-(the element still gives an `AXIdentified` path segment, without its
-value).
+`accessibilityIdentifier("row_\(item.id)")`. Using identifiers as aliases
+needs the same filter that the planned `ValueKey`/`testTag` follow-up
+defines. That filter is not settled, so identifiers are not used as an alias at all: the
+element gives an `AXIdentified` path segment, without its value. Using
+them as aliases (`tagFingerprint`, `high`) waits for the filter.
+
+### Pros and cons
+
+Pros:
+
+- Identity and control type for untagged SwiftUI controls, with no code
+  changes in the app.
+- App-set accessibility identifiers become reachable: path evidence now,
+  aliases once the data-derived-ID filter exists.
+
+Cons (iPhone 12, iOS 18.6.2, Release build):
+
+- A one-time main-thread stall of about 85–300 ms when the tree is built.
+- The cost starts at the first tree read and cannot be turned off for the
+  rest of the process: LazyVStack scroll main-thread time +104%, state
+  updates +55%, process CPU +31%, memory +5 MB; TugboatSwiftUISample
+  scrolling +27%.
+- The host app's `@Environment(\.accessibilityEnabled)` becomes true.
+- It relies on an undocumented UIKit side effect of the public
+  `accessibilityActivate()`, which Apple can change.
+- `accessibilityHitTest(_:)` stays nil, so taps are matched by element
+  frame.
+- Pendo documents an iOS 26 lazy-stack hang with the tree built (Apple
+  FB21851974).
+
+`.tugboatTag` (optionally with `accessibility: true`) stays the
+recommended path.
 
 ## Considered options
 
@@ -155,19 +191,23 @@ value).
 
 ## Consequences
 
-- Before implementation, re-measure on iOS 17 and iOS 26 (Release, real
-  devices, the same scroll, state-update, CPU and memory benchmarks), and
-  reproduce or rule out the iOS 26 lazy-stack hang. The results set a
-  built-in OS-version gate; on an OS outside the gate the feature behaves
-  as `.off`.
+- A built-in OS-version gate ships with the feature: the verified iOS
+  majors are a constant in the SDK, today `[18]`, the only OS measured. On
+  any other major the option behaves exactly as `.off` (the tree is never
+  built or read) and the adapter logs that once. The gate widens only after
+  re-measuring on iOS 17 and iOS 26 (Release, real devices, the same
+  scroll, state-update, CPU and memory benchmarks) and reproducing or
+  ruling out the iOS 26 lazy-stack hang. Tests override the OS major
+  through an internal seam, so CI's simulator runs the path.
 - The SDK README and the integration tagging guide document the costs, the
   `accessibilityEnabled` side effect and the iOS 26 risk next to the
   option, and say that `.tugboatTag` (optionally with
   `accessibility: true`) is the recommended path.
 - XCUITest cannot test the activation path, because the test runner is
   itself an assistive client and the tree always exists under it. Tests
-  split into unit tests of the descent and anchor rules against a built
-  tree, and a no-client simulator test that activation happens once,
-  lazily, and only when sampled in.
+  split into unit tests of the descent, anchor and policy rules against
+  scripted trees (activation once, lazily, only when sampled in), and a
+  no-client simulator test that activates a real hosting view. That test
+  is its own test bundle, because the built tree lasts for the process.
 - The option is a minor, additive API on the Swift `Tugboat` package,
   versioned on its own (ADR 0008).

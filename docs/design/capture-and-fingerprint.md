@@ -332,7 +332,8 @@ the same parts for SwiftUI. The hash, `fingerprintParts`, and confidence tiers
 are shared; anchors add `toolkit: "swiftui"`, which is not a hash input.
 Without VoiceOver the in-process accessibility tree of a SwiftUI hosting view
 is empty, and SwiftUI text, images and buttons are not UIKit views, so
-identity comes from developer tags and from the UIKit views SwiftUI does use.
+identity comes from developer tags and from the UIKit views SwiftUI does use,
+plus, only when the app opts in, the accessibility tree (ADR 0010).
 
 - **Tags first.** `.tugboatTag("checkout")` places an invisible,
   non-interactive marker view behind its content. A tap inside the smallest
@@ -342,7 +343,7 @@ identity comes from developer tags and from the UIKit views SwiftUI does use.
   `enabled`. A screen under a sheet never wins. The tag is transparent to
   structural identity. `.tugboatTag("checkout", accessibility: true)` (off by
   default) also sets the tag as the tagged content's
-  `accessibilityIdentifier`, never the marker's. Identity does not read
+  `accessibilityIdentifier`, never the marker's. A tagged tap never reads
   accessibility identifiers, so the target fingerprint, canonical path, tag
   alias and structure signature are the same with or without it. On a
   container SwiftUI gives every element inside the identifier. With two
@@ -354,6 +355,28 @@ identity comes from developer tags and from the UIKit views SwiftUI does use.
   `Representable` (a `UIViewRepresentable` host, or an app-defined view inside
   a hosting view). A tap on bare SwiftUI drawing without a tag has no target
   (`no_actionable_candidate`).
+- **Accessibility tree (opt-in, ADR 0010).**
+  `TugboatConfig.swiftUIAccessibilityIdentity` is `.off` by default, and
+  then the tree is never built or read, even with VoiceOver running. With
+  `.on`, or `.sampled(rate:)` drawn in once per process launch, and only on
+  a verified iOS major (iOS 18; elsewhere as `.off`), a tap that has no
+  target or resolves to a list cell or scroll view asks the tree for the
+  smallest element whose frame contains the point. The descent enters only
+  containers whose frame contains the point and reads at most 256
+  elements. Only `accessibilityIdentifier` (tested for being set),
+  `accessibilityTraits` and frames are read; labels and values never are.
+  The path gets `AXIdentified#<k>` for an element with an identifier, else
+  `AX<Role>#<k>` with `role` from the traits (`switch`, `button`, `link`,
+  `textField`, `adjustable`, `image`, `header`; `AXElement` and no `role`
+  otherwise). `widgetType` is `SwiftUIView`, with no `actions` or
+  `enabled`; confidence follows the path rules (`low`, `medium` in a list
+  cell). The identifier's value is never sent and is not an alias. The
+  first qualifying tap of a process resolves as with the option off and
+  schedules `accessibilityActivate()` on its hosting view for the main
+  queue's next turn (skipped when VoiceOver or Switch Control runs); the
+  tree's cost then lasts for the process. Tagged, text-input, UIKit-control
+  and representable taps never ask. Sampled-in processes give some taps a
+  deeper path, so a different fingerprint: an identity-source change.
 - **Segments.** `Token#<ordinal>` for each role view between the route root
   and the target, plus `Host#<ordinal>` for nested hosting views. Ordinals
   count same-token siblings after filtering. Hidden, transparent and
@@ -370,6 +393,7 @@ identity comes from developer tags and from the UIKit views SwiftUI does use.
   Paths start below that hosting controller's view.
 - **Confidence.** The floor of the route's and the path's. The path is
   `high` with a tag, `medium` inside a list cell, and `low` otherwise.
+  Accessibility-tree segments never raise it.
 - **Coordinates.** Pointer positions and scroll offsets are points in window
   coordinates; scroll offsets are relative to the resting start of the
   content (the adjusted inset included).
@@ -411,7 +435,10 @@ corroborate low-confidence matches rather than treating them as ground truth.
 ### What is and is not retained
 
 The structural pipeline does not use or serialize arbitrary `Text`,
-accessibility, tooltip, or icon-label strings as target identity.
+accessibility, tooltip, or icon-label strings as target identity. The opt-in
+SwiftUI accessibility-tree identity (ADR 0010) reads traits and whether an
+`accessibilityIdentifier` is set; it never reads labels or values, and never
+sends the identifier's value.
 
 Developer-authored identity strings can still be emitted:
 

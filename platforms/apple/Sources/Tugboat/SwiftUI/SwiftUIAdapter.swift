@@ -7,7 +7,8 @@ import UIKit
 /// (`EngineHost.postBatch`), each with its own time.
 ///
 /// - Pointer: a `WindowPointerRecognizer` on each window that becomes key.
-/// - Tap evidence: `.tugboatTag` frames, then UIKit hit-testing.
+/// - Tap evidence: `.tugboatTag` frames, then UIKit hit-testing, then
+///   (opt-in, ADR 0010) the accessibility tree.
 /// - Scroll: KVO on the scroll views of observed windows.
 /// - Navigation: `.tugboatScreen` appear and disappear; hosting-controller
 ///   appearance when `trackHostingControllers` (installs a one-time method
@@ -60,6 +61,7 @@ final class SwiftUIAdapter {
     frames: FrameScheduler = DisplayLinkFrames(),
     gesture: GestureConfig = .uiKitDefault,
     trackHostingControllers: Bool = true,
+    accessibilityIdentity: SwiftUIAccessibilityIdentity = .off,
     screens: ScreenTracker = .shared,
     tags: TagRegistry = .shared,
     center: NotificationCenter = .default
@@ -68,7 +70,9 @@ final class SwiftUIAdapter {
     self.batcher = FactBatcher(sink: sink, frames: frames)
     self.gesture = gesture
     self.screens = screens
-    self.resolver = AnchorResolver(tags: tags, screens: screens)
+    // `.off` builds no source at all: the tree is never read.
+    let accessibility = accessibilityIdentity == .off ? nil : AccessibilityIdentitySource(mode: accessibilityIdentity)
+    self.resolver = AnchorResolver(tags: tags, screens: screens, accessibility: accessibility)
     self.trackHostingControllers = trackHostingControllers
     self.center = center
     batcher.onFrame { [weak self] in self?.onFrame() }

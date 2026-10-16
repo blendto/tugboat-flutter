@@ -50,7 +50,8 @@ extension TugboatRuntime {
       ref.host = host
       let adapter = SwiftUIAdapter(
         sink: host, hostClock: clock, gesture: .uiKitDefault,
-        trackHostingControllers: config.trackHostingControllers)
+        trackHostingControllers: config.trackHostingControllers,
+        accessibilityIdentity: config.swiftUIAccessibilityIdentity)
       let session = SessionFlag()
       let lifecycle = AppLifecycleBridge { state in
         ref.host?.post(type: SessionMessages.appLifecycle, inputJSON: SessionMessages.appLifecycleInput(state), at: clock.now())
