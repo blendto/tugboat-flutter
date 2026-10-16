@@ -308,8 +308,9 @@ Sources:
   - Peek 65,537 bytes (64 KiB + 1). The body is complete if and only if the
     peek returned at most 65,536 bytes. `Content-Length` is not trusted.
   - The media type is JSON when `Content-Type`, compared case-insensitively
-    with its parameters ignored, is `application/json` or any
-    `type/subtype` whose subtype ends in `+json`.
+    with its parameters ignored, is `application/json`, `text/json`, or any
+    `type/subtype` whose subtype ends in `+json` (Dio's
+    `Transformer.isJsonMimeType`, which `tugboat_dio` relies on).
   - Bytes are decoded as UTF-8, replacing each maximal invalid subsequence
     with U+FFFD (the Unicode "maximal subpart" practice, as Dart's
     `utf8.decode(allowMalformed: true)` and Swift's

@@ -1,6 +1,7 @@
 package com.tugboat.android.evidence
 
 import com.tugboat.android.ParameterPolicy
+import com.tugboat.android.adapter.HttpErrorBody
 
 /**
  * The engine's evidence encoding (`core/session-engine/docs/evidence-messages.md`):
@@ -14,6 +15,8 @@ import com.tugboat.android.ParameterPolicy
  * - The mandatory bounds of 4.4 (parameters) and 4.5 (error bodies): they
  *   bound this host's work and the message, and only leave out what Dart
  *   never reads.
+ * - Error bodies an HTTP-client adapter read as bytes (4.5, [HttpErrorBody]):
+ *   `jsonText` whole, text as a `String` body.
  */
 internal object EngineEvidenceEncoder : EvidenceEncoder {
     override fun externalEvent(event: ExternalEventInput): String {
@@ -54,11 +57,23 @@ internal object EngineEvidenceEncoder : EvidenceEncoder {
         return out.append('}').toString()
     }
 
-    /** A `String` is a text body, a `ByteArray` no body, anything else a value. */
+    /**
+     * A `String` is a text body, a `ByteArray` no body, an adapter's
+     * [HttpErrorBody] a `jsonText` (sent whole) or text body, anything else a
+     * value.
+     */
     private fun writeErrorBody(out: StringBuilder, body: Any?) {
         if (body == null || body is ByteArray) return
+        if (body is HttpErrorBody && body.isJsonText) {
+            out.append(",\"errorResponseBody\":{\"jsonText\":").appendJsonString(body.body).append('}')
+            return
+        }
         out.append(",\"errorResponseBody\":{\"value\":")
-        if (body is String) out.appendJsonString(textBodyPrefix(body)) else BodyWriter(out).writeRoot(body)
+        when (body) {
+            is String -> out.appendJsonString(textBodyPrefix(body))
+            is HttpErrorBody -> out.appendJsonString(textBodyPrefix(body.body))
+            else -> BodyWriter(out).writeRoot(body)
+        }
         out.append('}')
     }
 

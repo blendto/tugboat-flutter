@@ -8,6 +8,7 @@ on:
       - "core/image-processing/**"
       - "core/session-engine/**"
       - "conformance/host/**"
+      - "conformance/evidence/**"
       - "tool/ci/build-android-runtime.sh"
       - "tool/ci/verify-flutter-plugin-runtime.sh"
       - "tool/ci/capture-runtime-override.init.gradle"

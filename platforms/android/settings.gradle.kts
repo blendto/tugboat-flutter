@@ -32,6 +32,7 @@ include(":tugboat-android")
 // Native SDK sample app (Views + Compose); built from the project, no local Maven needed.
 include(":tugboat-sample")
 include(":tugboat-compose")
+include(":tugboat-okhttp")
 
 val runtimeVersion =
     java.util.Properties()

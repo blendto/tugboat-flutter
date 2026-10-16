@@ -154,6 +154,17 @@ object Tugboat {
     fun beginNetworkCall(method: String, route: String?): NetworkCall =
         guarded("beginNetworkCall") { evidence?.beginNetworkCall(method, route) } ?: NetworkCall.NOOP
 
+    /** Whether a call begun now would be recorded (`TugboatAdapters.isAcceptingEvidence`). */
+    internal val isAcceptingEvidence: Boolean
+        get() = evidence?.isAccepting == true
+
+    /** Replaces the evidence path, returning the previous one (`TugboatAdapters.tapEvidenceForTesting` only). */
+    internal fun swapEvidence(recorder: EvidenceRecorder?): EvidenceRecorder? {
+        val previous = evidence
+        evidence = recorder
+        return previous
+    }
+
     private fun onMain(what: String, block: () -> Unit) {
         guarded(what) {
             if (Looper.myLooper() == Looper.getMainLooper()) {

@@ -1,6 +1,7 @@
 package com.tugboat.android.evidence
 
 import com.tugboat.android.ParameterPolicy
+import com.tugboat.android.adapter.HttpErrorBody
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -34,14 +35,13 @@ internal class EvidenceFixture(val path: String, json: JSONObject) {
     }
 
     /**
-     * Why this fixture is not something the manual Kotlin API can send, or
-     * null. `jsonText` bodies come from a host that did not decode the body
-     * (an HTTP client adapter, slice N2), and engine-only divergences are not
-     * run by hosts.
+     * Why this fixture is not something the Kotlin host sends, or null:
+     * engine-only divergences are not run by hosts. `jsonText` bodies are
+     * sent: they are what an HTTP-client adapter (`tugboat-okhttp`) hands
+     * over as an [HttpErrorBody].
      */
-    fun notForManualApi(): String? = when {
+    fun notForKotlinHost(): String? = when {
         runners.isNotEmpty() && "kotlin" !in runners -> "runners: $runners"
-        isNetworkCall && input.optJSONObject("errorResponseBody")?.has("jsonText") == true -> "a jsonText body (HTTP adapters, N2)"
         else -> null
     }
 
@@ -69,7 +69,9 @@ internal class EvidenceFixture(val path: String, json: JSONObject) {
     }
 
     fun hostCall(): NetworkCallInput {
-        val body = input.optJSONObject("errorResponseBody")?.let { decodeValue(it.get("value"), ArrayList()) }
+        val body = input.optJSONObject("errorResponseBody")?.let { body ->
+            if (body.has("jsonText")) HttpErrorBody.jsonText(body.getString("jsonText")) else decodeValue(body.get("value"), ArrayList())
+        }
         return NetworkCallInput(
             method = input.getString("method"),
             route = input.getString("route"),
