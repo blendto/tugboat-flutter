@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <unordered_map>
 #include <utility>
 
 #include "double-conversion/double-to-string.h"
@@ -113,8 +114,12 @@ void append_utf8(uint32_t cp, std::string* out) {
 
 class Parser {
  public:
-  Parser(std::string_view text, uint32_t max_depth, ParseError* error)
-      : text_(text), max_depth_(max_depth), error_(error) {}
+  Parser(std::string_view text, uint32_t max_depth, ParseError* error,
+         bool dart_duplicate_keys = false)
+      : text_(text),
+        max_depth_(max_depth),
+        error_(error),
+        dart_duplicate_keys_(dart_duplicate_keys) {}
 
   bool parse_document(Value* out) {
     skip_whitespace();
@@ -207,6 +212,9 @@ class Parser {
       ++pos_;
       return true;
     }
+    // Dart `jsonDecode` semantics for repeated keys: first position, last
+    // value (assignment into a `LinkedHashMap`).
+    std::unordered_map<std::string, size_t> positions;
     while (true) {
       if (at_end() || peek() != '"') {
         return fail("expected object key");
@@ -225,7 +233,17 @@ class Parser {
       if (!parse_value(&value, depth)) {
         return false;
       }
-      out->members().push_back(Member{std::move(key), std::move(value)});
+      if (dart_duplicate_keys_) {
+        const auto found = positions.find(key);
+        if (found != positions.end()) {
+          out->members()[found->second].value = std::move(value);
+        } else {
+          positions.emplace(key, out->members().size());
+          out->members().push_back(Member{std::move(key), std::move(value)});
+        }
+      } else {
+        out->members().push_back(Member{std::move(key), std::move(value)});
+      }
       skip_whitespace();
       if (at_end()) {
         return fail("unterminated object");
@@ -237,7 +255,7 @@ class Parser {
       }
       if (peek() == '}') {
         ++pos_;
-        return check_unique_keys(*out);
+        return dart_duplicate_keys_ || check_unique_keys(*out);
       }
       return fail("expected ',' or '}'");
     }
@@ -526,6 +544,7 @@ class Parser {
   std::string_view text_;
   uint32_t max_depth_;
   ParseError* error_;
+  bool dart_duplicate_keys_;
   size_t pos_ = 0;
 };
 
@@ -633,6 +652,12 @@ class Writer {
 bool parse_json(std::string_view text, uint32_t max_depth, Value* out,
                 ParseError* error) {
   Parser parser(text, max_depth, error);
+  return parser.parse_document(out);
+}
+
+bool parse_json_dart(std::string_view text, uint32_t max_depth, Value* out,
+                     ParseError* error) {
+  Parser parser(text, max_depth, error, true);
   return parser.parse_document(out);
 }
 

@@ -22,6 +22,9 @@ void register_session_module(ModuleRegistry* registry);
 // event.record, locale.set.
 void register_evidence_module(ModuleRegistry* registry);
 
+// `evidence.externalEvent`, `evidence.networkCall` (evidence_messages.cpp).
+void register_evidence_messages_module(ModuleRegistry* registry);
+
 // identity.set, traits.set.
 void register_identity_module(ModuleRegistry* registry);
 

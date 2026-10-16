@@ -39,6 +39,7 @@ set(_tb_engine_sources
   src/config.cpp
   src/coordination.cpp
   src/coordination_module.cpp
+  src/dart_string.cpp
   src/dart_time.cpp
   src/delivery.cpp
   src/delivery_gaps.cpp
@@ -47,7 +48,11 @@ set(_tb_engine_sources
   src/engine.cpp
   src/engine_module.cpp
   src/event_queue.cpp
+  src/evidence_messages.cpp
   src/evidence_module.cpp
+  src/evidence_network.cpp
+  src/evidence_parameters.cpp
+  src/evidence_value.cpp
   src/fingerprint.cpp
   src/flush_pass.cpp
   src/frame_lane.cpp

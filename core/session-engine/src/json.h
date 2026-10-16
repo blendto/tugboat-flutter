@@ -92,6 +92,12 @@ struct ParseError {
 bool parse_json(std::string_view text, uint32_t max_depth, Value* out,
                 ParseError* error);
 
+// `parse_json` with Dart `jsonDecode`'s handling of a repeated object key
+// (the key keeps its first position and takes the last value) instead of
+// rejecting it. For bodies the engine decodes on Dart's behalf.
+bool parse_json_dart(std::string_view text, uint32_t max_depth, Value* out,
+                     ParseError* error);
+
 // Compact JSON in insertion order, escaped like Dart `jsonEncode`. Fails
 // (returning false and the JSON path in `error_path`) when a non-finite
 // double would be written, as `jsonEncode` throws for those.
