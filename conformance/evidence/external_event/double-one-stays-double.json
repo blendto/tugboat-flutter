@@ -1,0 +1,48 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "double-one-stays-double",
+  "description": "An analytics parameter 1.0 (a floating NSNumber in Swift, a Double in Kotlin) is tagged {\"double\": 1}, whatever the JSON writer prints, and stays the double 1.0.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "purchase",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "amount",
+          {
+            "double": 1
+          }
+        ],
+        [
+          "count",
+          1
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "purchase",
+      "parameterKeys": [
+        "amount",
+        "count"
+      ],
+      "parameters": {
+        "amount": 1.0,
+        "count": 1
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": false,
+        "droppedCount": 0
+      }
+    }
+  }
+}

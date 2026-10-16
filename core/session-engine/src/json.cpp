@@ -4,10 +4,13 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "double-conversion/double-to-string.h"
 #include "double-conversion/string-to-double.h"
+#include "text.h"
 
 namespace tugboat {
 namespace engine {
@@ -113,8 +116,9 @@ void append_utf8(uint32_t cp, std::string* out) {
 
 class Parser {
  public:
-  Parser(std::string_view text, uint32_t max_depth, ParseError* error)
-      : text_(text), max_depth_(max_depth), error_(error) {}
+  Parser(std::string_view text, const ParseOptions& options,
+         ParseError* error)
+      : text_(text), options_(options), error_(error) {}
 
   bool parse_document(Value* out) {
     skip_whitespace();
@@ -190,7 +194,7 @@ class Parser {
   }
 
   bool enter(uint32_t depth) {
-    if (depth > max_depth_) {
+    if (depth > options_.max_depth) {
       return fail("nesting exceeds maximum depth");
     }
     ++pos_;  // '{' or '['
@@ -198,7 +202,83 @@ class Parser {
     return true;
   }
 
+  // A container deeper than `build_depth`: checked without recursion and
+  // returned empty, since its reader never looks inside.
+  bool skipped(Value* out, uint32_t depth) {
+    if (options_.build_depth == 0 || depth <= options_.build_depth) {
+      return false;
+    }
+    *out = peek() == '{' ? Value::object() : Value::array();
+    return true;
+  }
+
+  enum class SkipState { kAfterOpen, kAfterComma, kAfterValue };
+
+  // Validates one container iteratively (any nesting), building nothing.
+  bool skip_container() {
+    std::vector<char> closers;
+    std::string scratch;
+    SkipState state = SkipState::kAfterOpen;
+    closers.push_back(peek() == '{' ? '}' : ']');
+    ++pos_;
+    while (!closers.empty()) {
+      skip_whitespace();
+      if (at_end()) {
+        return fail("unterminated container");
+      }
+      char c = peek();
+      if (state != SkipState::kAfterComma && c == closers.back()) {
+        ++pos_;
+        closers.pop_back();
+        state = SkipState::kAfterValue;
+        continue;
+      }
+      if (state == SkipState::kAfterValue) {
+        if (c != ',') {
+          return fail("expected ',' or a closing bracket");
+        }
+        ++pos_;
+        state = SkipState::kAfterComma;
+        continue;
+      }
+      if (closers.back() == '}') {
+        if (c != '"') {
+          return fail("expected object key");
+        }
+        scratch.clear();
+        if (!parse_string(&scratch)) {
+          return false;
+        }
+        skip_whitespace();
+        if (at_end() || peek() != ':') {
+          return fail("expected ':'");
+        }
+        ++pos_;
+        skip_whitespace();
+        if (at_end()) {
+          return fail("unexpected end of input");
+        }
+        c = peek();
+      }
+      if (c == '{' || c == '[') {
+        closers.push_back(c == '{' ? '}' : ']');
+        ++pos_;
+        state = SkipState::kAfterOpen;
+        continue;
+      }
+      Value scalar;
+      if (!parse_value(&scalar, 0)) {
+        return false;
+      }
+      state = SkipState::kAfterValue;
+    }
+    return true;
+  }
+
   bool parse_object(Value* out, uint32_t depth) {
+    if (skipped(out, depth)) {
+      return skip_container();
+    }
     if (!enter(depth)) {
       return false;
     }
@@ -207,6 +287,9 @@ class Parser {
       ++pos_;
       return true;
     }
+    // Dart `jsonDecode` semantics for repeated keys: first position, last
+    // value (assignment into a `LinkedHashMap`).
+    std::unordered_map<std::string, size_t> positions;
     while (true) {
       if (at_end() || peek() != '"') {
         return fail("expected object key");
@@ -225,7 +308,17 @@ class Parser {
       if (!parse_value(&value, depth)) {
         return false;
       }
-      out->members().push_back(Member{std::move(key), std::move(value)});
+      if (options_.dart_duplicate_keys) {
+        const auto found = positions.find(key);
+        if (found != positions.end()) {
+          out->members()[found->second].value = std::move(value);
+        } else {
+          positions.emplace(key, out->members().size());
+          out->members().push_back(Member{std::move(key), std::move(value)});
+        }
+      } else {
+        out->members().push_back(Member{std::move(key), std::move(value)});
+      }
       skip_whitespace();
       if (at_end()) {
         return fail("unterminated object");
@@ -237,7 +330,7 @@ class Parser {
       }
       if (peek() == '}') {
         ++pos_;
-        return check_unique_keys(*out);
+        return options_.dart_duplicate_keys || check_unique_keys(*out);
       }
       return fail("expected ',' or '}'");
     }
@@ -263,6 +356,9 @@ class Parser {
   }
 
   bool parse_array(Value* out, uint32_t depth) {
+    if (skipped(out, depth)) {
+      return skip_container();
+    }
     if (!enter(depth)) {
       return false;
     }
@@ -394,7 +490,8 @@ class Parser {
       }
       cp = (cp << 6) | (byte & 0x3Fu);
     }
-    if (cp < min || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
+    const bool surrogate = cp >= 0xD800 && cp <= 0xDFFF;
+    if (cp < min || cp > 0x10FFFF || (surrogate && !options_.wtf8)) {
       return fail("invalid UTF-8");
     }
     out->append(text_.data() + pos_, length);
@@ -524,7 +621,7 @@ class Parser {
   }
 
   std::string_view text_;
-  uint32_t max_depth_;
+  ParseOptions options_;
   ParseError* error_;
   size_t pos_ = 0;
 };
@@ -632,7 +729,14 @@ class Writer {
 
 bool parse_json(std::string_view text, uint32_t max_depth, Value* out,
                 ParseError* error) {
-  Parser parser(text, max_depth, error);
+  ParseOptions options;
+  options.max_depth = max_depth;
+  return parse_json(text, options, out, error);
+}
+
+bool parse_json(std::string_view text, const ParseOptions& options,
+                Value* out, ParseError* error) {
+  Parser parser(text, options, error);
   return parser.parse_document(out);
 }
 
@@ -705,15 +809,16 @@ void write_json_string(std::string_view wtf8, std::string* out) {
         default: append_unit_escape(c, out); break;
       }
       ++i;
-    } else if (c == 0xED && i + 2 < wtf8.size() &&
-               static_cast<unsigned char>(wtf8[i + 1]) >= 0xA0) {
-      // WTF-8 lone surrogate: Dart escapes unpaired surrogates.
-      const uint32_t unit =
-          0xD000u |
-          ((static_cast<unsigned char>(wtf8[i + 1]) & 0x3Fu) << 6) |
-          (static_cast<unsigned char>(wtf8[i + 2]) & 0x3Fu);
-      append_unit_escape(unit, out);
-      i += 3;
+    } else if (c == 0xED) {
+      // Possibly a WTF-8 lone surrogate: Dart escapes unpaired surrogates.
+      size_t next = i;
+      const uint32_t cp = wtf8_next(wtf8, &next);
+      if (cp >= 0xD800 && cp <= 0xDFFF) {
+        append_unit_escape(cp, out);
+      } else {
+        out->append(wtf8.data() + i, next - i);
+      }
+      i = next;
     } else {
       out->push_back(static_cast<char>(c));
       ++i;

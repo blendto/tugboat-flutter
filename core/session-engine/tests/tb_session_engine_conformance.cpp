@@ -5,7 +5,8 @@
 //
 // Stateless kinds submit `{"type": kind, "contract", "input"}` once and
 // compare `result`. `engine.scenario` fixtures run step by step on a fresh
-// engine (conformance/scenario_runner.cpp).
+// engine (conformance/scenario_runner.cpp), and evidence fixtures run one
+// message in a fresh session (conformance/evidence_runner.cpp).
 //
 // Usage: tb_session_engine_conformance [fixture-dir] [path-substring]
 #include "tugboat/tb_session_engine.h"
@@ -24,6 +25,7 @@
 
 #include "conformance/conformance_json.h"
 #include "conformance/engine_client.h"
+#include "conformance/evidence_runner.h"
 #include "conformance/scenario_runner.h"
 
 #ifndef TB_CONFORMANCE_DIR
@@ -48,6 +50,8 @@ const std::map<std::string, std::string> kKindDirectories = {
     {"collector.event", "collector/event"},
     {"collector.sessionLifecycle", "collector/session_lifecycle"},
     {kScenarioKind, "engine/scenario"},
+    {conformance::kExternalEventKind, "evidence/external_event"},
+    {conformance::kNetworkCallKind, "evidence/network_call"},
 };
 
 const std::set<std::string> kEnvelopeKeys = {
@@ -201,6 +205,9 @@ bool run_fixture(EngineClient& engine, const fs::path& path,
   }
   if (kind == kScenarioKind) {
     return conformance::run_scenario(fixture, source, relative);
+  }
+  if (conformance::is_evidence_kind(kind)) {
+    return conformance::run_evidence(fixture, source, relative);
   }
   return run_stateless(engine, fixture, source, relative);
 }

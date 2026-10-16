@@ -10,10 +10,13 @@ exists. These fixtures are what keeps the two equivalent.
 This folder is outside the pub package on purpose: it is never published to
 pub.dev and no runtime reads it.
 
-Two families of fixture:
+Three families of fixture:
 
 - Stateless operations: fingerprint hashing of supplied identity parts and
   collector record mapping for one event or one session lifecycle record.
+- Evidence: the `external_event` / `network_call` data the engine records
+  for one `evidence.externalEvent` / `evidence.networkCall` message, which
+  must equal what Dart's `TugboatEvidenceRecorder` records.
 - `engine.scenario`: a sequence of stateful engine messages and the records
   and effects each one produces, plus the final session snapshot
   ([stateful design](../core/session-engine/docs/stateful-engine.md)
@@ -33,6 +36,9 @@ conformance/
     session_lifecycle/<name>.json   kind collector.sessionLifecycle
   engine/
     scenario/<name>.json            kind engine.scenario
+  evidence/
+    external_event/<name>.json      kind evidence.externalEvent
+    network_call/<name>.json        kind evidence.networkCall
   host/                             byte-exact platform host fixtures (not *.json; see host/README.md)
 ```
 
@@ -233,6 +239,36 @@ only when `true`. `network_call` uses `method`, `route`, `statusCode`,
 `outcome`, `durationMs`, `attemptCount`, and `errorResponseBody`. Each one is
 kept only when it passes the mapper's type and range checks. For any other
 type, `data` is copied into `payload` as-is.
+
+### `evidence.externalEvent` and `evidence.networkCall`
+
+| Input | Meaning |
+| --- | --- |
+| (the whole `input`) | The message input, exactly as a host sends it, with parameter values and error bodies in the typed value encoding ([evidence messages](../core/session-engine/docs/evidence-messages.md)). |
+
+| Expected | Meaning |
+| --- | --- |
+| `data` | The recorded event's `data`, or `null` when nothing is recorded. Object key order is compared too, because the data must be byte-identical to Dart's. |
+
+Both runners evaluate the input in a fresh session that started at
+`monoUs` 0. A network call begins at `startMonoUs` and finishes at
+`endMonoUs` (default the start); an external event happens at `atMonoUs`
+(default 0).
+
+- C++ (`tests/conformance/evidence_runner.cpp`): configures a fixed host,
+  starts the session, sends the message with `at.monoUs` at the event's
+  finish, and reads the one event record.
+- Dart (`test/helpers/evidence_fixture.dart`): maps the encoding onto the
+  Dart objects a host would pass (`ref` becomes a real cycle, `iterable` a
+  non-`List` `Iterable`, `nonStringKeys` fresh `Object` keys, `omitted`
+  items unsupported stand-ins, `unsupported` an `Object`, a top-level
+  `drop` the transform's drop sentinel) and calls the shipped
+  `TugboatEvidenceRecorder` with a transform closure that returns each
+  key's sent result. `jsonText` becomes Dio's decode: `jsonDecode`, `null`
+  when empty, the raw string when it does not parse.
+
+The full recorded event (id, `atMs`, stream, context ids, no action
+context) and the no-session drop are pinned by the `evidence-*` scenarios.
 
 ### `engine.scenario`
 

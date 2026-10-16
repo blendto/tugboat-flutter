@@ -92,6 +92,23 @@ struct ParseError {
 bool parse_json(std::string_view text, uint32_t max_depth, Value* out,
                 ParseError* error);
 
+// Parser variations for text the engine decodes on Dart's behalf.
+struct ParseOptions {
+  uint32_t max_depth = 64;
+  // Dart `jsonDecode`: a repeated key keeps its first position and takes the
+  // last value, instead of being rejected.
+  bool dart_duplicate_keys = false;
+  // Accept WTF-8 lone surrogates in raw string content (text that came from
+  // a Dart, Kotlin, or Swift string).
+  bool wtf8 = false;
+  // When non-zero, a container nested deeper than this is checked without
+  // recursion and returned empty, and `max_depth` no longer applies to it.
+  uint32_t build_depth = 0;
+};
+
+bool parse_json(std::string_view text, const ParseOptions& options,
+                Value* out, ParseError* error);
+
 // Compact JSON in insertion order, escaped like Dart `jsonEncode`. Fails
 // (returning false and the JSON path in `error_path`) when a non-finite
 // double would be written, as `jsonEncode` throws for those.

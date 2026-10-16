@@ -1,0 +1,76 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "omitted-items-stand-in",
+  "description": "Omitted nested items stand in as unsupported values (map entries as string-keyed entries with unsupported values): each counts an item and is dropped. Exact only when elided past the item budget, as the host rules require; this fixture pins the stand-in itself.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "items",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "l",
+          {
+            "list": [
+              1
+            ],
+            "omitted": 2
+          }
+        ],
+        [
+          "m",
+          {
+            "map": [
+              [
+                "a",
+                1
+              ]
+            ],
+            "omitted": 1
+          }
+        ],
+        [
+          "i",
+          {
+            "iterable": [
+              1
+            ],
+            "omitted": 1
+          }
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "items",
+      "parameterKeys": [
+        "l",
+        "m",
+        "i"
+      ],
+      "parameters": {
+        "l": [
+          1
+        ],
+        "m": {
+          "a": 1
+        },
+        "i": [
+          1
+        ]
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": true,
+        "droppedCount": 4
+      }
+    }
+  }
+}

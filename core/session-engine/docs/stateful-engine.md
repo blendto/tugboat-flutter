@@ -189,6 +189,29 @@ enriches and appends the event.
 `locale.set {locale}` dedupes, updates the current locale, and emits
 `locale_changed` while a session is active.
 
+#### 4.3.1 External events and network calls
+
+Native hosts do not build `external_event` and `network_call` data
+themselves. They send the raw facts, and the engine applies Flutter's
+parameter policy, limits, label bounding, method and route normalization,
+error-body normalization, and duration arithmetic, written once in C++:
+
+| Message | `at` | Input | Records |
+| --- | --- | --- | --- |
+| `evidence.externalEvent` | mono | `{name, source?, policy {mode, allowedKeys?}, parameters?, atMonoUs?}` | `external_event` on the evidence stream, data `{source?, name, parameterKeys, parameters?, capture}` |
+| `evidence.networkCall` | mono | `{method, route, startMonoUs, endMonoUs?, statusCode?, outcome, attemptCount?, errorResponseBody?}` | `network_call` on the evidence stream at `startMonoUs` (C19), data `{method, route, statusCode?, outcome, durationMs, attemptCount?, errorResponseBody?, errorResponseBodyCapture?}` |
+
+Both are event-producing and never inherit an action context. An invalid
+name, method, or route, or a call that began before the live session,
+records nothing, as Dart's recorder records nothing. Parameter values and
+error bodies use a typed value encoding. The encoding, the engine rules,
+and the host obligations (transform closure, typed conversion, map order,
+elision) are in [evidence-messages.md](evidence-messages.md).
+
+Dart's evidence health counters (`TugboatEvidenceHealth`) are only read
+through the local `TugboatReplay.health` API and never reach the wire, so
+the engine does not mirror them.
+
 ### 4.4 Enrichment and ordering
 
 `_addEvent`'s rules move as they are:
@@ -800,6 +823,7 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C16 | Teardown abandons the capture in flight instead of awaiting it: the next `capture.request` may be issued while the host still performs the abandoned one, whose late answer is ignored (frame released) | The scheduler waits for the platform capture to finish before the next one | no (an id gap: no late `capture_execution-N` for the abandoned capture) | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C17 | Navigator and route-instance ids are per session | A route object keeps its `route-N` across sessions (`Expando`) while the counter restarts, so ids can collide | yes: `routeInstanceId` of a route seen in an earlier session | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C18 | Capture answer deadline: a `capture.request` unanswered `capture.answerTimeoutMs` (default 5000) after it was issued resolves as `paint_readiness_timeout` with `capture_diagnostic` `failure: answer_timeout` (always recorded); a late answer is ignored (frame released) | No deadline (the frame wait times out on the UI thread) | yes: a route or interaction whose capture the host dropped is recorded without a frame instead of never | Yes (engine-only; approved by local orchestrator 2026-10-12) |
+| C19 | A `network_call` from `evidence.networkCall` is stamped with the call's start (`startMonoUs`) | Dart stamps `atMs` when the call finishes | yes: `triggeredAt` of native network calls is the request start | Yes (engine-only; decided by the ADR 0009 orchestrator for native evidence 2026-10-16) |
 
 ## 12. Open questions and decisions
 

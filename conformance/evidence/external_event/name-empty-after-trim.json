@@ -1,0 +1,28 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "name-empty-after-trim",
+  "description": "A name that is empty after trimming records nothing (Dart invalid_name).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": " \u00a0\t",
+    "source": "analytics",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "a",
+          1
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": null
+  }
+}
