@@ -96,6 +96,7 @@ class EvidenceConformanceTest {
             "json-body-129-items" to "128 items, then omitted",
             "json-body-depth-5-kept-6-unsupported" to "a collection at depth 6 is sent unsupported (required bound)",
             "json-body-non-string-keys" to "128 entries, then omitted",
+            "json-body-cut-keys-repeat" to "the first 4097-unit key passes the text budget: sent with null, then the body stops",
             "text-body-multibyte-boundary" to "the text body is cut to 4097 units",
             "text-body-surrogate-pair-boundary" to "the text body is cut to 4097 units, keeping the pair",
         )

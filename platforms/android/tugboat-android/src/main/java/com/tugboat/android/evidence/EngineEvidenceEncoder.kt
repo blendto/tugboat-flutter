@@ -106,6 +106,9 @@ internal object EngineEvidenceEncoder : EvidenceEncoder {
     const val BODY_ITEMS_SENT = 128
     const val BODY_STRING_UNITS = 4097
     const val BODY_NODES_SENT = 4097
+
+    /** The text budget: UTF-16 units of counted strings and their entries' keys. */
+    const val BODY_TEXT_UNITS = 4096
 }
 
 /**
@@ -252,39 +255,40 @@ private class ParameterWriter(private val out: StringBuilder, private val policy
 }
 
 /**
- * Writes an error body (section 4.5): collections at depth 6 or more
- * unsupported, the first 128 items of each collection with `omitted`, strings
- * and keys cut to 4097 units, and nothing more once 4097 nodes are written,
- * all exact because Dart's encoding is past 4096 bytes by then.
+ * Writes an error body (section 4.5), in visit order: collections at depth 6
+ * or more unsupported, the first 128 items of each collection with
+ * `omitted`, strings and keys cut to 4097 units, and two budgets on the
+ * counted values (every list, map, string, finite number, boolean, and
+ * `null` sent, outside iterables). It stops at 4097 counted values, or after
+ * the string or key that takes their text past 4096 units, and closes the
+ * open collections as they are (no `omitted`). Both are exact: Dart's
+ * encoding is past 4096 bytes by then.
  */
 private class BodyWriter(private val out: StringBuilder) {
     private val ancestors = ArrayList<Any>()
     private var nodes = 0
+    private var textUnits = 0
 
-    /** Above zero inside an `iterable`, whose contents the node count leaves out. */
+    /** Above zero inside an `iterable`, whose contents are not counted. */
     private var uncounted = 0
 
     private val stopped: Boolean
-        get() = nodes >= EngineEvidenceEncoder.BODY_NODES_SENT
+        get() = nodes >= EngineEvidenceEncoder.BODY_NODES_SENT || textUnits > EngineEvidenceEncoder.BODY_TEXT_UNITS
 
     fun writeRoot(body: Any) = writeValue(body, 0)
 
     private fun writeValue(value: Any?, depth: Int) {
         if (value is String) {
-            count()
-            out.appendJsonString(cut(value))
+            val text = cut(value)
+            count(text.length)
+            out.appendJsonString(text)
             return
         }
         if (out.appendScalar(value)) {
-            // unsupported values and non-finite doubles are not nodes.
-            if (isNode(value)) count()
+            if (isCountedScalar(value)) count(0)
             return
         }
-        if (!isCollection(value)) {
-            out.append(UNSUPPORTED)
-            return
-        }
-        if (depth >= EngineEvidenceEncoder.BODY_UNSUPPORTED_COLLECTION_DEPTH) {
+        if (!isCollection(value) || depth >= EngineEvidenceEncoder.BODY_UNSUPPORTED_COLLECTION_DEPTH) {
             out.append(UNSUPPORTED)
             return
         }
@@ -311,7 +315,7 @@ private class BodyWriter(private val out: StringBuilder) {
     }
 
     private fun writeList(items: Iterator<*>, size: Int, depth: Int) {
-        count()
+        count(0)
         val start = out.length
         out.append('[')
         val sent = writeItems(items, depth)
@@ -346,7 +350,7 @@ private class BodyWriter(private val out: StringBuilder) {
 
     /** A non-string key uses up one of the 128 items. */
     private fun writeMap(map: Map<*, *>, depth: Int) {
-        count()
+        count(0)
         out.append("{\"map\":[")
         val entries = EntryList(out)
         val iterator = map.entries.iterator()
@@ -358,7 +362,14 @@ private class BodyWriter(private val out: StringBuilder) {
                 entries.nonStringKey()
                 continue
             }
-            entries.beginEntry(cut(key))
+            val cutKey = cut(key)
+            entries.beginEntry(cutKey)
+            // A key counts with its value; one that spends the text budget is sent with null.
+            if (uncounted == 0 && isCounted(value, depth + 1)) textUnits += cutKey.length
+            if (stopped) {
+                out.append("null]")
+                break
+            }
             writeValue(value, depth + 1)
             out.append(']')
         }
@@ -368,24 +379,35 @@ private class BodyWriter(private val out: StringBuilder) {
         out.append('}')
     }
 
-    private fun count() {
-        if (uncounted == 0) nodes++
+    private fun count(units: Int) {
+        if (uncounted > 0) return
+        nodes++
+        textUnits += units
     }
 
-    private fun cut(value: String) =
-        if (value.length > EngineEvidenceEncoder.BODY_STRING_UNITS) value.substring(0, EngineEvidenceEncoder.BODY_STRING_UNITS) else value
+    /** Whether [value], written at [depth], is a counted value. */
+    private fun isCounted(value: Any?, depth: Int): Boolean = when (value) {
+        is String -> true
+        is List<*>, is Array<*>, is Map<*, *> ->
+            depth < EngineEvidenceEncoder.BODY_UNSUPPORTED_COLLECTION_DEPTH && refTo(ancestors, value) == 0
+        else -> isCountedScalar(value)
+    }
 
-    private fun isNode(value: Any?) = when (value) {
+    /** Unsupported values and non-finite doubles are not counted. */
+    private fun isCountedScalar(value: Any?) = when (value) {
         null, is Boolean, is Byte, is Short, is Int, is Long -> true
         is Double -> value.isFinite()
         is Float -> value.isFinite()
         else -> false
     }
 
+    private fun cut(value: String) =
+        if (value.length > EngineEvidenceEncoder.BODY_STRING_UNITS) value.substring(0, EngineEvidenceEncoder.BODY_STRING_UNITS) else value
+
     private fun isCollection(value: Any?) = value is List<*> || value is Array<*> || value is Map<*, *> || value is Iterable<*>
 }
 
-/** Map entries: `[key, value]`, with consecutive non-string keys as one `{"nonStringKeys": n}`. */
+/** Map entries: `[key, value]`, with adjacent invalid keys merged into one `{"nonStringKeys": n}` run. */
 private class EntryList(private val out: StringBuilder) {
     private var written = 0
     private var nonStringRun = 0

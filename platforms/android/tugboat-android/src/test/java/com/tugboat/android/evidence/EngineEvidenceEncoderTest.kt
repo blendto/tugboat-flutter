@@ -320,7 +320,9 @@ class EngineEvidenceEncoderTest {
 
         // Root depth 0: collections at depth 6 are unsupported, scalars there are still sent.
         assertEquals("[[[[[[\"leaf\",{\"unsupported\":true}]]]]]]", bodyValue(listOf(listOf(listOf(listOf(listOf(listOf("leaf", listOf(1)))))))))
-        assertEquals("{\"map\":[[\"k\",\"${"k".repeat(4097)}\"],[\"${"y".repeat(4097)}\",1]]}", bodyValue(linkedMapOf("k" to "k".repeat(5000), "y".repeat(5000) to 1)))
+        // Strings and keys are cut to 4097 units; that also spends the text budget (4096 units).
+        assertEquals("{\"map\":[[\"k\",\"${"k".repeat(4097)}\"]]}", bodyValue(linkedMapOf("k" to "k".repeat(5000), "after" to 1)))
+        assertEquals("{\"map\":[[\"${"y".repeat(4097)}\",null]]}", bodyValue(linkedMapOf("y".repeat(5000) to 1, "after" to 1)))
 
         val cyclic = mutableListOf<Any?>()
         cyclic.add(cyclic)
@@ -334,6 +336,29 @@ class EngineEvidenceEncoderTest {
         assertEquals(List(40) { row }.joinToString(",", "[", "]"), bodyValue(List(40) { List(128) { Double.NaN } }))
         val unsupported = List(128) { "{\"unsupported\":true}" }.joinToString(",", "[", "]")
         assertEquals(List(40) { unsupported }.joinToString(",", "[", "]"), bodyValue(List(40) { List(128) { 'c' } }))
+    }
+
+    @Test
+    fun theTextBudgetStopsAfterTheStringOrKeyThatPassesIt() {
+        // 4000 + 96 units fit exactly; the next string passes 4096, is written, and stops the body.
+        assertEquals(
+            "[\"${"a".repeat(4000)}\",\"${"b".repeat(96)}\",\"cc\"]",
+            bodyValue(listOf("a".repeat(4000), "b".repeat(96), "cc", "never")),
+        )
+        // A key counts with its value: one that passes the budget is sent with null, and nothing follows.
+        assertEquals(
+            "{\"map\":[[\"v\",\"${"a".repeat(4095)}\"],[\"kk\",null]]}",
+            bodyValue(linkedMapOf("v" to "a".repeat(4095), "kk" to "never read", "next" to 1)),
+        )
+        // A key whose value is not counted (unsupported, non-finite, a ref) does not count.
+        val keys = linkedMapOf<Any?, Any?>("k".repeat(4000) to Double.NaN, "j".repeat(200) to 'c', "ok" to 1)
+        assertEquals(
+            "{\"map\":[[\"${"k".repeat(4000)}\",{\"double\":\"NaN\"}],[\"${"j".repeat(200)}\",{\"unsupported\":true}],[\"ok\",1]]}",
+            bodyValue(keys),
+        )
+        // Iterable contents are not counted, and a collection closed early has no omitted.
+        assertEquals("{\"iterable\":[\"${"x".repeat(4097)}\",2]}", bodyValue(linkedSetOf("x".repeat(5000), 2)))
+        assertEquals("[[\"${"x".repeat(4097)}\"]]", bodyValue(listOf(listOf("x".repeat(4097)) + List(200) { it }, 1)))
     }
 
     @Test
