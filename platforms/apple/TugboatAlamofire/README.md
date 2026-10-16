@@ -44,8 +44,8 @@ let session = Session(
 - **Error body**, for a status of 400 or more on a `DataRequest` (uploads
   included): taken from the `Data` Alamofire already holds, never re-read.
   Only its first 65,537 bytes are looked at.
-  - Complete (64 KiB or less) with a JSON `Content-Type` (`application/json`
-    or `+json`, any case, parameters ignored): sent whole as JSON text, and
+  - Complete (64 KiB or less) with a JSON `Content-Type` (`application/json`,
+    `text/json`, or `+json`, any case, parameters ignored): sent whole as JSON text, and
     the session engine decodes and bounds it as Dart does.
   - Otherwise: text, decoded as UTF-8 with U+FFFD replacement and cut to
     whole characters within 4100 bytes (evidence-messages.md section 4.5).

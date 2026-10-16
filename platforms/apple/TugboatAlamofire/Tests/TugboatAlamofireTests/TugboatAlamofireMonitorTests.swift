@@ -116,6 +116,7 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
 
   func test500WithATextBodyIsText() {
     AlamofireStubProtocol.reset(["/orders/123": [.http(500, "text/plain", "upstream exploded")]])
+    // (text/json would be JSON text, as in Dio: HTTPErrorBodyTests.)
     let (session, _) = self.session()
     respond(session.request(url("/orders/123")))
 

@@ -36,7 +36,8 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   Timing comes from the task's metrics; `URLError.cancelled` is
   `cancelled`, other errors are `network_error`. For status 400 or more,
   delegate-based data tasks keep at most 65,537 bytes of the body they
-  already deliver, sent as JSON text (complete and JSON) or as text cut
+  already deliver, sent as JSON text (complete, and `application/json`,
+  `text/json` or `+json`) or as text cut
   within 4100 bytes (evidence-messages.md section 4.5). Completion-handler,
   `async`, and download tasks record no body. `Tugboat.data(for:session:delegate:route:)`
   records an `async` call with its error body on any session, including

@@ -192,7 +192,8 @@ let (data, response) = try await Tugboat.data(for: request, session: .shared, ro
   delegate-based data tasks: the proxy keeps at most 65,537 bytes of what
   `didReceive data` delivers and passes the same `Data` on. It never reads
   a stream again. A body of 64 KiB or less with a JSON `Content-Type`
-  (`application/json` or `+json`, any case, parameters ignored) is sent
+  (`application/json`, `text/json`, or `+json`, any case, parameters
+  ignored) is sent
   whole as JSON text, and the engine decodes and bounds it as Dart does.
   Anything else is sent as text, decoded as UTF-8 with U+FFFD replacement
   and cut to whole characters within 4100 bytes
@@ -405,8 +406,8 @@ encoding (types, key order, depth, cycles, elision), and the recorded
 `external_event` / `network_call` data from the real engine.
 `TugboatTests/Network` runs instrumented sessions over a test-only
 `URLProtocol` stub: 200, a 404 JSON body, a 500 text body, a JSON body over
-64 KiB, timeout, cancel, redirect, an auth challenge answered by the app's
-delegate (and its retry, one event), completion-handler tasks, the
+64 KiB, timeout, cancel, redirect, an auth challenge forwarded to the app's
+delegate (its disposition returned unchanged), completion-handler tasks, the
 `async` helper, and resolver and admission no-ops. It checks that no query,
 header, or request body reaches the message, and that the app's delegate
 gets the same callbacks and bytes as without instrumentation.

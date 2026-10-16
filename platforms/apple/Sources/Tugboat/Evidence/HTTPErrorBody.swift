@@ -54,12 +54,13 @@ enum HTTPErrorBody {
   }
 
   /// `Content-Type`, case-insensitive with its parameters ignored, is
-  /// `application/json` or a `type/subtype` whose subtype ends in `+json`.
+  /// `application/json`, `text/json` (as Dio), or a `type/subtype` whose
+  /// subtype ends in `+json`.
   static func isJSON(contentType: String?) -> Bool {
     guard let contentType = contentType else { return false }
     let mediaType = contentType.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first
       .map { asciiLowercased(trimmingHTTPWhitespace($0)) } ?? ""
-    if mediaType == "application/json" {
+    if mediaType == "application/json" || mediaType == "text/json" {
       return true
     }
     let parts = mediaType.split(separator: "/", omittingEmptySubsequences: false)

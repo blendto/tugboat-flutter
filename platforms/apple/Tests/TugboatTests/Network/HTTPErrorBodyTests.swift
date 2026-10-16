@@ -9,11 +9,12 @@ final class HTTPErrorBodyTests: XCTestCase {
   func testJSONMediaTypes() {
     let json = [
       "application/json", "Application/JSON", "application/json; charset=utf-8", " application/json ;q=1",
-      "application/problem+json", "application/vnd.api+json", "text/x+JSON",
+      "application/problem+json", "application/vnd.api+json", "text/x+JSON", "text/json", "Text/JSON; charset=utf-8",
     ]
     let notJSON: [String?] = [
       nil, "", "text/plain", "application/jsonp", "application/json-seq", "json", "/+json", "application/",
       "application/+json/x", "text/html; profile=application/json",
+      "text/jsonp", "text/json/x", "application/text/json",
     ]
     for type in json {
       XCTAssertTrue(HTTPErrorBody.isJSON(contentType: type), type)
@@ -26,6 +27,7 @@ final class HTTPErrorBodyTests: XCTestCase {
   func testACompleteJSONBodyIsJSONTextAndAnythingElseIsText() {
     let body = Data("{\"error\":\"x\"}".utf8)
     XCTAssertEqual((HTTPErrorBody.body(bytes: body, contentType: "application/json") as? JSONTextBody)?.text, "{\"error\":\"x\"}")
+    XCTAssertEqual((HTTPErrorBody.body(bytes: body, contentType: "text/json") as? JSONTextBody)?.text, "{\"error\":\"x\"}")
     XCTAssertEqual(HTTPErrorBody.body(bytes: body, contentType: "text/plain") as? String, "{\"error\":\"x\"}")
     XCTAssertEqual(HTTPErrorBody.body(bytes: body, contentType: nil) as? String, "{\"error\":\"x\"}")
     XCTAssertNil(HTTPErrorBody.body(bytes: Data(), contentType: "application/json"), "an empty body gives none")
