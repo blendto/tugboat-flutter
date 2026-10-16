@@ -11,7 +11,7 @@ package com.tugboat.android.okhttp
  * three, and Android's decoder is not verified.
  */
 internal object Utf8 {
-    private const val REPLACEMENT = '�'
+    private const val REPLACEMENT = '\uFFFD'
 
     /**
      * Decodes the first [length] bytes of [bytes]. When [maxUtf8Bytes] is
