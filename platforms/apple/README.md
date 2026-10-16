@@ -15,3 +15,6 @@ See [apple-development.md](../../docs/integration/apple-development.md).
 
 The native SwiftUI SDK (`Tugboat`) is in [Sources/Tugboat](Sources/Tugboat/README.md)
 and its sample app in [Samples/TugboatSwiftUISample](Samples/TugboatSwiftUISample/README.md).
+
+The optional Alamofire adapter is the separate SwiftPM package
+[TugboatAlamofire](TugboatAlamofire/README.md).

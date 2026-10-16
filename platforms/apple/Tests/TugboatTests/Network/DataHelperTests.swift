@@ -92,6 +92,20 @@ final class DataHelperTests: XCTestCase {
     session.finishTasksAndInvalidate()
   }
 
+  func testAsyncDataCalledDirectlyOnAnInstrumentedSessionHasNoBody() async throws {
+    NetworkStubProtocol.reset(["/orders/123": .ok(404, "application/json", "{\"e\":1}")])
+    let session = Tugboat.instrumentedSession(configuration: NetworkStubProtocol.configuration()) { $0.url?.path }
+
+    let (data, _) = try await session.data(for: request("/orders/123"))
+
+    XCTAssertEqual(String(decoding: data, as: UTF8.self), "{\"e\":1}")
+    let posts = try await posts(1)
+    XCTAssertEqual(posts.count, 1, "recorded from its metrics")
+    XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 404)
+    XCTAssertNil(posts.first?.input["errorResponseBody"], "the session delegate never sees the bytes")
+    session.finishTasksAndInvalidate()
+  }
+
   func testAnErrorIsRecordedAndRethrownUnchanged() async throws {
     NetworkStubProtocol.reset(["/orders/123": .failure(.notConnectedToInternet)])
     let session = URLSession(configuration: NetworkStubProtocol.configuration())
