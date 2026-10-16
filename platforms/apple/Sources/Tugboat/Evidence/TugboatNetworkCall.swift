@@ -39,16 +39,26 @@ public final class TugboatNetworkCall: @unchecked Sendable {
     self.started = started
   }
 
-  /// Begins a call at the current time; a no-op token when `route` is nil
-  /// or empty or nothing accepts evidence.
-  static func begin(method: String, route: String?, channel: EvidenceChannel) -> TugboatNetworkCall {
+  /// False for a no-op token: an adapter then skips reading an error body.
+  var isRecording: Bool {
+    started != nil
+  }
+
+  /// Begins a call at the current time, or `durationUs` before it for a
+  /// call an adapter observed only when it finished; a no-op token when
+  /// `route` is nil or empty or nothing accepts evidence.
+  static func begin(
+    method: String, route: String?, channel: EvidenceChannel, startedBeforeNowUs durationUs: Int64 = 0
+  ) -> TugboatNetworkCall {
     let at = channel.now()
     guard let route = route, !route.isEmpty, let generation = channel.admit() else {
       return TugboatNetworkCall(started: nil)
     }
+    let (startMonoUs, overflow) = at.monoUs.subtractingReportingOverflow(max(0, durationUs))
     return TugboatNetworkCall(
       started: Started(
-        channel: channel, generation: generation, method: method, route: route, startMonoUs: at.monoUs))
+        channel: channel, generation: generation, method: method, route: route,
+        startMonoUs: overflow ? Int64.min : startMonoUs))
   }
 
   /// The call got a response with `statusCode`. `errorResponseBody` is kept

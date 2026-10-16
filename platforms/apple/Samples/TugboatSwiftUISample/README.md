@@ -24,9 +24,11 @@ system input facts yet). `Tugboat.start` runs in
 
 `EvidenceDemo` shows the evidence API: **Log in (event)** records the coded
 event `USER_LOGIN` through `Tugboat.eventHook(source: "analytics",
-parameterPolicy: .allowList(["method"]))`, and **Load order** begins a manual
-network call (`GET /orders/42`) that a background queue completes 0.3 s later
-with a 404 and the JSON error body `{"error": "order_not_found"}`.
+parameterPolicy: .allowList(["method"]))`, and **Load order** sends
+`GET <collector>/orders/42` through `OrderClient`, a delegate-based session
+made by `Tugboat.instrumentedSession` with a route resolver that returns the
+URL's path. The collector does not serve that path, so the call records a
+404 with its text error body.
 
 ## Collector
 
@@ -136,9 +138,10 @@ With the local collector running on port 3000:
     `name` `USER_LOGIN`, `parameterKeys` `["email", "method"]`,
     `parameters` `{"method": "email"}`, `capture.values` `allow_list`;
   - `network_call` (`stream: evidence`, step 10): `method` `GET`, `route`
-    `/orders/42`, `statusCode` 404, `outcome` `response`, `durationMs` about
-    300, `errorResponseBody` `{"error": "order_not_found"}` with
-    `errorResponseBodyCapture.format` `json`;
+    `/orders/42` (the path only: no host, query, or headers), `statusCode`
+    404, `outcome` `response`, `durationMs` a few ms, `errorResponseBody`
+    `404 Not Found` (the collector's text body) with
+    `errorResponseBodyCapture.format` `text`;
   - `app_inactive`, `app_backgrounded` (step 8), `app_inactive`,
     `app_foregrounded` (step 9);
   - no `stateAnchor` on any v2 interaction.
@@ -150,4 +153,5 @@ With the local collector running on port 3000:
   every frame is masked whole (unverified layer allowlist) and says
   `wholeFrame`. Landscape frames after step 7 have the
   rotated size.
-- Collector logs: no 400 responses.
+- Collector logs: no 400 responses; one 404 for `GET /orders/42` (the
+  sample's network call, step 10).

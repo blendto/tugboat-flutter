@@ -75,6 +75,62 @@ final class EvidenceConformanceTests: XCTestCase {
     XCTAssertGreaterThan(ran, files.count / 2)
   }
 
+  /// The `jsonText` fixtures, and the text-body ones, through the
+  /// byte-reading path of the URLSession and Alamofire adapters
+  /// (`HTTPErrorBody`, section 4.5): the body's UTF-8 bytes with a JSON or
+  /// a text `Content-Type`. Every one gives the fixture's expected data.
+  func testBodyFixturesThroughTheByteReadingPath() throws {
+    var ran = 0
+    for file in try fixtureFiles() {
+      let text = try String(contentsOf: file, encoding: .utf8)
+      guard file.path.contains("/network_call/"), !Self.hasLoneSurrogate(text),
+        let fixture = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+        let input = fixture["input"] as? [String: Any],
+        let body = input["errorResponseBody"] as? [String: Any]
+      else { continue }
+      let bytes: Data
+      let contentType: String
+      if let jsonText = body["jsonText"] as? String {
+        (bytes, contentType) = (Data(jsonText.utf8), "application/json; charset=utf-8")
+      } else if let value = body["value"] as? String {
+        (bytes, contentType) = (Data(value.utf8), "text/plain")
+      } else {
+        continue
+      }
+      let name = fixture["name"] as? String ?? file.lastPathComponent
+      let emitted = emitNetworkCall(input, body: HTTPErrorBody.body(bytes: bytes, contentType: contentType))
+      let atMonoUs = finishMonoUs(kind: EvidenceMessages.networkCall, input: input)
+      let recorded = try emitted.flatMap {
+        try ConformanceEngine.record(type: EvidenceMessages.networkCall, inputJSON: $0, atMonoUs: atMonoUs)
+      }
+      let expected = (fixture["expected"] as? [String: Any])?["data"]
+      XCTAssertEqual(
+        recorded as NSObject?, (expected is NSNull ? nil : expected) as? NSObject,
+        "\(name): differs from Dart\n  sent \(emitted ?? "nothing")")
+      ran += 1
+    }
+    print("evidence body fixtures through the byte path: \(ran)")
+    XCTAssertGreaterThanOrEqual(ran, 12)
+  }
+
+  /// The input JSON a network call with `body` emits for the fixture.
+  private func emitNetworkCall(_ input: [String: Any], body: Any?) -> String? {
+    let clock = FakeClock(monoUs: Int64(input["startMonoUs"] as? Int ?? 0), wallUs: 1_791_712_345_678_901)
+    let sink = RecordingEvidenceSink()
+    let channel = EvidenceChannel(clock: clock, schedule: { $0() })
+    channel.open(sink)
+    let call = TugboatNetworkCall.begin(
+      method: input["method"] as? String ?? "", route: input["route"] as? String, channel: channel)
+    clock.set(monoUs: Int64(input["endMonoUs"] as? Int ?? input["startMonoUs"] as? Int ?? 0))
+    let status = input["statusCode"] as? Int
+    switch input["outcome"] as? String {
+    case "network_error": call.fail(.networkError, statusCode: status, errorResponseBody: body)
+    case "cancelled": call.fail(.cancelled, statusCode: status, errorResponseBody: body)
+    default: call.complete(statusCode: status, attemptCount: input["attemptCount"] as? Int, errorResponseBody: body)
+    }
+    return sink.posts.first?.inputJSON
+  }
+
   // MARK: - Sending a fixture through the host
 
   /// The input JSON the Swift host emits for the fixture, if any.

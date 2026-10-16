@@ -16,8 +16,13 @@ enum EvidenceEncoder {
 
   /// `{"value": <encoded>}`, or nil for no body (`nil`, `NSNull`, `Data`).
   /// A string is a text body; anything else is normalized by the engine,
-  /// which keeps no body for a root it does not support.
+  /// which keeps no body for a root it does not support. A `JSONTextBody`
+  /// (from a byte-reading adapter, never the app) is `{"jsonText": text}`,
+  /// sent whole: the engine decodes and bounds it.
   static func errorResponseBody(_ body: Any) -> String? {
+    if let body = body as? JSONTextBody {
+      return "{\"jsonText\":" + JSONText.quoted(body.text) + "}"
+    }
     guard let body = ValueKind.unwrap(body), !ValueKind.isNoBody(body) else {
       return nil
     }

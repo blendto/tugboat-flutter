@@ -51,6 +51,24 @@ final class EvidenceChannel: @unchecked Sendable {
     }
   }
 
+  /// Tests of adapters: `sink` takes the open session's place until the
+  /// returned closure puts the previous one back.
+  func tap(_ sink: EvidenceSink) -> () -> Void {
+    let previous = state.withLock { (state: inout State) -> Session? in
+      let previous = state.open
+      state.generation += 1
+      state.open = Session(generation: state.generation, sink: sink)
+      return previous
+    }
+    return { [state] in
+      state.withLock { (state: inout State) in
+        if state.open?.sink === sink {
+          state.open = previous
+        }
+      }
+    }
+  }
+
   /// Closes the session; posts already scheduled for it are dropped.
   func close() {
     state.withLock { $0.open = nil }

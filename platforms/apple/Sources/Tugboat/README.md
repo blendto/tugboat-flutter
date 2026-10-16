@@ -31,10 +31,17 @@ events.record("USER_LOGIN", parameters: ["method": "email"])
 let call = Tugboat.beginNetworkCall(method: "GET", route: "/orders/123")
 call.complete(statusCode: 200)          // complete(statusCode:attemptCount:errorResponseBody:)
 call.fail(.networkError)                // or .cancelled; fail(_:statusCode:attemptCount:errorResponseBody:)
+
+let session = Tugboat.instrumentedSession(configuration: .default, delegate: appDelegate) { request in
+  router.route(for: request)            // "/orders/123"; nil records nothing
+}
+let (data, response) = try await Tugboat.data(for: request, route: "/orders/123") // any session
 ```
 
 See [Coded events and network calls](#coded-events-and-network-calls) for
-the evidence API.
+the evidence API and
+[Automatic network capture](#automatic-network-capture-urlsession-and-alamofire)
+for the URLSession helpers and `TugboatAlamofire`.
 
 - `.tugboatTag(_:accessibility:)` with `accessibility: true` also sets the tag
   as the view's `accessibilityIdentifier`, so XCUITest, Maestro, Appium and
@@ -139,6 +146,92 @@ call.complete(statusCode: 422, errorResponseBody: ["error": "invalid_order"])
   128 items per collection, strings cut at 4097 UTF-16 units, at most 4097
   values, and writing stops once its strings and keys pass 4096 units.
 
+## Automatic network capture (URLSession and Alamofire)
+
+Opt-in helpers that record `network_call` evidence with the same payload
+as the manual API and `tugboat_dio`. No `URLProtocol`, no swizzling, and no
+second session: requests and responses are identical with and without
+them. The route always comes from the app, through a route resolver or a
+`route:` argument, and is trimmed as Dart's `String.trim` trims; nil, empty,
+or a throwing resolver records nothing. Query strings, headers (except
+`Content-Type`, to classify an error body), request bodies, and error text
+are never read.
+
+```swift
+// A delegate-based session: status, timing, outcome, and error bodies.
+let session = Tugboat.instrumentedSession(
+  configuration: .default, delegate: apiDelegate, delegateQueue: nil
+) { request in request.url.flatMap(router.route(for:)) }
+session.dataTask(with: request).resume()
+
+// async/await on any session, URLSession.shared included.
+let (data, response) = try await Tugboat.data(for: request, session: .shared, route: "/orders/123")
+```
+
+- **`Tugboat.instrumentedSession(configuration:delegate:delegateQueue:routeResolver:)`**
+  returns `URLSession(configuration:delegate:delegateQueue:)` with your
+  configuration and queue unchanged. Its delegate is a proxy
+  (`Network/DelegateForwarder`): URLSession sees exactly the optional
+  methods your delegate implements, and each is passed to it unchanged
+  (auth challenges, redirects, response dispositions, data, downloads,
+  streams, background events). The proxy also observes `didReceive data`,
+  `didFinishCollecting metrics`, and `didCompleteWithError`, forwarding
+  each with the same arguments. `session.delegate` is the proxy, so keep
+  your own reference to your delegate.
+- One event per task: redirects and URLSession's own authentication
+  retries stay inside it. A retry your code makes is a new task and a new
+  event, with no `attemptCount`.
+- Timing comes from the task's own metrics, from the first transaction's
+  `fetchStartDate` (the task's start if it never fetched) to the end of
+  `taskInterval`, placed before the host clock reading at which the call
+  is recorded. The event time is the host clock.
+- Outcome: `URLError.cancelled` is `cancelled`; any other error is
+  `network_error`, with the status code if a response had arrived; a
+  response is `response` with its status code.
+- Error body, only for a status of 400 or more, and only for
+  delegate-based data tasks: the proxy keeps at most 65,537 bytes of what
+  `didReceive data` delivers and passes the same `Data` on. It never reads
+  a stream again. A body of 64 KiB or less with a JSON `Content-Type`
+  (`application/json`, `text/json`, or `+json`, any case, parameters
+  ignored) is sent
+  whole as JSON text, and the engine decodes and bounds it as Dart does.
+  Anything else is sent as text, decoded as UTF-8 with U+FFFD replacement
+  and cut to whole characters within 4100 bytes
+  ([evidence messages](../../../../core/session-engine/docs/evidence-messages.md)
+  section 4.5). A JSON body over 64 KiB is therefore `text`, where Dio
+  would record a JSON `serialized_prefix`. An empty body gives none.
+- Tasks with a completion handler, `async` `data(for:)` called directly,
+  and download tasks still record status, timing, and outcome, but no error
+  body: URLSession hands their bytes to the caller, never to the session
+  delegate. Use `Tugboat.data(for:session:delegate:route:)` to get the body
+  for `async` calls. A task-specific delegate (`task.delegate`) that
+  implements `didReceive data` or `didCompleteWithError` takes those
+  callbacks from the session delegate, so such tasks are recorded from
+  metrics only, or not at all.
+- The resolver runs once per task, on the delegate queue, with the task's
+  `originalRequest`, and only while Tugboat takes evidence (otherwise
+  nothing is buffered).
+- Not covered: `URLSession.shared` and any session you make yourself,
+  unless you call through `Tugboat.data`. Stream and WebSocket tasks are
+  not recorded. A background session is observed the same way and never
+  altered. Its tasks may finish after a relaunch, before or across a
+  Tugboat session; a call that began before the running session started is
+  dropped.
+- **`Tugboat.data(for:session:delegate:route:)`** wraps
+  `session.data(for:delegate:)` and returns or throws exactly what it
+  does. The call is timed on the host clock from the helper's start to its
+  return, and the error body is read from the returned `Data` by the same
+  rule. Your `delegate`, if any, receives exactly the callbacks it would
+  receive directly. On an instrumented session the call is recorded once,
+  by the helper. Cancelling the Swift task records `cancelled`.
+- **`TugboatAlamofire`** (`platforms/apple/TugboatAlamofire`, its own
+  SwiftPM package, Alamofire 5.9.0 or later): an Alamofire `EventMonitor`.
+  Pass `TugboatAlamofireMonitor(routeResolver:)` in `Session(eventMonitors:)`
+  to record one event per logical request, with `attemptCount`. See its
+  [README](../../TugboatAlamofire/README.md). It uses the SDK's
+  `@_spi(TugboatAdapters)` surface (`Evidence/TugboatAdapters.swift`),
+  which is not for app code.
+
 ## Accessibility-tree identity (opt-in, ADR 0010)
 
 [ADR 0010](../../../../docs/decisions/0010-swiftui-accessibility-identity.md).
@@ -222,6 +315,7 @@ changes. Turn this on only to learn about untagged screens, and sample it.
 | --- | --- | --- |
 | Facade | `Public/Tugboat`, `TugboatConfig` | Thin: main-thread hop, idempotency, user id and traits kept across sessions. |
 | Evidence | `Evidence/` | `TugboatEventHook`, `TugboatNetworkCall` and `TugboatParameterPolicy`; `EvidenceChannel` admits them into the open session (opened by `start`, closed by `stop`), stamps the time on the calling thread, and hops to the main thread; `EvidenceMessages` builds `evidence.externalEvent` / `evidence.networkCall`; `HostParameters` runs a `transform`; `EvidenceEncoder` and `ValueKind` write the values in the engine's value encoding. |
+| Network | `Network/`, `Evidence/HTTPErrorBody`, `Evidence/TugboatAdapters`, `Public/Tugboat+URLSession` | `Tugboat.instrumentedSession` and `Tugboat.data(for:...)`; `DelegateForwarder` (the Objective-C forwarding proxy), `InstrumentedSessionDelegate`, `NetworkTaskRecorder` (one event per task, timing from metrics, per-task state on the task); `HTTPErrorBody` (the byte-reading error-body rule, `JSONTextBody`); `TugboatAdapters` (SPI for `TugboatAlamofire`, and an evidence tap for its tests). |
 | Composition root | `Sdk/TugboatRuntime`, `RuntimeParts` | Builds and owns one engine host, the SwiftUI adapter, the capture coordinator, the surface observer, and the lifecycle bridge. Closures reach the host weakly. |
 | Configuration | `Sdk/HostMetadata`, `DeviceSnapshot`, `EngineConfiguration`, `SessionMessages` | `engine.configure`: `host` with every `session_start` field the collector requires (device id `identifierForVendor`, `platform: ios`, screen size in points, `scale` as both densities, dpi `scale × 160`, `ipInfo.ip` placeholder `127.0.0.1` as Flutter on iOS, configured locale with timezone), the Dart `limits`, `gesture` = `GestureConfig.uiKitDefault`, `capture.answerTimeoutMs` 5000, `collector.enabled`, `focusChanges` (no `systemInput`: iOS has no system input facts yet). `session.start` with the key window's viewport and the active locale. |
 | Lifecycle | `Sdk/AppLifecycleBridge` | Application notifications to `app.lifecycle`: active `resumed`, resign `inactive`, background `paused`, will-enter-foreground `inactive`, terminate `detached`. |
@@ -310,6 +404,15 @@ host (`conformance/host/multipart-request.golden`), and the HTTP executor agains
 concurrent completes, no-op paths, the transform contract, the value
 encoding (types, key order, depth, cycles, elision), and the recorded
 `external_event` / `network_call` data from the real engine.
+`TugboatTests/Network` runs instrumented sessions over a test-only
+`URLProtocol` stub: 200, a 404 JSON body, a 500 text body, a JSON body over
+64 KiB, timeout, cancel, redirect, an auth challenge forwarded to the app's
+delegate (its disposition returned unchanged), completion-handler tasks, the
+`async` helper, and resolver and admission no-ops. It checks that no query,
+header, or request body reaches the message, and that the app's delegate
+gets the same callbacks and bytes as without instrumentation.
+`EvidenceConformanceTests` also runs every `jsonText` and text-body fixture
+through the byte path (`HTTPErrorBody`) against the real engine.
 `TugboatTests/SwiftUI` tests the adapter on hosted SwiftUI views in a test
 window, including the layer-allowlist regression guard, which fails when a
 screen with text and an image shows no allowlisted layer class on a verified

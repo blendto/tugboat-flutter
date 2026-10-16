@@ -29,6 +29,26 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   (`evidence.externalEvent`, `evidence.networkCall`); the SDK runs a
   `transform`, sorts keys, and encodes values. The sample records one
   event and one call.
+- Automatic network calls, opt-in and without `URLProtocol` or swizzling:
+  `Tugboat.instrumentedSession(configuration:delegate:delegateQueue:routeResolver:)`
+  returns a `URLSession` whose delegate forwards every callback the app's
+  delegate implements, unchanged, and records one `network_call` per task.
+  Timing comes from the task's metrics; `URLError.cancelled` is
+  `cancelled`, other errors are `network_error`. For status 400 or more,
+  delegate-based data tasks keep at most 65,537 bytes of the body they
+  already deliver, sent as JSON text (complete, and `application/json`,
+  `text/json` or `+json`) or as text cut
+  within 4100 bytes (evidence-messages.md section 4.5). Completion-handler,
+  `async`, and download tasks record no body. `Tugboat.data(for:session:delegate:route:)`
+  records an `async` call with its error body on any session, including
+  `URLSession.shared`. `TugboatRouteResolver` is
+  `(URLRequest) throws -> String?`; its result is trimmed as Dart trims, and
+  nil, empty, or a throw records nothing. `URLSession.shared` and other
+  sessions are not observed. Query strings, headers, request bodies, and
+  error text are never read. The manual API is unchanged. Internally,
+  `EvidenceEncoder` sends a byte-read JSON body as `{"jsonText": …}`, and
+  `@_spi(TugboatAdapters)` adds what the separate `TugboatAlamofire`
+  package needs.
 - `.tugboatTag(_:accessibility:)`: `accessibility: true` (default false)
   also sets the tag as the content's `accessibilityIdentifier`, for UI tests
   and exploration runs; the marker stays hidden from accessibility and
