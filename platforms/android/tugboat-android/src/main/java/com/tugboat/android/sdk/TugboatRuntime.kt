@@ -12,6 +12,8 @@ import com.tugboat.android.capture.RuntimeWindowCapturer
 import com.tugboat.android.capture.SurfaceReporter
 import com.tugboat.android.engine.EngineTransport
 import com.tugboat.android.engine.JniEngineTransport
+import com.tugboat.android.evidence.EvidenceRecorder
+import com.tugboat.android.evidence.EngineEvidenceEncoder
 import com.tugboat.android.host.EngineHost
 import com.tugboat.android.host.FrameHandleTable
 import com.tugboat.android.host.HostClock
@@ -40,6 +42,8 @@ internal class TugboatRuntime private constructor(
     private val watcher: SessionEndWatcher,
     private val clock: HostClock,
     private val stopSequence: StopSequence,
+    /** Coded events and network calls; any thread. */
+    val evidence: EvidenceRecorder,
 ) {
     private var stopped = false
 
@@ -59,6 +63,7 @@ internal class TugboatRuntime private constructor(
     fun stop() {
         if (stopped) return
         stopped = true
+        evidence.close()
         adapter.stop()
         lifecycle.stop()
         foreground.stop()
@@ -152,10 +157,11 @@ internal class TugboatRuntime private constructor(
             val lifecycle = AppLifecycleBridge(post = { state ->
                 host.post(SessionMessages.APP_LIFECYCLE, SessionMessages.appLifecycle(state), clock.now())
             })
+            val evidence = EvidenceRecorder(clock, EngineEvidenceEncoder, hostRunning = { host.isRunning }, post = host::post)
             adapter.start()
             foreground.start()
             lifecycle.start()
-            return TugboatRuntime(host, adapter, lifecycle, foreground, captures, watcher, clock, stopSequence)
+            return TugboatRuntime(host, adapter, lifecycle, foreground, captures, watcher, clock, stopSequence, evidence)
         }
     }
 }

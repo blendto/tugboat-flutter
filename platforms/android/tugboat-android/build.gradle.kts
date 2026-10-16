@@ -67,6 +67,8 @@ android {
         val engineSources = rootProject.projectDir.resolve("../../core/session-engine").canonicalFile
         val statusFixture = rootProject.projectDir.resolve("../../conformance/engine/scenario/delivery-status-classification.json").canonicalFile
         val identityFixtures = rootProject.projectDir.resolve("../../conformance/fingerprint/identity_parts").canonicalFile
+        // Evidence messages as the engine takes them, and the data it records (EvidenceConformanceTest).
+        val evidenceFixtures = rootProject.projectDir.resolve("../../conformance/evidence").canonicalFile
         unitTests.all { test ->
             test.systemProperty("tugboat.engineSources", engineSources.path)
             test.inputs.file(engineSources.resolve("src/transport.cpp"))
@@ -75,7 +77,17 @@ android {
             test.inputs.dir(hostFixtures)
             test.systemProperty("tugboat.identityFixtures", identityFixtures.path)
             test.inputs.dir(identityFixtures)
+            test.systemProperty("tugboat.evidenceFixtures", evidenceFixtures.path)
+            test.inputs.dir(evidenceFixtures)
         }
+    }
+
+    sourceSets {
+        // The evidence fixture reader is shared by the unit and device tests;
+        // the device tests read the fixtures as assets.
+        getByName("test").java.srcDir("src/testShared/java")
+        getByName("androidTest").java.srcDir("src/testShared/java")
+        getByName("androidTest").assets.srcDir(rootProject.projectDir.resolve("../../conformance/evidence"))
     }
 
     buildTypes {
