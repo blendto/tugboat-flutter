@@ -595,10 +595,13 @@ Highlights:
   Years outside 0..9999 use `±YYYYYY`.
 - **Evidence.** `evidence.externalEvent` and `evidence.networkCall` data
   equals `TugboatEvidenceRecorder`'s, byte for byte (the `conformance/
-  evidence/` fixtures run on both runners). Two differences are deliberate:
-  a `network_call` keeps its start as `atMs` (C19; Dart stamps the finish),
-  and a non-ASCII method records nothing (Dart upper-cases it with Unicode
-  simple case mapping).
+  evidence/` fixtures run on both runners). Three differences are
+  deliberate: a `network_call` keeps its start as `atMs` (C19; Dart stamps
+  the finish); a non-ASCII method records nothing (Dart upper-cases it with
+  Unicode simple case mapping); and a byte-reading adapter sends a JSON
+  body over 64 KiB as text, so it is recorded as a `text` body where Dio
+  would record a json `serialized_prefix` (both cut to 4096 bytes;
+  docs/evidence-messages.md section 4.5).
 - **Mapping.** Behavior follows `collector_mapper.dart` exactly: envelope
   inconsistencies, `userId: null` versus an omitted `sessionId`, the
   `session_start` locale merge, traits over traitsId, and no clamping of a

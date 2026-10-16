@@ -102,6 +102,8 @@ Map entries:
 - `{"nonStringKeys": n}`: `n` (≥ 1) consecutive entries whose keys are not
   strings. Their values are never read, so they are not sent. In parameters
   it also stands for keys that are strings but invalid (section 4.4).
+  Adjacent runs must be merged into one: a host never sends two runs next
+  to each other.
 
 Rules:
 
@@ -241,7 +243,7 @@ The engine keeps the host's order, and Dart's limits depend on it.
   in Dart; other maps' iteration order as they define it).
 - Swift: dictionaries have no order, so hosts sort string keys by Swift
   `String` `<`, at the top level and in every nested map, followed by one
-  `nonStringKeys` run for the remaining keys. This order is host-defined:
+  (merged) `nonStringKeys` run for the remaining keys. This order is host-defined:
   Dart has no equivalent, and a Swift event can differ from a Kotlin or Dart
   one with the same keys when a limit cuts the map.
 
@@ -266,7 +268,7 @@ Keys:
 
 - A key is valid when it is a string of 1 to 128 UTF-16 units. Consecutive
   entries with invalid keys (not strings, empty, or longer) are sent as one
-  `{"nonStringKeys": n}` run, at every level.
+  `{"nonStringKeys": n}` run, at every level; adjacent runs are merged.
 
 Top level:
 
@@ -301,12 +303,24 @@ Sources:
 - A decoded value the app passes to `complete`/`fail` (the manual API):
   `{"value": <encoded value>}` with the rules below. A string is a text
   body.
-- A byte-reading adapter (OkHttp, URLSession; slice N2) peeks at most 64 KiB
-  of the body, never consuming it:
-  - when the peek holds the complete body and `Content-Type` is JSON
-    (`application/json` or a `+json` subtype), send `{"jsonText": <body
-    decoded as UTF-8>}`;
-  - otherwise send `{"value": <the decoded text>}`, cut to the complete
+- A byte-reading adapter (OkHttp, URLSession; slice N2) peeks at the body
+  without consuming it:
+  - Peek 65,537 bytes (64 KiB + 1). The body is complete if and only if the
+    peek returned at most 65,536 bytes. `Content-Length` is not trusted.
+  - The media type is JSON when `Content-Type`, compared case-insensitively
+    with its parameters ignored, is `application/json` or any
+    `type/subtype` whose subtype ends in `+json`.
+  - Bytes are decoded as UTF-8, replacing each maximal invalid subsequence
+    with U+FFFD (the Unicode "maximal subpart" practice, as Dart's
+    `utf8.decode(allowMalformed: true)` and Swift's
+    `String(decoding:as: UTF8.self)` do). Kotlin: the JVM's
+    `CodingErrorAction.REPLACE` decoder (OpenJDK 21, checked against Dart)
+    matches except for an encoded surrogate (`ED A0..BF xx`), which it
+    replaces with one U+FFFD where the practice gives three; Android's
+    decoder must be checked on device, and a host whose decoder differs
+    decodes with its own maximal-subpart decoder.
+  - Complete and JSON: send `{"jsonText": <decoded body>}`.
+  - Otherwise: send `{"value": <decoded text>}`, cut to the complete
     characters of the first 4100 bytes (any prefix longer than 4096 UTF-8
     bytes keeps the text body exact).
 
@@ -315,7 +329,7 @@ Sources:
   truncates anyway are affected.
 - Bodies for status codes below 400 are never read or sent.
 
-Encoding a value body (the root is depth 0):
+Encoding a value body (the root is depth 0), in visit order:
 
 - A list, map, or iterable at depth 6 or more is sent as
   `{"unsupported": true}`. Strings, numbers, booleans, and `null` at that
@@ -326,14 +340,28 @@ Encoding a value body (the root is depth 0):
   never read.
 - A string or a key longer than 4097 UTF-16 units is cut to its first 4097
   units. A cut can make two keys equal; the engine keeps both.
-- Node budget. The host counts the nodes it writes within those caps, in
-  visit order: every list, map, string, finite number, boolean, and `null`
-  it sends, except anything inside an `iterable` and the values under
-  non-string keys (which are not sent). `unsupported`, non-finite doubles,
-  and `ref` are not counted. When the count reaches 4097, the host stops:
-  it writes nothing more and closes the open collections. Each counted node
-  adds at least one byte to Dart's encoding, so the encoding is past 4096
-  bytes before the cut.
+- The counted values are what Dart encodes within those caps: every list,
+  map, string, finite number, boolean, and `null` the host sends, except
+  anything inside an `iterable` and the values under non-string keys (which
+  are not sent). `unsupported`, non-finite doubles, and `ref` are not
+  counted, and neither is the key of an entry whose value is not counted.
+- Node budget: the host counts the counted values. When the count reaches
+  4097, it stops.
+- Text budget: the host adds up the UTF-16 units of every counted string and
+  of the key of every entry whose value is counted. After writing the
+  string or key that takes the total past 4096, it stops (a key it stops
+  after is sent with the value `null`).
+- Stopping means writing nothing more and closing the open collections
+  as they are. A collection closed early carries no `"omitted"`: only the
+  128-item cap (and the top-level parameters rule, section 4.4) uses
+  `omitted`.
+
+Both budgets are exact. Each counted value adds at least one byte to Dart's
+encoding, and each UTF-16 unit of a counted string or key at least one
+byte, so the encoding is past 4096 bytes before the cut and the
+`serialized_prefix` is unchanged. Together they bound a value body to
+about 8,200 units of text and 4,097 values, well within the engine's
+message size.
 
 Not elided: `name` and `source` are sent in full (trimming needs both ends),
 and `jsonText` must be the complete body.
