@@ -14,12 +14,6 @@ final class EvidenceEngineTests: XCTestCase {
   override func setUpWithError() throws {
     try super.setUpWithError()
     let bridge = try XCTUnwrap(EngineBridge.open(), "the engine must open")
-    // Until engine/native-evidence is merged into this branch's base.
-    let probe = bridge.submit(Data(EngineMessage(type: EvidenceMessages.networkCall, inputJSON: "{}", at: clock.now()).json.utf8))
-    if probe.status == TB_SESSION_UNSUPPORTED_MESSAGE {
-      bridge.close()
-      throw XCTSkip("this engine has no evidence.* messages yet")
-    }
     engine = EngineEvidenceSink(bridge: bridge)
     try engine.startSession(at: clock.now())
     channel = EvidenceChannel(clock: clock, schedule: { $0() })

@@ -34,12 +34,7 @@ final class EvidenceConformanceTests: XCTestCase {
 
   func testEveryFixtureThroughTheSwiftHost() throws {
     let files = try fixtureFiles()
-    guard !files.isEmpty else {
-      throw XCTSkip("no conformance/evidence fixtures on this base yet")
-    }
-    guard ConformanceEngine.supportsEvidence() else {
-      throw XCTSkip("this engine has no evidence.* messages yet")
-    }
+    XCTAssertFalse(files.isEmpty, "conformance/evidence fixtures at \(Self.fixtures.path)")
     var ran = 0
     var dartOrdered = 0
     var exact = 0
@@ -352,13 +347,6 @@ enum SwiftOrder {
 /// A fresh real engine per message: the fixture runner's session, started
 /// at `monoUs` 0.
 enum ConformanceEngine {
-  static func supportsEvidence() -> Bool {
-    guard let bridge = EngineBridge.open() else { return false }
-    defer { bridge.close() }
-    let probe = EngineMessage(type: EvidenceMessages.networkCall, inputJSON: "{}", at: HostTime(monoUs: 0, wallUs: 0))
-    return bridge.submit(Data(probe.json.utf8)).status != TB_SESSION_UNSUPPORTED_MESSAGE
-  }
-
   /// The recorded event's `data`; nil when nothing is recorded, a
   /// `rejected` document when the engine refuses the message.
   static func record(type: String, inputJSON: String, atMonoUs: Int64) throws -> [String: Any]? {
