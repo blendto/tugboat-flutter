@@ -243,9 +243,9 @@ The engine keeps the host's order, and Dart's limits depend on it.
   in Dart; other maps' iteration order as they define it).
 - Swift: dictionaries have no order, so hosts sort string keys by Swift
   `String` `<`, at the top level and in every nested map, followed by one
-  (merged) `nonStringKeys` run for the remaining keys. This order is host-defined:
-  Dart has no equivalent, and a Swift event can differ from a Kotlin or Dart
-  one with the same keys when a limit cuts the map.
+  (merged) `nonStringKeys` run for the remaining keys. This order is
+  host-defined: Dart has no equivalent, and a Swift event can differ from a
+  Kotlin or Dart one with the same keys when a limit cuts the map.
 
 "Visit order" below is this order, depth first: a collection's items in
 order, each item's own contents before the next item.
@@ -352,9 +352,9 @@ Encoding a value body (the root is depth 0), in visit order:
   string or key that takes the total past 4096, it stops (a key it stops
   after is sent with the value `null`).
 - Stopping means writing nothing more and closing the open collections
-  as they are. A collection closed early carries no `"omitted"`: only the
-  128-item cap (and the top-level parameters rule, section 4.4) uses
-  `omitted`.
+  as they are. A collection closed early carries no `"omitted"`: in a body
+  only the 128-item cap uses `omitted` (in parameters, the rules of section
+  4.4 do).
 
 Both budgets are exact. Each counted value adds at least one byte to Dart's
 encoding, and each UTF-16 unit of a counted string or key at least one
