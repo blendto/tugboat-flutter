@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "json.h"
+#include "text.h"
 
 namespace tugboat {
 namespace engine {
@@ -13,58 +14,6 @@ namespace {
 // Response bodies are at most 64 KiB, so this only bounds pathological
 // nesting; Dart's `jsonDecode` has no depth limit.
 constexpr uint32_t kResponseMaxDepth = 512;
-
-// Dart `String.trim` whitespace (Unicode White_Space plus BOM).
-bool is_dart_whitespace(uint32_t c) {
-  return (c >= 0x09 && c <= 0x0D) || c == 0x20 || c == 0x85 || c == 0xA0 ||
-         c == 0x1680 || (c >= 0x2000 && c <= 0x200A) || c == 0x2028 ||
-         c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000 ||
-         c == 0xFEFF;
-}
-
-// Decodes the (WTF-8) code point of `len` bytes starting at `p`.
-uint32_t decode_at(const unsigned char* p, size_t len) {
-  if (len == 1) {
-    return p[0];
-  }
-  uint32_t c = p[0] & (0xFFu >> (len + 1));
-  for (size_t i = 1; i < len; ++i) {
-    c = (c << 6) | (p[i] & 0x3Fu);
-  }
-  return c;
-}
-
-size_t sequence_length(unsigned char lead) {
-  if (lead < 0x80) return 1;
-  if (lead >= 0xF0) return 4;
-  if (lead >= 0xE0) return 3;
-  return 2;
-}
-
-std::string_view dart_trim(std::string_view text) {
-  const auto* bytes = reinterpret_cast<const unsigned char*>(text.data());
-  size_t begin = 0;
-  size_t end = text.size();
-  while (begin < end) {
-    const size_t len = sequence_length(bytes[begin]);
-    if (begin + len > end || !is_dart_whitespace(decode_at(bytes + begin,
-                                                           len))) {
-      break;
-    }
-    begin += len;
-  }
-  while (end > begin) {
-    size_t lead = end - 1;
-    while (lead > begin && (bytes[lead] & 0xC0) == 0x80) {
-      --lead;
-    }
-    if (!is_dart_whitespace(decode_at(bytes + lead, end - lead))) {
-      break;
-    }
-    end = lead;
-  }
-  return text.substr(begin, end - begin);
-}
 
 // `decoded[key] as String?`: false when the value is present, not null, and
 // not a string (Dart's cast throws).

@@ -1,165 +1,265 @@
 #include "evidence_value.h"
 
 #include <algorithm>
-#include <cmath>
 #include <limits>
+#include <optional>
+#include <utility>
+
+#include "name_table.h"
 
 namespace tugboat {
 namespace engine {
 
 namespace {
 
-const Value* member(const Value& object, const char* key) {
-  return object.find(key);
-}
+// A JSON path built only when an error needs it: the success path never
+// allocates one per item.
+class Path {
+ public:
+  explicit Path(const std::string& root) : root_(&root) {}
+  Path(const Path& parent, const char* key) : parent_(&parent), key_(key) {}
+  Path(const Path& parent, size_t index)
+      : parent_(&parent), index_(index), is_index_(true) {}
 
-double double_tag(const Value& v) {
-  if (v.is_number()) {
-    return v.to_double();
-  }
-  const std::string& s = v.as_string();
-  if (s == "NaN") {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-  if (s == "Infinity") {
-    return std::numeric_limits<double>::infinity();
-  }
-  if (s == "-Infinity") {
-    return -std::numeric_limits<double>::infinity();
-  }
-  return -0.0;  // "-0.0"
-}
-
-bool is_count(const Value* v) { return v != nullptr && v->is_int() && v->as_int() >= 1; }
-
-std::string at_index(const std::string& path, size_t i) {
-  return path + "[" + std::to_string(i) + "]";
-}
-
-bool validate_items(const Value& items, int64_t depth,
-                    const std::string& path, Error* error) {
-  if (!items.is_array()) {
-    return invalid(error, path, "expected an array");
-  }
-  for (size_t i = 0; i < items.items().size(); ++i) {
-    if (!validate_value(items.items()[i], depth, false, at_index(path, i),
-                        error)) {
-      return false;
+  std::string str() const {
+    if (parent_ == nullptr) {
+      return *root_;
     }
+    return parent_->str() +
+           (is_index_ ? "[" + std::to_string(index_) + "]"
+                      : std::string(".") + key_);
   }
-  return true;
-}
 
-// `{tag: ..., "omitted"?: n}`.
-bool validate_collection_keys(const Value& v, const std::string& path,
-                              Error* error) {
-  const Value* omitted = member(v, "omitted");
-  if (v.members().size() != (omitted != nullptr ? 2u : 1u)) {
-    return invalid(error, path, "unexpected key beside the collection tag");
-  }
-  if (omitted != nullptr && !is_count(omitted)) {
-    return invalid(error, path + ".omitted", "expected an integer >= 1");
-  }
-  return true;
-}
+ private:
+  const std::string* root_ = nullptr;
+  const Path* parent_ = nullptr;
+  const char* key_ = "";
+  size_t index_ = 0;
+  bool is_index_ = false;
+};
 
-bool validate_double(const Value& v, const std::string& path, Error* error) {
-  if (v.is_number()) {
+constexpr NamedValue<EvidenceKind> kTags[] = {
+    {"list", EvidenceKind::kList},
+    {"iterable", EvidenceKind::kIterable},
+    {"map", EvidenceKind::kMap},
+    {"double", EvidenceKind::kDouble},
+    {"ref", EvidenceKind::kRef},
+    {"unsupported", EvidenceKind::kUnsupported},
+    {"drop", EvidenceKind::kDrop},
+};
+
+bool is_count(const Value& v) { return v.is_int() && v.as_int() >= 1; }
+
+class Decoder {
+ public:
+  Decoder(EvidenceContext context, Error* error)
+      : context_(context), error_(error) {}
+
+  // `depth`: enclosing collections within the value. `allow_drop`: this
+  // value may be `{"drop": true}`.
+  bool value(const Value& json, int64_t depth, bool allow_drop,
+             const Path& path, EvidenceValue* out) {
+    switch (json.kind()) {
+      case Value::Kind::kNull:
+        out->kind = EvidenceKind::kNull;
+        return true;
+      case Value::Kind::kBool:
+        out->kind = EvidenceKind::kBool;
+        out->boolean = json.as_bool();
+        return true;
+      case Value::Kind::kInt:
+        out->kind = EvidenceKind::kInt;
+        out->integer = json.as_int();
+        return true;
+      case Value::Kind::kString:
+        out->kind = EvidenceKind::kString;
+        out->string = json.as_string();
+        return true;
+      case Value::Kind::kDouble:
+        return fail(path,
+                    "a bare number must be an integer; write doubles as "
+                    "{\"double\": x}");
+      case Value::Kind::kArray:
+        out->kind = EvidenceKind::kList;
+        return items(json, depth + 1, path, out);
+      case Value::Kind::kObject:
+        return tag(json, depth, allow_drop, path, out);
+    }
+    return false;
+  }
+
+  // A map's entries (`entries` is the tag's array); entry values are at
+  // `depth`.
+  bool map(const Value& entries, int64_t depth, bool allow_drop,
+           const Path& path, EvidenceValue* out) {
+    if (!entries.is_array()) {
+      return fail(path, "expected an array of entries");
+    }
+    out->kind = EvidenceKind::kMap;
+    out->entries.resize(entries.items().size());
+    for (size_t i = 0; i < entries.items().size(); ++i) {
+      if (!entry(entries.items()[i], depth, allow_drop, Path(path, i),
+                 &out->entries[i])) {
+        return false;
+      }
+    }
+    if (context_ == EvidenceContext::kParameters && has_repeated_key(*out)) {
+      return fail(path, "duplicate map key");
+    }
     return true;
   }
-  if (v.is_string()) {
-    const std::string& s = v.as_string();
-    if (s == "NaN" || s == "Infinity" || s == "-Infinity" || s == "-0.0") {
+
+  bool fail(const Path& path, std::string message) {
+    return invalid(error_, path.str(), std::move(message));
+  }
+
+ private:
+  bool tag(const Value& json, int64_t depth, bool allow_drop,
+           const Path& path, EvidenceValue* out) {
+    const Member* tag = nullptr;
+    const Value* omitted = nullptr;
+    for (const Member& member : json.members()) {
+      if (member.key == "omitted" && omitted == nullptr) {
+        omitted = &member.value;
+      } else if (tag == nullptr) {
+        tag = &member;
+      } else {
+        return fail(path, "expected exactly one value tag");
+      }
+    }
+    if (tag == nullptr) {
+      return fail(path, "expected a value tag");
+    }
+    const std::optional<EvidenceKind> kind = parse_name(kTags, tag->key);
+    if (!kind) {
+      return fail(path, "unknown value tag " + tag->key);
+    }
+    out->kind = *kind;
+    if (omitted != nullptr) {
+      if (!out->is_collection()) {
+        return fail(path, "unexpected key beside the value tag");
+      }
+      if (!is_count(*omitted)) {
+        return fail(Path(path, "omitted"), "expected an integer >= 1");
+      }
+      out->omitted = omitted->as_int();
+    }
+    return tag_value(*kind, tag->value, depth, allow_drop,
+                     Path(path, tag->key.c_str()), out);
+  }
+
+  bool tag_value(EvidenceKind kind, const Value& json, int64_t depth,
+                 bool allow_drop, const Path& path, EvidenceValue* out) {
+    switch (kind) {
+      case EvidenceKind::kList:
+      case EvidenceKind::kIterable:
+        return items(json, depth + 1, path, out);
+      case EvidenceKind::kMap:
+        return map(json, depth + 1, false, path, out);
+      case EvidenceKind::kDouble:
+        return number(json, path, out);
+      case EvidenceKind::kRef:
+        if (!is_count(json) || json.as_int() > depth) {
+          return fail(path, "expected an enclosing collection count (1 to " +
+                                std::to_string(depth) + ")");
+        }
+        out->integer = json.as_int();
+        return true;
+      case EvidenceKind::kDrop:
+        if (!allow_drop) {
+          return fail(path,
+                      "drop is only a top-level parameter value under "
+                      "transform");
+        }
+        return flag(json, path);
+      default:  // kUnsupported
+        return flag(json, path);
+    }
+  }
+
+  bool items(const Value& json, int64_t depth, const Path& path,
+             EvidenceValue* out) {
+    if (!json.is_array()) {
+      return fail(path, "expected an array");
+    }
+    out->items.resize(json.items().size());
+    for (size_t i = 0; i < json.items().size(); ++i) {
+      if (!value(json.items()[i], depth, false, Path(path, i),
+                 &out->items[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool entry(const Value& json, int64_t depth, bool allow_drop,
+             const Path& path, EvidenceEntry* out) {
+    if (json.is_object()) {
+      const Value* run = json.find("nonStringKeys");
+      if (json.members().size() != 1 || run == nullptr || !is_count(*run)) {
+        return fail(path, "expected {\"nonStringKeys\": n >= 1}");
+      }
+      out->non_string_keys = run->as_int();
       return true;
     }
-  }
-  return invalid(error, path,
-                 "expected a number, NaN, Infinity, -Infinity, or -0.0");
-}
-
-bool validate_flag(const Value& v, const std::string& path, Error* error) {
-  if (!v.is_bool() || !v.as_bool()) {
-    return invalid(error, path, "expected true");
-  }
-  return true;
-}
-
-bool validate_tag(const Value& v, int64_t depth, bool allow_drop,
-                  const std::string& path, Error* error) {
-  const size_t size = v.members().size();
-  if (const Value* list = member(v, "list")) {
-    return validate_collection_keys(v, path, error) &&
-           validate_items(*list, depth + 1, path + ".list", error);
-  }
-  if (const Value* iterable = member(v, "iterable")) {
-    return validate_collection_keys(v, path, error) &&
-           validate_items(*iterable, depth + 1, path + ".iterable", error);
-  }
-  if (member(v, "map") != nullptr) {
-    return validate_collection_keys(v, path, error) &&
-           validate_map(v, depth + 1, false, path, error);
-  }
-  if (size != 1) {
-    return invalid(error, path, "expected exactly one value tag");
-  }
-  const Member& tag = v.members()[0];
-  const std::string child = path + "." + tag.key;
-  if (tag.key == "double") {
-    return validate_double(tag.value, child, error);
-  }
-  if (tag.key == "unsupported") {
-    return validate_flag(tag.value, child, error);
-  }
-  if (tag.key == "drop") {
-    if (!allow_drop) {
-      return invalid(error, child,
-                     "drop is only a top-level parameter value under "
-                     "transform");
+    if (!json.is_array() || json.items().size() != 2 ||
+        !json.items()[0].is_string()) {
+      return fail(path, "expected [key, value] with a string key");
     }
-    return validate_flag(tag.value, child, error);
+    out->key = json.items()[0].as_string();
+    return value(json.items()[1], depth, allow_drop, Path(path, 1),
+                 &out->value);
   }
-  if (tag.key == "ref") {
-    if (!is_count(&tag.value) || tag.value.as_int() > depth) {
-      return invalid(error, child,
-                     "expected an enclosing collection count (1 to " +
-                         std::to_string(depth) + ")");
+
+  bool number(const Value& json, const Path& path, EvidenceValue* out) {
+    out->kind = EvidenceKind::kDouble;
+    if (json.is_number()) {
+      out->number = json.to_double();
+      return true;
+    }
+    const std::string* name = json.is_string() ? &json.as_string() : nullptr;
+    if (name != nullptr && *name == "NaN") {
+      out->number = std::numeric_limits<double>::quiet_NaN();
+    } else if (name != nullptr && *name == "Infinity") {
+      out->number = std::numeric_limits<double>::infinity();
+    } else if (name != nullptr && *name == "-Infinity") {
+      out->number = -std::numeric_limits<double>::infinity();
+    } else if (name != nullptr && *name == "-0.0") {
+      out->number = -0.0;
+    } else {
+      return fail(path,
+                  "expected a number, NaN, Infinity, -Infinity, or -0.0");
     }
     return true;
   }
-  return invalid(error, path, "unknown value tag " + tag.key);
-}
 
-bool validate_entry(const Value& entry, int64_t depth, bool allow_drop,
-                    const std::string& path, Error* error) {
-  if (entry.is_object()) {
-    const Value* run = member(entry, "nonStringKeys");
-    if (entry.members().size() != 1 || !is_count(run)) {
-      return invalid(error, path, "expected {\"nonStringKeys\": n >= 1}");
+  bool flag(const Value& json, const Path& path) {
+    if (!json.is_bool() || !json.as_bool()) {
+      return fail(path, "expected true");
     }
     return true;
   }
-  if (!entry.is_array() || entry.items().size() != 2 ||
-      !entry.items()[0].is_string()) {
-    return invalid(error, path, "expected [key, value] with a string key");
-  }
-  return validate_value(entry.items()[1], depth, allow_drop, path + "[1]",
-                        error);
-}
 
-bool has_duplicate_keys(const std::vector<Value>& entries) {
-  std::vector<const std::string*> keys;
-  for (const Value& entry : entries) {
-    if (entry.is_array()) {
-      keys.push_back(&entry.items()[0].as_string());
+  static bool has_repeated_key(const EvidenceValue& map) {
+    std::vector<const std::string*> keys;
+    for (const EvidenceEntry& entry : map.entries) {
+      if (entry.non_string_keys == 0) {
+        keys.push_back(&entry.key);
+      }
     }
+    std::sort(keys.begin(), keys.end(),
+              [](const std::string* a, const std::string* b) {
+                return *a < *b;
+              });
+    return std::adjacent_find(keys.begin(), keys.end(),
+                              [](const std::string* a, const std::string* b) {
+                                return *a == *b;
+                              }) != keys.end();
   }
-  std::sort(keys.begin(), keys.end(),
-            [](const std::string* a, const std::string* b) { return *a < *b; });
-  return std::adjacent_find(keys.begin(), keys.end(),
-                            [](const std::string* a, const std::string* b) {
-                              return *a == *b;
-                            }) != keys.end();
-}
+
+  EvidenceContext context_;
+  Error* error_;
+};
 
 }  // namespace
 
@@ -168,133 +268,84 @@ int64_t add_count(int64_t a, int64_t b) {
   return a > kMax - b ? kMax : a + b;
 }
 
-bool validate_map(const Value& tag, int64_t depth, bool allow_drop,
-                  const std::string& path, Error* error) {
-  const Value* entries = member(tag, "map");
-  const std::string child = path + ".map";
-  if (entries == nullptr || !entries->is_array()) {
-    return invalid(error, child, "expected an array of entries");
+int64_t entry_count(const EvidenceValue& map) {
+  int64_t count = 0;
+  for (const EvidenceEntry& entry : map.entries) {
+    count = add_count(count, entry.non_string_keys > 0 ? entry.non_string_keys
+                                                       : 1);
   }
-  for (size_t i = 0; i < entries->items().size(); ++i) {
-    if (!validate_entry(entries->items()[i], depth, allow_drop,
-                        at_index(child, i), error)) {
-      return false;
+  return count;
+}
+
+bool decode_evidence_value(const Value& json, EvidenceContext context,
+                           const std::string& path, EvidenceValue* out,
+                           Error* error) {
+  return Decoder(context, error).value(json, 0, false, Path(path), out);
+}
+
+bool decode_parameters_map(const Value& json, bool transform,
+                           const std::string& path, EvidenceValue* out,
+                           Error* error) {
+  Decoder decoder(EvidenceContext::kParameters, error);
+  const Path root(path);
+  const Value* entries = json.is_object() ? json.find("map") : nullptr;
+  const Value* omitted = json.is_object() ? json.find("omitted") : nullptr;
+  if (entries == nullptr ||
+      json.members().size() != (omitted != nullptr ? 2u : 1u)) {
+    return decoder.fail(root, "expected a map value");
+  }
+  if (!decoder.map(*entries, 0, transform, Path(root, "map"), out)) {
+    return false;
+  }
+  if (omitted != nullptr) {
+    if (!is_count(*omitted)) {
+      return decoder.fail(Path(root, "omitted"), "expected an integer >= 1");
     }
-  }
-  if (has_duplicate_keys(entries->items())) {
-    return invalid(error, child, "duplicate map key");
+    if (entry_count(*out) < 64) {
+      return decoder.fail(Path(root, "omitted"),
+                          "only after the first 64 entries");
+    }
+    out->omitted = omitted->as_int();
   }
   return true;
 }
 
-bool validate_value(const Value& value, int64_t depth, bool allow_drop,
-                    const std::string& path, Error* error) {
-  switch (value.kind()) {
+EvidenceValue evidence_from_json(const Value& decoded) {
+  EvidenceValue out;
+  switch (decoded.kind()) {
     case Value::Kind::kNull:
+      break;
     case Value::Kind::kBool:
+      out.kind = EvidenceKind::kBool;
+      out.boolean = decoded.as_bool();
+      break;
     case Value::Kind::kInt:
-    case Value::Kind::kString:
-      return true;
+      out.kind = EvidenceKind::kInt;
+      out.integer = decoded.as_int();
+      break;
     case Value::Kind::kDouble:
-      return invalid(error, path,
-                     "a bare number must be an integer; write doubles as "
-                     "{\"double\": x}");
-    case Value::Kind::kArray:
-      return validate_items(value, depth + 1, path, error);
-    case Value::Kind::kObject:
-      return validate_tag(value, depth, allow_drop, path, error);
-  }
-  return false;
-}
-
-Node::Node(const Value& value, bool plain) : value_(&value), plain_(plain) {
-  switch (value.kind()) {
-    case Value::Kind::kNull:
-      kind_ = NodeKind::kNull;
-      return;
-    case Value::Kind::kBool:
-      kind_ = NodeKind::kBool;
-      return;
-    case Value::Kind::kInt:
-      kind_ = NodeKind::kInt;
-      return;
-    case Value::Kind::kDouble:
-      kind_ = NodeKind::kDouble;
-      number_ = value.as_double();
-      return;
+      out.kind = EvidenceKind::kDouble;
+      out.number = decoded.as_double();
+      break;
     case Value::Kind::kString:
-      kind_ = NodeKind::kString;
-      return;
+      out.kind = EvidenceKind::kString;
+      out.string = decoded.as_string();
+      break;
     case Value::Kind::kArray:
-      kind_ = NodeKind::kList;
-      items_ = &value.items();
-      return;
+      out.kind = EvidenceKind::kList;
+      for (const Value& item : decoded.items()) {
+        out.items.push_back(evidence_from_json(item));
+      }
+      break;
     case Value::Kind::kObject:
+      out.kind = EvidenceKind::kMap;
+      for (const Member& member : decoded.members()) {
+        out.entries.push_back(
+            EvidenceEntry{member.key, evidence_from_json(member.value), 0});
+      }
       break;
   }
-  if (plain) {
-    kind_ = NodeKind::kMap;
-    members_ = &value.members();
-    return;
-  }
-  if (const Value* omitted = value.find("omitted")) {
-    omitted_ = omitted->as_int();
-  }
-  if (const Value* list = value.find("list")) {
-    kind_ = NodeKind::kList;
-    items_ = &list->items();
-  } else if (const Value* iterable = value.find("iterable")) {
-    kind_ = NodeKind::kIterable;
-    items_ = &iterable->items();
-  } else if (const Value* map = value.find("map")) {
-    kind_ = NodeKind::kMap;
-    items_ = &map->items();
-  } else if (const Value* number = value.find("double")) {
-    kind_ = NodeKind::kDouble;
-    number_ = double_tag(*number);
-  } else if (const Value* ref = value.find("ref")) {
-    kind_ = NodeKind::kRef;
-    ref_ = ref->as_int();
-  } else if (value.find("drop") != nullptr) {
-    kind_ = NodeKind::kDrop;
-  } else {
-    kind_ = NodeKind::kUnsupported;
-  }
-}
-
-size_t Node::size() const {
-  if (members_ != nullptr) {
-    return members_->size();
-  }
-  return items_ == nullptr ? 0 : items_->size();
-}
-
-Node Node::item(size_t i) const { return Node((*items_)[i], plain_); }
-
-Entry Node::entry(size_t i) const {
-  Entry out;
-  if (members_ != nullptr) {
-    out.key = &(*members_)[i].key;
-    out.value = &(*members_)[i].value;
-    return out;
-  }
-  const Value& raw = (*items_)[i];
-  if (raw.is_object()) {
-    out.run = raw.members()[0].value.as_int();
-    return out;
-  }
-  out.key = &raw.items()[0].as_string();
-  out.value = &raw.items()[1];
   return out;
-}
-
-int64_t entry_count(const Node& map) {
-  int64_t count = 0;
-  for (size_t i = 0; i < map.size(); ++i) {
-    const Entry entry = map.entry(i);
-    count = add_count(count, entry.key != nullptr ? 1 : entry.run);
-  }
-  return count;
 }
 
 }  // namespace engine

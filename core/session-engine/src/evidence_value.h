@@ -1,7 +1,7 @@
 // The typed value encoding of the evidence messages (docs/
-// evidence-messages.md section 2): how a host writes parameter values and
-// error bodies so the engine can apply Dart's rules to them. Not part of
-// the C ABI.
+// evidence-messages.md section 2), decoded once into `EvidenceValue`: the
+// host-typed values Dart's rules run on. `jsonText` bodies convert into the
+// same tree. Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_EVIDENCE_VALUE_H
 #define TUGBOAT_SESSION_ENGINE_EVIDENCE_VALUE_H
 
@@ -16,7 +16,7 @@
 namespace tugboat {
 namespace engine {
 
-enum class NodeKind {
+enum class EvidenceKind {
   kNull,
   kBool,
   kInt,
@@ -30,68 +30,57 @@ enum class NodeKind {
   kDrop,  // the transform drop sentinel
 };
 
-// One map entry: a string key and its value, or a run of `run` entries whose
-// keys are not strings (their values are never read).
-struct Entry {
-  const std::string* key = nullptr;
-  const Value* value = nullptr;
-  int64_t run = 0;
+struct EvidenceEntry;
+
+struct EvidenceValue {
+  EvidenceKind kind = EvidenceKind::kNull;
+  bool boolean = false;
+  int64_t integer = 0;  // kInt; kRef: how many collections up
+  double number = 0;
+  std::string string;
+  std::vector<EvidenceValue> items;    // kList, kIterable
+  std::vector<EvidenceEntry> entries;  // kMap, in host order
+  int64_t omitted = 0;  // kList, kIterable, kMap: items the host left out
+
+  bool is_collection() const {
+    return kind == EvidenceKind::kList || kind == EvidenceKind::kIterable ||
+           kind == EvidenceKind::kMap;
+  }
 };
 
-// A read-only view of one value, over a validated encoded value or over
-// plain decoded JSON (a `jsonText` body, where objects are maps).
-class Node {
- public:
-  static Node encoded(const Value& value) { return Node(value, false); }
-  static Node plain(const Value& value) { return Node(value, true); }
-
-  NodeKind kind() const { return kind_; }
-  const Value& value() const { return *value_; }
-  bool is_plain() const { return plain_; }
-  // kDouble.
-  double number() const { return number_; }
-  // kRef: how many collections up.
-  int64_t ref() const { return ref_; }
-
-  // kList, kIterable, kMap: the sent items, and how many more the host
-  // omitted.
-  size_t size() const;
-  int64_t omitted() const { return omitted_; }
-  // kList, kIterable.
-  Node item(size_t i) const;
-  // kMap.
-  Entry entry(size_t i) const;
-  Node child(const Value& value) const { return Node(value, plain_); }
-
- private:
-  Node(const Value& value, bool plain);
-
-  const Value* value_;
-  bool plain_;
-  NodeKind kind_ = NodeKind::kUnsupported;
-  double number_ = 0;
-  int64_t ref_ = 0;
-  int64_t omitted_ = 0;
-  const std::vector<Value>* items_ = nullptr;     // list, iterable, map
-  const std::vector<Member>* members_ = nullptr;  // plain map
+// A map entry: a string key and its value, or (`non_string_keys` > 0) a run
+// of that many entries whose keys are not strings.
+struct EvidenceEntry {
+  std::string key;
+  EvidenceValue value;
+  int64_t non_string_keys = 0;
 };
 
-// Entries of a map, counting each `nonStringKeys` run by its length
-// (saturating).
-int64_t entry_count(const Node& map);
+// What a value is decoded for: parameter maps reject a repeated key; body
+// maps keep it, because a host's cut can make two long keys equal.
+enum class EvidenceContext { kParameters, kErrorBody };
+
+// Decodes one encoded value (an error body's `value`). Fails with the JSON
+// path, rooted at `path`, on an invalid encoding.
+bool decode_evidence_value(const Value& json, EvidenceContext context,
+                           const std::string& path, EvidenceValue* out,
+                           Error* error);
+
+// Decodes the parameters `map` value: its entry values are roots (the map
+// is not a collection of any value), `drop` is allowed as an entry value
+// when `transform`, and `omitted` needs 64 sent entries.
+bool decode_parameters_map(const Value& json, bool transform,
+                           const std::string& path, EvidenceValue* out,
+                           Error* error);
+
+// Decoded JSON (a `jsonText` body) as a value: objects are maps.
+EvidenceValue evidence_from_json(const Value& decoded);
 
 // Saturating addition of non-negative counts.
 int64_t add_count(int64_t a, int64_t b);
 
-// Validates an encoded value. `depth` is the number of enclosing collections
-// within the value (bounds `ref`); `allow_drop` admits `{"drop": true}`.
-bool validate_value(const Value& value, int64_t depth, bool allow_drop,
-                    const std::string& path, Error* error);
-
-// Validates a map's entries (duplicate keys are invalid); `allow_drop`
-// applies to the entry values.
-bool validate_map(const Value& tag, int64_t depth, bool allow_drop,
-                  const std::string& path, Error* error);
+// A map's entries, counting each run by its length (saturating).
+int64_t entry_count(const EvidenceValue& map);
 
 }  // namespace engine
 }  // namespace tugboat

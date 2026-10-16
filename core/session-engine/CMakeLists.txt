@@ -39,7 +39,6 @@ set(_tb_engine_sources
   src/config.cpp
   src/coordination.cpp
   src/coordination_module.cpp
-  src/dart_string.cpp
   src/dart_time.cpp
   src/delivery.cpp
   src/delivery_gaps.cpp

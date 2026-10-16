@@ -1,11 +1,13 @@
 // Dart `network_observer.dart` and `_finishNetworkCall`'s data
 // (docs/evidence-messages.md section 3.2).
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
-#include "dart_string.h"
 #include "evidence.h"
 #include "evidence_value.h"
+#include "name_table.h"
+#include "text.h"
 
 namespace tugboat {
 namespace engine {
@@ -14,215 +16,205 @@ namespace {
 
 using Limits = NetworkLimits;
 
-// Nesting for `jsonText` bodies (TB_SESSION_ENGINE_MAX_DEPTH).
-constexpr uint32_t kJsonTextMaxDepth = 512;
+constexpr NamedValue<NetworkOutcome> kOutcomes[] = {
+    {"response", NetworkOutcome::kResponse},
+    {"network_error", NetworkOutcome::kNetworkError},
+    {"cancelled", NetworkOutcome::kCancelled},
+};
+
+// `jsonText` parsing: Dart's `jsonDecode` (repeated keys, lone surrogates,
+// unbounded nesting). Containers below the depth normalization reads are
+// checked and skipped: the root is parser depth 1, and a container at Dart
+// depth 6 (parser depth 7) is unsupported whatever it holds.
+ParseOptions json_text_options() {
+  ParseOptions options;
+  options.dart_duplicate_keys = true;
+  options.wtf8 = true;
+  options.build_depth = Limits::kMaxErrorResponseBodyDepth;
+  options.max_depth = Limits::kMaxErrorResponseBodyDepth + 1;
+  return options;
+}
 
 bool is_forbidden_route_rune(uint32_t rune) {
   return rune <= 0x20 || rune == 0x7f || rune == '%' || rune == '#' ||
          rune == '?' || rune == '\\';
 }
 
-// Collections on the encoded path to the current value: what `ref` counts.
-using Path = std::vector<const Value*>;
+// Collections on the path to the current value: what `ref` counts.
+using Ancestors = std::vector<const EvidenceValue*>;
 
-// Dart `_copyJsonValue` and `jsonEncode` of its result in one pass, so a
-// body is only normalized until its encoding passes the 4096-byte cap.
+// Dart `_copyJsonValue`, stopped once the encoding of what it has kept
+// passes the 4096-byte cap. The kept value is then encoded once.
 class BodyNormalizer {
  public:
-  // Normalizes the root. False when it is unsupported (no body).
-  bool run(const Node& root, Value* out) {
+  // False when the root is unsupported (no body).
+  bool run(const EvidenceValue& root, Value* out) {
     if (!supported(root, 0)) {
       return false;
     }
-    Path path;
-    normalize(root, 0, &path, out);
+    Ancestors ancestors;
+    *out = normalize(root, 0, &ancestors);
     return true;
   }
 
-  bool over() const { return over_; }
+  bool over() const { return bytes_ > Limits::kMaxErrorResponseBodyBytes; }
   bool truncated() const { return truncated_; }
-  const std::string& encoded() const { return encoded_; }
 
  private:
-  // What `ref` points at: the collection `n` levels up, with its own path.
-  struct Resolved {
-    Node node;
-    Path path;
-  };
-
-  Resolved resolve(const Node& ref, const Path& path) const {
-    const size_t index = path.size() - static_cast<size_t>(ref.ref());
-    return Resolved{ref.child(*path[index]),
-                    Path(path.begin(), path.begin() + static_cast<long>(index))};
-  }
-
-  // Whether Dart keeps the value (`supported`), decided before writing.
-  bool supported(const Node& node, int64_t depth) const {
-    switch (node.kind()) {
-      case NodeKind::kNull:
-      case NodeKind::kBool:
-      case NodeKind::kInt:
-      case NodeKind::kString:
+  // Whether Dart keeps `value` at `depth` (`ref`s are resolved first).
+  static bool supported(const EvidenceValue& value, size_t depth) {
+    switch (value.kind) {
+      case EvidenceKind::kNull:
+      case EvidenceKind::kBool:
+      case EvidenceKind::kInt:
+      case EvidenceKind::kString:
         return true;
-      case NodeKind::kDouble:
-        return std::isfinite(node.number());
-      case NodeKind::kList:
-      case NodeKind::kMap:
+      case EvidenceKind::kDouble:
+        return std::isfinite(value.number);
+      case EvidenceKind::kList:
+      case EvidenceKind::kMap:
         return depth < Limits::kMaxErrorResponseBodyDepth;
-      case NodeKind::kRef:
-        // A ref always names a list, map, or iterable. Iterables are never
-        // supported, so look through to the target's kind.
-        return depth < Limits::kMaxErrorResponseBodyDepth;
-      case NodeKind::kIterable:
-      case NodeKind::kUnsupported:
-      case NodeKind::kDrop:
+      default:  // an iterable (Dart's `value is List` is false), unsupported
         return false;
     }
-    return false;
   }
 
-  void write(std::string_view text) {
-    encoded_.append(text);
-    if (encoded_.size() > Limits::kMaxErrorResponseBodyBytes) {
-      over_ = true;
+  // Bytes of Dart's encoding of what has been kept so far. A closing bracket
+  // counts when its collection ends, so once the count passes the cap the
+  // kept prefix is exactly Dart's: encoding what was kept (its open
+  // collections closed early) starts with the same 4096 bytes.
+  void add(size_t bytes) { bytes_ += bytes; }
+
+  // A child value: a `ref` resolves to the collection `n` levels up, which
+  // is then traversed with its own ancestors (Dart has no cycle check here),
+  // held in `resolved`. Any other child keeps `*ancestors`.
+  struct Child {
+    const EvidenceValue* value;
+    Ancestors* ancestors;
+  };
+
+  static Child resolve(const EvidenceValue& value, Ancestors* ancestors,
+                       Ancestors* resolved) {
+    if (value.kind != EvidenceKind::kRef) {
+      return Child{&value, ancestors};
     }
+    const size_t index =
+        ancestors->size() - static_cast<size_t>(value.integer);
+    resolved->assign(ancestors->begin(),
+                     ancestors->begin() + static_cast<long>(index));
+    return Child{(*ancestors)[index], resolved};
   }
 
-  // Writes and builds a supported value.
-  void normalize(const Node& node, int64_t depth, Path* path, Value* out) {
-    switch (node.kind()) {
-      case NodeKind::kNull:
-      case NodeKind::kBool:
-      case NodeKind::kInt:
-      case NodeKind::kString:
-        *out = node.value();
-        write(encode_json(*out));
-        return;
-      case NodeKind::kDouble:
-        *out = Value::number(node.number());
-        write(format_double(node.number()));
-        return;
-      case NodeKind::kRef: {
-        Resolved target = resolve(node, *path);
-        normalize_collection(target.node, depth, &target.path, out);
-        return;
-      }
-      default:
-        normalize_collection(node, depth, path, out);
-        return;
-    }
-  }
-
-  void normalize_collection(const Node& node, int64_t depth, Path* path,
-                            Value* out) {
-    if (node.kind() == NodeKind::kIterable) {
-      // Only reachable through a ref; Dart's `value is List` is false.
-      truncated_ = true;
-      *out = Value::null();
-      return;
-    }
-    path->push_back(&node.value());
-    if (node.kind() == NodeKind::kMap) {
-      normalize_map(node, depth, path, out);
-    } else {
-      normalize_list(node, depth, path, out);
-    }
-    path->pop_back();
-  }
-
-  bool more_than_cap(const Node& node, int64_t sent) {
-    return add_count(sent, node.omitted()) >
-           Limits::kMaxErrorResponseBodyCollectionItems;
-  }
-
-  void normalize_list(const Node& node, int64_t depth, Path* path,
-                      Value* out) {
-    *out = Value::array();
-    write("[");
-    if (more_than_cap(node, static_cast<int64_t>(node.size()))) {
-      truncated_ = true;
-    }
-    const int64_t total = add_count(static_cast<int64_t>(node.size()),
-                                    node.omitted());
-    const int64_t visit =
-        std::min(total, Limits::kMaxErrorResponseBodyCollectionItems);
-    for (int64_t i = 0; i < visit && !over_; ++i) {
-      if (static_cast<size_t>(i) >= node.size()) {
-        truncated_ = true;  // an omitted item: unsupported
+  Value normalize(const EvidenceValue& value, size_t depth,
+                  Ancestors* ancestors) {
+    Value out;
+    switch (value.kind) {
+      case EvidenceKind::kNull:
         break;
-      }
-      const Node item = node.item(static_cast<size_t>(i));
-      if (!supported(item, depth + 1) || !target_supported(item, *path)) {
+      case EvidenceKind::kBool:
+        out = Value::boolean(value.boolean);
+        break;
+      case EvidenceKind::kInt:
+        out = Value::integer(value.integer);
+        break;
+      case EvidenceKind::kDouble:
+        out = Value::number(value.number);
+        break;
+      case EvidenceKind::kString:
+        out = Value::string(value.string);
+        break;
+      case EvidenceKind::kMap:
+        ancestors->push_back(&value);
+        out = normalize_map(value, depth, ancestors);
+        ancestors->pop_back();
+        return out;
+      default:  // kList (`supported` excludes everything else)
+        ancestors->push_back(&value);
+        out = normalize_list(value, depth, ancestors);
+        ancestors->pop_back();
+        return out;
+    }
+    add(encode_json(out).size());
+    return out;
+  }
+
+  bool more_than_cap(int64_t sent, int64_t omitted) {
+    return add_count(sent, omitted) >
+           static_cast<int64_t>(Limits::kMaxErrorResponseBodyCollectionItems);
+  }
+
+  Value normalize_list(const EvidenceValue& list, size_t depth,
+                       Ancestors* ancestors) {
+    Value out = Value::array();
+    add(1);  // [
+    if (more_than_cap(static_cast<int64_t>(list.items.size()), list.omitted)) {
+      truncated_ = true;
+    }
+    const size_t visit =
+        std::min(list.items.size(), Limits::kMaxErrorResponseBodyCollectionItems);
+    for (size_t i = 0; i < visit && !over(); ++i) {
+      Ancestors resolved;
+      const Child child = resolve(list.items[i], ancestors, &resolved);
+      if (!supported(*child.value, depth + 1)) {
         truncated_ = true;
         continue;
       }
-      if (!out->items().empty()) {
-        write(",");
-      }
-      Value copied;
-      normalize(item, depth + 1, path, &copied);
-      out->push(std::move(copied));
+      add(out.items().empty() ? 0 : 1);  // ,
+      out.push(normalize(*child.value, depth + 1, child.ancestors));
     }
-    write("]");
+    if (visit < Limits::kMaxErrorResponseBodyCollectionItems &&
+        list.omitted > 0) {
+      truncated_ = true;  // an omitted item within the cap: unsupported
+    }
+    add(1);  // ]
+    return out;
   }
 
-  void normalize_map(const Node& node, int64_t depth, Path* path,
-                     Value* out) {
-    *out = Value::object();
-    write("{");
-    if (more_than_cap(node, entry_count(node))) {
+  Value normalize_map(const EvidenceValue& map, size_t depth,
+                      Ancestors* ancestors) {
+    Value out = Value::object();
+    add(1);  // {
+    if (more_than_cap(entry_count(map), map.omitted)) {
       truncated_ = true;
     }
     int64_t visited = 0;
-    for (size_t i = 0; i < node.size() && !over_; ++i) {
-      if (visited >= Limits::kMaxErrorResponseBodyCollectionItems) {
+    constexpr auto kCap =
+        static_cast<int64_t>(Limits::kMaxErrorResponseBodyCollectionItems);
+    for (const EvidenceEntry& entry : map.entries) {
+      if (over()) {
+        break;
+      }
+      if (visited >= kCap) {
         truncated_ = true;
         break;
       }
-      const Entry entry = node.entry(i);
-      if (entry.key == nullptr) {
+      if (entry.non_string_keys > 0) {
         // Each non-string key uses up one visit and sets `truncated`.
-        visited = add_count(
-            visited,
-            std::min(entry.run,
-                     Limits::kMaxErrorResponseBodyCollectionItems - visited));
+        visited += std::min(entry.non_string_keys, kCap - visited);
         truncated_ = true;
         continue;
       }
       visited += 1;
-      const Node value = node.child(*entry.value);
-      if (!supported(value, depth + 1) || !target_supported(value, *path)) {
+      Ancestors resolved;
+      const Child child = resolve(entry.value, ancestors, &resolved);
+      if (!supported(*child.value, depth + 1)) {
         truncated_ = true;
         continue;
       }
-      if (!out->members().empty()) {
-        write(",");
-      }
-      std::string key;
-      write_json_string(*entry.key, &key);
-      key.push_back(':');
-      write(key);
-      Value copied;
-      normalize(value, depth + 1, path, &copied);
-      out->set(*entry.key, std::move(copied));
+      // ,"key":  (body maps keep a repeated key, in order)
+      add((out.members().empty() ? 0 : 1) +
+          encode_json(Value::string(entry.key)).size() + 1);
+      out.members().push_back(Member{
+          entry.key, normalize(*child.value, depth + 1, child.ancestors)});
     }
-    if (!over_ && visited < Limits::kMaxErrorResponseBodyCollectionItems &&
-        node.omitted() > 0) {
+    if (!over() && visited < kCap && map.omitted > 0) {
       truncated_ = true;  // omitted entries: unsupported values
     }
-    write("}");
+    add(1);  // }
+    return out;
   }
 
-  // A ref is supported only when its target is a list or map.
-  bool target_supported(const Node& node, const Path& path) const {
-    if (node.kind() != NodeKind::kRef) {
-      return true;
-    }
-    return resolve(node, path).node.kind() != NodeKind::kIterable;
-  }
-
-  std::string encoded_;
-  bool over_ = false;
+  size_t bytes_ = 0;
   bool truncated_ = false;
 };
 
@@ -236,12 +228,12 @@ ErrorBodySnapshot text_snapshot(const std::string& text) {
   return snapshot;
 }
 
-std::optional<ErrorBodySnapshot> snapshot_node(const Node& root) {
-  if (root.kind() == NodeKind::kNull) {
+std::optional<ErrorBodySnapshot> snapshot_value(const EvidenceValue& root) {
+  if (root.kind == EvidenceKind::kNull) {
     return std::nullopt;
   }
-  if (root.kind() == NodeKind::kString) {
-    return text_snapshot(root.value().as_string());
+  if (root.kind == EvidenceKind::kString) {
+    return text_snapshot(root.string);
   }
   BodyNormalizer normalizer;
   Value normalized;
@@ -255,8 +247,10 @@ std::optional<ErrorBodySnapshot> snapshot_node(const Node& root) {
     snapshot.truncated = normalizer.truncated();
     return snapshot;
   }
-  snapshot.value = Value::string(std::string(
-      utf8_prefix(normalizer.encoded(), Limits::kMaxErrorResponseBodyBytes)));
+  // What was kept begins with the first 4096 bytes of Dart's encoding.
+  const std::string encoded = encode_json(normalized);
+  snapshot.value = Value::string(
+      std::string(utf8_prefix(encoded, Limits::kMaxErrorResponseBodyBytes)));
   snapshot.representation = "serialized_prefix";
   snapshot.truncated = true;
   return snapshot;
@@ -271,6 +265,14 @@ Value capture_metadata(const ErrorBodySnapshot& snapshot) {
 }
 
 }  // namespace
+
+std::optional<NetworkOutcome> parse_network_outcome(const std::string& name) {
+  return parse_name(kOutcomes, name);
+}
+
+const char* network_outcome_name(NetworkOutcome outcome) {
+  return name_of(kOutcomes, outcome);
+}
 
 std::optional<std::string> normalize_network_method(std::string_view method) {
   std::string trimmed(dart_trim(method));
@@ -307,36 +309,35 @@ std::optional<std::string> normalize_network_route(std::string_view route) {
   return std::string(trimmed);
 }
 
-std::optional<ErrorBodySnapshot> snapshot_error_body(const Value& body) {
-  if (const Value* value = body.find("value")) {
-    return snapshot_node(Node::encoded(*value));
+std::optional<ErrorBodySnapshot> snapshot_error_body(const ErrorBody& body) {
+  if (body.value) {
+    return snapshot_value(*body.value);
   }
-  const std::string& text = body.find("jsonText")->as_string();
-  if (text.empty()) {
+  if (body.json_text.empty()) {
     return std::nullopt;
   }
   Value decoded;
   ParseError error;
-  if (!parse_json_dart(text, kJsonTextMaxDepth, &decoded, &error)) {
-    return text_snapshot(text);
+  if (!parse_json(body.json_text, json_text_options(), &decoded, &error)) {
+    return text_snapshot(body.json_text);
   }
-  return snapshot_node(Node::plain(decoded));
+  return snapshot_value(evidence_from_json(decoded));
 }
 
-Value network_call_data(const NetworkCall& call) {
+Value network_call_data(const NetworkCall& call, std::string method,
+                        std::string route, int64_t duration_ms) {
   Value data = Value::object();
-  data.set("method", Value::string(call.method));
-  data.set("route", Value::string(call.route));
+  data.set("method", Value::string(std::move(method)));
+  data.set("route", Value::string(std::move(route)));
   if (call.status_code) {
     data.set("statusCode", Value::integer(*call.status_code));
   }
-  data.set("outcome", Value::string(call.outcome));
-  data.set("durationMs", Value::integer(call.duration_ms));
+  data.set("outcome", Value::string(network_outcome_name(call.outcome)));
+  data.set("durationMs", Value::integer(duration_ms));
   if (call.attempt_count && *call.attempt_count > 0) {
     data.set("attemptCount", Value::integer(*call.attempt_count));
   }
-  if (call.error_body != nullptr && call.status_code &&
-      *call.status_code >= 400) {
+  if (call.error_body && call.status_code && *call.status_code >= 400) {
     std::optional<ErrorBodySnapshot> body = snapshot_error_body(*call.error_body);
     if (body) {
       Value capture = capture_metadata(*body);

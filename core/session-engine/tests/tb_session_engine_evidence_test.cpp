@@ -1,21 +1,26 @@
 // Unit tests for the evidence internals the fixtures cannot reach cheaply:
-// Dart string helpers on WTF-8, `jsonDecode`-style repeated keys, and
+// Dart string helpers on WTF-8, the `jsonDecode` parser options, and
 // bounded work on pathological inputs (huge counts, exponential cycles).
 // Behaviour itself is pinned by conformance/evidence/.
 #include <chrono>
 #include <string>
 
-#include "dart_string.h"
 #include "evidence.h"
+#include "evidence_value.h"
 #include "json.h"
+#include "text.h"
 #include "unit_support.h"
 
 namespace {
 
 using tugboat::engine::dart_trim;
 using tugboat::engine::encode_json;
+using tugboat::engine::ErrorBody;
+using tugboat::engine::Error;
+using tugboat::engine::EvidenceContext;
+using tugboat::engine::EvidenceValue;
 using tugboat::engine::ParseError;
-using tugboat::engine::utf16_length;
+using tugboat::engine::ParseOptions;
 using tugboat::engine::utf16_longer_than;
 using tugboat::engine::utf16_prefix;
 using tugboat::engine::utf8_prefix;
@@ -28,9 +33,14 @@ Value parse(const std::string& text) {
   return out;
 }
 
+double seconds_since(std::chrono::steady_clock::time_point start) {
+  return std::chrono::duration<double>(std::chrono::steady_clock::now() -
+                                       start)
+      .count();
+}
+
 void test_dart_strings() {
   const std::string emoji = "\xF0\x9F\x98\x80";  // U+1F600, 2 units
-  CHECK(utf16_length("a" + emoji) == 3);
   CHECK(utf16_longer_than("a" + emoji, 2));
   CHECK(!utf16_longer_than("a" + emoji, 3));
   // A cut inside the pair keeps the high surrogate (WTF-8 ED A0 BD).
@@ -43,21 +53,39 @@ void test_dart_strings() {
   CHECK_EQ(std::string(utf8_prefix("ab\xC3\xA9", 3)), "ab");
 }
 
-void test_json_decode_repeated_keys() {
+void test_parse_options() {
   Value out;
   ParseError error;
-  CHECK(tugboat::engine::parse_json_dart("{\"a\":1,\"b\":2,\"a\":{\"a\":3,\"a\":4}}",
-                                         64, &out, &error));
+  ParseOptions dart;
+  dart.dart_duplicate_keys = true;
+  CHECK(tugboat::engine::parse_json(
+      "{\"a\":1,\"b\":2,\"a\":{\"a\":3,\"a\":4}}", dart, &out, &error));
   CHECK_EQ(encode_json(out), "{\"a\":{\"a\":4},\"b\":2}");
   CHECK(!tugboat::engine::parse_json("{\"a\":1,\"a\":2}", 64, &out, &error));
-}
 
-double seconds_for(const Value& body) {
-  const auto start = std::chrono::steady_clock::now();
-  tugboat::engine::snapshot_error_body(body);
-  return std::chrono::duration<double>(std::chrono::steady_clock::now() -
-                                       start)
-      .count();
+  // Raw WTF-8 lone surrogates only with `wtf8`.
+  const std::string lone = "[\"\xED\xA0\x80\"]";
+  CHECK(!tugboat::engine::parse_json(lone, 64, &out, &error));
+  ParseOptions wtf8;
+  wtf8.wtf8 = true;
+  CHECK(tugboat::engine::parse_json(lone, wtf8, &out, &error));
+  CHECK_EQ(encode_json(out), "[\"\\ud800\"]");
+
+  // Below `build_depth`, containers are checked iteratively and come back
+  // empty, at any nesting.
+  ParseOptions shallow;
+  shallow.build_depth = 2;
+  shallow.max_depth = 3;
+  const std::string deep = std::string(100000, '[') + "{\"k\":[1,\"]\"]}" +
+                           std::string(100000, ']');
+  CHECK(tugboat::engine::parse_json("[" + deep + ",7]", shallow, &out,
+                                    &error));
+  CHECK_EQ(encode_json(out), "[[[]],7]");
+  CHECK(!tugboat::engine::parse_json(
+      "[" + std::string(1000, '[') + "1,]" + std::string(999, ']') + "]",
+      shallow, &out, &error));
+  CHECK(!tugboat::engine::parse_json("[[[{\"k\" 1}]]]", shallow, &out,
+                                     &error));
 }
 
 // 128 references to the enclosing list at every level would be 128^6 nodes
@@ -67,23 +95,31 @@ void test_error_body_cycles_stay_bounded() {
   for (int i = 0; i < 128; ++i) {
     refs += std::string(i == 0 ? "" : ",") + "{\"ref\":1}";
   }
-  const Value body = parse("{\"value\":[" + refs + "]}");
+  ErrorBody body;
+  body.value.emplace();
+  Error error;
+  CHECK(tugboat::engine::decode_evidence_value(
+      parse("[" + refs + "]"), EvidenceContext::kErrorBody, "$", &*body.value,
+      &error));
+  const auto start = std::chrono::steady_clock::now();
   const auto snapshot = tugboat::engine::snapshot_error_body(body);
+  CHECK(seconds_since(start) < 1.0);
   CHECK(snapshot && snapshot->representation == "serialized_prefix");
   CHECK(snapshot && snapshot->value.as_string().size() == 4096);
-  CHECK(seconds_for(body) < 1.0);
 }
 
 void test_parameter_counts_stay_bounded() {
-  const Value parameters = parse(
-      "{\"map\":[[\"a\",{\"list\":[],\"omitted\":9223372036854775807}],"
-      "[\"b\",{\"map\":[{\"nonStringKeys\":9223372036854775807}]}]]}");
+  EvidenceValue parameters;
+  Error error;
+  CHECK(tugboat::engine::decode_parameters_map(
+      parse("{\"map\":[[\"a\",{\"list\":[],\"omitted\":9223372036854775807}],"
+            "[\"b\",{\"map\":[{\"nonStringKeys\":9223372036854775807}]}]]}"),
+      false, "$", &parameters, &error));
   tugboat::engine::ParameterPolicy policy;
   const auto start = std::chrono::steady_clock::now();
   const auto data = tugboat::engine::external_event_data("e", std::nullopt,
                                                          policy, &parameters);
-  CHECK(std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
-            .count() < 1.0);
+  CHECK(seconds_since(start) < 1.0);
   CHECK(data.has_value());
   // 257 stand-in items (256 dropped plus the one over budget), then a
   // saturated count.
@@ -96,7 +132,7 @@ void test_parameter_counts_stay_bounded() {
 
 int main() {
   test_dart_strings();
-  test_json_decode_repeated_keys();
+  test_parse_options();
   test_error_body_cycles_stay_bounded();
   test_parameter_counts_stay_bounded();
   return unit::finish("evidence");

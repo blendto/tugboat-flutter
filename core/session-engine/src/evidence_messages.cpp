@@ -35,7 +35,8 @@ void record_evidence(EngineState* state, Session& session, const char* type,
 class RecordExternalEvent final : public Command {
  public:
   RecordExternalEvent(std::string name, std::optional<std::string> source,
-                      ParameterPolicy policy, std::optional<Value> parameters,
+                      ParameterPolicy policy,
+                      std::optional<EvidenceValue> parameters,
                       int64_t fact_mono_us)
       : name_(std::move(name)),
         source_(std::move(source)),
@@ -58,7 +59,7 @@ class RecordExternalEvent final : public Command {
   std::string name_;
   std::optional<std::string> source_;
   ParameterPolicy policy_;
-  std::optional<Value> parameters_;
+  std::optional<EvidenceValue> parameters_;
   int64_t fact_mono_us_;
 };
 
@@ -96,34 +97,18 @@ bool decode_policy(const ObjectReader& r, ParameterPolicy* policy,
   return true;
 }
 
-// The parameters `map` value: the top-level map is not a collection of any
-// value (Dart's `seen` starts empty), and `omitted` needs 64 sent entries.
 bool decode_parameters(const ObjectReader& r, const ParameterPolicy& policy,
-                       std::optional<Value>* out, Error* error) {
+                       std::optional<EvidenceValue>* out, Error* error) {
   const Value* json = r.get("parameters");
   if (json == nullptr) {
     return true;
   }
-  const std::string path = r.child("parameters");
-  if (!json->is_object() || json->find("map") == nullptr ||
-      json->members().size() != (json->find("omitted") ? 2u : 1u)) {
-    return invalid(error, path, "expected a map value");
-  }
-  const bool transform = policy.mode == ParameterMode::kTransform;
-  if (!validate_map(*json, 0, transform, path, error)) {
+  EvidenceValue parameters;
+  if (!decode_parameters_map(*json, policy.mode == ParameterMode::kTransform,
+                             r.child("parameters"), &parameters, error)) {
     return false;
   }
-  if (const Value* omitted = json->find("omitted")) {
-    if (!omitted->is_int() || omitted->as_int() < 1) {
-      return invalid(error, path + ".omitted", "expected an integer >= 1");
-    }
-    if (entry_count(Node::encoded(*json)) <
-        ParameterLimits::kMaxTopLevelKeys) {
-      return invalid(error, path + ".omitted",
-                     "only after the first 64 entries");
-    }
-  }
-  *out = *json;
+  *out = std::move(parameters);
   return true;
 }
 
@@ -133,7 +118,7 @@ std::unique_ptr<Command> decode_external_event(const CommandInput& in,
   std::string name;
   std::optional<std::string> source;
   ParameterPolicy policy;
-  std::optional<Value> parameters;
+  std::optional<EvidenceValue> parameters;
   std::optional<int64_t> fact_mono_us;
   if (!r.check_keys({"name", "source", "policy", "parameters", "atMonoUs"}) ||
       !r.req_string("name", &name) || !r.opt_string("source", &source) ||
@@ -151,10 +136,9 @@ std::unique_ptr<Command> decode_external_event(const CommandInput& in,
 
 class RecordNetworkCall final : public Command {
  public:
-  RecordNetworkCall(NetworkCall call, std::optional<Value> body,
-                    int64_t start_mono_us, int64_t end_mono_us)
+  RecordNetworkCall(NetworkCall call, int64_t start_mono_us,
+                    int64_t end_mono_us)
       : call_(std::move(call)),
-        body_(std::move(body)),
         start_mono_us_(start_mono_us),
         end_mono_us_(end_mono_us) {}
 
@@ -169,25 +153,23 @@ class RecordNetworkCall final : public Command {
     if (!method || !route) {
       return;  // Dart `invalid_route`: a no-op token
     }
-    NetworkCall call = call_;
-    call.method = std::move(*method);
-    call.route = std::move(*route);
-    call.duration_ms = std::clamp<int64_t>(
+    const int64_t duration_ms = std::clamp<int64_t>(
         session.at_ms(end_mono_us_) - session.at_ms(start_mono_us_), 0,
         kMaxDurationMs);
-    call.error_body = body_ ? &*body_ : nullptr;
     record_evidence(state, session, "network_call", start_mono_us_,
-                    network_call_data(call), out);
+                    network_call_data(call_, std::move(*method),
+                                      std::move(*route), duration_ms),
+                    out);
   }
 
  private:
   NetworkCall call_;
-  std::optional<Value> body_;
   int64_t start_mono_us_;
   int64_t end_mono_us_;
 };
 
-bool decode_error_body(const ObjectReader& r, std::optional<Value>* out,
+// `{"value": v}` or `{"jsonText": t}`, validated whatever the status.
+bool decode_error_body(const ObjectReader& r, std::optional<ErrorBody>* out,
                        Error* error) {
   const Value* json = nullptr;
   if (!r.opt_object("errorResponseBody", &json)) {
@@ -198,33 +180,40 @@ bool decode_error_body(const ObjectReader& r, std::optional<Value>* out,
   }
   const std::string path = r.child("errorResponseBody");
   const ObjectReader b(*json, path, error);
-  if (!b.check_keys({"value", "jsonText"})) {
+  std::optional<std::string> text;
+  if (!b.check_keys({"value", "jsonText"}) ||
+      !b.opt_string("jsonText", &text)) {
     return false;
   }
-  const bool has_value = json->find("value") != nullptr;
-  const Value* text = json->find("jsonText");
-  if (has_value == (text != nullptr)) {
+  const Value* value = json->find("value");
+  if ((value != nullptr) == text.has_value()) {
     return invalid(error, path, "expected exactly one of value or jsonText");
   }
-  if (text != nullptr && !text->is_string()) {
-    return b.reject("jsonText", "expected a string");
+  ErrorBody body;
+  if (value != nullptr) {
+    body.value.emplace();
+    if (!decode_evidence_value(*value, EvidenceContext::kErrorBody,
+                               b.child("value"), &*body.value, error)) {
+      return false;
+    }
+  } else {
+    body.json_text = std::move(*text);
   }
-  if (has_value && !validate_value(*json->find("value"), 0, false,
-                                   b.child("value"), error)) {
-    return false;
-  }
-  *out = *json;
+  *out = std::move(body);
   return true;
 }
 
-bool decode_outcome(const ObjectReader& r, std::string* outcome) {
-  if (!r.req_string("outcome", outcome)) {
+bool decode_outcome(const ObjectReader& r, NetworkOutcome* outcome) {
+  std::string name;
+  if (!r.req_string("outcome", &name)) {
     return false;
   }
-  if (*outcome != "response" && *outcome != "network_error" &&
-      *outcome != "cancelled") {
-    return r.reject("outcome", "expected response, network_error, or cancelled");
+  const std::optional<NetworkOutcome> parsed = parse_network_outcome(name);
+  if (!parsed) {
+    return r.reject("outcome",
+                    "expected response, network_error, or cancelled");
   }
+  *outcome = *parsed;
   return true;
 }
 
@@ -232,7 +221,6 @@ std::unique_ptr<Command> decode_network_call(const CommandInput& in,
                                              Error* error) {
   const ObjectReader r(in.input, in.path, error);
   NetworkCall call;
-  std::optional<Value> body;
   std::optional<int64_t> start;
   std::optional<int64_t> end;
   if (!r.check_keys({"method", "route", "startMonoUs", "endMonoUs",
@@ -245,15 +233,15 @@ std::unique_ptr<Command> decode_network_call(const CommandInput& in,
       !r.opt_int("statusCode", &call.status_code) ||
       !decode_outcome(r, &call.outcome) ||
       !r.opt_int("attemptCount", &call.attempt_count) ||
-      !decode_error_body(r, &body, error)) {
+      !decode_error_body(r, &call.error_body, error)) {
     return nullptr;
   }
   if (!start) {
     r.reject("startMonoUs", "required");
     return nullptr;
   }
-  return std::make_unique<RecordNetworkCall>(
-      std::move(call), std::move(body), *start, end.value_or(in.at->mono_us));
+  return std::make_unique<RecordNetworkCall>(std::move(call), *start,
+                                             end.value_or(in.at->mono_us));
 }
 
 }  // namespace

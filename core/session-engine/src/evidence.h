@@ -1,16 +1,18 @@
 // External-event and network-call evidence: Flutter's parameter policy,
 // limits, and normalization, written once for every host
-// (docs/evidence-messages.md). Inputs are validated encoded values
+// (docs/evidence-messages.md). Inputs are decoded evidence values
 // (evidence_value.h). Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_EVIDENCE_H
 #define TUGBOAT_SESSION_ENGINE_EVIDENCE_H
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "evidence_value.h"
 #include "json.h"
 
 namespace tugboat {
@@ -18,9 +20,9 @@ namespace engine {
 
 // Dart `TugboatParameterLimits`.
 struct ParameterLimits {
-  static constexpr int64_t kMaxDepth = 4;
-  static constexpr int64_t kMaxTopLevelKeys = 64;
-  static constexpr int64_t kMaxCollectionItems = 256;
+  static constexpr size_t kMaxDepth = 4;
+  static constexpr size_t kMaxTopLevelKeys = 64;
+  static constexpr size_t kMaxCollectionItems = 256;
   static constexpr size_t kMaxKeyLength = 128;
   static constexpr size_t kMaxStringLength = 1024;
   static constexpr size_t kMaxEncodedBytes = 16 * 1024;
@@ -33,8 +35,8 @@ struct NetworkLimits {
   static constexpr size_t kMaxMethodLength = 16;
   static constexpr size_t kMaxRouteLength = 256;
   static constexpr size_t kMaxErrorResponseBodyBytes = 4 * 1024;
-  static constexpr int64_t kMaxErrorResponseBodyDepth = 6;
-  static constexpr int64_t kMaxErrorResponseBodyCollectionItems = 128;
+  static constexpr size_t kMaxErrorResponseBodyDepth = 6;
+  static constexpr size_t kMaxErrorResponseBodyCollectionItems = 128;
 };
 
 enum class ParameterMode { kNamesOnly, kAllowList, kTransform, kAllowAll };
@@ -55,11 +57,10 @@ std::optional<std::string> bound_external_label(std::string_view value,
 
 // The `external_event` data (Dart `recordExternalEvent`), or nullopt when
 // the name is empty after trimming (nothing is recorded). `parameters` is
-// a validated `map` value, or nullptr.
-std::optional<Value> external_event_data(std::string_view name,
-                                         const std::optional<std::string>& source,
-                                         const ParameterPolicy& policy,
-                                         const Value* parameters);
+// the decoded parameters map, or nullptr.
+std::optional<Value> external_event_data(
+    std::string_view name, const std::optional<std::string>& source,
+    const ParameterPolicy& policy, const EvidenceValue* parameters);
 
 // Dart `normalizeNetworkMethod`, except that a non-ASCII method is invalid
 // (Dart upper-cases it with Unicode simple case mapping).
@@ -67,6 +68,13 @@ std::optional<std::string> normalize_network_method(std::string_view method);
 
 // Dart `normalizeNetworkRoute`.
 std::optional<std::string> normalize_network_route(std::string_view route);
+
+// `errorResponseBody`: a decoded value (`{"value"}`) or JSON text the
+// engine decodes as Dart's `jsonDecode` would (`{"jsonText"}`).
+struct ErrorBody {
+  std::optional<EvidenceValue> value;
+  std::string json_text;
+};
 
 // Dart `TugboatNetworkErrorBodySnapshot`.
 struct ErrorBodySnapshot {
@@ -76,23 +84,29 @@ struct ErrorBodySnapshot {
   bool truncated = false;
 };
 
-// Dart `snapshotNetworkErrorResponseBody` of `{"value": v}` (a validated
-// encoded value) or `{"jsonText": t}`; nullopt for no body.
-std::optional<ErrorBodySnapshot> snapshot_error_body(const Value& body);
+// Dart `snapshotNetworkErrorResponseBody`; nullopt for no body.
+std::optional<ErrorBodySnapshot> snapshot_error_body(const ErrorBody& body);
 
+// Dart `TugboatNetworkOutcome`.
+enum class NetworkOutcome { kResponse, kNetworkError, kCancelled };
+
+std::optional<NetworkOutcome> parse_network_outcome(const std::string& name);
+const char* network_outcome_name(NetworkOutcome outcome);
+
+// A finished call as the host reports it.
 struct NetworkCall {
-  std::string method;
+  std::string method;  // as sent, normalized when recorded
   std::string route;
   std::optional<int64_t> status_code;
-  std::string outcome;
-  int64_t duration_ms = 0;
+  NetworkOutcome outcome = NetworkOutcome::kResponse;
   std::optional<int64_t> attempt_count;
-  const Value* error_body = nullptr;  // `{value}` / `{jsonText}`
+  std::optional<ErrorBody> error_body;
 };
 
-// The `network_call` data (Dart `_finishNetworkCall`). `method` and `route`
-// are already normalized; the body is read only for status >= 400.
-Value network_call_data(const NetworkCall& call);
+// The `network_call` data (Dart `_finishNetworkCall`) for the normalized
+// `method` and `route`. The body is read only for status >= 400.
+Value network_call_data(const NetworkCall& call, std::string method,
+                        std::string route, int64_t duration_ms);
 
 }  // namespace engine
 }  // namespace tugboat
