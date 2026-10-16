@@ -18,7 +18,9 @@ import UIKit
 /// ```
 ///
 /// Mark screens with `.tugboatScreen("Checkout")` and controls with
-/// `.tugboatTag("checkout")`.
+/// `.tugboatTag("checkout")`. Forward the app's own events with
+/// `eventHook(source:parameterPolicy:)` and its network calls with
+/// `beginNetworkCall(method:route:)`.
 ///
 /// - Call `start` once, from `application(_:didFinishLaunchingWithOptions:)`
 ///   (a SwiftUI app adds an `@UIApplicationDelegateAdaptor`). After `stop`,
@@ -53,6 +55,7 @@ public enum Tugboat {
       guard let started = TugboatRuntime.start(config: config, sessionEpoch: sessionEpoch) else { return }
       sessionEpoch += 1
       runtime = started
+      EvidenceChannel.shared.open(started.evidenceSink)
       // A new engine starts without a user id, so only a set one is sent.
       if let userId = userId {
         started.setUserId(userId)
@@ -93,9 +96,45 @@ public enum Tugboat {
   /// disposed (at most about 25 s when the collector is unreachable).
   public static func stop() {
     onMain {
+      EvidenceChannel.shared.close()
       runtime?.stop()
       runtime = nil
     }
+  }
+
+  /// A hook that records the app's own coded events (for example analytics
+  /// events) as evidence:
+  ///
+  /// ```swift
+  /// let events = Tugboat.eventHook(source: "analytics", parameterPolicy: .allowList(["method"]))
+  /// events.record("USER_LOGIN", parameters: ["method": "email"])
+  /// ```
+  ///
+  /// The hook can be made before `start` and kept across sessions: each
+  /// `record` goes to the session running then. `parameterPolicy` defaults
+  /// to `.allowAll`, which keeps JSON-safe values within hard limits; use
+  /// `.namesOnly` to keep keys only.
+  public static func eventHook(
+    source: String? = nil, parameterPolicy: TugboatParameterPolicy = .allowAll
+  ) -> TugboatEventHook {
+    TugboatEventHook(source: source, policy: parameterPolicy, channel: .shared)
+  }
+
+  /// Begins observing one logical network call; finish it with `complete`
+  /// or `fail` on the returned token:
+  ///
+  /// ```swift
+  /// let call = Tugboat.beginNetworkCall(method: "GET", route: "/orders/123")
+  /// call.complete(statusCode: 200)
+  /// ```
+  ///
+  /// `route` is a path the app chooses (dynamic ids allowed), never a full
+  /// URL: query strings, headers, and request bodies are never recorded,
+  /// and the engine drops a route that is not a bounded absolute path. A
+  /// nil or empty route, or a call while Tugboat is not started, stopped,
+  /// or disabled, gives a token that records nothing.
+  public static func beginNetworkCall(method: String, route: String?) -> TugboatNetworkCall {
+    TugboatNetworkCall.begin(method: method, route: route, channel: .shared)
   }
 
   private static func onMain(_ work: @escaping () -> Void) {
