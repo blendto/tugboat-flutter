@@ -47,7 +47,7 @@ final class AccessibilityActivationTests: XCTestCase {
     settle(0.5)
     let after = Self.elementCount(of: hosting)
     print("TBDUMP hosting view: \(after) accessibility elements after activation")
-    dump(hosting, in: window)
+    dumpTree(hosting, in: window)
     XCTAssertGreaterThan(after, 0, "accessibilityActivate() built the tree")
 
     let payAnchor = try XCTUnwrap(anchor(resolver.tapEvidence(in: window, at: pay)))
@@ -153,13 +153,13 @@ final class AccessibilityActivationTests: XCTestCase {
 
   /// The tree as the simulator built it: class, element or container,
   /// traits, whether an identifier is set (never its value), frame.
-  private func dump(_ node: NSObject, in window: UIWindow, depth: Int = 0) {
+  private func dumpTree(_ node: NSObject, in window: UIWindow, depth: Int = 0) {
     guard depth < 8 else { return }
     for child in Self.children(of: node) {
       let identified = ((child as? UIAccessibilityIdentification)?.accessibilityIdentifier ?? "").isEmpty == false
       let frame = window.convert(child.accessibilityFrame, from: window.screen.coordinateSpace)
       print("TBDUMP \(String(repeating: "  ", count: depth))\(type(of: child)) element \(child.isAccessibilityElement) traits \(child.accessibilityTraits.rawValue) identified \(identified) frame \(frame)")
-      dump(child, in: window, depth: depth + 1)
+      dumpTree(child, in: window, depth: depth + 1)
     }
   }
 }
