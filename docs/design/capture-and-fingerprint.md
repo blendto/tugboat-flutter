@@ -226,10 +226,22 @@ A target fingerprint is derived from `routeKey + canonicalPath`. The serialized
 position metadata, enabled/actions metadata, confidence, and compact
 fingerprint parts for diagnosis.
 
-`TugboatTag` and a stable `ValueKey<String>` can add a high-confidence
-`tagFingerprint`. A tag is transparent to structural identity: adding it does
-not change the target fingerprint. `TugboatSubView` adds a developer-owned
-subview label for route-internal state and scroll attribution.
+`.tugboatTag(id)` (equivalent to the `TugboatTag` wrapper) and a stable
+`ValueKey<String>` can add a high-confidence `tagFingerprint`. A tag is
+transparent to structural identity: adding it does not change the target
+fingerprint. With `accessibility: true` the id is also published as a
+`Semantics` identifier (platform accessibility identifier). The SDK's
+`Semantics` node is already excluded from structural identity, and the
+identifier is not part of the fingerprint or state signature. The option is
+off by default. Enable it on a single control, not on a container: on a
+container the identifier sits above the whole subtree, so it does not identify
+the controls inside it. On Material buttons (`ButtonStyleButton` and Material 3
+`IconButton`) the identifier sits on a label-less parent node with the button's
+bounds rather than on the labelled button. Screen-reader focus is unchanged,
+id-based lookups work, and role-based button queries do not match.
+`.tugboatSubView(label)` (equivalent to `TugboatSubView`) adds a
+developer-owned subview label for route-internal state and scroll attribution.
+`.tugboatSensitive()` is equivalent to `TugboatSensitive`.
 
 ### Android Views canonicalization
 
@@ -264,7 +276,9 @@ hash input.
   facts use the same key.
 - **Alias.** The `tugboatTag` view tag, else the resource entry name when no
   other view under the route root has the same id. It gives `tagFingerprint`
-  and does not change the structural fingerprint.
+  and does not change the structural fingerprint. UI test tools read the
+  same `android:id` as the resource-id, so `View.tugboatTag` has no
+  accessibility option and the SDK installs no `AccessibilityDelegate`.
 - **Confidence.** The floor of the route's and the path's. The path is `high`
   with an alias, `medium` when the target has its own id or sits in a list
   item, and `low` otherwise.
@@ -302,6 +316,10 @@ Compose content for the Views adapter, which hashes it. Anchors add
   activity (or the fragment around a `ComposeView`).
 - **Alias.** `Modifier.tugboatTag`, then `testTag`. Both are `high`
   confidence and do not change the structural fingerprint.
+  `tugboatTag(tag, accessibility = true)` also sets `testTag(tag)` for UI
+  tests; the anchor and the structure signature are the same as without it.
+  A node keeps one `testTag` (the first in the modifier chain), so the
+  option is off by default; the alias is the `tugboatTag` either way.
 - **Confidence.** As for Views: `high` with an alias, `medium` in an
   indexed list item, `low` otherwise, floored by the route.
 - **Semantics unavailable.** The anchor is the host view's identity
@@ -322,7 +340,14 @@ identity comes from developer tags and from the UIKit views SwiftUI does use.
   view, resolves to that tag: `tagFingerprint` (`routeKey` + `tag`), `high`
   confidence, `widgetType: SwiftUIView`, and no `role`, `actions` or
   `enabled`. A screen under a sheet never wins. The tag is transparent to
-  structural identity.
+  structural identity. `.tugboatTag("checkout", accessibility: true)` (off by
+  default) also sets the tag as the tagged content's
+  `accessibilityIdentifier`, never the marker's. Identity does not read
+  accessibility identifiers, so the target fingerprint, canonical path, tag
+  alias and structure signature are the same with or without it. On a
+  container SwiftUI gives every element inside the identifier. With two
+  identifiers on one view the outermost wins, so an app identifier applied
+  before `.tugboatTag` is replaced by the tag and one applied after it wins.
 - **UIKit roles.** Otherwise the target is the nearest view, from UIKit
   hit-testing at the point, with a role: `TextField` (`UITextField`,
   `UITextView`), a list cell, `Scrollable` (`UIScrollView`), or
@@ -375,7 +400,7 @@ evidence, target anchors, and frame hashes for raw replay facts.
 
 Confidence is the floor of route and structural evidence:
 
-- `high`: explicit developer alias such as `TugboatTag`/stable value key;
+- `high`: explicit developer alias such as `.tugboatTag(id)`/stable value key;
 - `medium`: usable structural path and/or structural route fallback;
 - `low`: ambiguous structure, bare collapsed item, or insufficient actionable
   evidence.
@@ -391,8 +416,9 @@ accessibility, tooltip, or icon-label strings as target identity.
 Developer-authored identity strings can still be emitted:
 
 - named routes;
-- `TugboatTag.id` in target fingerprint parts, plus its hash alias;
-- `TugboatSubView.label`;
+- the `.tugboatTag(id)` / `TugboatTag.id` value in target fingerprint parts,
+  plus its hash alias;
+- the `.tugboatSubView(label)` / `TugboatSubView.label` value;
 - widget type names or configured `widgetNames` replacements;
 - canonical structural paths.
 

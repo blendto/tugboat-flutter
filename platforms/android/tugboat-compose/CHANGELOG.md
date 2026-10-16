@@ -22,3 +22,12 @@ Unpublished. The Jetpack Compose adapter for the native Android SDK.
   during and after gestures (approximate offsets); `focus` from the focused
   editable node.
 - Compose UI is `compileOnly` (floor 1.7.0); tested on 1.7.0 and 1.8.3.
+- `Modifier.tugboatTag(tag, accessibility = false)`: `accessibility = true`
+  also sets `testTag(tag)` on the same node, so UI tests find the control
+  with `onNodeWithTag(tag)`. Identity (fingerprint, canonical path, alias,
+  structure signature) and the node's label, role, and actions are
+  unchanged. Off by default: a node keeps one `testTag`, the first in the
+  modifier chain, so the option can replace an app's own. Test tools that
+  read the accessibility tree see it as a resource-id only under
+  `semantics { testTagsAsResourceId = true }`, which Tugboat does not set.
+  The one-argument call is source- and binary-compatible (`@JvmOverloads`).

@@ -11,8 +11,13 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
 - Public API: `Tugboat.start(TugboatConfig)`, `setUserId`, `setTraits`,
   `stop`; `TugboatConfig` (`Collector`, `App`, `MaskLevel`,
   `captureFocusChanges`, `trackHostingControllers`);
-  the `.tugboatTag(_:)` and `.tugboatScreen(_:)` view modifiers. Idempotent
-  start; nothing throws or traps into the app.
+  the `.tugboatTag(_:accessibility:)` and `.tugboatScreen(_:)` view
+  modifiers. Idempotent start; nothing throws or traps into the app.
+- `.tugboatTag(_:accessibility:)`: `accessibility: true` (default false)
+  also sets the tag as the content's `accessibilityIdentifier`, for UI tests
+  and exploration runs; the marker stays hidden from accessibility and
+  identity is unchanged. `.tugboatTag("x")` still compiles. Measured by the
+  sample's XCUITests (`TugboatSwiftUISampleUITests`, CI job `sample-ui`).
 - Engine wiring: `engine.configure` with every `session_start` field the
   collector requires (start is refused and logged when one is missing),
   `limits`, the SwiftUI `gesture`, `capture.answerTimeoutMs` 5000,

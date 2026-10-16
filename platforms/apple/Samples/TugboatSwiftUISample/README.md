@@ -8,6 +8,12 @@ device-test target of native SDK note section 10. Nothing is published.
 | --- | --- | --- |
 | Home | `Home` | "Add to cart" button (`.tugboatTag("add-to-cart")`), a swipe card (`swipe-area`), "Open details" link (`open-details`), "Stop Tugboat" button (`stop-tugboat`), a `List` of 60 rows with SF Symbols |
 | Details | `Details` | a `TextField` (`note-field`) and a `ScrollView` of 30 text cards |
+| Accessibility fixture | `AccessibilityFixture` | only with `-TugboatAccessibilityFixture YES`, in place of Home: `Button`, `Toggle`, `TextField` and `NavigationLink` tagged with `accessibility: true`, each with an untagged twin; a tagged `VStack` of two buttons; app identifiers before and after the tag; a tag with the default `accessibility: false` |
+
+The fixture screen is for `TugboatSwiftUISampleUITests`, which check
+`.tugboatTag(_:accessibility:)` in the accessibility tree. Run them with
+`bash tool/ci/test-apple-sample-ui.sh` from the repository root (CI job
+`sample-ui` in `apple-host.yml`).
 
 Navigation uses `NavigationStack` on iOS 16+ and a stack `NavigationView` on
 iOS 15. Hosting-controller tracking is off (`trackHostingControllers: false`),
