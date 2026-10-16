@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.navigation.NavController
+import com.tugboat.android.evidence.EvidenceRecorder
 import com.tugboat.android.sdk.NavigationTracking
 import com.tugboat.android.sdk.SessionMessages
 import com.tugboat.android.sdk.TugboatRuntime
@@ -42,6 +43,10 @@ object Tugboat {
     private var userId: String? = null
     private var traitsInput: String? = null
 
+    /** The running session's evidence path; written on the main thread, read from any. */
+    @Volatile
+    private var evidence: EvidenceRecorder? = null
+
     /**
      * Starts capture and a session. Idempotent: while started, later calls
      * are ignored. Refuses to start (and logs which field) when the
@@ -56,6 +61,7 @@ object Tugboat {
         }
         val started = TugboatRuntime.start(application, config, sessionEpoch++) ?: return@onMain
         runtime = started
+        evidence = started.evidence
         // A new engine starts without a user id, so only a set one is sent.
         userId?.let(started::setUserId)
         traitsInput?.let(started::setTraits)
@@ -90,6 +96,7 @@ object Tugboat {
      */
     @JvmStatic
     fun stop() = onMain("stop") {
+        evidence = null
         runtime?.stop()
         runtime = null
     }
@@ -108,6 +115,45 @@ object Tugboat {
         }
     }
 
+    /**
+     * A hook for your app's own events (`external_event` evidence):
+     *
+     * ```kotlin
+     * val events = Tugboat.eventHook(source = "analytics", parameterPolicy = ParameterPolicy.allowList(setOf("method")))
+     * events.record("USER_LOGIN", mapOf("method" to "email"))
+     * ```
+     *
+     * [source] names where the events come from (for example your analytics
+     * SDK). [parameterPolicy] is [ParameterPolicy.allowAll] by default, which
+     * keeps every value within the engine's limits. The hook can be made
+     * before [start] and kept across sessions: each record goes to the
+     * session running when it is called, and is ignored while none is.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun eventHook(source: String? = null, parameterPolicy: ParameterPolicy = ParameterPolicy.allowAll): EventHook =
+        EventHook(source, parameterPolicy) { evidence }
+
+    /**
+     * Begins one logical HTTP call (`network_call` evidence); finish it with
+     * [NetworkCall.complete] or [NetworkCall.fail]:
+     *
+     * ```kotlin
+     * val call = Tugboat.beginNetworkCall(method = "GET", route = "/orders/123")
+     * call.complete(statusCode = 200)
+     * ```
+     *
+     * [route] is a path you choose: an absolute path, which may hold dynamic
+     * ids, never a full URL or a query (the engine drops a route with a
+     * scheme, query, fragment, percent-encoding, or whitespace). The start
+     * time is taken now, on the calling thread. Returns a call that records
+     * nothing when [route] is null or blank, or Tugboat is not started,
+     * stopped, or disabled.
+     */
+    @JvmStatic
+    fun beginNetworkCall(method: String, route: String?): NetworkCall =
+        guarded("beginNetworkCall") { evidence?.beginNetworkCall(method, route) } ?: NetworkCall.NOOP
+
     private fun onMain(what: String, block: () -> Unit) {
         guarded(what) {
             if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -118,7 +164,8 @@ object Tugboat {
         }
     }
 
-    private inline fun <T> guarded(what: String, block: () -> T): T? =
+    /** Runs [block]; anything it throws is logged, never rethrown. */
+    internal fun <T> guarded(what: String, block: () -> T): T? =
         try {
             block()
         } catch (failure: Throwable) {
