@@ -301,6 +301,8 @@ Differences between the SDKs that the collector may see:
   at most 64 KiB of an error body. A JSON body larger than that is recorded as
   a 4 KiB text prefix, where `tugboat_dio` records a 4 KiB JSON
   `serialized_prefix`.
+- **Empty error bodies.** An instrumented URLSession records no body for an
+  empty error response, where `tugboat_dio` records an empty text body.
 - **`attemptCount`.** `tugboat_dio` and `TugboatAlamofire` report it when
   retries are observable. The OkHttp interceptor and instrumented URLSession
   sessions never report it: retries happen below them.
