@@ -54,6 +54,13 @@ view.tugboatTag = "checkout"                  // developer alias
   navigator; instance ids are `NavBackStackEntry.id`; `push`, `pop`, or
   `replace` from the current and previous back-stack entries;
   `views/navigation/ControllerNavigation`).
+- `View.tugboatTag` has no accessibility option (Compose's
+  `Modifier.tugboatTag` has one). UI test tools (Maestro, Appium,
+  UiAutomator) read a view's resource-id from its `android:id`, and Tugboat
+  already uses that id's entry name as the alias when the view has no
+  `tugboatTag` and the id is unique under the route root. One
+  `android:id` therefore serves both. Tugboat installs no
+  `AccessibilityDelegate`, so an app's own delegate is never replaced.
 
 ## What it contains
 

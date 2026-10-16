@@ -276,7 +276,9 @@ hash input.
   facts use the same key.
 - **Alias.** The `tugboatTag` view tag, else the resource entry name when no
   other view under the route root has the same id. It gives `tagFingerprint`
-  and does not change the structural fingerprint.
+  and does not change the structural fingerprint. UI test tools read the
+  same `android:id` as the resource-id, so `View.tugboatTag` has no
+  accessibility option and the SDK installs no `AccessibilityDelegate`.
 - **Confidence.** The floor of the route's and the path's. The path is `high`
   with an alias, `medium` when the target has its own id or sits in a list
   item, and `low` otherwise.
@@ -314,6 +316,10 @@ Compose content for the Views adapter, which hashes it. Anchors add
   activity (or the fragment around a `ComposeView`).
 - **Alias.** `Modifier.tugboatTag`, then `testTag`. Both are `high`
   confidence and do not change the structural fingerprint.
+  `tugboatTag(tag, accessibility = true)` also sets `testTag(tag)` for UI
+  tests; the anchor and the structure signature are the same as without it.
+  A node keeps one `testTag` (the first in the modifier chain), so the
+  option is off by default; the alias is the `tugboatTag` either way.
 - **Confidence.** As for Views: `high` with an alias, `medium` in an
   indexed list item, `low` otherwise, floored by the route.
 - **Semantics unavailable.** The anchor is the host view's identity
