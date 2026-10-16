@@ -8,7 +8,6 @@ import com.tugboat.android.Tugboat
 import com.tugboat.android.host.HostClock
 import com.tugboat.android.host.HostTime
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -120,49 +119,10 @@ class EvidenceRecorderTest {
         assertEquals("USER_LOGIN", event.name)
         assertEquals("analytics", event.source)
         assertEquals(ParameterPolicy.Mode.AllowList, event.policy.mode)
-        assertEquals(setOf("method"), event.policy.allowedKeys)
         assertSame(parameters, event.parameters)
         assertEquals(1_000L, event.atMonoUs)
         assertEquals(EvidenceMessages.EXTERNAL_EVENT, posts.single().type)
         assertEquals(1_000L, posts.single().at.monoUs)
-    }
-
-    @Test
-    fun onlyAnAllowListCarriesKeys() {
-        recorder.recordExternalEvent("A", null, ParameterPolicy.allowAll, null)
-        recorder.recordExternalEvent("B", null, ParameterPolicy.namesOnly, mapOf("k" to 1))
-
-        assertEquals(listOf(ParameterPolicy.Mode.AllowAll, ParameterPolicy.Mode.NamesOnly), encoder.events.map { it.policy.mode })
-        assertEquals(listOf(null, null), encoder.events.map { it.policy.allowedKeys })
-    }
-
-    @Test
-    fun aTransformRunsPerTopLevelKeyAndDropsWhatItRefusesOrThrowsOn() {
-        val seen = mutableListOf<Pair<String, Any?>>()
-        val policy = ParameterPolicy.transform { key, value ->
-            seen += key to value
-            when (key) {
-                "drop" -> ParameterPolicy.DROP
-                "throws" -> error("host bug")
-                "nulled" -> null
-                else -> "kept:$value"
-            }
-        }
-        @Suppress("UNCHECKED_CAST")
-        val fromJava = linkedMapOf<Any?, Any?>("a" to 1, "drop" to 2, "throws" to 3, "nulled" to 4, 5 to 6) as Map<String, Any?>
-
-        recorder.recordExternalEvent("E", null, policy, fromJava)
-
-        assertEquals(listOf("a" to 1, "drop" to 2, "throws" to 3, "nulled" to 4), seen)
-        val parameters = encoder.events.single().parameters!!
-        assertEquals(listOf("a", "drop", "throws", "nulled", 5), parameters.keys.toList())
-        assertEquals("kept:1", parameters["a"])
-        assertSame(ParameterPolicy.DROP, parameters["drop"])
-        assertSame(ParameterPolicy.DROP, parameters["throws"])
-        assertTrue(parameters.containsKey("nulled"))
-        assertNull(parameters["nulled"])
-        assertSame(ParameterPolicy.DROP, parameters[5])
-        assertEquals(ParameterPolicy.Mode.Transform, encoder.events.single().policy.mode)
     }
 
     @Test

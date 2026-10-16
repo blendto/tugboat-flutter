@@ -11,9 +11,11 @@ import com.tugboat.android.host.HostTime
  * running engine.
  *
  * The engine does the bounding and the policy: limits, label bounds, the
- * `namesOnly` / `allowList` rules, the error-body rule (status 400 or more)
- * and `durationMs`. This class only runs a transform policy's function
- * ([PolicyInput.prepare]), hands typed values to the [encoder], and posts.
+ * `namesOnly` / `allowList` rules, the error-body rule (status 400 or more),
+ * method and route validity, and `durationMs`
+ * (`core/session-engine/docs/evidence-messages.md`). This class takes the
+ * time, keeps the one-finish rule, and hands typed values to the [encoder]
+ * (which runs a transform policy's function) on the calling thread.
  * Every method may be called from any thread; the time is taken on the
  * calling thread and [post] is the engine host's any-thread submission path.
  */
@@ -44,8 +46,8 @@ internal class EvidenceRecorder(
         val event = ExternalEventInput(
             name = name,
             source = source,
-            policy = PolicyInput.of(policy),
-            parameters = PolicyInput.prepare(policy, parameters),
+            policy = policy,
+            parameters = parameters,
             atMonoUs = at.monoUs,
         )
         post(EvidenceMessages.EXTERNAL_EVENT, encoder.externalEvent(event), at)
