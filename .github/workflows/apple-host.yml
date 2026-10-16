@@ -1,5 +1,6 @@
 # Build the Swift host (`Tugboat`), run the package XCTests on an iOS
-# simulator, and build the SwiftUI sample app (needs Xcode).
+# simulator, build the SwiftUI sample app, and run the sample's XCUITests
+# (needs Xcode).
 name: Apple host
 
 on:
@@ -12,6 +13,7 @@ on:
       - 'conformance/host/**'
       - 'tool/ci/test-apple-host.sh'
       - 'tool/ci/build-apple-sample.sh'
+      - 'tool/ci/test-apple-sample-ui.sh'
       - 'tool/ci/apple-simulator-udid.sh'
       - '.github/workflows/apple-host.yml'
   workflow_dispatch:
@@ -33,3 +35,13 @@ jobs:
         # Reported even when a test failed: the sample build is independent.
         if: success() || failure()
         run: bash tool/ci/build-apple-sample.sh
+
+  sample-ui:
+    name: SwiftUI sample XCUITests
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run the sample's UI tests (XcodeGen)
+        run: bash tool/ci/test-apple-sample-ui.sh

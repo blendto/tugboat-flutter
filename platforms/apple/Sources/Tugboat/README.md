@@ -22,8 +22,25 @@ Tugboat.setUserId("user-1")             // nil clears; kept across stop/start
 Tugboat.setTraits(["plan": "pro"])      // JSON values; kept across stop/start
 Tugboat.stop()
 someView.tugboatTag("checkout")         // developer alias for a target
+someView.tugboatTag("checkout", accessibility: true) // also its accessibilityIdentifier
 someView.tugboatScreen("Checkout")      // route identity for a screen
 ```
+
+- `.tugboatTag(_:accessibility:)` with `accessibility: true` also sets the tag
+  as the view's `accessibilityIdentifier`, so XCUITest, Maestro, Appium and
+  exploration runs find the control by the same id
+  (`app.buttons["checkout"]`). It is off by default because apps often set
+  their own identifiers for UI tests. Label, traits and VoiceOver focus are
+  unchanged, the invisible tag marker stays hidden from accessibility, and
+  the identifier is not part of Tugboat identity (target fingerprint,
+  canonical path, tag alias and structure signature are the same either
+  way). Enable it on a single control: on a container, SwiftUI gives every
+  element inside the container's identifier. With two identifiers on one
+  view the outermost wins: the app's `.accessibilityIdentifier` applied
+  after `.tugboatTag` wins, one applied before it is replaced by the tag, so
+  leave the option off on controls that already have one. Measured by the
+  sample's `TugboatSwiftUISampleUITests`. There is no UIKit tag API, so
+  there is no UIKit equivalent.
 
 - Call `start` from `application(_:didFinishLaunchingWithOptions:)` (SwiftUI
   apps use `@UIApplicationDelegateAdaptor`). Every method may be called from
@@ -133,3 +150,8 @@ host (`conformance/host/multipart-request.golden`), and the HTTP executor agains
 window, including the layer-allowlist regression guard, which fails when a
 screen with text and an image shows no allowlisted layer class on a verified
 iOS major.
+
+The `accessibility` option of `.tugboatTag` is checked in the real
+accessibility tree by the SwiftUI sample's XCUITests
+(`tool/ci/test-apple-sample-ui.sh`: XcodeGen, then `xcodebuild test` of
+`TugboatSwiftUISampleUITests` on a simulator).

@@ -48,11 +48,31 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_PREVIEWS: NO
+  # XCUITests of `.tugboatTag(_:accessibility:)` on the accessibility fixture
+  # screen (`tool/ci/test-apple-sample-ui.sh`).
+  TugboatSwiftUISampleUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: TugboatSwiftUISampleUITests
+    dependencies:
+      - target: TugboatSwiftUISample
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gettugboat.sample.swiftui.uitests
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: TugboatSwiftUISample
 schemes:
   TugboatSwiftUISample:
     build:
       targets:
         TugboatSwiftUISample: all
+    test:
+      config: Debug
+      targets:
+        - TugboatSwiftUISampleUITests
     run:
       config: Debug
       commandLineArguments:
