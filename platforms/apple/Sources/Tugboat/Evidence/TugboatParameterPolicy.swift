@@ -10,10 +10,12 @@ public enum TugboatParameterPolicy: Sendable {
   case namesOnly
   /// Values only for these keys; the other values are dropped.
   case allowList(Set<String>)
-  /// Calls the closure for each top-level parameter, on the thread that
-  /// called `record`, and keeps what it returns (`nil` is kept as JSON
-  /// null). Return `TugboatParameterPolicy.drop` to drop the value. A
-  /// closure that throws drops that value.
+  /// Calls the closure once for each top-level parameter that can be kept,
+  /// on the thread that called `record`, and keeps what it returns (`nil` is
+  /// kept as JSON null). Return `TugboatParameterPolicy.drop` to drop the
+  /// value; a closure that throws drops it too. Keys are taken in `String <`
+  /// order; the closure is not called for keys past the first 64, or for an
+  /// empty key or one over 128 UTF-16 units (those are dropped).
   case transform(@Sendable (_ key: String, _ value: Any) throws -> Any?)
   /// Every JSON-safe value within the hard limits (the default). This can
   /// capture feedback text, search terms, ids, and other user content.

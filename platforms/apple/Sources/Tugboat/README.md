@@ -94,7 +94,9 @@ call.complete(statusCode: 422, errorResponseBody: ["error": "invalid_order"])
   only), `.allowList(Set<String>)`, or `.transform { key, value in … }`,
   which returns the value to keep (`nil` is kept as null) or
   `TugboatParameterPolicy.drop`. A transform that throws drops that value.
-  Parameter keys are always reported.
+  It runs once per key, in `String <` order, for the first 64 keys that
+  are 1 to 128 UTF-16 units long, and never for other keys. Parameter keys
+  are always reported.
 - A hook holds no session: make it once, before or after `start`; each
   `record` goes to the session running at that moment.
 - A network call is one logical request. `route` is a path the app
@@ -102,9 +104,9 @@ call.complete(statusCode: 422, errorResponseBody: ["error": "invalid_order"])
   URL. Query strings, headers, request bodies and transport error text are
   never recorded. `complete` or `fail` takes an optional `statusCode`,
   `attemptCount` and `errorResponseBody`; the body is kept, bounded, only
-  for a status of 400 or more: a `String` as text, a dictionary or array of
-  JSON values (`NSDictionary` and `NSArray` too) as JSON. `Data` and other
-  values give no body. The duration runs from `beginNetworkCall` to
+  for a status of 400 or more (below that it is never read): a `String` as
+  text, a dictionary or array of JSON values (`NSDictionary` and `NSArray`
+  too) as JSON. `Data` gives no body. The duration runs from `beginNetworkCall` to
   `complete` or `fail` on the monotonic host clock.
 - Only the first `complete` or `fail` of a token counts. A nil or empty
   route, or a call while Tugboat is not started, stopped, or disabled,
@@ -118,10 +120,20 @@ call.complete(statusCode: 422, errorResponseBody: ["error": "invalid_order"])
 - The session engine applies the policy, the hard limits (Flutter's
   `TugboatParameterLimits` and `TugboatNetworkLimits`), label bounding,
   method and route validation, the error-body rule and `durationMs`, so
-  every platform shares one implementation. The SDK only runs a
-  `transform`, sorts dictionary keys by `String <` (Swift dictionaries
-  have no order), and converts Swift values to the engine's input
-  encoding (`Evidence/EvidenceEncoder`).
+  every platform shares one implementation
+  ([evidence messages](../../../../core/session-engine/docs/evidence-messages.md)).
+  Name, source, method and route are sent raw. The SDK only runs a
+  `transform` and converts Swift values to the engine's value encoding
+  (`Evidence/EvidenceEncoder`, `ValueKind`): integers by their exact type
+  (`UInt64` beyond `Int64` is unsupported), every floating-point value
+  tagged as a double, `Set` as an iterable, cycles through `NSArray` /
+  `NSDictionary` as references, and anything else (`Date`, `Data`,
+  `Decimal`, `Character`) as unsupported. Swift dictionaries have no
+  order, so keys are sorted by `String <` at every level, with non-string
+  keys after them. When a limit cuts a map, a Swift event can therefore
+  differ from a Kotlin or Dart one with the same keys. The SDK sends only
+  what the engine reads (the first 64 parameters, 257 items per nested
+  collection, 128 per error-body collection).
 
 ## Accessibility-tree identity (opt-in, ADR 0010)
 
@@ -205,7 +217,7 @@ changes. Turn this on only to learn about untagged screens, and sample it.
 | Piece | Where | Role |
 | --- | --- | --- |
 | Facade | `Public/Tugboat`, `TugboatConfig` | Thin: main-thread hop, idempotency, user id and traits kept across sessions. |
-| Evidence | `Evidence/` | `TugboatEventHook`, `TugboatNetworkCall` and `TugboatParameterPolicy`; `EvidenceChannel` admits them into the open session (opened by `start`, closed by `stop`), stamps the time on the calling thread, and hops to the main thread; `EvidenceMessages` builds `evidence.externalEvent` / `evidence.networkCall`; `EvidenceEncoder` converts the values. |
+| Evidence | `Evidence/` | `TugboatEventHook`, `TugboatNetworkCall` and `TugboatParameterPolicy`; `EvidenceChannel` admits them into the open session (opened by `start`, closed by `stop`), stamps the time on the calling thread, and hops to the main thread; `EvidenceMessages` builds `evidence.externalEvent` / `evidence.networkCall`; `HostParameters` runs a `transform`; `EvidenceEncoder` and `ValueKind` write the values in the engine's value encoding. |
 | Composition root | `Sdk/TugboatRuntime`, `RuntimeParts` | Builds and owns one engine host, the SwiftUI adapter, the capture coordinator, the surface observer, and the lifecycle bridge. Closures reach the host weakly. |
 | Configuration | `Sdk/HostMetadata`, `DeviceSnapshot`, `EngineConfiguration`, `SessionMessages` | `engine.configure`: `host` with every `session_start` field the collector requires (device id `identifierForVendor`, `platform: ios`, screen size in points, `scale` as both densities, dpi `scale × 160`, `ipInfo.ip` placeholder `127.0.0.1` as Flutter on iOS, configured locale with timezone), the Dart `limits`, `gesture` = `GestureConfig.uiKitDefault`, `capture.answerTimeoutMs` 5000, `collector.enabled`, `focusChanges` (no `systemInput`: iOS has no system input facts yet). `session.start` with the key window's viewport and the active locale. |
 | Lifecycle | `Sdk/AppLifecycleBridge` | Application notifications to `app.lifecycle`: active `resumed`, resign `inactive`, background `paused`, will-enter-foreground `inactive`, terminate `detached`. |
@@ -290,6 +302,10 @@ with overlapping requests answered out of order, the bridge against the real
 engine (the `fingerprint.labelHash` conformance fixture), the host with a
 fake engine and transport, real timers, the multipart golden bytes shared with the Android
 host (`conformance/host/multipart-request.golden`), and the HTTP executor against a `URLProtocol` stub.
+`TugboatTests/Evidence` tests the evidence API: token idempotency under
+concurrent completes, no-op paths, the transform contract, the value
+encoding (types, key order, depth, cycles, elision), and the recorded
+`external_event` / `network_call` data from the real engine.
 `TugboatTests/SwiftUI` tests the adapter on hosted SwiftUI views in a test
 window, including the layer-allowlist regression guard, which fails when a
 screen with text and an image shows no allowlisted layer class on a verified
