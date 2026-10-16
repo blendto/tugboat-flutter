@@ -1,0 +1,112 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "unsupported-values",
+  "description": "Non-finite doubles, unsupported values, cycles, and nested non-string or invalid keys are each dropped with truncated; their collections stay.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "bad",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "nan",
+          {
+            "double": "NaN"
+          }
+        ],
+        [
+          "inf",
+          {
+            "double": "Infinity"
+          }
+        ],
+        [
+          "ninf",
+          {
+            "double": "-Infinity"
+          }
+        ],
+        [
+          "object",
+          {
+            "unsupported": true
+          }
+        ],
+        [
+          "list",
+          [
+            1,
+            {
+              "double": "NaN"
+            },
+            {
+              "unsupported": true
+            },
+            2
+          ]
+        ],
+        [
+          "map",
+          {
+            "map": [
+              [
+                "ok",
+                1
+              ],
+              {
+                "nonStringKeys": 3
+              },
+              [
+                "",
+                2
+              ],
+              [
+                "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+                3
+              ],
+              [
+                "x",
+                {
+                  "unsupported": true
+                }
+              ]
+            ]
+          }
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "bad",
+      "parameterKeys": [
+        "nan",
+        "inf",
+        "ninf",
+        "object",
+        "list",
+        "map"
+      ],
+      "parameters": {
+        "list": [
+          1,
+          2
+        ],
+        "map": {
+          "ok": 1
+        }
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": true,
+        "droppedCount": 12
+      }
+    }
+  }
+}

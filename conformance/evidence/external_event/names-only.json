@@ -1,0 +1,42 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "names-only",
+  "description": "names_only lists the valid keys and keeps no values: parameters is omitted and nothing counts as dropped.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "search",
+    "policy": {
+      "mode": "names_only"
+    },
+    "parameters": {
+      "map": [
+        [
+          "query",
+          null
+        ],
+        [
+          "page",
+          null
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "search",
+      "parameterKeys": [
+        "query",
+        "page"
+      ],
+      "capture": {
+        "values": "names_only",
+        "truncated": false,
+        "droppedCount": 0
+      }
+    }
+  }
+}

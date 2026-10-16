@@ -1,0 +1,48 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "iterable-copied-as-list",
+  "description": "A non-List iterable (a set) is copied as a list, and its items count against the budget.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "set",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "tags",
+          {
+            "iterable": [
+              "a",
+              "b"
+            ]
+          }
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "set",
+      "parameterKeys": [
+        "tags"
+      ],
+      "parameters": {
+        "tags": [
+          "a",
+          "b"
+        ]
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": false,
+        "droppedCount": 0
+      }
+    }
+  }
+}
