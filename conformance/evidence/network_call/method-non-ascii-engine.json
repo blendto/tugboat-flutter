@@ -1,0 +1,23 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "method-non-ascii-engine",
+  "description": "Known divergence: Dart upper-cases a non-ASCII method with Unicode simple case mapping (g\u00e9t -> G\u00c9T); the engine records nothing for a non-ASCII method. HTTP methods are ASCII tokens.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "method": "g\u00e9t",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response"
+  },
+  "expected": {
+    "data": null
+  }
+}

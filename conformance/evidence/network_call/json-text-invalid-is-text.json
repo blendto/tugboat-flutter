@@ -1,0 +1,36 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-text-invalid-is-text",
+  "description": "jsonText that is not valid JSON is kept as a text body.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 502,
+    "errorResponseBody": {
+      "jsonText": "<html>Bad gateway</html>"
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 502,
+      "outcome": "response",
+      "durationMs": 150,
+      "errorResponseBody": "<html>Bad gateway</html>",
+      "errorResponseBodyCapture": {
+        "format": "text",
+        "representation": "native",
+        "truncated": false
+      }
+    }
+  }
+}

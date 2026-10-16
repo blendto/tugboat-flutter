@@ -1,0 +1,165 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "interaction-tap-full",
+  "description": "Tap with every optional field. The flat interaction record keeps a reduced targetAnchor (no schemaVersion, no fingerprintParts) and drops result.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "2.4.0",
+        "buildNumber": "240",
+        "installationId": "inst-0001",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0001",
+        "platform": "android",
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "osVersion": "15",
+        "batteryPercent": 81,
+        "storageFreeMb": 20480,
+        "ramMb": 8192,
+        "networkType": "wifi",
+        "screenSize": {
+          "width": 412.0,
+          "height": 915.0
+        },
+        "screenDensity": 2.625,
+        "screenDpi": 420,
+        "screenPixelDensity": 2.625
+      },
+      "ip": {
+        "ip": "203.0.113.7",
+        "city": "Lisbon",
+        "region": "Lisbon",
+        "country": "PT",
+        "timezone": "Europe/Lisbon",
+        "isp": "Example ISP",
+        "org": "Example Org"
+      },
+      "locale": {
+        "language": "en",
+        "country": "US",
+        "timezone": "Europe/Lisbon"
+      },
+      "configuredUserId": "user-configured"
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "event": {
+      "id": "event-41",
+      "atMs": 55957,
+      "type": "interaction",
+      "stream": "semantic",
+      "targetAnchor": {
+        "schemaVersion": 6,
+        "widgetType": "FilledButton",
+        "role": "button",
+        "fingerprint": "bef605389f2f5207",
+        "fingerprintConfidence": "medium",
+        "tagFingerprint": "0a1b2c3d4e5f6a7b",
+        "fingerprintParts": {
+          "schemaVersion": "6",
+          "routeKey": "/checkout",
+          "tag": "pay-button"
+        },
+        "canonicalPath": "Scaffold#0/ListView#0/[item:2]/FilledButton#0",
+        "relativePosition": "bottom",
+        "enabled": true,
+        "actions": [
+          "longPress",
+          "tap"
+        ]
+      },
+      "beforeFrame": "frame-34",
+      "afterFrame": "frame-35",
+      "result": "changed",
+      "relatedEventId": "event-40",
+      "data": {
+        "interactionSchema": 2,
+        "gesture": "tap",
+        "route": "/checkout",
+        "targetFingerprint": "bef605389f2f5207",
+        "fingerprintConfidence": "medium",
+        "payload": {
+          "position": {
+            "xNorm": 0.299,
+            "yNorm": 0.637
+          }
+        }
+      },
+      "locale": {
+        "language": "pt",
+        "country": "PT",
+        "tag": "pt-PT"
+      },
+      "explorationRunId": "run-7",
+      "actionId": "action-3"
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-41",
+      "atMs": 55957,
+      "triggeredAt": "2026-06-19T00:00:55.957Z",
+      "sessionId": "collector-session-9",
+      "userId": "user-runtime",
+      "eventType": "interaction",
+      "stream": "semantic",
+      "enrichmentCandidate": true,
+      "interactionSchema": 2,
+      "route": "/checkout",
+      "targetFingerprint": "bef605389f2f5207",
+      "fingerprintConfidence": "medium",
+      "gesture": "tap",
+      "payload": {
+        "position": {
+          "xNorm": 0.299,
+          "yNorm": 0.637
+        }
+      },
+      "targetAnchor": {
+        "fingerprint": "bef605389f2f5207",
+        "canonicalPath": "Scaffold#0/ListView#0/[item:2]/FilledButton#0",
+        "widgetType": "FilledButton",
+        "role": "button",
+        "fingerprintConfidence": "medium",
+        "tagFingerprint": "0a1b2c3d4e5f6a7b",
+        "relativePosition": "bottom",
+        "enabled": true,
+        "actions": [
+          "longPress",
+          "tap"
+        ]
+      },
+      "relatedEventId": "event-40",
+      "beforeFrame": "frame-34",
+      "afterFrame": "frame-35",
+      "explorationRunId": "run-7",
+      "actionId": "action-3",
+      "locale": {
+        "language": "pt",
+        "country": "PT",
+        "tag": "pt-PT"
+      },
+      "traitsId": "traits-123",
+      "build": {
+        "appId": "com.example.app",
+        "platform": "android",
+        "versionName": "2.4.0",
+        "buildNumber": "240",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

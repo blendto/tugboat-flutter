@@ -1,0 +1,1000 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "interaction-tap-exploration-evidence",
+  "description": "With the sceneInventory capability (Dart exploration mode) the adapter attaches tap evidence on the primary down instead of up, and up evidence is ignored. A tap publishes its pre-tap anchor with fingerprintConfidence and records the evidence inventory as scene_inventory, once per route key and inventory hash per session. A gesture that becomes a swipe discards the evidence. A tap whose down carried no evidence publishes targetResolutionFailureReason no_target_at_point.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      },
+      "interaction": {
+        "settleDelayMs": 0,
+        "claimWindowMs": 0
+      },
+      "capabilities": {
+        "sceneInventory": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The initial capture fails, so the scenario starts without a frame and later captures are not queued behind it.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 100.0,
+            "y": 200.0,
+            "device": "touch",
+            "tap": {
+              "anchor": {
+                "widgetType": "FilledButton",
+                "role": "button",
+                "fingerprint": "fp-buy",
+                "fingerprintConfidence": "high",
+                "canonicalPath": "Scaffold/Center/FilledButton"
+              },
+              "inventory": {
+                "inventoryHash": "inv-1",
+                "routeKey": "/checkout",
+                "elements": [
+                  {
+                    "fingerprint": "fp-buy",
+                    "role": "button"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5150000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 100.0,
+            "y": 200.0,
+            "device": "touch",
+            "tap": {
+              "anchor": {
+                "widgetType": "FilledButton",
+                "role": "button",
+                "fingerprint": "fp-ignored",
+                "fingerprintConfidence": "high",
+                "canonicalPath": "Scaffold/Center/FilledButton"
+              }
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 150,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "inv-1",
+                  "routeKey": "/checkout",
+                  "elements": [
+                    {
+                      "fingerprint": "fp-buy",
+                      "role": "button"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.sweep",
+              "atMonoUs": 5150000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5150000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10150000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5200000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-3",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-capture_request-3",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-3",
+              "frame": {
+                "id": "frame-6",
+                "atMs": 200,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-capture_request-3",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "targetAnchor": {
+                  "widgetType": "FilledButton",
+                  "role": "button",
+                  "fingerprint": "fp-buy",
+                  "fingerprintConfidence": "high",
+                  "canonicalPath": "Scaffold/Center/FilledButton"
+                },
+                "afterFrame": "frame-6",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "tap",
+                  "targetFingerprint": "fp-buy",
+                  "fingerprintConfidence": "high"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5300000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "down",
+            "x": 100.0,
+            "y": 200.0,
+            "device": "touch",
+            "tap": {
+              "anchor": {
+                "widgetType": "FilledButton",
+                "role": "button",
+                "fingerprint": "fp-buy",
+                "fingerprintConfidence": "high",
+                "canonicalPath": "Scaffold/Center/FilledButton"
+              },
+              "inventory": {
+                "inventoryHash": "inv-1",
+                "routeKey": "/checkout",
+                "elements": [
+                  {
+                    "fingerprint": "fp-buy",
+                    "role": "button"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5350000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "up",
+            "x": 100.0,
+            "y": 200.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-2",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5350000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10350000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5400000
+          },
+          "input": {
+            "requestId": "capture-2",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-6",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-capture_request-6",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-6",
+              "frame": {
+                "id": "frame-10",
+                "atMs": 400,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-capture_request-6",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-8",
+                "atMs": 300,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "targetAnchor": {
+                  "widgetType": "FilledButton",
+                  "role": "button",
+                  "fingerprint": "fp-buy",
+                  "fingerprintConfidence": "high",
+                  "canonicalPath": "Scaffold/Center/FilledButton"
+                },
+                "beforeFrame": "frame-6",
+                "afterFrame": "frame-10",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "tap",
+                  "targetFingerprint": "fp-buy",
+                  "fingerprintConfidence": "high",
+                  "payload": {
+                    "position": {
+                      "xNorm": 0.24271844660194175,
+                      "yNorm": 0.2185792349726776
+                    }
+                  }
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5500000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "down",
+            "x": 100.0,
+            "y": 200.0,
+            "device": "touch",
+            "tap": {
+              "anchor": {
+                "widgetType": "FilledButton",
+                "role": "button",
+                "fingerprint": "fp-buy",
+                "fingerprintConfidence": "high",
+                "canonicalPath": "Scaffold/Center/FilledButton"
+              },
+              "inventory": {
+                "inventoryHash": "inv-1",
+                "routeKey": "/checkout",
+                "elements": [
+                  {
+                    "fingerprint": "fp-buy",
+                    "role": "button"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5520000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "move",
+            "x": 100.0,
+            "y": 260.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5540000
+          },
+          "input": {
+            "pointerId": 3,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-3",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5540000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 10540000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5580000
+          },
+          "input": {
+            "requestId": "capture-3",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-9",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-capture_request-9",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-9",
+              "frame": {
+                "id": "frame-14",
+                "atMs": 580,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-capture_request-9",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-12",
+                "atMs": 500,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-10",
+                "afterFrame": "frame-14",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe",
+                  "payload": {
+                    "position": {
+                      "xNorm": 0.24271844660194175,
+                      "yNorm": 0.2185792349726776
+                    },
+                    "endPosition": {
+                      "xNorm": 0.24271844660194175,
+                      "yNorm": 0.32786885245901637
+                    },
+                    "delta": {
+                      "xNorm": 0.0,
+                      "yNorm": 0.10928961748633878
+                    }
+                  }
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5700000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "down",
+            "x": 100.0,
+            "y": 200.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5740000
+          },
+          "input": {
+            "pointerId": 4,
+            "phase": "up",
+            "x": 100.0,
+            "y": 200.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-4",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5740000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-4",
+              "atMonoUs": 10740000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5780000
+          },
+          "input": {
+            "requestId": "capture-4",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-12",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-capture_request-12",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-12",
+              "frame": {
+                "id": "frame-18",
+                "atMs": 780,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-capture_request-12",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-16",
+                "atMs": 700,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-14",
+                "afterFrame": "frame-18",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "tap",
+                  "targetResolutionFailureReason": "no_target_at_point",
+                  "payload": {
+                    "position": {
+                      "xNorm": 0.24271844660194175,
+                      "yNorm": 0.2185792349726776
+                    }
+                  }
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-4"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-6",
+          "atMs": 200,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-capture_request-3",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-10",
+          "atMs": 400,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-capture_request-6",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-14",
+          "atMs": 580,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-capture_request-9",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "frame-18",
+          "atMs": 780,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-capture_request-12",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-4",
+          "atMs": 150,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "inv-1",
+            "routeKey": "/checkout",
+            "elements": [
+              {
+                "fingerprint": "fp-buy",
+                "role": "button"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "targetAnchor": {
+            "widgetType": "FilledButton",
+            "role": "button",
+            "fingerprint": "fp-buy",
+            "fingerprintConfidence": "high",
+            "canonicalPath": "Scaffold/Center/FilledButton"
+          },
+          "afterFrame": "frame-6",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "tap",
+            "targetFingerprint": "fp-buy",
+            "fingerprintConfidence": "high"
+          }
+        },
+        {
+          "id": "event-8",
+          "atMs": 300,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "targetAnchor": {
+            "widgetType": "FilledButton",
+            "role": "button",
+            "fingerprint": "fp-buy",
+            "fingerprintConfidence": "high",
+            "canonicalPath": "Scaffold/Center/FilledButton"
+          },
+          "beforeFrame": "frame-6",
+          "afterFrame": "frame-10",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "tap",
+            "targetFingerprint": "fp-buy",
+            "fingerprintConfidence": "high",
+            "payload": {
+              "position": {
+                "xNorm": 0.24271844660194175,
+                "yNorm": 0.2185792349726776
+              }
+            }
+          }
+        },
+        {
+          "id": "event-12",
+          "atMs": 500,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-10",
+          "afterFrame": "frame-14",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe",
+            "payload": {
+              "position": {
+                "xNorm": 0.24271844660194175,
+                "yNorm": 0.2185792349726776
+              },
+              "endPosition": {
+                "xNorm": 0.24271844660194175,
+                "yNorm": 0.32786885245901637
+              },
+              "delta": {
+                "xNorm": 0.0,
+                "yNorm": 0.10928961748633878
+              }
+            }
+          }
+        },
+        {
+          "id": "event-16",
+          "atMs": 700,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-14",
+          "afterFrame": "frame-18",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "tap",
+            "targetResolutionFailureReason": "no_target_at_point",
+            "payload": {
+              "position": {
+                "xNorm": 0.24271844660194175,
+                "yNorm": 0.2185792349726776
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

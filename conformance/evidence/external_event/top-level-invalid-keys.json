@@ -1,0 +1,57 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "top-level-invalid-keys",
+  "description": "An empty key or one longer than 128 units is not listed and adds 1 to droppedCount with truncated. A nonStringKeys run counts each entry (and towards the first 64). A 128-unit key is valid.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "keys",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "",
+          1
+        ],
+        [
+          "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+          2
+        ],
+        [
+          "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+          3
+        ],
+        {
+          "nonStringKeys": 2
+        },
+        [
+          "ok",
+          4
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "keys",
+      "parameterKeys": [
+        "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        "ok"
+      ],
+      "parameters": {
+        "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk": 2,
+        "ok": 4
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": true,
+        "droppedCount": 4
+      }
+    }
+  }
+}

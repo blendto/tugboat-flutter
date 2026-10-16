@@ -1,0 +1,16 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.labelHash",
+  "name": "empty",
+  "description": "The empty string maps to the empty string, not to a hash.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "value": ""
+  },
+  "expected": {
+    "hash": ""
+  }
+}

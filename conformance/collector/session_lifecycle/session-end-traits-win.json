@@ -1,0 +1,62 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.sessionLifecycle",
+  "name": "session-end-traits-win",
+  "description": "session_end with both a traits bag and a traitsId: only traits is sent.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "installationId": "inst-0002",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390,
+          "height": 844
+        },
+        "screenDensity": 3,
+        "screenDpi": 460,
+        "screenPixelDensity": 3
+      },
+      "ip": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "configuredUserId": null
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123",
+      "traits": {
+        "plan": "free"
+      }
+    },
+    "lifecycle": {
+      "eventType": "session_end",
+      "triggeredAtEpochMs": 1781827260000
+    }
+  },
+  "expected": {
+    "record": {
+      "sessionId": "collector-session-9",
+      "eventType": "session_end",
+      "atMs": 60000,
+      "triggeredAt": "2026-06-19T00:01:00.000Z",
+      "userId": "user-runtime",
+      "traits": {
+        "plan": "free"
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+# Build the Swift host (`Tugboat`), run the package XCTests on an iOS
+# simulator, build the SwiftUI sample app, run the sample's XCUITests, and
+# build and test the optional `TugboatAlamofire` package (needs Xcode).
+name: Apple host
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'Package.swift'
+      - 'platforms/apple/**'
+      - 'core/session-engine/**'
+      - 'conformance/host/**'
+      - 'tool/ci/test-apple-host.sh'
+      - 'tool/ci/build-apple-sample.sh'
+      - 'tool/ci/test-apple-sample-ui.sh'
+      - 'tool/ci/apple-simulator-udid.sh'
+      - 'tool/ci/test-apple-alamofire.sh'
+      - 'conformance/evidence/**'
+      - '.github/workflows/apple-host.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: swift build + xcodebuild test
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build and test
+        run: bash tool/ci/test-apple-host.sh
+      - name: Build the SwiftUI sample (XcodeGen)
+        # Reported even when a test failed: the sample build is independent.
+        if: success() || failure()
+        run: bash tool/ci/build-apple-sample.sh
+
+  sample-ui:
+    name: SwiftUI sample XCUITests
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run the sample's UI tests (XcodeGen)
+        run: bash tool/ci/test-apple-sample-ui.sh
+
+  alamofire:
+    name: TugboatAlamofire build + test
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build and test the TugboatAlamofire package
+        run: bash tool/ci/test-apple-alamofire.sh

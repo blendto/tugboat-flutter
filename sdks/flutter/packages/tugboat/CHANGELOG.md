@@ -1,3 +1,59 @@
+## 0.10.11-dev.4
+
+Prerelease.
+
+### Added
+
+- `TugboatMarkers` extension on `Widget` with modifier-style markers:
+  `.tugboatTag(id)`, `.tugboatSensitive()`, and `.tugboatSubView(label)`.
+  Each returns the matching `TugboatTag`, `TugboatSensitive`, or
+  `TugboatSubView` wrapper, so runtime behaviour, identity, fingerprints, and
+  masking are unchanged. The wrappers remain supported.
+- `TugboatTag` and `.tugboatTag` take `accessibility` (default `false`). When
+  true, the id is also published as the platform accessibility identifier
+  (Android resource-id, iOS `accessibilityIdentifier`). Enable it on a single
+  control, not a container. On Material buttons the identifier lands on a
+  label-less parent node rather than the button node, so it is not on the
+  button itself. Identity and masking are unchanged either way.
+
+## 0.10.11-dev.3
+
+Prerelease. No change to shipped behaviour.
+
+### Internal
+
+- `CollectorHttpSink` takes a test-only `debugNow` wall clock for lifecycle
+  `triggeredAt` and upload diagnostic `atMs` (`DateTime.now` by default).
+  The shared session-engine delivery scenarios use it to drive the real
+  collector sink deterministically.
+
+## 0.10.11-dev.2
+
+Prerelease. No change to shipped behaviour.
+
+### Internal
+
+- The Android plugin maps capture-runtime statuses and coverage values
+  newer than its pinned runtime without failing to compile: a future
+  status becomes `cancelled` (no Dart fallback, no publish) and
+  `windowComposite` coverage maps to the existing Pigeon value. The
+  plugin never requests window capture, so neither branch runs today.
+
+## 0.10.11-dev.1
+
+Prerelease. No change to shipped behaviour.
+
+### Internal
+
+- `TugboatReplayController` takes a test-only `debugClock` (the elapsed
+  clock behind event `atMs`, a `Stopwatch` by default) and builds the
+  session id and `startedAt` from its existing `debugNow` wall clock
+  (`DateTime.now` by default).
+- A test-only `debugRecordEvent` records a toolkit event through the
+  evidence recorder's admission and append path. The shared
+  session-engine conformance scenarios use these to run deterministically
+  against the Dart controller.
+
 ## 0.10.10
 
 ### Fixed

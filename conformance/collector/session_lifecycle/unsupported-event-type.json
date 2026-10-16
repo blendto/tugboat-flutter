@@ -1,0 +1,72 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.sessionLifecycle",
+  "name": "unsupported-event-type",
+  "description": "Edge: an eventType outside the wire enum is not rejected; it is treated like any non-start lifecycle record.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "2.4.0",
+        "buildNumber": "240",
+        "installationId": "inst-0001",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0001",
+        "platform": "android",
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "osVersion": "15",
+        "batteryPercent": 81,
+        "storageFreeMb": 20480,
+        "ramMb": 8192,
+        "networkType": "wifi",
+        "screenSize": {
+          "width": 412.0,
+          "height": 915.0
+        },
+        "screenDensity": 2.625,
+        "screenDpi": 420,
+        "screenPixelDensity": 2.625
+      },
+      "ip": {
+        "ip": "203.0.113.7",
+        "city": "Lisbon",
+        "region": "Lisbon",
+        "country": "PT",
+        "timezone": "Europe/Lisbon",
+        "isp": "Example ISP",
+        "org": "Example Org"
+      },
+      "locale": {
+        "language": "en",
+        "country": "US",
+        "timezone": "Europe/Lisbon"
+      },
+      "configuredUserId": "user-configured"
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime"
+    },
+    "lifecycle": {
+      "eventType": "app_crashed",
+      "triggeredAtEpochMs": 1781827200010
+    }
+  },
+  "expected": {
+    "record": {
+      "sessionId": "collector-session-9",
+      "eventType": "app_crashed",
+      "atMs": 10,
+      "triggeredAt": "2026-06-19T00:00:00.010Z",
+      "userId": "user-runtime"
+    }
+  }
+}

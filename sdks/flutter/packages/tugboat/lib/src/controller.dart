@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'anchors.dart';
 import 'capture_sink.dart';
 import 'collector_http_sink.dart';
+import 'controller_clock.dart';
 import 'coordinate_space.dart';
 import 'debug_logging.dart';
 import 'exploration_sink.dart';
@@ -1043,7 +1044,9 @@ class TugboatReplayController extends ChangeNotifier {
     String? initialTraitsId,
     String? initialUserId,
     bool initialUserIdOverride = false,
+    @visibleForTesting TugboatElapsedClock? debugClock,
   }) : _boundaryKey = boundaryKey,
+       _clock = debugClock ?? TugboatStopwatchClock(),
        _initialTraits = initialTraits == null
            ? null
            : Map<String, dynamic>.from(initialTraits),
@@ -1072,7 +1075,7 @@ class TugboatReplayController extends ChangeNotifier {
   String? _initialUserId;
   bool _initialUserIdOverride;
 
-  final Stopwatch _clock = Stopwatch();
+  final TugboatElapsedClock _clock;
   Future<void> _queue = Future.value();
   int _queuedTaskCount = 0;
   Future<void>? _endSessionFuture;
@@ -1194,6 +1197,31 @@ class TugboatReplayController extends ChangeNotifier {
   /// Production acquires/disposes semantics transiently inside the map builder.
   bool get _holdPersistentSemanticsHandle =>
       _viewportSemantics.holdPersistentSemanticsHandle;
+
+  /// Records one toolkit-produced event through the evidence recorder's
+  /// admission and append path, like `recordExternalEvent`: nothing is
+  /// recorded without an open session. Test-only; the session engine's
+  /// conformance scenarios use it for `event.record`.
+  @visibleForTesting
+  void debugRecordEvent({
+    required String type,
+    required TugboatEventStream stream,
+    Map<String, Object?> data = const {},
+    TugboatTargetAnchor? targetAnchor,
+  }) {
+    final evidence = _evidence;
+    if (!evidence.accepting) return;
+    evidence.appendEvidence(
+      TugboatEvent(
+        id: evidence.nextEventId('event'),
+        atMs: evidence.nowMs(),
+        type: type,
+        stream: stream,
+        targetAnchor: targetAnchor,
+        data: data,
+      ),
+    );
+  }
 
   @visibleForTesting
   void debugSetCurrentRoute(String? route) {
@@ -1701,14 +1729,12 @@ class TugboatReplayController extends ChangeNotifier {
     _lastLifecycleState = null;
     _lastLifecycleEventType = null;
     _endSessionFuture = null;
-    _clock
-      ..reset()
-      ..start();
+    _clock.restart();
     final effectiveLocale = locale ?? _currentLocale;
     _currentLocale = effectiveLocale;
     _session = TugboatSession(
-      id: 'session-${DateTime.now().microsecondsSinceEpoch}',
-      startedAt: DateTime.now(),
+      id: 'session-${_now().microsecondsSinceEpoch}',
+      startedAt: _now(),
       platform: platform,
       viewport: TugboatRect(0, 0, viewport.width, viewport.height),
       appInfo: config.appInfo ?? config.collector?.appInfo,

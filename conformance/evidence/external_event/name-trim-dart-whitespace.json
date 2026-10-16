@@ -1,0 +1,29 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "name-trim-dart-whitespace",
+  "description": "The name and source are trimmed with Dart's whitespace set (here U+00A0, U+FEFF, U+3000, U+0085, tabs, newlines) on both ends; inner whitespace stays.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "\u00a0\ufeff\t USER  LOGIN\n\u3000",
+    "source": "\u0085 hooks \u2028",
+    "policy": {
+      "mode": "allow_all"
+    }
+  },
+  "expected": {
+    "data": {
+      "source": "hooks",
+      "name": "USER  LOGIN",
+      "parameterKeys": [],
+      "capture": {
+        "values": "allow_all",
+        "truncated": false,
+        "droppedCount": 0
+      }
+    }
+  }
+}

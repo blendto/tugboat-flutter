@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.identityParts",
+  "name": "route-and-path",
+  "description": "Target fingerprint as the Flutter resolver builds it: routeKey plus the full canonical path.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "parts": [
+      [
+        "routeKey",
+        "/home"
+      ],
+      [
+        "path",
+        "MaterialApp#0/Scaffold#0/FilledButton#0"
+      ]
+    ]
+  },
+  "expected": {
+    "canonicalString": "path=MaterialApp#0/Scaffold#0/FilledButton#0|routeKey=/home",
+    "fingerprint": "b6d2333a2d4b24c2"
+  }
+}

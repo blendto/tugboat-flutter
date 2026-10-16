@@ -1,0 +1,80 @@
+# XcodeGen spec for the SwiftUI sample (native SDK note sections 1 and 10).
+# Generate the project with `xcodegen generate` in this directory; the
+# generated TugboatSwiftUISample.xcodeproj is not committed.
+name: TugboatSwiftUISample
+options:
+  bundleIdPrefix: com.gettugboat.sample
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+packages:
+  # The repository root package (`Tugboat` product), resolved locally.
+  Tugboat:
+    path: ../../../..
+targets:
+  TugboatSwiftUISample:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: TugboatSwiftUISample
+    dependencies:
+      - package: Tugboat
+        product: Tugboat
+    info:
+      path: TugboatSwiftUISample/Info.plist
+      properties:
+        CFBundleDisplayName: Tugboat Sample
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Cleartext only to local hosts (the simulator's 127.0.0.1 collector).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # A device reaching a collector on the LAN asks for local-network access.
+        NSLocalNetworkUsageDescription: Sends test sessions to a Tugboat collector on your local network.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gettugboat.sample.swiftui
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_PREVIEWS: NO
+  # XCUITests of `.tugboatTag(_:accessibility:)` on the accessibility fixture
+  # screen (`tool/ci/test-apple-sample-ui.sh`).
+  TugboatSwiftUISampleUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: TugboatSwiftUISampleUITests
+    dependencies:
+      - target: TugboatSwiftUISample
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gettugboat.sample.swiftui.uitests
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: TugboatSwiftUISample
+schemes:
+  TugboatSwiftUISample:
+    build:
+      targets:
+        TugboatSwiftUISample: all
+    test:
+      config: Debug
+      targets:
+        - TugboatSwiftUISampleUITests
+    run:
+      config: Debug
+      commandLineArguments:
+        "-TugboatCollectorURL http://127.0.0.1:3000": false
+        "-TugboatCollectorKey pmk_blend-app-dev-secret": false

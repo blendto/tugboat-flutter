@@ -1,0 +1,1067 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "capture-mask-coverage-modes",
+  "description": "capture.result.frame.maskCoverage {mode, reasons} says which mask mode applied to a native frame: precise, wholeHost (a toolkit host masked whole, the Compose default), or wholeFrame, with reasons from a closed set. When the engine accepts such a frame it records a capture_diagnostic {component: capture_masking, frameId, mode, reasons} right after the frame, always (here without the captureDiagnostics capability), so Atlas can tell a whole-masked frame from a broken capture. The frame record never carries the coverage. A frame without maskCoverage records nothing new.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "A Compose host masked whole by default: the frame record is unchanged and a capture_masking diagnostic names the mode.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5050000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-compose",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-compose",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "nativeCpuExperimental",
+              "resolvedBackend": "nativeCpuExperimental",
+              "maskCoverage": {
+                "mode": "wholeHost",
+                "reasons": [
+                  "composeDefault"
+                ]
+              }
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-compose",
+              "frame": {
+                "id": "frame-2",
+                "atMs": 50,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-compose",
+                "masked": true,
+                "trigger": "initial",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000",
+                "requestedBackend": "nativeCpuExperimental",
+                "resolvedBackend": "nativeCpuExperimental"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 50,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "component": "capture_masking",
+                  "frameId": "frame-2",
+                  "mode": "wholeHost",
+                  "reasons": [
+                    "composeDefault"
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "state": "paused"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-5",
+                "atMs": 100,
+                "type": "app_backgrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "paused"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 5200000
+          },
+          "input": {
+            "state": "resumed"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-7",
+                "atMs": 200,
+                "type": "app_foregrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "resumed"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "lifecycle",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5200000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10200000
+            }
+          ]
+        }
+      },
+      {
+        "note": "Precise masks with nothing masked fail-closed: reasons is empty.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5250000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-views",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-views",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "nativeCpuExperimental",
+              "resolvedBackend": "nativeCpuExperimental",
+              "maskCoverage": {
+                "mode": "precise",
+                "reasons": []
+              }
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-views",
+              "frame": {
+                "id": "frame-8",
+                "atMs": 250,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-views",
+                "masked": true,
+                "trigger": "lifecycle",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000",
+                "requestedBackend": "nativeCpuExperimental",
+                "resolvedBackend": "nativeCpuExperimental"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-9",
+                "atMs": 250,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-8",
+                "data": {
+                  "component": "capture_masking",
+                  "frameId": "frame-8",
+                  "mode": "precise",
+                  "reasons": []
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 6100000
+          },
+          "input": {
+            "state": "paused"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-11",
+                "atMs": 1100,
+                "type": "app_backgrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "paused"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 6200000
+          },
+          "input": {
+            "state": "resumed"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-13",
+                "atMs": 1200,
+                "type": "app_foregrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "resumed"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-2",
+              "trigger": "lifecycle",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6200000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 11200000
+            }
+          ]
+        }
+      },
+      {
+        "note": "Precise masks, with a web view and a surface layer masked over their bounds.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 6250000
+          },
+          "input": {
+            "requestId": "capture-2",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-views-webview",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-views-webview",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "nativeCpuExperimental",
+              "resolvedBackend": "nativeCpuExperimental",
+              "maskCoverage": {
+                "mode": "precise",
+                "reasons": [
+                  "webView",
+                  "surfaceLayer"
+                ]
+              }
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-views-webview",
+              "frame": {
+                "id": "frame-14",
+                "atMs": 1250,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-views-webview",
+                "masked": true,
+                "trigger": "lifecycle",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000",
+                "requestedBackend": "nativeCpuExperimental",
+                "resolvedBackend": "nativeCpuExperimental"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-15",
+                "atMs": 1250,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-14",
+                "data": {
+                  "component": "capture_masking",
+                  "frameId": "frame-14",
+                  "mode": "precise",
+                  "reasons": [
+                    "webView",
+                    "surfaceLayer"
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 7100000
+          },
+          "input": {
+            "state": "paused"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-17",
+                "atMs": 2100,
+                "type": "app_backgrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "paused"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 7200000
+          },
+          "input": {
+            "state": "resumed"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-19",
+                "atMs": 2200,
+                "type": "app_foregrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "resumed"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-3",
+              "trigger": "lifecycle",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 7200000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 12200000
+            }
+          ]
+        }
+      },
+      {
+        "note": "The whole frame masked: an iOS major version without a verified layer allowlist.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 7250000
+          },
+          "input": {
+            "requestId": "capture-3",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-swiftui",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-swiftui",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "nativeCpuExperimental",
+              "resolvedBackend": "nativeCpuExperimental",
+              "maskCoverage": {
+                "mode": "wholeFrame",
+                "reasons": [
+                  "unverifiedLayerAllowlist"
+                ]
+              }
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-swiftui",
+              "frame": {
+                "id": "frame-20",
+                "atMs": 2250,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-swiftui",
+                "masked": true,
+                "trigger": "lifecycle",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000",
+                "requestedBackend": "nativeCpuExperimental",
+                "resolvedBackend": "nativeCpuExperimental"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-21",
+                "atMs": 2250,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-20",
+                "data": {
+                  "component": "capture_masking",
+                  "frameId": "frame-20",
+                  "mode": "wholeFrame",
+                  "reasons": [
+                    "unverifiedLayerAllowlist"
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 8100000
+          },
+          "input": {
+            "state": "paused"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-23",
+                "atMs": 3100,
+                "type": "app_backgrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "paused"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 8200000
+          },
+          "input": {
+            "state": "resumed"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-25",
+                "atMs": 3200,
+                "type": "app_foregrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "resumed"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-4",
+              "trigger": "lifecycle",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 8200000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-4",
+              "atMonoUs": 13200000
+            }
+          ]
+        }
+      },
+      {
+        "note": "No maskCoverage (Flutter and older hosts): nothing new is recorded.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 8250000
+          },
+          "input": {
+            "requestId": "capture-4",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-flutter",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-flutter",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "nativeCpuExperimental",
+              "resolvedBackend": "nativeCpuExperimental"
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-flutter",
+              "frame": {
+                "id": "frame-26",
+                "atMs": 3250,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-flutter",
+                "masked": true,
+                "trigger": "lifecycle",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000",
+                "requestedBackend": "nativeCpuExperimental",
+                "resolvedBackend": "nativeCpuExperimental"
+              }
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-4"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-2",
+          "atMs": 50,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-compose",
+          "masked": true,
+          "trigger": "initial",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000",
+          "requestedBackend": "nativeCpuExperimental",
+          "resolvedBackend": "nativeCpuExperimental"
+        },
+        {
+          "id": "frame-8",
+          "atMs": 250,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-views",
+          "masked": true,
+          "trigger": "lifecycle",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000",
+          "requestedBackend": "nativeCpuExperimental",
+          "resolvedBackend": "nativeCpuExperimental"
+        },
+        {
+          "id": "frame-14",
+          "atMs": 1250,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-views-webview",
+          "masked": true,
+          "trigger": "lifecycle",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000",
+          "requestedBackend": "nativeCpuExperimental",
+          "resolvedBackend": "nativeCpuExperimental"
+        },
+        {
+          "id": "frame-20",
+          "atMs": 2250,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-swiftui",
+          "masked": true,
+          "trigger": "lifecycle",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000",
+          "requestedBackend": "nativeCpuExperimental",
+          "resolvedBackend": "nativeCpuExperimental"
+        },
+        {
+          "id": "frame-26",
+          "atMs": 3250,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-flutter",
+          "masked": true,
+          "trigger": "lifecycle",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000",
+          "requestedBackend": "nativeCpuExperimental",
+          "resolvedBackend": "nativeCpuExperimental"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-3",
+          "atMs": 50,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "component": "capture_masking",
+            "frameId": "frame-2",
+            "mode": "wholeHost",
+            "reasons": [
+              "composeDefault"
+            ]
+          }
+        },
+        {
+          "id": "event-5",
+          "atMs": 100,
+          "type": "app_backgrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "paused"
+          }
+        },
+        {
+          "id": "event-7",
+          "atMs": 200,
+          "type": "app_foregrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "resumed"
+          }
+        },
+        {
+          "id": "event-9",
+          "atMs": 250,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-8",
+          "data": {
+            "component": "capture_masking",
+            "frameId": "frame-8",
+            "mode": "precise",
+            "reasons": []
+          }
+        },
+        {
+          "id": "event-11",
+          "atMs": 1100,
+          "type": "app_backgrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "paused"
+          }
+        },
+        {
+          "id": "event-13",
+          "atMs": 1200,
+          "type": "app_foregrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "resumed"
+          }
+        },
+        {
+          "id": "event-15",
+          "atMs": 1250,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-14",
+          "data": {
+            "component": "capture_masking",
+            "frameId": "frame-14",
+            "mode": "precise",
+            "reasons": [
+              "webView",
+              "surfaceLayer"
+            ]
+          }
+        },
+        {
+          "id": "event-17",
+          "atMs": 2100,
+          "type": "app_backgrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "paused"
+          }
+        },
+        {
+          "id": "event-19",
+          "atMs": 2200,
+          "type": "app_foregrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "resumed"
+          }
+        },
+        {
+          "id": "event-21",
+          "atMs": 2250,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-20",
+          "data": {
+            "component": "capture_masking",
+            "frameId": "frame-20",
+            "mode": "wholeFrame",
+            "reasons": [
+              "unverifiedLayerAllowlist"
+            ]
+          }
+        },
+        {
+          "id": "event-23",
+          "atMs": 3100,
+          "type": "app_backgrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "paused"
+          }
+        },
+        {
+          "id": "event-25",
+          "atMs": 3200,
+          "type": "app_foregrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "resumed"
+          }
+        }
+      ]
+    }
+  }
+}
