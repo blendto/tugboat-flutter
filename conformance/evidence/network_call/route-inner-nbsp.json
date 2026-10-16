@@ -1,0 +1,25 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "route-inner-nbsp",
+  "description": "U+00A0 inside a route is allowed (only code points up to U+0020 and DEL are forbidden).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/a\u00a0b",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response"
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/a\u00a0b",
+      "outcome": "response",
+      "durationMs": 150
+    }
+  }
+}

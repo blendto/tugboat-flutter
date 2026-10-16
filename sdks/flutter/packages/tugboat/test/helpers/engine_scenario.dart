@@ -13,7 +13,9 @@
 //   elapsed clock (`atMs`) and the delivery scheduler's fake time.
 // - Messages call the controller's own entry points: `start`, `endSession`,
 //   `recordAppLifecycleState` (plus `endSession` on `detached`, as the
-//   widget does), `recordLocale`, and `debugRecordEvent` (the evidence
+//   widget does), `recordLocale`, `recordExternalEvent` (for
+//   `evidence.externalEvent`, through evidence_fixture.dart), and
+//   `debugRecordEvent` (the evidence
 //   recorder's admission and append path). `identity.set` and
 //   `traits.set` call the collector sink's
 //   `setUserId` / `setTraits`, whose runtime user id is what Dart stamps at
@@ -62,6 +64,7 @@ import 'package:tugboat/src/models.dart';
 
 import 'conformance_fixture.dart';
 import 'engine_scenario_delivery.dart';
+import 'evidence_fixture.dart';
 
 /// Runs [fixture] on a fresh Dart controller. Returns one line per
 /// difference from the fixture's expectations; empty when Dart matches.
@@ -375,6 +378,7 @@ class _ScenarioRun {
           ),
         ),
         'event.record': _recordEvent,
+        'evidence.externalEvent': _recordExternalEvent,
         'transport.result': (input) => _delivery?.client.answer(input),
         'transport.flush': (_) => _delivery?.flush(),
         // The Dart timer behind a `timer.fired` fired as time reached it.
@@ -441,6 +445,24 @@ class _ScenarioRun {
     _delivery?.appLifecycle(name);
     // TugboatReplay's widget ends the session on detached.
     if (state == AppLifecycleState.detached) _endSession();
+  }
+
+  /// The shipped Dart policy and limits decide the data
+  /// (evidence_fixture.dart maps the value encoding onto Dart objects).
+  void _recordExternalEvent(Map<String, Object?> input) {
+    final arguments = externalEventArguments(input);
+    final atMonoUs = input['atMonoUs'] as int?;
+    final monoUs = _clock.monoUs;
+    if (atMonoUs != null) _clock.monoUs = atMonoUs;
+    _holdingAsyncWork(
+      () => _controller.recordExternalEvent(
+        name: arguments.name,
+        source: arguments.source,
+        parameters: arguments.parameters,
+        parameterPolicy: arguments.policy,
+      ),
+    );
+    _clock.monoUs = monoUs;
   }
 
   void _recordEvent(Map<String, Object?> input) {

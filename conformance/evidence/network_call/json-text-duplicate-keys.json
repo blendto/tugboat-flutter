@@ -1,0 +1,39 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-text-duplicate-keys",
+  "description": "jsonDecode keeps a repeated key at its first position with the last value.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 409,
+    "errorResponseBody": {
+      "jsonText": "{\"a\":1,\"b\":2,\"a\":3}"
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 409,
+      "outcome": "response",
+      "durationMs": 150,
+      "errorResponseBody": {
+        "a": 3,
+        "b": 2
+      },
+      "errorResponseBodyCapture": {
+        "format": "json",
+        "representation": "native",
+        "truncated": false
+      }
+    }
+  }
+}

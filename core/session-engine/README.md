@@ -25,10 +25,12 @@ core/session-engine/
   tests/tb_session_engine_interaction_test.cpp  unit tests (classifier, registry, ledger, claims)
   tests/tb_session_engine_delivery_test.cpp  unit tests (delivery)
   tests/tb_session_engine_capture_test.cpp  unit tests (scheduler, frame store, budget, navigator registry)
+  tests/tb_session_engine_evidence_test.cpp  unit tests (Dart strings, jsonDecode parser options, bounded work)
   tests/tb_session_engine_conformance.cpp  fixture runner (public ABI only)
-  tests/conformance/                    runner JSON reader, diff, scenario runner
+  tests/conformance/                    runner JSON reader, diff, scenario and evidence runners
   fuzz/message_fuzz.cpp                 libFuzzer target for submit
   docs/stateful-engine.md               accepted stateful design
+  docs/evidence-messages.md             evidence messages, value encoding, host obligations
   third_party/double-conversion/        vendored, see "Third-party code"
 ```
 
@@ -43,6 +45,8 @@ core/session-engine/
 | `engine_module.cpp` | `engine.configure`, `engine.dispose`, `session.snapshot`, `timer.fired`. |
 | `session_module.cpp` | `session.start`, `session.end`, `app.lifecycle`. |
 | `evidence_module.cpp` | `event.record`, `locale.set`. |
+| `evidence_messages.cpp` | `evidence.externalEvent`, `evidence.networkCall` ([docs/evidence-messages.md](docs/evidence-messages.md)): decoding, the no-session and stale-call drops, duration, recording. |
+| `evidence_value`, `evidence_parameters`, `evidence_network` | The typed value encoding, decoded once into `EvidenceValue` (`jsonText` bodies convert into the same tree); Dart's parameter policy and limits; method, route, and error-body normalization (one pass that stops at the 4 KiB cap, then a single `encode_json`). |
 | `identity_module.cpp` | `identity.set`, `traits.set`: the runtime user id and the traits bag, with change detection. |
 | `frame_retention`, `frame_retention_module.cpp` | Who references each accepted frame: the session (taken and trimmed by the capture seam, dropped at session end) and delivery; `frame.release` once both let go (design section 7.6). |
 | `stateless_module.cpp` | The stateless operations (`fingerprint.cpp`, `collector.cpp`). |
@@ -81,7 +85,7 @@ core/session-engine/
 | `recorder` | Enrichment and append (Dart `_addEvent`). |
 | `output` | Typed records and effects and their JSON. |
 | `models` / `host` | Shared typed models (locale, anchor, event, host metadata). |
-| `json`, `reader`, `text`, `dart_time`, `name_table`, `ordered_map` | JSON, strict field readers, SHA-256 and UTF-16 helpers, Dart `DateTime`, closed vocabularies as tables, an insertion-ordered map. |
+| `json`, `reader`, `text`, `dart_time`, `name_table`, `ordered_map` | JSON (with `ParseOptions` for Dart `jsonDecode` semantics), strict field readers, SHA-256, the one WTF-8 decoder and the Dart `String` helpers (UTF-16 length and cut, `trim`, UTF-8 prefix), Dart `DateTime`, closed vocabularies as tables, an insertion-ordered map. |
 
 ## C ABI
 
@@ -282,6 +286,8 @@ message `input`. The field-level vocabulary is in
 | `session.end` | mono + wall | `{reason?}` (`session_end` or `dispose`) | Tears down in-flight work and records `session_end`. Idempotent. |
 | `app.lifecycle` | mono | `{state}`: `paused`, `hidden`, `inactive`, `resumed`, `detached` | `paused`/`hidden`/`detached` tear down in-flight work. Records `app_backgrounded`, `app_foregrounded`, `app_inactive`, or `app_detached` with `data.state`, dropping consecutive duplicates by state or event type. `detached` then ends the session. |
 | `event.record` | mono | `{eventType, stream, attachActionContext, data?, targetAnchor?, atMonoUs?}` | Records a toolkit-produced event (`scene_inventory`, `network_call`, `external_event`, …). `atMonoUs` (default `at.monoUs`) is the fact time. `stream` is `semantic`, `evidence`, or `diagnostic` (session schema 10). Types the engine records itself are rejected. |
+| `evidence.externalEvent` | mono | `{name, source?, policy {mode, allowedKeys?}, parameters?, atMonoUs?}` | Records an `external_event` (evidence stream, no action context) after applying Flutter's parameter policy (`names_only`, `allow_list`, `transform` with host-run results, `allow_all`), parameter limits, and name/source bounding. `parameters` uses the typed value encoding of [docs/evidence-messages.md](docs/evidence-messages.md). An empty name records nothing. |
+| `evidence.networkCall` | mono | `{method, route, startMonoUs, endMonoUs?, statusCode?, outcome, attemptCount?, errorResponseBody?}` | Records a `network_call` at `startMonoUs` (C19) with `durationMs` from the two monotonic times, after Flutter's method and route normalization and, for `statusCode` ≥ 400, error-body normalization (`errorResponseBody` is `{value}` or `{jsonText}`). An invalid method or route, or a call that began before the live session, records nothing. |
 | `locale.set` | mono | `{locale}` | Dedupes against the current locale, updates it, and records `locale_changed` (evidence stream, `data.previousLocale?`, `data.locale`) while a session is live. |
 | `identity.set` | mono + wall | `{userId}` (string or null) | Sets the runtime user id stamped on later records. A change is posted to the collector after the identity debounce. |
 | `traits.set` | mono + wall | `{traits}` (object) | Replaces the host's traits bag (it survives sessions). A bag equal to the current one (Dart `mapEquals`: shallow, nested containers never equal) is no change; a change is posted after the identity debounce. |
@@ -309,7 +315,8 @@ handle, in Dart's order; it is never reset per session (C7, kept). The
 host's `capture-N` request ids have their own counter. The exploration action window (`actionId` stamping) is
 not part of the engine; `actionId` passes through.
 
-Event-producing facts (`event.record`, `app.lifecycle`, `navigation`,
+Event-producing facts (`event.record`, `evidence.externalEvent`,
+`evidence.networkCall`, `app.lifecycle`, `navigation`,
 `surface`, and the interaction facts except `focus`) without a live session, before
 the first session or after `session_end` (change C9), are accepted and
 dropped: no record, no id. `capture.result` without a live session releases
@@ -586,6 +593,15 @@ Highlights:
   so even overflowing inputs format like Dart. Values outside Dart's
   `DateTime` range are `invalid_message`, where Dart throws a `RangeError`.
   Years outside 0..9999 use `±YYYYYY`.
+- **Evidence.** `evidence.externalEvent` and `evidence.networkCall` data
+  equals `TugboatEvidenceRecorder`'s, byte for byte (the `conformance/
+  evidence/` fixtures run on both runners). Three differences are
+  deliberate: a `network_call` keeps its start as `atMs` (C19; Dart stamps
+  the finish); a non-ASCII method records nothing (Dart upper-cases it with
+  Unicode simple case mapping); and a byte-reading adapter sends a JSON
+  body over 64 KiB as text, so it is recorded as a `text` body where Dio
+  would record a json `serialized_prefix` (both cut to 4096 bytes;
+  docs/evidence-messages.md section 4.5).
 - **Mapping.** Behavior follows `collector_mapper.dart` exactly: envelope
   inconsistencies, `userId: null` versus an omitted `sessionId`, the
   `session_start` locale merge, traits over traitsId, and no clamping of a

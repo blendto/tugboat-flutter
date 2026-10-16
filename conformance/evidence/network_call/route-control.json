@@ -1,0 +1,20 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "route-control",
+  "description": "A route with a control character records nothing.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/a\u0001b",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response"
+  },
+  "expected": {
+    "data": null
+  }
+}

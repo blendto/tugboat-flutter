@@ -10,6 +10,8 @@ import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/collector_mapper.dart';
 import 'package:tugboat/src/models.dart';
 
+import 'evidence_fixture.dart';
+
 /// Version of the fixture file envelope itself (not of the SDK contracts).
 const int conformanceFixtureFormat = 1;
 
@@ -18,7 +20,9 @@ enum ConformanceKind {
   labelHash('fingerprint.labelHash', 'fingerprint/label_hash'),
   collectorEvent('collector.event', 'collector/event'),
   sessionLifecycle('collector.sessionLifecycle', 'collector/session_lifecycle'),
-  engineScenario('engine.scenario', 'engine/scenario');
+  engineScenario('engine.scenario', 'engine/scenario'),
+  externalEvent('evidence.externalEvent', 'evidence/external_event'),
+  networkCall('evidence.networkCall', 'evidence/network_call');
 
   const ConformanceKind(this.wireName, this.directory);
 
@@ -241,6 +245,10 @@ Map<String, Object?> evaluateFixture(ConformanceFixture fixture) {
       return _evaluateCollectorEvent(input);
     case ConformanceKind.sessionLifecycle:
       return _evaluateSessionLifecycle(input);
+    case ConformanceKind.externalEvent:
+      return evaluateExternalEventFixture(input);
+    case ConformanceKind.networkCall:
+      return evaluateNetworkCallFixture(input);
     case ConformanceKind.engineScenario:
       throw ArgumentError('scenarios run step by step (engine_scenario.dart)');
   }

@@ -1,0 +1,72 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-body-unsupported-items",
+  "description": "Non-finite doubles, unsupported values, and iterables are left out with truncated; -0.0 and big integers are kept.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 400,
+    "errorResponseBody": {
+      "value": [
+        {
+          "double": "NaN"
+        },
+        {
+          "unsupported": true
+        },
+        {
+          "iterable": [
+            1
+          ]
+        },
+        {
+          "double": "-0.0"
+        },
+        9223372036854775807,
+        {
+          "map": [
+            [
+              "x",
+              {
+                "double": "Infinity"
+              }
+            ],
+            [
+              "y",
+              1
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 400,
+      "outcome": "response",
+      "durationMs": 150,
+      "errorResponseBody": [
+        -0.0,
+        9223372036854775807,
+        {
+          "y": 1
+        }
+      ],
+      "errorResponseBodyCapture": {
+        "format": "json",
+        "representation": "native",
+        "truncated": true
+      }
+    }
+  }
+}
