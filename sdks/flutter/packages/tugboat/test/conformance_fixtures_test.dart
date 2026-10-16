@@ -8,6 +8,8 @@
 // `engine.scenario` fixtures run step by step on a real controller
 // (helpers/engine_scenario.dart); `engineOnly` scenarios and scenarios
 // whose `runners` exclude `dart` are skipped.
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/anchors.dart';
@@ -114,12 +116,32 @@ void _expectFixture(ConformanceFixture fixture) {
   }
   final actual = evaluateFixture(fixture);
   final mismatches = diffJson(fixture.expected, actual, r'$.expected');
-  if (mismatches.isEmpty) return;
+  if (mismatches.isEmpty) {
+    _expectEvidenceKeyOrder(fixture, actual);
+    return;
+  }
   fail(
     '${fixture.relativePath} does not match the Dart implementation:\n'
     '  ${mismatches.join('\n  ')}\n'
     'Actual "expected" value (review before pasting):\n'
     '${encodeFixtureJson(actual)}',
+  );
+}
+
+/// Evidence data must be byte-identical to Dart's, so object key order is
+/// compared too (both sides are insertion-ordered maps).
+void _expectEvidenceKeyOrder(
+  ConformanceFixture fixture,
+  Map<String, Object?> actual,
+) {
+  if (fixture.kind != ConformanceKind.externalEvent &&
+      fixture.kind != ConformanceKind.networkCall) {
+    return;
+  }
+  expect(
+    jsonEncode(actual),
+    jsonEncode(fixture.expected),
+    reason: '${fixture.relativePath}: key order differs from Dart',
   );
 }
 

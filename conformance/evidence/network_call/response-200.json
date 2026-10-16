@@ -1,0 +1,37 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "response-200",
+  "description": "A 200 response: method, route, statusCode, outcome, durationMs. A body sent with a status below 400 is ignored.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 200,
+    "errorResponseBody": {
+      "value": {
+        "map": [
+          [
+            "secret",
+            "x"
+          ]
+        ]
+      }
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 200,
+      "outcome": "response",
+      "durationMs": 150
+    }
+  }
+}

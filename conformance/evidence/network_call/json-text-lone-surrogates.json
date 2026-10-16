@@ -1,0 +1,38 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-text-lone-surrogates",
+  "description": "jsonText from a Kotlin or Swift string can hold raw lone surrogates; jsonDecode keeps them in strings and keys, so the body is json.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 500,
+    "errorResponseBody": {
+      "jsonText": "{\"\ud800k\":\"x\udc00\"}"
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 500,
+      "outcome": "response",
+      "durationMs": 150,
+      "errorResponseBody": {
+        "\ud800k": "x\udc00"
+      },
+      "errorResponseBodyCapture": {
+        "format": "json",
+        "representation": "native",
+        "truncated": false
+      }
+    }
+  }
+}

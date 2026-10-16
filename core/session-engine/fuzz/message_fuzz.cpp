@@ -205,6 +205,46 @@ class InteractionScript {
     return value / 4 % 5 >= 3;
   }
 
+  // Valid evidence messages (docs/evidence-messages.md): every policy, the
+  // value encoding's tags, cycles, elision counts, and both body forms.
+  std::string evidence(uint8_t value) const {
+    static const char* const kPolicy[] = {
+        R"({"mode":"allow_all"})", R"({"mode":"names_only"})",
+        R"({"mode":"allow_list","allowedKeys":["a"]})",
+        R"({"mode":"transform"})"};
+    static const char* const kParameters[] = {
+        R"({"map":[["a",[1,{"double":"NaN"},{"ref":1}]],["b",{"map":[{"nonStringKeys":3},["c",{"iterable":[{"ref":2}],"omitted":9}]]}]]})",
+        R"({"map":[["",1],["a",{"list":[[[[[1]]]]],"omitted":9223372036854775807}]]})",
+        R"({"map":[["a","\ud800x"],["b",{"unsupported":true}],["c",{"drop":true}]]})",
+        "null"};
+    static const char* const kBody[] = {
+        R"({"value":"text"})",
+        R"({"value":{"map":[["self",["x",{"ref":1},{"ref":2}]],{"nonStringKeys":200}],"omitted":5}})",
+        R"({"jsonText":"{\"a\":1,\"a\":[1e400]}"})",
+        R"({"jsonText":"<html>"})",
+        R"({"value":{"list":[{"double":-0.0},{"iterable":[]}],"omitted":1}})"};
+    if (value % 2 == 0) {
+      const uint8_t policy = value / 2 % 4;
+      uint8_t parameters = value / 8 % 4;
+      if (parameters == 2 && policy != 3) {
+        parameters = 3;  // `drop` is valid only under transform
+      }
+      return fact("evidence.externalEvent",
+                  "\"name\":\" e" + std::to_string(value % 5) +
+                      " \",\"source\":\"s\",\"policy\":" + kPolicy[policy] +
+                      ",\"parameters\":" + kParameters[parameters]);
+    }
+    const int64_t start = mono_us_ > 3000 ? mono_us_ - 3000 : 0;
+    return fact("evidence.networkCall",
+                std::string("\"method\":\"get\",\"route\":\"") +
+                    (value % 7 == 1 ? "" : "/v1/items") +
+                    "\",\"startMonoUs\":" + std::to_string(start) +
+                    ",\"statusCode\":" + (value % 4 == 1 ? "200" : "500") +
+                    ",\"outcome\":\"response\",\"attemptCount\":" +
+                    std::to_string(value % 3) + ",\"errorResponseBody\":" +
+                    kBody[value / 2 % 5]);
+  }
+
   std::string request_id(uint8_t value) const {
     return issued_.empty() ? "capture-0" : issued_[value % issued_.size()];
   }
@@ -283,6 +323,8 @@ class InteractionScript {
       case 12:
         return fact("app.lifecycle",
                     std::string("\"state\":\"") + kLifecycle[value % 2] + "\"");
+      case 13:
+        return evidence(value);
       case 14:
       case 15:
         return navigation(value);
