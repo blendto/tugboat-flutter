@@ -3,7 +3,7 @@ import Foundation
 import XCTest
 
 @_spi(TugboatAdapters) import Tugboat
-@testable import TugboatAlamofire
+import TugboatAlamofire
 
 /// `TugboatAlamofireMonitor` on a real Alamofire `Session` answered by
 /// `AlamofireStubProtocol`, with Tugboat's evidence tapped: the input the
@@ -83,13 +83,13 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
 
   func test200IsOneResponseWithOneAttempt() throws {
     AlamofireStubProtocol.reset(["/orders/123": [.http(200, "application/json", "{\"id\":1}")]])
-    let (session, _) = session()
+    let (session, _) = self.session()
     let response = respond(
       session.request(url("/orders/123"), method: .post, parameters: ["password": "s3cr3t-body"],
         encoding: JSONEncoding.default, headers: headers))
 
     XCTAssertEqual(response.data.map { String(decoding: $0, as: UTF8.self) }, "{\"id\":1}")
-    let inputs = inputs(1)
+    let inputs = self.inputs(1)
     XCTAssertEqual(inputs.count, 1)
     let input = try XCTUnwrap(inputs.first)
     XCTAssertEqual(input["method"] as? String, "POST")
@@ -104,7 +104,7 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
   func test404WithAJSONBodyIsJSONTextAndTheAppGetsTheBody() {
     let body = "{\"error\":\"order_not_found\"}"
     AlamofireStubProtocol.reset(["/orders/123": [.http(404, "application/json; charset=utf-8", body)]])
-    let (session, _) = session()
+    let (session, _) = self.session()
     let response = respond(session.request(url("/orders/123"), headers: headers).validate())
 
     XCTAssertEqual(response.data.map { String(decoding: $0, as: UTF8.self) }, body)
@@ -116,7 +116,7 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
 
   func test500WithATextBodyIsText() {
     AlamofireStubProtocol.reset(["/orders/123": [.http(500, "text/plain", "upstream exploded")]])
-    let (session, _) = session()
+    let (session, _) = self.session()
     respond(session.request(url("/orders/123")))
 
     let input = inputs(1).first ?? [:]
@@ -127,7 +127,7 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
   func testAJSONBodyOver64KiBIsTextAndTheAppGetsEveryByte() throws {
     let body = "{\"items\":[" + String(repeating: "1,", count: 40_000) + "0]}"
     AlamofireStubProtocol.reset(["/orders/123": [.http(500, "application/json", body)]])
-    let (session, _) = session()
+    let (session, _) = self.session()
     let response = respond(session.request(url("/orders/123")))
 
     XCTAssertEqual(response.data, Data(body.utf8))
@@ -137,7 +137,7 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
 
   func testATimeoutIsANetworkError() {
     AlamofireStubProtocol.reset(["/orders/123": [.failure(.timedOut)]])
-    let (session, _) = session()
+    let (session, _) = self.session()
     respond(session.request(url("/orders/123")))
 
     let input = inputs(1).first ?? [:]
@@ -148,12 +148,12 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
 
   func testACancelledRequestIsCancelled() {
     AlamofireStubProtocol.reset(["/orders/123": [.hang]])
-    let (session, _) = session()
+    let (session, _) = self.session()
     let request = session.request(url("/orders/123"))
     DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { request.cancel() }
     respond(request)
 
-    let inputs = inputs(1)
+    let inputs = self.inputs(1)
     XCTAssertEqual(inputs.count, 1)
     XCTAssertEqual(inputs.first?["outcome"] as? String, "cancelled")
   }
@@ -163,10 +163,10 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
       "/orders/123": [.redirect(location: "/v2/orders/123")],
       "/v2/orders/123": [.http(200)],
     ])
-    let (session, _) = session()
+    let (session, _) = self.session()
     respond(session.request(url("/orders/123")))
 
-    let inputs = inputs(1)
+    let inputs = self.inputs(1)
     XCTAssertEqual(inputs.count, 1)
     XCTAssertEqual(inputs.first?["route"] as? String, "/orders/123")
     XCTAssertEqual(inputs.first?["statusCode"] as? Int, 200)
@@ -177,12 +177,12 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
 
   func testARetriedRequestIsOneEventWithItsAttemptCount() {
     AlamofireStubProtocol.reset(["/orders/123": [.http(503, "text/plain", "busy"), .http(200)]])
-    let (session, _) = session(interceptor: retryOnce())
+    let (session, _) = self.session(interceptor: retryOnce())
     let response = respond(session.request(url("/orders/123")).validate())
 
     XCTAssertEqual(response.response?.statusCode, 200)
     XCTAssertEqual(AlamofireStubProtocol.received.count, 2)
-    let inputs = inputs(1)
+    let inputs = self.inputs(1)
     XCTAssertEqual(inputs.count, 1, "one logical request")
     XCTAssertEqual(inputs.first?["statusCode"] as? Int, 200)
     XCTAssertEqual(inputs.first?["attemptCount"] as? Int, 2)
@@ -192,10 +192,10 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
 
   func testRetriesThatRunOutRecordTheLastResponse() {
     AlamofireStubProtocol.reset(["/orders/123": [.http(503, "text/plain", "busy")]])
-    let (session, _) = session(interceptor: retryOnce())
+    let (session, _) = self.session(interceptor: retryOnce())
     respond(session.request(url("/orders/123")).validate())
 
-    let inputs = inputs(1)
+    let inputs = self.inputs(1)
     XCTAssertEqual(inputs.count, 1)
     XCTAssertEqual(inputs.first?["statusCode"] as? Int, 503)
     XCTAssertEqual(inputs.first?["attemptCount"] as? Int, 2)
@@ -208,7 +208,7 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
     AlamofireStubProtocol.reset(["/orders/123": [.http(200)]])
     struct Failure: Error {}
     for route in [{ _ in nil }, { _ in " \u{FEFF} " }, { _ in throw Failure() }] as [(URLRequest) throws -> String?] {
-      let (session, _) = session(route: route)
+      let (session, _) = self.session(route: route)
       respond(session.request(url("/orders/123")))
     }
     XCTAssertEqual(inputs(0).count, 0)
@@ -219,7 +219,7 @@ final class TugboatAlamofireMonitorTests: XCTestCase {
     tap?.close()
     tap = nil
     AlamofireStubProtocol.reset(["/orders/123": [.http(500, "text/plain", "x")]])
-    let (session, _) = session()
+    let (session, _) = self.session()
     let response = respond(session.request(url("/orders/123")))
 
     XCTAssertEqual(response.data.map { String(decoding: $0, as: UTF8.self) }, "x")

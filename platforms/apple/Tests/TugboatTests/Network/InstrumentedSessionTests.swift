@@ -93,7 +93,7 @@ final class InstrumentedSessionTests: XCTestCase {
     let delegate = appDelegate()
     let snapshot = run(request("/orders/123", method: "POST"), on: session(delegate: delegate), delegate: delegate)
 
-    let posts = posts(1)
+    let posts = self.posts(1)
     XCTAssertEqual(posts.count, 1)
     let post = try XCTUnwrap(posts.first)
     XCTAssertEqual(post.type, "evidence.networkCall")
@@ -118,7 +118,7 @@ final class InstrumentedSessionTests: XCTestCase {
   func test404WithAJSONBodySendsTheWholeBodyAsJSONText() throws {
     let body = "{\"error\":\"order_not_found\",\"detail\":\"no order 123\"}"
     NetworkStubProtocol.reset([
-      "/orders/123": .response(status: 404, contentType: "Application/JSON; charset=utf-8", body: Data(body.utf8), chunk: 7)
+      "/orders/123": .http(status: 404, contentType: "Application/JSON; charset=utf-8", body: Data(body.utf8), chunk: 7)
     ])
     let delegate = appDelegate()
     let snapshot = run(request("/orders/123"), on: session(delegate: delegate), delegate: delegate)
@@ -152,7 +152,7 @@ final class InstrumentedSessionTests: XCTestCase {
     let bytes = Data(body.utf8)
     XCTAssertGreaterThan(bytes.count, HTTPErrorBody.completeBytes)
     NetworkStubProtocol.reset([
-      "/orders/123": .response(status: 422, contentType: "application/problem+json", body: bytes, chunk: 4093)
+      "/orders/123": .http(status: 422, contentType: "application/problem+json", body: bytes, chunk: 4093)
     ])
     let delegate = appDelegate()
     let snapshot = run(request("/orders/123"), on: session(delegate: delegate), delegate: delegate)
@@ -187,7 +187,7 @@ final class InstrumentedSessionTests: XCTestCase {
     let snapshot = run(request("/orders/123"), on: session(delegate: delegate), delegate: delegate, cancelAfter: 0.2)
 
     XCTAssertEqual(snapshot.errorCodes, [URLError.cancelled.rawValue])
-    let posts = posts(1)
+    let posts = self.posts(1)
     XCTAssertEqual(posts.count, 1)
     XCTAssertEqual(posts.first?.input["outcome"] as? String, "cancelled")
   }
@@ -202,7 +202,7 @@ final class InstrumentedSessionTests: XCTestCase {
 
     XCTAssertTrue(snapshot.calls.contains("willPerformHTTPRedirection"), "the app decides the redirect")
     XCTAssertEqual(NetworkStubProtocol.received.map { $0.url?.path }, ["/orders/123", "/v2/orders/123"])
-    let posts = posts(1)
+    let posts = self.posts(1)
     XCTAssertEqual(posts.count, 1, "a redirect stays inside one call")
     XCTAssertEqual(posts.first?.input["route"] as? String, "/orders/123", "the route of the app's request")
     XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 404)
@@ -217,7 +217,7 @@ final class InstrumentedSessionTests: XCTestCase {
 
     XCTAssertTrue(snapshot.calls.contains("didReceiveChallenge"), "the app's delegate answers the challenge: \(snapshot.calls)")
     XCTAssertEqual(snapshot.statusCodes, [200], "the app's credential was used")
-    let posts = posts(1)
+    let posts = self.posts(1)
     XCTAssertEqual(posts.count, 1)
     XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 200)
   }
@@ -227,7 +227,7 @@ final class InstrumentedSessionTests: XCTestCase {
   func testTheAppDelegateGetsTheSameCallbacksAndBytesAsWithoutInstrumentation() {
     let body = Data((0..<150_000).map { UInt8(truncatingIfNeeded: $0 &* 31) })
     NetworkStubProtocol.reset([
-      "/orders/123": .response(status: 503, contentType: "application/octet-stream", body: body, chunk: 3000)
+      "/orders/123": .http(status: 503, contentType: "application/octet-stream", body: body, chunk: 3000)
     ])
     let plainDelegate = appDelegate()
     let plain = URLSession(configuration: NetworkStubProtocol.configuration(), delegate: plainDelegate, delegateQueue: nil)
@@ -248,7 +248,7 @@ final class InstrumentedSessionTests: XCTestCase {
   func testTheProxyRespondsToExactlyTheAppDelegatesMethodsPlusItsObservers() {
     let recorder = NetworkTaskRecorder(routeResolver: { _ in "/x" }, channel: fixture.channel)
     let withApp = InstrumentedSessionDelegate(
-      wrapping: RecordingSessionDelegate(completed: XCTestExpectation()), recorder: recorder)
+      wrapping: RecordingSessionDelegate(completed: XCTestExpectation(description: "unused")), recorder: recorder)
     let alone = InstrumentedSessionDelegate(wrapping: nil, recorder: recorder)
     // The Objective-C names URLSession asks about.
     let challenge = NSSelectorFromString("URLSession:task:didReceiveChallenge:completionHandler:")
@@ -278,7 +278,7 @@ final class InstrumentedSessionTests: XCTestCase {
 
   func testAForwardedChallengeReturnsTheAppsDisposition() {
     let recorder = NetworkTaskRecorder(routeResolver: { _ in "/x" }, channel: fixture.channel)
-    let app = RecordingSessionDelegate(completed: XCTestExpectation())
+    let app = RecordingSessionDelegate(completed: XCTestExpectation(description: "unused"))
     let proxy: URLSessionTaskDelegate = InstrumentedSessionDelegate(wrapping: app, recorder: recorder)
     let session = URLSession(configuration: .ephemeral)
     let task = session.dataTask(with: URL(string: base + "/x")!)
@@ -288,16 +288,14 @@ final class InstrumentedSessionTests: XCTestCase {
     let challenge = URLAuthenticationChallenge(
       protectionSpace: space, proposedCredential: nil, previousFailureCount: 0, failureResponse: nil, error: nil,
       sender: NetworkStubProtocol(request: URLRequest(url: URL(string: base)!), cachedResponse: nil, client: nil))
-    var disposition: URLSession.AuthChallengeDisposition?
-    var user: String?
+    let answered = LockedBox<(URLSession.AuthChallengeDisposition, String?)?>(nil)
     proxy.urlSession?(
       session, task: task, didReceive: challenge,
-      completionHandler: { answer, credential in
-        disposition = answer
-        user = credential?.user
+      completionHandler: { disposition, credential in
+        answered.update { $0 = (disposition, credential?.user) }
       })
-    XCTAssertEqual(disposition, .useCredential)
-    XCTAssertEqual(user, "user")
+    XCTAssertEqual(answered.read()?.0, .useCredential)
+    XCTAssertEqual(answered.read()?.1, "user")
     XCTAssertEqual(app.snapshot.calls, ["didReceiveChallenge"])
     session.invalidateAndCancel()
   }
@@ -316,7 +314,7 @@ final class InstrumentedSessionTests: XCTestCase {
     wait(for: [done], timeout: 10)
 
     XCTAssertEqual(String(decoding: received.read(), as: UTF8.self), "{\"error\":\"x\"}")
-    let posts = posts(1)
+    let posts = self.posts(1)
     XCTAssertEqual(posts.count, 1)
     XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 404)
     XCTAssertNil(posts.first?.input["errorResponseBody"], "the delegate never sees a completion handler's body")

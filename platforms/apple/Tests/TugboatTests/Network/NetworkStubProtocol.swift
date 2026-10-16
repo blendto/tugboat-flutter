@@ -14,15 +14,15 @@ final class NetworkStubProtocol: URLProtocol, URLAuthenticationChallengeSender {
     /// A 302 to `location`; the session follows it with a new request.
     case redirect(location: String)
     /// An HTTP Basic challenge: a credential gets `then`, anything else a 401.
-    case challenge(then: Reply)
+    indirect case challenge(then: Reply)
     /// Never answers; only cancellation ends the request.
     case hang
 
     static func ok(_ status: Int, _ contentType: String? = nil, _ body: String = "") -> Reply {
-      response(status: status, contentType: contentType, body: Data(body.utf8))
+      http(status: status, contentType: contentType, body: Data(body.utf8))
     }
 
-    static func response(status: Int, contentType: String?, body: Data, chunk: Int = 1000) -> Reply {
+    static func http(status: Int, contentType: String?, body: Data, chunk: Int = 1000) -> Reply {
       .response(
         status: status, headers: contentType.map { ["Content-Type": $0] } ?? [:], body: body, chunk: chunk)
     }

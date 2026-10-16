@@ -46,7 +46,7 @@ final class DataHelperTests: XCTestCase {
 
     XCTAssertEqual(String(decoding: data, as: UTF8.self), body, "the data is URLSession's, untouched")
     XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 404)
-    let posts = try await posts(1)
+    let posts = try await self.posts(1)
     XCTAssertEqual(posts.count, 1)
     let input = try XCTUnwrap(posts.first?.input)
     XCTAssertEqual(input["route"] as? String, "/orders/123")
@@ -66,7 +66,7 @@ final class DataHelperTests: XCTestCase {
 
     _ = try await Tugboat.data(for: request("/orders/123"), session: session, route: "/orders/{id}")
 
-    let posts = try await posts(1)
+    let posts = try await self.posts(1)
     XCTAssertEqual(posts.count, 1, "the helper records it; the session leaves it alone")
     XCTAssertEqual(posts.first?.input["route"] as? String, "/orders/{id}")
     XCTAssertEqual(posts.first?.input["errorResponseBody"] as? NSDictionary, ["value": "down"])
@@ -85,7 +85,7 @@ final class DataHelperTests: XCTestCase {
     session.dataTask(with: request("/orders/123")).resume()
     await fulfillment(of: [completed], timeout: 10)
 
-    let posts = try await posts(1)
+    let posts = try await self.posts(1)
     XCTAssertEqual(posts.count, 1)
     XCTAssertEqual(posts.first?.input["errorResponseBody"] as? NSDictionary, ["jsonText": "{\"e\":1}"])
     XCTAssertEqual(String(decoding: delegate.snapshot.data, as: UTF8.self), "{\"e\":1}")
@@ -99,7 +99,7 @@ final class DataHelperTests: XCTestCase {
     let (data, _) = try await session.data(for: request("/orders/123"))
 
     XCTAssertEqual(String(decoding: data, as: UTF8.self), "{\"e\":1}")
-    let posts = try await posts(1)
+    let posts = try await self.posts(1)
     XCTAssertEqual(posts.count, 1, "recorded from its metrics")
     XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 404)
     XCTAssertNil(posts.first?.input["errorResponseBody"], "the session delegate never sees the bytes")
@@ -116,21 +116,21 @@ final class DataHelperTests: XCTestCase {
     } catch let error as URLError {
       XCTAssertEqual(error.code, .notConnectedToInternet)
     }
-    let posts = try await posts(1)
+    let posts = try await self.posts(1)
     XCTAssertEqual(posts.first?.input["outcome"] as? String, "network_error")
   }
 
   func testCancellingTheSwiftTaskRecordsCancelled() async throws {
     NetworkStubProtocol.reset(["/orders/123": .hang])
     let session = URLSession(configuration: NetworkStubProtocol.configuration())
-    let request = request("/orders/123")
+    let request = self.request("/orders/123")
 
     let call = Task { try await Tugboat.data(for: request, session: session, route: "/orders/123") }
     try await Task.sleep(nanoseconds: 200_000_000)
     call.cancel()
     _ = await call.result
 
-    let posts = try await posts(1)
+    let posts = try await self.posts(1)
     XCTAssertEqual(posts.count, 1)
     XCTAssertEqual(posts.first?.input["outcome"] as? String, "cancelled")
   }
@@ -138,21 +138,23 @@ final class DataHelperTests: XCTestCase {
   func testTheAppsTaskDelegateStillAnswersTheChallenge() async throws {
     NetworkStubProtocol.reset(["/orders/123": .challenge(then: .ok(200))])
     let session = URLSession(configuration: NetworkStubProtocol.configuration())
-    let delegate = RecordingSessionDelegate(completed: XCTestExpectation())
+    let delegate = RecordingSessionDelegate(completed: XCTestExpectation(description: "unused"))
 
     let (_, response) = try await Tugboat.data(
       for: request("/orders/123"), session: session, delegate: delegate, route: "/orders/123")
 
     XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200, "the app's credential was used")
     XCTAssertTrue(delegate.snapshot.calls.contains("didReceiveChallenge"))
-    XCTAssertEqual(try await posts(1).first?.input["statusCode"] as? Int, 200)
+    let posts = try await self.posts(1)
+    XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 200)
   }
 
   func testANilRouteRecordsNothing() async throws {
     NetworkStubProtocol.reset(["/orders/123": .ok(200)])
     let session = URLSession(configuration: NetworkStubProtocol.configuration())
     _ = try await Tugboat.data(for: request("/orders/123"), session: session, route: "  ")
-    XCTAssertEqual(try await posts(0).count, 0)
+    let posts = try await self.posts(0)
+    XCTAssertEqual(posts.count, 0)
   }
 }
 #endif
