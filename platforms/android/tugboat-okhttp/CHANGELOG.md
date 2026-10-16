@@ -19,7 +19,7 @@ Unpublished. The OkHttp adapter for the native Android SDK: automatic
   retries are not observable from the outermost interceptor.
 - Error bodies (status 400 or more) follow section 4.5 of
   `core/session-engine/docs/evidence-messages.md`: `peekBody(65_537)` (never
-  consumed), JSON by media type (`application/json`, `+json`), a
+  consumed), JSON by media type (`application/json`, `text/json`, `+json`, as Dio), a
   maximal-subpart UTF-8 decoder, the complete JSON body as `jsonText`, and
   anything else as text cut to 4100 bytes.
 - Never read: query strings, headers (except `Content-Type`), request bodies,

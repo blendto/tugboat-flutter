@@ -109,8 +109,8 @@ Read only for status 400 or more, by the rules of section 4.5 of
   is complete if and only if at most 65,536 bytes came back; `Content-Length`
   is not trusted.
 - The media type is JSON when `Content-Type`, compared case-insensitively
-  with its parameters ignored, is `application/json` or any `+json` subtype
-  (`application/problem+json`). `text/json` is text (Dio treats it as JSON).
+  with its parameters ignored, is `application/json`, `text/json`, or any
+  `+json` subtype (`application/problem+json`): Dio's rule.
 - Bytes are decoded as UTF-8, each maximal ill-formed subsequence replaced
   by one U+FFFD (the Unicode "maximal subpart" practice of Dart and Swift).
   The decoder is the module's own: the JVM's `REPLACE` decoder gives one

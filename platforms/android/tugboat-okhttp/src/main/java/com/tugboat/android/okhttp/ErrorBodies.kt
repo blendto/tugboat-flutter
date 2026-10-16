@@ -13,7 +13,7 @@ import java.util.Locale
  *   at most 65,536 bytes came back (`Content-Length` is not trusted). The
  *   app's body is untouched: peeking buffers bytes that the app reads later.
  * - JSON when `Content-Type` (case-insensitive, parameters ignored) is
- *   `application/json` or a `+json` subtype.
+ *   `application/json`, `text/json`, or a `+json` subtype (Dio's rule).
  * - Decoded as UTF-8 with maximal-subpart U+FFFD replacement ([Utf8]).
  * - Complete and JSON: [HttpErrorBody.jsonText], the whole body. Otherwise
  *   [HttpErrorBody.text], cut to the whole characters within the first 4100
@@ -41,12 +41,15 @@ internal object ErrorBodies {
         }
     }
 
-    /** `application/json` or `type/…+json`, case-insensitive, parameters ignored. */
+    /**
+     * `application/json`, `text/json`, or `type/…+json`, case-insensitive,
+     * parameters ignored: Dio's `Transformer.isJsonMimeType`.
+     */
     fun isJson(contentType: String?): Boolean {
         if (contentType == null) return false
         val essence = contentType.substringBefore(';').trim { it == ' ' || it == '\t' }.lowercase(Locale.ROOT)
         val slash = essence.indexOf('/')
         if (slash <= 0 || slash == essence.length - 1 || essence.indexOf('/', slash + 1) >= 0) return false
-        return essence == "application/json" || essence.endsWith("+json")
+        return essence == "application/json" || essence == "text/json" || essence.endsWith("+json")
     }
 }

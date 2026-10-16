@@ -155,6 +155,22 @@ public class TugboatOkHttpInterceptorTest {
     }
 
     @Test
+    public void aTextJsonBodyIsJsonAsInDio() throws Exception {
+        server.enqueue(new MockResponse()
+                .setResponseCode(400)
+                .setHeader("Content-Type", "text/json; charset=utf-8")
+                .setBody("{\"error\":\"bad\"}"));
+
+        Response response = builder().build().newCall(get("/legacy")).execute();
+
+        assertEquals("{\"error\":\"bad\"}", readBody(response));
+        assertEquals(
+                Collections.singletonList(call("GET", "/legacy",
+                        "\"statusCode\":400,\"outcome\":\"response\",\"errorResponseBody\":{\"jsonText\":\"{\\\"error\\\":\\\"bad\\\"}\"}")),
+                tap.networkCalls());
+    }
+
+    @Test
     public void aJsonBodyOver64KibIsTextCutTo4100BytesAndTheAppReadsItAll() throws Exception {
         StringBuilder body = new StringBuilder("{\"pad\":\"");
         while (body.length() < 70_000) body.append("0123456789");

@@ -37,13 +37,17 @@ class ErrorBodiesTest {
             "application/vnd.api+json; ext=bulk",
             "APPLICATION/LD+JSON",
             "text/x+json",
+            // Dio's isJsonMimeType also takes text/json.
+            "text/json",
+            "Text/JSON; charset=utf-8",
         )
         json.forEach { assertTrue(it, ErrorBodies.isJson(it)) }
         val notJson = listOf(
             null,
             "",
             "text/plain",
-            "text/json",
+            "text/jsonp",
+            "text/json-seq",
             "application/jsonp",
             "application/json-patch",
             "application/x-json",
@@ -59,6 +63,7 @@ class ErrorBodiesTest {
     @Test
     fun aCompleteJsonBodyIsJsonTextAndAnythingElseText() {
         assertEquals("{\"jsonText\":\"{\\\"a\\\":1}\"}", sent("{\"a\":1}", "application/json"))
+        assertEquals("{\"jsonText\":\"{\\\"a\\\":1}\"}", sent("{\"a\":1}", "text/json"))
         assertEquals("{\"value\":\"{\\\"a\\\":1}\"}", sent("{\"a\":1}", "text/plain"))
         assertEquals("{\"value\":\"{\\\"a\\\":1}\"}", sent("{\"a\":1}", null))
         // Empty: no body for JSON (the engine), an empty text body otherwise (Dio's "").
