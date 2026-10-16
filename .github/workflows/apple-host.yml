@@ -1,6 +1,6 @@
 # Build the Swift host (`Tugboat`), run the package XCTests on an iOS
-# simulator, build the SwiftUI sample app, and run the sample's XCUITests
-# (needs Xcode).
+# simulator, build the SwiftUI sample app, run the sample's XCUITests, and
+# build and test the optional `TugboatAlamofire` package (needs Xcode).
 name: Apple host
 
 on:
@@ -15,6 +15,8 @@ on:
       - 'tool/ci/build-apple-sample.sh'
       - 'tool/ci/test-apple-sample-ui.sh'
       - 'tool/ci/apple-simulator-udid.sh'
+      - 'tool/ci/test-apple-alamofire.sh'
+      - 'conformance/evidence/**'
       - '.github/workflows/apple-host.yml'
   workflow_dispatch:
 
@@ -45,3 +47,13 @@ jobs:
         uses: actions/checkout@v4
       - name: Run the sample's UI tests (XcodeGen)
         run: bash tool/ci/test-apple-sample-ui.sh
+
+  alamofire:
+    name: TugboatAlamofire build + test
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build and test the TugboatAlamofire package
+        run: bash tool/ci/test-apple-alamofire.sh
