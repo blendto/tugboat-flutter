@@ -264,12 +264,32 @@ final class EvidenceEncoderTests: XCTestCase {
 
   func testErrorBodyStringsAndKeysAreCutTo4097Units() throws {
     let long = String(repeating: "x", count: 5000)
-    let json = try XCTUnwrap(parsedBody([long: long]) as? [String: Any])
-    let entry = try XCTUnwrap((json["map"] as? [[String]])?.first)
-    XCTAssertEqual(entry.map { $0.utf16.count }, [4097, 4097])
+    XCTAssertEqual(body([long]), "{\"value\":[\"" + String(repeating: "x", count: 4097) + "\"]}")
+    // The cut key spends the text budget, so its value is sent as null.
+    XCTAssertEqual(
+      body([long: long]), "{\"value\":{\"map\":[[\"" + String(repeating: "x", count: 4097) + "\",null]]}}")
     // 4097 units end inside a pair: its high half is kept as an escape.
     let emoji = try XCTUnwrap(body([String(repeating: "😀", count: 3000)]))
     XCTAssertEqual(emoji, "{\"value\":[\"" + String(repeating: "😀", count: 2048) + "\\ud83d\"]}")
+  }
+
+  func testTheTextBudgetStopsAfterTheStringThatPassesIt() throws {
+    let strings = Array(repeating: String(repeating: "s", count: 1000), count: 10)
+    XCTAssertEqual(try parsedBody(strings) as? [String], Array(strings.prefix(5)), "4000 units, then 5000: stop")
+    // Closed early: no `omitted`, though 72 items are past the 128 cap.
+    let many = Array(repeating: String(repeating: "t", count: 100), count: 200)
+    XCTAssertEqual((try parsedBody(many) as? [String])?.count, 41)
+  }
+
+  func testAKeyCountsOnlyWithACountedValueAndStopsWithNull() {
+    let a = String(repeating: "a", count: 4000)
+    let b = String(repeating: "b", count: 100)
+    XCTAssertEqual(
+      body([a: 1, b: 2, "c": 3]), "{\"value\":{\"map\":[[\"" + a + "\",1],[\"" + b + "\",null]]}}")
+    let uncounted: [String: Any] = [String(repeating: "a", count: 5000): Double.nan, "b": 1]
+    XCTAssertEqual(
+      body(uncounted),
+      "{\"value\":{\"map\":[[\"" + String(repeating: "a", count: 4097) + "\",{\"double\":\"NaN\"}],[\"b\",1]]}}")
   }
 
   func testNonFiniteDoublesAreNotCountedNodes() throws {

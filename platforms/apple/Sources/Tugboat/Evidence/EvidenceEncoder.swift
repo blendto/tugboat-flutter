@@ -48,8 +48,11 @@ struct ValueWriter {
   static let errorBodyItemsSent = 128
   /// Error bodies: longer strings and keys are cut to this many units.
   static let errorBodyStringUnits = 4097
-  /// Error bodies: writing stops after this many counted nodes.
+  /// Error bodies: writing stops after this many counted values.
   static let errorBodyNodeBudget = 4097
+  /// Error bodies: writing stops once counted strings and keys pass this
+  /// many UTF-16 units.
+  static let errorBodyTextBudget = 4096
 
   let rules: Rules
   private(set) var out = ""
@@ -59,8 +62,10 @@ struct ValueWriter {
   private var ancestors: [ObjectIdentifier?] = []
   /// Parameters: counted slots sent so far (section 4.4, `c`).
   private var itemsSent = 0
-  /// Error bodies: counted nodes written so far.
+  /// Error bodies: counted values written so far (node budget).
   private var nodesWritten = 0
+  /// Error bodies: UTF-16 units of counted strings and keys (text budget).
+  private var textUnits = 0
   /// Error bodies: open iterables, whose contents are not counted.
   private var openIterables = 0
 
@@ -68,9 +73,11 @@ struct ValueWriter {
     self.rules = rules
   }
 
-  /// Error bodies: the node budget is spent, so nothing more is written.
+  /// Error bodies: a budget is spent, so nothing more is written and the
+  /// open collections close as they are, without `omitted`.
   private var stopped: Bool {
-    rules == .errorBody && nodesWritten >= ValueWriter.errorBodyNodeBudget
+    rules == .errorBody
+      && (nodesWritten >= ValueWriter.errorBodyNodeBudget || textUnits > ValueWriter.errorBodyTextBudget)
   }
 
   /// The top-level parameters map. Its entries are not counted slots.
@@ -102,7 +109,11 @@ struct ValueWriter {
       out += ValueKind.unsupportedJSON
       return
     }
-    switch ValueKind.of(value) {
+    write(kind: ValueKind.of(value), depth: depth)
+  }
+
+  private mutating func write(kind: ValueKind, depth: Int) {
+    switch kind {
     case .null:
       emit("null")
     case let .bool(value):
@@ -146,6 +157,34 @@ struct ValueWriter {
       }
     case .errorBody:
       emit(ValueWriter.quotedPrefix(value, units: ValueWriter.errorBodyStringUnits))
+      countText(value)
+    }
+  }
+
+  /// Adds a counted string's or key's units, as sent, to the text budget.
+  private mutating func countText(_ value: String) {
+    if openIterables == 0 {
+      textUnits += min(value.utf16.count, ValueWriter.errorBodyStringUnits)
+    }
+  }
+
+  /// Error bodies: whether `kind` at `depth` is a counted value (so its
+  /// entry's key is counted too). Not counted: anything inside an
+  /// iterable, an iterable, `unsupported`, non-finite doubles, and refs.
+  private func isCounted(_ kind: ValueKind, depth: Int) -> Bool {
+    guard openIterables == 0 else { return false }
+    switch kind {
+    case .null, .bool, .integer, .string:
+      return true
+    case let .double(value):
+      return value.isFinite
+    case .unsupported:
+      return false
+    case let .collection(collection, identity):
+      if depth >= ValueWriter.errorBodyDepthLimit { return false }
+      if let identity = identity, ancestors.contains(identity) { return false }
+      if case .iterable = collection { return false }
+      return true
     }
   }
 
@@ -201,6 +240,7 @@ struct ValueWriter {
         if index > 0 { out += "," }
         write(item, depth: depth + 1)
       }
+      if stopped { omitted = 0 }
     }
     swap(&body, &out)
     if tag == "list" && omitted == 0 {
@@ -239,24 +279,34 @@ struct ValueWriter {
   }
 
   /// Sorted string keys (cut as strings are), then one `nonStringKeys` run;
-  /// the first 128 entries, then `omitted`.
+  /// the first 128 entries, then `omitted`. A key counts towards the text
+  /// budget when its value is counted; a key that spends it is sent with
+  /// `null`.
   private mutating func writeErrorBodyMap(_ entries: [(key: String, value: Any)], nonStringKeys: Int, depth: Int) {
     let limit = ValueWriter.errorBodyItemsSent
     let sent = entries.prefix(limit)
     let runSent = min(nonStringKeys, limit - sent.count)
-    let omitted = entries.count + nonStringKeys - sent.count - runSent
     var separator = ""
     out += "{\"map\":["
     for entry in sent {
       if stopped { break }
+      let kind = ValueKind.of(entry.value)
       out += separator + "[" + ValueWriter.quotedPrefix(entry.key, units: ValueWriter.errorBodyStringUnits) + ","
       separator = ","
-      write(entry.value, depth: depth + 1)
+      if isCounted(kind, depth: depth + 1) {
+        countText(entry.key)
+      }
+      if stopped {
+        out += "null]"
+        break
+      }
+      write(kind: kind, depth: depth + 1)
       out += "]"
     }
     if !stopped && runSent > 0 {
       out += separator + "{\"nonStringKeys\":\(runSent)}"
     }
+    let omitted = stopped ? 0 : entries.count + nonStringKeys - sent.count - runSent
     out += "]" + (omitted > 0 ? ",\"omitted\":\(omitted)}" : "}")
   }
 
