@@ -25,7 +25,7 @@ core/session-engine/
   tests/tb_session_engine_interaction_test.cpp  unit tests (classifier, registry, ledger, claims)
   tests/tb_session_engine_delivery_test.cpp  unit tests (delivery)
   tests/tb_session_engine_capture_test.cpp  unit tests (scheduler, frame store, budget, navigator registry)
-  tests/tb_session_engine_evidence_test.cpp  unit tests (Dart strings, repeated JSON keys, bounded work)
+  tests/tb_session_engine_evidence_test.cpp  unit tests (Dart strings, jsonDecode parser options, bounded work)
   tests/tb_session_engine_conformance.cpp  fixture runner (public ABI only)
   tests/conformance/                    runner JSON reader, diff, scenario and evidence runners
   fuzz/message_fuzz.cpp                 libFuzzer target for submit
@@ -46,7 +46,7 @@ core/session-engine/
 | `session_module.cpp` | `session.start`, `session.end`, `app.lifecycle`. |
 | `evidence_module.cpp` | `event.record`, `locale.set`. |
 | `evidence_messages.cpp` | `evidence.externalEvent`, `evidence.networkCall` ([docs/evidence-messages.md](docs/evidence-messages.md)): decoding, the no-session and stale-call drops, duration, recording. |
-| `evidence_value`, `evidence_parameters`, `evidence_network`, `dart_string` | The typed value encoding (validation and a view over encoded or decoded JSON); Dart's parameter policy and limits; method, route, and error-body normalization (one pass that stops at the 4 KiB cap); Dart `String` length, cut, and trim on WTF-8. |
+| `evidence_value`, `evidence_parameters`, `evidence_network` | The typed value encoding, decoded once into `EvidenceValue` (`jsonText` bodies convert into the same tree); Dart's parameter policy and limits; method, route, and error-body normalization (one pass that stops at the 4 KiB cap, then a single `encode_json`). |
 | `identity_module.cpp` | `identity.set`, `traits.set`: the runtime user id and the traits bag, with change detection. |
 | `frame_retention`, `frame_retention_module.cpp` | Who references each accepted frame: the session (taken and trimmed by the capture seam, dropped at session end) and delivery; `frame.release` once both let go (design section 7.6). |
 | `stateless_module.cpp` | The stateless operations (`fingerprint.cpp`, `collector.cpp`). |
@@ -85,7 +85,7 @@ core/session-engine/
 | `recorder` | Enrichment and append (Dart `_addEvent`). |
 | `output` | Typed records and effects and their JSON. |
 | `models` / `host` | Shared typed models (locale, anchor, event, host metadata). |
-| `json`, `reader`, `text`, `dart_time`, `name_table`, `ordered_map` | JSON, strict field readers, SHA-256 and UTF-16 helpers, Dart `DateTime`, closed vocabularies as tables, an insertion-ordered map. |
+| `json`, `reader`, `text`, `dart_time`, `name_table`, `ordered_map` | JSON (with `ParseOptions` for Dart `jsonDecode` semantics), strict field readers, SHA-256, the one WTF-8 decoder and the Dart `String` helpers (UTF-16 length and cut, `trim`, UTF-8 prefix), Dart `DateTime`, closed vocabularies as tables, an insertion-ordered map. |
 
 ## C ABI
 

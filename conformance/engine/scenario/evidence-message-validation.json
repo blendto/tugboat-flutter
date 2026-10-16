@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "evidence-message-validation",
-  "description": "Invalid evidence.externalEvent / evidence.networkCall inputs are invalid_message with a JSON path and change nothing: an unknown policy mode, allowedKeys outside allow_list or missing with it, a bare double, a bad double tag, an unknown tag, drop outside a top-level transform value, a ref above its value's root, duplicate map keys, omitted on the parameters map before 64 entries, a bad run or omitted count, a non-string entry key, a tag with extra keys, parameters that are not a map, a missing name, an unknown outcome, a missing or negative startMonoUs, both or a non-string body form, a double statusCode, and an unknown key. The next valid event gets the next id.",
+  "description": "Invalid evidence.externalEvent / evidence.networkCall inputs are invalid_message with a JSON path and change nothing: an unknown policy mode, allowedKeys outside allow_list or missing with it, a bare double, a bad double tag, an unknown tag, drop outside a top-level transform value, a ref above its value's root, duplicate map keys, omitted on the parameters map before 64 entries, a bad run or omitted count, a non-string entry key, a tag with extra keys, parameters that are not a map, a missing name, an unknown outcome, a missing or negative startMonoUs, both or a non-string body form, a double statusCode, an invalid body below status 400 (validated whatever the status), and an unknown key. The next valid event gets the next id.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -751,6 +751,32 @@
           "type": "evidence.networkCall",
           "at": {
             "monoUs": 5035000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 5100000,
+            "outcome": "response",
+            "statusCode": 200,
+            "errorResponseBody": {
+              "value": {
+                "bytes": "AA=="
+              }
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.errorResponseBody.value"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 5036000
           },
           "input": {
             "method": "GET",
