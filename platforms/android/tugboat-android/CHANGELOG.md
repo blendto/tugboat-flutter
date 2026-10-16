@@ -10,6 +10,10 @@ wiring, window capture, and the Android Views adapter.
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
   `CollectorConfig`, `AppInfo`, `MaskLevel`. Idempotent start; nothing
   throws into the app.
+- Docs: `View.tugboatTag` has no accessibility option. UI test tools read
+  the resource-id from `android:id`, which the resolver already uses as the
+  alias fallback; no `AccessibilityDelegate` is installed (it would replace
+  the app's).
 - Engine wiring: `engine.configure` with every `session_start` field the
   collector requires (start is refused and logged when one is blank),
   `limits`, the adapter's `gesture`, `capture.answerTimeoutMs` 5000,
