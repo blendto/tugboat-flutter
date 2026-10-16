@@ -69,13 +69,16 @@ class MainActivity : Activity() {
     }
 
     /**
-     * A manual network call. The sample makes no request: it stands in for
-     * one that answers after 200 ms. A real app finishes the call where its
-     * HTTP client reports the status (or the failure).
+     * A manual network call and a real one. The manual call makes no
+     * request: it stands in for one that answers after 200 ms (a real app
+     * finishes the call where its HTTP client reports the status or the
+     * failure). The real one goes through [SampleHttp]'s OkHttp client,
+     * which `TugboatOkHttpInterceptor` records.
      */
     private fun loadDetails() {
         val call = Tugboat.beginNetworkCall(method = "GET", route = "/details/42")
         Handler(Looper.getMainLooper()).postDelayed({ call.complete(statusCode = 200) }, 200)
+        SampleHttp.loadOrder()
     }
 
     private fun showDialog() {
