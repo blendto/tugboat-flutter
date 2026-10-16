@@ -16,19 +16,63 @@ public struct TugboatConfig {
   /// `UIViewController` appearance; set false to rely on `.tugboatScreen`
   /// alone.
   public var trackHostingControllers: Bool
+  /// Opt-in identity for untagged SwiftUI taps from the in-process
+  /// accessibility tree (ADR 0010). Off by default; prefer `.tugboatTag`
+  /// (optionally `accessibility: true`) on the controls that matter.
+  ///
+  /// It only changes taps that would otherwise resolve to
+  /// `no_actionable_candidate` or to a list cell or scroll view with no
+  /// control under it: the tap gets an `AX<Role>#<k>` path segment (role from
+  /// the element's traits) or `AXIdentified#<k>` when the app set an
+  /// `accessibilityIdentifier`. Only identifiers, traits and frames are read;
+  /// labels and values are never read or sent, and the identifier's value is
+  /// never sent. Tagged taps and UIKit control taps are unchanged.
+  ///
+  /// Pros:
+  /// - Identity and control type for untagged SwiftUI controls, with no code
+  ///   changes.
+  /// - App-set accessibility identifiers become reachable: used as path
+  ///   evidence now, and as aliases once a filter for data-derived ids exists.
+  ///
+  /// Cons, measured on an iPhone 12, iOS 18.6.2, Release build:
+  /// - Building the tree stalls the main thread once, for about 85–300 ms. It
+  ///   runs on the main queue's next turn after the first qualifying tap
+  ///   ends; that tap is reported as with the option off.
+  /// - The cost starts at the first tree read and cannot be turned off for
+  ///   the rest of the process: LazyVStack scroll main-thread time +104%,
+  ///   state updates +55%, process CPU +31%, memory +5 MB; scrolling in the
+  ///   TugboatSwiftUISample +27%.
+  /// - The host app's `@Environment(\.accessibilityEnabled)` becomes true for
+  ///   the rest of the process, so UI that adapts to assistive users adapts
+  ///   for everyone in that process.
+  /// - It relies on an undocumented UIKit side effect of the public
+  ///   `accessibilityActivate()`, which Apple can change.
+  /// - `accessibilityHitTest(_:)` stays nil, so a tap is matched to the
+  ///   smallest element whose frame contains it.
+  /// - A lazy-stack hang with the tree built is documented on iOS 26 (Pendo;
+  ///   Apple FB21851974).
+  ///
+  /// It runs only on iOS majors where it was measured (iOS 18); elsewhere it
+  /// behaves as `.off` and logs once. `.sampled(rate:)` is drawn once per
+  /// process launch. With `.off` the tree is never built or read, even when
+  /// VoiceOver is running. Changing this changes identity: sampled-in
+  /// processes give some taps a deeper path and a different fingerprint.
+  public var swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity
 
   public init(
     collector: Collector,
     app: App,
     maskLevel: MaskLevel = .allTextAndMedia,
     captureFocusChanges: Bool = false,
-    trackHostingControllers: Bool = true
+    trackHostingControllers: Bool = true,
+    swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off
   ) {
     self.collector = collector
     self.app = app
     self.maskLevel = maskLevel
     self.captureFocusChanges = captureFocusChanges
     self.trackHostingControllers = trackHostingControllers
+    self.swiftUIAccessibilityIdentity = swiftUIAccessibilityIdentity
   }
 
   /// The collector the SDK delivers to.

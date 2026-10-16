@@ -104,6 +104,14 @@ let package = Package(
       ],
       path: "platforms/apple/Tests/TugboatTests"
     ),
+    // ADR 0010 on a real hosting view: building the accessibility tree
+    // cannot be undone for the life of the test process, so it runs in its
+    // own bundle and `TugboatTests` never sees a built tree.
+    .testTarget(
+      name: "TugboatAccessibilityActivationTests",
+      dependencies: ["Tugboat"],
+      path: "platforms/apple/Tests/TugboatAccessibilityActivationTests"
+    ),
     .testTarget(
       name: "TugboatSessionEngineTests",
       dependencies: ["TugboatSessionEngine"],
