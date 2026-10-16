@@ -3,9 +3,13 @@ import Foundation
 /// What a Swift value is in the engine's value encoding
 /// (evidence-messages.md section 4.1).
 ///
-/// Numbers and booleans are matched by their exact type, never by a
+/// Swift numbers and booleans are matched by their exact type, never by a
 /// bridging cast (`as? Int` on an `NSNumber` or `as? Bool` on `1` would
-/// change their kind). An `NSNumber` is told apart by its own type.
+/// change their kind), so they never overlap an `NSNumber`, which is
+/// classified by its own CoreFoundation type (`ofNumber`). That gives the
+/// section's order: a Swift value bridged to `NSNumber` would get the same
+/// answer, and a floating `NSNumber` such as an analytics `1.0` stays a
+/// double.
 enum ValueKind {
   enum Collection {
     case list([Any])
@@ -117,6 +121,9 @@ enum ValueKind {
     value.flatMap { Int64(exactly: $0) }.map { .integer($0) } ?? .unsupported
   }
 
+  /// Section 4.1 step 2: a boolean `CFBoolean`, else a floating number
+  /// (`CFNumberIsFloatType`), else `int64Value` when it is exact. A
+  /// `Decimal` bridges to `NSDecimalNumber`, which is unsupported.
   private static func ofNumber(_ number: NSNumber) -> ValueKind {
     if number is NSDecimalNumber {
       return .unsupported
@@ -124,14 +131,20 @@ enum ValueKind {
     if CFGetTypeID(number) == CFBooleanGetTypeID() {
       return .bool(number.boolValue)
     }
-    switch String(cString: number.objCType) {
-    case "f", "d":
+    if isFloat(number) {
       return .double(number.doubleValue)
-    case "Q", "L", "I", "S", "C":
-      return int64(number.uint64Value)
-    default:
-      return .integer(number.int64Value)
     }
+    let value = number.int64Value
+    return NSNumber(value: value).isEqual(to: number) ? .integer(value) : .unsupported
+  }
+
+  private static func isFloat(_ number: NSNumber) -> Bool {
+    #if canImport(Darwin)
+    return CFNumberIsFloatType(number as CFNumber)
+    #else
+    let type = String(cString: number.objCType)
+    return type == "f" || type == "d"
+    #endif
   }
 
   /// Elements are read one by one, as the instances they are: a bulk read

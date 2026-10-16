@@ -1,13 +1,13 @@
-/// One top-level event parameter as the host hands it to the encoder
-/// (evidence-messages.md section 4.3).
+/// One top-level event parameter with a valid key, as the host hands it to
+/// the encoder (evidence-messages.md sections 4.3, 4.4).
 struct HostParameter {
   enum Value {
     /// The app's value, or a `transform`'s result, to encode.
     case kept(Any?)
     /// A `transform` returned `TugboatParameterPolicy.drop` or threw: `{"drop": true}`.
     case dropped
-    /// A value the engine never reads (an invalid key, `names_only`, a key
-    /// outside `allowedKeys`): sent as `null` (section 4.5).
+    /// A value the engine never reads (`names_only`, a key outside
+    /// `allowedKeys`): sent as `null`, not encoded.
     case unread
   }
 
@@ -15,20 +15,23 @@ struct HostParameter {
   let value: Value
 }
 
-/// The parameters map: its first 64 entries and how many follow.
+/// The top-level parameters map as sent: the first 64 entries (valid keys
+/// sorted by `String <`, then one `nonStringKeys` run for invalid keys) and
+/// how many entries follow.
 struct HostParameterList {
   static let maxEntries = 64
 
   let entries: [HostParameter]
-  /// The exact number of entries after `entries` (`omitted`).
+  /// Invalid keys sent as one `{"nonStringKeys": n}` run after `entries`.
+  let invalidKeys: Int
+  /// The exact number of entries after the sent ones (`omitted`).
   let omitted: Int
 }
 
-/// The host's part of a parameter policy (sections 4.2, 4.3, 4.5). Keys are
-/// sorted by `String <` (a Swift dictionary has no order) and only the
-/// first 64 are sent. Under `.transform` the closure runs exactly once for
-/// each of those whose key is valid, and never for any other entry. Every
-/// other rule of the policy is the engine's.
+/// The host's part of a parameter policy (sections 4.2–4.4). Under
+/// `.transform` the closure runs exactly once for each sent entry with a
+/// valid key, and never for any other entry. Every other rule of the
+/// policy is the engine's.
 enum HostParameters {
   /// A key the engine lists: 1 to 128 UTF-16 code units.
   static func isValidKey(_ key: String) -> Bool {
@@ -37,12 +40,13 @@ enum HostParameters {
   }
 
   static func apply(_ policy: TugboatParameterPolicy, to parameters: [String: Any]) -> HostParameterList {
-    let sorted = parameters.sorted { $0.key < $1.key }
-    let sent = sorted.prefix(HostParameterList.maxEntries)
-    let entries = sent.map { entry in
-      HostParameter(key: entry.key, value: isValidKey(entry.key) ? value(of: entry, under: policy) : .unread)
-    }
-    return HostParameterList(entries: entries, omitted: sorted.count - sent.count)
+    let valid = parameters.filter { isValidKey($0.key) }.sorted { $0.key < $1.key }
+    let sent = valid.prefix(HostParameterList.maxEntries)
+    let invalid = parameters.count - valid.count
+    let invalidSent = min(invalid, HostParameterList.maxEntries - sent.count)
+    let entries = sent.map { HostParameter(key: $0.key, value: value(of: $0, under: policy)) }
+    return HostParameterList(
+      entries: entries, invalidKeys: invalidSent, omitted: parameters.count - sent.count - invalidSent)
   }
 
   private static func value(of entry: (key: String, value: Any), under policy: TugboatParameterPolicy) -> HostParameter.Value {

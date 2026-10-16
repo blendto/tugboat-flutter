@@ -124,16 +124,20 @@ call.complete(statusCode: 422, errorResponseBody: ["error": "invalid_order"])
   ([evidence messages](../../../../core/session-engine/docs/evidence-messages.md)).
   Name, source, method and route are sent raw. The SDK only runs a
   `transform` and converts Swift values to the engine's value encoding
-  (`Evidence/EvidenceEncoder`, `ValueKind`): integers by their exact type
-  (`UInt64` beyond `Int64` is unsupported), every floating-point value
-  tagged as a double, `Set` as an iterable, cycles through `NSArray` /
-  `NSDictionary` as references, and anything else (`Date`, `Data`,
-  `Decimal`, `Character`) as unsupported. Swift dictionaries have no
-  order, so keys are sorted by `String <` at every level, with non-string
-  keys after them. When a limit cuts a map, a Swift event can therefore
-  differ from a Kotlin or Dart one with the same keys. The SDK sends only
-  what the engine reads (the first 64 parameters, 257 items per nested
-  collection, 128 per error-body collection).
+  (`Evidence/EvidenceEncoder`, `ValueKind`): an `NSNumber` by its
+  CoreFoundation type (a `CFBoolean` is a boolean, a floating number such
+  as an analytics `1.0` stays a double), Swift numbers by their exact type
+  (`UInt64` beyond `Int64` is unsupported), `Set` as an iterable, cycles
+  through `NSArray` / `NSDictionary` as references, and anything else
+  (`Date`, `Data`, `Decimal`, `Character`) as unsupported. Swift
+  dictionaries have no order, so valid keys are sorted by `String <` at
+  every level, with invalid keys (not strings, empty, or over 128 units)
+  after them. When a limit cuts a map, a Swift event can therefore differ
+  from a Kotlin or Dart one with the same keys. The SDK reads and sends
+  only what Dart reads: the first 64 parameters, 256 collection items
+  across the whole parameters tree, values to depth 4, and in error bodies
+  128 items per collection, strings cut at 4097 UTF-16 units, and at most
+  4097 values.
 
 ## Accessibility-tree identity (opt-in, ADR 0010)
 

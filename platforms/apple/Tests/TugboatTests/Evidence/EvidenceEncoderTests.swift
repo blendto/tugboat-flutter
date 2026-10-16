@@ -41,7 +41,11 @@ final class EvidenceEncoderTests: XCTestCase {
     XCTAssertEqual(param(Int.min), String(Int.min))
     XCTAssertEqual(param(UInt64(Int64.max)), String(Int64.max))
     XCTAssertEqual(param(UInt64.max), unsupported, "beyond Int64")
-    XCTAssertEqual(param(NSNumber(value: UInt64.max)), unsupported)
+    XCTAssertEqual(param(NSNumber(value: UInt64.max)), unsupported, "int64Value is not exact")
+    XCTAssertEqual(param(NSNumber(value: UInt64(Int64.max))), String(Int64.max))
+    #if canImport(Darwin)
+    XCTAssertEqual(param(NSNumber(value: Int8(-3))), "-3", "a char NSNumber is not a CFBoolean")
+    #endif
     XCTAssertEqual(param(UInt32.max), String(UInt32.max))
   }
 
@@ -52,6 +56,8 @@ final class EvidenceEncoderTests: XCTestCase {
     XCTAssertEqual(param(Float(0.5)), "{\"double\":0.5}")
     XCTAssertEqual(param(CGFloat(3)), "{\"double\":3.0}")
     XCTAssertEqual(param(NSNumber(value: 1.5)), "{\"double\":1.5}")
+    XCTAssertEqual(param(NSNumber(value: 1.0)), "{\"double\":1.0}", "an analytics 1.0 stays a double")
+    XCTAssertEqual(param(NSNumber(value: Float(0.5))), "{\"double\":0.5}")
     XCTAssertEqual(param(Double.nan), "{\"double\":\"NaN\"}")
     XCTAssertEqual(param(Double.infinity), "{\"double\":\"Infinity\"}")
     XCTAssertEqual(param(-Double.infinity), "{\"double\":\"-Infinity\"}")
@@ -96,16 +102,11 @@ final class EvidenceEncoderTests: XCTestCase {
     XCTAssertEqual(param([1: "one"]), "{\"map\":[{\"nonStringKeys\":1}]}")
   }
 
-  func testInvalidNestedKeysAreFoldedInPlaceWithoutTheirValues() {
+  func testInvalidNestedKeysJoinTheRunWithoutTheirValues() {
     let long = String(repeating: "k", count: 129)
     let map: [AnyHashable: Any] = ["": Data(), "a": 1, long: Data(), "zz": 2, 9: 3]
-    XCTAssertEqual(
-      param(map),
-      "{\"map\":[{\"nonStringKeys\":1},[\"a\",1],{\"nonStringKeys\":1},[\"zz\",2],{\"nonStringKeys\":1}]}")
-    let trailing: [AnyHashable: Any] = ["~": 1, "a": 1, 9: 3]
-    XCTAssertEqual(param(trailing), "{\"map\":[[\"a\",1],[\"~\",1],{\"nonStringKeys\":1}]}")
-    let merged: [AnyHashable: Any] = ["a": 1, String(repeating: "z", count: 200): 1, 9: 3]
-    XCTAssertEqual(param(merged), "{\"map\":[[\"a\",1],{\"nonStringKeys\":2}]}", "adjacent runs merge")
+    XCTAssertEqual(param(map), "{\"map\":[[\"a\",1],[\"zz\",2],{\"nonStringKeys\":3}]}")
+    XCTAssertEqual(param(["": 1]), "{\"map\":[{\"nonStringKeys\":1}]}")
   }
 
   // MARK: - Bounds and elision (parameters)
@@ -122,14 +123,40 @@ final class EvidenceEncoderTests: XCTestCase {
     XCTAssertEqual(param(String(repeating: "😀", count: 513)), unsupported, "1026 UTF-16 units")
   }
 
-  func testParameterCollectionsStopAfter257Items() throws {
-    let list = try parsed(param(Array(0..<300)))
-    XCTAssertEqual((list as? [Any])?.count, 257)
+  func testACollectionStopsAtTheItemBudgetWithOmittedOne() throws {
+    let list = try XCTUnwrap(try parsed(param(Array(0..<300))) as? [String: Any])
+    XCTAssertEqual(list["list"] as? [Int], Array(0..<256))
+    XCTAssertEqual(list["omitted"] as? Int, 1)
+    XCTAssertEqual(param(Array(0..<256)), "[" + (0..<256).map(String.init).joined(separator: ",") + "]")
+
     let map = Dictionary(uniqueKeysWithValues: (0..<300).map { (String(format: "k%03d", $0), $0) })
-    let entries = try XCTUnwrap((try parsed(param(map)) as? [String: Any])?["map"] as? [Any])
-    XCTAssertEqual(entries.count, 257)
-    let set = try XCTUnwrap((try parsed(param(Set(0..<300))) as? [String: Any])?["iterable"] as? [Any])
-    XCTAssertEqual(set.count, 257)
+    let mapJSON = try XCTUnwrap(try parsed(param(map)) as? [String: Any])
+    XCTAssertEqual((mapJSON["map"] as? [Any])?.count, 256)
+    XCTAssertEqual(mapJSON["omitted"] as? Int, 1)
+
+    let set = try XCTUnwrap(try parsed(param(Set(0..<300))) as? [String: Any])
+    XCTAssertEqual((set["iterable"] as? [Any])?.count, 256)
+    XCTAssertEqual(set["omitted"] as? Int, 1)
+  }
+
+  func testTheItemBudgetIsSharedByTheWholeParametersTree() {
+    let list = HostParameterList(
+      entries: [
+        HostParameter(key: "a", value: .kept(Array(0..<200))),
+        HostParameter(key: "b", value: .kept([[1, 2], Array(0..<100)])),
+        HostParameter(key: "c", value: .kept([1])),
+        HostParameter(key: "d", value: .kept([1: "x"] as [AnyHashable: Any])),
+        HostParameter(key: "e", value: .kept([Int]())),
+      ],
+      invalidKeys: 0, omitted: 0)
+    // a: 200 slots; b: its 2 items and [1, 2] take 4 (204), then 52 of the
+    // 100 (256); c, d, and e send their first slot as omitted, a run, or nothing.
+    let a: String = (0..<200).map { String($0) }.joined(separator: ",")
+    let b: String = (0..<52).map { String($0) }.joined(separator: ",")
+    var expected = "{\"map\":[[\"a\",[" + a + "]],"
+    expected += "[\"b\",[[1,2],{\"list\":[" + b + "],\"omitted\":1}]],"
+    expected += "[\"c\",{\"list\":[],\"omitted\":1}],[\"d\",{\"map\":[{\"nonStringKeys\":1}]}],[\"e\",[]]]}"
+    XCTAssertEqual(EvidenceEncoder.parameters(list), expected)
   }
 
   // MARK: - Cycles
@@ -184,10 +211,10 @@ final class EvidenceEncoderTests: XCTestCase {
         HostParameter(key: "a", value: .kept(1.0)), HostParameter(key: "b", value: .dropped),
         HostParameter(key: "c", value: .unread),
       ],
-      omitted: 3)
+      invalidKeys: 2, omitted: 3)
     XCTAssertEqual(
       EvidenceEncoder.parameters(list),
-      "{\"map\":[[\"a\",{\"double\":1.0}],[\"b\",{\"drop\":true}],[\"c\",null]],\"omitted\":3}")
+      "{\"map\":[[\"a\",{\"double\":1.0}],[\"b\",{\"drop\":true}],[\"c\",null],{\"nonStringKeys\":2}],\"omitted\":3}")
   }
 
   // MARK: - Error bodies
@@ -203,12 +230,11 @@ final class EvidenceEncoderTests: XCTestCase {
     XCTAssertNil(body(Optional<Any>.none as Any))
   }
 
-  func testTextBodiesAreCutJustPast4096Bytes() throws {
-    let ascii = try XCTUnwrap(textBody(String(repeating: "a", count: 10_000)))
-    XCTAssertEqual(ascii.utf8.count, 4097)
-    let accented = try XCTUnwrap(textBody(String(repeating: "é", count: 3000)))
-    XCTAssertEqual(accented.unicodeScalars.count, 2049, "4098 bytes: whole code points")
-    XCTAssertEqual(try XCTUnwrap(textBody(String(repeating: "a", count: 4096))).utf8.count, 4096)
+  func testTextBodiesAreCutTo4097Units() throws {
+    XCTAssertEqual(try XCTUnwrap(textBody(String(repeating: "a", count: 10_000))).utf16.count, 4097)
+    XCTAssertEqual(try XCTUnwrap(textBody(String(repeating: "é", count: 5000))).utf16.count, 4097)
+    XCTAssertEqual(try XCTUnwrap(textBody(String(repeating: "é", count: 3000))).utf16.count, 3000, "6000 bytes, kept")
+    XCTAssertEqual(try XCTUnwrap(textBody(String(repeating: "a", count: 4097))).utf16.count, 4097)
   }
 
   func testErrorBodyCollectionsSend128ItemsThenOmitted() throws {
@@ -241,8 +267,17 @@ final class EvidenceEncoderTests: XCTestCase {
     let json = try XCTUnwrap(parsedBody([long: long]) as? [String: Any])
     let entry = try XCTUnwrap((json["map"] as? [[String]])?.first)
     XCTAssertEqual(entry.map { $0.utf16.count }, [4097, 4097])
-    let emoji = try XCTUnwrap(parsedBody([String(repeating: "😀", count: 3000)]) as? [String])
-    XCTAssertEqual(emoji.first?.utf16.count, 4098, "cut after a whole code point")
+    // 4097 units end inside a pair: its high half is kept as an escape.
+    let emoji = try XCTUnwrap(body([String(repeating: "😀", count: 3000)]))
+    XCTAssertEqual(emoji, "{\"value\":[\"" + String(repeating: "😀", count: 2048) + "\\ud83d\"]}")
+  }
+
+  func testNonFiniteDoublesAreNotCountedNodes() throws {
+    // 1 + 128 lists are counted; the 16384 NaNs are not, so nothing stops.
+    let nested = Array(repeating: Array(repeating: Double.nan, count: 128), count: 128)
+    let json = try XCTUnwrap(parsedBody(nested) as? [[Any]])
+    XCTAssertEqual(json.count, 128)
+    XCTAssertEqual(json.last?.count, 128)
   }
 
   func testErrorBodyWritingStopsAfter4097Values() throws {
