@@ -1,5 +1,7 @@
 #include "transport.h"
 
+#include "retry_after.h"
+
 namespace tugboat {
 namespace engine {
 
@@ -23,12 +25,16 @@ bool decode_outcome(const ObjectReader& r, TransportOutcome* out) {
 }
 
 bool check_http_fields(const ObjectReader& r, const TransportResult& result,
-                       bool has_body) {
+                       bool has_body, bool has_retry_after) {
   if (result.outcome != TransportOutcome::kHttp) {
     if (result.status) {
       return r.reject("status", "only allowed with outcome http");
     }
-    return !has_body || r.reject("body", "only allowed with outcome http");
+    if (has_body) {
+      return r.reject("body", "only allowed with outcome http");
+    }
+    return !has_retry_after ||
+           r.reject("retryAfter", "only allowed with outcome http");
   }
   if (!result.status) {
     return r.reject("status", "required with outcome http");
@@ -39,6 +45,10 @@ bool check_http_fields(const ObjectReader& r, const TransportResult& result,
   if (result.body.size() > kMaxResponseBodyBytes) {
     return r.reject("body", "longer than 64 KiB");
   }
+  if (result.retry_after &&
+      result.retry_after->size() > kMaxRetryAfterHeaderBytes) {
+    return r.reject("retryAfter", "longer than 128 bytes");
+  }
   return true;
 }
 
@@ -48,14 +58,30 @@ bool decode_transport_result(const Value& input, const std::string& path,
                              TransportResult* out, Error* error) {
   const ObjectReader r(input, path, error);
   std::optional<std::string> body;
-  if (!r.check_keys({"requestId", "outcome", "status", "body"}) ||
+  std::optional<std::string> retry_after;
+  if (!r.check_keys({"requestId", "outcome", "status", "body", "retryAfter"}) ||
       !r.req_string("requestId", &out->request_id) ||
       !decode_outcome(r, &out->outcome) || !r.opt_int("status", &out->status) ||
-      !r.opt_string("body", &body)) {
+      !r.opt_string("body", &body) ||
+      !r.opt_string("retryAfter", &retry_after)) {
     return false;
   }
   out->body = body.value_or(std::string());
-  return check_http_fields(r, *out, body.has_value());
+  if (retry_after) {
+    std::string trimmed = *retry_after;
+    while (!trimmed.empty() &&
+           (trimmed.front() == ' ' || trimmed.front() == '\t')) {
+      trimmed.erase(trimmed.begin());
+    }
+    while (!trimmed.empty() &&
+           (trimmed.back() == ' ' || trimmed.back() == '\t')) {
+      trimmed.pop_back();
+    }
+    if (!trimmed.empty()) {
+      out->retry_after = std::move(trimmed);
+    }
+  }
+  return check_http_fields(r, *out, body.has_value(), retry_after.has_value());
 }
 
 Verdict classify(const TransportResult& result) {

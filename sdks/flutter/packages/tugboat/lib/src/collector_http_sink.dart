@@ -8,6 +8,8 @@ import 'package:http_parser/http_parser.dart';
 import 'capture_sink.dart';
 import 'collector_config.dart';
 import 'collector_mapper.dart';
+import 'collector_retry_after.dart';
+import 'collector_retry_after.dart';
 import 'models.dart';
 import 'sdk_version.dart';
 
@@ -101,6 +103,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
   final List<_PendingFrameUpload> _pendingFrames = [];
   final List<List<Map<String, Object?>>> _retryBatches = [];
   final List<_PendingSessionLifecycle> _pendingLifecycle = [];
+  final Map<_CollectorLane, DateTime> _laneNotBefore = {};
 
   /// Runtime user id (may change via [setUserId]).
   String? _userId;
@@ -163,6 +166,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _traitsDirty = false;
     _userTriggeredAt = null;
     _traitsTriggeredAt = null;
+    _laneNotBefore.clear();
     _scheduleFlushTimer();
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionStart.wireValue,
@@ -454,6 +458,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (!_isCurrentEpoch(epoch)) return _SendResult.drop;
     final session = _session;
     if (session == null) return _SendResult.accepted;
+
+    await _waitForLane(_CollectorLane.lifecycle);
 
     final sessionId = _sessionIdForLifecycle(eventType, session.id);
     final traits = _traits;

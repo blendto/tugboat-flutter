@@ -19,14 +19,15 @@ constexpr size_t kMaxResponseBodyBytes = 64 * 1024;
 
 enum class TransportOutcome { kHttp, kError, kTimeout };
 
-// `transport.result {requestId, outcome, status?, body?}`. `status` is
-// required with `outcome: "http"` and not allowed otherwise; `body` is only
-// allowed with `http`.
+// `transport.result {requestId, outcome, status?, body?, retryAfter?}`.
+// `status` is required with `outcome: "http"` and not allowed otherwise;
+// `body` and `retryAfter` are only allowed with `http`.
 struct TransportResult {
   std::string request_id;
   TransportOutcome outcome = TransportOutcome::kError;
   std::optional<int64_t> status;
   std::string body;
+  std::optional<std::string> retry_after;
 };
 
 bool decode_transport_result(const Value& input, const std::string& path,
