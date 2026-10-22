@@ -5,6 +5,8 @@ import android.app.Application
 import android.os.Bundle
 import com.tugboat.android.views.AdapterGuard
 import com.tugboat.android.views.OptionalAndroidx
+import com.tugboat.android.views.facts.ChoreographerFrames
+import com.tugboat.android.views.facts.FrameScheduler
 
 /**
  * Process-scoped navigation observation (activity, fragment, and NavController
@@ -21,14 +23,27 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
     // `ViewsAdapter.stop` releases it. A weak reference would lose the
     // adapter's bound `::reportNavigation` at the next GC.
     private var recording: ((NavigationChange) -> Unit)? = null
-    var requestFrame: () -> Unit = {}
+
+    private var frameScheduler: FrameScheduler = ChoreographerFrames()
+    private var frameScheduled = false
 
     private val destinations = DestinationTracker()
-    lateinit var routes: ViewRouteResolver
-        private set
-    private lateinit var activities: ActivityNavigation
+    private val activities = ActivityNavigation(::report)
+    private val controllers = ControllerNavigation(::report)
     private var fragments: FragmentNavigation? = null
-    private lateinit var controllers: ControllerNavigation
+    private var routes: ViewRouteResolver? = null
+
+    private fun viewRoutes(): ViewRouteResolver {
+        val existing = routes
+        if (existing != null) return existing
+        val created =
+            ViewRouteResolver(destinations) { view -> fragments?.routeRootedAt(view) }
+        routes = created
+        return created
+    }
+
+    val routesAccessor: ViewRouteResolver
+        get() = viewRoutes()
 
     fun resetForTests() {
         if (installed) {
@@ -37,19 +52,27 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
             application = null
         }
         recording = null
-        requestFrame = {}
+        frameScheduled = false
+        frameScheduler = ChoreographerFrames()
+        destinations.resetForTests()
+        fragments?.unregisterAll()
+        fragments = null
+        routes = null
         NavigationProcessState.resetForTests()
+    }
+
+    /** Aligns fragment settling with the adapter's frame scheduler (unit tests). */
+    fun setFrameSchedulerForTests(scheduler: FrameScheduler) {
+        frameScheduler = scheduler
     }
 
     fun ensureInstalled(app: Application) {
         if (installed) return
         application = app
-        routes = ViewRouteResolver(destinations) { view -> fragments?.routeRootedAt(view) }
-        activities = ActivityNavigation(::report)
-        controllers = ControllerNavigation(::report)
+        viewRoutes()
         fragments =
             if (OptionalAndroidx.fragment) {
-                FragmentNavigation(activities, destinations, ::report, requestFrame = { requestFrame() })
+                FragmentNavigation(activities, destinations, ::report, requestFrame = ::requestFrame)
             } else {
                 null
             }
@@ -63,6 +86,15 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
 
     fun flushFragments() {
         fragments?.flush()
+    }
+
+    private fun requestFrame() {
+        if (frameScheduled) return
+        frameScheduled = true
+        frameScheduler.postFrame {
+            frameScheduled = false
+            fragments?.flush()
+        }
     }
 
     val fragmentNavigatorIds: Set<String>
@@ -100,7 +132,6 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
         routeKey: String,
         previous: NavEntry?,
     ) = AdapterGuard.run("nav destination") {
-        destinations.onDestinationChanged(activity, current.route, current.destinationId)
         controllers.onDestinationChanged(navigatorId, parentNavigatorId, current, routeKey, previous)
     }
 

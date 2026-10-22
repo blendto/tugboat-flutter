@@ -270,15 +270,6 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
 
   if (!top_identity || !top_instance) return std::nullopt;
 
-  VisibleRouteChange visible;
-  visible.updates_route = true;
-  visible.destination_route = top_identity->route;
-  visible.identity = *top_identity;
-  visible.navigator_id = navigator_id;
-  visible.parent_navigator_id = parent;
-  visible.route_instance_id = top_instance;
-  apply_visible_route(visible, &navigation.visible);
-
   const int64_t limit = state.config.navigation.route_stack_limit;
   VisibleRouteChange change;
   change.kind = NavigationKind::kSessionStart;
@@ -299,6 +290,7 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
       navigation.registry.stack_snapshot(navigator_id, limit);
   change.route_stack_truncated =
       navigation.registry.stack_truncated(navigator_id, limit);
+  apply_visible_route(change, &navigation.visible);
   return change;
 }
 
@@ -326,9 +318,7 @@ void record_route_change(Turn& turn, const std::string& event_id,
   const bool timed_out = capture.outcome == RouteOutcome::kTimedOut;
   event.result = std::string(session_start || timed_out ? "unknown" : "navigated");
   Value data = Value::object();
-  if (!session_start) {
-    put_opt(&data, "fromRoute", change.previous_route);
-  }
+  put_opt(&data, "fromRoute", change.previous_route);
   put_opt(&data, "route", change.destination_route);
   data.set("navigation", Value::string(navigation_wire_name(change.kind)));
   if (capture.outcome == RouteOutcome::kFailed) {

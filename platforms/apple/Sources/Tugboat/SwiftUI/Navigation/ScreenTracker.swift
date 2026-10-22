@@ -81,9 +81,6 @@ final class ScreenTracker {
     hasSeenScreen = false
   }
 
-  /// Marks a new adapter session; the stack is kept for stop/start.
-  func beginSession() {}
-
   func sessionStartFact(at: HostTime) -> AdapterFact? {
     settle()
     let routes = stack.entries

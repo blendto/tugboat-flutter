@@ -18,7 +18,10 @@ class SessionStartNavigationTest {
     private val frames = ManualFrames()
 
     @Before
-    fun resetProcessNavigation() = NavigationObservation.resetForTests()
+    fun resetProcessNavigation() {
+        NavigationObservation.resetForTests()
+        NavigationObservation.setFrameSchedulerForTests(frames)
+    }
 
     @Test
     fun stopStartSeedsResumedActivityWithoutAnotherResume() {

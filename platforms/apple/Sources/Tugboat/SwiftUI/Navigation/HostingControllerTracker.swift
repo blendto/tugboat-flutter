@@ -19,18 +19,38 @@ final class HostingControllerTracker {
   static let navigatorId = "swiftui-hosting"
   static let routeType = "UIHostingController"
 
-  private let screens: ScreenTracker
-  private let clock: FactClock
+  private var screens: ScreenTracker
+  private var clock: HostClock
   private var stack = ScreenStack(navigatorId: HostingControllerTracker.navigatorId)
   private let ids = ObjectIds(prefix: "swiftui-host")
   private var facts: [AdapterFact] = []
+  private var requestFrame: (() -> Void)?
 
   /// Live facts are produced only while true (the adapter is running).
   var isRecording = false
 
   init(screens: ScreenTracker = .shared, clock: HostClock = SystemHostClock()) {
     self.screens = screens
-    self.clock = FactClock(clock: clock)
+    self.clock = clock
+    installAppearanceObserverIfNeeded()
+  }
+
+  /// Binds the adapter's screen registry, clock, and frame scheduler (process-scoped stack).
+  func bind(screens: ScreenTracker, clock: HostClock, requestFrame: @escaping () -> Void) {
+    self.screens = screens
+    self.clock = clock
+    self.requestFrame = requestFrame
+  }
+
+  private static var appearanceInstalled = false
+
+  private func installAppearanceObserverIfNeeded() {
+    guard !HostingControllerTracker.appearanceInstalled else { return }
+    HostingControllerTracker.appearanceInstalled = true
+    ViewControllerAppearance.observer = { controller, appeared in
+      HostingControllerTracker.shared.controller(controller, appeared: appeared)
+    }
+    ViewControllerAppearance.install()
   }
 
   /// A disappearing controller is matched by identity: its view has usually
@@ -50,10 +70,8 @@ final class HostingControllerTracker {
       guard let known = ids.existingId(of: controller) else { return }
       change = stack.disappeared(instanceId: known)
     }
-    record(change, at: clock.now())
+    record(change, at: FactClock(clock: clock).now())
   }
-
-  func beginSession() {}
 
   func sessionStartFact(at: HostTime) -> AdapterFact? {
     guard !screens.hasSeenScreen, !stack.entries.isEmpty else { return nil }
@@ -71,8 +89,11 @@ final class HostingControllerTracker {
   }
 
   private func record(_ change: NavigationChange?, at: HostTime) {
-    guard isRecording, let change = change else { return }
-    facts.append(change.fact(at: at))
+    guard let change = change else { return }
+    if isRecording {
+      facts.append(change.fact(at: at))
+      requestFrame?()
+    }
   }
 
   private func coversWindow(_ controller: UIViewController) -> Bool {

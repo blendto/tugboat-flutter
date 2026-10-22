@@ -107,16 +107,30 @@ final class TugboatScreenTests: XCTestCase {
   }
 
   func testHostingStackIsSeededAfterStopStart() {
-    let screens = ScreenTracker(clock: ManualClock())
-    let tracker = HostingControllerTracker(screens: screens, clock: ManualClock())
-    let window = HostedWindow(Text("Plain"))
+    let clock = ManualClock()
+    let screens = ScreenTracker(clock: clock)
+    let sink = RecordingSink()
+    let frames = ManualFrames()
+    let adapter = SwiftUIAdapter(
+      sink: sink, hostClock: clock, frames: frames, trackHostingControllers: true, screens: screens)
+    adapter.start()
+    let window = HostedWindow(Text("First"))
     hosted = window
-    let controller = window.window.rootViewController ?? UIViewController()
-    tracker.isRecording = false
-    tracker.controller(controller, appeared: true)
-    XCTAssertNotNil(tracker.sessionStartFact(at: ManualClock().now()))
-    tracker.isRecording = false
-    XCTAssertNotNil(tracker.sessionStartFact(at: ManualClock().now()))
+    XCTAssertTrue(window.wait { HostingControllerTracker.shared.sessionStartFact(at: clock.now()) != nil })
+    adapter.stop()
+
+    let replacement = UIHostingController(rootView: Text("Second"))
+    window.window.rootViewController = replacement
+    replacement.viewDidAppear(false)
+
+    adapter.start()
+    frames.runFrame()
+    let lastSeed = sink.messages.reversed().first { message in
+      message.type == FactTypes.navigation &&
+        (decodeObject(message.inputJSON)?["kind"] as? String) == "session_start"
+    }
+    XCTAssertNotNil(lastSeed)
+    adapter.stop()
   }
 
   func testViewControllerAppearanceForwardsAndCallsTheOriginal() {
@@ -131,8 +145,9 @@ final class TugboatScreenTests: XCTestCase {
     ViewControllerAppearance.install()
     XCTAssertTrue(ViewControllerAppearance.isInstalled)
     var seen: [(UIViewController, Bool)] = []
+    let previous = ViewControllerAppearance.observer
     ViewControllerAppearance.observer = { seen.append(($0, $1)) }
-    defer { ViewControllerAppearance.observer = nil }
+    defer { ViewControllerAppearance.observer = previous }
 
     let probe = Probe()
     probe.viewDidAppear(false)

@@ -49,23 +49,17 @@ internal object NavigationProcessState {
 
     /** Non-empty stacks: activities, fragment navigators, then `/nav` controllers. */
     fun sessionStartSnapshots(): List<SessionStartSnapshot> = buildList {
-        activityStacks.values
+        appendSnapshots(activityStacks.values, this)
+        appendSnapshots(fragmentStacks.values, this)
+        appendSnapshots(controllerStacks.values, this)
+    }
+
+    private fun appendSnapshots(stacks: Collection<NavigatorStack>, out: MutableList<SessionStartSnapshot>) {
+        stacks
             .sortedBy { it.navigatorId }
             .filter { it.top != null }
             .forEach { stack ->
-                add(SessionStartSnapshot(stack.navigatorId, stack.parentNavigatorId, stack.all()))
-            }
-        fragmentStacks.values
-            .sortedBy { it.navigatorId }
-            .filter { it.top != null }
-            .forEach { stack ->
-                add(SessionStartSnapshot(stack.navigatorId, stack.parentNavigatorId, stack.all()))
-            }
-        controllerStacks.values
-            .sortedBy { it.navigatorId }
-            .filter { it.top != null }
-            .forEach { stack ->
-                add(SessionStartSnapshot(stack.navigatorId, stack.parentNavigatorId, stack.all()))
+                out.add(SessionStartSnapshot(stack.navigatorId, stack.parentNavigatorId, stack.all()))
             }
     }
 }

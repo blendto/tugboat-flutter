@@ -39,28 +39,11 @@ internal class NavigationChange(
         parentNavigatorId?.let { input.put("parentNavigatorId", it) }
         if (kind == NavigationKind.SessionStart) {
             val routesJson = org.json.JSONArray()
-            routes.forEach { entry ->
-                routesJson.put(
-                    JSONObject()
-                        .put("instanceId", entry.instanceId)
-                        .put("name", entry.routeKey)
-                        .put("type", entry.type)
-                        .put("overlayKind", entry.overlayKind.wire)
-                        .put("transitionMs", TRANSITION_UNKNOWN_MS),
-                )
-            }
+            routes.forEach { entry -> routesJson.put(routeWireJson(entry)) }
             input.put("routes", routesJson)
         } else {
             val visible = route ?: error("route required for $kind")
-            input.put(
-                "route",
-                JSONObject()
-                    .put("instanceId", visible.instanceId)
-                    .put("name", visible.routeKey)
-                    .put("type", visible.type)
-                    .put("overlayKind", visible.overlayKind.wire)
-                    .put("transitionMs", TRANSITION_UNKNOWN_MS),
-            )
+            input.put("route", routeWireJson(visible))
             departing?.let {
                 input.put("departing", JSONObject().put("instanceId", it.instanceId).put("name", it.routeKey).put("type", it.type))
             }
@@ -70,6 +53,14 @@ internal class NavigationChange(
 
     companion object {
         private const val TRANSITION_UNKNOWN_MS = 0
+
+        private fun routeWireJson(entry: RouteEntry): JSONObject =
+            JSONObject()
+                .put("instanceId", entry.instanceId)
+                .put("name", entry.routeKey)
+                .put("type", entry.type)
+                .put("overlayKind", entry.overlayKind.wire)
+                .put("transitionMs", TRANSITION_UNKNOWN_MS)
 
         fun sessionStart(snapshot: SessionStartSnapshot): NavigationChange =
             NavigationChange(

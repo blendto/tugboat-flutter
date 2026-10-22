@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "navigation-session-start-tap-after-seed",
-  "description": "After session_start seeds the visible route, a tap that causes the next push claims that navigation (the seed does not consume the interaction claim).",
+  "description": "After session_start seeds the visible route, a tap settles on that route without a navigation cause and does not advance routeEpoch; a later push can still claim the tap.",
   "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
   "runners": ["cpp"],
   "input": {
@@ -27,16 +27,51 @@
       },
       {"send": {"type": "input.pointer", "at": {"monoUs": 5100000}, "input": {"pointerId": 1, "phase": "down", "x": 100.0, "y": 200.0, "device": "touch"}}, "expect": {"records": [], "effects": []}},
       {
-        "send": {"type": "navigation", "at": {"monoUs": 5120000}, "input": {"kind": "push", "navigatorId": "root", "route": {"instanceId": "a-checkout", "name": "/checkout", "type": "MaterialPageRoute<dynamic>", "overlayKind": "page", "transitionMs": 300}}},
-        "expect": {"records": [], "effects": [{"type": "timer.schedule", "timerId": "navigation.timeout.1", "atMonoUs": 11420000}, {"type": "timer.schedule", "timerId": "navigation.deadline.1", "atMonoUs": 6420000}]}
-      },
-      {
         "send": {"type": "input.pointer", "at": {"monoUs": 5150000}, "input": {"pointerId": 1, "phase": "up", "x": 100.0, "y": 200.0, "device": "touch", "tap": {"anchor": {"fingerprint": "fp-buy", "role": "button"}}}},
-        "expect": {"records": [], "effects": [{"type": "timer.schedule", "timerId": "interaction.sweep", "atMonoUs": 6400000}]}
+        "expect": {"records": [], "effects": [{"type": "timer.schedule", "timerId": "interaction.sweep", "atMonoUs": 6400000}, {"type": "timer.schedule", "timerId": "interaction.settle.event-4", "atMonoUs": 6150000}]}
+      },
+      {"send": {"type": "timer.fired", "at": {"monoUs": 6150000}, "input": {"timerId": "interaction.settle.event-4"}}, "expect": {"records": [], "effects": [{"type": "timer.schedule", "timerId": "interaction.settle.event-4", "atMonoUs": 6400000}]}},
+      {"send": {"type": "timer.fired", "at": {"monoUs": 6400000}, "input": {"timerId": "interaction.sweep"}}, "expect": {"records": [], "effects": []}},
+      {
+        "send": {"type": "timer.fired", "at": {"monoUs": 6400000}, "input": {"timerId": "interaction.settle.event-4"}},
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 6400000,
+              "context": {"routeEpoch": 0, "navigatorId": "nav-0", "routeInstanceId": "route-0", "boundaryGeneration": 0},
+              "scale": 1.0
+            },
+            {"type": "timer.schedule", "timerId": "capture.answer.capture-1", "atMonoUs": 11400000}
+          ]
+        }
       },
       {
-        "send": {"type": "timer.fired", "at": {"monoUs": 6420000}, "input": {"timerId": "navigation.deadline.1"}},
-        "expect": {"records": [], "effects": [{"type": "capture.request", "requestId": "capture-1", "trigger": "route", "force": true, "requireFreshPaint": true, "dropWhenBusy": false, "notBeforeMonoUs": 6420000, "context": {"routeEpoch": 1, "navigatorId": "nav-0", "routeInstanceId": "route-1", "boundaryGeneration": 0}, "scale": 1.0}, {"type": "timer.schedule", "timerId": "capture.answer.capture-1", "atMonoUs": 11420000}]}
+        "send": {"type": "capture.result", "at": {"monoUs": 6450000}, "input": {"requestId": "capture-1", "outcome": "failed"}},
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "targetAnchor": {"role": "button", "fingerprint": "fp-buy"},
+                "data": {"interactionSchema": 2, "gesture": "tap", "route": "/home", "targetFingerprint": "fp-buy"}
+              },
+              "userId": null
+            }
+          ],
+          "effects": [{"type": "timer.cancel", "timerId": "capture.answer.capture-1"}]
+        }
       }
     ]
   },
@@ -47,7 +82,8 @@
       "frames": [],
       "events": [
         {"id": "event-0", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-1781827200000000"},
-        {"id": "event-3", "atMs": 50, "type": "route_change", "stream": "evidence", "captureSessionId": "session-1781827200000000", "result": "unknown", "data": {"route": "/home", "navigation": "session_start", "routeName": "/home", "routeType": "Page", "routeNamed": true, "navigatorId": "nav-0", "routeInstanceId": "route-0", "stackRevision": 1, "overlayKind": "page", "visualObservationGeneration": 1, "navigationOrigin": "automatic_or_unknown", "routeStack": [{"routeInstanceId": "route-0", "route": "/home", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}]}}
+        {"id": "event-3", "atMs": 50, "type": "route_change", "stream": "evidence", "captureSessionId": "session-1781827200000000", "result": "unknown", "data": {"route": "/home", "navigation": "session_start", "routeName": "/home", "routeType": "Page", "routeNamed": true, "navigatorId": "nav-0", "routeInstanceId": "route-0", "stackRevision": 1, "overlayKind": "page", "visualObservationGeneration": 1, "navigationOrigin": "automatic_or_unknown", "routeStack": [{"routeInstanceId": "route-0", "route": "/home", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}]}},
+        {"id": "event-4", "atMs": 100, "type": "interaction", "stream": "semantic", "captureSessionId": "session-1781827200000000", "targetAnchor": {"role": "button", "fingerprint": "fp-buy"}, "data": {"interactionSchema": 2, "gesture": "tap", "route": "/home", "targetFingerprint": "fp-buy"}}
       ]
     }
   }

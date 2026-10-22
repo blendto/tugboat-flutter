@@ -48,12 +48,14 @@ internal class ViewsAdapter(
      */
     private val postNavigationFacts: Boolean = false,
 ) : Application.ActivityLifecycleCallbacks {
+    init {
+        NavigationObservation.ensureInstalled(application)
+    }
+
     private val clock = FactClock(hostClock)
     private val batcher = FactBatcher(sink, frames, ::onFrame)
-    private val anchors by lazy {
-        NavigationObservation.ensureInstalled(application)
-        AnchorResolver(AndroidResourceNames(application.resources), NavigationObservation.routes)
-    }
+    private val anchors =
+        AnchorResolver(AndroidResourceNames(application.resources), NavigationObservation.routesAccessor)
     private val sessions = HashMap<Activity, WindowSession>()
 
     /** Focus is app-wide: every window reports against the same last kind. */
@@ -64,12 +66,12 @@ internal class ViewsAdapter(
     fun start() = AdapterGuard.run("start") {
         if (started) return@run
         NavigationObservation.ensureInstalled(application)
-        NavigationObservation.requestFrame = batcher::requestFrame
         if (postNavigationFacts) {
             NavigationObservation.setRecording(::reportNavigation)
         }
         registerWindowCallbacks()
         started = true
+        NavigationObservation.flushFragments()
         emitSessionStartSeeds()
     }
 

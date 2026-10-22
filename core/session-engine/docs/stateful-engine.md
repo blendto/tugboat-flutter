@@ -490,7 +490,10 @@ top); each `transitionMs` must be `0`; `route` and `departing` must be
 absent. Any other kind must not send `routes`. The engine replays the stack
 like Flutter's retained-route replay: no claim, barrier, transition timers,
 or route capture; it records one `route_change` with `navigation:
-session_start`, `result: unknown`, no `from*` / `fromRoute` fields, and
+session_start`, `result: unknown`, no `fromRoute` / `fromRouteName` /
+`fromRouteType` / `fromRouteNamed` (the seeded replay does not set
+`previous_route` or `from`), `fromRouteInstanceId` when the seeded stack has
+a route below the top (same as Flutter `asSessionStartWireChange`), and
 `navigationOrigin: automatic_or_unknown`. Outside a live session the fact is
 dropped like every event-producing fact. When the navigator already has a
 stack in the current session, the fact is accepted and dropped with no

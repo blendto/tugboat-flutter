@@ -13,3 +13,8 @@ internal class ChoreographerFrames : FrameScheduler {
 
     override fun postFrame(callback: () -> Unit) = choreographer.postFrameCallback { callback() }
 }
+
+/** Runs the callback immediately; unit tests only ([NavigationObservation.resetForTests]). */
+internal object ImmediateFrames : FrameScheduler {
+    override fun postFrame(callback: () -> Unit) = callback()
+}

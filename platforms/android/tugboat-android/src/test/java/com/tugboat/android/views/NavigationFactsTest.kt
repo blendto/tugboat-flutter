@@ -32,6 +32,7 @@ class NavigationFactsTest {
     @Before
     fun setUp() {
         NavigationObservation.resetForTests()
+        NavigationObservation.setFrameSchedulerForTests(frames)
         sink.batches.clear()
         adapter = ViewsAdapter(
             application = context as android.app.Application,

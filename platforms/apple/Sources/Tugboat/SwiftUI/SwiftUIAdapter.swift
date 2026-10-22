@@ -71,6 +71,7 @@ final class SwiftUIAdapter {
     self.resolver = AnchorResolver(tags: tags, screens: screens, accessibility: accessibility)
     self.trackHostingControllers = trackHostingControllers
     self.center = center
+    hostingControllers.bind(screens: screens, clock: hostClock) { [weak self] in self?.batcher.requestFrame() }
     batcher.onFrame { [weak self] in self?.onFrame() }
   }
 
@@ -79,9 +80,6 @@ final class SwiftUIAdapter {
   func start() {
     guard !isStarted else { return }
     isStarted = true
-    screens.beginSession()
-    hostingControllers.beginSession()
-    screens.settle()
     seedSessionStartNavigation()
     screens.isRecording = true
     hostingControllers.isRecording = true
@@ -90,12 +88,6 @@ final class SwiftUIAdapter {
     keyWindowToken = center.addObserver(forName: UIWindow.didBecomeKeyNotification, object: nil, queue: nil) { [weak self] note in
       guard let window = note.object as? UIWindow else { return }
       self?.attach(to: window)
-    }
-    if trackHostingControllers {
-      ViewControllerAppearance.observer = { [weak self] controller, appeared in
-        self?.hostingControllers.controller(controller, appeared: appeared)
-      }
-      ViewControllerAppearance.install()
     }
     SwiftUIAdapter.keyWindows().forEach(attach(to:))
   }
@@ -109,9 +101,6 @@ final class SwiftUIAdapter {
     }
     keyWindowToken = nil
     focus.stop(center: center)
-    if trackHostingControllers {
-      ViewControllerAppearance.observer = nil
-    }
     for attachment in attachments.values {
       attachment.window?.removeGestureRecognizer(attachment.recognizer)
     }
