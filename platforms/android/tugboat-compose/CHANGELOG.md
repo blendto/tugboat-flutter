@@ -4,8 +4,8 @@
 
 Unpublished. The Jetpack Compose adapter for the native Android SDK.
 
-- Public API: `TugboatCompose.install(composeMasking)` (the SDK facade's
-  entry point), `ComposeMasking`, and `Modifier.tugboatTag(...)`.
+- Public API: `TugboatCompose.install(composeMasking)` (the app calls once
+  when it ships this module), `ComposeMasking`, and `Modifier.tugboatTag(...)`.
 - Registers a Compose region with `tugboat-android`'s toolkit-region seam,
   read through `ViewRootForTest.semanticsOwner` (`runCatching`).
 - Masks under `allTextAndMedia`: every Compose host whole by default

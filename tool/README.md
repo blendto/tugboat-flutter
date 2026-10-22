@@ -19,5 +19,6 @@
 - `ci/check-license.sh` — AGPL-3.0-only
 - `ci/dump-android-runtime-api.py` / `verify-android-runtime-api.sh`
 - `ci/verify-swift-api.sh` — public Swift API dump vs `platforms/apple/api.txt`
+  and `platforms/apple/api-tugboat.txt`
 - `ci/pub-dry-run.sh` — `dart pub publish --dry-run` for Flutter packages
 - `release/` — Android runtime release notes; tags `capture-runtime-v*` publish the AAR
