@@ -1,45 +1,3 @@
-## Capture/CaptureAnswer.swift
-extension MaskCoverage
-
-## Capture/CaptureCoordinator.swift
-
-## Capture/CaptureGeometry.swift
-
-## Capture/CaptureResultJSON.swift
-
-## Capture/FrameMasks.swift
-
-## Capture/KeyWindow.swift
-
-## Capture/RuntimeOutcomes.swift
-
-## Capture/StructureProbe.swift
-
-## Capture/StructureSignature.swift
-
-## Capture/SurfaceObserver.swift
-
-## Capture/SurfaceReporter.swift
-
-## Capture/WindowCapturer.swift
-
-## Engine/EngineBridge.swift
-
-## Engine/EngineResponse.swift
-
-## Engine/EngineTransport.swift
-
-## Evidence/EvidenceChannel.swift
-extension EngineHost: EvidenceSink
-
-## Evidence/EvidenceEncoder.swift
-
-## Evidence/EvidenceMessages.swift
-
-## Evidence/HTTPErrorBody.swift
-
-## Evidence/HostParameters.swift
-
 ## Evidence/TugboatAdapters.swift
 public enum TugboatAdapters
   public static var isAcceptingEvidence: Bool
@@ -58,8 +16,6 @@ public final class TugboatEventHook: @unchecked Sendable
 public enum TugboatNetworkFailure: Sendable
   case networkError
   case cancelled
-    case .networkError: return "network_error"
-    case .cancelled: return "cancelled"
 public final class TugboatNetworkCall: @unchecked Sendable
   public func complete(statusCode: Int? = nil, attemptCount: Int? = nil, errorResponseBody: Any? = nil)
   public func fail( _ failure: TugboatNetworkFailure, statusCode: Int? = nil, attemptCount: Int? = nil, errorResponseBody: Any? = nil )
@@ -71,59 +27,7 @@ public enum TugboatParameterPolicy: Sendable
   case transform(@Sendable (_ key: String, _ value: Any) throws -> Any?)
   case allowAll
   public static let drop = TugboatParameterDrop()
-    case .namesOnly: return "names_only"
-    case .allowList: return "allow_list"
-    case .transform: return "transform"
-    case .allowAll: return "allow_all"
 public struct TugboatParameterDrop: Sendable
-
-## Evidence/ValueKind.swift
-extension Optional: AnyOptional
-
-## HTTP/CollectorResponse.swift
-
-## HTTP/HTTPExecutor.swift
-
-## HTTP/HTTPModels.swift
-
-## HTTP/HTTPSessionDelegate.swift
-
-## HTTP/MultipartBody.swift
-extension Data
-
-## Host/CaptureRequestEffect.swift
-
-## Host/Effect.swift
-
-## Host/EffectDispatcher.swift
-
-## Host/EffectParser.swift
-
-## Host/EngineHost.swift
-
-## Host/EngineMessage.swift
-
-## Host/FrameHandleTable.swift
-
-## Host/HostClock.swift
-
-## Host/HostConfig.swift
-
-## Host/HostLog.swift
-
-## Host/HostMessages.swift
-
-## Host/JSONText.swift
-
-## Host/Locked.swift
-
-## Host/TimerExecutor.swift
-
-## Network/DelegateForwarder.swift
-
-## Network/InstrumentedSessionDelegate.swift
-
-## Network/NetworkTaskRecorder.swift
 
 ## Public/SwiftUIAccessibilityIdentity.swift
 public enum SwiftUIAccessibilityIdentity: Equatable
@@ -170,99 +74,6 @@ public struct TugboatConfig
   public enum MaskLevel
     case allTextAndMedia
 
-## Sdk/AppLifecycleBridge.swift
-
-## Sdk/DeviceSnapshot.swift
-extension DeviceSnapshot
-
-## Sdk/EngineConfiguration.swift
-
-## Sdk/HostMetadata.swift
-
-## Sdk/RuntimeParts.swift
-extension TugboatRuntime
-
-## Sdk/SessionEndWatcher.swift
-
-## Sdk/SessionMessages.swift
-
-## Sdk/StopSequence.swift
-
-## Sdk/TugboatRuntime.swift
-
-## SwiftUI/AdapterLog.swift
-
-## SwiftUI/Facts/AdapterFact.swift
-extension EngineHost: FactSink
-
-## SwiftUI/Facts/DisplayLinkFrames.swift
-
-## SwiftUI/Facts/FactBatcher.swift
-
-## SwiftUI/Facts/FactClock.swift
-
-## SwiftUI/Facts/JSONObject.swift
-
-## SwiftUI/Identity/AccessibilityIdentity/AccessibilityIdentitySource.swift
-
-## SwiftUI/Identity/AccessibilityIdentity/AccessibilityProcessState.swift
-
-## SwiftUI/Identity/AccessibilityIdentity/AccessibilityTreeReader.swift
-
-## SwiftUI/Identity/AnchorResolver.swift
-
-## SwiftUI/Identity/CanonicalPath.swift
-
-## SwiftUI/Identity/Confidence.swift
-
-## SwiftUI/Identity/IdentityHash.swift
-
-## SwiftUI/Identity/KnownPlatformViews.swift
-
-## SwiftUI/Identity/RouteKey.swift
-
-## SwiftUI/Identity/TagMarkerView.swift
-
-## SwiftUI/Identity/TagRegistry.swift
-
-## SwiftUI/Identity/TapEvidence.swift
-
-## SwiftUI/Identity/TargetAnchor.swift
-
-## SwiftUI/Identity/ViewKind+Identity.swift
-extension ViewKind
-
-## SwiftUI/Identity/ViewKind.swift
-
-## SwiftUI/Identity/ViewTree.swift
-
-## SwiftUI/Input/FocusObserver.swift
-
-## SwiftUI/Input/GestureConfig.swift
-
-## SwiftUI/Input/PointerContacts.swift
-
-## SwiftUI/Input/PointerFactBuilder.swift
-
-## SwiftUI/Input/TouchSample.swift
-
-## SwiftUI/Input/WindowPointerRecognizer.swift
-
-## SwiftUI/Mask/LayerAllowlist.swift
-
-## SwiftUI/Mask/LayerWalk.swift
-
-## SwiftUI/Mask/MaskAccumulator.swift
-
-## SwiftUI/Mask/MaskCoverage.swift
-extension MaskResult
-
-## SwiftUI/Mask/MaskResult.swift
-
-## SwiftUI/Mask/OpaqueRenderers.swift
-
-## SwiftUI/Mask/WindowMasks.swift
-
 ## SwiftUI/Modifiers/TugboatScreen.swift
 extension View
   public func tugboatScreen(_ name: String) -> some View
@@ -270,32 +81,3 @@ extension View
 ## SwiftUI/Modifiers/TugboatTag.swift
 extension View
   public func tugboatTag(_ tag: String, accessibility: Bool = false) -> some View
-
-## SwiftUI/Navigation/HostingControllerTracker.swift
-
-## SwiftUI/Navigation/NavigationChange.swift
-
-## SwiftUI/Navigation/RouteEntry.swift
-
-## SwiftUI/Navigation/ScreenStack.swift
-
-## SwiftUI/Navigation/ScreenTracker.swift
-
-## SwiftUI/Navigation/ViewControllerAppearance.swift
-extension UIViewController
-
-## SwiftUI/Scroll/ScrollFacts.swift
-
-## SwiftUI/Scroll/ScrollMetrics.swift
-
-## SwiftUI/Scroll/ScrollObserver.swift
-
-## SwiftUI/Scroll/ScrollViewReading.swift
-
-## SwiftUI/Support/IdSequence.swift
-
-## SwiftUI/Support/ObjectIds.swift
-
-## SwiftUI/SwiftUIAdapter.swift
-
-## TugboatVersion.swift

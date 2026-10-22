@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -30,6 +31,16 @@ PUBLIC_MEMBERS = (
     "public static var ",
     "public init(",
 )
+OPEN_MEMBERS = (
+    "open func ",
+    "open static func ",
+    "open var ",
+    "open let ",
+    "open static let ",
+    "open static var ",
+)
+
+_ENUM_CASE = re.compile(r"^case [A-Za-z_]")
 
 
 def _strip_body(line: str) -> str:
@@ -45,33 +56,35 @@ def _fold_signature(lines: list[str], start: int, stripped: str) -> tuple[str, i
     return " ".join(_strip_body(buf).split()), idx
 
 
-def _dump_swift_file(
-    path: pathlib.Path,
-    heading: str,
-    *,
-    track_extensions: bool,
-) -> list[str]:
+def _is_api_member(stripped: str) -> bool:
+    return any(stripped.startswith(prefix) for prefix in PUBLIC_MEMBERS + OPEN_MEMBERS)
+
+
+def _brace_block_end(lines: list[str], start: int) -> int:
+    depth = 0
+    started = False
+    for i in range(start, len(lines)):
+        for ch in lines[i]:
+            if ch == "{":
+                depth += 1
+                started = True
+            elif ch == "}":
+                depth -= 1
+                if started and depth == 0:
+                    return i
+    return len(lines) - 1
+
+
+def _dump_capture_runtime_file(path: pathlib.Path, heading: str) -> list[str]:
+    """Unchanged streaming dump for TugboatCaptureRuntime (golden byte-stable)."""
     lines_out: list[str] = [heading]
     in_enum = False
-    in_extension = False
-    extension_indent = 0
     raw_lines = path.read_text().splitlines()
     idx = 0
     while idx < len(raw_lines):
         raw = raw_lines[idx]
         stripped = raw.strip()
         indent = len(raw) - len(raw.lstrip())
-        if track_extensions and stripped.startswith("extension "):
-            folded, idx = _fold_signature(raw_lines, idx, stripped)
-            lines_out.append(folded)
-            in_extension = True
-            extension_indent = indent
-            idx += 1
-            continue
-        if track_extensions and in_extension and stripped == "}" and indent <= extension_indent:
-            in_extension = False
-            idx += 1
-            continue
         if any(stripped.startswith(prefix) for prefix in PUBLIC_TYPES):
             in_enum = stripped.startswith("public enum ")
             folded, idx = _fold_signature(raw_lines, idx, stripped)
@@ -97,20 +110,92 @@ def _dump_swift_file(
     return lines_out
 
 
-def dump_product(src: pathlib.Path, *, recursive: bool, track_extensions: bool) -> str:
+def _dump_tugboat_file(path: pathlib.Path) -> list[str]:
+    lines_out: list[str] = []
+    in_enum = False
+    raw_lines = path.read_text().splitlines()
+    idx = 0
+    while idx < len(raw_lines):
+        raw = raw_lines[idx]
+        stripped = raw.strip()
+        indent = len(raw) - len(raw.lstrip())
+        if stripped.startswith("public extension ") or stripped.startswith("extension "):
+            is_public_ext = stripped.startswith("public extension ")
+            folded, sig_end = _fold_signature(raw_lines, idx, stripped)
+            extension_indent = indent
+            brace_line = sig_end
+            while brace_line < len(raw_lines) and "{" not in raw_lines[brace_line]:
+                brace_line += 1
+            block_end = _brace_block_end(raw_lines, brace_line)
+            members: list[str] = []
+            inner = extension_indent + 2
+            j = brace_line + 1
+            while j < block_end:
+                inner_raw = raw_lines[j]
+                inner_stripped = inner_raw.strip()
+                inner_indent = len(inner_raw) - len(inner_raw.lstrip())
+                if inner_indent >= inner and _is_api_member(inner_stripped):
+                    folded_member, j = _fold_signature(raw_lines, j, inner_stripped)
+                    member_indent = "  " if inner_indent == 2 else "    "
+                    members.append(member_indent + folded_member)
+                    j += 1
+                    continue
+                j += 1
+            if is_public_ext or members:
+                if is_public_ext:
+                    lines_out.append(folded)
+                else:
+                    header = folded
+                    if header.startswith("public extension "):
+                        header = header[len("public ") :]
+                    lines_out.append(header)
+                lines_out.extend(members)
+            idx = block_end + 1
+            continue
+        if any(stripped.startswith(prefix) for prefix in PUBLIC_TYPES):
+            in_enum = stripped.startswith("public enum ")
+            folded, idx = _fold_signature(raw_lines, idx, stripped)
+            prefix = "  " if indent >= 2 else ""
+            lines_out.append(prefix + folded)
+            idx += 1
+            continue
+        if in_enum and _ENUM_CASE.match(stripped):
+            case_indent = "  " if indent <= 2 else "    "
+            lines_out.append(case_indent + stripped.rstrip(","))
+            idx += 1
+            continue
+        if in_enum and stripped == "}" and indent <= 2:
+            in_enum = False
+            idx += 1
+            continue
+        if indent >= 2 and _is_api_member(stripped):
+            folded, idx = _fold_signature(raw_lines, idx, stripped)
+            member_indent = "  " if indent == 2 else "    "
+            lines_out.append(member_indent + folded)
+        idx += 1
+    if lines_out:
+        lines_out.append("")
+    return lines_out
+
+
+def dump_product(src: pathlib.Path, product: str) -> str:
+    recursive = product == "tugboat"
     if recursive:
         paths = sorted(src.rglob("*.swift"))
     else:
         paths = sorted(src.glob("*.swift"))
     lines_out: list[str] = []
     for path in paths:
-        if recursive:
+        if product == "tugboat":
+            body = _dump_tugboat_file(path)
+            if not body:
+                continue
             heading = f"## {path.relative_to(src).as_posix()}"
-        else:
-            heading = f"## {path.name}"
-        lines_out.extend(
-            _dump_swift_file(path, heading, track_extensions=track_extensions)
-        )
+            lines_out.append(heading)
+            lines_out.extend(body)
+            continue
+        heading = f"## {path.name}"
+        lines_out.extend(_dump_capture_runtime_file(path, heading))
     return "\n".join(lines_out).rstrip() + "\n"
 
 
@@ -127,9 +212,7 @@ def main() -> int:
     if not src.is_dir():
         print(f"::error::{src} is missing", file=sys.stderr)
         return 1
-    recursive = args.product == "tugboat"
-    track_extensions = args.product == "tugboat"
-    sys.stdout.write(dump_product(src, recursive=recursive, track_extensions=track_extensions))
+    sys.stdout.write(dump_product(src, args.product))
     return 0
 
 
