@@ -8,8 +8,12 @@ wiring, window capture, and the Android Views adapter.
 - Public API (`com.tugboat.android`): `Tugboat.start(application,
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
-  `CollectorConfig`, `AppInfo`, `MaskLevel`. Idempotent start; nothing
-  throws into the app.
+  `CollectorConfig`, `AppInfo`, `MaskLevel`, `emitSceneInventory` (default
+  false). Idempotent start; nothing throws into the app.
+- Native scene inventory: when `emitSceneInventory` is true, the Views
+  adapter sends `scene.inventory` after each capture completion and route
+  settle; the engine records deduped `scene_inventory` (`nativeSceneInventory`
+  capability).
 - Coded events and manual network calls: `Tugboat.eventHook(source,
   parameterPolicy).record(name, parameters)` (`external_event`) and
   `Tugboat.beginNetworkCall(method, route)` with `complete(statusCode,

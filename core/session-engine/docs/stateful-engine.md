@@ -175,10 +175,12 @@ content type) are the host's.
 
 ### 4.3 Adapter-produced events
 
-Some evidence is entirely toolkit-produced: `scene_inventory`,
-`viewport_semantic_map`, `scroll_semantic_snapshot`, `network_call`,
-`external_event`, adapter `capture_diagnostic`. These arrive as
-`event.record`:
+Some evidence is toolkit-produced via `event.record`: `viewport_semantic_map`,
+`scroll_semantic_snapshot`, `network_call`, `external_event`, adapter
+`capture_diagnostic`. Native scene inventory uses the `scene.inventory` fact
+instead; the engine records `scene_inventory` and rejects `event.record`
+forgery. Dart exploration still attaches inventory on pointer `down` when
+`sceneInventory` is on. Legacy `event.record` for other toolkit types:
 
 `{eventType, stream, data?, targetAnchor?, atMonoUs?, attachActionContext}`
 

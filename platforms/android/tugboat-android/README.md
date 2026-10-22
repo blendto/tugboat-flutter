@@ -26,6 +26,7 @@ Tugboat.start(application, TugboatConfig(
     maskLevel = MaskLevel.AllTextAndMedia,   // default, the only level
     captureFocusChanges = false,             // engine capability focusChanges
     captureSystemInput = false,              // engine capability systemInput
+    emitSceneInventory = false,              // engine capability nativeSceneInventory
 ))
 Tugboat.setUserId(id); Tugboat.setTraits(map); Tugboat.stop()
 Tugboat.trackNavigation(navController)       // Jetpack Navigation, optional
@@ -320,6 +321,7 @@ interface ToolkitRegion {
     fun scrollablesAt(host: View, x: Float, y: Float): List<RegionScrollable> // live offset readers
     fun masks(host: View): RegionMasks        // Rects(rects, reasons) | WholeHost(reason) | WholeFrame(reason)
     fun focus(host: View): RegionFocus?       // TextInput | Other
+    fun inventory(host: View): List<RegionInventoryEntry>  // scene inventory; default empty
 }
 ```
 

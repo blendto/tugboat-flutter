@@ -26,6 +26,7 @@ class SampleApplication : Application() {
                 ),
                 captureFocusChanges = true,
                 captureSystemInput = true,
+                emitSceneInventory = true,
             ),
         )
         // Compose hosts are read by the Compose adapter, masked whole by default;
