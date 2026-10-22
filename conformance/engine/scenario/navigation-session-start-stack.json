@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "navigation-session-start-stack",
-  "description": "session_start replays a two-route stack without route capture or navigation timers, then records one route_change with navigation session_start, result unknown, no from* fields, and visualObservationGeneration 2.",
+  "description": "session_start replays a two-route stack without route capture or navigation timers, then records one route_change with navigation session_start, result unknown, fromRouteInstanceId for the route below the top, and visualObservationGeneration 2.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6

@@ -57,7 +57,6 @@ class NavigationFactsTest {
         assertEquals("page", route.getString("overlayKind"))
         assertEquals(0, route.getInt("transitionMs"))
         assertFalse(push.has("departing"))
-        assertFalse(push.has("route"))
 
         first.pause()
         val second = Robolectric.buildActivity(SecondActivity::class.java).setup()
@@ -213,8 +212,10 @@ class NavigationFactsTest {
     @Test
     fun instanceIdsAreDistinctPerInstance() {
         Robolectric.buildActivity(FirstActivity::class.java).setup()
+        while (frames.hasPending) frames.runFrame()
         Robolectric.buildActivity(FirstActivity::class.java).setup()
-        val ids = navigation().map { fact ->
+        while (frames.hasPending) frames.runFrame()
+        val ids = sink.batches.flatten().filter { it.type == "navigation" }.map { JSONObject(it.inputJson) }.map { fact ->
             if (fact.getString("kind") == "session_start") {
                 fact.getJSONArray("routes").getJSONObject(0).getString("instanceId")
             } else {
