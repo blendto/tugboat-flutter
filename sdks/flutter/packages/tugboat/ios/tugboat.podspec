@@ -4,6 +4,9 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'tugboat'
+  # Not kept in sync with pubspec.yaml: path pods ignore the plugin podspec
+  # version; release policy tracks sdks/flutter/packages/tugboat/pubspec.yaml
+  # and the TugboatCaptureRuntime dependency pin below.
   s.version          = '0.8.17'
   s.summary          = 'Screenshot-based session replay with compact interaction anchors for Tugboat.'
   s.description      = <<-DESC
