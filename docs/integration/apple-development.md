@@ -22,9 +22,16 @@ Do not copy `core/image-processing` into the published pub package. The
 Flutter plugin pins CocoaPods `TugboatCaptureRuntime` `0.1.1` in
 `tugboat.podspec` (intentionally older than root `s.version` until trunk
 publish and a pin PR). It requires iOS 15. The example app path-overrides
-the pod to this repository. Native capture still reports unsupported below
-iOS 15 on devices that somehow run a lower OS; hosts must set iOS 15 as the
-floor.
+the pod to this repository.
+
+The plugin podspec's own `s.version` (for example `0.8.17` in
+`sdks/flutter/packages/tugboat/ios/tugboat.podspec`) is not kept in sync with
+`pubspec.yaml`: CocoaPods ignores it for path pods, and
+`tool/ci/check-version-policy.sh` tracks the Dart package version plus the
+`TugboatCaptureRuntime` dependency pin, not the plugin podspec version field.
+
+Native capture still reports unsupported below iOS 15 on devices that somehow
+run a lower OS; hosts must set iOS 15 as the floor.
 
 ## Capture
 

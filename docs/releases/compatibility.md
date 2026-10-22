@@ -2,7 +2,6 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
-| Flutter `tugboat` | 0.10.11-dev.5 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease documenting that the plugin podspec `s.version` is not tied to pubspec (path pods); no behaviour change. |
 | Flutter `tugboat` | 0.10.11-dev.4 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease adding the `.tugboatTag` / `.tugboatSensitive` / `.tugboatSubView` marker extensions and an opt-in `accessibility` identifier on tags; no default behaviour change. |
 | Flutter `tugboat` | 0.10.11-dev.3 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease with a test-only collector sink wall clock; no behaviour change. |
 | Flutter `tugboat` | 0.10.11-dev.2 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease; the Android plugin also compiles against newer runtime enum values; no behaviour change. |
