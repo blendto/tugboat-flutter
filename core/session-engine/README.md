@@ -492,7 +492,7 @@ validated. `host.configuredUserId` is the runtime user id until
 | `navigation` | `routeBarrierTimeoutMs` 5000, `routeStackLimit` 16 |
 | `capture` | `budgetMs` 60, `budgetWindowMs` 5000, `degradedScale` 0.8, `answerTimeoutMs` 5000 (change C18) |
 | `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 20, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false, `answerGraceMs` 5000 |
-| `capabilities` | `sceneInventory`, `viewportSemanticMap`, `captureDiagnostics`, `actionContext`, `focusChanges`, `systemInput`, all false |
+| `capabilities` | `sceneInventory`, `nativeSceneInventory`, `viewportSemanticMap`, `captureDiagnostics`, `actionContext`, `focusChanges`, `systemInput`, all false |
 
 Durations are milliseconds in [0, 86400000]; counts are in [1, 1000000].
 
