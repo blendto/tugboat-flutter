@@ -85,4 +85,19 @@ class ComposeRegionTest {
         assertTrue(region.hosts(host))
         assertTrue(!region.hosts(host.parent as ViewGroup))
     }
+
+    @Test
+    fun inventoryListsTheInteractiveControlInWholeHostMode() {
+        val entries = ComposeRegion(ComposeMasking.WholeHost).inventory(host)
+        assertTrue(entries.any { it.tier == "interactive" && it.actions.isNotEmpty() })
+        assertTrue(entries.none { it.widgetType.contains("Pay", ignoreCase = true) })
+    }
+
+    @Test
+    fun inventoryListsTheInteractiveControlInSemanticsMaskingMode() {
+        val entries =
+            ComposeRegion(ComposeMasking.SemanticsBestEffort, versionVerified = { true }).inventory(host)
+        assertTrue(entries.any { it.tier == "interactive" && it.actions.isNotEmpty() })
+        assertTrue(entries.none { it.pathSegments.any { segment -> segment.contains("Pay") } })
+    }
 }
