@@ -824,6 +824,7 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C17 | Navigator and route-instance ids are per session | A route object keeps its `route-N` across sessions (`Expando`) while the counter restarts, so ids can collide | yes: `routeInstanceId` of a route seen in an earlier session | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C18 | Capture answer deadline: a `capture.request` unanswered `capture.answerTimeoutMs` (default 5000) after it was issued resolves as `paint_readiness_timeout` with `capture_diagnostic` `failure: answer_timeout` (always recorded); a late answer is ignored (frame released) | No deadline (the frame wait times out on the UI thread) | yes: a route or interaction whose capture the host dropped is recorded without a frame instead of never | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C19 | A `network_call` from `evidence.networkCall` is stamped with the call's start (`startMonoUs`) | Dart stamps `atMs` when the call finishes | yes: `triggeredAt` of native network calls is the request start | Yes (engine-only; decided by the ADR 0009 orchestrator for native evidence 2026-10-16) |
+| C20 | `scene.inventory` facts are capped at `limits.maxSceneInventoryElements` (default 500) before `inventoryHash` and `scene_inventory` are recorded | Dart has no element cap | yes: native inventory size bound | Yes (engine-only; native scene inventory 2026-10-22) |
 
 ## 12. Open questions and decisions
 

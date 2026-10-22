@@ -41,6 +41,7 @@ internal object EngineConfiguration {
                 "capabilities",
                 JSONObject()
                     .put("focusChanges", config.captureFocusChanges)
-                    .put("systemInput", config.captureSystemInput),
+                    .put("systemInput", config.captureSystemInput)
+                    .put("nativeSceneInventory", config.emitSceneInventory),
             )
 }

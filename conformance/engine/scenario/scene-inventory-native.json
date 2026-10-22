@@ -1,0 +1,292 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "scene-inventory-native",
+  "description": "Native scene.inventory is gated on capabilities.nativeSceneInventory, dedupes per routeKey|inventoryHash|, truncates to limits.maxSceneInventoryElements (C20), and rejects event.record forgery of scene_inventory.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": ["cpp"],
+  "engineOnly": ["C20"],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      },
+      "capabilities": {
+        "nativeSceneInventory": true
+      },
+      "limits": {
+        "maxSceneInventoryElements": 1
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6000000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": ["tap"]
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "TextView#0",
+                "boundsNorm": {
+                  "left": 0.2,
+                  "top": 0.3,
+                  "width": 0.2,
+                  "height": 0.05
+                },
+                "tier": "content",
+                "role": "display"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 1000,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "routeKey": "/home",
+                  "inventoryHash": "0c0beacef8877bbf",
+                  "elements": [
+                    {
+                      "fingerprint": "aaaaaaaaaaaaaaaa",
+                      "canonicalPath": "Button#0",
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive",
+                      "actions": ["tap"]
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        },
+        "note": "C20: only the first element is kept when maxSceneInventoryElements is 1; hash is over surviving fingerprints."
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6100000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": ["tap"]
+              }
+            ]
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        },
+        "note": "Deduped route|hash."
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 6200000
+          },
+          "input": {
+            "eventType": "scene_inventory",
+            "stream": "evidence",
+            "attachActionContext": false
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.eventType"
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        },
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-2",
+          "atMs": 1000,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "routeKey": "/home",
+            "inventoryHash": "0c0beacef8877bbf",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": ["tap"]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

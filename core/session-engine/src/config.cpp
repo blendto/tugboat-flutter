@@ -134,7 +134,8 @@ bool decode_group(const ObjectReader& parent, const char* name,
 GroupSpec limits_spec(LimitsConfig* c) {
   return {{count("maxEvents", &c->max_events),
            count("maxFrames", &c->max_frames),
-           count("maxScrollSamples", &c->max_scroll_samples)},
+           count("maxScrollSamples", &c->max_scroll_samples),
+           count("maxSceneInventoryElements", &c->max_scene_inventory_elements)},
           {},
           {}};
 }
@@ -197,6 +198,7 @@ GroupSpec capabilities_spec(Capabilities* c) {
   return {{},
           {},
           {{"sceneInventory", &c->scene_inventory},
+           {"nativeSceneInventory", &c->native_scene_inventory},
            {"viewportSemanticMap", &c->viewport_semantic_map},
            {"captureDiagnostics", &c->capture_diagnostics},
            {"actionContext", &c->action_context},

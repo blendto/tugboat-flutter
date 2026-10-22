@@ -47,6 +47,7 @@ constexpr char kScenarioKind[] = "engine.scenario";
 const std::map<std::string, std::string> kKindDirectories = {
     {"fingerprint.identityParts", "fingerprint/identity_parts"},
     {"fingerprint.labelHash", "fingerprint/label_hash"},
+    {"fingerprint.inventoryHash", "fingerprint/inventory_hash"},
     {"collector.event", "collector/event"},
     {"collector.sessionLifecycle", "collector/session_lifecycle"},
     {kScenarioKind, "engine/scenario"},

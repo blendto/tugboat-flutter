@@ -100,7 +100,10 @@ class HostMetadataTest {
         assertEquals(gesture.toEngineJson().toString(), configure.getJSONObject("gesture").toString())
         assertEquals(5000, configure.getJSONObject("capture").getInt("answerTimeoutMs"))
         assertTrue(configure.getJSONObject("collector").getBoolean("enabled"))
-        assertEquals("""{"focusChanges":true,"systemInput":true}""", configure.getJSONObject("capabilities").toString())
+        assertEquals(
+            """{"focusChanges":true,"systemInput":true,"nativeSceneInventory":false}""",
+            configure.getJSONObject("capabilities").toString(),
+        )
         assertEquals("""{"maxEvents":5000,"maxFrames":500,"maxScrollSamples":200}""", configure.getJSONObject("limits").toString())
     }
 

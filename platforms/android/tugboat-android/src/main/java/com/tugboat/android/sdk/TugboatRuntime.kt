@@ -136,6 +136,7 @@ internal class TugboatRuntime private constructor(
                 sink = FactSink { batch -> host.postBatch(batch) },
                 gesture = gesture,
                 postNavigationFacts = true,
+                emitSceneInventory = config.emitSceneInventory,
             )
             val surfaces = SurfaceReporter { input -> host.post(SurfaceReporter.FACT_TYPE, input, clock.now()) }
             val foreground = ForegroundWindow(application, surfaces::observe)
@@ -149,6 +150,9 @@ internal class TugboatRuntime private constructor(
                 frames = frames,
                 answer = { answer ->
                     host.post(HostMessages.CAPTURE_RESULT, answer.toInputJson(), clock.now(), answer.frameHandles)
+                    if (answer is com.tugboat.android.capture.CaptureAnswer.Captured) {
+                        foreground.window?.let(adapter::maybeEmitSceneInventory)
+                    }
                 },
             )
             host = EngineHost.start(transport, frames, http = watcher, captures = captures)

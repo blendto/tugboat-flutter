@@ -13,6 +13,8 @@ data class TugboatConfig @JvmOverloads constructor(
     val captureFocusChanges: Boolean = false,
     /** Records `system_input` for allowlisted keys such as back (engine capability `systemInput`). */
     val captureSystemInput: Boolean = false,
+    /** Emits native `scene.inventory` facts after captures and route settles (engine capability `nativeSceneInventory`). */
+    val emitSceneInventory: Boolean = false,
 )
 
 /** The collector the SDK delivers to. */

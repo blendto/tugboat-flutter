@@ -18,6 +18,7 @@ const int conformanceFixtureFormat = 1;
 enum ConformanceKind {
   identityParts('fingerprint.identityParts', 'fingerprint/identity_parts'),
   labelHash('fingerprint.labelHash', 'fingerprint/label_hash'),
+  inventoryHash('fingerprint.inventoryHash', 'fingerprint/inventory_hash'),
   collectorEvent('collector.event', 'collector/event'),
   sessionLifecycle('collector.sessionLifecycle', 'collector/session_lifecycle'),
   engineScenario('engine.scenario', 'engine/scenario'),
@@ -241,6 +242,12 @@ Map<String, Object?> evaluateFixture(ConformanceFixture fixture) {
       return {
         'hash': tugboatLabelHash(_requireString(input, 'value', 'input')),
       };
+    case ConformanceKind.inventoryHash:
+      _checkKeys(input, const {'fingerprints'}, 'input');
+      final raw = _list(input['fingerprints'], 'input.fingerprints');
+      final fingerprints = raw.map((v) => _requireString(v, 'fingerprints', 'input')).toList()
+        ..sort();
+      return {'hash': tugboatLabelHash(fingerprints.join('|'))};
     case ConformanceKind.collectorEvent:
       return _evaluateCollectorEvent(input);
     case ConformanceKind.sessionLifecycle:

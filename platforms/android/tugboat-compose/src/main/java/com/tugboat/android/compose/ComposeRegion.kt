@@ -2,6 +2,7 @@ package com.tugboat.android.compose
 
 import android.view.View
 import com.tugboat.android.compose.focus.ComposeFocus
+import com.tugboat.android.compose.inventory.ComposeInventory
 import com.tugboat.android.compose.identity.NodeTargets
 import com.tugboat.android.compose.mask.ComposeMasks
 import com.tugboat.android.compose.mask.InteropViews
@@ -56,4 +57,7 @@ internal class ComposeRegion(
         }
 
     override fun focus(host: View): RegionFocus? = ComposeFocus.of(semantics.unmergedRoot(host))
+
+    override fun inventory(host: View): List<com.tugboat.android.toolkit.RegionInventoryEntry> =
+        ComposeInventory.of(host, semantics.mergedRoot(host))
 }

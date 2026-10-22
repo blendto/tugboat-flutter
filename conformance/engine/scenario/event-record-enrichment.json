@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "event-record-enrichment",
-  "description": "event.record mints the id, computes atMs, and enriches like _addEvent: the current locale is stamped, and the capture session, activation, and exploration ids are stamped with attachActionContext true or false. stream, data, and targetAnchor pass through; empty data is omitted.",
+  "description": "event.record mints the id, computes atMs, and enriches like _addEvent: the current locale is stamped, and the capture session, activation, and exploration ids are stamped with attachActionContext true or false. stream, data, and targetAnchor pass through; empty data is omitted. scene_inventory is engine-owned and cannot be forged through event.record.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -245,42 +245,10 @@
           }
         },
         "expect": {
-          "records": [
-            {
-              "kind": "event",
-              "event": {
-                "id": "event-4",
-                "atMs": 750,
-                "type": "scene_inventory",
-                "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "activationRequestId": "activation-7",
-                "targetAnchor": {
-                  "widgetType": "FilledButton",
-                  "role": "button",
-                  "fingerprint": "0123456789abcdef",
-                  "fingerprintConfidence": "high",
-                  "fingerprintParts": {
-                    "routeKey": "/checkout"
-                  },
-                  "canonicalPath": "Scaffold/Center/FilledButton",
-                  "relativePosition": "center",
-                  "enabled": true,
-                  "actions": [
-                    "tap"
-                  ]
-                },
-                "locale": {
-                  "language": "en",
-                  "country": "US",
-                  "tag": "en-US"
-                },
-                "explorationRunId": "run-7"
-              },
-              "userId": null
-            }
-          ],
-          "effects": []
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.eventType"
+          }
         }
       },
       {
@@ -300,7 +268,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-4",
                 "atMs": 1000,
                 "type": "viewport_semantic_map",
                 "stream": "semantic",
@@ -415,35 +383,6 @@
         },
         {
           "id": "event-4",
-          "atMs": 750,
-          "type": "scene_inventory",
-          "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "activationRequestId": "activation-7",
-          "targetAnchor": {
-            "widgetType": "FilledButton",
-            "role": "button",
-            "fingerprint": "0123456789abcdef",
-            "fingerprintConfidence": "high",
-            "fingerprintParts": {
-              "routeKey": "/checkout"
-            },
-            "canonicalPath": "Scaffold/Center/FilledButton",
-            "relativePosition": "center",
-            "enabled": true,
-            "actions": [
-              "tap"
-            ]
-          },
-          "locale": {
-            "language": "en",
-            "country": "US",
-            "tag": "en-US"
-          },
-          "explorationRunId": "run-7"
-        },
-        {
-          "id": "event-5",
           "atMs": 1000,
           "type": "viewport_semantic_map",
           "stream": "semantic",

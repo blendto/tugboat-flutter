@@ -11,9 +11,11 @@ import com.tugboat.android.views.facts.FactBatcher
 import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.FactSink
 import com.tugboat.android.views.facts.FrameScheduler
+import com.tugboat.android.views.facts.FactTypes
 import com.tugboat.android.views.facts.ViewsFact
 import com.tugboat.android.views.identity.AnchorResolver
 import com.tugboat.android.views.identity.AndroidResourceNames
+import com.tugboat.android.views.identity.CanonicalPathBuilder
 import com.tugboat.android.views.input.FocusState
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.mask.WindowMaskResult
@@ -24,6 +26,7 @@ import com.tugboat.android.views.navigation.DestinationTracker
 import com.tugboat.android.views.navigation.FragmentNavigation
 import com.tugboat.android.views.navigation.NavEntry
 import com.tugboat.android.views.navigation.NavigationChange
+import com.tugboat.android.views.inventory.SceneInventoryBuilder
 import com.tugboat.android.views.navigation.ViewRouteResolver
 
 /**
@@ -50,12 +53,16 @@ internal class ViewsAdapter(
      * TODO(ADR 0009 phase 3d): default to true once the engine accepts `navigation`.
      */
     private val postNavigationFacts: Boolean = false,
+    private val emitSceneInventory: Boolean = false,
 ) : Application.ActivityLifecycleCallbacks {
     private val clock = FactClock(hostClock)
     private val batcher = FactBatcher(sink, frames, ::onFrame)
     private val destinations = DestinationTracker()
     private val routes = ViewRouteResolver(destinations) { view -> fragments?.routeRootedAt(view) }
-    private val anchors = AnchorResolver(AndroidResourceNames(application.resources), routes)
+    private val names = AndroidResourceNames(application.resources)
+    private val paths = CanonicalPathBuilder(names)
+    private val anchors = AnchorResolver(names, routes)
+    private val sceneInventory = SceneInventoryBuilder(names, routes, paths, anchors)
     private val activities = ActivityNavigation(::reportNavigation)
     private val controllers = ControllerNavigation(::reportNavigation)
     private val fragments =
@@ -116,7 +123,15 @@ internal class ViewsAdapter(
             val navigatorId = ControllerNavigation.navigatorIdFor(activities.ensureEntry(activity).instanceId)
             val routeKey = destinations.routeKey(activity, current.route, current.destinationId) ?: ControllerNavigation.TYPE
             controllers.onDestinationChanged(navigatorId, activities.navigatorIdOf(activity), current, routeKey, previous)
+            maybeEmitSceneInventory(activity.window)
         }
+
+    /** After a captured frame or a route settle, when [emitSceneInventory] is enabled. */
+    fun maybeEmitSceneInventory(window: Window) = AdapterGuard.run("scene inventory") {
+        if (!emitSceneInventory || !started) return@run
+        val input = sceneInventory.build(window) ?: return@run
+        emit(ViewsFact(FactTypes.SCENE_INVENTORY, input, clock.now()))
+    }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
         AdapterGuard.run("activity created") {
