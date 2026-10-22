@@ -51,7 +51,7 @@ struct NavigationChange: Equatable {
       for entry in routes {
         var routeJSON = NavigationChange.entryJSON(entry)
         routeJSON.set("overlayKind", "page")
-        routeJSON.set("transitionMs", 0)
+        routeJSON.set("transitionMs", Int64(0))
         routesJSON.append(routeJSON)
       }
       input.set("routes", .array(routesJSON.map { .object($0) }))
