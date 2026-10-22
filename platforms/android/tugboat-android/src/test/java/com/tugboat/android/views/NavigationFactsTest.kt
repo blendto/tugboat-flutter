@@ -10,7 +10,9 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.tugboat.android.host.FakeClock
 import org.json.JSONObject
+import com.tugboat.android.views.navigation.NavigationProcessState
 import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -33,6 +35,9 @@ class NavigationFactsTest {
         postNavigationFacts = true,
     ).apply { start() }
 
+    @Before
+    fun resetProcessNavigation() = NavigationProcessState.resetForTests()
+
     @After
     fun stop() = adapter.stop()
 
@@ -40,14 +45,16 @@ class NavigationFactsTest {
     fun activityStartIsAPushAndBackIsAPop() {
         val first = Robolectric.buildActivity(FirstActivity::class.java).setup()
         val push = navigation().single()
-        assertEquals("push", push.getString("kind"))
+        assertEquals("session_start", push.getString("kind"))
+        assertTrue(push.has("routes"))
         assertEquals("activities:${first.get().taskId}", push.getString("navigatorId"))
-        val route = push.getJSONObject("route")
+        val route = push.getJSONArray("routes").getJSONObject(0)
         assertEquals(FirstActivity::class.java.name, route.getString("name"))
         assertEquals("Activity", route.getString("type"))
         assertEquals("page", route.getString("overlayKind"))
         assertEquals(0, route.getInt("transitionMs"))
         assertFalse(push.has("departing"))
+        assertFalse(push.has("route"))
 
         first.pause()
         val second = Robolectric.buildActivity(SecondActivity::class.java).setup()
@@ -205,7 +212,13 @@ class NavigationFactsTest {
     fun instanceIdsAreDistinctPerInstance() {
         Robolectric.buildActivity(FirstActivity::class.java).setup()
         Robolectric.buildActivity(FirstActivity::class.java).setup()
-        val ids = navigation().map { it.getJSONObject("route").getString("instanceId") }
+        val ids = navigation().map { fact ->
+            if (fact.getString("kind") == "session_start") {
+                fact.getJSONArray("routes").getJSONObject(0).getString("instanceId")
+            } else {
+                fact.getJSONObject("route").getString("instanceId")
+            }
+        }
         assertEquals(2, ids.size)
         assertNotEquals(ids[0], ids[1])
     }

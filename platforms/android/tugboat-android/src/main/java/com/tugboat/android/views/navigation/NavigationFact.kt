@@ -11,6 +11,7 @@ internal enum class NavigationKind(val wire: String) {
     Pop("pop"),
     Replace("replace"),
     Remove("remove"),
+    SessionStart("session_start"),
 }
 
 /**
@@ -27,32 +28,59 @@ internal class NavigationChange(
     val kind: NavigationKind,
     val navigatorId: String,
     val parentNavigatorId: String?,
-    val route: RouteEntry,
+    val route: RouteEntry?,
     val departing: RouteEntry?,
+    val routes: List<RouteEntry> = emptyList(),
 ) {
     fun toFact(at: HostTime): ViewsFact {
         val input = JSONObject()
             .put("kind", kind.wire)
             .put("navigatorId", navigatorId)
         parentNavigatorId?.let { input.put("parentNavigatorId", it) }
-        input.put(
-            "route",
-            JSONObject()
-                .put("instanceId", route.instanceId)
-                .put("name", route.routeKey)
-                .put("type", route.type)
-                .put("overlayKind", route.overlayKind.wire)
-                .put("transitionMs", TRANSITION_UNKNOWN_MS),
-        )
-        departing?.let {
-            input.put("departing", JSONObject().put("instanceId", it.instanceId).put("name", it.routeKey).put("type", it.type))
+        if (kind == NavigationKind.SessionStart) {
+            val routesJson = org.json.JSONArray()
+            routes.forEach { entry ->
+                routesJson.put(
+                    JSONObject()
+                        .put("instanceId", entry.instanceId)
+                        .put("name", entry.routeKey)
+                        .put("type", entry.type)
+                        .put("overlayKind", entry.overlayKind.wire)
+                        .put("transitionMs", TRANSITION_UNKNOWN_MS),
+                )
+            }
+            input.put("routes", routesJson)
+        } else {
+            val visible = route ?: error("route required for $kind")
+            input.put(
+                "route",
+                JSONObject()
+                    .put("instanceId", visible.instanceId)
+                    .put("name", visible.routeKey)
+                    .put("type", visible.type)
+                    .put("overlayKind", visible.overlayKind.wire)
+                    .put("transitionMs", TRANSITION_UNKNOWN_MS),
+            )
+            departing?.let {
+                input.put("departing", JSONObject().put("instanceId", it.instanceId).put("name", it.routeKey).put("type", it.type))
+            }
         }
         return ViewsFact(FactTypes.NAVIGATION, input, at)
     }
 
-    override fun toString(): String = "${kind.wire} $navigatorId $route <- $departing"
+    companion object {
+        private const val TRANSITION_UNKNOWN_MS = 0
 
-    private companion object {
-        const val TRANSITION_UNKNOWN_MS = 0
+        fun sessionStart(snapshot: SessionStartSnapshot): NavigationChange =
+            NavigationChange(
+                kind = NavigationKind.SessionStart,
+                navigatorId = snapshot.navigatorId,
+                parentNavigatorId = snapshot.parentNavigatorId,
+                route = null,
+                departing = null,
+                routes = snapshot.routes,
+            )
     }
+
+    override fun toString(): String = "${kind.wire} $navigatorId $route <- $departing"
 }

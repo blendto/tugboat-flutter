@@ -21,6 +21,7 @@ final class HostingControllerTracker {
   private let emit: (AdapterFact) -> Void
   private var stack = ScreenStack(navigatorId: HostingControllerTracker.navigatorId)
   private let ids = ObjectIds(prefix: "swiftui-host")
+  private var seeded = false
 
   init(screens: ScreenTracker, clock: FactClock, emit: @escaping (AdapterFact) -> Void) {
     self.screens = screens
@@ -46,8 +47,25 @@ final class HostingControllerTracker {
       change = stack.disappeared(instanceId: known)
     }
     if let change = change {
-      emit(change.fact(at: clock.now()))
+      let toEmit: NavigationChange
+      if change.kind == .push, !seeded {
+        seeded = true
+        toEmit = NavigationChange(sessionStart: HostingControllerTracker.navigatorId, routes: stack.entries)
+      } else {
+        toEmit = change
+      }
+      emit(toEmit.fact(at: clock.now()))
     }
+  }
+
+  func beginSession() {
+    seeded = false
+  }
+
+  func sessionStartFact(at: HostTime) -> AdapterFact? {
+    guard !screens.hasSeenScreen, !stack.entries.isEmpty else { return nil }
+    seeded = true
+    return NavigationChange(sessionStart: HostingControllerTracker.navigatorId, routes: stack.entries).fact(at: at)
   }
 
   private func coversWindow(_ controller: UIViewController) -> Bool {

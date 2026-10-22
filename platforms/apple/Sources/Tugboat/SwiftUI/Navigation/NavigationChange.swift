@@ -4,6 +4,7 @@
 enum NavigationKind: String {
   case push
   case pop
+  case sessionStart = "session_start"
 }
 
 /// One stack change, as the engine's navigation fact (stateful-engine.md
@@ -21,19 +22,48 @@ struct NavigationChange: Equatable {
 
   let kind: NavigationKind
   let navigatorId: String
-  let route: RouteEntry
+  let route: RouteEntry?
   let departing: RouteEntry?
+  let routes: [RouteEntry]
+
+  init(kind: NavigationKind, navigatorId: String, route: RouteEntry, departing: RouteEntry?) {
+    self.kind = kind
+    self.navigatorId = navigatorId
+    self.route = route
+    self.departing = departing
+    self.routes = []
+  }
+
+  init(sessionStart navigatorId: String, routes: [RouteEntry]) {
+    self.kind = .sessionStart
+    self.navigatorId = navigatorId
+    self.route = nil
+    self.departing = nil
+    self.routes = routes
+  }
 
   func fact(at: HostTime) -> AdapterFact {
     var input = JSONObject()
     input.set("kind", kind.rawValue)
     input.set("navigatorId", navigatorId)
-    var routeJSON = NavigationChange.entryJSON(route)
-    routeJSON.set("overlayKind", "page")
-    routeJSON.set("transitionMs", departing == nil ? 0 : NavigationChange.transitionMs)
-    input.set("route", routeJSON)
-    if let departing = departing {
-      input.set("departing", NavigationChange.entryJSON(departing))
+    if kind == .sessionStart {
+      var routesJSON = [JSONObject]()
+      for entry in routes {
+        var routeJSON = NavigationChange.entryJSON(entry)
+        routeJSON.set("overlayKind", "page")
+        routeJSON.set("transitionMs", 0)
+        routesJSON.append(routeJSON)
+      }
+      input.set("routes", routesJSON)
+    } else {
+      guard let route = route else { fatalError("route required for \(kind)") }
+      var routeJSON = NavigationChange.entryJSON(route)
+      routeJSON.set("overlayKind", "page")
+      routeJSON.set("transitionMs", departing == nil ? 0 : NavigationChange.transitionMs)
+      input.set("route", routeJSON)
+      if let departing = departing {
+        input.set("departing", NavigationChange.entryJSON(departing))
+      }
     }
     return AdapterFact(type: FactTypes.navigation, input: input, at: at)
   }

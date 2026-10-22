@@ -84,6 +84,9 @@ final class SwiftUIAdapter {
     guard !isStarted else { return }
     isStarted = true
     screens.isRecording = true
+    screens.beginSession()
+    hostingControllers.beginSession()
+    seedSessionStartNavigation()
     screens.onEvent = { [weak self] in self?.batcher.requestFrame() }
     focus.start(center: center)
     keyWindowToken = center.addObserver(forName: UIWindow.didBecomeKeyNotification, object: nil, queue: nil) { [weak self] note in
@@ -120,6 +123,16 @@ final class SwiftUIAdapter {
     batcher.close()
     screens.isRecording = false
     screens.onEvent = nil
+  }
+
+  private func seedSessionStartNavigation() {
+    let at = clock.now()
+    if let fact = screens.sessionStartFact(at: at) {
+      batcher.add(fact)
+    }
+    if trackHostingControllers, let fact = hostingControllers.sessionStartFact(at: at) {
+      batcher.add(fact)
+    }
   }
 
   /// Mask rectangles for `window` under `allTextAndMedia`; called on the

@@ -543,6 +543,39 @@ void test_secure_window_with_capability() {
   tb_session_engine_destroy(engine);
 }
 
+void test_session_start_navigation() {
+  tb_session_engine* engine = unit::make_engine();
+  CHECK(engine != nullptr);
+  CHECK(unit::submit(
+            engine,
+            "{\"type\":\"engine.configure\",\"input\":{\"host\":{\"app\":{"
+            "\"name\":\"a\",\"version\":\"1\",\"buildNumber\":\"7\","
+            "\"installationId\":\"i\",\"appId\":\"x\"},\"device\":{\"id\":"
+            "\"d\",\"platform\":\"android\",\"screenSize\":{\"width\":1,"
+            "\"height\":1},\"screenDensity\":1,\"screenDpi\":1,"
+            "\"screenPixelDensity\":1},\"ip\":{\"ip\":\"0\"},"
+            "\"locale\":{}}}}")
+            .status == TB_SESSION_OK);
+  CHECK(unit::submit(
+            engine,
+            "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
+            "\"input\":{\"viewport\":{\"width\":1,\"height\":1},"
+            "\"platform\":\"android\",\"sessionEpoch\":0}}")
+            .status == TB_SESSION_OK);
+  const unit::Response seeded = unit::submit(
+      engine,
+      "{\"type\":\"navigation\",\"at\":{\"monoUs\":1000},\"input\":{"
+      "\"kind\":\"session_start\",\"navigatorId\":\"root\",\"routes\":[{"
+      "\"instanceId\":\"a\",\"name\":\"/home\",\"type\":\"Page\","
+      "\"overlayKind\":\"page\",\"transitionMs\":0}]}}");
+  CHECK(seeded.status == TB_SESSION_OK);
+  CHECK(unit::contains(seeded.json, "\"navigation\":\"session_start\""));
+  CHECK(unit::contains(seeded.json, "\"result\":\"unknown\""));
+  CHECK(!unit::contains(seeded.json, "fromRoute"));
+  CHECK(!unit::contains(seeded.json, "navigation.timeout"));
+  tb_session_engine_destroy(engine);
+}
+
 }  // namespace
 
 int main() {
@@ -559,5 +592,6 @@ int main() {
   test_secure_window_with_capability();
   test_decode_mask_coverage();
   test_mask_coverage_only_for_accepted_frames();
+  test_session_start_navigation();
   return unit::finish("capture and navigation");
 }

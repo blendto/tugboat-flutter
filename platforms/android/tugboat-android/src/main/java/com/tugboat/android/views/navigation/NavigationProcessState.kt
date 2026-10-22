@@ -1,0 +1,57 @@
+package com.tugboat.android.views.navigation
+
+/**
+ * Process-scoped navigator stacks. Survives [com.tugboat.android.views.ViewsAdapter]
+ * stop/start so session_start can snapshot visible routes after
+ * `TugboatRuntime.stop()` without waiting for another `onResumed`.
+ */
+internal object NavigationProcessState {
+    private val activityStacks = HashMap<Int, NavigatorStack>()
+    private val controllerStacks = HashMap<String, NavigatorStack>()
+
+    /** Clears process stacks (unit tests only). */
+    internal fun resetForTests() {
+        activityStacks.clear()
+        controllerStacks.clear()
+    }
+
+    fun activityStack(taskId: Int, navigatorId: String): NavigatorStack =
+        activityStacks.getOrPut(taskId) { NavigatorStack(navigatorId, null) }
+
+    fun controllerStack(navigatorId: String, parentNavigatorId: String): NavigatorStack =
+        controllerStacks.getOrPut(navigatorId) { NavigatorStack(navigatorId, parentNavigatorId) }
+
+    fun forgetController(navigatorId: String) {
+        controllerStacks.remove(navigatorId)
+    }
+
+    fun forgetActivityTask(taskId: Int) {
+        activityStacks.remove(taskId)
+    }
+
+    fun stackFor(navigatorId: String): NavigatorStack? =
+        activityStacks.values.firstOrNull { it.navigatorId == navigatorId }
+            ?: controllerStacks[navigatorId]
+
+    /** Non-empty stacks, activity navigators first (stable task id order). */
+    fun sessionStartSnapshots(): List<SessionStartSnapshot> = buildList {
+        activityStacks.values
+            .sortedBy { it.navigatorId }
+            .filter { it.top != null }
+            .forEach { stack ->
+                add(SessionStartSnapshot(stack.navigatorId, stack.parentNavigatorId, stack.all()))
+            }
+        controllerStacks.values
+            .sortedBy { it.navigatorId }
+            .filter { it.top != null }
+            .forEach { stack ->
+                add(SessionStartSnapshot(stack.navigatorId, stack.parentNavigatorId, stack.all()))
+            }
+    }
+}
+
+internal data class SessionStartSnapshot(
+    val navigatorId: String,
+    val parentNavigatorId: String?,
+    val routes: List<RouteEntry>,
+)

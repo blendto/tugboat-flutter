@@ -31,6 +31,7 @@ final class ScreenTracker {
   private var stack = ScreenStack(navigatorId: ScreenTracker.navigatorId)
   private var queued: [Event] = []
   private var facts: [AdapterFact] = []
+  private var seededNavigators = Set<String>()
 
   /// Facts are produced only while true (the adapter is running).
   var isRecording = false
@@ -78,6 +79,20 @@ final class ScreenTracker {
     queued.removeAll()
     facts.removeAll()
     stack.removeAll()
+    seededNavigators.removeAll()
+  }
+
+  /// Clears per-session seed markers; the stack is kept for stop/start.
+  func beginSession() {
+    seededNavigators.removeAll()
+  }
+
+  func sessionStartFact(at: HostTime) -> AdapterFact? {
+    settle()
+    let routes = stack.entries
+    guard !routes.isEmpty else { return nil }
+    seededNavigators.insert(ScreenTracker.navigatorId)
+    return NavigationChange(sessionStart: ScreenTracker.navigatorId, routes: routes).fact(at: at)
   }
 
   /// Applies queued callbacks: appearances first, then disappearances.
@@ -95,6 +110,12 @@ final class ScreenTracker {
 
   private func record(_ change: NavigationChange?, at: HostTime) {
     guard isRecording, let change = change else { return }
-    facts.append(change.fact(at: at))
+    let toRecord: NavigationChange
+    if change.kind == .push, seededNavigators.insert(change.navigatorId).inserted {
+      toRecord = NavigationChange(sessionStart: change.navigatorId, routes: stack.entries)
+    } else {
+      toRecord = change
+    }
+    facts.append(toRecord.fact(at: at))
   }
 }

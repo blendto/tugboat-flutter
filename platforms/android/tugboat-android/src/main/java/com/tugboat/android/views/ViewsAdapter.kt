@@ -24,6 +24,9 @@ import com.tugboat.android.views.navigation.DestinationTracker
 import com.tugboat.android.views.navigation.FragmentNavigation
 import com.tugboat.android.views.navigation.NavEntry
 import com.tugboat.android.views.navigation.NavigationChange
+import com.tugboat.android.views.navigation.NavigationKind
+import com.tugboat.android.views.navigation.NavigationProcessState
+import com.tugboat.android.views.navigation.SessionStartSnapshot
 import com.tugboat.android.views.navigation.ViewRouteResolver
 
 /**
@@ -69,10 +72,13 @@ internal class ViewsAdapter(
     /** Focus is app-wide: every window reports against the same last kind. */
     private val focusState = FocusState()
     private var started = false
+    private val seededNavigators = HashSet<String>()
 
     fun start() = AdapterGuard.run("start") {
         if (started) return@run
         started = true
+        seededNavigators.clear()
+        emitSessionStartSeeds()
         application.registerActivityLifecycleCallbacks(this)
     }
 
@@ -165,7 +171,28 @@ internal class ViewsAdapter(
     }
 
     private fun reportNavigation(change: NavigationChange) {
-        if (postNavigationFacts) emit(change.toFact(clock.now()))
+        if (!postNavigationFacts) return
+        val toEmit =
+            if (change.kind == NavigationKind.Push && seededNavigators.add(change.navigatorId)) {
+                val routes = NavigationProcessState.stackFor(change.navigatorId)?.all()
+                    ?: listOfNotNull(change.route)
+                NavigationChange.sessionStart(
+                    SessionStartSnapshot(change.navigatorId, change.parentNavigatorId, routes),
+                )
+            } else {
+                change
+            }
+        emit(toEmit.toFact(clock.now()))
+    }
+
+    private fun emitSessionStartSeeds() {
+        if (!postNavigationFacts) return
+        val now = clock.now()
+        NavigationProcessState.sessionStartSnapshots().forEach { snapshot ->
+            if (seededNavigators.add(snapshot.navigatorId)) {
+                emit(NavigationChange.sessionStart(snapshot).toFact(now))
+            }
+        }
     }
 
     private fun onFrame() {

@@ -27,7 +27,6 @@ internal data class NavEntry(val id: String, val route: String?, val destination
  * only.
  */
 internal class ControllerNavigation(private val report: (NavigationChange) -> Unit) {
-    private val stacks = HashMap<String, NavigatorStack>()
     private val entries = HashMap<String, RouteEntry>()
 
     /** [routeKey] is [current]'s route key (route pattern without arguments, else its id's entry name). */
@@ -38,7 +37,7 @@ internal class ControllerNavigation(private val report: (NavigationChange) -> Un
         routeKey: String,
         previous: NavEntry?,
     ) {
-        val stack = stacks.getOrPut(navigatorId) { NavigatorStack(navigatorId, parentNavigatorId) }
+        val stack = NavigationProcessState.controllerStack(navigatorId, parentNavigatorId)
         val known = entries[key(navigatorId, current.id)]
         val change = when {
             known != null && known in stack -> stack.popTo(known)
@@ -51,7 +50,7 @@ internal class ControllerNavigation(private val report: (NavigationChange) -> Un
 
     /** Forgets [navigatorId] (its activity finished). */
     fun forget(navigatorId: String) {
-        stacks.remove(navigatorId)
+        NavigationProcessState.forgetController(navigatorId)
         entries.keys.removeAll { it.startsWith("$navigatorId|") }
     }
 

@@ -477,10 +477,25 @@ The adapter maps toolkit objects to stable opaque ids and sends (anchors
 it attaches anywhere may name their `toolkit`, section 9.1):
 
 ```text
-navigation {kind: push|pop|replace|remove, navigatorId, parentNavigatorId?,
+navigation {kind: push|pop|replace|remove|session_start, navigatorId,
+            parentNavigatorId?,
             route?: {instanceId, name?, type, overlayKind, transitionMs},
-            departing?: {instanceId, name?, type?}}
+            departing?: {instanceId, name?, type?},
+            routes?: [{instanceId, name?, type, overlayKind, transitionMs}, …]}
 ```
+
+`session_start` seeds the visible stack at session start (Flutter
+`navigation: session_start`). It requires non-empty `routes` (bottom to
+top); each `transitionMs` must be `0`; `route` and `departing` must be
+absent. Any other kind must not send `routes`. The engine replays the stack
+like Flutter's retained-route replay: no claim, barrier, transition timers,
+or route capture; it records one `route_change` with `navigation:
+session_start`, `result: unknown`, no `from*` / `fromRoute` fields, and
+`navigationOrigin: automatic_or_unknown`. Outside a live session the fact is
+dropped like every event-producing fact. When the navigator already has a
+stack in the current session, the fact is accepted and dropped with no
+record (it does not poison a batch). Nested navigators send one
+`session_start` each (parent first).
 
 `route` is the destination: the pushed route, the replacement, or the route
 a pop or removal reveals; it is absent when none is (Dart's `previousRoute`
