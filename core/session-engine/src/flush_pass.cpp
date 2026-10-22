@@ -101,7 +101,7 @@ void enter_lifecycle(DeliveryContext& ctx) {
     return;
   }
   if (lane_send_blocked(ctx, HttpLane::kLifecycle)) {
-    end_pass(ctx);
+    after_lifecycle(ctx);
     return;
   }
   InFlight flight;

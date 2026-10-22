@@ -59,7 +59,9 @@ internal class HttpExecutor(
             val status = connection.responseCode
             val body = readBody(connection, status, deadline)
             deadline.check()
-            val retryAfter = connection.getHeaderField("Retry-After")?.trim()?.takeIf { it.isNotEmpty() }
+            val retryAfter = CollectorResponse.forwardRetryAfter(
+                connection.getHeaderField("Retry-After"),
+            )
             CollectorResponse.outcome(status, body, retryAfter)
         } catch (failure: Throwable) {
             if (deadline?.expired == true || failure is SocketTimeoutException) {

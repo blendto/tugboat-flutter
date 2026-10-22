@@ -121,7 +121,9 @@ content type) are the host's.
 `body` is the first 64 KiB of the response; the engine parses `sessionId` and
 `traitsId` from it. `retryAfter` is the raw `Retry-After` header value (trimmed,
 at most 128 bytes) and is only allowed with `outcome: "http"`; hosts send it
-whenever the response carries the header (any status).
+whenever the response carries the header (any status). Values longer than 128
+bytes after trim are dropped by hosts and ignored by the engine (they never
+invalidate the delivery result).
 
 ## 4. Session state
 
@@ -296,7 +298,7 @@ again between sessions.
 | `interaction` | claimWindowMs 1250, settleDelayMs 1000, maxReleased 8, scrollEndCaptureDelayMs 0, captureScrollSamples false, scrollCaptureIntervalMs 2000, factGraceMs |
 | `navigation` | routeBarrierTimeoutMs 5000, routeStackLimit 16 |
 | `capture` | budgetMs 60, budgetWindowMs 5000, degradedScale, answerTimeoutMs 5000 (change C18) |
-| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs 5000 (change C5), reportEventLaneGaps false (change C6), answerGraceMs 5000 (change C15) |
+| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs 5000 (change C5), reportEventLaneGaps false (change C6), answerGraceMs 5000 (change C15), maxRetryAfterMs 60000, maxEndingRetryAfterMs 10000 |
 | `capabilities` | the `TugboatReplayConfig` evidence switches (inventory, semantic map, focus, system input, …) |
 
 ## 7. Collector delivery (phase 3b)
@@ -377,10 +379,14 @@ Unparseable values and other retry statuses keep today's timing.
 
 During `session.end`, a lane waiting on `delivery.retryAfter.<lane>` still
 delivers once the timer fires (including `session_end` on the lifecycle lane),
-subject to existing C15 dispose and host `stop()` bounds. Host watchers that
-wait ≤ 25 s for `session_end` to settle can time out when `Retry-After` exceeds
-that window; classify rules are unchanged so engine retry-classification tests
-still apply.
+subject to existing C15 dispose and host `stop()` bounds. While the session is
+ending (`session.end` through `session_end` accepted), lifecycle-lane
+`Retry-After` waits are capped at `collector.maxEndingRetryAfterMs` (default 10
+s) so `session_end` can still complete within host `stop()` watchers (≤ 25 s).
+Other lanes keep the normal `maxRetryAfterMs` cap. Host watchers that wait ≤ 25
+s for `session_end` to settle can still time out when a non-lifecycle lane waits
+longer; classify rules are unchanged so engine retry-classification tests still
+apply.
 
 ### 7.5 Queues and bounds
 

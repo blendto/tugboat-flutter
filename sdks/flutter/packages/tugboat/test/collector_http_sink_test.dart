@@ -610,7 +610,7 @@ void main() {
     framePosts.clear();
     frameStatus = 202;
     await sink.flush();
-    await Future<void>.delayed(const Duration(milliseconds: 150));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(framePosts, isNotEmpty);
     final uploaded = framePosts.last['frameNos'] as List;

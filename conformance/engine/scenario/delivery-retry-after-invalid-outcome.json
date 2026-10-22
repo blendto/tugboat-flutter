@@ -197,7 +197,5 @@
       ]
     }
   },
-  "runners": [
-    "cpp"
-  ]
+  "dartParity": "delivery"
 }

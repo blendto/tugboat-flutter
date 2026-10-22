@@ -2,7 +2,9 @@
 
 #include "delivery_state.h"
 #include "flush_cursor.h"
+#include "output.h"
 #include "retry_after.h"
+#include "transport.h"
 
 namespace tugboat {
 namespace engine {
@@ -21,14 +23,27 @@ size_t lane_index(HttpLane lane) {
   return 0;
 }
 
-HttpLane lane_from_timer_suffix(const std::string& suffix) {
+std::optional<HttpLane> lane_from_timer_suffix(const std::string& suffix) {
   if (suffix == "lifecycle") {
     return HttpLane::kLifecycle;
   }
   if (suffix == "events") {
     return HttpLane::kEvents;
   }
-  return HttpLane::kFrames;
+  if (suffix == "frames") {
+    return HttpLane::kFrames;
+  }
+  return std::nullopt;
+}
+
+int64_t retry_after_cap_ms(const DeliveryContext& ctx, HttpLane lane) {
+  const CollectorConfig& c = ctx.config();
+  if (lane == HttpLane::kLifecycle &&
+      (ctx.delivery().phase == DeliveryPhase::kDraining ||
+       ctx.delivery().phase == DeliveryPhase::kEnded)) {
+    return c.max_ending_retry_after_ms;
+  }
+  return c.max_retry_after_ms;
 }
 
 }  // namespace
@@ -54,9 +69,10 @@ bool lane_send_blocked(const DeliveryContext& ctx, HttpLane lane) {
 }
 
 void cancel_lane_retry_after_timers(DeliveryContext& ctx) {
-  for (const char* suffix : {"lifecycle", "events", "frames"}) {
+  for (HttpLane lane :
+       {HttpLane::kLifecycle, HttpLane::kEvents, HttpLane::kFrames}) {
     std::string timer_id = kRetryAfterTimerPrefix;
-    timer_id += suffix;
+    timer_id += http_lane_name(lane);
     ctx.state->timers.cancel(timer_id, ctx.out);
   }
   DeliveryState& d = ctx.delivery();
@@ -65,7 +81,7 @@ void cancel_lane_retry_after_timers(DeliveryContext& ctx) {
 
 void maybe_arm_lane_retry_after(DeliveryContext& ctx, HttpLane lane,
                                 const TransportResult& result) {
-  if (classify(result) != Verdict::kRetry || !result.status ||
+  if (result.outcome != TransportOutcome::kHttp || !result.status ||
       !result.retry_after) {
     return;
   }
@@ -73,9 +89,9 @@ void maybe_arm_lane_retry_after(DeliveryContext& ctx, HttpLane lane,
   if (status != 429 && status != 503) {
     return;
   }
-  const int64_t wall_us = ctx.at.wall_us.value_or(0);
+  const int64_t cap_ms = retry_after_cap_ms(ctx, lane);
   const std::optional<int64_t> delay_ms = parse_retry_after_delay_ms(
-      *result.retry_after, wall_us, ctx.config().max_retry_after_ms);
+      *result.retry_after, ctx.at.wall_us, cap_ms);
   if (!delay_ms || *delay_ms <= 0) {
     return;
   }
@@ -94,10 +110,13 @@ bool delivery_retry_after_timer_fired(const std::string& timer_id,
   if (timer_id.compare(0, prefix.size(), prefix) != 0) {
     return false;
   }
-  const HttpLane lane =
+  const std::optional<HttpLane> lane =
       lane_from_timer_suffix(timer_id.substr(prefix.size()));
+  if (!lane) {
+    return false;
+  }
   DeliveryState& d = ctx.delivery();
-  d.lane_send_not_before_mono_us[lane_index(lane)] = 0;
+  d.lane_send_not_before_mono_us[lane_index(*lane)] = 0;
   request_pass(ctx);
   return true;
 }

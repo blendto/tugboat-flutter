@@ -1,24 +1,32 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/collector_retry_after.dart';
 
 void main() {
-  final now = DateTime.utc(2026, 6, 19);
+  final vectorsFile = File(
+    '${Directory.current.path}/../../../../conformance/retry_after_vectors.json',
+  );
 
-  test('delta seconds', () {
-    expect(parseCollectorRetryAfterDelayMs('5', now), 5000);
-    expect(parseCollectorRetryAfterDelayMs('120', now), 60000);
-    expect(parseCollectorRetryAfterDelayMs('not-a-date', now), isNull);
-  });
-
-  test('http-date in the past yields zero', () {
-    expect(
-      parseCollectorRetryAfterDelayMs('Sun, 06 Nov 1994 08:49:37 GMT', now),
-      0,
-    );
-  });
-
-  test('http-date in the future', () {
-    final future = now.add(const Duration(seconds: 10));
-    expect(parseCollectorRetryAfterDelayMs('3', future), 3000);
+  test('shared conformance vectors', () {
+    expect(vectorsFile.existsSync(), isTrue);
+    final doc =
+        jsonDecode(vectorsFile.readAsStringSync()) as Map<String, dynamic>;
+    final capMs = doc['capMs'] as int;
+    final wallUs = doc['nowWallUs'] as int;
+    final now = DateTime.fromMicrosecondsSinceEpoch(wallUs, isUtc: true);
+    final vectors = doc['vectors'] as List<dynamic>;
+    for (final entry in vectors) {
+      final map = entry as Map<String, dynamic>;
+      final raw = map['raw'] as String;
+      final expected = map['expectedMs'];
+      final parsed = parseCollectorRetryAfterDelayMs(raw, now, capMs: capMs);
+      if (expected == null) {
+        expect(parsed, isNull, reason: raw);
+      } else {
+        expect(parsed, expected, reason: raw);
+      }
+    }
   });
 }

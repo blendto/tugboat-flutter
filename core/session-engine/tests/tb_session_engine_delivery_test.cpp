@@ -235,11 +235,21 @@ void test_retry_after_parse() {
   CHECK(parse_retry_after_delay_ms("5", wall, 60'000) == 5'000);
   CHECK(parse_retry_after_delay_ms("not-a-date", wall, 60'000) == std::nullopt);
   CHECK(parse_retry_after_delay_ms("120", wall, 60'000) == 60'000);
+  CHECK(parse_retry_after_delay_ms("10000000000000000", wall, 60'000) ==
+        60'000);
+  CHECK(parse_retry_after_delay_ms("18446744073709552", wall, 60'000) ==
+        60'000);
   const auto past = parse_retry_after_delay_ms(
       "Sun, 06 Nov 1994 08:49:37 GMT", wall, 60'000);
   CHECK(past == 0);
+  CHECK(parse_retry_after_delay_ms("Sun, 30 Feb 1994 08:49:37 GMT", wall,
+                                   60'000) == std::nullopt);
+  CHECK(parse_retry_after_delay_ms("Sun, 06 Nov 1994 99:49:37 GMT", wall,
+                                   60'000) == std::nullopt);
   const int64_t future_wall = wall + 10'000'000;  // +10s
   CHECK(parse_retry_after_delay_ms("3", future_wall, 60'000) == 3'000);
+  CHECK(parse_retry_after_delay_ms("Sun, 06 Nov 1994 08:49:37 GMT",
+                                   std::nullopt, 60'000) == std::nullopt);
 }
 
 void test_transport_retry_after_decode() {
@@ -260,6 +270,16 @@ void test_transport_retry_after_decode() {
   CHECK(parse_json(R"({"requestId":"http-1","outcome":"error","retryAfter":"2"})",
                    64, &bad, &parse_error));
   CHECK(!decode_transport_result(bad, "$.input", &result, &decode_error));
+  const std::string long_retry(200, '9');
+  std::string accepted_json =
+      R"({"requestId":"http-2","outcome":"http","status":202,"retryAfter":")";
+  accepted_json += long_retry;
+  accepted_json += R"("})";
+  Value accepted;
+  CHECK(parse_json(accepted_json, 512, &accepted, &parse_error));
+  CHECK(decode_transport_result(accepted, "$.input", &result, &decode_error));
+  CHECK(result.status == 202);
+  CHECK(!result.retry_after);
 }
 
 }  // namespace

@@ -45,10 +45,6 @@ bool check_http_fields(const ObjectReader& r, const TransportResult& result,
   if (result.body.size() > kMaxResponseBodyBytes) {
     return r.reject("body", "longer than 64 KiB");
   }
-  if (result.retry_after &&
-      result.retry_after->size() > kMaxRetryAfterHeaderBytes) {
-    return r.reject("retryAfter", "longer than 128 bytes");
-  }
   return true;
 }
 
@@ -68,18 +64,7 @@ bool decode_transport_result(const Value& input, const std::string& path,
   }
   out->body = body.value_or(std::string());
   if (retry_after) {
-    std::string trimmed = *retry_after;
-    while (!trimmed.empty() &&
-           (trimmed.front() == ' ' || trimmed.front() == '\t')) {
-      trimmed.erase(trimmed.begin());
-    }
-    while (!trimmed.empty() &&
-           (trimmed.back() == ' ' || trimmed.back() == '\t')) {
-      trimmed.pop_back();
-    }
-    if (!trimmed.empty()) {
-      out->retry_after = std::move(trimmed);
-    }
+    out->retry_after = trim_retry_after_field(*retry_after);
   }
   return check_http_fields(r, *out, body.has_value(), retry_after.has_value());
 }

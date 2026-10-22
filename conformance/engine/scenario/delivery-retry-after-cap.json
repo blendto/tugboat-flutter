@@ -7,9 +7,6 @@
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
   },
-  "runners": [
-    "cpp"
-  ],
   "input": {
     "configure": {
       "host": {
@@ -209,5 +206,6 @@
         }
       ]
     }
-  }
+  },
+  "dartParity": "delivery"
 }

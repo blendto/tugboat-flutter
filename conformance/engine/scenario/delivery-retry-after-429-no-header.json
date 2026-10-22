@@ -228,7 +228,5 @@
       ]
     }
   },
-  "runners": [
-    "cpp"
-  ]
+  "dartParity": "delivery"
 }

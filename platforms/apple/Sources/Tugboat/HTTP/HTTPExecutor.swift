@@ -126,9 +126,9 @@ final class HTTPExecutor: HTTPSender {
   func received(response: URLResponse, taskId: Int) {
     guard let entry = inFlight[taskId], let http = response as? HTTPURLResponse else { return }
     entry.status = http.statusCode
-    let retryAfter = http.value(forHTTPHeaderField: "Retry-After")?
-      .trimmingCharacters(in: .whitespaces)
-    entry.retryAfter = retryAfter?.isEmpty == false ? retryAfter : nil
+    let retryAfter = CollectorResponse.forwardRetryAfter(
+      http.value(forHTTPHeaderField: "Retry-After"))
+    entry.retryAfter = retryAfter
   }
 
   func received(data: Data, taskId: Int) {

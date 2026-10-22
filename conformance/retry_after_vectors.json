@@ -1,0 +1,18 @@
+{
+  "fixtureFormat": 1,
+  "kind": "retry_after.vectors",
+  "description": "Shared Retry-After parser vectors for C++ engine and Dart CollectorHttpSink.",
+  "capMs": 60000,
+  "nowWallUs": 1781827200000000,
+  "vectors": [
+    {"raw": "5", "expectedMs": 5000},
+    {"raw": "120", "expectedMs": 60000},
+    {"raw": "not-a-date", "expectedMs": null},
+    {"raw": "10000000000000000", "expectedMs": 60000},
+    {"raw": "18446744073709552", "expectedMs": 60000},
+    {"raw": "Sun, 06 Nov 1994 08:49:37 GMT", "expectedMs": 0},
+    {"raw": "Sun, 30 Feb 1994 08:49:37 GMT", "expectedMs": null},
+    {"raw": "Sun, 06 Nov 1994 99:49:37 GMT", "expectedMs": null},
+    {"raw": "Sun, 06 Nov 1994 08:49:60 GMT", "expectedMs": 0}
+  ]
+}

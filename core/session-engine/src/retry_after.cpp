@@ -2,7 +2,6 @@
 
 #include <cctype>
 #include <climits>
-#include <cstdlib>
 #include <cstring>
 
 namespace tugboat {
@@ -12,7 +11,8 @@ namespace {
 
 std::string trim(const std::string& raw) {
   size_t begin = 0;
-  while (begin < raw.size() && std::isspace(static_cast<unsigned char>(raw[begin]))) {
+  while (begin < raw.size() &&
+         std::isspace(static_cast<unsigned char>(raw[begin]))) {
     ++begin;
   }
   size_t end = raw.size();
@@ -23,22 +23,40 @@ std::string trim(const std::string& raw) {
   return raw.substr(begin, end - begin);
 }
 
-bool parse_delta_seconds(const std::string& value, int64_t* out_seconds) {
+bool all_digits(const std::string& value) {
   if (value.empty()) {
     return false;
   }
-  int64_t seconds = 0;
   for (char ch : value) {
     if (ch < '0' || ch > '9') {
       return false;
     }
+  }
+  return true;
+}
+
+int64_t cap_delay(int64_t delay_ms, int64_t cap_ms) {
+  if (delay_ms < 0) {
+    return 0;
+  }
+  return delay_ms > cap_ms ? cap_ms : delay_ms;
+}
+
+int64_t parse_delta_seconds_ms(const std::string& value, int64_t cap_ms) {
+  int64_t seconds = 0;
+  for (char ch : value) {
     if (seconds > (INT64_MAX - (ch - '0')) / 10) {
-      return false;
+      return cap_ms;
     }
     seconds = seconds * 10 + (ch - '0');
+    if (seconds > cap_ms / 1000) {
+      return cap_ms;
+    }
   }
-  *out_seconds = seconds;
-  return true;
+  if (seconds > INT64_MAX / 1000) {
+    return cap_ms;
+  }
+  return cap_delay(seconds * 1000, cap_ms);
 }
 
 int month_index(const char* mon) {
@@ -52,6 +70,18 @@ int month_index(const char* mon) {
   return 0;
 }
 
+bool weekday_valid(const char* day) {
+  static const char* days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+  for (const char* valid : days) {
+    if (std::strncmp(day, valid, 3) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool is_digit(char ch) { return ch >= '0' && ch <= '9'; }
+
 int64_t days_from_civil(int year, int month, int day) {
   year -= month <= 2;
   const int era = (year >= 0 ? year : year - 399) / 400;
@@ -63,24 +93,50 @@ int64_t days_from_civil(int year, int month, int day) {
          static_cast<int64_t>(doe) - 719468;
 }
 
-// IMF-fixdate: `Sun, 06 Nov 1994 08:49:37 GMT` (RFC 9110 preferred form).
+bool civil_valid(int year, int month, int day) {
+  if (month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+  static const int days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  int max_day = days[month - 1];
+  if (month == 2) {
+    const bool leap =
+        (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    max_day = leap ? 29 : 28;
+  }
+  return day <= max_day;
+}
+
+// IMF-fixdate: exactly `Sun, 06 Nov 1994 08:49:37 GMT` (29 bytes).
 bool parse_imf_fixdate(const std::string& value, int64_t* out_epoch_ms) {
-  if (value.size() < 29 || value[value.size() - 3] != 'G' ||
-      value[value.size() - 2] != 'M' || value[value.size() - 1] != 'T') {
+  if (value.size() != 29) {
     return false;
   }
-  if (value[3] != ',' || value[4] != ' ') {
+  if (!weekday_valid(value.c_str()) || value[3] != ',' || value[4] != ' ' ||
+      value[7] != ' ' || value[11] != ' ' || value[16] != ' ' ||
+      value[19] != ':' || value[22] != ':' || value[25] != ' ' ||
+      value[26] != 'G' || value[27] != 'M' || value[28] != 'T') {
     return false;
   }
-  const int day = std::atoi(value.substr(5, 2).c_str());
+  if (!is_digit(value[5]) || !is_digit(value[6]) || !is_digit(value[12]) ||
+      !is_digit(value[13]) || !is_digit(value[14]) || !is_digit(value[15]) ||
+      !is_digit(value[17]) || !is_digit(value[18]) || !is_digit(value[20]) ||
+      !is_digit(value[21]) || !is_digit(value[23]) || !is_digit(value[24])) {
+    return false;
+  }
+  const int day = (value[5] - '0') * 10 + (value[6] - '0');
   const int month = month_index(value.c_str() + 8);
-  const int year = std::atoi(value.substr(12, 4).c_str());
-  const int hour = std::atoi(value.substr(17, 2).c_str());
-  const int minute = std::atoi(value.substr(20, 2).c_str());
-  const int second = std::atoi(value.substr(23, 2).c_str());
-  if (month == 0 || day < 1 || day > 31 || hour > 23 || minute > 59 ||
-      second > 59) {
+  const int year = (value[12] - '0') * 1000 + (value[13] - '0') * 100 +
+                   (value[14] - '0') * 10 + (value[15] - '0');
+  const int hour = (value[17] - '0') * 10 + (value[18] - '0');
+  const int minute = (value[20] - '0') * 10 + (value[21] - '0');
+  int second = (value[23] - '0') * 10 + (value[24] - '0');
+  if (month == 0 || !civil_valid(year, month, day) || hour > 23 ||
+      minute > 59 || second > 60) {
     return false;
+  }
+  if (second == 60) {
+    second = 59;
   }
   const int64_t days = days_from_civil(year, month, day);
   *out_epoch_ms = days * 86400000LL + hour * 3600000LL + minute * 60000LL +
@@ -88,34 +144,35 @@ bool parse_imf_fixdate(const std::string& value, int64_t* out_epoch_ms) {
   return true;
 }
 
-int64_t cap_delay(int64_t delay_ms, int64_t cap_ms) {
-  if (delay_ms < 0) {
-    return 0;
-  }
-  return delay_ms > cap_ms ? cap_ms : delay_ms;
-}
-
 }  // namespace
 
-std::optional<int64_t> parse_retry_after_delay_ms(const std::string& raw,
-                                                    int64_t now_wall_us,
-                                                    int64_t cap_ms) {
+std::optional<std::string> trim_retry_after_field(const std::string& raw) {
   const std::string value = trim(raw);
   if (value.empty() || value.size() > kMaxRetryAfterHeaderBytes) {
     return std::nullopt;
   }
-  int64_t seconds = 0;
-  if (parse_delta_seconds(value, &seconds)) {
-    if (seconds > INT64_MAX / 1000) {
-      return cap_ms;
-    }
-    return cap_delay(seconds * 1000, cap_ms);
+  return value;
+}
+
+std::optional<int64_t> parse_retry_after_delay_ms(
+    const std::string& raw, std::optional<int64_t> now_wall_us,
+    int64_t cap_ms) {
+  const std::optional<std::string> trimmed = trim_retry_after_field(raw);
+  if (!trimmed) {
+    return std::nullopt;
+  }
+  const std::string& value = *trimmed;
+  if (all_digits(value)) {
+    return parse_delta_seconds_ms(value, cap_ms);
   }
   int64_t epoch_ms = 0;
   if (!parse_imf_fixdate(value, &epoch_ms)) {
     return std::nullopt;
   }
-  const int64_t now_ms = now_wall_us / 1000;
+  if (!now_wall_us) {
+    return std::nullopt;
+  }
+  const int64_t now_ms = *now_wall_us / 1000;
   return cap_delay(epoch_ms - now_ms, cap_ms);
 }
 

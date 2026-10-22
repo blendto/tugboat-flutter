@@ -100,6 +100,8 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-22 | Engine parses delta-seconds or IMF-fixdate `Retry-After` relative to `at.wallUs`; unparseable ignored; past date is 0; delay capped by `collector.maxRetryAfterMs` (default 60000). PR TBD. | Matches RFC 9110 without obsolete date forms |
 | 2026-10-22 | Per delivery lane (`lifecycle`, `events`, `frames`): HTTP 429/503 with parseable `retryAfter` arms `delivery.retryAfter.<lane>`; flushes skip blocked lanes; newer header replaces not-before. PR TBD. | One lane's rate limit must not stall others |
 | 2026-10-22 | Flutter `CollectorHttpSink` and native hosts honour the same 429/503 + `Retry-After` rule (`tugboat` 0.10.11-dev.5). Delivery cadence contract change for shipped Flutter and native SDKs. Not C4 deferred backoff/idempotency (Q2): only waits longer before an existing retry, no duplicate deliveries. Unblocks BLE-100. PR TBD. | Collector enforcement waits for SDKs that honour `Retry-After` |
+| 2026-10-22 | `retryAfter` longer than 128 bytes after trim is dropped by hosts and ignored by the engine; it never yields `invalid_message` on an otherwise valid `transport.result`. PR TBD. | A hint must not invalidate a delivery result or force duplicate sends |
+| 2026-10-22 | While a session is ending, lifecycle-lane `Retry-After` waits cap at `collector.maxEndingRetryAfterMs` (default 10000) so `session_end` can finish inside host `stop()` watchers (≤ 25 s). PR TBD. | Long lifecycle waits during teardown must not drop `session_end` |
 
 ## Gates before merging to main
 

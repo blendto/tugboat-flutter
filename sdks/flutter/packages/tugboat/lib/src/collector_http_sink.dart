@@ -9,6 +9,7 @@ import 'capture_sink.dart';
 import 'collector_config.dart';
 import 'collector_mapper.dart';
 import 'collector_lane_delays.dart';
+import 'collector_retry_after.dart';
 import 'models.dart';
 import 'sdk_version.dart';
 
@@ -61,7 +62,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     String? initialUserId,
     @visibleForTesting Duration? identityDebounceDuration,
     @visibleForTesting DateTime Function()? debugNow,
+    @visibleForTesting CollectorLaneTimerSchedule? debugScheduleLaneTimer,
   }) : _config = config,
+       _debugScheduleLaneTimer = debugScheduleLaneTimer,
        _now = debugNow ?? DateTime.now,
        _userId = initialUserId ?? config.userId,
        _traits = initialTraits == null
@@ -80,6 +83,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
        );
 
   final TugboatCollectorConfig _config;
+  final CollectorLaneTimerSchedule? _debugScheduleLaneTimer;
   final _CollectorHttpClient _client;
 
   /// Wall clock for lifecycle `triggeredAt` and diagnostic `atMs`.
@@ -102,7 +106,12 @@ class CollectorHttpSink implements TugboatCaptureSink {
   final List<_PendingFrameUpload> _pendingFrames = [];
   final List<List<Map<String, Object?>>> _retryBatches = [];
   final List<_PendingSessionLifecycle> _pendingLifecycle = [];
-  late final CollectorLaneDelays _laneDelays = CollectorLaneDelays(_now);
+  late final CollectorLaneDelays _laneDelays = CollectorLaneDelays(
+    _now,
+    _onLaneDelayExpired,
+    scheduleTimer: _debugScheduleLaneTimer,
+  );
+  bool _sessionEnding = false;
 
   /// Runtime user id (may change via [setUserId]).
   String? _userId;
@@ -165,6 +174,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _traitsDirty = false;
     _userTriggeredAt = null;
     _traitsTriggeredAt = null;
+    _sessionEnding = false;
     _laneDelays.clear();
     _scheduleFlushTimer();
     _enqueueSessionLifecycle(
@@ -261,6 +271,15 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_disposed) return;
     await flush();
   }
+
+  void _onLaneDelayExpired() {
+    if (_disposed) return;
+    unawaited(_kickFlush());
+  }
+
+  int _lifecycleRetryAfterCapMs() => _sessionEnding
+      ? collectorMaxEndingRetryAfterMs
+      : collectorMaxRetryAfterMs;
 
   /// Registers a full traits snapshot with the collector.
   ///
@@ -363,6 +382,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_disposed || _session == null) return;
     await _flushIdentityDebounce();
     await flush();
+    _sessionEnding = true;
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionEnd.wireValue,
       _now(),
@@ -385,6 +405,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingFrames.clear();
     _retryBatches.clear();
     _pendingLifecycle.clear();
+    _laneDelays.clear();
+    _sessionEnding = false;
     _flushInFlight = null;
     _session = null;
     _collectorSessionId = null;
@@ -433,6 +455,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   Future<void> _flushLifecyclePosts() async {
     if (_pendingLifecycle.isEmpty || _disposed) return;
+    if (_laneDelays.isBlocked(CollectorDeliveryLane.lifecycle)) return;
     final pending = _pendingLifecycle.first;
     final epoch = _sessionEpoch;
 
@@ -458,8 +481,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final session = _session;
     if (session == null) return _SendResult.accepted;
 
-    await _laneDelays.waitFor(CollectorDeliveryLane.lifecycle);
-
     final sessionId = _sessionIdForLifecycle(eventType, session.id);
     final traits = _traits;
 
@@ -484,11 +505,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
           body: jsonEncode(body),
         ),
       );
+      if (!_isCurrentEpoch(epoch)) return _SendResult.retry;
 
       _laneDelays.armFromResponse(
         CollectorDeliveryLane.lifecycle,
         response.statusCode,
         response.headers,
+        capMs: _lifecycleRetryAfterCapMs(),
       );
       final result = _classifyResponse(response.statusCode);
       if (result == _SendResult.accepted && _isCurrentEpoch(epoch)) {
@@ -594,7 +617,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final sessionId = _collectorSessionId;
     if (sessionId == null || sessionId.isEmpty) return _SendResult.retry;
 
-    await _laneDelays.waitFor(CollectorDeliveryLane.events);
+    if (_laneDelays.isBlocked(CollectorDeliveryLane.events)) {
+      return _SendResult.retry;
+    }
 
     final traitsId = _traitsId;
     for (final event in events) {
@@ -613,6 +638,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
           body: jsonEncode({'events': events}),
         ),
       );
+      if (!_isCurrentEpoch(epoch)) return _SendResult.retry;
 
       _laneDelays.armFromResponse(
         CollectorDeliveryLane.events,
@@ -647,6 +673,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   Future<void> _flushFrames() async {
     if (_pendingFrames.isEmpty) return;
+    if (_laneDelays.isBlocked(CollectorDeliveryLane.frames)) return;
     final epoch = _sessionEpoch;
     final sessionId = _collectorSessionId;
     // Confirm the current collector session before draining so frames queued
@@ -741,7 +768,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     List<_PendingFrameUpload> uploads,
   ) async {
     try {
-      await _laneDelays.waitFor(CollectorDeliveryLane.frames);
+      if (_laneDelays.isBlocked(CollectorDeliveryLane.frames)) {
+        return (result: _SendResult.retry, statusCode: null);
+      }
       final request = _frameUploadRequest(sessionId, uploads);
       final response = await _tracedResponse(
         '/v1/frames',
