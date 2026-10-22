@@ -42,16 +42,17 @@ struct NavigationChange: Equatable {
 
   func fact(at: HostTime) -> AdapterFact {
     var input = JSONObject()
-    input.set("navigatorId", navigatorId)
     switch payload {
     case let .transition(kind, route, departing):
       input.set("kind", kind.rawValue)
+      input.set("navigatorId", navigatorId)
       input.set("route", NavigationChange.routeJSON(route, transitionMs: departing == nil ? 0 : NavigationChange.transitionMs))
       if let departing = departing {
         input.set("departing", NavigationChange.entryJSON(departing))
       }
     case let .sessionStart(routes):
       input.set("kind", "session_start")
+      input.set("navigatorId", navigatorId)
       input.set("routes", .array(routes.map { .object(NavigationChange.routeJSON($0, transitionMs: 0)) }))
     }
     return AdapterFact(type: FactTypes.navigation, input: input, at: at)
