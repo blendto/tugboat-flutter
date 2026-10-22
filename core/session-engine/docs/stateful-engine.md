@@ -375,6 +375,13 @@ unaffected. The engine arms `delivery.retryAfter.<lane>`; a flush while the lane
 waits skips that lane. A newer `Retry-After` replaces the older not-before.
 Unparseable values and other retry statuses keep today's timing.
 
+During `session.end`, a lane waiting on `delivery.retryAfter.<lane>` still
+delivers once the timer fires (including `session_end` on the lifecycle lane),
+subject to existing C15 dispose and host `stop()` bounds. Host watchers that
+wait ≤ 25 s for `session_end` to settle can time out when `Retry-After` exceeds
+that window; classify rules are unchanged so engine retry-classification tests
+still apply.
+
 ### 7.5 Queues and bounds
 
 | Queue | Bound | When full |
