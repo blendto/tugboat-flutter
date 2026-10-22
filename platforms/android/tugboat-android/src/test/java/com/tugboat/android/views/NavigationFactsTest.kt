@@ -144,6 +144,13 @@ class NavigationFactsTest {
     }
 
     @Test
+    fun navigationSurvivesAGarbageCollectionWhileRecording() {
+        repeat(3) { System.gc() }
+        Robolectric.buildActivity(FirstActivity::class.java).setup()
+        assertEquals("push", navigation().single().getString("kind"))
+    }
+
+    @Test
     fun recreatedActivitiesKeepTheirInstanceIdAndSendNothing() {
         val controller = Robolectric.buildActivity(FirstActivity::class.java).setup()
         val instanceId = navigation().single().bottomRouteInstanceId()

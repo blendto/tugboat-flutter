@@ -5,7 +5,6 @@ import android.app.Application
 import android.os.Bundle
 import com.tugboat.android.views.AdapterGuard
 import com.tugboat.android.views.OptionalAndroidx
-import java.lang.ref.WeakReference
 
 /**
  * Process-scoped navigation observation (activity, fragment, and NavController
@@ -18,7 +17,10 @@ import java.lang.ref.WeakReference
 internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
     private var application: Application? = null
     private var installed = false
-    private var recording: WeakReference<(NavigationChange) -> Unit>? = null
+    // Held strongly while an adapter records; [setRecording] (null) in
+    // `ViewsAdapter.stop` releases it. A weak reference would lose the
+    // adapter's bound `::reportNavigation` at the next GC.
+    private var recording: ((NavigationChange) -> Unit)? = null
     var requestFrame: () -> Unit = {}
 
     private val destinations = DestinationTracker()
@@ -56,7 +58,7 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
     }
 
     fun setRecording(report: ((NavigationChange) -> Unit)?) {
-        recording = report?.let { WeakReference(it) }
+        recording = report
     }
 
     fun flushFragments() {
@@ -103,7 +105,7 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
     }
 
     private fun report(change: NavigationChange) {
-        recording?.get()?.invoke(change)
+        recording?.invoke(change)
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
