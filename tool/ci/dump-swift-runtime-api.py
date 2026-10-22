@@ -11,7 +11,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 PRODUCTS: dict[str, pathlib.Path] = {
     "capture-runtime": ROOT / "platforms/apple/Sources/TugboatCaptureRuntime",
-    "tugboat": ROOT / "platforms/apple/Sources/Tugboat/Public",
+    "tugboat": ROOT / "platforms/apple/Sources/Tugboat",
 }
 
 PUBLIC_TYPES = (
@@ -45,39 +45,72 @@ def _fold_signature(lines: list[str], start: int, stripped: str) -> tuple[str, i
     return " ".join(_strip_body(buf).split()), idx
 
 
-def dump_source_dir(src: pathlib.Path) -> str:
-    lines_out: list[str] = []
-    for path in sorted(src.glob("*.swift")):
-        in_enum = False
-        lines_out.append(f"## {path.name}")
-        raw_lines = path.read_text().splitlines()
-        idx = 0
-        while idx < len(raw_lines):
-            raw = raw_lines[idx]
-            stripped = raw.strip()
-            indent = len(raw) - len(raw.lstrip())
-            if any(stripped.startswith(prefix) for prefix in PUBLIC_TYPES):
-                in_enum = stripped.startswith("public enum ")
-                folded, idx = _fold_signature(raw_lines, idx, stripped)
-                prefix = "  " if indent >= 2 else ""
-                lines_out.append(prefix + folded)
-                idx += 1
-                continue
-            if in_enum and stripped.startswith("case "):
-                case_indent = "  " if indent <= 2 else "    "
-                lines_out.append(case_indent + stripped.rstrip(","))
-                idx += 1
-                continue
-            if in_enum and stripped == "}":
-                in_enum = False
-                idx += 1
-                continue
-            if indent >= 2 and any(stripped.startswith(prefix) for prefix in PUBLIC_MEMBERS):
-                folded, idx = _fold_signature(raw_lines, idx, stripped)
-                member_indent = "  " if indent == 2 else "    "
-                lines_out.append(member_indent + folded)
+def _dump_swift_file(
+    path: pathlib.Path,
+    heading: str,
+    *,
+    track_extensions: bool,
+) -> list[str]:
+    lines_out: list[str] = [heading]
+    in_enum = False
+    in_extension = False
+    extension_indent = 0
+    raw_lines = path.read_text().splitlines()
+    idx = 0
+    while idx < len(raw_lines):
+        raw = raw_lines[idx]
+        stripped = raw.strip()
+        indent = len(raw) - len(raw.lstrip())
+        if track_extensions and stripped.startswith("extension "):
+            folded, idx = _fold_signature(raw_lines, idx, stripped)
+            lines_out.append(folded)
+            in_extension = True
+            extension_indent = indent
             idx += 1
-        lines_out.append("")
+            continue
+        if track_extensions and in_extension and stripped == "}" and indent <= extension_indent:
+            in_extension = False
+            idx += 1
+            continue
+        if any(stripped.startswith(prefix) for prefix in PUBLIC_TYPES):
+            in_enum = stripped.startswith("public enum ")
+            folded, idx = _fold_signature(raw_lines, idx, stripped)
+            prefix = "  " if indent >= 2 else ""
+            lines_out.append(prefix + folded)
+            idx += 1
+            continue
+        if in_enum and stripped.startswith("case "):
+            case_indent = "  " if indent <= 2 else "    "
+            lines_out.append(case_indent + stripped.rstrip(","))
+            idx += 1
+            continue
+        if in_enum and stripped == "}":
+            in_enum = False
+            idx += 1
+            continue
+        if indent >= 2 and any(stripped.startswith(prefix) for prefix in PUBLIC_MEMBERS):
+            folded, idx = _fold_signature(raw_lines, idx, stripped)
+            member_indent = "  " if indent == 2 else "    "
+            lines_out.append(member_indent + folded)
+        idx += 1
+    lines_out.append("")
+    return lines_out
+
+
+def dump_product(src: pathlib.Path, *, recursive: bool, track_extensions: bool) -> str:
+    if recursive:
+        paths = sorted(src.rglob("*.swift"))
+    else:
+        paths = sorted(src.glob("*.swift"))
+    lines_out: list[str] = []
+    for path in paths:
+        if recursive:
+            heading = f"## {path.relative_to(src).as_posix()}"
+        else:
+            heading = f"## {path.name}"
+        lines_out.extend(
+            _dump_swift_file(path, heading, track_extensions=track_extensions)
+        )
     return "\n".join(lines_out).rstrip() + "\n"
 
 
@@ -94,7 +127,9 @@ def main() -> int:
     if not src.is_dir():
         print(f"::error::{src} is missing", file=sys.stderr)
         return 1
-    sys.stdout.write(dump_source_dir(src))
+    recursive = args.product == "tugboat"
+    track_extensions = args.product == "tugboat"
+    sys.stdout.write(dump_product(src, recursive=recursive, track_extensions=track_extensions))
     return 0
 
 

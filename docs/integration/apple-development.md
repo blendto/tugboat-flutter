@@ -61,7 +61,7 @@ plus processing. Status × fallback matches
 Public Swift surface goldens:
 
 - `platforms/apple/api.txt` — `TugboatCaptureRuntime`
-- `platforms/apple/api-tugboat.txt` — SwiftUI SDK (`Tugboat` product, `Public/`)
+- `platforms/apple/api-tugboat.txt` — SwiftUI SDK (`Tugboat` product, public API across `Sources/Tugboat`)
 
 Regenerate on macOS or Linux (source parse only):
 
