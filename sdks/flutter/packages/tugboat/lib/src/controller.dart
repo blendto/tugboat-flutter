@@ -5405,7 +5405,8 @@ class TugboatReplayController extends ChangeNotifier {
     // on an effective transition (e.g. backgrounded -> foregrounded ->
     // backgrounded still emits twice, correctly).
     final isDuplicate =
-        state == _lastLifecycleState || eventType == _lastLifecycleEventType;
+        state == _lastLifecycleState ||
+        eventType == _lastLifecycleEventType;
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:

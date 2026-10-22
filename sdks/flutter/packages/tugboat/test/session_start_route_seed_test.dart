@@ -264,28 +264,25 @@ void main() {
     expect(sessionStart.data['hostPageRoute'], '/root');
   });
 
-  test(
-    'start without navigator does not emit session_start route_change',
-    () async {
-      final boundaryKey = GlobalKey();
-      TestWidgetsFlutterBinding.ensureInitialized();
-      final controller = TugboatReplayController(
-        config: _testConfig,
-        boundaryKey: boundaryKey,
-      );
-      await controller.initialize();
-      controller.start(const Size(320, 640), 'test');
+  test('start without navigator does not emit session_start route_change', () async {
+    final boundaryKey = GlobalKey();
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final controller = TugboatReplayController(
+      config: _testConfig,
+      boundaryKey: boundaryKey,
+    );
+    await controller.initialize();
+    controller.start(const Size(320, 640), 'test');
 
-      final seeded = controller.session!.events.where(
-        (event) =>
-            event.type == 'route_change' &&
-            event.data['navigation'] == tugboatNavigationSessionStart,
-      );
-      expect(seeded, isEmpty);
-      expect(controller.currentRoute, isNull);
-      controller.dispose();
-    },
-  );
+    final seeded = controller.session!.events.where(
+      (event) =>
+          event.type == 'route_change' &&
+          event.data['navigation'] == tugboatNavigationSessionStart,
+    );
+    expect(seeded, isEmpty);
+    expect(controller.currentRoute, isNull);
+    controller.dispose();
+  });
 }
 
 class _NestedObserverScope extends InheritedWidget {

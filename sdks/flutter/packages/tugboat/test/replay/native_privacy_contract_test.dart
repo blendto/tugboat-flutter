@@ -343,11 +343,7 @@ Future<void> _expectNativeMasks(
     force: true,
     waitForFrame: false,
   );
-  expect(
-    attempt.failure,
-    isNull,
-    reason: 'capturePixelRatio=$capturePixelRatio',
-  );
+  expect(attempt.failure, isNull, reason: 'capturePixelRatio=$capturePixelRatio');
   final jpeg = attempt.result!.bytes;
   final decoded = img.decodeJpg(jpeg)!;
   expect(decoded.width, greaterThan(0));

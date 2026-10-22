@@ -285,16 +285,15 @@ class ScenarioDelivery {
   /// flush 500 ms later; resumed and detached cancel it.
   void appLifecycle(String state) {
     if (!enabled) return;
-    switch (state) {
-      case 'paused' || 'hidden':
-        _backgroundFlush?.cancel();
-        _backgroundFlush = Timer(const Duration(milliseconds: 500), () {
-          _backgroundFlush = null;
-          unawaited(sink.flush());
-        });
-      case 'resumed' || 'detached':
-        _backgroundFlush?.cancel();
+    if (state == 'paused' || state == 'hidden') {
+      _backgroundFlush?.cancel();
+      _backgroundFlush = Timer(const Duration(milliseconds: 500), () {
         _backgroundFlush = null;
+        unawaited(sink.flush());
+      });
+    } else if (state == 'resumed' || state == 'detached') {
+      _backgroundFlush?.cancel();
+      _backgroundFlush = null;
     }
   }
 

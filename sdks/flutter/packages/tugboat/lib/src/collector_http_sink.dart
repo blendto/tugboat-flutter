@@ -8,7 +8,7 @@ import 'package:http_parser/http_parser.dart';
 import 'capture_sink.dart';
 import 'collector_config.dart';
 import 'collector_mapper.dart';
-import 'collector_retry_after.dart';
+import 'collector_lane_delays.dart';
 import 'models.dart';
 import 'sdk_version.dart';
 
@@ -102,7 +102,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
   final List<_PendingFrameUpload> _pendingFrames = [];
   final List<List<Map<String, Object?>>> _retryBatches = [];
   final List<_PendingSessionLifecycle> _pendingLifecycle = [];
-  final Map<_CollectorLane, DateTime> _laneNotBefore = {};
+  late final CollectorLaneDelays _laneDelays = CollectorLaneDelays(_now);
 
   /// Runtime user id (may change via [setUserId]).
   String? _userId;
@@ -165,7 +165,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _traitsDirty = false;
     _userTriggeredAt = null;
     _traitsTriggeredAt = null;
-    _laneNotBefore.clear();
+    _laneDelays.clear();
     _scheduleFlushTimer();
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionStart.wireValue,
@@ -458,7 +458,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final session = _session;
     if (session == null) return _SendResult.accepted;
 
-    await _waitForLane(_CollectorLane.lifecycle);
+    await _laneDelays.waitFor(CollectorDeliveryLane.lifecycle);
 
     final sessionId = _sessionIdForLifecycle(eventType, session.id);
     final traits = _traits;
@@ -485,8 +485,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
         ),
       );
 
-      _maybeArmLaneRetryAfter(
-        _CollectorLane.lifecycle,
+      _laneDelays.armFromResponse(
+        CollectorDeliveryLane.lifecycle,
         response.statusCode,
         response.headers,
       );
@@ -594,7 +594,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final sessionId = _collectorSessionId;
     if (sessionId == null || sessionId.isEmpty) return _SendResult.retry;
 
-    await _waitForLane(_CollectorLane.events);
+    await _laneDelays.waitFor(CollectorDeliveryLane.events);
 
     final traitsId = _traitsId;
     for (final event in events) {
@@ -614,8 +614,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
         ),
       );
 
-      _maybeArmLaneRetryAfter(
-        _CollectorLane.events,
+      _laneDelays.armFromResponse(
+        CollectorDeliveryLane.events,
         response.statusCode,
         response.headers,
       );
@@ -741,14 +741,14 @@ class CollectorHttpSink implements TugboatCaptureSink {
     List<_PendingFrameUpload> uploads,
   ) async {
     try {
-      await _waitForLane(_CollectorLane.frames);
+      await _laneDelays.waitFor(CollectorDeliveryLane.frames);
       final request = _frameUploadRequest(sessionId, uploads);
       final response = await _tracedResponse(
         '/v1/frames',
         () async => http.Response.fromStream(await _client.send(request)),
       ).timeout(const Duration(seconds: 15));
-      _maybeArmLaneRetryAfter(
-        _CollectorLane.frames,
+      _laneDelays.armFromResponse(
+        CollectorDeliveryLane.frames,
         response.statusCode,
         response.headers,
       );
@@ -860,31 +860,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
   bool _shouldRetry(int statusCode) =>
       statusCode == 408 || statusCode == 429 || statusCode >= 500;
 
-  Future<void> _waitForLane(_CollectorLane lane) async {
-    final until = _laneNotBefore[lane];
-    if (until == null) return;
-    final now = _now();
-    if (!now.isBefore(until)) {
-      _laneNotBefore.remove(lane);
-      return;
-    }
-    await Future<void>.delayed(until.difference(now));
-    _laneNotBefore.remove(lane);
-  }
-
-  void _maybeArmLaneRetryAfter(
-    _CollectorLane lane,
-    int statusCode,
-    Map<String, String> headers,
-  ) {
-    if (statusCode != 429 && statusCode != 503) return;
-    final raw = headers['retry-after'];
-    if (raw == null) return;
-    final delayMs = parseCollectorRetryAfterDelayMs(raw, _now());
-    if (delayMs == null || delayMs <= 0) return;
-    _laneNotBefore[lane] = _now().add(Duration(milliseconds: delayMs));
-  }
-
   Future<http.Response> _tracedResponse(
     String path,
     Future<http.Response> Function() send,
@@ -929,8 +904,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
 }
 
 enum _SendResult { accepted, retry, drop }
-
-enum _CollectorLane { lifecycle, events, frames }
 
 class _CollectorHttpClient extends http.BaseClient {
   _CollectorHttpClient({
