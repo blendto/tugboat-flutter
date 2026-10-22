@@ -10,23 +10,27 @@ import UIKit
 ///   its hashed type (`host:<16 hex>`, the same route key identity uses).
 /// - Once any `.tugboatScreen` has appeared in the process it stays silent,
 ///   so a route is never reported by both sources.
+/// - The stack survives adapter stop/start; `session_start` is emitted only
+///   from [sessionStartFact] while live changes respect [isRecording].
 ///
 /// Main thread only.
 final class HostingControllerTracker {
+  static let shared = HostingControllerTracker()
   static let navigatorId = "swiftui-hosting"
   static let routeType = "UIHostingController"
 
   private let screens: ScreenTracker
   private let clock: FactClock
-  private let emit: (AdapterFact) -> Void
   private var stack = ScreenStack(navigatorId: HostingControllerTracker.navigatorId)
   private let ids = ObjectIds(prefix: "swiftui-host")
-  private var seeded = false
+  private var facts: [AdapterFact] = []
 
-  init(screens: ScreenTracker, clock: FactClock, emit: @escaping (AdapterFact) -> Void) {
+  /// Live facts are produced only while true (the adapter is running).
+  var isRecording = false
+
+  init(screens: ScreenTracker = .shared, clock: HostClock = SystemHostClock()) {
     self.screens = screens
-    self.clock = clock
-    self.emit = emit
+    self.clock = FactClock(clock: clock)
   }
 
   /// A disappearing controller is matched by identity: its view has usually
@@ -46,26 +50,29 @@ final class HostingControllerTracker {
       guard let known = ids.existingId(of: controller) else { return }
       change = stack.disappeared(instanceId: known)
     }
-    if let change = change {
-      let toEmit: NavigationChange
-      if change.kind == .push, !seeded {
-        seeded = true
-        toEmit = NavigationChange(sessionStart: HostingControllerTracker.navigatorId, routes: stack.entries)
-      } else {
-        toEmit = change
-      }
-      emit(toEmit.fact(at: clock.now()))
-    }
+    record(change, at: clock.now())
   }
 
-  func beginSession() {
-    seeded = false
-  }
+  func beginSession() {}
 
   func sessionStartFact(at: HostTime) -> AdapterFact? {
     guard !screens.hasSeenScreen, !stack.entries.isEmpty else { return nil }
-    seeded = true
     return NavigationChange(sessionStart: HostingControllerTracker.navigatorId, routes: stack.entries).fact(at: at)
+  }
+
+  func takeFacts() -> [AdapterFact] {
+    defer { facts.removeAll() }
+    return facts
+  }
+
+  func reset() {
+    facts.removeAll()
+    stack.removeAll()
+  }
+
+  private func record(_ change: NavigationChange?, at: HostTime) {
+    guard isRecording, let change = change else { return }
+    facts.append(change.fact(at: at))
   }
 
   private func coversWindow(_ controller: UIViewController) -> Bool {

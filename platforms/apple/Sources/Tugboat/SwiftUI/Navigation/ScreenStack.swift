@@ -12,7 +12,7 @@ struct ScreenStack {
   static let maxEntries = 64
 
   let navigatorId: String
-  var entries: [RouteEntry] = []
+  private(set) var entries: [RouteEntry] = []
 
   init(navigatorId: String) {
     self.navigatorId = navigatorId

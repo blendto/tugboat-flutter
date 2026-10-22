@@ -122,6 +122,11 @@ bool decode_routes(const ObjectReader& parent, NavigationFact* out,
     const std::string path =
         parent.child("routes") + "[" + std::to_string(i) + "]";
     if (!decode_route(items[i], path, &route, error)) return false;
+    if (route.transition_ms != 0) {
+      const std::string transition_path = path + ".transitionMs";
+      return parent.reject(transition_path.c_str(),
+                           "must be 0 for session_start routes");
+    }
     out->routes.push_back(std::move(route));
   }
   return true;

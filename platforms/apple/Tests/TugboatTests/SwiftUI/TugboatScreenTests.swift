@@ -24,11 +24,12 @@ final class TugboatScreenTests: XCTestCase {
   func testAppearAndReplacementProduceNavigationFacts() throws {
     let clock = ManualClock()
     let tracker = ScreenTracker(clock: clock)
-    tracker.isRecording = true
     let window = HostedWindow(Text("Home").modifier(TugboatScreenModifier(name: "Home", tracker: tracker)).id("home"))
     hosted = window
     XCTAssertTrue(window.wait { self.top(tracker)?.name == "Home" })
-    let first = tracker.takeFacts()
+    let seed = tracker.sessionStartFact(at: clock.now())
+    tracker.isRecording = true
+    let first = seed.map { [$0] } ?? []
     XCTAssertEqual(first.count, 1)
     let push = first.first?.decodedInput
     XCTAssertEqual(push?["kind"] as? String, "session_start")
@@ -64,27 +65,58 @@ final class TugboatScreenTests: XCTestCase {
 
   func testHostingControllerAppearanceIsSilentOnceAScreenIsSeen() {
     let screens = ScreenTracker(clock: ManualClock())
-    var facts: [AdapterFact] = []
-    let tracker = HostingControllerTracker(screens: screens, clock: FactClock(clock: ManualClock()), emit: { facts.append($0) })
+    let tracker = HostingControllerTracker(screens: screens, clock: ManualClock())
     let window = HostedWindow(Text("Plain"))
     hosted = window
     let controller = window.window.rootViewController ?? UIViewController()
 
     tracker.controller(controller, appeared: true)
-    XCTAssertEqual(facts.count, 1)
-    XCTAssertEqual(facts.first?.decodedInput["kind"] as? String, "session_start")
-    let routes = facts.first?.decodedInput["routes"] as? [[String: Any]]
+    let seed = tracker.sessionStartFact(at: ManualClock().now())
+    XCTAssertNotNil(seed)
+    XCTAssertEqual(seed?.decodedInput["kind"] as? String, "session_start")
+    let routes = seed?.decodedInput["routes"] as? [[String: Any]]
     let route = routes?.first
-    XCTAssertEqual(facts.first?.decodedInput["navigatorId"] as? String, "swiftui-hosting")
+    XCTAssertEqual(seed?.decodedInput["navigatorId"] as? String, "swiftui-hosting")
     XCTAssertEqual(route?["name"] as? String, RouteKey.hostingKey(controller))
     XCTAssertEqual(route?["type"] as? String, "UIHostingController")
 
+    tracker.isRecording = true
     tracker.controller(UIViewController(), appeared: true)
-    XCTAssertEqual(facts.count, 1, "not a hosting controller")
+    XCTAssertTrue(tracker.takeFacts().isEmpty, "not a hosting controller")
 
     screens.appeared(instanceId: "x", name: "Screen")
     tracker.controller(controller, appeared: false)
-    XCTAssertEqual(facts.count, 1, "screens win once seen")
+    XCTAssertTrue(tracker.takeFacts().isEmpty, "screens win once seen")
+  }
+
+  func testQueuedNavigationWhileStoppedIsDropped() {
+    let clock = ManualClock()
+    let tracker = ScreenTracker(clock: clock)
+    tracker.isRecording = false
+    let window = HostedWindow(Text("Home").modifier(TugboatScreenModifier(name: "Home", tracker: tracker)).id("home"))
+    hosted = window
+    XCTAssertTrue(window.wait { self.top(tracker)?.name == "Home" })
+    tracker.settle()
+    XCTAssertTrue(tracker.takeFacts().isEmpty)
+    tracker.isRecording = true
+    window.hosting?.rootView = AnyView(Text("Detail").modifier(TugboatScreenModifier(name: "Detail", tracker: tracker)).id("detail"))
+    XCTAssertTrue(window.wait { self.top(tracker)?.name == "Detail" })
+    let live = tracker.takeFacts()
+    XCTAssertEqual(live.count, 1)
+    XCTAssertEqual(live.first?.decodedInput["kind"] as? String, "push")
+  }
+
+  func testHostingStackIsSeededAfterStopStart() {
+    let screens = ScreenTracker(clock: ManualClock())
+    let tracker = HostingControllerTracker(screens: screens, clock: ManualClock())
+    let window = HostedWindow(Text("Plain"))
+    hosted = window
+    let controller = window.window.rootViewController ?? UIViewController()
+    tracker.isRecording = false
+    tracker.controller(controller, appeared: true)
+    XCTAssertNotNil(tracker.sessionStartFact(at: ManualClock().now()))
+    tracker.isRecording = false
+    XCTAssertNotNil(tracker.sessionStartFact(at: ManualClock().now()))
   }
 
   func testViewControllerAppearanceForwardsAndCallsTheOriginal() {

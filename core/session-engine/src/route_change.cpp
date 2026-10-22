@@ -96,7 +96,7 @@ void put_identity(Value* data, const VisibleRouteChange& change) {
   put_opt(data, "routeName", change.identity.route_name);
   data->set("routeType", Value::string(change.identity.route_type));
   data->set("routeNamed", Value::boolean(change.identity.route_named));
-  if (change.kind == NavigationKind::kSessionStart || !change.from) return;
+  if (!change.from) return;
   put_opt(data, "fromRouteName", change.from->route_name);
   data->set("fromRouteType", Value::string(change.from->route_type));
   data->set("fromRouteNamed", Value::boolean(change.from->route_named));
@@ -106,9 +106,7 @@ void put_surface(Value* data, const VisibleRouteChange& change) {
   data->set("navigatorId", Value::string(change.navigator_id));
   put_opt(data, "parentNavigatorId", change.parent_navigator_id);
   put_opt(data, "routeInstanceId", change.route_instance_id);
-  if (change.kind != NavigationKind::kSessionStart) {
-    put_opt(data, "fromRouteInstanceId", change.from_route_instance_id);
-  }
+  put_opt(data, "fromRouteInstanceId", change.from_route_instance_id);
   data->set("stackRevision", Value::integer(change.stack_revision));
   data->set("overlayKind",
             Value::string(overlay_kind_name(change.overlay_kind)));
@@ -250,9 +248,9 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
   if (navigation.registry.has_stack(navigator_id)) return std::nullopt;
 
   const OptString parent = navigation.registry.parent_of(navigator_id);
-  std::optional<FactRoute> top_route;
   std::optional<RouteIdentity> top_identity;
   OptString top_instance;
+  OptString from_route_instance_id;
   OverlayKind top_overlay = OverlayKind::kPage;
   int64_t stack_revision = 0;
 
@@ -264,21 +262,22 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
     navigation.registry.remember(instance, navigator_id, identity,
                                  route.overlay_kind);
     ++navigation.visual_generation;
-    VisibleRouteChange replay;
-    replay.updates_route = true;
-    replay.destination_route = identity.route;
-    replay.identity = identity;
-    replay.navigator_id = navigator_id;
-    replay.parent_navigator_id = parent;
-    replay.route_instance_id = instance;
-    apply_visible_route(replay, &navigation.visible);
-    top_route = route;
+    from_route_instance_id = top_instance;
     top_identity = identity;
     top_instance = instance;
     top_overlay = route.overlay_kind;
   }
 
-  if (!top_route || !top_identity || !top_instance) return std::nullopt;
+  if (!top_identity || !top_instance) return std::nullopt;
+
+  VisibleRouteChange visible;
+  visible.updates_route = true;
+  visible.destination_route = top_identity->route;
+  visible.identity = *top_identity;
+  visible.navigator_id = navigator_id;
+  visible.parent_navigator_id = parent;
+  visible.route_instance_id = top_instance;
+  apply_visible_route(visible, &navigation.visible);
 
   const int64_t limit = state.config.navigation.route_stack_limit;
   VisibleRouteChange change;
@@ -289,6 +288,7 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
   change.navigator_id = navigator_id;
   change.parent_navigator_id = parent;
   change.route_instance_id = top_instance;
+  change.from_route_instance_id = from_route_instance_id;
   change.stack_revision = stack_revision;
   change.overlay_kind = top_overlay;
   change.transition_ms = 0;

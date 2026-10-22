@@ -10,7 +10,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.tugboat.android.host.FakeClock
 import org.json.JSONObject
-import com.tugboat.android.views.navigation.NavigationProcessState
+import com.tugboat.android.views.navigation.NavigationObservation
 import org.junit.After
 import org.junit.Before
 import org.junit.Assert.assertEquals
@@ -31,7 +31,7 @@ class NavigationFactsTest {
 
     @Before
     fun setUp() {
-        NavigationProcessState.resetForTests()
+        NavigationObservation.resetForTests()
         sink.batches.clear()
         adapter = ViewsAdapter(
             application = context as android.app.Application,
@@ -49,10 +49,9 @@ class NavigationFactsTest {
     fun activityStartIsAPushAndBackIsAPop() {
         val first = Robolectric.buildActivity(FirstActivity::class.java).setup()
         val push = navigation().single()
-        assertEquals("session_start", push.getString("kind"))
-        assertTrue(push.has("routes"))
+        assertEquals("push", push.getString("kind"))
         assertEquals("activities:${first.get().taskId}", push.getString("navigatorId"))
-        val route = push.getJSONArray("routes").getJSONObject(0)
+        val route = push.getJSONObject("route")
         assertEquals(FirstActivity::class.java.name, route.getString("name"))
         assertEquals("Activity", route.getString("type"))
         assertEquals("page", route.getString("overlayKind"))
@@ -99,16 +98,16 @@ class NavigationFactsTest {
     @Test
     fun fragmentTransactionsArePushReplaceAndPop() {
         val host = Robolectric.buildActivity(FragmentActivity::class.java).setup()
-        val activityRoute = navigation().single().getJSONArray("routes").getJSONObject(0)
+        val activityRoute = navigation().single().getJSONObject("route")
         val fm = host.get().supportFragmentManager
 
         fm.beginTransaction().add(android.R.id.content, TestFragment(), "home").commitNow()
         val home = navigation().single()
-        assertEquals("session_start", home.getString("kind"))
+        assertEquals("push", home.getString("kind"))
         assertEquals("${activityRoute.getString("instanceId")}/fragments", home.getString("navigatorId"))
         assertEquals("activities:${host.get().taskId}", home.getString("parentNavigatorId"))
-        assertEquals("home", home.getJSONArray("routes").getJSONObject(0).getString("name"))
-        assertEquals("Fragment", home.getJSONArray("routes").getJSONObject(0).getString("type"))
+        assertEquals("home", home.getJSONObject("route").getString("name"))
+        assertEquals("Fragment", home.getJSONObject("route").getString("type"))
 
         fm.beginTransaction().replace(android.R.id.content, TestFragment(), "detail").addToBackStack(null).commit()
         fm.executePendingTransactions()
@@ -119,7 +118,7 @@ class NavigationFactsTest {
         fm.popBackStackImmediate()
         val back = navigation().single()
         assertEquals("pop", back.getString("kind"))
-        assertEquals(home.getJSONArray("routes").getJSONObject(0).getString("instanceId"), back.getJSONObject("route").getString("instanceId"))
+        assertEquals(home.getJSONObject("route").getString("instanceId"), back.getJSONObject("route").getString("instanceId"))
 
         fm.beginTransaction().replace(android.R.id.content, TestFragment(), "settings").commitNow()
         val settings = navigation().single()

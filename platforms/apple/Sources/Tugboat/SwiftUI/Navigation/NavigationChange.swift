@@ -54,7 +54,7 @@ struct NavigationChange: Equatable {
         routeJSON.set("transitionMs", 0)
         routesJSON.append(routeJSON)
       }
-      input.set("routes", routesJSON)
+      input.set("routes", .array(routesJSON.map { .object($0) }))
     } else {
       guard let route = route else { fatalError("route required for \(kind)") }
       var routeJSON = NavigationChange.entryJSON(route)
