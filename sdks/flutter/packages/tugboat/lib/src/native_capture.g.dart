@@ -14,20 +14,24 @@ PlatformException _createConnectionError(String channelName) {
     message: 'Unable to establish connection on channel: "$channelName".',
   );
 }
+
 bool _deepEquals(Object? a, Object? b) {
   if (a is List && b is List) {
     return a.length == b.length &&
-        a.indexed
-        .every(((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]));
+        a.indexed.every(
+          ((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]),
+        );
   }
   if (a is Map && b is Map) {
-    return a.length == b.length && a.entries.every((MapEntry<Object?, Object?> entry) =>
-        (b as Map<Object?, Object?>).containsKey(entry.key) &&
-        _deepEquals(entry.value, b[entry.key]));
+    return a.length == b.length &&
+        a.entries.every(
+          (MapEntry<Object?, Object?> entry) =>
+              (b as Map<Object?, Object?>).containsKey(entry.key) &&
+              _deepEquals(entry.value, b[entry.key]),
+        );
   }
   return a == b;
 }
-
 
 enum NativeCaptureStatus {
   ok,
@@ -42,18 +46,9 @@ enum NativeCaptureStatus {
   disposed,
 }
 
-enum NativeCaptureCoverage {
-  engineSurface,
-  windowComposite,
-  viewHierarchy,
-}
+enum NativeCaptureCoverage { engineSurface, windowComposite, viewHierarchy }
 
-enum NativeCaptureRenderMode {
-  surfaceView,
-  textureView,
-  hybrid,
-  unknown,
-}
+enum NativeCaptureRenderMode { surfaceView, textureView, hybrid, unknown }
 
 class NativeCaptureMask {
   NativeCaptureMask({
@@ -72,16 +67,12 @@ class NativeCaptureMask {
   double height;
 
   List<Object?> _toList() {
-    return <Object?>[
-      x,
-      y,
-      width,
-      height,
-    ];
+    return <Object?>[x, y, width, height];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static NativeCaptureMask decode(Object result) {
     result as List<Object?>;
@@ -107,8 +98,7 @@ class NativeCaptureMask {
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => Object.hashAll(_toList())
-;
+  int get hashCode => Object.hashAll(_toList());
 }
 
 class NativeCaptureTimings {
@@ -145,7 +135,8 @@ class NativeCaptureTimings {
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static NativeCaptureTimings decode(Object result) {
     result as List<Object?>;
@@ -173,8 +164,7 @@ class NativeCaptureTimings {
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => Object.hashAll(_toList())
-;
+  int get hashCode => Object.hashAll(_toList());
 }
 
 class NativeCaptureCapabilities {
@@ -191,15 +181,12 @@ class NativeCaptureCapabilities {
   int minNativeApi;
 
   List<Object?> _toList() {
-    return <Object?>[
-      nativeCaptureSupported,
-      apiLevel,
-      minNativeApi,
-    ];
+    return <Object?>[nativeCaptureSupported, apiLevel, minNativeApi];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static NativeCaptureCapabilities decode(Object result) {
     result as List<Object?>;
@@ -213,7 +200,8 @@ class NativeCaptureCapabilities {
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
   bool operator ==(Object other) {
-    if (other is! NativeCaptureCapabilities || other.runtimeType != runtimeType) {
+    if (other is! NativeCaptureCapabilities ||
+        other.runtimeType != runtimeType) {
       return false;
     }
     if (identical(this, other)) {
@@ -224,8 +212,7 @@ class NativeCaptureCapabilities {
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => Object.hashAll(_toList())
-;
+  int get hashCode => Object.hashAll(_toList());
 }
 
 class NativeCaptureRequest {
@@ -262,7 +249,8 @@ class NativeCaptureRequest {
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static NativeCaptureRequest decode(Object result) {
     result as List<Object?>;
@@ -290,8 +278,7 @@ class NativeCaptureRequest {
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => Object.hashAll(_toList())
-;
+  int get hashCode => Object.hashAll(_toList());
 }
 
 class NativeCaptureResult {
@@ -348,7 +335,8 @@ class NativeCaptureResult {
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static NativeCaptureResult decode(Object result) {
     result as List<Object?>;
@@ -381,10 +369,8 @@ class NativeCaptureResult {
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => Object.hashAll(_toList())
-;
+  int get hashCode => Object.hashAll(_toList());
 }
-
 
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
@@ -393,28 +379,28 @@ class _PigeonCodec extends StandardMessageCodec {
     if (value is int) {
       buffer.putUint8(4);
       buffer.putInt64(value);
-    }    else if (value is NativeCaptureStatus) {
+    } else if (value is NativeCaptureStatus) {
       buffer.putUint8(129);
       writeValue(buffer, value.index);
-    }    else if (value is NativeCaptureCoverage) {
+    } else if (value is NativeCaptureCoverage) {
       buffer.putUint8(130);
       writeValue(buffer, value.index);
-    }    else if (value is NativeCaptureRenderMode) {
+    } else if (value is NativeCaptureRenderMode) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
-    }    else if (value is NativeCaptureMask) {
+    } else if (value is NativeCaptureMask) {
       buffer.putUint8(132);
       writeValue(buffer, value.encode());
-    }    else if (value is NativeCaptureTimings) {
+    } else if (value is NativeCaptureTimings) {
       buffer.putUint8(133);
       writeValue(buffer, value.encode());
-    }    else if (value is NativeCaptureCapabilities) {
+    } else if (value is NativeCaptureCapabilities) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
-    }    else if (value is NativeCaptureRequest) {
+    } else if (value is NativeCaptureRequest) {
       buffer.putUint8(135);
       writeValue(buffer, value.encode());
-    }    else if (value is NativeCaptureResult) {
+    } else if (value is NativeCaptureResult) {
       buffer.putUint8(136);
       writeValue(buffer, value.encode());
     } else {
@@ -425,24 +411,24 @@ class _PigeonCodec extends StandardMessageCodec {
   @override
   Object? readValueOfType(int type, ReadBuffer buffer) {
     switch (type) {
-      case 129: 
+      case 129:
         final int? value = readValue(buffer) as int?;
         return value == null ? null : NativeCaptureStatus.values[value];
-      case 130: 
+      case 130:
         final int? value = readValue(buffer) as int?;
         return value == null ? null : NativeCaptureCoverage.values[value];
-      case 131: 
+      case 131:
         final int? value = readValue(buffer) as int?;
         return value == null ? null : NativeCaptureRenderMode.values[value];
-      case 132: 
+      case 132:
         return NativeCaptureMask.decode(readValue(buffer)!);
-      case 133: 
+      case 133:
         return NativeCaptureTimings.decode(readValue(buffer)!);
-      case 134: 
+      case 134:
         return NativeCaptureCapabilities.decode(readValue(buffer)!);
-      case 135: 
+      case 135:
         return NativeCaptureRequest.decode(readValue(buffer)!);
-      case 136: 
+      case 136:
         return NativeCaptureResult.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -454,9 +440,13 @@ class NativeCaptureHostApi {
   /// Constructor for [NativeCaptureHostApi].  The [binaryMessenger] named argument is
   /// available for dependency injection.  If it is left null, the default
   /// BinaryMessenger will be used which routes to the host platform.
-  NativeCaptureHostApi({BinaryMessenger? binaryMessenger, String messageChannelSuffix = ''})
-      : pigeonVar_binaryMessenger = binaryMessenger,
-        pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
+  NativeCaptureHostApi({
+    BinaryMessenger? binaryMessenger,
+    String messageChannelSuffix = '',
+  }) : pigeonVar_binaryMessenger = binaryMessenger,
+       pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
+           ? '.$messageChannelSuffix'
+           : '';
   final BinaryMessenger? pigeonVar_binaryMessenger;
 
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
@@ -464,12 +454,14 @@ class NativeCaptureHostApi {
   final String pigeonVar_messageChannelSuffix;
 
   Future<NativeCaptureCapabilities> getCapabilities() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.tugboat.NativeCaptureHostApi.getCapabilities$pigeonVar_messageChannelSuffix';
-    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
+    final String pigeonVar_channelName =
+        'dev.flutter.pigeon.tugboat.NativeCaptureHostApi.getCapabilities$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel =
+        BasicMessageChannel<Object?>(
+          pigeonVar_channelName,
+          pigeonChannelCodec,
+          binaryMessenger: pigeonVar_binaryMessenger,
+        );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final List<Object?>? pigeonVar_replyList =
         await pigeonVar_sendFuture as List<Object?>?;
@@ -492,13 +484,17 @@ class NativeCaptureHostApi {
   }
 
   Future<NativeCaptureResult> capture(NativeCaptureRequest request) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.tugboat.NativeCaptureHostApi.capture$pigeonVar_messageChannelSuffix';
-    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
+    final String pigeonVar_channelName =
+        'dev.flutter.pigeon.tugboat.NativeCaptureHostApi.capture$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel =
+        BasicMessageChannel<Object?>(
+          pigeonVar_channelName,
+          pigeonChannelCodec,
+          binaryMessenger: pigeonVar_binaryMessenger,
+        );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[request],
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final List<Object?>? pigeonVar_replyList =
         await pigeonVar_sendFuture as List<Object?>?;
     if (pigeonVar_replyList == null) {
@@ -520,13 +516,17 @@ class NativeCaptureHostApi {
   }
 
   Future<void> cancel(int requestId) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.tugboat.NativeCaptureHostApi.cancel$pigeonVar_messageChannelSuffix';
-    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
+    final String pigeonVar_channelName =
+        'dev.flutter.pigeon.tugboat.NativeCaptureHostApi.cancel$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel =
+        BasicMessageChannel<Object?>(
+          pigeonVar_channelName,
+          pigeonChannelCodec,
+          binaryMessenger: pigeonVar_binaryMessenger,
+        );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[requestId],
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[requestId]);
     final List<Object?>? pigeonVar_replyList =
         await pigeonVar_sendFuture as List<Object?>?;
     if (pigeonVar_replyList == null) {
@@ -543,12 +543,14 @@ class NativeCaptureHostApi {
   }
 
   Future<void> dispose() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.tugboat.NativeCaptureHostApi.dispose$pigeonVar_messageChannelSuffix';
-    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
+    final String pigeonVar_channelName =
+        'dev.flutter.pigeon.tugboat.NativeCaptureHostApi.dispose$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel =
+        BasicMessageChannel<Object?>(
+          pigeonVar_channelName,
+          pigeonChannelCodec,
+          binaryMessenger: pigeonVar_binaryMessenger,
+        );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final List<Object?>? pigeonVar_replyList =
         await pigeonVar_sendFuture as List<Object?>?;

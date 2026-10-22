@@ -199,8 +199,17 @@ class ScenarioCollectorClient extends http.BaseClient {
     switch (input['outcome']) {
       case 'http':
         final body = utf8.encode((input['body'] ?? '') as String);
+        final headers = <String, String>{};
+        final retryAfter = input['retryAfter'];
+        if (retryAfter is String && retryAfter.isNotEmpty) {
+          headers['retry-after'] = retryAfter;
+        }
         response.complete(
-          http.StreamedResponse(Stream.value(body), input['status']! as int),
+          http.StreamedResponse(
+            Stream.value(body),
+            input['status']! as int,
+            headers: headers,
+          ),
         );
       case 'timeout':
         response.completeError(TimeoutException('scenario timeout'));

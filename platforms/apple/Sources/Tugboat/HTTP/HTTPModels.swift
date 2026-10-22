@@ -32,7 +32,7 @@ struct FramePart: Equatable {
 enum TransportOutcome: Equatable {
   /// An HTTP response with a status in 100–599. `body` is at most
   /// `CollectorResponse.maxBodyBytes` UTF-8 bytes.
-  case http(status: Int, body: String)
+  case http(status: Int, body: String, retryAfter: String? = nil)
   case error
   case timeout
 }

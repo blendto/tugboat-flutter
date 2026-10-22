@@ -116,10 +116,12 @@ the request. All values are strings. Headers (API key, app identity,
 content type) are the host's.
 
 `transport.result` input:
-`{requestId, outcome: "http" | "error" | "timeout", status?, body?}`.
+`{requestId, outcome: "http" | "error" | "timeout", status?, body?, retryAfter?}`.
 `requestId` echoes the effect's string id. `status` comes with `http` only.
 `body` is the first 64 KiB of the response; the engine parses `sessionId` and
-`traitsId` from it.
+`traitsId` from it. `retryAfter` is the raw `Retry-After` header value (trimmed,
+at most 128 bytes) and is only allowed with `outcome: "http"`; hosts send it
+whenever the response carries the header (any status).
 
 ## 4. Session state
 
@@ -365,6 +367,13 @@ up to 3 s.
 Retries are paced only by flush triggers: there is no backoff and no attempt
 cap (change C4 proposes backoff later). Event batches retry until the
 20-batch cap evicts the oldest, or until the session resets.
+
+When a lane receives HTTP 429 or 503 with a parseable `retryAfter` on
+`transport.result`, that lane does not send again before
+`now + min(parsed, collector.maxRetryAfterMs)` (default 60 s); other lanes are
+unaffected. The engine arms `delivery.retryAfter.<lane>`; a flush while the lane
+waits skips that lane. A newer `Retry-After` replaces the older not-before.
+Unparseable values and other retry statuses keep today's timing.
 
 ### 7.5 Queues and bounds
 

@@ -16,6 +16,7 @@
 #include "json.h"
 #include "lifecycle_lane.h"
 #include "output.h"
+#include "retry_after.h"
 #include "transport.h"
 #include "unit_support.h"
 
@@ -228,6 +229,39 @@ void test_classify() {
   CHECK(tugboat::engine::classify(error) == Verdict::kRetry);
 }
 
+void test_retry_after_parse() {
+  using tugboat::engine::parse_retry_after_delay_ms;
+  const int64_t wall = 1'781'827'200'000'000;  // 2026-06-19T00:00:00Z
+  CHECK(parse_retry_after_delay_ms("5", wall, 60'000) == 5'000);
+  CHECK(parse_retry_after_delay_ms("not-a-date", wall, 60'000) == std::nullopt);
+  CHECK(parse_retry_after_delay_ms("120", wall, 60'000) == 60'000);
+  const auto past = parse_retry_after_delay_ms(
+      "Sun, 06 Nov 1994 08:49:37 GMT", wall, 60'000);
+  CHECK(past == 0);
+  const int64_t future_wall = wall + 10'000'000;  // +10s
+  CHECK(parse_retry_after_delay_ms("3", future_wall, 60'000) == 3'000);
+}
+
+void test_transport_retry_after_decode() {
+  using tugboat::engine::decode_transport_result;
+  using tugboat::engine::parse_json;
+  using tugboat::engine::ParseError;
+  using tugboat::engine::TransportResult;
+  tugboat::engine::Error decode_error;
+  ParseError parse_error;
+  TransportResult result;
+  Value ok;
+  CHECK(parse_json(
+      R"({"requestId":"http-1","outcome":"http","status":429,"retryAfter":"2"})",
+      64, &ok, &parse_error));
+  CHECK(decode_transport_result(ok, "$.input", &result, &decode_error));
+  CHECK(result.retry_after == "2");
+  Value bad;
+  CHECK(parse_json(R"({"requestId":"http-1","outcome":"error","retryAfter":"2"})",
+                   64, &bad, &parse_error));
+  CHECK(!decode_transport_result(bad, "$.input", &result, &decode_error));
+}
+
 }  // namespace
 
 int main() {
@@ -242,5 +276,7 @@ int main() {
   test_multipart_body();
   test_event_queue_bounds_and_stamping();
   test_classify();
+  test_retry_after_parse();
+  test_transport_retry_after_decode();
   return unit::finish("delivery");
 }

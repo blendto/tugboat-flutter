@@ -72,6 +72,12 @@ class HttpExecutorTest {
     }
 
     @Test
+    fun retryAfterHeaderIsForwardedOnTheWire() {
+        server.reply = { Response(429, "{}", mapOf("Retry-After" to " 12 ")) }
+        assertEquals(TransportOutcome.Http(429, "{}", "12"), executor.perform(json("{}")))
+    }
+
+    @Test
     fun redirectsAreReportedNotFollowed() {
         server.reply = { Response(302, headers = mapOf("Location" to "/elsewhere")) }
         assertEquals(TransportOutcome.Http(302, ""), executor.perform(json("{}")))

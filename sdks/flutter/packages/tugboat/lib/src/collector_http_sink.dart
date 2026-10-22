@@ -9,7 +9,6 @@ import 'capture_sink.dart';
 import 'collector_config.dart';
 import 'collector_mapper.dart';
 import 'collector_retry_after.dart';
-import 'collector_retry_after.dart';
 import 'models.dart';
 import 'sdk_version.dart';
 
@@ -486,6 +485,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
         ),
       );
 
+      _maybeArmLaneRetryAfter(
+        _CollectorLane.lifecycle,
+        response.statusCode,
+        response.headers,
+      );
       final result = _classifyResponse(response.statusCode);
       if (result == _SendResult.accepted && _isCurrentEpoch(epoch)) {
         _applyLifecycleResponse(eventType, response.body, session.id);
@@ -589,6 +593,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
     final sessionId = _collectorSessionId;
     if (sessionId == null || sessionId.isEmpty) return _SendResult.retry;
+
+    await _waitForLane(_CollectorLane.events);
+
     final traitsId = _traitsId;
     for (final event in events) {
       event['sessionId'] = sessionId;
@@ -607,6 +614,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
         ),
       );
 
+      _maybeArmLaneRetryAfter(
+        _CollectorLane.events,
+        response.statusCode,
+        response.headers,
+      );
       return _classifyResponse(response.statusCode);
     } catch (_) {
       return _SendResult.retry;
@@ -729,11 +741,17 @@ class CollectorHttpSink implements TugboatCaptureSink {
     List<_PendingFrameUpload> uploads,
   ) async {
     try {
+      await _waitForLane(_CollectorLane.frames);
       final request = _frameUploadRequest(sessionId, uploads);
       final response = await _tracedResponse(
         '/v1/frames',
         () async => http.Response.fromStream(await _client.send(request)),
       ).timeout(const Duration(seconds: 15));
+      _maybeArmLaneRetryAfter(
+        _CollectorLane.frames,
+        response.statusCode,
+        response.headers,
+      );
       return (
         result: _classifyResponse(response.statusCode),
         statusCode: response.statusCode,
@@ -842,6 +860,31 @@ class CollectorHttpSink implements TugboatCaptureSink {
   bool _shouldRetry(int statusCode) =>
       statusCode == 408 || statusCode == 429 || statusCode >= 500;
 
+  Future<void> _waitForLane(_CollectorLane lane) async {
+    final until = _laneNotBefore[lane];
+    if (until == null) return;
+    final now = _now();
+    if (!now.isBefore(until)) {
+      _laneNotBefore.remove(lane);
+      return;
+    }
+    await Future<void>.delayed(until.difference(now));
+    _laneNotBefore.remove(lane);
+  }
+
+  void _maybeArmLaneRetryAfter(
+    _CollectorLane lane,
+    int statusCode,
+    Map<String, String> headers,
+  ) {
+    if (statusCode != 429 && statusCode != 503) return;
+    final raw = headers['retry-after'];
+    if (raw == null) return;
+    final delayMs = parseCollectorRetryAfterDelayMs(raw, _now());
+    if (delayMs == null || delayMs <= 0) return;
+    _laneNotBefore[lane] = _now().add(Duration(milliseconds: delayMs));
+  }
+
   Future<http.Response> _tracedResponse(
     String path,
     Future<http.Response> Function() send,
@@ -886,6 +929,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
 }
 
 enum _SendResult { accepted, retry, drop }
+
+enum _CollectorLane { lifecycle, events, frames }
 
 class _CollectorHttpClient extends http.BaseClient {
   _CollectorHttpClient({

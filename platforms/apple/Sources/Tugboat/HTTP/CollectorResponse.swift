@@ -11,12 +11,12 @@ enum CollectorResponse {
   static let validStatuses = 100...599
 
   /// `.http` for a status the engine accepts, otherwise `.error`.
-  static func outcome(status: Int, body: Data) -> TransportOutcome {
+  static func outcome(status: Int, body: Data, retryAfter: String? = nil) -> TransportOutcome {
     guard validStatuses.contains(status) else {
       HostLog.warning("collector answered with status \(status); reporting a transport error")
       return .error
     }
-    return .http(status: status, body: text(body))
+    return .http(status: status, body: text(body), retryAfter: retryAfter)
   }
 
   /// The body as text of at most `maxBodyBytes` UTF-8 bytes. The bytes are

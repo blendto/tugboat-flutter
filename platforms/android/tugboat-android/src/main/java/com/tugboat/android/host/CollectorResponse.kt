@@ -18,12 +18,12 @@ internal object CollectorResponse {
     private const val TAG = "TugboatHttp"
 
     /** [TransportOutcome.Http] for a status the engine accepts, otherwise [TransportOutcome.Error]. */
-    fun outcome(status: Int, body: ByteArray): TransportOutcome {
+    fun outcome(status: Int, body: ByteArray, retryAfter: String? = null): TransportOutcome {
         if (status !in VALID_STATUSES) {
             Log.w(TAG, "collector answered with status $status; reporting a transport error")
             return TransportOutcome.Error
         }
-        return TransportOutcome.Http(status, text(body))
+        return TransportOutcome.Http(status, text(body), retryAfter)
     }
 
     /**

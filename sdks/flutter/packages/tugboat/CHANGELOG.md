@@ -1,3 +1,14 @@
+## 0.10.11-dev.5
+
+Prerelease.
+
+### Changed
+
+- `CollectorHttpSink` honours collector `Retry-After` on HTTP 429 and 503 per
+  delivery lane (lifecycle, events, frames): the lane waits
+  `min(parsed delay, 60 s)` before its next send; delta-seconds and IMF-fixdate
+  forms are accepted; unparseable values are ignored (immediate retry as before).
+
 ## 0.10.11-dev.4
 
 Prerelease.
