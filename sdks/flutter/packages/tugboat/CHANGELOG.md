@@ -419,8 +419,8 @@ This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.6`.
 ### Fixed
 
 - Default `TugboatReplay.eventHook` parameter policy now retains bounded
-  JSON-safe external-event values (`allowAllInProduction`; renamed `allowAll`
-  in 0.9.0). Parameter keys
+  JSON-safe external-event values (`allowAllInProduction`; removed in 0.9.0,
+  where `allowAll` became mode-free). Parameter keys
   were already captured; values were omitted unless the host opted in. Hosts
   that must not retain values can still pass `namesOnly`, an allow-list, or a
   transform. Existing JSON and size bounds still apply.
@@ -542,7 +542,8 @@ This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
 ### Added
 
 - **Explicit production parameter opt-in** —
-  `TugboatParameterPolicy.allowAllInProduction` (renamed `allowAll` in 0.9.0)
+  `TugboatParameterPolicy.allowAllInProduction` (removed in 0.9.0, where
+  `allowAll` became mode-free)
   retains JSON-safe external-event parameter values in production capture
   profiles. `namesOnly` remains the
   default. `allowAll` remains an exploration-only escape hatch and still
