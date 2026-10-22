@@ -245,7 +245,9 @@ Map<String, Object?> evaluateFixture(ConformanceFixture fixture) {
     case ConformanceKind.inventoryHash:
       _checkKeys(input, const {'fingerprints'}, 'input');
       final raw = _list(input['fingerprints'], 'input.fingerprints');
-      final fingerprints = raw.map((v) => _requireString(v, 'fingerprints', 'input')).toList()
+      final fingerprints = raw
+          .map((v) => _requireStringElement(v, 'input.fingerprints[]'))
+          .toList()
         ..sort();
       return {'hash': tugboatLabelHash(fingerprints.join('|'))};
     case ConformanceKind.collectorEvent:
@@ -734,6 +736,11 @@ String? _optString(Map<String, Object?> json, String key, String where) =>
 
 String _requireString(Map<String, Object?> json, String key, String where) =>
     _require<String>(json, key, where);
+
+String _requireStringElement(Object? value, String where) {
+  if (value is String) return value;
+  throw FormatException('$where: expected String, got $value');
+}
 
 int? _optInt(Map<String, Object?> json, String key, String where) =>
     _opt<int>(json, key, where);

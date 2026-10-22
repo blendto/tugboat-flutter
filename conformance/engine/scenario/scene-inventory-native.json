@@ -250,7 +250,7 @@
           "installationId": "inst-0001",
           "appId": "com.example.app",
           "packageName": "com.example.app"
-        },
+        }
       },
       "frames": [],
       "events": [
