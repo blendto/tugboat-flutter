@@ -282,6 +282,12 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
 - **Navigation gate.** `ViewsAdapter(postNavigationFacts = false)` (the
   default) tracks navigation for route keys but posts no `navigation` facts;
   the SDK (`TugboatRuntime`) turns it on now that the engine has phase 3d.
+- **Session start route seed.** On each `start()` (including after `stop()`),
+  the adapter posts one `navigation` fact per navigator with a non-empty
+  stack (`kind: session_start`, `routes` bottom to top), using process-scoped
+  stacks so an already-resumed activity is reported without another
+  `onResumed`. The first visible route in a session is never a synthetic
+  `route_push`.
 - **Motion fails closed.** A running legacy `Animation` (activity and
   fragment transitions) or `LayoutTransition` on a visible view draws away
   from layout bounds, so `WindowMasks` masks the whole frame (reason

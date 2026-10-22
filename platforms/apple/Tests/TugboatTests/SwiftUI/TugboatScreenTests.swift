@@ -31,9 +31,10 @@ final class TugboatScreenTests: XCTestCase {
     let first = tracker.takeFacts()
     XCTAssertEqual(first.count, 1)
     let push = first.first?.decodedInput
-    XCTAssertEqual(push?["kind"] as? String, "push")
+    XCTAssertEqual(push?["kind"] as? String, "session_start")
     XCTAssertEqual(push?["navigatorId"] as? String, "swiftui-screens")
-    let route = try XCTUnwrap(push?["route"] as? [String: Any])
+    let routes = try XCTUnwrap(push?["routes"] as? [[String: Any]])
+    let route = try XCTUnwrap(routes.first)
     XCTAssertEqual(route["name"] as? String, "Home")
     XCTAssertEqual(route["type"] as? String, "TugboatScreen")
     let homeId = try XCTUnwrap(route["instanceId"] as? String)
@@ -71,7 +72,9 @@ final class TugboatScreenTests: XCTestCase {
 
     tracker.controller(controller, appeared: true)
     XCTAssertEqual(facts.count, 1)
-    let route = facts.first?.decodedInput["route"] as? [String: Any]
+    XCTAssertEqual(facts.first?.decodedInput["kind"] as? String, "session_start")
+    let routes = facts.first?.decodedInput["routes"] as? [[String: Any]]
+    let route = routes?.first
     XCTAssertEqual(facts.first?.decodedInput["navigatorId"] as? String, "swiftui-hosting")
     XCTAssertEqual(route?["name"] as? String, RouteKey.hostingKey(controller))
     XCTAssertEqual(route?["type"] as? String, "UIHostingController")

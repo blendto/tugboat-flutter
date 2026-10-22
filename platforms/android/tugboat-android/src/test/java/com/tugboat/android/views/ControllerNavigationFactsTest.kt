@@ -4,11 +4,13 @@ import android.app.Activity
 import com.tugboat.android.host.FakeClock
 import com.tugboat.android.sdk.NavigationTracking
 import com.tugboat.android.sdk.rowsController
+import com.tugboat.android.views.navigation.NavigationProcessState
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -19,13 +21,20 @@ import org.robolectric.RobolectricTestRunner
 class ControllerNavigationFactsTest {
     private val sink = RecordingSink()
     private val frames = ManualFrames()
-    private val adapter = ViewsAdapter(
-        application = context as android.app.Application,
-        sink = sink,
-        hostClock = FakeClock(),
-        frames = frames,
-        postNavigationFacts = true,
-    ).apply { start() }
+    private lateinit var adapter: ViewsAdapter
+
+    @Before
+    fun setUp() {
+        NavigationProcessState.resetForTests()
+        sink.batches.clear()
+        adapter = ViewsAdapter(
+            application = context as android.app.Application,
+            sink = sink,
+            hostClock = FakeClock(),
+            frames = frames,
+            postNavigationFacts = true,
+        ).apply { start() }
+    }
 
     @After
     fun stop() = adapter.stop()
@@ -34,36 +43,47 @@ class ControllerNavigationFactsTest {
     fun navigatingToARowAndBackIsAPushThenAPopWithNormalizedNames() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val activityPush = navigation().single()
-        assertEquals("the activity push is unchanged", "push", activityPush.getString("kind"))
+        assertEquals("session_start", activityPush.getString("kind"))
         val activityNavigator = activityPush.getString("navigatorId")
-        val activityRoute = activityPush.getJSONObject("route").getString("instanceId")
+        val activityRoute = activityPush.bottomRouteInstanceId()
 
         val controller = rowsController(activity)
         NavigationTracking.track(controller) { a, current, previous -> adapter.onNavDestination(a, current, previous) }
         val start = navigation().single()
+        assertEquals("session_start", start.getString("kind"))
         controller.navigate("row/3")
         val push = navigation().single()
+        assertEquals("push", push.getString("kind"))
         controller.popBackStack()
         val pop = navigation().single()
 
         for (fact in listOf(start, push, pop)) {
             assertEquals("$activityRoute/nav", fact.getString("navigatorId"))
             assertEquals(activityNavigator, fact.getString("parentNavigatorId"))
-            assertEquals("NavDestination", fact.getJSONObject("route").getString("type"))
-            assertEquals("page", fact.getJSONObject("route").getString("overlayKind"))
-            assertEquals(0, fact.getJSONObject("route").getInt("transitionMs"))
+            val route = if (fact.getString("kind") == "session_start") {
+                fact.getJSONArray("routes").getJSONObject(0)
+            } else {
+                fact.getJSONObject("route")
+            }
+            assertEquals("NavDestination", route.getString("type"))
+            assertEquals("page", route.getString("overlayKind"))
+            assertEquals(0, route.getInt("transitionMs"))
         }
-        assertEquals("push", start.getString("kind"))
-        assertEquals("rows", start.getJSONObject("route").getString("name"))
+        assertEquals("rows", start.getJSONArray("routes").getJSONObject(0).getString("name"))
         assertFalse(start.has("departing"))
 
-        assertEquals("push", push.getString("kind"))
         assertEquals("row", push.getJSONObject("route").getString("name"))
-        assertEquals(start.getJSONObject("route").getString("instanceId"), push.getJSONObject("departing").getString("instanceId"))
+        assertEquals(
+            start.getJSONArray("routes").getJSONObject(0).getString("instanceId"),
+            push.getJSONObject("departing").getString("instanceId"),
+        )
 
         assertEquals("pop", pop.getString("kind"))
         assertEquals("rows", pop.getJSONObject("route").getString("name"))
-        assertEquals(start.getJSONObject("route").getString("instanceId"), pop.getJSONObject("route").getString("instanceId"))
+        assertEquals(
+            start.getJSONArray("routes").getJSONObject(0).getString("instanceId"),
+            pop.getJSONObject("route").getString("instanceId"),
+        )
         assertEquals(push.getJSONObject("route").getString("instanceId"), pop.getJSONObject("departing").getString("instanceId"))
     }
 

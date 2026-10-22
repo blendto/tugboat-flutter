@@ -1,0 +1,37 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "navigation-session-start-nested",
+  "description": "Nested navigators each get one session_start (parent first); parentNavigatorId is wired on the child record.",
+  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
+  "runners": ["cpp"],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {"name": "Example App", "version": "2.4.0", "buildNumber": "240", "installationId": "inst-0001", "appId": "com.example.app"},
+        "device": {"id": "device-0001", "platform": "android", "manufacturer": "Google", "model": "Pixel 8", "osVersion": "15", "networkType": "wifi", "screenSize": {"width": 412.0, "height": 915.0}, "screenDensity": 2.625, "screenDpi": 420, "screenPixelDensity": 2.625},
+        "ip": {"ip": "203.0.113.7"},
+        "locale": {"language": "en", "country": "US", "timezone": "Europe/Lisbon"},
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {"send": {"type": "session.start", "at": {"monoUs": 5000000, "wallUs": 1781827200000000}, "input": {"viewport": {"width": 412.0, "height": 915.0}, "platform": "android", "sessionEpoch": 0}}, "expect": {"records": [{"kind": "event", "event": {"id": "event-0", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-1781827200000000"}, "userId": null}], "effects": [{"type": "capture.request", "requestId": "capture-0", "trigger": "initial", "force": true, "requireFreshPaint": true, "dropWhenBusy": false, "notBeforeMonoUs": 5000000, "context": {"routeEpoch": 0, "boundaryGeneration": 0}, "scale": 1.0}, {"type": "timer.schedule", "timerId": "capture.answer.capture-0", "atMonoUs": 10000000}]}},
+      {"send": {"type": "capture.result", "at": {"monoUs": 5000000}, "input": {"requestId": "capture-0", "outcome": "failed"}}, "expect": {"records": [], "effects": [{"type": "timer.cancel", "timerId": "capture.answer.capture-0"}]}},
+      {"send": {"type": "navigation", "at": {"monoUs": 5100000}, "input": {"kind": "session_start", "navigatorId": "shell", "routes": [{"instanceId": "a-shell", "name": "/shell", "type": "Page", "overlayKind": "page", "transitionMs": 0}]}}, "expect": {"records": [{"kind": "event", "event": {"id": "event-3", "atMs": 100, "type": "route_change", "stream": "evidence", "captureSessionId": "session-1781827200000000", "result": "unknown", "data": {"route": "/shell", "navigation": "session_start", "routeName": "/shell", "routeType": "Page", "routeNamed": true, "navigatorId": "nav-0", "routeInstanceId": "route-0", "stackRevision": 1, "overlayKind": "page", "visualObservationGeneration": 1, "navigationOrigin": "automatic_or_unknown", "routeStack": [{"routeInstanceId": "route-0", "route": "/shell", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}]}}, "userId": null}], "effects": []}},
+      {"send": {"type": "navigation", "at": {"monoUs": 5200000}, "input": {"kind": "session_start", "navigatorId": "tabs", "parentNavigatorId": "shell", "routes": [{"instanceId": "a-feed", "name": "/feed", "type": "Page", "overlayKind": "page", "transitionMs": 0}]}}, "expect": {"records": [{"kind": "event", "event": {"id": "event-4", "atMs": 200, "type": "route_change", "stream": "evidence", "captureSessionId": "session-1781827200000000", "result": "unknown", "data": {"route": "/feed", "navigation": "session_start", "routeName": "/feed", "routeType": "Page", "routeNamed": true, "navigatorId": "nav-1", "parentNavigatorId": "nav-0", "routeInstanceId": "route-1", "stackRevision": 1, "overlayKind": "page", "visualObservationGeneration": 2, "navigationOrigin": "automatic_or_unknown", "routeStack": [{"routeInstanceId": "route-1", "route": "/feed", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-1"}]}}, "userId": null}], "effects": []}}
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {"id": "session-1781827200000000", "captureSessionId": "session-1781827200000000", "startedAt": "2026-06-19T00:00:00.000Z", "platform": "android", "viewport": {"x": 0.0, "y": 0.0, "width": 412.0, "height": 915.0}, "truncated": false, "appInfo": {"name": "Example App", "version": "2.4.0", "buildNumber": "240", "installationId": "inst-0001", "appId": "com.example.app", "packageName": "com.example.app"}},
+      "frames": [],
+      "events": [
+        {"id": "event-0", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-1781827200000000"},
+        {"id": "event-3", "atMs": 100, "type": "route_change", "stream": "evidence", "captureSessionId": "session-1781827200000000", "result": "unknown", "data": {"route": "/shell", "navigation": "session_start", "routeName": "/shell", "routeType": "Page", "routeNamed": true, "navigatorId": "nav-0", "routeInstanceId": "route-0", "stackRevision": 1, "overlayKind": "page", "visualObservationGeneration": 1, "navigationOrigin": "automatic_or_unknown", "routeStack": [{"routeInstanceId": "route-0", "route": "/shell", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}]}},
+        {"id": "event-4", "atMs": 200, "type": "route_change", "stream": "evidence", "captureSessionId": "session-1781827200000000", "result": "unknown", "data": {"route": "/feed", "navigation": "session_start", "routeName": "/feed", "routeType": "Page", "routeNamed": true, "navigatorId": "nav-1", "parentNavigatorId": "nav-0", "routeInstanceId": "route-1", "stackRevision": 1, "overlayKind": "page", "visualObservationGeneration": 2, "navigationOrigin": "automatic_or_unknown", "routeStack": [{"routeInstanceId": "route-1", "route": "/feed", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-1"}]}}
+      ]
+    }
+  }
+}

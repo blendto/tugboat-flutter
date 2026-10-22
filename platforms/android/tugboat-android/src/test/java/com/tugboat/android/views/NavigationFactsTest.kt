@@ -27,16 +27,20 @@ import org.robolectric.RobolectricTestRunner
 class NavigationFactsTest {
     private val sink = RecordingSink()
     private val frames = ManualFrames()
-    private val adapter = ViewsAdapter(
-        application = context as android.app.Application,
-        sink = sink,
-        hostClock = FakeClock(),
-        frames = frames,
-        postNavigationFacts = true,
-    ).apply { start() }
+    private lateinit var adapter: ViewsAdapter
 
     @Before
-    fun resetProcessNavigation() = NavigationProcessState.resetForTests()
+    fun setUp() {
+        NavigationProcessState.resetForTests()
+        sink.batches.clear()
+        adapter = ViewsAdapter(
+            application = context as android.app.Application,
+            sink = sink,
+            hostClock = FakeClock(),
+            frames = frames,
+            postNavigationFacts = true,
+        ).apply { start() }
+    }
 
     @After
     fun stop() = adapter.stop()
@@ -95,16 +99,16 @@ class NavigationFactsTest {
     @Test
     fun fragmentTransactionsArePushReplaceAndPop() {
         val host = Robolectric.buildActivity(FragmentActivity::class.java).setup()
-        val activityRoute = navigation().single().getJSONObject("route")
+        val activityRoute = navigation().single().getJSONArray("routes").getJSONObject(0)
         val fm = host.get().supportFragmentManager
 
         fm.beginTransaction().add(android.R.id.content, TestFragment(), "home").commitNow()
         val home = navigation().single()
-        assertEquals("push", home.getString("kind"))
+        assertEquals("session_start", home.getString("kind"))
         assertEquals("${activityRoute.getString("instanceId")}/fragments", home.getString("navigatorId"))
         assertEquals("activities:${host.get().taskId}", home.getString("parentNavigatorId"))
-        assertEquals("home", home.getJSONObject("route").getString("name"))
-        assertEquals("Fragment", home.getJSONObject("route").getString("type"))
+        assertEquals("home", home.getJSONArray("routes").getJSONObject(0).getString("name"))
+        assertEquals("Fragment", home.getJSONArray("routes").getJSONObject(0).getString("type"))
 
         fm.beginTransaction().replace(android.R.id.content, TestFragment(), "detail").addToBackStack(null).commit()
         fm.executePendingTransactions()
@@ -115,7 +119,7 @@ class NavigationFactsTest {
         fm.popBackStackImmediate()
         val back = navigation().single()
         assertEquals("pop", back.getString("kind"))
-        assertEquals(home.getJSONObject("route").getString("instanceId"), back.getJSONObject("route").getString("instanceId"))
+        assertEquals(home.getJSONArray("routes").getJSONObject(0).getString("instanceId"), back.getJSONObject("route").getString("instanceId"))
 
         fm.beginTransaction().replace(android.R.id.content, TestFragment(), "settings").commitNow()
         val settings = navigation().single()
@@ -144,7 +148,7 @@ class NavigationFactsTest {
     @Test
     fun recreatedActivitiesKeepTheirInstanceIdAndSendNothing() {
         val controller = Robolectric.buildActivity(FirstActivity::class.java).setup()
-        val instanceId = navigation().single().getJSONObject("route").getString("instanceId")
+        val instanceId = navigation().single().bottomRouteInstanceId()
         controller.recreate()
         assertTrue(navigation().isEmpty())
 
@@ -157,7 +161,7 @@ class NavigationFactsTest {
     @Test
     fun anActivityTheSystemDestroyedWithoutFinishingIsNotNavigation() {
         val first = Robolectric.buildActivity(FirstActivity::class.java).setup()
-        val instanceId = navigation().single().getJSONObject("route").getString("instanceId")
+        val instanceId = navigation().single().bottomRouteInstanceId()
         first.pause()
         val second = Robolectric.buildActivity(SecondActivity::class.java).setup()
         first.stop().destroy() // reclaimed in the back stack, not finishing
@@ -175,14 +179,13 @@ class NavigationFactsTest {
     @Test
     fun nestedFragmentNavigatorsAreForgottenWithTheirHosts() {
         val host = Robolectric.buildActivity(FragmentActivity::class.java).setup()
-        val activityId = navigation().single().getJSONObject("route").getString("instanceId")
+        val activityId = navigation().single().bottomRouteInstanceId()
         val parent = ParentFragment()
         host.get().supportFragmentManager.beginTransaction().add(android.R.id.content, parent, "parent").commitNow()
         val facts = navigation()
-        assertEquals(listOf("parent", "child"), facts.map { it.getJSONObject("route").getString("name") })
-        val parentId = facts.first { it.getJSONObject("route").getString("name") == "parent" }
-            .getJSONObject("route").getString("instanceId")
-        val child = facts.single { it.getJSONObject("route").getString("name") == "child" }
+        assertEquals(listOf("parent", "child"), facts.map { it.routeName() })
+        val parentId = facts.first { it.routeName() == "parent" }.routeInstanceId()
+        val child = facts.single { it.routeName() == "child" }
         assertEquals("$parentId/fragments", child.getString("navigatorId"))
         assertEquals("$activityId/fragments", child.getString("parentNavigatorId"))
         assertEquals(setOf("$activityId/fragments", "$parentId/fragments"), adapter.fragmentNavigatorIds)
