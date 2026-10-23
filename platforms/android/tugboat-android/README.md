@@ -350,7 +350,7 @@ interface ToolkitRegion {
     fun scrollablesAt(host: View, x: Float, y: Float): List<RegionScrollable> // live offset readers
     fun masks(host: View): RegionMasks        // Rects(rects, reasons) | WholeHost(reason) | WholeFrame(reason)
     fun focus(host: View): RegionFocus?       // TextInput | Other
-    fun inventory(host: View): List<RegionInventoryEntry>  // scene inventory; default empty
+    fun inventory(host: View, limit: Int): RegionInventory  // scene inventory: at most limit entries (target + tier), and a total; default empty
 }
 ```
 

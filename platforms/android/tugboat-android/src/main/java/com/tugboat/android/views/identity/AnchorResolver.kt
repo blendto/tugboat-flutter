@@ -1,7 +1,6 @@
 package com.tugboat.android.views.identity
 
 import android.view.View
-import android.view.ViewGroup
 import com.tugboat.android.views.region.Regions
 
 /**
@@ -38,12 +37,23 @@ internal class AnchorResolver(
         return TapEvidence.of(anchor)
     }
 
-    /** The anchor of [view], or null when it is not attached under [window]. A region host anchors as its region. */
-    fun anchorFor(view: View, window: View = view.rootView): TargetAnchor? {
+    /** Subtree walks that counted resource ids, for tests: one per anchor, or one per route root with [IdCounts]. */
+    var idCountWalks = 0
+        private set
+
+    /** Resource id counts shared by many [anchorFor] calls (one inventory walk): each route root is counted once. */
+    fun idCounts(): IdCounts = IdCounts { idCountWalks++ }
+
+    /**
+     * The anchor of [view], or null when it is not attached under [window]. A
+     * region host anchors as its region. [ids] shares id counts across calls;
+     * without it each call counts its route root's ids.
+     */
+    fun anchorFor(view: View, window: View = view.rootView, ids: IdCounts? = null): TargetAnchor? {
         Regions.hostOf(view)?.let { return regions.anchor(it, target = null, window) }
         val route = routes.routeFor(view) ?: return null
         val path = paths.build(route.root, view) ?: return null
-        val tag = alias(route.root, view)
+        val tag = alias(route.root, view, ids)
         val fingerprint = IdentityHash.fingerprint(mapOf("routeKey" to route.value, "path" to path.value))
         val role = ViewRoles.role(view)
         return TargetAnchor(
@@ -68,18 +78,16 @@ internal class AnchorResolver(
             else -> Confidence.Low
         }
 
-    private fun alias(root: View, view: View): String? {
+    private fun alias(root: View, view: View, ids: IdCounts?): String? {
         ViewTags.alias(view)?.let { return it }
         val name = names.entryName(view) ?: return null
-        return name.takeIf { countWithId(root, view.id) == 1 }
+        val count = if (ids != null) ids.count(root, view.id) else countIdOnce(root, view.id)
+        return name.takeIf { count == 1 }
     }
 
-    private fun countWithId(view: View, id: Int): Int {
-        var count = if (view.id == id) 1 else 0
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) count += countWithId(view.getChildAt(i), id)
-        }
-        return count
+    private fun countIdOnce(root: View, id: Int): Int {
+        idCountWalks++
+        return IdCounts.countWithId(root, id)
     }
 
     private inline fun nearest(start: View, stop: View, predicate: (View) -> Boolean): View? {

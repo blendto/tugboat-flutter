@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 import android.view.Window
-import android.view.WindowManager
 import com.tugboat.android.host.HostClock
 import com.tugboat.android.host.SystemHostClock
 import com.tugboat.android.views.facts.ChoreographerFrames
@@ -12,13 +11,13 @@ import com.tugboat.android.views.facts.FactBatcher
 import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.FactSink
 import com.tugboat.android.views.facts.FrameScheduler
-import com.tugboat.android.views.facts.FactTypes
 import com.tugboat.android.views.facts.ViewsFact
 import com.tugboat.android.views.identity.AnchorResolver
 import com.tugboat.android.views.identity.AndroidResourceNames
-import com.tugboat.android.views.identity.CanonicalPathBuilder
 import com.tugboat.android.views.input.FocusState
 import com.tugboat.android.views.input.GestureConfig
+import com.tugboat.android.views.inventory.SceneInventoryBuilder
+import com.tugboat.android.views.inventory.SceneInventoryEmitter
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.android.views.mask.WindowMasks
 import com.tugboat.android.views.navigation.ActivityNavigation
@@ -27,7 +26,6 @@ import com.tugboat.android.views.navigation.DestinationTracker
 import com.tugboat.android.views.navigation.FragmentNavigation
 import com.tugboat.android.views.navigation.NavEntry
 import com.tugboat.android.views.navigation.NavigationChange
-import com.tugboat.android.views.inventory.SceneInventoryBuilder
 import com.tugboat.android.views.navigation.ViewRouteResolver
 
 /**
@@ -54,16 +52,24 @@ internal class ViewsAdapter(
      * TODO(ADR 0009 phase 3d): default to true once the engine accepts `navigation`.
      */
     private val postNavigationFacts: Boolean = false,
+    /** `TugboatConfig.emitSceneInventory`: [onCapturedFrame] emits `scene.inventory` ([SceneInventoryEmitter]). */
     private val emitSceneInventory: Boolean = false,
 ) : Application.ActivityLifecycleCallbacks {
     private val clock = FactClock(hostClock)
     private val batcher = FactBatcher(sink, frames, ::onFrame)
     private val destinations = DestinationTracker()
-    private val routes = ViewRouteResolver(destinations) { view -> fragments?.routeRootedAt(view) }
+    private val routes = ViewRouteResolver(
+        destinations,
+        fragmentRoute = { view -> fragments?.routeRootedAt(view) },
+        visibleFragmentRoot = { activity -> fragments?.visibleRouteRoot(activity) },
+    )
     private val names = AndroidResourceNames(application.resources)
-    private val paths = CanonicalPathBuilder(names)
     private val anchors = AnchorResolver(names, routes)
-    private val sceneInventory = SceneInventoryBuilder(names, routes, paths, anchors)
+    private val inventoryBuilder = SceneInventoryBuilder(names, routes, anchors)
+    private val inventory = SceneInventoryEmitter(routes, inventoryBuilder, clock) { fact ->
+        if (started) batcher.add(fact)
+        started
+    }
     private val activities = ActivityNavigation(::reportNavigation)
     private val controllers = ControllerNavigation(::reportNavigation)
     private val fragments =
@@ -77,8 +83,6 @@ internal class ViewsAdapter(
     /** Focus is app-wide: every window reports against the same last kind. */
     private val focusState = FocusState()
     private var started = false
-    private val lastInventoryStructureByRoute = HashMap<String, String>()
-    private var pendingInventoryWindow: Window? = null
 
     fun start() = AdapterGuard.run("start") {
         if (started) return@run
@@ -100,6 +104,10 @@ internal class ViewsAdapter(
     /** Fragment navigator ids currently tracked; for tests. */
     val fragmentNavigatorIds: Set<String>
         get() = fragments?.navigatorIds.orEmpty()
+
+    /** Scene inventory walks so far; for tests. */
+    val sceneInventoryWalks: Int
+        get() = inventoryBuilder.walks
 
     /** Mask rectangles for [window] under `allTextAndMedia`; called on the main thread per `capture.request`. */
     fun masks(window: Window): WindowMaskResult = WindowMasks.compute(window)
@@ -126,20 +134,15 @@ internal class ViewsAdapter(
             val navigatorId = ControllerNavigation.navigatorIdFor(activities.ensureEntry(activity).instanceId)
             val routeKey = destinations.routeKey(activity, current.route, current.destinationId) ?: ControllerNavigation.TYPE
             controllers.onDestinationChanged(navigatorId, activities.navigatorIdOf(activity), current, routeKey, previous)
-            pendingInventoryWindow = activity.window
-            batcher.requestFrame()
         }
 
-    /** After a captured frame or a route settle, when [emitSceneInventory] is enabled. */
-    fun maybeEmitSceneInventory(window: Window) = AdapterGuard.run("scene inventory") {
-        if (!emitSceneInventory || !started) return@run
-        if (window.isSecureForInventory()) return@run
-        val masks = WindowMasks.compute(window)
-        val input = sceneInventory.build(window) ?: return@run
-        val routeKey = input.getString("routeKey")
-        if (lastInventoryStructureByRoute[routeKey] == masks.structureSignature) return@run
-        lastInventoryStructureByRoute[routeKey] = masks.structureSignature
-        emit(ViewsFact(FactTypes.SCENE_INVENTORY, input, clock.now()))
+    /**
+     * A capture of [window] completed with [structureSignature] (its masks'
+     * structure): emits the visible route's `scene.inventory` when
+     * [emitSceneInventory] is on. Main thread.
+     */
+    fun onCapturedFrame(window: Window, structureSignature: String) = AdapterGuard.run("scene inventory") {
+        if (emitSceneInventory && started) inventory.onCapturedFrame(window, structureSignature)
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
@@ -195,12 +198,5 @@ internal class ViewsAdapter(
     private fun onFrame() {
         fragments?.flush()
         sessions.values.toList().forEach(WindowSession::onFrame)
-        pendingInventoryWindow?.let { window ->
-            pendingInventoryWindow = null
-            maybeEmitSceneInventory(window)
-        }
     }
-
-    private fun Window.isSecureForInventory(): Boolean =
-        attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0
 }

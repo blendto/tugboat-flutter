@@ -22,13 +22,16 @@ internal class NodePath(val segments: List<String>, val inListItem: Boolean)
  * host's own path. Aliases and text never enter it.
  */
 internal object NodePaths {
-    /** Every node id below [root] to its path, built in one top-down walk. */
+    /**
+     * Every node id below [root] to the path [build] gives it, in one
+     * top-down walk: each node's children are read once, and ordinals are
+     * counted per scope as the walk meets them (paint order). Excluded nodes
+     * ([NodeRules.isExcluded]) and their subtrees have no entry.
+     */
     fun index(root: SemanticsNode): Map<Int, NodePath> {
-        val paths = HashMap<Int, NodePath>()
-        for (child in root.children) {
-            indexWalk(root, child, root, ArrayList(), false, paths)
-        }
-        return paths
+        val index = PathIndex()
+        for (child in root.children) index.walk(child, parent = root, scope = root, emptyList(), inListItem = false)
+        return index.paths
     }
 
     /** [target]'s path below [root], or null when [target] is not in [root]'s tree. */
@@ -54,34 +57,6 @@ internal object NodePaths {
             scope = node
         }
         return NodePath(segments, inListItem)
-    }
-
-    private fun indexWalk(
-        root: SemanticsNode,
-        node: SemanticsNode,
-        scope: SemanticsNode,
-        segments: ArrayList<String>,
-        inListItem: Boolean,
-        paths: MutableMap<Int, NodePath>,
-    ) {
-        val item = ListItems.of(scope, node)
-        val childSegments = ArrayList(segments)
-        var childScope = scope
-        var childInListItem = inListItem
-        if (item != null) {
-            childSegments += item.segment
-            childInListItem = childInListItem || item.indexed
-            childScope = node
-            if (NodeRules.isKept(node)) childSegments += "${NodeRoles.token(node)}#0"
-        } else if (NodeRules.isKept(node)) {
-            val token = NodeRoles.token(node)
-            childSegments += "$token#${ordinal(scope, node, token)}"
-            childScope = node
-        }
-        paths[node.id] = NodePath(childSegments.toList(), childInListItem)
-        for (child in node.children) {
-            indexWalk(root, child, childScope, childSegments, childInListItem, paths)
-        }
     }
 
     /** The nodes strictly below [root] down to the node with [id], top first. */
@@ -116,6 +91,39 @@ internal object NodePaths {
                 ListItems.of(parent, child) != null || NodeRules.isKept(child) -> out += parent to child
                 else -> collect(child, out)
             }
+        }
+    }
+
+    /** [index]'s walk state: the paths so far and, per scope node id, the next ordinal of each token. */
+    private class PathIndex {
+        val paths = HashMap<Int, NodePath>()
+        private val ordinals = HashMap<Int, HashMap<String, Int>>()
+
+        fun walk(node: SemanticsNode, parent: SemanticsNode, scope: SemanticsNode, segments: List<String>, inListItem: Boolean) {
+            if (NodeRules.isExcluded(node)) return
+            val item = ListItems.of(parent, node)
+            var childSegments = segments
+            var childScope = scope
+            var childInListItem = inListItem
+            if (item != null) {
+                childSegments = segments + item.segment
+                if (NodeRules.isKept(node)) childSegments = childSegments + "${NodeRoles.token(node)}#0"
+                childInListItem = inListItem || item.indexed
+                childScope = node
+            } else if (NodeRules.isKept(node)) {
+                val token = NodeRoles.token(node)
+                childSegments = segments + "$token#${nextOrdinal(scope, token)}"
+                childScope = node
+            }
+            paths[node.id] = NodePath(childSegments, childInListItem)
+            for (child in node.children) walk(child, node, childScope, childSegments, childInListItem)
+        }
+
+        private fun nextOrdinal(scope: SemanticsNode, token: String): Int {
+            val counts = ordinals.getOrPut(scope.id) { HashMap() }
+            val ordinal = counts[token] ?: 0
+            counts[token] = ordinal + 1
+            return ordinal
         }
     }
 }

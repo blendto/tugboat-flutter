@@ -1,296 +1,219 @@
 package com.tugboat.android.views.inventory
 
 import android.graphics.RectF
-import android.os.Looper
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import com.tugboat.android.toolkit.RegionInventoryEntry
+import com.tugboat.android.toolkit.InventoryTier
 import com.tugboat.android.views.identity.AnchorResolver
-import com.tugboat.android.views.identity.CanonicalPathBuilder
-import com.tugboat.android.views.identity.IdentityHash
 import com.tugboat.android.views.identity.ResourceNames
+import com.tugboat.android.views.identity.RouteKey
 import com.tugboat.android.views.identity.RouteResolver
+import com.tugboat.android.views.identity.TargetAnchor
 import com.tugboat.android.views.identity.ViewGeometry
 import com.tugboat.android.views.identity.ViewRules
 import com.tugboat.android.views.region.RegionHost
 import com.tugboat.android.views.region.Regions
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.TreeSet
 
-/** Builds `scene.inventory` inputs from a window decor tree. Main thread only. */
+/**
+ * Builds `scene.inventory` inputs from a window's decor tree. Main thread
+ * only ([SceneInventoryEmitter] checks).
+ *
+ * Every element is a [TargetAnchor] (the tap anchor of the same view or
+ * region target, so the fingerprints agree), its normalized bounds, and a
+ * tier. Views are anchored with [AnchorResolver.anchorFor], region targets
+ * with `RegionAnchors.anchor`.
+ */
 internal class SceneInventoryBuilder(
     private val names: ResourceNames,
     private val routes: RouteResolver,
-    private val paths: CanonicalPathBuilder,
     private val anchors: AnchorResolver,
 ) {
-    private val largeTextArea = 0.02
+    /** Inventory walks so far, for tests. */
+    var walks = 0
+        private set
 
-    fun build(window: android.view.Window, elementLimit: Int = MAX_ELEMENTS): JSONObject? {
-        if (Looper.myLooper() != Looper.getMainLooper()) {
-            Log.w(TAG, "scene inventory off main thread; dropped")
-            return null
-        }
-        val decor = window.decorView
-        val width = decor.width.toDouble()
-        val height = decor.height.toDouble()
-        if (width <= 0 || height <= 0) return null
-        val inventoryRouteKey = routes.routeFor(inventoryRouteView(decor))?.value ?: return null
-        val interactive = LinkedHashMap<String, JSONObject>()
-        val content = ArrayList<JSONObject>()
-        val seenContent = HashSet<String>()
-        val remaining = ElementCap(elementLimit)
-        collect(
-            decor,
-            decor,
-            decor,
-            inventoryRouteKey,
-            width,
-            height,
-            interactive,
-            content,
-            seenContent,
-            remaining,
-        )
-        if (interactive.isEmpty() && content.isEmpty()) return null
-        val elements = JSONArray()
-        interactive.values.forEach(elements::put)
-        content.forEach(elements::put)
-        return JSONObject()
-            .put("routeKey", inventoryRouteKey)
-            .put("elements", elements)
-    }
-
-    private fun inventoryRouteView(decor: View): View {
-        val content = decor.findViewById<View>(android.R.id.content) ?: return decor
-        val group = content as? ViewGroup
-        if (group != null && group.childCount > 0) return group.getChildAt(0)
-        return content
-    }
-
-    private fun collect(
-        decor: View,
-        view: View,
-        window: View,
-        inventoryRouteKey: String,
-        width: Double,
-        height: Double,
-        interactive: LinkedHashMap<String, JSONObject>,
-        content: MutableList<JSONObject>,
-        seenContent: MutableSet<String>,
-        remaining: ElementCap,
-    ) {
-        if (!remaining.hasCapacity()) return
-        if (ViewRules.isExcluded(view)) return
-        val region = Regions.regionOf(view)
-        if (region != null) {
-            regionInventory(
-                RegionHost(view, region),
-                window,
-                inventoryRouteKey,
-                width,
-                height,
-                interactive,
-                content,
-                seenContent,
-                remaining,
-            )
-            return
-        }
-        if (ViewRules.isKept(view, names)) {
-            val route = routes.routeFor(view)?.value
-            if (route == inventoryRouteKey) {
-                entryFor(view, decor, window, width, height)?.let { (fp, json) ->
-                    when (json.getString("tier")) {
-                        InventoryTier.Interactive.wire ->
-                            mergeInteractive(interactive, fp, json, remaining)
-                        InventoryTier.Content.wire ->
-                            if (seenContent.add(fp) && remaining.take()) content += json
-                    }
-                }
-            }
-        }
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) {
-                collect(
-                    decor,
-                    view.getChildAt(i),
-                    window,
-                    inventoryRouteKey,
-                    width,
-                    height,
-                    interactive,
-                    content,
-                    seenContent,
-                    remaining,
-                )
-                if (!remaining.hasCapacity()) return
-            }
-        }
-    }
-
-    private fun regionInventory(
-        host: RegionHost,
-        window: View,
-        inventoryRouteKey: String,
-        width: Double,
-        height: Double,
-        interactive: LinkedHashMap<String, JSONObject>,
-        content: MutableList<JSONObject>,
-        seenContent: MutableSet<String>,
-        remaining: ElementCap,
-    ) {
-        val route = routes.routeFor(host.view) ?: return
-        if (route.value != inventoryRouteKey) return
-        val hostPath = paths.build(route.root, host.view) ?: return
-        val prefix = hostPath.value
-        for (entry in host.region.inventory(host.view)) {
-            if (!remaining.hasCapacity()) return
-            val path = (listOf(prefix) + entry.pathSegments).joinToString("/")
-            val json = regionEntryJson(route.value, path, entry, window, host.view, width, height) ?: continue
-            val fp = json.getString("fingerprint")
-            when (json.getString("tier")) {
-                InventoryTier.Interactive.wire -> mergeInteractive(interactive, fp, json, remaining)
-                InventoryTier.Content.wire ->
-                    if (seenContent.add(fp) && remaining.take()) content += json
-            }
-        }
-    }
-
-    private fun entryFor(
-        view: View,
-        decor: View,
-        window: View,
-        width: Double,
-        height: Double,
-    ): Pair<String, JSONObject>? {
-        val bounds = ViewGeometry.boundsIn(decor, view) ?: return null
-        val norm = normalize(bounds, width, height) ?: return null
-        if (ViewRules.isActionable(view)) {
-            val anchor = anchors.anchorFor(view, window) ?: return null
-            val structural = paths.build(routes.routeFor(view)?.root ?: return null, view)?.value ?: return null
-            val structuralFp = IdentityHash.fingerprint(mapOf("routeKey" to anchor.routeKey, "path" to structural))
-            val json = JSONObject()
-                .put("fingerprint", anchor.fingerprint)
-                .put("canonicalPath", anchor.canonicalPath)
-                .put("boundsNorm", norm)
-                .put("tier", InventoryTier.Interactive.wire)
-            anchor.widgetType?.let { json.put("widgetType", it) }
-            anchor.role?.let { json.put("role", it) }
-            if (anchor.actions.isNotEmpty()) json.put("actions", JSONArray(anchor.actions))
-            anchor.enabled?.let { json.put("enabled", it) }
-            val aliases = aliasList(structuralFp, anchor.fingerprint, anchor.tagFingerprint)
-            if (aliases.isNotEmpty()) json.put("aliases", JSONArray(aliases))
-            return anchor.fingerprint to json
-        }
-        if (view is ImageView || (view is TextView && norm.getDouble("width") * norm.getDouble("height") >= largeTextArea)) {
-            val route = routes.routeFor(view) ?: return null
-            val path = paths.build(route.root, view)?.value ?: return null
-            val fp = IdentityHash.fingerprint(mapOf("routeKey" to route.value, "path" to path))
-            val json = JSONObject()
-                .put("fingerprint", fp)
-                .put("canonicalPath", path)
-                .put("widgetType", if (view is ImageView) "ImageView" else "TextView")
-                .put("role", "display")
-                .put("boundsNorm", norm)
-                .put("tier", InventoryTier.Content.wire)
-            return fp to json
-        }
-        return null
-    }
-
-    private fun regionEntryJson(
-        routeKey: String,
-        path: String,
-        entry: RegionInventoryEntry,
-        window: View,
-        host: View,
-        width: Double,
-        height: Double,
-    ): JSONObject? {
-        val mapped = ViewGeometry.mapRect(window, host, entry.bounds) ?: return null
-        val norm = normalize(mapped, width, height) ?: return null
-        val fingerprint = IdentityHash.fingerprint(mapOf("routeKey" to routeKey, "path" to path))
-        val json = JSONObject()
-            .put("fingerprint", fingerprint)
-            .put("canonicalPath", path)
-            .put("widgetType", entry.widgetType)
-            .put("boundsNorm", norm)
-            .put("tier", entry.tier)
-        entry.role?.let { json.put("role", it) }
-        if (entry.actions.isNotEmpty()) json.put("actions", JSONArray(entry.actions))
-        entry.enabled?.let { json.put("enabled", it) }
-        val tagFp = entry.tag?.let { IdentityHash.fingerprint(mapOf("routeKey" to routeKey, "tag" to it)) }
-        val aliases = aliasList(entry.structuralFingerprint.orEmpty(), fingerprint, tagFp)
-        if (aliases.isNotEmpty()) json.put("aliases", JSONArray(aliases))
-        return json
-    }
-
-    private fun mergeInteractive(
-        map: LinkedHashMap<String, JSONObject>,
-        fp: String,
-        json: JSONObject,
-        remaining: ElementCap,
-    ) {
-        val existing = map[fp]
-        if (existing == null) {
-            if (!remaining.take()) return
-            map[fp] = json
-            return
-        }
-        val merged = JSONArray()
-        val aliases = existing.optJSONArray("aliases") ?: JSONArray()
-        for (i in 0 until aliases.length()) merged.put(aliases.getString(i))
-        json.optJSONArray("aliases")?.let { extra ->
-            for (i in 0 until extra.length()) merged.put(extra.getString(i))
-        }
-        if (merged.length() > 0) existing.put("aliases", merged)
-    }
-
-    private fun aliasList(structural: String, primary: String, tagFingerprint: String?): List<String> {
-        val out = ArrayList<String>()
-        if (structural.isNotEmpty() && structural != primary) out += structural
-        if (!tagFingerprint.isNullOrEmpty() && tagFingerprint != primary && tagFingerprint !in out) {
-            out += tagFingerprint
-        }
-        return out.sorted()
-    }
-
-    private fun normalize(bounds: RectF, width: Double, height: Double): JSONObject? {
-        val left = (bounds.left / width).coerceIn(0.0, 1.0)
-        val top = (bounds.top / height).coerceIn(0.0, 1.0)
-        val right = (bounds.right / width).coerceIn(0.0, 1.0)
-        val bottom = (bounds.bottom / height).coerceIn(0.0, 1.0)
-        val w = right - left
-        val h = bottom - top
-        if (w <= 0 || h <= 0) return null
-        return JSONObject()
-            .put("left", left)
-            .put("top", top)
-            .put("width", w)
-            .put("height", h)
-    }
-
-    private class ElementCap(private var left: Int) {
-        fun hasCapacity(): Boolean = left > 0
-
-        fun take(): Boolean {
-            if (left <= 0) return false
-            left--
-            return true
-        }
+    /**
+     * The elements of [route] in [decor]: views (and region targets) whose
+     * own route key is [route]'s. At most [limit] are collected; the rest
+     * are only counted. Null when there are none.
+     */
+    fun build(decor: View, route: RouteKey, limit: Int = MAX_ELEMENTS): SceneInventory? {
+        if (decor.width <= 0 || decor.height <= 0) return null
+        walks++
+        val walk = InventoryWalk(names, routes, anchors, decor, route.value, limit)
+        walk.visit(decor)
+        return walk.result()
     }
 
     companion object {
-        private const val TAG = "TugboatViews"
+        /** The engine's `limits.maxSceneInventoryElements` default (change C20). */
         const val MAX_ELEMENTS = 500
     }
 }
 
-private enum class InventoryTier(val wire: String) {
-    Interactive("interactive"),
-    Content("content"),
+/** One `scene.inventory` input; [totalElements] counts what the walk found, collected or not. */
+internal class SceneInventory(val routeKey: String, val elements: List<InventoryElement>, val totalElements: Int) {
+    fun toJson(): JSONObject {
+        val array = JSONArray()
+        elements.forEach { array.put(it.toJson()) }
+        return JSONObject()
+            .put("routeKey", routeKey)
+            .put("elements", array)
+            .put("totalElements", totalElements)
+    }
+}
+
+/** An anchor, its bounds, and its tier; interactive elements also carry their aliases. */
+internal class InventoryElement(val anchor: TargetAnchor, val bounds: NormalizedBounds, val tier: InventoryTier) {
+    val aliases = TreeSet<String>()
+
+    init {
+        val tag = anchor.tagFingerprint
+        if (tier == InventoryTier.Interactive && tag != null && tag != anchor.fingerprint) aliases += tag
+    }
+
+    /** Dart `TugboatSceneInventoryEntry.toJson`: content elements carry only identity, bounds, and `role: display`. */
+    fun toJson(): JSONObject {
+        val json = JSONObject()
+            .put("fingerprint", anchor.fingerprint)
+            .put("canonicalPath", anchor.canonicalPath)
+            .put("widgetType", anchor.widgetType)
+        if (tier == InventoryTier.Interactive) {
+            anchor.role?.let { json.put("role", it) }
+            if (anchor.actions.isNotEmpty()) json.put("actions", JSONArray(anchor.actions))
+            anchor.enabled?.let { json.put("enabled", it) }
+        } else {
+            json.put("role", DISPLAY_ROLE)
+        }
+        json.put("boundsNorm", bounds.toJson()).put("tier", tier.wire)
+        if (aliases.isNotEmpty()) json.put("aliases", JSONArray(aliases.toList()))
+        return json
+    }
+
+    private companion object {
+        const val DISPLAY_ROLE = "display"
+    }
+}
+
+/** Bounds as fractions of the window, clamped to it. */
+internal class NormalizedBounds(val left: Double, val top: Double, val width: Double, val height: Double) {
+    val area: Double
+        get() = width * height
+
+    fun toJson(): JSONObject = JSONObject().put("left", left).put("top", top).put("width", width).put("height", height)
+
+    companion object {
+        /** Null for an empty rectangle, and for NaN (which `JSONObject.put` rejects). */
+        fun of(bounds: RectF, windowWidth: Double, windowHeight: Double): NormalizedBounds? {
+            val left = (bounds.left / windowWidth).coerceIn(0.0, 1.0)
+            val top = (bounds.top / windowHeight).coerceIn(0.0, 1.0)
+            val w = (bounds.right / windowWidth).coerceIn(0.0, 1.0) - left
+            val h = (bounds.bottom / windowHeight).coerceIn(0.0, 1.0) - top
+            if (!(w > 0) || !(h > 0)) return null
+            return NormalizedBounds(left, top, w, h)
+        }
+    }
+}
+
+internal val InventoryTier.wire: String
+    get() = when (this) {
+        InventoryTier.Interactive -> "interactive"
+        InventoryTier.Content -> "content"
+    }
+
+/**
+ * One inventory walk of [decor] for [routeKey], holding the walk state as
+ * `MaskWalk` does. Candidates are kept views with the walk's route that are
+ * actionable (interactive) or an image or large text (content), and region
+ * targets. The first [limit] distinct fingerprints are anchored; later
+ * candidates are only counted (no anchor, no path).
+ */
+private class InventoryWalk(
+    private val names: ResourceNames,
+    private val routes: RouteResolver,
+    private val anchors: AnchorResolver,
+    private val decor: View,
+    private val routeKey: String,
+    private val limit: Int,
+) {
+    private val width = decor.width.toDouble()
+    private val height = decor.height.toDouble()
+    private val ids = anchors.idCounts()
+    private val elements = LinkedHashMap<String, InventoryElement>()
+    private var found = 0
+
+    fun visit(view: View) {
+        if (ViewRules.isExcluded(view)) return
+        val region = Regions.regionOf(view)
+        if (region != null) return region(RegionHost(view, region))
+        if (ViewRules.isKept(view, names)) candidate(view)
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) visit(view.getChildAt(i))
+        }
+    }
+
+    /** Interactive elements first, then content, each in tree order. */
+    fun result(): SceneInventory? {
+        if (elements.isEmpty()) return null
+        val ordered = elements.values.filter { it.tier == InventoryTier.Interactive } +
+            elements.values.filter { it.tier == InventoryTier.Content }
+        return SceneInventory(routeKey, ordered, maxOf(found, ordered.size))
+    }
+
+    private fun candidate(view: View) {
+        if (routes.routeFor(view)?.value != routeKey) return
+        val bounds = ViewGeometry.boundsIn(decor, view)?.let(::normalize) ?: return
+        val tier = tierOf(view, bounds) ?: return
+        if (elements.size >= limit) {
+            found++
+            return
+        }
+        val anchor = anchors.anchorFor(view, decor, ids) ?: return
+        add(InventoryElement(anchor, bounds, tier))
+    }
+
+    private fun tierOf(view: View, bounds: NormalizedBounds): InventoryTier? =
+        when {
+            ViewRules.isActionable(view) -> InventoryTier.Interactive
+            view is ImageView || (view is TextView && bounds.area >= LARGE_TEXT_AREA) -> InventoryTier.Content
+            else -> null
+        }
+
+    private fun region(host: RegionHost) {
+        if (routes.routeFor(host.view)?.value != routeKey) return
+        val answer = host.inventory((limit - elements.size).coerceAtLeast(0))
+        found += (answer.total - answer.entries.size).coerceAtLeast(0)
+        for (entry in answer.entries) {
+            if (elements.size >= limit) {
+                found++
+                continue
+            }
+            val anchor = anchors.regions.anchor(host, entry.target, decor) ?: continue
+            val bounds = ViewGeometry.mapRect(decor, host.view, entry.target.bounds)?.let(::normalize) ?: continue
+            add(InventoryElement(anchor, bounds, entry.tier))
+        }
+    }
+
+    /** A repeated fingerprint keeps the first element and merges the aliases. */
+    private fun add(element: InventoryElement) {
+        val existing = elements[element.anchor.fingerprint]
+        if (existing != null) {
+            existing.aliases += element.aliases
+            return
+        }
+        elements[element.anchor.fingerprint] = element
+        found++
+    }
+
+    private fun normalize(bounds: RectF): NormalizedBounds? = NormalizedBounds.of(bounds, width, height)
+
+    private companion object {
+        /** Dart's large-text threshold, as a fraction of the window area. */
+        const val LARGE_TEXT_AREA = 0.02
+    }
 }

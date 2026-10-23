@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.tugboat.android.compose.semantics.SemanticsAccess
+import com.tugboat.android.toolkit.InventoryTier
 import com.tugboat.android.toolkit.MaskCoverageReason
 import com.tugboat.android.toolkit.RegionHit
 import com.tugboat.android.toolkit.RegionMasks
@@ -88,16 +89,16 @@ class ComposeRegionTest {
 
     @Test
     fun inventoryListsTheInteractiveControlInWholeHostMode() {
-        val entries = ComposeRegion(ComposeMasking.WholeHost).inventory(host)
-        assertTrue(entries.any { it.tier == "interactive" && it.actions.isNotEmpty() })
-        assertTrue(entries.none { it.widgetType.contains("Pay", ignoreCase = true) })
+        val entries = ComposeRegion(ComposeMasking.WholeHost).inventory(host, limit = 500).entries
+        assertTrue(entries.any { it.tier == InventoryTier.Interactive && it.target.actions.isNotEmpty() })
+        assertTrue(entries.none { it.target.widgetType.contains("Pay", ignoreCase = true) })
     }
 
     @Test
     fun inventoryListsTheInteractiveControlInSemanticsMaskingMode() {
         val entries =
-            ComposeRegion(ComposeMasking.SemanticsBestEffort, versionVerified = { true }).inventory(host)
-        assertTrue(entries.any { it.tier == "interactive" && it.actions.isNotEmpty() })
-        assertTrue(entries.none { it.pathSegments.any { segment -> segment.contains("Pay") } })
+            ComposeRegion(ComposeMasking.SemanticsBestEffort, versionVerified = { true }).inventory(host, limit = 500).entries
+        assertTrue(entries.any { it.tier == InventoryTier.Interactive && it.target.actions.isNotEmpty() })
+        assertTrue(entries.none { it.target.path.any { segment -> segment.contains("Pay") } })
     }
 }

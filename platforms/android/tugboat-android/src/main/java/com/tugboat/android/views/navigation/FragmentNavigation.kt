@@ -2,6 +2,7 @@ package com.tugboat.android.views.navigation
 
 import android.app.Activity
 import android.view.View
+import android.view.ViewGroup
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
@@ -37,7 +38,7 @@ import java.util.WeakHashMap
  *   hosting fragment is removed), including nested child navigators.
  *
  * It also knows each shown fragment's root view, for route keys
- * ([routeRootedAt]). Known gap: `hide`/`show` transactions do not resume
+ * ([routeRootedAt]) and the visible route ([visibleRouteRoot]). Known gap: `hide`/`show` transactions do not resume
  * fragments and are not reported. Main thread only.
  */
 internal class FragmentNavigation(
@@ -75,6 +76,31 @@ internal class FragmentNavigation(
 
     /** The shown fragment route whose root view is [view], if any. */
     fun routeRootedAt(view: View): RouteEntry? = roots[view]
+
+    /**
+     * The root view of [activity]'s topmost shown fragment below
+     * `android.R.id.content`: walking down, last drawn visible child first,
+     * the first shown fragment root; one being removed is skipped with its
+     * subtree. Null when the content shows no fragment.
+     */
+    fun visibleRouteRoot(activity: Activity): View? {
+        val content = activity.findViewById<View>(android.R.id.content) as? ViewGroup ?: return null
+        return topmostRoot(content)
+    }
+
+    private fun topmostRoot(group: ViewGroup): View? {
+        for (i in group.childCount - 1 downTo 0) {
+            val child = group.getChildAt(i)
+            if (child.visibility != View.VISIBLE) continue
+            val entry = roots[child]
+            if (entry != null) {
+                if (!entry.isLeaving()) return child
+                continue
+            }
+            if (child is ViewGroup) topmostRoot(child)?.let { return it }
+        }
+        return null
+    }
 
     /** Reports fragments destroyed this frame that nothing replaced. */
     fun flush() {

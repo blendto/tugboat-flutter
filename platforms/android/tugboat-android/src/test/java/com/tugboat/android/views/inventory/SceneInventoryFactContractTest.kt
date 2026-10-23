@@ -4,13 +4,14 @@ import android.app.Activity
 import android.widget.Button
 import android.widget.FrameLayout
 import com.tugboat.android.views.FixedRoutes
-import com.tugboat.android.views.anchorResolver
+import com.tugboat.android.views.identity.AnchorResolver
 import com.tugboat.android.views.identity.AndroidResourceNames
-import com.tugboat.android.views.identity.CanonicalPathBuilder
 import com.tugboat.android.views.layOut
+import org.json.JSONArray
 import org.json.JSONObject
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -19,53 +20,64 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class SceneInventoryFactContractTest {
     @Test
-    fun builderOutputMatchesEngineFactKeys() {
-        val activity = Robolectric.setupActivity(Activity::class.java)
-        val button = Button(activity)
+    fun builderOutputMeetsEveryDecoderRule() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val root = activity.findViewById<FrameLayout>(android.R.id.content)
-        root.addView(button)
-        layOut(root)
-        val routes = FixedRoutes(root)
+        // A clickable route root: its own path is "".
+        val screen = FrameLayout(activity).apply { isClickable = true }
+        screen.addView(Button(activity), FrameLayout.LayoutParams(300, 200))
+        root.addView(screen)
+        layOut(root.rootView)
+        val routes = FixedRoutes(screen)
         val names = AndroidResourceNames(activity.resources)
-        val paths = CanonicalPathBuilder(names)
-        val anchors = anchorResolver(root)
-        val inventory = SceneInventoryBuilder(names, routes, paths, anchors).build(activity.window)
-        assertTrue(inventory != null)
-        SceneInventoryFactContract.assertFact(inventory!!)
+        val inventory = SceneInventoryBuilder(names, routes, AnchorResolver(names, routes))
+            .build(root.rootView, routes.routeFor(screen))
+            ?.toJson()
+        if (inventory == null) return fail("expected a scene inventory")
+
+        SceneInventoryFactContract.assertFact(inventory)
+        val paths = (0 until inventory.getJSONArray("elements").length())
+            .map { inventory.getJSONArray("elements").getJSONObject(it).getString("canonicalPath") }
+        assertEquals(listOf("", "Button#0"), paths)
     }
-}
 
-/** Keys the session engine accepts on `scene.inventory` (see `decode_scene_inventory_fact`). */
-internal object SceneInventoryFactContract {
-    private val FACT_KEYS = setOf("routeKey", "elements")
-    private val ELEMENT_KEYS = setOf(
-        "fingerprint",
-        "canonicalPath",
-        "widgetType",
-        "role",
-        "actions",
-        "enabled",
-        "boundsNorm",
-        "tier",
-        "aliases",
-    )
-    private val BOUNDS_KEYS = setOf("left", "top", "width", "height")
+    @Test
+    fun theMirrorRejectsWhatTheDecoderRejects() {
+        val valid = JSONObject(VALID)
+        SceneInventoryFactContract.assertFact(valid)
+        val invalid = listOf(
+            "inventoryHash" to { it: JSONObject -> it.put("inventoryHash", "0123456789abcdef") },
+            "empty fingerprint" to { it: JSONObject -> it.element().put("fingerprint", "") },
+            "unknown tier" to { it: JSONObject -> it.element().put("tier", "chrome") },
+            "negative left" to { it: JSONObject -> it.bounds().put("left", -0.1) },
+            "zero width" to { it: JSONObject -> it.bounds().put("width", 0.0) },
+            "past the right edge" to { it: JSONObject -> it.bounds().put("left", 0.5).put("width", 0.501) },
+            "extra bounds key" to { it: JSONObject -> it.bounds().put("right", 1.0) },
+            "unknown element key" to { it: JSONObject -> it.element().put("label", "x") },
+            "non-string action" to { it: JSONObject -> it.element().put("actions", JSONArray().put(1)) },
+            "too many aliases" to { it: JSONObject -> it.element().put("aliases", JSONArray(List(17) { "a$it" })) },
+            "long path" to { it: JSONObject -> it.element().put("canonicalPath", "x".repeat(1025)) },
+            "total below elements" to { it: JSONObject -> it.put("totalElements", 0) },
+            "non-integer total" to { it: JSONObject -> it.put("totalElements", 1.5) },
+        )
+        for ((name, mutate) in invalid) {
+            val json = JSONObject(VALID).apply { mutate(this) }
+            val rejected = runCatching { SceneInventoryFactContract.assertFact(json) }.isFailure
+            assertTrue("the contract mirror accepted $name", rejected)
+        }
+        // Accepted: the bounds epsilon, and an empty canonicalPath.
+        SceneInventoryFactContract.assertFact(JSONObject(VALID).also { it.bounds().put("left", 0.5).put("width", 0.5000000001) })
+        SceneInventoryFactContract.assertFact(JSONObject(VALID).also { it.element().put("canonicalPath", "") })
+    }
 
-    fun assertFact(json: JSONObject) {
-        assertFalse("inventoryHash must not be sent on the fact", json.has("inventoryHash"))
-        json.keys().forEach { key ->
-            assertTrue("unknown fact key $key", key in FACT_KEYS)
-        }
-        val elements = json.getJSONArray("elements")
-        for (i in 0 until elements.length()) {
-            val element = elements.getJSONObject(i)
-            element.keys().forEach { key ->
-                assertTrue("unknown element key $key", key in ELEMENT_KEYS)
-            }
-            val bounds = element.getJSONObject("boundsNorm")
-            bounds.keys().forEach { key ->
-                assertTrue("unknown bounds key $key", key in BOUNDS_KEYS)
-            }
-        }
+    private fun JSONObject.element(): JSONObject = getJSONArray("elements").getJSONObject(0)
+
+    private fun JSONObject.bounds(): JSONObject = element().getJSONObject("boundsNorm")
+
+    private companion object {
+        const val VALID =
+            """{"routeKey":"home","totalElements":1,"elements":[{"fingerprint":"0123456789abcdef","canonicalPath":"Button#0",""" +
+                """"widgetType":"Button","role":"button","actions":["tap"],"enabled":true,""" +
+                """"boundsNorm":{"left":0.1,"top":0.2,"width":0.3,"height":0.1},"tier":"interactive","aliases":["fedcba9876543210"]}]}"""
     }
 }

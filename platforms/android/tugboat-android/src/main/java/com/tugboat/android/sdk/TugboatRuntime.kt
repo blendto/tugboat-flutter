@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.tugboat.android.TugboatConfig
+import com.tugboat.android.capture.CaptureAnswer
 import com.tugboat.android.capture.CaptureCoordinator
 import com.tugboat.android.capture.ForegroundWindow
 import com.tugboat.android.capture.RuntimeWindowCapturer
@@ -120,7 +121,7 @@ internal class TugboatRuntime private constructor(
             metadata: HostMetadata,
             sessionEpoch: Int,
             stopSequence: StopSequence,
-        ): TugboatRuntime? {
+        ): TugboatRuntime {
             val clock = SystemHostClock
             val frames = FrameHandleTable()
             val hostConfig = HostConfig(
@@ -165,16 +166,15 @@ internal class TugboatRuntime private constructor(
                     engineHost.withHost {
                         it.post(HostMessages.CAPTURE_RESULT, answer.toInputJson(), clock.now(), answer.frameHandles)
                     }
-                    if (answer is com.tugboat.android.capture.CaptureAnswer.Captured) {
-                        val window = foreground.window
-                        if (window != null) {
-                            main.post { adapter.maybeEmitSceneInventory(window) }
-                        }
+                    if (config.emitSceneInventory && answer is CaptureAnswer.Captured) {
+                        val signature = answer.frame.structureSignature
+                        // ForegroundWindow is main-thread state: read it there, when the walk runs.
+                        main.post { foreground.window?.let { adapter.onCapturedFrame(it, signature) } }
                     }
                 },
             )
-            engineHost.value = EngineHost.start(transport, frames, http = watcher, captures = captures)
-            val host = engineHost.value ?: return null
+            val host = EngineHost.start(transport, frames, http = watcher, captures = captures)
+            engineHost.value = host
             host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, gesture).toString())
             host.post(SessionMessages.SESSION_START, SessionMessages.sessionStart(device, metadata, sessionEpoch), startAt)
             val lifecycle = AppLifecycleBridge(post = { state ->

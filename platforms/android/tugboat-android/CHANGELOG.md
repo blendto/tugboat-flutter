@@ -11,9 +11,13 @@ wiring, window capture, and the Android Views adapter.
   `CollectorConfig`, `AppInfo`, `MaskLevel`, `emitSceneInventory` (default
   false). Idempotent start; nothing throws into the app.
 - Native scene inventory: when `emitSceneInventory` is true, the Views
-  adapter sends `scene.inventory` after each capture completion and route
-  settle; the engine records deduped `scene_inventory` (`nativeSceneInventory`
-  capability).
+  adapter sends `scene.inventory` after each captured frame (the
+  post-navigation route capture covers route changes) for the route of the
+  visible content (the topmost shown fragment, else the activity); the
+  engine records deduped `scene_inventory` (`nativeSceneInventory`
+  capability). A frame whose structure signature matches the route's last
+  emitted inventory is not walked; `FLAG_SECURE` windows have none. The walk
+  collects at most 500 elements and sends the full count as `totalElements`.
 - Coded events and manual network calls: `Tugboat.eventHook(source,
   parameterPolicy).record(name, parameters)` (`external_event`) and
   `Tugboat.beginNetworkCall(method, route)` with `complete(statusCode,
