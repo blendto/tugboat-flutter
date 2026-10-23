@@ -34,6 +34,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.android.controller.ActivityController
 import java.time.Duration
 
 /**
@@ -64,12 +65,25 @@ class ComposeFragmentSceneInventoryTest {
         ).apply { start() }
     }
 
+    private var controller: ActivityController<FragmentActivity>? = null
+
+    /**
+     * Destroys the activity so its `ComposeView` is disposed: a composition
+     * left alive keeps Compose UI 1.7's test idling from ever settling in
+     * later tests of the same Robolectric sandbox (`AppNotIdleException`).
+     */
     @After
-    fun stop() = adapter.stop()
+    fun stop() {
+        adapter.stop()
+        controller?.pause()?.stop()?.destroy()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
 
     @Test
     fun aTappedComposeButtonInAFragmentIsInTheInventory() {
-        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        val built = Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        controller = built
+        val activity = built.get()
         activity.supportFragmentManager.beginTransaction()
             .add(android.R.id.content, PayFragment(), "pay").commitNow()
         settle()

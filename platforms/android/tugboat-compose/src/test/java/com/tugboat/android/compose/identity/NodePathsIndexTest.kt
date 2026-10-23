@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
+import com.tugboat.android.compose.semantics.ComposeUiVersion
 import com.tugboat.android.compose.semantics.NodeRules
 import com.tugboat.android.compose.semantics.SemanticsAccess
 import com.tugboat.android.toolkit.RegionHit
@@ -66,18 +67,18 @@ class NodePathsIndexTest {
         if (root == null) return fail("no semantics root")
 
         val index = NodePaths.index(root)
-        // Pinned from NodePaths.build (the tap path before m-3) on this tree.
-        assertEquals(
-            listOf(
-                "Button#0|false", "Button#1|false", "Checkbox#0|false", "Node#0|false", "Node#1|false",
-                "Scrollable#0/[item]/Button#0|false", "Scrollable#0/[item]/Button#0|false",
-                "Scrollable#0/[item]/Button#0|false", "Scrollable#0|false", "[item:0]/Button#0|true", "[item:0]|true",
-                "[item]/Button#0|false", "[item]/Node#0|false",
-                // The unkept collection Column itself: no segment of its own.
-                "|false",
-            ),
-            index.values.map { it.segments.joinToString("/") + "|" + it.inListItem }.sorted(),
-        )
+        // Every placed node's index path is the old tap path (LegacyNodePaths), on every tested Compose UI version.
+        for (node in placed(root)) {
+            val legacy = LegacyNodePaths.build(root, node)
+            assertEquals("node ${node.id}", legacy?.segments, index[node.id]?.segments)
+            assertEquals("node ${node.id}", legacy?.inListItem, index[node.id]?.inListItem)
+        }
+        // Pinned values, from the old tap path, per Compose UI minor version: the lazy list composes a
+        // different number of rows in its 120 dp viewport (three on 1.8, two on 1.7).
+        val version = ComposeUiVersion.current?.split('.')?.take(2)?.joinToString(".")
+        val pinned = PINNED_INDEX[version]
+        if (pinned == null) return fail("no pinned paths for Compose UI ${ComposeUiVersion.current}")
+        assertEquals(pinned, index.values.map { it.segments.joinToString("/") + "|" + it.inListItem }.sorted())
         assertEquals(placed(root).map { it.id }.toSet(), index.keys)
         val taps = PINNED_TAPS.keys.associateWith { label ->
             val center = compose.onNodeWithText(label).fetchSemanticsNode().boundsInRoot.center
@@ -99,6 +100,23 @@ class NodePathsIndexTest {
     }
 
     private companion object {
+        private val SHARED_PATHS = listOf(
+            "Button#0|false", "Button#1|false", "Checkbox#0|false", "Node#0|false", "Node#1|false",
+        )
+        private val TAIL_PATHS = listOf(
+            "Scrollable#0|false", "[item:0]/Button#0|true", "[item:0]|true",
+            "[item]/Button#0|false", "[item]/Node#0|false",
+            // The unkept collection Column itself: no segment of its own.
+            "|false",
+        )
+        private fun lazyRows(count: Int) = List(count) { "Scrollable#0/[item]/Button#0|false" }
+
+        /** Sorted index paths by Compose UI minor version (BOM 2025.06.01 is 1.8, BOM 2024.09.00 is 1.7). */
+        val PINNED_INDEX = mapOf(
+            "1.8" to SHARED_PATHS + lazyRows(3) + TAIL_PATHS,
+            "1.7" to SHARED_PATHS + lazyRows(2) + TAIL_PATHS,
+        )
+
         /** Labels (test-only reads) to tap paths. */
         val PINNED_TAPS = mapOf(
             "A" to "Button#0",
