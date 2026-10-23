@@ -21,7 +21,7 @@ import com.tugboat.android.views.mask.WindowMasks
 import com.tugboat.android.views.navigation.NavigationChange
 import com.tugboat.android.views.navigation.NavigationObservation
 import com.tugboat.android.views.navigation.NavigationProcessState
-import com.tugboat.android.views.overlay.withOverlayWindowReason
+import com.tugboat.android.views.overlay.withOverlayWindow
 
 /**
  * The Android Views toolkit adapter (native SDK note section 5): it turns
@@ -112,7 +112,7 @@ internal class ViewsAdapter(
         val masks = WindowMasks.compute(window)
         val activity = window.context as? Activity ?: return masks
         val session = sessions[activity] ?: return masks
-        return if (session.overlayAtCapture(window)) masks.withOverlayWindowReason() else masks
+        return if (session.overlayAtCapture(window)) masks.withOverlayWindow() else masks
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
