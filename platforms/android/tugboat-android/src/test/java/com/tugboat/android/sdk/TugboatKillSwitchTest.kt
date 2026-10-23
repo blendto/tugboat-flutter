@@ -79,6 +79,7 @@ class TugboatKillSwitchTest {
         Tugboat.openTransportForTesting = { transport }
         Tugboat.start(application, disabledConfig)
         Tugboat.setUserId("u-42")
+        Tugboat.setTraits(mapOf("plan" to "pro"))
         val hook = Tugboat.eventHook(source = "analytics")
         shadowOf(Looper.getMainLooper()).idle()
 
@@ -89,6 +90,8 @@ class TugboatKillSwitchTest {
         awaitUntil { transport.submitted.any { it.contains("AFTER_ENABLE") } }
         val identity = transport.submitted.map(::JSONObject).first { it.getString("type") == "identity.set" }
         assertEquals("u-42", identity.getJSONObject("input").getString("userId"))
+        val traits = transport.submitted.map(::JSONObject).first { it.getString("type") == "traits.set" }
+        assertTrue(traits.toString().contains("\"plan\":\"pro\""))
     }
 
     @Test

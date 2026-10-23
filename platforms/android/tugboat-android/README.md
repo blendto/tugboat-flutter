@@ -47,10 +47,10 @@ view.tugboatTag = "checkout"                  // developer alias
   `setTraits`, and event hooks keep their state for a later enabled `start`.
   Call `start` before `trackNavigation`: a controller tracked before any
   `start` cannot know the config. The `androidx.lifecycle:lifecycle-process`
-  dependency still runs AndroidX App Startup's `ProcessLifecycleInitializer`
-  at process launch; that is the app's dependency, not Tugboat's, and Tugboat
-  needs it when enabled (`app.lifecycle` and the background flush), so do not
-  remove it.
+  dependency (one of this SDK's own) runs AndroidX App Startup's
+  `ProcessLifecycleInitializer` at process launch, whatever `enabled` says;
+  it registers AndroidX's callbacks, not Tugboat's. Tugboat needs it when
+  enabled (`app.lifecycle` and the background flush), so do not remove it.
 - Call `start` once per process, from `Application.onCreate`. It is
   idempotent while started. It **refuses to start** (and logs the missing
   paths) when a field the collector requires on `session_start` is blank:

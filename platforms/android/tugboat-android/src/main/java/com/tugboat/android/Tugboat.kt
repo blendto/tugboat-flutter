@@ -54,9 +54,11 @@ object Tugboat {
     @Volatile
     private var disabled = false
 
-    /** JVM tests only: clears the kill-switch state and the transport seam. */
+    /** JVM tests only: clears the kill-switch state, the kept identity, and the transport seam. */
     internal fun resetForTests() {
         disabled = false
+        userId = null
+        traitsInput = null
         openTransportForTesting = null
     }
 
