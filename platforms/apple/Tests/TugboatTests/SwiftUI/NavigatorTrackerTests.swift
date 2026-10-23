@@ -242,6 +242,37 @@ final class NavigatorTrackerTests: XCTestCase {
     XCTAssertEqual(tracker.visibleTop?.name, "Home")
   }
 
+  func testScreensUnderACoveredHostDisappearingChangeNothing() {
+    let tracker = ScreenTracker(clock: ManualClock())
+    let pane = scope("pane", hostedBy: "home")
+    tracker.appeared(instanceId: "home", name: "Home")
+    tracker.appeared(instanceId: "p1", name: "P1", scope: pane)
+    tracker.appeared(instanceId: "d1", name: "D1", scope: scope("deep", in: pane, hostedBy: "p1"))
+    tracker.settle()
+    tracker.isRecording = true
+
+    // Pushing Details covers Home; SwiftUI calls onDisappear for everything under it.
+    tracker.appeared(instanceId: "details", name: "Details")
+    tracker.disappeared(instanceId: "home")
+    tracker.disappeared(instanceId: "p1")
+    tracker.disappeared(instanceId: "d1")
+    let facts = tracker.takeFacts().map { $0.decodedInput }
+    XCTAssertEqual(facts.map { $0["kind"] as? String }, ["push"], "only the push on the root")
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens/pane")?.map { $0.name }, ["P1"])
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens/deep")?.map { $0.name }, ["D1"])
+    XCTAssertEqual(tracker.visibleTop?.name, "Details")
+
+    // Back to Home: its screens reappear on top of their stacks, which is no change.
+    tracker.disappeared(instanceId: "details")
+    tracker.appeared(instanceId: "home", name: "Home")
+    tracker.appeared(instanceId: "p1", name: "P1", scope: pane)
+    tracker.appeared(instanceId: "d1", name: "D1", scope: scope("deep", in: pane, hostedBy: "p1"))
+    let back = tracker.takeFacts().map { $0.decodedInput }
+    XCTAssertEqual(back.map { $0["kind"] as? String }, ["pop"])
+    XCTAssertEqual(back.first?["navigatorId"] as? String, root)
+    XCTAssertEqual(tracker.visibleTop?.name, "D1")
+  }
+
   func testAnEmptiedNavigatorIsForgotten() {
     let tracker = ScreenTracker(clock: ManualClock())
     let tab = scope("tab", hostedBy: nil)

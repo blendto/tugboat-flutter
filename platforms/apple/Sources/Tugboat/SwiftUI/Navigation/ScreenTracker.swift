@@ -15,6 +15,9 @@ import Foundation
 ///   `onDisappear` of two screens consistently within a frame; applying
 ///   appearances first keeps a covered screen on the stack instead of
 ///   popping it.
+/// - A screen under a covered host route (a route on the parent's stack
+///   that is no longer its top) disappearing changes nothing: it was
+///   covered with its host, as a covered screen on one stack is.
 /// - A nested navigator is forgotten, with no fact, once its host route has
 ///   left the parent's stack, once its parent is forgotten, or once its
 ///   stack is empty and no navigator below it remains (Android forgets a
@@ -150,8 +153,12 @@ final class ScreenTracker {
       record(change(on: scope.navigatorId) { $0.appeared(entry) }, at: at)
     }
     for case let .disappeared(instanceId, at) in events {
-      // Only a top route's disappearance changes a stack.
-      guard let id = navigators.first(where: { $0.value.stack.top?.instanceId == instanceId })?.key else { continue }
+      // Only a top route's disappearance changes a stack, and not under a
+      // covered host: SwiftUI also calls `onDisappear` for covered screens.
+      guard
+        let id = navigators.first(where: { $0.value.stack.top?.instanceId == instanceId })?.key,
+        !isUnderCoveredHost(id)
+      else { continue }
       record(change(on: id) { $0.disappeared(instanceId: instanceId) }, at: at)
     }
     forgetLeftNavigators()
@@ -191,6 +198,23 @@ final class ScreenTracker {
       next = navigator.stack.parentNavigatorId
       hops += 1
     }
+  }
+
+  /// True when the route hosting `navigatorId`, or one hosting a navigator
+  /// above it, is on its parent's stack but not on top: the navigator is
+  /// covered, so its screens disappearing pops nothing.
+  private func isUnderCoveredHost(_ navigatorId: String) -> Bool {
+    var next: String? = navigatorId
+    var hops = 0
+    while let id = next, hops <= navigators.count, let navigator = navigators[id] {
+      if let host = navigator.hostRouteInstanceId, isHostOnParent(navigator),
+        navigator.stack.parentNavigatorId.flatMap({ navigators[$0]?.stack.top?.instanceId }) != host {
+        return true
+      }
+      next = navigator.stack.parentNavigatorId
+      hops += 1
+    }
+    return false
   }
 
   private func forgetLeftNavigators() {
