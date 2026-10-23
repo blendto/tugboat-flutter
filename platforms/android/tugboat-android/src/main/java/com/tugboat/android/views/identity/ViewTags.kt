@@ -19,5 +19,6 @@ internal object ViewTags {
 
     fun isSensitive(view: View): Boolean = view.getTag(R.id.tugboat_sensitive) == true
 
-    fun setSensitive(view: View, sensitive: Boolean) = view.setTag(R.id.tugboat_sensitive, sensitive)
+    /** `tugboatSensitive`: masks only, never identity. There is no un-mark. */
+    fun markSensitive(view: View) = view.setTag(R.id.tugboat_sensitive, true)
 }

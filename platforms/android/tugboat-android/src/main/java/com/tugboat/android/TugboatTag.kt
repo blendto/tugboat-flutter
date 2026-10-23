@@ -24,11 +24,18 @@ var View.tugboatTag: String?
 
 /**
  * Marks this view and its whole subtree as always masked in screenshots, at
- * every mask level. Pixels are redacted; taps and fingerprints are unchanged.
+ * every mask level, and returns this view (so `TextView(context).tugboatSensitive()`
+ * keeps its type). A subview drawn outside this view's bounds is masked at
+ * its own bounds. Only pixels are masked: taps, canonical paths, and
+ * fingerprints are the same with or without it.
+ *
+ * There is no un-mark: a view stays sensitive for its lifetime, including a
+ * recycled `RecyclerView` row rebound to other content. That fails safe: it
+ * over-masks, never under-masks.
  *
  * From Java, call `TugboatViews.tugboatSensitive(view)`.
  */
-fun View.tugboatSensitive(): View {
-    ViewTags.setSensitive(this, true)
+fun <T : View> T.tugboatSensitive(): T {
+    ViewTags.markSensitive(this)
     return this
 }
