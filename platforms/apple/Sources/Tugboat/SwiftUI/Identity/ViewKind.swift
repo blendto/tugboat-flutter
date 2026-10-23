@@ -61,6 +61,7 @@ enum ViewKind: Equatable {
   /// The kind of a SwiftUI host whose subview is a Tugboat marker, or nil.
   private static func markerHostKind(_ view: UIView) -> ViewKind? {
     for subview in view.subviews {
+      if subview is SensitiveMarkerView { return .sensitiveMarker }
       if subview is TagMarkerView { return .sdkOwned }
     }
     return nil
