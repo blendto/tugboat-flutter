@@ -99,7 +99,7 @@ class ComposeFragmentSceneInventoryTest {
 
     private fun settle() {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
-        while (frames.hasPending) frames.runFrame()
+        repeat(FRAMES) { frames.runFrame() }
         sink.batches.clear()
     }
 
@@ -112,5 +112,10 @@ class ComposeFragmentSceneInventoryTest {
                     }
                 }
             }
+    }
+
+    private companion object {
+        /** Frames to run when settling: a focused view can keep asking for frames. */
+        const val FRAMES = 4
     }
 }

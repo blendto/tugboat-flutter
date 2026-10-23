@@ -107,9 +107,9 @@ class SceneInventoryAdapterTest {
         adapter.onNavDestination(activity, NavEntry("entry-2", "detail", 2), NavEntry("entry-1", "home", 1))
         val detail = Button(activity).apply { id = android.R.id.button2 }
         activity.setContentView(detail)
-        while (frames.hasPending) frames.runFrame()
+        repeat(FRAMES) { frames.runFrame() }
         shadowOf(Looper.getMainLooper()).idle()
-        while (frames.hasPending) frames.runFrame()
+        repeat(FRAMES) { frames.runFrame() }
         assertEquals(emptyList<JSONObject>(), inventoryInputs())
 
         adapter.onCapturedFrame(activity.window, "detail-structure")
@@ -168,7 +168,7 @@ class SceneInventoryAdapterTest {
 
     private fun settle() {
         shadowOf(Looper.getMainLooper()).idle()
-        while (frames.hasPending) frames.runFrame()
+        repeat(FRAMES) { frames.runFrame() }
         sink.batches.clear()
     }
 
@@ -217,5 +217,8 @@ class SceneInventoryAdapterTest {
 
     private companion object {
         val CONTAINER_ID = View.generateViewId()
+
+        /** Frames to run when settling: a focused view can keep asking for frames. */
+        const val FRAMES = 4
     }
 }

@@ -22,10 +22,17 @@ display cutout, as targetSdk 35 requires on API 35+):
   and a tagged back button (`compose_back`). It draws nothing without
   semantics (no undescribed images, no `Canvas` text), so semantics masks
   cover everything private.
+- `FragmentsActivity` (Views and Compose fragments, no Jetpack Navigation):
+  "Views fragment" and "Compose fragment" replace the fragment in a
+  `FragmentContainerView`. The Views fragment (`views_home`) has a clickable
+  root, a text, and a tagged button (`fragment_action`); the Compose
+  fragment (`compose_home`) is a `ComposeView` with a tagged button
+  (`compose_fragment_action`).
 
-`SampleApplication` starts Tugboat with focus and system-input capture on,
-installs the Compose adapter (`TugboatCompose.install(composeMasking =
-ComposeMasking.WholeHost)`), and sets traits `{sample: true}`. Masking is
+`SampleApplication` starts Tugboat with focus, system-input capture, and
+scene inventory on, installs the Compose adapter
+(`TugboatCompose.install(composeMasking = ComposeMasking.WholeHost)`), and
+sets traits `{sample: true}`. Masking is
 process-wide, so `ComposeSemanticsActivity` installs `SemanticsBestEffort`
 in `onResume` and restores `WholeHost` in `onPause`.
 `Tugboat.trackNavigation(navController)` makes its destinations route keys
@@ -93,7 +100,10 @@ Fresh install, collector running, logcat open:
 11. **Compose, semantics**: tap "Compose (semantics)". Fling the list, tap
     "Row 3" (opens `row/3`), wait 2 s, tap "Back", then press the system back
     key. Wait 2 s.
-12. **Stop**: tap "Stop Tugboat". Wait 10 s before checking the collector.
+12. **Fragments**: tap "Fragments". Tap "Fragment action", tap "Compose
+    fragment", tap "Compose fragment action", then press the system back
+    key. Wait 2 s.
+13. **Stop**: tap "Stop Tugboat". Wait 10 s before checking the collector.
 
 ## Expected collector rows
 
@@ -158,7 +168,13 @@ the Navigation route keys `rows` and `row` (arguments stripped).
     `app_backgrounded` (step 8). Two events can share an `atMs` (millisecond
     resolution, as in Dart); their order is the session's event order
     (`event-N`, minted in append order), not `atMs`;
-  - the "Stop Tugboat" tap (step 12) as `interaction` `gesture: cancelled`
+  - `scene_inventory` (`emitSceneInventory`): one per route and inventory
+    hash, after captured frames, under the route of the visible content.
+    In step 12 they are `views_home` (with an element whose `canonicalPath`
+    is `""`: the fragment's clickable root) and `compose_home`, not the
+    activity class; each tapped `targetAnchor.fingerprint` is an element
+    `fingerprint` (or alias) of the preceding inventory for its route;
+  - the "Stop Tugboat" tap (step 13) as `interaction` `gesture: cancelled`
     with a `beforeFrame` and no `afterFrame`, just before `session_end`: the
     session ends while the tap is still settling, and ending a session
     abandons pending taps as `cancelled` (Dart parity).
