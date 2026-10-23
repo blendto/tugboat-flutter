@@ -197,6 +197,8 @@
                   "executionId": "capture_execution-5",
                   "captureSessionId": "session-1781827200000000",
                   "routeEpoch": 0,
+                  "navigatorId": "nav-0",
+                  "routeInstanceId": "route-0",
                   "trigger": "initial",
                   "visualEvidence": "unavailable",
                   "interactionEvidence": "not_applicable"
@@ -476,6 +478,8 @@
             "executionId": "capture_execution-5",
             "captureSessionId": "session-1781827200000000",
             "routeEpoch": 0,
+            "navigatorId": "nav-0",
+            "routeInstanceId": "route-0",
             "trigger": "initial",
             "visualEvidence": "unavailable",
             "interactionEvidence": "not_applicable"

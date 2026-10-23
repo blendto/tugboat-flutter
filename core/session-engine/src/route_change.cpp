@@ -295,7 +295,11 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
       navigator_id, *top_instance, top_overlay, true);
   fill_route_stack_envelope(&change, &navigation.registry, navigator_id,
                             state.config.navigation.route_stack_limit);
-  apply_visible_route(change, &navigation.visible);
+  // After live navigation, seeds may still register covered navigators but must
+  // not move the interaction-visible route (no re-stamp of tap attribution).
+  if (!navigation.live_navigation_seen) {
+    apply_visible_route(change, &navigation.visible);
+  }
   return change;
 }
 
