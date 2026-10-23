@@ -108,3 +108,9 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
     response body of at most 64 KiB cut at a UTF-8 boundary, and statuses
     outside 100–599 reported as `error`);
   - `frame.release` (frame handle table).
+- Device Farm exploration tooling: when `TUGBOAT_EMIT_SCENE_INVENTORY` /
+  `TUGBOAT_ACCEPT_ACTION_CONTEXT` (environment or `--tugboat-*` launch args)
+  request capture, log `TUGBOAT_LAUNCH` and `TUGBOAT_HEALTH` once per process
+  via `os_log` (subsystem `com.gettugboat.sdk`, category `launch`). iOS device
+  logs are not consumed by exploration tooling today; parity is for operators
+  and future scraping. Collector URL override not applied in v1.

@@ -14,6 +14,7 @@ final class TugboatRuntime {
   private let watcher: SessionEndWatcher
   private let session: SessionFlag
   private let clock: HostClock
+  private let launchCorrelation: LaunchCorrelation
   private var stopped = false
 
   private init(parts: Parts) {
@@ -25,6 +26,7 @@ final class TugboatRuntime {
     watcher = parts.watcher
     session = parts.session
     clock = parts.clock
+    launchCorrelation = parts.launchCorrelation
   }
 
   /// Where coded events and network calls go; any thread.
@@ -48,6 +50,7 @@ final class TugboatRuntime {
   func stop(sequence: StopSequence = StopSequence()) {
     guard !stopped else { return }
     stopped = true
+    launchCorrelation.stop()
     adapter.stop()
     lifecycle.stop()
     surfaces.stop()
@@ -89,10 +92,11 @@ final class TugboatRuntime {
       type: SessionMessages.sessionStart,
       inputJSON: SessionMessages.sessionStartInput(
         viewport: KeyWindow.viewport(fallback: device), host: metadata, sessionEpoch: sessionEpoch),
-      at: parts.clock.now())
+      at: parts.sessionStartAt)
     parts.lifecycle.start()
     parts.surfaces.start()
     parts.adapter.start()
+    parts.launchCorrelation.startIfNeeded()
     return TugboatRuntime(parts: parts)
   }
 
