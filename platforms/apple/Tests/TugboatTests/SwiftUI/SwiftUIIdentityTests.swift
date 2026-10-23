@@ -35,7 +35,7 @@ final class SwiftUIIdentityTests: XCTestCase {
   /// Applies queued screen callbacks, then reports whether a screen is up.
   private var screenOnTop: Bool {
     screens.settle()
-    return screens.top != nil
+    return screens.visibleTop != nil
   }
 
   private var resolver: AnchorResolver {
