@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
@@ -20,7 +21,9 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import com.tugboat.android.compose.ComposeMasking
 import com.tugboat.android.compose.tugboatSensitive
@@ -162,6 +165,43 @@ class ComposeSensitiveMasksTest {
         val after = masks()
         assertTrue(isMasked(after, "parent"))
         assertEquals("one rect for the parent, none for the child inside it: ${after.rects}", before.rects.size + 1, after.rects.size)
+    }
+
+    /**
+     * Lazy slots are deactivated and reused while scrolling: the mark
+     * unregisters on detach, re-registers on reuse, and gets its coordinates
+     * again before the next draw (review 3, m7).
+     */
+    @Test
+    fun marksInReusedLazySlotsAreMasked() {
+        compose.setContent {
+            LazyColumn(Modifier.fillMaxSize().testTag("list")) {
+                items(100) { index ->
+                    Box(Modifier.size(40.dp).tugboatSensitive().testTag("row$index")) {
+                        Image(ColorPainter(Color.Red), null)
+                    }
+                }
+            }
+        }
+        assertVisibleRowsMasked(expectFirst = 0)
+        compose.onNodeWithTag("list").performScrollToIndex(60)
+        compose.waitForIdle()
+        assertVisibleRowsMasked(expectFirst = 60)
+    }
+
+    private fun assertVisibleRowsMasked(expectFirst: Int) {
+        val result = masks()
+        val decor = compose.activity.decor
+        val visible = (0 until 100).mapNotNull { index ->
+            val nodes = compose.onAllNodesWithTag("row$index", useUnmergedTree = true).fetchSemanticsNodes()
+            nodes.firstOrNull { it.layoutInfo.isPlaced && it.boundsInWindow.height > 0f && it.boundsInWindow.top < decor.height }
+                ?.let { index to it.boundsInWindow }
+        }
+        assertTrue("row $expectFirst is on screen: ${visible.map { it.first }}", visible.any { it.first == expectFirst })
+        assertTrue("several rows are on screen: ${visible.map { it.first }}", visible.size > 5)
+        for ((index, bounds) in visible) {
+            assertTrue("row$index at $bounds is not masked: ${result.rects}", covered(result.rects, bounds, decor))
+        }
     }
 
     private fun masks(): WindowMaskResult = WindowMasks.compute(compose.activity.window)

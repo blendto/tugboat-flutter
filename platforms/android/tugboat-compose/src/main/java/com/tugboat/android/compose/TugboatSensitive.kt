@@ -9,7 +9,6 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalView
-import java.util.WeakHashMap
 
 /**
  * Marks this element and everything Compose lays out inside it as always
@@ -78,9 +77,14 @@ internal class TugboatSensitiveNode :
     }
 }
 
-/** Attached [TugboatSensitiveNode]s per Compose host view. Main thread only. */
+/**
+ * Attached [TugboatSensitiveNode]s per Compose host view. A node holds its
+ * host, so entries are not released by GC: `onDetach` (element removed, slot
+ * deactivated for reuse, composition disposed) unregisters the node, and a
+ * host's entry goes with its last node. Main thread only.
+ */
 internal object SensitiveMarkers {
-    private val byHost = WeakHashMap<View, MutableSet<TugboatSensitiveNode>>()
+    private val byHost = HashMap<View, MutableSet<TugboatSensitiveNode>>()
 
     fun register(host: View, node: TugboatSensitiveNode) {
         byHost.getOrPut(host) { LinkedHashSet() } += node
@@ -91,6 +95,9 @@ internal object SensitiveMarkers {
         nodes -= node
         if (nodes.isEmpty()) byHost.remove(host)
     }
+
+    /** How many nodes are registered under [host]. */
+    fun registered(host: View): Int = byHost[host]?.size ?: 0
 
     /** The placed, attached markers' coordinates under [host]. */
     fun placed(host: View): List<LayoutCoordinates> =
