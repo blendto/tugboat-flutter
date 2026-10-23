@@ -20,6 +20,7 @@ import java.lang.ref.WeakReference
  */
 internal class ForegroundWindow(
     private val application: Application,
+    private val onResumed: (Activity) -> Unit = {},
     private val onBoundary: (BoundaryRect) -> Unit,
 ) : Application.ActivityLifecycleCallbacks {
     private var activity: WeakReference<Activity>? = null
@@ -76,6 +77,7 @@ internal class ForegroundWindow(
         }
         report(view)
         releaseWaiting()
+        onResumed(activity)
     }
 
     override fun onActivityDestroyed(activity: Activity) = AdapterGuard.run("foreground destroyed") {
