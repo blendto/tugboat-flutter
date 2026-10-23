@@ -69,8 +69,13 @@ view.tugboatTag = "checkout"                  // developer alias
   the SDK posts `locale.set` with the same locale JSON shape as `session.start`
   (deduped; unregistered on `stop`). Locale is evidence, not identity.
 - Scene inventory (`emitSceneInventory`) covers the route of the visible
-  content: the deepest shown fragment (a `NavHostFragment`'s destination, a
-  parent's child fragment), else the activity. Activity-level chrome outside
+  content: the deepest shown, resumed fragment (a `NavHostFragment`'s
+  destination, a parent's child fragment, the current `ViewPager2` page),
+  else the activity. A fragment paused at `STARTED` (an off-screen page) is
+  skipped with its subtree while its host is resumed; when the activity
+  itself is paused but visible (split screen), fragments are not skipped.
+  Legacy `ViewPager` with `BEHAVIOR_SET_USER_VISIBLE_HINT` keeps every page
+  resumed, so the last-drawn page can win. Activity-level chrome outside
   that fragment (`Toolbar`, `BottomNavigationView`) has the activity route
   and is not in it, so taps on chrome have no preceding inventory.
 - There is no on-device health snapshot API: the engine has no health surface.

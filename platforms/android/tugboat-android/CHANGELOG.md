@@ -25,9 +25,11 @@ wiring, window capture, and the Android Views adapter.
 - Native scene inventory: when `emitSceneInventory` is true, the Views
   adapter sends `scene.inventory` after each captured frame (the
   post-navigation route capture covers route changes) for the route of the
-  visible content (the deepest shown fragment, such as a `NavHostFragment`'s
-  destination, else the activity; activity-level chrome outside it, such as
-  a `Toolbar` or `BottomNavigationView`, is not inventoried); the engine
+  visible content (the deepest shown, resumed fragment, such as a
+  `NavHostFragment`'s destination or the current `ViewPager2` page, else the
+  activity; a fragment paused at `STARTED` while its host is resumed is
+  skipped; activity-level chrome outside it, such as a `Toolbar` or
+  `BottomNavigationView`, is not inventoried); the engine
   records deduped `scene_inventory` (`nativeSceneInventory` capability). A
   frame of a window without Compose hosts whose structure signature matches
   the route's last emitted inventory is not walked (a view that only becomes

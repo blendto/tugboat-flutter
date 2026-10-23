@@ -30,6 +30,14 @@ internal class RouteEntry(
      */
     var isLeaving: () -> Boolean = { false }
 
+    /**
+     * False while the route's owner is shown but paused: a fragment capped at
+     * `STARTED` (an off-screen `ViewPager2` page, `setMaxLifecycle`) keeps its
+     * view attached. Fragment owners rebind it; a route whose owner is gone
+     * reads as paused.
+     */
+    var isResumed: () -> Boolean = { true }
+
     override fun toString(): String = "$instanceId($routeKey)"
 
     companion object {
