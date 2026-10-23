@@ -10,14 +10,25 @@ internal object SessionMessages {
     const val APP_LIFECYCLE = "app.lifecycle"
     const val IDENTITY_SET = "identity.set"
     const val TRAITS_SET = "traits.set"
+    const val LOCALE_SET = "locale.set"
 
-    fun sessionStart(device: DeviceSnapshot, host: HostMetadata, sessionEpoch: Int): String =
+    fun sessionStart(
+        device: DeviceSnapshot,
+        host: HostMetadata,
+        sessionEpoch: Int,
+        activationRequestId: String?,
+        explorationRunId: String?,
+    ): String =
         JSONObject()
             .put("viewport", JSONObject().put("width", device.screenWidthDp).put("height", device.screenHeightDp))
             .put("platform", HostMetadata.PLATFORM)
             .put("sessionEpoch", sessionEpoch)
             .put("locale", host.sessionLocaleJson())
+            .putOpt("activationRequestId", activationRequestId.normalizedSessionId())
+            .putOpt("explorationRunId", explorationRunId.normalizedSessionId())
             .toString()
+
+    fun localeSet(locale: JSONObject): String = JSONObject().put("locale", locale).toString()
 
     fun sessionEnd(): String = JSONObject().put("reason", "session_end").toString()
 

@@ -9,7 +9,13 @@ wiring, window capture, and the Android Views adapter.
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
   `CollectorConfig`, `AppInfo`, `MaskLevel`. Idempotent start; nothing
-  throws into the app.
+  throws into the app. `TugboatConfig.enabled` (default `true`): when
+  `false`, `start` installs nothing and nothing is recorded; the user id,
+  traits, and event hooks are kept for a later enabled `start`.
+- Config: `captureDiagnostics` (engine capability), optional
+  `activationRequestId` / `explorationRunId` on `session.start` when set.
+- Locale: `locale.set` on primary locale change (`onConfigurationChanged`),
+  deduped, unregistered on `stop`.
 - Coded events and manual network calls: `Tugboat.eventHook(source,
   parameterPolicy).record(name, parameters)` (`external_event`) and
   `Tugboat.beginNetworkCall(method, route)` with `complete(statusCode,
@@ -33,7 +39,8 @@ wiring, window capture, and the Android Views adapter.
 - Engine wiring: `engine.configure` with every `session_start` field the
   collector requires (start is refused and logged when one is blank),
   `limits`, the adapter's `gesture`, `capture.answerTimeoutMs` 5000,
-  `collector.enabled`, `focusChanges` / `systemInput` capabilities;
+  `collector.enabled`, `focusChanges` / `systemInput` / `captureDiagnostics`
+  capabilities;
   `session.start`; `ProcessLifecycleOwner` to `app.lifecycle`
   (`androidx.lifecycle:lifecycle-process`, the one new runtime dependency);
   `identity.set` / `traits.set`; adapter facts as per-frame batches with
