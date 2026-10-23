@@ -18,10 +18,18 @@ extension View {
   ///   presentation: .sheet) }.tugboatNavigator("sheet") }`, so pushes and
   ///   pops inside the sheet stay on one navigator.
   ///
+  /// Give every tab its own navigator with a `.tugboatScreen` inside: a tab
+  /// with no sibling navigator on screen when you switch away is torn down,
+  /// and its next back is reported as a `push`. A sheet's navigator that is
+  /// forgotten and opened again is a new navigator for the engine
+  /// (`swiftui-screens/<name>#<n>`).
+  ///
   /// Sibling navigators (same enclosing navigator) are treated as mutually
-  /// exclusive, like tabs: do not put them on `NavigationSplitView` columns
-  /// or on panes shown together (a collapsed split view's back would send
-  /// nothing).
+  /// exclusive, like tabs: do not put `.tugboatNavigator` on any
+  /// `NavigationSplitView` column or on panes shown together. In a
+  /// collapsed split view, back from the detail sends nothing and the
+  /// detail stack grows (the SDK's and the engine's); with only the detail
+  /// opted in, each back is a `push` of the list screen on the root.
   ///
   /// Use a stable name, such as `"cart"`, unique among the navigators that
   /// exist together, covered screens included: a screen that can be pushed

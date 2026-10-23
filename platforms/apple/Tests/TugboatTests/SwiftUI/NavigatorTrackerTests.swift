@@ -466,6 +466,13 @@ final class NavigatorTrackerTests: XCTestCase {
     XCTAssertTrue(tracker.takeFacts().isEmpty)
     XCTAssertNil(tracker.entries(of: "swiftui-screens/sheet"))
     XCTAssertEqual(tracker.visibleTop?.name, "Details")
+
+    // Reopened: a new incarnation, so the engine does not stack it over the previous sheet.
+    tracker.appeared(instanceId: "sheetRoot2", name: "SheetRoot", overlayKind: .sheet, scope: sheet)
+    let reopened = try XCTUnwrap(tracker.takeFacts().first?.decodedInput, "the reopened sheet is pushed")
+    XCTAssertEqual(reopened["navigatorId"] as? String, "swiftui-screens/sheet#2")
+    XCTAssertEqual(reopened["parentNavigatorId"] as? String, "swiftui-screens")
+    XCTAssertNil(reopened["departing"])
   }
 
   /// Review 2 B1: a sheet with its own stack, dismissed from below its
@@ -497,13 +504,26 @@ final class NavigatorTrackerTests: XCTestCase {
       XCTAssertEqual(tracker.visibleTop?.name, "Details", "route keys are back on the presenter")
       XCTAssertEqual(seeds(tracker).map { $0["navigatorId"] as? String }, [root])
 
-      // Reopened: a new SheetRoot instance is the first route again.
+      // Reopened: a new SheetRoot instance is the first route of a new
+      // incarnation, so the engine starts a fresh stack for it.
       tracker.appeared(instanceId: "sheetRoot2", name: "SheetRoot", overlayKind: .sheet, scope: sheet)
       let reopened = try XCTUnwrap(tracker.takeFacts().first?.decodedInput, "the reopened sheet is pushed")
       XCTAssertEqual(reopened["kind"] as? String, "push")
+      XCTAssertEqual(reopened["navigatorId"] as? String, "swiftui-screens/sheet#2", "a fresh engine navigator")
+      XCTAssertEqual(reopened["parentNavigatorId"] as? String, root)
       XCTAssertNil(reopened["departing"], "a first route")
       XCTAssertEqual((reopened["route"] as? [String: Any])?["transitionMs"] as? Int, 0)
       XCTAssertEqual(tracker.entries(of: "swiftui-screens/sheet")?.map { $0.instanceId }, ["sheetRoot2"])
+      let seed = try XCTUnwrap(seeds(tracker).last, "the reopened sheet is seeded last")
+      XCTAssertEqual(seed["navigatorId"] as? String, "swiftui-screens/sheet#2")
+      XCTAssertEqual(seed["parentNavigatorId"] as? String, root)
+
+      // A third open after another teardown is the third incarnation.
+      tracker.disappeared(instanceId: "sheetRoot2")
+      tracker.settle()
+      tracker.appeared(instanceId: "sheetRoot3", name: "SheetRoot", overlayKind: .sheet, scope: sheet)
+      tracker.settle()
+      XCTAssertEqual(tracker.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet#3")
     }
   }
 
@@ -525,13 +545,13 @@ final class NavigatorTrackerTests: XCTestCase {
     XCTAssertEqual(tracker.visibleTop?.name, "Home")
   }
 
-  /// Review 2 M1: a collapsed `NavigationSplitView` (iPhone, compact width).
-  /// Select is a push of the detail column, back its pop, with the same
-  /// pair of callbacks in one frame as a tab switch. Sibling navigators are
-  /// treated as mutually exclusive, so the back is silent (a documented
-  /// limit), but the detail stack never grows: the next selection rebuilds
-  /// it as a first route.
-  func testACollapsedSplitViewsDetailStackDoesNotGrow() throws {
+  /// Review 2 M1, round 4: a collapsed `NavigationSplitView` (iPhone,
+  /// compact width). Select is a push of the detail column, back its pop,
+  /// with the same pair of callbacks in one frame as a tab switch. Sibling
+  /// navigators are treated as mutually exclusive, so the back is silent
+  /// (a documented limit) and the detail stack grows by one per select
+  /// (the documented cost: there is no rebuild rule).
+  func testACollapsedSplitViewsDetailStackGrowsWithinTheLimit() throws {
     let tracker = ScreenTracker(clock: ManualClock())
     let sidebar = scope("sidebar", hostedBy: nil)
     let detail = scope("detail", hostedBy: nil)
@@ -543,14 +563,15 @@ final class NavigatorTrackerTests: XCTestCase {
       tracker.disappeared(instanceId: "list")
       let selected = tracker.takeFacts().map { $0.decodedInput }
       XCTAssertEqual(selected.map { $0["kind"] as? String }, ["push"], "select \(index)")
-      XCTAssertNil(selected.first?["departing"], "select \(index) is the detail's first route")
-      XCTAssertEqual(tracker.entries(of: "swiftui-screens/detail")?.map { $0.instanceId }, ["item\(index)"])
+      let departing = (selected.first?["departing"] as? [String: Any])?["instanceId"] as? String
+      XCTAssertEqual(departing, index == 1 ? nil : "item\(index - 1)", "select \(index) departs the item left by back")
+      XCTAssertEqual(tracker.entries(of: "swiftui-screens/detail")?.map { $0.instanceId }, (1...index).map { "item\($0)" })
       XCTAssertEqual(tracker.visibleTop?.instanceId, "item\(index)")
 
       tracker.appeared(instanceId: "list", name: "List", scope: sidebar)
       tracker.disappeared(instanceId: "item\(index)")
       XCTAssertTrue(tracker.takeFacts().isEmpty, "back is silent (documented limit)")
-      XCTAssertEqual(tracker.entries(of: "swiftui-screens/detail")?.count, 1, "the detail stack does not grow")
+      XCTAssertEqual(tracker.entries(of: "swiftui-screens/detail")?.count, index, "the detail stack grows (documented)")
       XCTAssertEqual(tracker.entries(of: "swiftui-screens/sidebar")?.map { $0.name }, ["List"])
       XCTAssertEqual(tracker.visibleTop?.name, "List", "route keys follow the shown column")
     }
@@ -569,17 +590,20 @@ final class NavigatorTrackerTests: XCTestCase {
       XCTAssertEqual(tracker.entries(of: "swiftui-screens/detail")?.map { $0.instanceId }, ["item\(index)"])
       tracker.appeared(instanceId: "list", name: "List")
       tracker.disappeared(instanceId: "item\(index)")
-      _ = tracker.takeFacts()
+      let back = tracker.takeFacts().map { $0.decodedInput }
+      // Documented limit: each back is a first-route push of List on the root.
+      XCTAssertEqual(back.map { $0["kind"] as? String }, ["push"])
+      XCTAssertEqual(back.first?["navigatorId"] as? String, root)
+      XCTAssertNil(back.first?["departing"])
       XCTAssertNil(tracker.entries(of: "swiftui-screens/detail"), "back tears the detail navigator down")
       XCTAssertEqual(tracker.visibleTop?.name, "List")
     }
   }
 
   /// Side by side (regular width): the detail column's screen goes away
-  /// with nothing appearing. Its navigator is kept (the sidebar is on
-  /// screen), but an off-screen top is never the visible route, even
-  /// though it appeared last.
-  func testAKeptNavigatorWithItsTopOffScreenIsNotVisible() {
+  /// with nothing appearing. The sidebar is on screen but older, so it
+  /// does not cover the detail: a teardown.
+  func testAnEmptiedSideBySidePaneIsTornDown() {
     let tracker = ScreenTracker(clock: ManualClock())
     tracker.appeared(instanceId: "list", name: "List", scope: scope("sidebar", hostedBy: nil))
     tracker.settle()
@@ -588,9 +612,86 @@ final class NavigatorTrackerTests: XCTestCase {
     XCTAssertEqual(tracker.visibleTop?.name, "Item")
     tracker.disappeared(instanceId: "item")
     tracker.settle()
-    XCTAssertEqual(tracker.entries(of: "swiftui-screens/detail")?.map { $0.name }, ["Item"], "kept: the sidebar is on screen")
+    XCTAssertNil(tracker.entries(of: "swiftui-screens/detail"))
     XCTAssertEqual(tracker.visibleTop?.name, "List")
-    XCTAssertEqual(seeds(tracker).last?["navigatorId"] as? String, "swiftui-screens/sidebar")
+    XCTAssertEqual(seeds(tracker).map { $0["navigatorId"] as? String }, ["swiftui-screens/sidebar"])
+  }
+
+  /// Round 4 M1: a deep link pushes Settings onto hidden tab A. It is a
+  /// push departing Details (not a first route), and back is a real pop.
+  func testAPushOntoAHiddenTabKeepsItsStack() throws {
+    let tracker = ScreenTracker(clock: ManualClock())
+    let tabs = shellWithTwoTabs(tracker, aScreens: ["Home", "Details"])
+    _ = switchTab(tracker, show: "Inbox", in: tabs.tabB, hide: "Details")
+    tracker.isRecording = true
+
+    // The user lands on tab A with Settings already on top.
+    let landed = switchTab(tracker, show: "Settings", in: tabs.tabA, hide: "Inbox")
+    XCTAssertEqual(landed.map { $0["kind"] as? String }, ["push"])
+    XCTAssertEqual(landed.first?["navigatorId"] as? String, "swiftui-screens/tabA")
+    XCTAssertEqual((landed.first?["departing"] as? [String: Any])?["name"] as? String, "Details")
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens/tabA")?.map { $0.name }, ["Home", "Details", "Settings"])
+
+    tracker.appeared(instanceId: "Details", name: "Details", scope: tabs.tabA)
+    tracker.disappeared(instanceId: "Settings")
+    let back = try XCTUnwrap(tracker.takeFacts().first?.decodedInput, "back is reported")
+    XCTAssertEqual(back["kind"] as? String, "pop")
+    XCTAssertEqual((back["route"] as? [String: Any])?["name"] as? String, "Details")
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens/tabA")?.map { $0.name }, ["Home", "Details"])
+  }
+
+  /// Round 4 m1: an app-wide stacked sheet attached to the TabView is a
+  /// sibling of the tab navigators, and the shown tab's top stays on screen
+  /// under it. The tab is older than the sheet, so it does not cover the
+  /// sheet: dismissal from depth and from the root tears it down.
+  func testAStackedSheetBesideAnOnScreenTabIsTornDown() {
+    for depth in [2, 1] {
+      let tracker = ScreenTracker(clock: ManualClock())
+      tracker.appeared(instanceId: "home", name: "Home", scope: scope("tabA", hostedBy: nil))
+      tracker.settle()
+      let filters = scope("filters", hostedBy: nil)
+      tracker.appeared(instanceId: "filtersRoot", name: "FiltersRoot", overlayKind: .sheet, scope: filters)
+      tracker.settle()
+      if depth == 2 {
+        tracker.appeared(instanceId: "filtersDetail", name: "FiltersDetail", scope: filters)
+        tracker.disappeared(instanceId: "filtersRoot")
+        tracker.settle()
+      }
+      tracker.isRecording = true
+      tracker.disappeared(instanceId: depth == 2 ? "filtersDetail" : "filtersRoot")
+      XCTAssertTrue(tracker.takeFacts().isEmpty, "depth \(depth)")
+      XCTAssertNil(tracker.entries(of: "swiftui-screens/filters"), "depth \(depth): forgotten")
+      XCTAssertEqual(seeds(tracker).map { $0["navigatorId"] as? String }, ["swiftui-screens/tabA"], "depth \(depth)")
+      XCTAssertEqual(tracker.visibleTop?.name, "Home")
+    }
+  }
+
+  func testIncarnationsNameTheirParentAndRestartPerSession() throws {
+    let tracker = ScreenTracker(clock: ManualClock())
+    tracker.appeared(instanceId: "home", name: "Home")
+    tracker.settle()
+    let sheet = scope("sheet", hostedBy: "home")
+    tracker.appeared(instanceId: "r1", name: "R", overlayKind: .sheet, scope: sheet)
+    tracker.settle()
+    tracker.disappeared(instanceId: "r1")
+    tracker.settle()
+    tracker.isRecording = true
+    // Second incarnation, with a navigator nested inside its root screen.
+    tracker.appeared(instanceId: "r2", name: "R", overlayKind: .sheet, scope: sheet)
+    tracker.appeared(instanceId: "p1", name: "P", scope: scope("pane", in: sheet, hostedBy: "r2"))
+    let facts = tracker.takeFacts().map { $0.decodedInput }
+    XCTAssertEqual(facts.map { $0["navigatorId"] as? String }, ["swiftui-screens/sheet#2", "swiftui-screens/pane"])
+    XCTAssertEqual(facts.map { $0["parentNavigatorId"] as? String }, [root, "swiftui-screens/sheet#2"], "children name the current incarnation")
+
+    // A new session: the next incarnation is the bare name again; live ones keep theirs.
+    tracker.beginSession()
+    XCTAssertEqual(tracker.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet#2")
+    tracker.disappeared(instanceId: "p1")
+    tracker.disappeared(instanceId: "r2")
+    tracker.settle()
+    tracker.appeared(instanceId: "r3", name: "R", overlayKind: .sheet, scope: sheet)
+    tracker.settle()
+    XCTAssertEqual(tracker.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet")
   }
 
   // MARK: Route key source

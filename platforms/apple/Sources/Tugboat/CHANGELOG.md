@@ -66,9 +66,14 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   dismissed from any depth. Tab switches send nothing (the hidden tab
   keeps its stack; route keys follow the shown tab). The first navigation
   after a tab return or a stacked sheet's dismissal is not attributed to
-  its tap (no cause, no afterFrame). Sibling navigators are treated as
-  mutually exclusive, like tabs: not for split-view columns or panes shown
-  together. `session_start` seeds every navigator with a
+  its tap (no cause, no afterFrame). A navigator forgotten and used again
+  in a session gets a new engine id (`<name>#<n>`), so a reopened stacked
+  sheet starts a fresh engine stack. Sibling navigators are treated as
+  mutually exclusive, like tabs: not for any `NavigationSplitView` column
+  or panes shown together (a collapsed split's back sends nothing and the
+  detail stack grows; detail-only opt-in reports each back as a root
+  `push`), and every tab needs its own navigator with a screen (otherwise
+  a hidden tab is torn down and its next back is a `push`). `session_start` seeds every navigator with a
   non-empty stack, the visible chain last, and route keys follow the
   visible chain's top. Contract change for apps that opt in: a sheet's
   route identity moves from `page` to `sheet`. Hosting-controller routes

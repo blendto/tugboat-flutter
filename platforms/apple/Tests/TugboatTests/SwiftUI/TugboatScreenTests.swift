@@ -289,6 +289,36 @@ final class TugboatScreenTests: XCTestCase {
     XCTAssertEqual(routes.map { $0["name"] as? String }, ["Home", "Details"], "the push made while stopped is in the seed")
   }
 
+  /// Each adapter `start()` is a new session: a navigator name forgotten
+  /// in the previous session gets its bare id again.
+  func testAdapterStartRestartsNavigatorIncarnations() throws {
+    let clock = ManualClock()
+    let screens = ScreenTracker(clock: clock)
+    let sink = RecordingSink()
+    let frames = ManualFrames()
+    let adapter = SwiftUIAdapter(
+      sink: sink, hostClock: clock, frames: frames, trackHostingControllers: false, screens: screens)
+    let sheet = NavigatorScope.root.hosted(by: "home").nested("sheet")
+    adapter.start()
+    screens.appeared(instanceId: "home", name: "Home")
+    screens.appeared(instanceId: "r1", name: "R", overlayKind: .sheet, scope: sheet)
+    frames.runFrame()
+    screens.disappeared(instanceId: "r1")
+    frames.runFrame()
+    screens.appeared(instanceId: "r2", name: "R", overlayKind: .sheet, scope: sheet)
+    frames.runFrame()
+    XCTAssertEqual(screens.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet#2")
+    adapter.stop()
+
+    adapter.start()
+    screens.disappeared(instanceId: "r2")
+    frames.runFrame()
+    screens.appeared(instanceId: "r3", name: "R", overlayKind: .sheet, scope: sheet)
+    frames.runFrame()
+    adapter.stop()
+    XCTAssertEqual(screens.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet", "a new session starts at the bare id")
+  }
+
   func testViewControllerAppearanceForwardsAndCallsTheOriginal() {
     final class Probe: UIViewController {
       var didAppear = 0

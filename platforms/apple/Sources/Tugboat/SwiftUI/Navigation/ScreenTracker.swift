@@ -67,9 +67,23 @@ final class ScreenTracker {
     tree.ids
   }
 
-  /// `navigatorId`'s stack, bottom first; nil when it is not known.
+  /// `navigatorId`'s stack, bottom first; nil when it is not known. The
+  /// argument is the `NavigatorScope` id (`swiftui-screens/<name>`).
   func entries(of navigatorId: String) -> [RouteEntry]? {
     tree.entries(of: navigatorId)
+  }
+
+  /// The id sent to the engine for the navigator `swiftui-screens/<name>`:
+  /// the same for its first incarnation in the session, `…#<n>` after it
+  /// was forgotten and used again.
+  func engineNavigatorId(of navigatorId: String) -> String? {
+    tree.navigatorId(of: navigatorId)
+  }
+
+  /// A new session (adapter `start()`): a name forgotten from now on gets
+  /// its bare id again on its next use. Live navigators keep their ids.
+  func beginSession() {
+    tree.resetIncarnations()
   }
 
   func appeared(instanceId: String, name: String, overlayKind: OverlayKind = .page, scope: NavigatorScope = .root) {

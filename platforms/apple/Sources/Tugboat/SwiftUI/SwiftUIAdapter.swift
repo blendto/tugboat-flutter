@@ -86,6 +86,7 @@ final class SwiftUIAdapter {
     if trackHostingControllers {
       hostingControllers.installAppearanceObserverIfNeeded()
     }
+    screens.beginSession()
     seedSessionStartNavigation()
     screens.isRecording = true
     hostingControllers.isRecording = trackHostingControllers
