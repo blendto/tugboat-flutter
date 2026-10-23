@@ -89,6 +89,17 @@ bool run_label_hash(const Value& input, Value* result, Error* error) {
   return true;
 }
 
+std::string inventory_hash_from_fingerprints(
+    std::vector<std::string> fingerprints) {
+  std::sort(fingerprints.begin(), fingerprints.end(), compare_utf16);
+  std::string joined;
+  for (size_t i = 0; i < fingerprints.size(); ++i) {
+    if (i > 0) joined.push_back('|');
+    joined += fingerprints[i];
+  }
+  return label_hash(joined);
+}
+
 bool run_inventory_hash(const Value& input, Value* result, Error* error) {
   const ObjectReader reader(input, "$.input", error);
   const Value* fingerprints = nullptr;
@@ -106,14 +117,9 @@ bool run_inventory_hash(const Value& input, Value* result, Error* error) {
     }
     values.push_back(item.as_string());
   }
-  std::sort(values.begin(), values.end(), compare_utf16);
-  std::string joined;
-  for (size_t i = 0; i < values.size(); ++i) {
-    if (i > 0) joined.push_back('|');
-    joined += values[i];
-  }
   *result = Value::object();
-  result->set("hash", Value::string(label_hash(joined)));
+  result->set("hash",
+              Value::string(inventory_hash_from_fingerprints(std::move(values))));
   return true;
 }
 

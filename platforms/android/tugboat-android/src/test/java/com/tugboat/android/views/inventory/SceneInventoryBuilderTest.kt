@@ -41,6 +41,7 @@ class SceneInventoryBuilderTest {
             org.junit.Assert.fail("expected scene inventory")
             return
         }
+        SceneInventoryFactContract.assertFact(inventory)
         val elements = inventory.getJSONArray("elements")
         val fingerprints = (0 until elements.length()).map { elements.getJSONObject(it).getString("fingerprint") }
         val fingerprint = anchor?.fingerprint

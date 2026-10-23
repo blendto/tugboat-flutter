@@ -148,12 +148,27 @@
               "event": {
                 "id": "event-2",
                 "atMs": 1000,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "scene_inventory",
+                  "truncatedFrom": 2
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 1000,
                 "type": "scene_inventory",
                 "stream": "semantic",
                 "captureSessionId": "session-1781827200000000",
                 "data": {
-                  "routeKey": "/home",
                   "inventoryHash": "0c0beacef8877bbf",
+                  "routeKey": "/home",
                   "elements": [
                     {
                       "fingerprint": "aaaaaaaaaaaaaaaa",
@@ -264,12 +279,23 @@
         {
           "id": "event-2",
           "atMs": 1000,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "scene_inventory",
+            "truncatedFrom": 2
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 1000,
           "type": "scene_inventory",
           "stream": "semantic",
           "captureSessionId": "session-1781827200000000",
           "data": {
-            "routeKey": "/home",
             "inventoryHash": "0c0beacef8877bbf",
+            "routeKey": "/home",
             "elements": [
               {
                 "fingerprint": "aaaaaaaaaaaaaaaa",

@@ -1,6 +1,8 @@
 package com.tugboat.android.views.inventory
 
 import android.graphics.RectF
+import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -12,14 +14,13 @@ import com.tugboat.android.views.identity.IdentityHash
 import com.tugboat.android.views.identity.ResourceNames
 import com.tugboat.android.views.identity.RouteResolver
 import com.tugboat.android.views.identity.ViewGeometry
-import com.tugboat.android.views.identity.ViewRoles
 import com.tugboat.android.views.identity.ViewRules
 import com.tugboat.android.views.region.RegionHost
 import com.tugboat.android.views.region.Regions
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Builds `scene.inventory` inputs from a window decor tree. */
+/** Builds `scene.inventory` inputs from a window decor tree. Main thread only. */
 internal class SceneInventoryBuilder(
     private val names: ResourceNames,
     private val routes: RouteResolver,
@@ -28,59 +29,105 @@ internal class SceneInventoryBuilder(
 ) {
     private val largeTextArea = 0.02
 
-    fun build(window: android.view.Window): JSONObject? {
+    fun build(window: android.view.Window, elementLimit: Int = MAX_ELEMENTS): JSONObject? {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Log.w(TAG, "scene inventory off main thread; dropped")
+            return null
+        }
         val decor = window.decorView
         val width = decor.width.toDouble()
         val height = decor.height.toDouble()
         if (width <= 0 || height <= 0) return null
+        val inventoryRouteKey = routes.routeFor(inventoryRouteView(decor))?.value ?: return null
         val interactive = LinkedHashMap<String, JSONObject>()
         val content = ArrayList<JSONObject>()
         val seenContent = HashSet<String>()
-        collect(decor, decor, decor, width, height, interactive, content, seenContent)
+        val remaining = ElementCap(elementLimit)
+        collect(
+            decor,
+            decor,
+            decor,
+            inventoryRouteKey,
+            width,
+            height,
+            interactive,
+            content,
+            seenContent,
+            remaining,
+        )
         if (interactive.isEmpty() && content.isEmpty()) return null
-        val routeKey = routes.routeFor(decor)?.value ?: return null
         val elements = JSONArray()
         interactive.values.forEach(elements::put)
         content.forEach(elements::put)
-        val fingerprints = ArrayList<String>()
-        for (i in 0 until elements.length()) {
-            fingerprints += elements.getJSONObject(i).getString("fingerprint")
-        }
-        fingerprints.sort()
-        val inventoryHash = IdentityHash.labelHash(fingerprints.joinToString("|"))
         return JSONObject()
-            .put("routeKey", routeKey)
-            .put("inventoryHash", inventoryHash)
+            .put("routeKey", inventoryRouteKey)
             .put("elements", elements)
+    }
+
+    private fun inventoryRouteView(decor: View): View {
+        val content = decor.findViewById<View>(android.R.id.content) ?: return decor
+        val group = content as? ViewGroup
+        if (group != null && group.childCount > 0) return group.getChildAt(0)
+        return content
     }
 
     private fun collect(
         decor: View,
         view: View,
         window: View,
+        inventoryRouteKey: String,
         width: Double,
         height: Double,
         interactive: LinkedHashMap<String, JSONObject>,
         content: MutableList<JSONObject>,
         seenContent: MutableSet<String>,
+        remaining: ElementCap,
     ) {
+        if (!remaining.hasCapacity()) return
         if (ViewRules.isExcluded(view)) return
         val region = Regions.regionOf(view)
         if (region != null) {
-            regionInventory(RegionHost(view, region), window, width, height, interactive, content, seenContent)
+            regionInventory(
+                RegionHost(view, region),
+                window,
+                inventoryRouteKey,
+                width,
+                height,
+                interactive,
+                content,
+                seenContent,
+                remaining,
+            )
             return
         }
         if (ViewRules.isKept(view, names)) {
-            entryFor(view, decor, window, width, height)?.let { (fp, json) ->
-                when (json.getString("tier")) {
-                    "interactive" -> mergeInteractive(interactive, fp, json)
-                    "content" -> if (seenContent.add(fp)) content += json
+            val route = routes.routeFor(view)?.value
+            if (route == inventoryRouteKey) {
+                entryFor(view, decor, window, width, height)?.let { (fp, json) ->
+                    when (json.getString("tier")) {
+                        InventoryTier.Interactive.wire ->
+                            mergeInteractive(interactive, fp, json, remaining)
+                        InventoryTier.Content.wire ->
+                            if (seenContent.add(fp) && remaining.take()) content += json
+                    }
                 }
             }
         }
         if (view is ViewGroup) {
             for (i in 0 until view.childCount) {
-                collect(decor, view.getChildAt(i), window, width, height, interactive, content, seenContent)
+                collect(
+                    decor,
+                    view.getChildAt(i),
+                    window,
+                    inventoryRouteKey,
+                    width,
+                    height,
+                    interactive,
+                    content,
+                    seenContent,
+                    remaining,
+                )
+                if (!remaining.hasCapacity()) return
             }
         }
     }
@@ -88,22 +135,27 @@ internal class SceneInventoryBuilder(
     private fun regionInventory(
         host: RegionHost,
         window: View,
+        inventoryRouteKey: String,
         width: Double,
         height: Double,
         interactive: LinkedHashMap<String, JSONObject>,
         content: MutableList<JSONObject>,
         seenContent: MutableSet<String>,
+        remaining: ElementCap,
     ) {
         val route = routes.routeFor(host.view) ?: return
+        if (route.value != inventoryRouteKey) return
         val hostPath = paths.build(route.root, host.view) ?: return
         val prefix = hostPath.value
         for (entry in host.region.inventory(host.view)) {
+            if (!remaining.hasCapacity()) return
             val path = (listOf(prefix) + entry.pathSegments).joinToString("/")
             val json = regionEntryJson(route.value, path, entry, window, host.view, width, height) ?: continue
             val fp = json.getString("fingerprint")
             when (json.getString("tier")) {
-                "interactive" -> mergeInteractive(interactive, fp, json)
-                "content" -> if (seenContent.add(fp)) content += json
+                InventoryTier.Interactive.wire -> mergeInteractive(interactive, fp, json, remaining)
+                InventoryTier.Content.wire ->
+                    if (seenContent.add(fp) && remaining.take()) content += json
             }
         }
     }
@@ -125,12 +177,12 @@ internal class SceneInventoryBuilder(
                 .put("fingerprint", anchor.fingerprint)
                 .put("canonicalPath", anchor.canonicalPath)
                 .put("boundsNorm", norm)
-                .put("tier", "interactive")
+                .put("tier", InventoryTier.Interactive.wire)
             anchor.widgetType?.let { json.put("widgetType", it) }
             anchor.role?.let { json.put("role", it) }
             if (anchor.actions.isNotEmpty()) json.put("actions", JSONArray(anchor.actions))
             anchor.enabled?.let { json.put("enabled", it) }
-            val aliases = aliasList(structuralFp, anchor.fingerprint, anchor.tagFingerprint.orEmpty())
+            val aliases = aliasList(structuralFp, anchor.fingerprint, anchor.tagFingerprint)
             if (aliases.isNotEmpty()) json.put("aliases", JSONArray(aliases))
             return anchor.fingerprint to json
         }
@@ -144,7 +196,7 @@ internal class SceneInventoryBuilder(
                 .put("widgetType", if (view is ImageView) "ImageView" else "TextView")
                 .put("role", "display")
                 .put("boundsNorm", norm)
-                .put("tier", "content")
+                .put("tier", InventoryTier.Content.wire)
             return fp to json
         }
         return null
@@ -161,9 +213,6 @@ internal class SceneInventoryBuilder(
     ): JSONObject? {
         val mapped = ViewGeometry.mapRect(window, host, entry.bounds) ?: return null
         val norm = normalize(mapped, width, height) ?: return null
-        val structuralFp = entry.structuralFingerprint?.let {
-            IdentityHash.fingerprint(mapOf("routeKey" to routeKey, "path" to "$path/$it".removeSuffix("/")))
-        }
         val fingerprint = IdentityHash.fingerprint(mapOf("routeKey" to routeKey, "path" to path))
         val json = JSONObject()
             .put("fingerprint", fingerprint)
@@ -174,15 +223,21 @@ internal class SceneInventoryBuilder(
         entry.role?.let { json.put("role", it) }
         if (entry.actions.isNotEmpty()) json.put("actions", JSONArray(entry.actions))
         entry.enabled?.let { json.put("enabled", it) }
-        structuralFp?.let { sf ->
-            if (sf != fingerprint) json.put("aliases", JSONArray(listOf(sf)))
-        }
+        val tagFp = entry.tag?.let { IdentityHash.fingerprint(mapOf("routeKey" to routeKey, "tag" to it)) }
+        val aliases = aliasList(entry.structuralFingerprint.orEmpty(), fingerprint, tagFp)
+        if (aliases.isNotEmpty()) json.put("aliases", JSONArray(aliases))
         return json
     }
 
-    private fun mergeInteractive(map: LinkedHashMap<String, JSONObject>, fp: String, json: JSONObject) {
+    private fun mergeInteractive(
+        map: LinkedHashMap<String, JSONObject>,
+        fp: String,
+        json: JSONObject,
+        remaining: ElementCap,
+    ) {
         val existing = map[fp]
         if (existing == null) {
+            if (!remaining.take()) return
             map[fp] = json
             return
         }
@@ -218,4 +273,24 @@ internal class SceneInventoryBuilder(
             .put("width", w)
             .put("height", h)
     }
+
+    private class ElementCap(private var left: Int) {
+        fun hasCapacity(): Boolean = left > 0
+
+        fun take(): Boolean {
+            if (left <= 0) return false
+            left--
+            return true
+        }
+    }
+
+    companion object {
+        private const val TAG = "TugboatViews"
+        const val MAX_ELEMENTS = 500
+    }
+}
+
+private enum class InventoryTier(val wire: String) {
+    Interactive("interactive"),
+    Content("content"),
 }

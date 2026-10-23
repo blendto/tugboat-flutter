@@ -4,8 +4,8 @@ import android.graphics.RectF
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsNode
 import com.tugboat.android.compose.identity.NodePaths
+import com.tugboat.android.compose.identity.NodeTargets
 import com.tugboat.android.compose.semantics.NodeBounds
-import com.tugboat.android.compose.semantics.NodeRoles
 import com.tugboat.android.compose.semantics.NodeRules
 import com.tugboat.android.toolkit.RegionInventoryEntry
 
@@ -20,29 +20,34 @@ internal object ComposeInventory {
         val width = host.width.toDouble()
         val height = host.height.toDouble()
         if (width <= 0 || height <= 0) return emptyList()
+        val paths = NodePaths.index(root)
         val out = ArrayList<RegionInventoryEntry>()
         val seenLazyItem = HashSet<String>()
-        walk(root, root, width, height, out, seenLazyItem)
+        walk(root, root, paths, width, height, out, seenLazyItem)
         return out
     }
 
     private fun walk(
         root: SemanticsNode,
         node: SemanticsNode,
+        paths: Map<Int, com.tugboat.android.compose.identity.NodePath>,
         width: Double,
         height: Double,
         out: MutableList<RegionInventoryEntry>,
         seenLazyItem: MutableSet<String>,
     ) {
         if (NodeRules.isExcluded(node)) return
-        val path = NodePaths.build(root, node)
-        if (path != null && path.segments.size == 1 && path.segments[0] == "[item]") {
-            if (!seenLazyItem.add(path.segments[0])) return
+        val path = paths[node.id]
+        if (path != null) {
+            val collapseKey = path.segments.joinToString("/")
+            if (path.segments.any { it == "[item]" }) {
+                if (!seenLazyItem.add(collapseKey)) return
+            }
+            if (NodeRules.isKept(node)) {
+                entryFor(root, node, path, width, height)?.let(out::add)
+            }
         }
-        if (path != null && NodeRules.isKept(node)) {
-            entryFor(root, node, path, width, height)?.let(out::add)
-        }
-        for (child in node.children) walk(root, child, width, height, out, seenLazyItem)
+        for (child in node.children) walk(root, child, paths, width, height, out, seenLazyItem)
     }
 
     private fun entryFor(
@@ -52,6 +57,7 @@ internal object ComposeInventory {
         width: Double,
         height: Double,
     ): RegionInventoryEntry? {
+        val target = NodeTargets.of(root, node) ?: return null
         val bounds = NodeBounds.bounds(node)
         val norm = normalize(bounds, width, height) ?: return null
         val actionable = NodeRules.isActionable(node)
@@ -63,15 +69,15 @@ internal object ComposeInventory {
         }
         return RegionInventoryEntry(
             pathSegments = path.segments,
-            widgetType = NodeRoles.token(node),
-            role = if (tier == CONTENT_TIER) "display" else NodeRoles.role(node),
-            actions = if (actionable) NodeRoles.actions(node) else emptyList(),
-            enabled = NodeRoles.enabled(node),
-            tag = NodeRules.alias(node),
+            widgetType = target.widgetType,
+            role = if (tier == CONTENT_TIER) "display" else target.role,
+            actions = if (actionable) target.actions else emptyList(),
+            enabled = target.enabled,
+            tag = target.tag,
             inListItem = path.inListItem,
             bounds = bounds,
             tier = tier,
-            structuralFingerprint = path.segments.joinToString("/"),
+            structuralFingerprint = null,
         )
     }
 
@@ -87,5 +93,4 @@ internal object ComposeInventory {
     }
 
     private data class Normalized(val left: Double, val top: Double, val width: Double, val height: Double)
-
 }

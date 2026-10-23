@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 import android.view.Window
+import android.view.WindowManager
 import com.tugboat.android.host.HostClock
 import com.tugboat.android.host.SystemHostClock
 import com.tugboat.android.views.facts.ChoreographerFrames
@@ -76,6 +77,8 @@ internal class ViewsAdapter(
     /** Focus is app-wide: every window reports against the same last kind. */
     private val focusState = FocusState()
     private var started = false
+    private val lastInventoryStructureByRoute = HashMap<String, String>()
+    private var pendingInventoryWindow: Window? = null
 
     fun start() = AdapterGuard.run("start") {
         if (started) return@run
@@ -123,13 +126,19 @@ internal class ViewsAdapter(
             val navigatorId = ControllerNavigation.navigatorIdFor(activities.ensureEntry(activity).instanceId)
             val routeKey = destinations.routeKey(activity, current.route, current.destinationId) ?: ControllerNavigation.TYPE
             controllers.onDestinationChanged(navigatorId, activities.navigatorIdOf(activity), current, routeKey, previous)
-            maybeEmitSceneInventory(activity.window)
+            pendingInventoryWindow = activity.window
+            batcher.requestFrame()
         }
 
     /** After a captured frame or a route settle, when [emitSceneInventory] is enabled. */
     fun maybeEmitSceneInventory(window: Window) = AdapterGuard.run("scene inventory") {
         if (!emitSceneInventory || !started) return@run
+        if (window.isSecureForInventory()) return@run
+        val masks = WindowMasks.compute(window)
         val input = sceneInventory.build(window) ?: return@run
+        val routeKey = input.getString("routeKey")
+        if (lastInventoryStructureByRoute[routeKey] == masks.structureSignature) return@run
+        lastInventoryStructureByRoute[routeKey] = masks.structureSignature
         emit(ViewsFact(FactTypes.SCENE_INVENTORY, input, clock.now()))
     }
 
@@ -186,5 +195,12 @@ internal class ViewsAdapter(
     private fun onFrame() {
         fragments?.flush()
         sessions.values.toList().forEach(WindowSession::onFrame)
+        pendingInventoryWindow?.let { window ->
+            pendingInventoryWindow = null
+            maybeEmitSceneInventory(window)
+        }
     }
+
+    private fun Window.isSecureForInventory(): Boolean =
+        attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0
 }

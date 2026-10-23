@@ -37,6 +37,7 @@ struct SceneInventoryElement {
 // `scene.inventory {routeKey?, elements[]}`.
 struct SceneInventoryFact {
   std::optional<std::string> route_key;
+  std::optional<std::string> scroll_key;
   std::vector<SceneInventoryElement> elements;
 };
 
@@ -47,13 +48,15 @@ void apply_scene_inventory(Turn& turn, const SceneInventoryFact& fact);
 
 // Records `scene_inventory` when the dedupe key is new. `data` is the full
 // event payload (`inventoryHash`, `routeKey`, `elements`).
-void record_scene_inventory(Turn& turn, Value data);
+void record_scene_inventory(Turn& turn, Value data,
+                            const std::string& scroll_key = "");
 
 std::string inventory_hash_for_elements(
     const std::vector<SceneInventoryElement>& elements);
 
 Value scene_inventory_event_data(const std::string& route_key,
-                                 const std::vector<SceneInventoryElement>& elements);
+                                 const std::vector<SceneInventoryElement>& elements,
+                                 const std::string& scroll_key = "");
 
 }  // namespace engine
 }  // namespace tugboat

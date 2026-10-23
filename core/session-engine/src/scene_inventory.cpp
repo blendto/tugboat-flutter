@@ -4,6 +4,8 @@
 #include <utility>
 
 #include "engine_state.h"
+#include "evidence.h"
+#include "operations.h"
 #include "recorder.h"
 #include "text.h"
 #include "turn.h"
@@ -15,6 +17,8 @@ namespace {
 
 constexpr const char* kTierInteractive = "interactive";
 constexpr const char* kTierContent = "content";
+constexpr double kBoundsEpsilon = 1e-9;
+constexpr size_t kMaxAliases = 16;
 
 bool decode_bounds(const ObjectReader& r, NormalizedBounds* out, Error* error) {
   const Value* json = nullptr;
@@ -28,11 +32,19 @@ bool decode_bounds(const ObjectReader& r, NormalizedBounds* out, Error* error) {
     return false;
   }
   if (out->left < 0 || out->left > 1 || out->top < 0 || out->top > 1 ||
-      out->width <= 0 || out->height <= 0 || out->left + out->width > 1 ||
-      out->top + out->height > 1) {
+      out->width <= 0 || out->height <= 0 ||
+      out->left + out->width > 1 + kBoundsEpsilon ||
+      out->top + out->height > 1 + kBoundsEpsilon) {
     return bounds.reject("boundsNorm", "out of range");
   }
   return true;
+}
+
+std::string bound_string(std::string value) {
+  if (!utf16_longer_than(value, ParameterLimits::kMaxStringLength)) {
+    return value;
+  }
+  return utf16_prefix(value, ParameterLimits::kMaxStringLength);
 }
 
 bool decode_string_array(const ObjectReader& r, const char* key,
@@ -83,6 +95,26 @@ bool decode_element(const Value& json, const std::string& path,
   return true;
 }
 
+void bound_element(SceneInventoryElement* element) {
+  element->fingerprint = bound_string(element->fingerprint);
+  element->canonical_path = bound_string(element->canonical_path);
+  if (element->widget_type) {
+    *element->widget_type = bound_string(*element->widget_type);
+  }
+  if (element->role) {
+    *element->role = bound_string(*element->role);
+  }
+  for (std::string& action : element->actions) {
+    action = bound_string(action);
+  }
+  if (element->aliases.size() > kMaxAliases) {
+    element->aliases.resize(kMaxAliases);
+  }
+  for (std::string& alias : element->aliases) {
+    alias = bound_string(alias);
+  }
+}
+
 Value bounds_json(const NormalizedBounds& bounds) {
   Value json = Value::object();
   json.set("left", Value::number(bounds.left));
@@ -125,8 +157,9 @@ Value element_json(const SceneInventoryElement& element) {
 }
 
 std::string dedupe_key(const std::string& route_key,
-                       const std::string& inventory_hash) {
-  return route_key + "|" + inventory_hash + "|";
+                       const std::string& inventory_hash,
+                       const std::string& scroll_key) {
+  return route_key + "|" + inventory_hash + "|" + scroll_key;
 }
 
 }  // namespace
@@ -135,8 +168,9 @@ bool decode_scene_inventory_fact(const Value& json, const std::string& path,
                                  SceneInventoryFact* out, Error* error) {
   const ObjectReader r(json, path, error);
   const Value* elements = nullptr;
-  if (!r.check_keys({"routeKey", "elements"}) ||
+  if (!r.check_keys({"routeKey", "elements", "scrollKey"}) ||
       !r.opt_string("routeKey", &out->route_key) ||
+      !r.opt_string("scrollKey", &out->scroll_key) ||
       !r.req_array("elements", &elements)) {
     return false;
   }
@@ -160,30 +194,29 @@ std::string inventory_hash_for_elements(
   for (const SceneInventoryElement& element : elements) {
     fingerprints.push_back(element.fingerprint);
   }
-  std::sort(fingerprints.begin(), fingerprints.end(), compare_utf16);
-  std::string joined;
-  for (size_t i = 0; i < fingerprints.size(); ++i) {
-    if (i > 0) joined.push_back('|');
-    joined += fingerprints[i];
-  }
-  return label_hash(joined);
+  return inventory_hash_from_fingerprints(std::move(fingerprints));
 }
 
 Value scene_inventory_event_data(const std::string& route_key,
-                                 const std::vector<SceneInventoryElement>& elements) {
+                                 const std::vector<SceneInventoryElement>& elements,
+                                 const std::string& scroll_key) {
   Value data = Value::object();
-  data.set("routeKey", Value::string(route_key));
   data.set("inventoryHash",
            Value::string(inventory_hash_for_elements(elements)));
+  data.set("routeKey", Value::string(route_key));
   Value elements_json = Value::array();
   for (const SceneInventoryElement& element : elements) {
     elements_json.push(element_json(element));
   }
   data.set("elements", std::move(elements_json));
+  if (!scroll_key.empty()) {
+    data.set("scrollKey", Value::string(scroll_key));
+  }
   return data;
 }
 
-void record_scene_inventory(Turn& turn, Value data) {
+void record_scene_inventory(Turn& turn, Value data,
+                            const std::string& scroll_key) {
   EngineState& state = *turn.state;
   const Value* route = data.find("routeKey");
   const Value* hash = data.find("inventoryHash");
@@ -191,7 +224,8 @@ void record_scene_inventory(Turn& turn, Value data) {
       !hash->is_string()) {
     return;
   }
-  const std::string key = dedupe_key(route->as_string(), hash->as_string());
+  const std::string key =
+      dedupe_key(route->as_string(), hash->as_string(), scroll_key);
   if (!state.interactions.emitted_inventories.insert(key).second) return;
   Event event = make_event(&state, *turn.session, "scene_inventory",
                            turn.at.mono_us);
@@ -207,12 +241,23 @@ void apply_scene_inventory(Turn& turn, const SceneInventoryFact& fact) {
     return;
   }
   const int64_t max_elements = turn.state->config.limits.max_scene_inventory_elements;
+  const size_t original_count = fact.elements.size();
   std::vector<SceneInventoryElement> elements = fact.elements;
   if (static_cast<int64_t>(elements.size()) > max_elements) {
     elements.resize(static_cast<size_t>(max_elements));
+    Diagnostic diagnostic;
+    diagnostic.data.set("component", Value::string("scene_inventory"));
+    diagnostic.data.set("truncatedFrom", Value::integer(original_count));
+    record_diagnostic(turn.state, turn.at, turn.out, std::move(diagnostic));
+  }
+  for (SceneInventoryElement& element : elements) {
+    bound_element(&element);
   }
   const std::string route_key = fact.route_key.value_or("");
-  record_scene_inventory(turn, scene_inventory_event_data(route_key, elements));
+  const std::string scroll_key = fact.scroll_key.value_or("");
+  record_scene_inventory(
+      turn, scene_inventory_event_data(route_key, elements, scroll_key),
+      scroll_key);
 }
 
 }  // namespace engine

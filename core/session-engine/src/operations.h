@@ -5,6 +5,9 @@
 #ifndef TUGBOAT_SESSION_ENGINE_OPERATIONS_H
 #define TUGBOAT_SESSION_ENGINE_OPERATIONS_H
 
+#include <string>
+#include <vector>
+
 #include "json.h"
 #include "reader.h"
 
@@ -20,6 +23,9 @@ bool run_label_hash(const Value& input, Value* result, Error* error);
 
 // `fingerprint.inventoryHash`: sorted element fingerprints joined by `|`.
 bool run_inventory_hash(const Value& input, Value* result, Error* error);
+
+// Sorted element fingerprints joined by `|` then `tugboatLabelHash`.
+std::string inventory_hash_from_fingerprints(std::vector<std::string> fingerprints);
 
 // `collector.event`: `mapTugboatEventToCollectorEvent`.
 bool run_collector_event(const Value& input, Value* result, Error* error);

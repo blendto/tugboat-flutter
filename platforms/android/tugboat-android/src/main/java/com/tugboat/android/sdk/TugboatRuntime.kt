@@ -155,17 +155,15 @@ internal class TugboatRuntime private constructor(
                         it.post(HostMessages.CAPTURE_RESULT, answer.toInputJson(), clock.now(), answer.frameHandles)
                     }
                     if (answer is com.tugboat.android.capture.CaptureAnswer.Captured) {
-                        foreground.window?.let(adapter::maybeEmitSceneInventory)
+                        val window = foreground.window
+                        if (window != null) {
+                            main.post { adapter.maybeEmitSceneInventory(window) }
+                        }
                     }
                 },
             )
             engineHost.value = EngineHost.start(transport, frames, http = watcher, captures = captures)
-            val host = engineHost.value
-            if (host == null) {
-                Log.e(TAG, "Tugboat not started: engine host missing after start")
-                captures.dispose()
-                return null
-            }
+            val host = engineHost.value ?: return null
             host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, gesture).toString())
             host.post(SessionMessages.SESSION_START, SessionMessages.sessionStart(device, metadata, sessionEpoch), clock.now())
             val lifecycle = AppLifecycleBridge(post = { state ->
@@ -182,7 +180,7 @@ internal class TugboatRuntime private constructor(
 
 /** Holds the engine host while capture wiring is constructed. */
 private class EngineHostSlot {
-    var value: EngineHost? = null
+    @Volatile var value: EngineHost? = null
 
     inline fun withHost(block: (EngineHost) -> Unit) {
         val current = value

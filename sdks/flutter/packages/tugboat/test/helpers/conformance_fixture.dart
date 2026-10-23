@@ -247,9 +247,8 @@ Map<String, Object?> evaluateFixture(ConformanceFixture fixture) {
       final raw = _list(input['fingerprints'], 'input.fingerprints');
       final fingerprints = raw
           .map((v) => _requireStringElement(v, 'input.fingerprints[]'))
-          .toList()
-        ..sort();
-      return {'hash': tugboatLabelHash(fingerprints.join('|'))};
+          .toList();
+      return {'hash': tugboatInventoryHash(fingerprints)};
     case ConformanceKind.collectorEvent:
       return _evaluateCollectorEvent(input);
     case ConformanceKind.sessionLifecycle:
