@@ -11,17 +11,6 @@
 namespace tugboat {
 namespace engine {
 
-namespace {
-
-bool same_coverage(const MaskCoverage& a, const MaskCoverage& b) {
-  if (a.mode != b.mode) return false;
-  const std::set<MaskReason> left(a.reasons.begin(), a.reasons.end());
-  const std::set<MaskReason> right(b.reasons.begin(), b.reasons.end());
-  return left == right;
-}
-
-}  // namespace
-
 bool RequestContext::surface_compatible_with(
     const RequestContext& other) const {
   return session_id == other.session_id && route_epoch == other.route_epoch &&
@@ -82,7 +71,8 @@ FrameRecord FrameStore::accept(const CapturedFrame& captured,
   provenance.pixel_height = captured.height;
   provenance.mask_coverage = captured.mask_coverage;
   provenance_[frame.id] = std::move(provenance);
-  frame_by_content_[captured.content_hash] = frame.id;
+  frame_by_content_[content_key(captured.content_hash,
+                                captured.mask_coverage)] = frame.id;
   latest_frame_id_ = frame.id;
   commit_baselines(captured);
 
@@ -107,21 +97,14 @@ void FrameStore::trim(const std::string& dropped, const Session& session) {
   it->second.available = false;
   const auto& frames = session.frames();
   // The content index names the dropped frame only when it was the newest
-  // with its pixels; a newer retained duplicate takes over the entry.
-  for (auto content = frame_by_content_.begin();
-       content != frame_by_content_.end(); ++content) {
-    if (content->second != dropped) continue;
-    const auto retained = std::find_if(
-        frames.rbegin(), frames.rend(), [&](const Frame& frame) {
-          return frame.content_hash == content->first;
-        });
-    if (retained == frames.rend()) {
-      frame_by_content_.erase(content);
-    } else {
-      content->second = retained->id;
-    }
-    break;
-  }
+  // with its pixels and mask coverage. Trim drops the oldest frames, so no
+  // retained frame has that key and the entry goes. Entries of other keys,
+  // such as the same pixels under other coverage, name newer frames and
+  // stay.
+  const auto content = std::find_if(
+      frame_by_content_.begin(), frame_by_content_.end(),
+      [&](const auto& entry) { return entry.second == dropped; });
+  if (content != frame_by_content_.end()) frame_by_content_.erase(content);
   if (latest_frame_id_ && *latest_frame_id_ == dropped) {
     latest_frame_id_ = frames.empty() ? OptString() : frames.back().id;
   }
@@ -181,21 +164,21 @@ OptString FrameStore::reuse(const std::string& frame_id,
 }
 
 OptString FrameStore::frame_with_content(
-    const std::string& content_hash) const {
-  const auto it = frame_by_content_.find(content_hash);
+    const std::string& content_hash,
+    const std::optional<MaskCoverage>& coverage) const {
+  const auto it = frame_by_content_.find(content_key(content_hash, coverage));
   if (it == frame_by_content_.end()) return std::nullopt;
   return it->second;
 }
 
-bool FrameStore::same_mask_coverage(
-    const std::string& frame_id,
-    const std::optional<MaskCoverage>& coverage) const {
-  const FrameProvenance* frame = find(frame_id);
-  if (frame == nullptr) return false;
-  if (!frame->mask_coverage || !coverage) {
-    return !frame->mask_coverage && !coverage;
-  }
-  return same_coverage(*frame->mask_coverage, *coverage);
+FrameStore::ContentKey FrameStore::content_key(
+    const std::string& content_hash,
+    const std::optional<MaskCoverage>& coverage) {
+  if (!coverage) return {content_hash, std::nullopt};
+  std::vector<MaskReason> reasons = coverage->reasons;
+  std::sort(reasons.begin(), reasons.end());
+  reasons.erase(std::unique(reasons.begin(), reasons.end()), reasons.end());
+  return {content_hash, CoverageKey{coverage->mode, std::move(reasons)}};
 }
 
 std::optional<DHashBaseline> FrameStore::dhash_baseline() const {

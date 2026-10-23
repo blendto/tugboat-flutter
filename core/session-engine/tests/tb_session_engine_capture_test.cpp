@@ -145,10 +145,10 @@ void test_frame_store_compatibility_and_trim() {
   // its content hash, and hands "latest" to the newest retained frame.
   const FrameRecord c = frames.accept(captured("h3", "z"), ctx, 30, 2, &ids,
                                       &session, &retention, &out);
-  CHECK(!frames.frame_with_content("x"));
+  CHECK(!frames.frame_with_content("x", std::nullopt));
   CHECK(frames.find(a.frame.id) == nullptr);  // unreferenced: forgotten
   CHECK(frames.latest(session.id())->frame_id == c.frame.id);
-  CHECK(*frames.frame_with_content("y") == b.frame.id);
+  CHECK(*frames.frame_with_content("y", std::nullopt) == b.frame.id);
   CHECK(frames.sequence() == 3);
   frames.reset();
   CHECK(frames.sequence() == 0 && !frames.has_latest());
@@ -240,6 +240,52 @@ void test_content_reuse_needs_same_mask_coverage() {
                 &out);
   CHECK(classify_captured(frames, flight, captured("h5", "y")) ==
         CapturedDisposition::kContentReused);
+}
+
+// The content index is keyed by content hash and mask coverage: the same
+// pixels under other coverage keep their own entry, before and after a trim
+// (change C21).
+void test_content_index_keys_survive_trim() {
+  Session session(SessionHeader{});
+  IdCounter ids;
+  Output out;
+  FrameStore frames;
+  FrameRetention retention;
+  RequestContext ctx = context(1);
+  const MaskCoverage none{MaskMode::kPrecise, {}};
+  const MaskCoverage overlay{MaskMode::kPrecise,
+                             {MaskReason::kOverlayWindow}};
+  CapturedFrame before = captured("h1", "x");
+  before.mask_coverage = none;
+  const FrameRecord a =
+      frames.accept(before, ctx, 10, 2, &ids, &session, &retention, &out);
+  CapturedFrame dialog = captured("h2", "x");
+  dialog.mask_coverage = overlay;
+  const FrameRecord b =
+      frames.accept(dialog, ctx, 20, 2, &ids, &session, &retention, &out);
+  CHECK(*frames.frame_with_content("x", none) == a.frame.id);
+  CHECK(*frames.frame_with_content("x", overlay) == b.frame.id);
+  CHECK(!frames.frame_with_content("x", std::nullopt));
+  // The dialog is dismissed over the unchanged screen: the next frame is
+  // reused from a, the frame from before the overlay, though b is newer.
+  InFlightCapture flight;
+  flight.capture = scheduled(FrameTrigger::kManual, "m", 0);
+  CapturedFrame cleared = captured("h5", "x");
+  cleared.mask_coverage = none;
+  CHECK(classify_captured(frames, flight, cleared) ==
+        CapturedDisposition::kContentReused);
+  // maxFrames 2: c trims a. Its key goes; b's key, same pixels under other
+  // coverage, still names b, and b does not take over a's key.
+  const FrameRecord c = frames.accept(captured("h3", "z"), ctx, 30, 2, &ids,
+                                      &session, &retention, &out);
+  CHECK(!frames.frame_with_content("x", none));
+  CHECK(*frames.frame_with_content("x", overlay) == b.frame.id);
+  CHECK(*frames.frame_with_content("z", std::nullopt) == c.frame.id);
+  // d trims b: the last frame with those pixels, so its key goes too.
+  frames.accept(captured("h4", "w"), ctx, 40, 2, &ids, &session, &retention,
+                &out);
+  CHECK(!frames.frame_with_content("x", overlay));
+  CHECK(*frames.frame_with_content("z", std::nullopt) == c.frame.id);
 }
 
 // --------------------------------------------------------------- budget
@@ -590,6 +636,7 @@ int main() {
   test_frame_store_compatibility_and_trim();
   test_execution_helpers();
   test_content_reuse_needs_same_mask_coverage();
+  test_content_index_keys_survive_trim();
   test_budget();
   test_navigator_registry();
   test_route_identity();

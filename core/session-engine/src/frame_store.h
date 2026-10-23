@@ -11,6 +11,8 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "capture_types.h"
 #include "frame_retention.h"
@@ -101,12 +103,12 @@ class FrameStore {
                      const RequestContext& context) const;
   // Dart `_reuseCompatibleFrame`: a compatible frame becomes the latest.
   OptString reuse(const std::string& frame_id, const RequestContext& context);
-  // The retained frame with this content hash (Dart `_hashToFrameId`).
-  OptString frame_with_content(const std::string& content_hash) const;
-  // Change C21: whether `frame_id` was accepted with the same mask coverage
-  // (mode, and reasons as a set; absent only matches absent).
-  bool same_mask_coverage(const std::string& frame_id,
-                          const std::optional<MaskCoverage>& coverage) const;
+  // The newest retained frame with this content hash and, change C21, this
+  // mask coverage: the same mode and the same set of reasons, absent only
+  // matching absent (Dart `_hashToFrameId`, which has no coverage).
+  OptString frame_with_content(
+      const std::string& content_hash,
+      const std::optional<MaskCoverage>& coverage) const;
   // Dart `_latestFrameId != null`.
   bool has_latest() const { return latest_frame_id_.has_value(); }
 
@@ -133,8 +135,16 @@ class FrameStore {
   void trim(const std::string& dropped, const Session& session);
   void forget_unreferenced(const Session& session);
 
+  // The exact-content index key: a frame's content hash and its mask
+  // coverage, with the reasons sorted (change C21). Frames without coverage
+  // share the key with no coverage.
+  using CoverageKey = std::pair<MaskMode, std::vector<MaskReason>>;
+  using ContentKey = std::pair<std::string, std::optional<CoverageKey>>;
+  static ContentKey content_key(const std::string& content_hash,
+                                const std::optional<MaskCoverage>& coverage);
+
   std::map<std::string, FrameProvenance> provenance_;
-  std::map<std::string, std::string> frame_by_content_;
+  std::map<ContentKey, std::string> frame_by_content_;
   OptString latest_frame_id_;
   int64_t sequence_ = 0;
   OptString last_dhash_;
