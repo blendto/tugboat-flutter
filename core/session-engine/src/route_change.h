@@ -70,6 +70,12 @@ struct VisibleRouteChange {
 std::optional<VisibleRouteChange> resolve_route_change(
     Turn& turn, const NavigationFact& fact);
 
+// Replays [fact.routes] like Flutter's `_replayRetainedRouteStack`, then
+// returns the `session_start` `route_change` envelope (no cause, no capture).
+// Null when the navigator already has a stack this session (accept, drop).
+std::optional<VisibleRouteChange> resolve_session_start_route_change(
+    Turn& turn, const NavigationFact& fact);
+
 // Dart `_applyVisibleRouteChange`.
 void apply_visible_route(const VisibleRouteChange& change,
                          VisibleRoute* visible);

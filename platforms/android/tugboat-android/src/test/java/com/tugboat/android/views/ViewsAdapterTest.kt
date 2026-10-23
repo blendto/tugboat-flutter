@@ -20,9 +20,11 @@ import com.tugboat.android.views.identity.Confidence
 import com.tugboat.android.views.identity.IdentityHash
 import com.tugboat.android.views.input.GestureConfig
 import org.json.JSONObject
+import com.tugboat.android.views.navigation.NavigationObservation
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -35,13 +37,21 @@ class ViewsAdapterTest {
     private val sink = RecordingSink()
     private val frames = ManualFrames()
     private val clock = FakeClock(monoUs = 50_000_000)
-    private val adapter = ViewsAdapter(
-        application = context as Application,
-        sink = sink,
-        hostClock = clock,
-        frames = frames,
-        gesture = GestureConfig(touchSlop = 8.0, panSlop = 16.0, scaleSlop = 16.0),
-    ).apply { start() }
+    private lateinit var adapter: ViewsAdapter
+
+    @Before
+    fun setUp() {
+        NavigationObservation.resetForTests()
+        NavigationObservation.setFrameSchedulerForTests(frames)
+        sink.batches.clear()
+        adapter = ViewsAdapter(
+            application = context as Application,
+            sink = sink,
+            hostClock = clock,
+            frames = frames,
+            gesture = GestureConfig(touchSlop = 8.0, panSlop = 16.0, scaleSlop = 16.0),
+        ).apply { start() }
+    }
 
     @After
     fun stop() = adapter.stop()
@@ -98,7 +108,7 @@ class ViewsAdapterTest {
         activity.setContentView(button)
         shadowOf(Looper.getMainLooper()).idle()
         drain()
-        adapter.onDestinationChanged(activity, "checkout/{id}?step={step}", 0)
+        NavigationObservation.onDestinationChanged(activity, "checkout/{id}?step={step}", 0)
 
         tap(activity.window, button)
         frames.runFrame()

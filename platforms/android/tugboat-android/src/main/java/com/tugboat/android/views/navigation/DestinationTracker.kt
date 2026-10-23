@@ -14,7 +14,12 @@ import java.util.WeakHashMap
  * Compose anchors, and navigation facts, all read it. Main thread only.
  */
 internal class DestinationTracker {
-    private val current = WeakHashMap<Activity, String>()
+    private var current = WeakHashMap<Activity, String>()
+
+    /** Clears destination keys (unit tests only). */
+    fun resetForTests() {
+        current = WeakHashMap()
+    }
 
     fun onDestinationChanged(activity: Activity, route: String?, destinationId: Int) {
         val key = routeKey(activity, route, destinationId)

@@ -7,11 +7,13 @@ import com.tugboat.android.CollectorConfig
 import com.tugboat.android.Tugboat
 import com.tugboat.android.TugboatConfig
 import com.tugboat.android.host.FakeEngineTransport
+import com.tugboat.android.views.navigation.NavigationObservation
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -22,6 +24,9 @@ import org.robolectric.Shadows.shadowOf
 @RunWith(RobolectricTestRunner::class)
 class TugboatRuntimeTest {
     private val application = RuntimeEnvironment.getApplication() as Application
+    @Before
+    fun resetNavigation() = NavigationObservation.resetForTests()
+
     private val config = TugboatConfig(
         collector = CollectorConfig("http://10.0.2.2:3000", "pmk_blend-app-dev-secret"),
         app = AppInfo("Sample", "1.0.0", "1", "com.example.sample", "install-1"),

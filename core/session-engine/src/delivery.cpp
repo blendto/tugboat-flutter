@@ -7,6 +7,7 @@
 
 #include "delivery.h"
 #include "delivery_context.h"
+#include "delivery_retry_after.h"
 
 namespace tugboat {
 namespace engine {
@@ -102,6 +103,7 @@ void reset(DeliveryContext& ctx) {
                                        ctx.out);
   }
   cancel_timers(ctx);
+  cancel_lane_retry_after_timers(ctx);
   d.ids.session_id.reset();
   d.lifecycle.clear();
   d.debounce.reset();
@@ -237,6 +239,7 @@ void delivery_session_ending(const At& at, EngineState* state, Output* out) {
   // most `endDrainTimeoutMs`. Its `triggeredAt` is the end fact's time.
   d.held_session_end = at;
   d.phase = DeliveryPhase::kDraining;
+  clamp_lifecycle_retry_after_on_draining(ctx);
   if (lanes_empty(d) && !d.pass.in_flight) {
     finish_drain(ctx);  // nothing to drain
     return;
@@ -261,6 +264,9 @@ void delivery_timer_fired(const std::string& timer_id, const At& at,
     return;
   }
   if (d.phase == DeliveryPhase::kOff) {
+    return;
+  }
+  if (delivery_retry_after_timer_fired(timer_id, ctx)) {
     return;
   }
   if (timer_id == kFlushTimer) {

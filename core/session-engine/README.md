@@ -291,7 +291,7 @@ message `input`. The field-level vocabulary is in
 | `locale.set` | mono | `{locale}` | Dedupes against the current locale, updates it, and records `locale_changed` (evidence stream, `data.previousLocale?`, `data.locale`) while a session is live. |
 | `identity.set` | mono + wall | `{userId}` (string or null) | Sets the runtime user id stamped on later records. A change is posted to the collector after the identity debounce. |
 | `traits.set` | mono + wall | `{traits}` (object) | Replaces the host's traits bag (it survives sessions). A bag equal to the current one (Dart `mapEquals`: shallow, nested containers never equal) is no change; a change is posted after the identity debounce. |
-| `transport.result` | mono + wall | `{requestId, outcome, status?, body?}` | The host's answer to `http.send`. `outcome`: `http` (with `status` in [100, 599] and an optional `body`, the response's first 64 KiB as a string), `error`, or `timeout`. Unknown and already answered ids are ignored. |
+| `transport.result` | mono + wall | `{requestId, outcome, status?, body?, retryAfter?}` | The host's answer to `http.send`. `outcome`: `http` (with `status` in [100, 599], optional `body` (first 64 KiB), optional `retryAfter` (trimmed raw `Retry-After`, max 128 bytes)), `error`, or `timeout`. Unknown and already answered ids are ignored. |
 | `transport.flush` | mono | `{}` | A flush trigger from the host, for example before the process exits. |
 | `timer.fired` | mono | `{timerId}` | Routes by timer-id prefix to the module that armed the timer. Unknown, cancelled, and stale (fired before the current deadline) ids are ignored. |
 | `session.snapshot` | optional | `{}` | Query. `result.snapshot` is the live or last session as `TugboatSession.toJson()` (schema 10), or `null` before the first session. |
@@ -489,7 +489,7 @@ validated. `host.configuredUserId` is the runtime user id until
 | `interaction` | `claimWindowMs` 1250, `settleDelayMs` 1000, `maxReleased` 8, `scrollEndCaptureDelayMs` 0, `captureScrollSamples` false, `captureScrollScreenshots` false, `scrollCaptureIntervalMs` 2000, `factGraceMs` 0 |
 | `navigation` | `routeBarrierTimeoutMs` 5000, `routeStackLimit` 16 |
 | `capture` | `budgetMs` 60, `budgetWindowMs` 5000, `degradedScale` 0.8, `answerTimeoutMs` 5000 (change C18) |
-| `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 20, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false, `answerGraceMs` 5000 |
+| `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 20, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false, `answerGraceMs` 5000, `maxRetryAfterMs` 60000, `maxEndingRetryAfterMs` 10000 |
 | `capabilities` | `sceneInventory`, `viewportSemanticMap`, `captureDiagnostics`, `actionContext`, `focusChanges`, `systemInput`, all false |
 
 Durations are milliseconds in [0, 86400000]; counts are in [1, 1000000].
@@ -523,14 +523,29 @@ request is in flight at a time across the three lanes.
   `batchSize`-th pending event, the periodic `delivery.flush` timer, an
   accepted frame (unless frames need retry), `delivery.background`
   (`backgroundFlushDelayMs` after `paused`/`hidden`; `resumed` cancels it),
-  `session.end`, and `transport.flush`. A trigger during a pass runs another
+  `session.end`, `transport.flush`, and `delivery.retryAfter.<lane>` (a
+  lane's `Retry-After` wait is over). A trigger during a pass runs another
   pass after it (C2).
 - **Outcomes.** HTTP 202 is accepted; 408, 429, 5xx, `error`, and `timeout`
   are retried; any other status drops the batch for good (C8 kept). JSON
   posts carry `jsonTimeoutMs` (C3), frame uploads `frameTimeoutMs`. Each
   request also arms `delivery.answer.<requestId>` at `timeoutMs +
   answerGraceMs`: without an answer by then it is a timeout and a late
-  answer is ignored (C15). Retries are paced by triggers only.
+  answer is ignored (C15). Retries are paced by triggers, and by
+  `Retry-After` waits.
+- **Retry-After** (`delivery_retry_after.cpp`, `retry_after.cpp`). HTTP 429
+  or 503 with a parseable `retryAfter` (delta-seconds or IMF-fixdate against
+  `at.wallUs`; ASCII whitespace trimmed; more than 128 bytes ignored) holds
+  that lane (`lifecycle`, `events`, or `frames`) until `min(delay,
+  maxRetryAfterMs)` has passed on the monotonic clock, arming
+  `delivery.retryAfter.<lane>`; a newer hint replaces it. Each pass checks a
+  lane where its stage starts and skips it while it waits; the other lanes
+  still send, and a wait armed mid-pass leaves unsent fresh events pending.
+  The lifecycle timer drains the whole lifecycle lane (as
+  `delivery.identity` does), so a `session_end` queued behind the waiting
+  head follows it. From `session.end` until the next `session.start`,
+  lifecycle waits cap at `maxEndingRetryAfterMs`, and `session.end` shortens
+  a longer running one. `session.start` clears every lane.
 - **Bounds** (`delivery_bounds.h`): `maxPendingEvents`, `maxPendingBatches`,
   and `maxPendingFrames` evict the oldest; failed frames are requeued at the
   front, so they go first.

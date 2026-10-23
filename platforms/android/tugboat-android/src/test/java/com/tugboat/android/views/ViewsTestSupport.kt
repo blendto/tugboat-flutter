@@ -8,6 +8,7 @@ import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.FactSink
 import com.tugboat.android.views.facts.FrameScheduler
 import com.tugboat.android.views.facts.ViewsFact
+import org.json.JSONObject
 import com.tugboat.android.views.identity.AnchorResolver
 import com.tugboat.android.views.identity.AndroidResourceNames
 import com.tugboat.android.views.identity.Confidence
@@ -64,6 +65,22 @@ internal class ManualFrames : FrameScheduler {
     val hasPending: Boolean
         get() = pending.isNotEmpty()
 }
+
+internal fun JSONObject.bottomRouteInstanceId(): String = routeInstanceId()
+
+internal fun JSONObject.routeInstanceId(): String =
+    if (getString("kind") == "session_start") {
+        getJSONArray("routes").getJSONObject(0).getString("instanceId")
+    } else {
+        getJSONObject("route").getString("instanceId")
+    }
+
+internal fun JSONObject.routeName(): String =
+    if (getString("kind") == "session_start") {
+        getJSONArray("routes").getJSONObject(0).getString("name")
+    } else {
+        getJSONObject("route").getString("name")
+    }
 
 internal class RecordingSink : FactSink {
     val batches = ArrayList<List<EngineMessage>>()

@@ -6,6 +6,8 @@
 #include <utility>
 #include <vector>
 
+#include "route_change.h"
+
 namespace tugboat {
 namespace engine {
 
@@ -212,6 +214,18 @@ OptString FrameStore::observed_after(
     return std::nullopt;
   }
   return frame_id;
+}
+
+void FrameStore::restamp_initial_route(const VisibleRoute& visible) {
+  for (auto& entry : provenance_) {
+    FrameProvenance& frame = entry.second;
+    if (!frame.available || frame.context.trigger != FrameTrigger::kInitial) {
+      continue;
+    }
+    frame.context.route = visible.route;
+    frame.context.navigator_id = visible.navigator_id;
+    frame.context.route_instance_id = visible.route_instance_id;
+  }
 }
 
 }  // namespace engine

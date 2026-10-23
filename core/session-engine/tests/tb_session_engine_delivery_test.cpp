@@ -4,7 +4,9 @@
 // bounds, and multipart bodies. Delivery behaviour over time is pinned by
 // conformance/engine/scenario/delivery-*.
 #include <cstdint>
+#include <fstream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -16,7 +18,9 @@
 #include "json.h"
 #include "lifecycle_lane.h"
 #include "output.h"
+#include "retry_after.h"
 #include "transport.h"
+#include "conformance_files.h"
 #include "unit_support.h"
 
 namespace {
@@ -228,6 +232,80 @@ void test_classify() {
   CHECK(tugboat::engine::classify(error) == Verdict::kRetry);
 }
 
+void test_retry_after_parse() {
+#ifndef TB_CONFORMANCE_DIR
+#error "TB_CONFORMANCE_DIR must point at <repo>/conformance"
+#endif
+  using tugboat::engine::parse_retry_after_delay_ms;
+  using tugboat::engine::parse_json;
+  using tugboat::engine::ParseError;
+  using tugboat::engine::Value;
+  std::ifstream in(std::string(TB_CONFORMANCE_DIR) + "/" +
+                  conformance::kRetryAfterVectorsFile);
+  std::stringstream buffer;
+  buffer << in.rdbuf();
+  Value doc;
+  ParseError parse_error;
+  CHECK(parse_json(buffer.str(), 64, &doc, &parse_error));
+  const Value* cap_value = doc.find("capMs");
+  const Value* wall_value = doc.find("nowWallUs");
+  const Value* vectors = doc.find("vectors");
+  CHECK(cap_value && cap_value->is_int());
+  CHECK(wall_value && wall_value->is_int());
+  CHECK(vectors && vectors->is_array());
+  const int64_t cap_ms = cap_value->as_int();
+  const int64_t wall = wall_value->as_int();
+  for (const Value& entry : vectors->items()) {
+    const Value* raw = entry.find("raw");
+    const Value* expected = entry.find("expectedMs");
+    CHECK(raw && raw->is_string());
+    const std::optional<int64_t> parsed =
+        parse_retry_after_delay_ms(raw->as_string(), wall, cap_ms);
+    if (expected->is_null()) {
+      CHECK(!parsed);
+    } else {
+      CHECK(expected->is_int());
+      CHECK(parsed.has_value() && *parsed == expected->as_int());
+    }
+  }
+  CHECK(parse_retry_after_delay_ms("3", wall + 10'000'000, cap_ms) == 3'000);
+  CHECK(parse_retry_after_delay_ms("Sun, 06 Nov 1994 08:49:37 GMT",
+                                   std::nullopt, cap_ms) == std::nullopt);
+}
+
+void test_transport_retry_after_decode() {
+  using tugboat::engine::decode_transport_result;
+  using tugboat::engine::parse_json;
+  using tugboat::engine::ParseError;
+  using tugboat::engine::TransportResult;
+  tugboat::engine::Error decode_error;
+  ParseError parse_error;
+  TransportResult result;
+  Value ok;
+  CHECK(parse_json(
+      R"({"requestId":"http-1","outcome":"http","status":429,"retryAfter":"2"})",
+      64, &ok, &parse_error));
+  CHECK(decode_transport_result(ok, "$.input", &result, &decode_error));
+  CHECK(result.retry_after == "2");
+  Value bad;
+  CHECK(parse_json(R"({"requestId":"http-1","outcome":"error","retryAfter":"2"})",
+                   64, &bad, &parse_error));
+  CHECK(!decode_transport_result(bad, "$.input", &result, &decode_error));
+  const std::string long_retry(200, '9');
+  std::string accepted_json =
+      R"({"requestId":"http-2","outcome":"http","status":202,"retryAfter":")";
+  accepted_json += long_retry;
+  accepted_json += R"("})";
+  Value accepted;
+  CHECK(parse_json(accepted_json, 512, &accepted, &parse_error));
+  CHECK(decode_transport_result(accepted, "$.input", &result, &decode_error));
+  CHECK(result.status == 202);
+  // Kept raw on decode; the one trim and length check is in the parser.
+  CHECK(result.retry_after == long_retry);
+  CHECK(!tugboat::engine::parse_retry_after_delay_ms(long_retry, std::nullopt,
+                                                     60'000));
+}
+
 }  // namespace
 
 int main() {
@@ -242,5 +320,7 @@ int main() {
   test_multipart_body();
   test_event_queue_bounds_and_stamping();
   test_classify();
+  test_retry_after_parse();
+  test_transport_retry_after_decode();
   return unit::finish("delivery");
 }

@@ -60,5 +60,12 @@ class MessagesTest {
         assertEquals("http", http.getString("outcome"))
         assertEquals(202, http.getInt("status"))
         assertEquals(body, http.getString("body"))
+        val withRetry = JSONObject(
+            HostMessages.transportResultInput(
+                "http-4",
+                TransportOutcome.Http(429, "", retryAfter = "30"),
+            ),
+        )
+        assertEquals("30", withRetry.getString("retryAfter"))
     }
 }

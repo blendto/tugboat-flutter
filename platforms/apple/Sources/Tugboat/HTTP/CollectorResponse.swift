@@ -8,15 +8,32 @@ enum CollectorResponse {
   /// `transport.result.body` carries at most this many UTF-8 bytes.
   static let maxBodyBytes = 64 * 1024
 
+  /// `transport.result.retryAfter` carries at most this many bytes.
+  static let maxRetryAfterBytes = 128
+
   static let validStatuses = 100...599
 
+  /// ASCII whitespace only, as the engine trims (C `isspace`).
+  private static let retryAfterWhitespace = CharacterSet(charactersIn: " \t\n\u{0B}\u{0C}\r")
+
+  /// The `Retry-After` value to forward: trimmed, or nil when empty or longer
+  /// than `maxRetryAfterBytes` UTF-8 bytes.
+  static func forwardRetryAfter(_ raw: String?) -> String? {
+    let trimmed = raw?.trimmingCharacters(in: retryAfterWhitespace)
+    guard let trimmed, !trimmed.isEmpty, trimmed.utf8.count <= maxRetryAfterBytes else {
+      return nil
+    }
+    return trimmed
+  }
+
   /// `.http` for a status the engine accepts, otherwise `.error`.
-  static func outcome(status: Int, body: Data) -> TransportOutcome {
+  static func outcome(status: Int, body: Data, retryAfter: String? = nil) -> TransportOutcome {
     guard validStatuses.contains(status) else {
       HostLog.warning("collector answered with status \(status); reporting a transport error")
       return .error
     }
-    return .http(status: status, body: text(body))
+    return .http(
+      status: status, body: text(body), retryAfter: forwardRetryAfter(retryAfter))
   }
 
   /// The body as text of at most `maxBodyBytes` UTF-8 bytes. The bytes are
