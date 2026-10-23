@@ -10,6 +10,13 @@ wiring, window capture, and the Android Views adapter.
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
   `CollectorConfig`, `AppInfo`, `MaskLevel`, `emitSceneInventory` (default
   false). Idempotent start; nothing throws into the app.
+  `TugboatConfig.enabled` (default `true`): when `false`, `start` installs
+  nothing and nothing is recorded; the user id, traits, and event hooks are
+  kept for a later enabled `start`.
+- Config: `captureDiagnostics` (engine capability), optional
+  `activationRequestId` / `explorationRunId` on `session.start` when set.
+- Locale: `locale.set` on primary locale change (`onConfigurationChanged`),
+  deduped, unregistered on `stop`.
 - Native scene inventory: when `emitSceneInventory` is true, the Views
   adapter sends `scene.inventory` after each captured frame (the
   post-navigation route capture covers route changes) for the route of the
@@ -41,14 +48,23 @@ wiring, window capture, and the Android Views adapter.
 - Engine wiring: `engine.configure` with every `session_start` field the
   collector requires (start is refused and logged when one is blank),
   `limits`, the adapter's `gesture`, `capture.answerTimeoutMs` 5000,
-  `collector.enabled`, `focusChanges` / `systemInput` capabilities;
+  `collector.enabled`, `focusChanges` / `systemInput` / `captureDiagnostics`
+  capabilities;
   `session.start`; `ProcessLifecycleOwner` to `app.lifecycle`
   (`androidx.lifecycle:lifecycle-process`, the one new runtime dependency);
   `identity.set` / `traits.set`; adapter facts as per-frame batches with
   `navigation` facts on (engine phase 3d).
 - `trackNavigation` destinations are `navigation` facts on a navigator
   nested under the activity's (`route_change` per destination, route names
-  without arguments).
+  without arguments). Once the SDK has started, the NavController listener
+  updates process-scoped stacks even while the SDK is stopped; the next
+  `start()` seeds the current destination. Destinations reported before the
+  first `start()` are not seeded: that stack is discarded when observation
+  installs, and the next destination change is a `push`.
+- Adapter `start()` emits `session_start` snapshots in tree order
+  (background tasks first, visible chain last) so the engine's visible route
+  matches the foreground screen. A navigator whose host route is in no stack
+  is not seeded.
 - Focus is reported once per frame where it settled: a Compose host taking
   View focus before its text field does is one `text_input`. Focus is
   app-wide: a window that becomes active (its activity resumed) reports

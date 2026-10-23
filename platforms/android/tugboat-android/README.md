@@ -23,9 +23,13 @@ which `tugboat-okhttp` uses, are public but not app API; everything else is
 Tugboat.start(application, TugboatConfig(
     collector = CollectorConfig(baseUrl, apiKey),
     app = AppInfo(name, version, buildNumber, appId, installationId),
+    enabled = true,                          // false: install nothing (kill switch)
     maskLevel = MaskLevel.AllTextAndMedia,   // default, the only level
     captureFocusChanges = false,             // engine capability focusChanges
     captureSystemInput = false,              // engine capability systemInput
+    captureDiagnostics = false,              // engine capability captureDiagnostics
+    activationRequestId = null,              // optional session.start field
+    explorationRunId = null,                 // optional session.start field
     emitSceneInventory = false,              // engine capability nativeSceneInventory
 ))
 Tugboat.setUserId(id); Tugboat.setTraits(map); Tugboat.stop()
@@ -38,6 +42,16 @@ view.tugboatTag = "checkout"                  // developer alias
 - Every method can be called from any thread; the work runs on the main
   thread in call order. Nothing throws into the app: failures are logged
   (tag `Tugboat`) and capture stops.
+- `TugboatConfig.enabled` (default `true`): when `false`, Tugboat itself
+  registers nothing (no engine, lifecycle observers, window callbacks, or
+  threads) and records nothing; the host app is unchanged. `setUserId`,
+  `setTraits`, and event hooks keep their state for a later enabled `start`.
+  Call `start` before `trackNavigation`: a controller tracked before any
+  `start` cannot know the config. The `androidx.lifecycle:lifecycle-process`
+  dependency (one of this SDK's own) runs AndroidX App Startup's
+  `ProcessLifecycleInitializer` at process launch, whatever `enabled` says;
+  it registers AndroidX's callbacks, not Tugboat's. Tugboat needs it when
+  enabled (`app.lifecycle` and the background flush), so do not remove it.
 - Call `start` once per process, from `Application.onCreate`. It is
   idempotent while started. It **refuses to start** (and logs the missing
   paths) when a field the collector requires on `session_start` is blank:
@@ -51,6 +65,13 @@ view.tugboatTag = "checkout"                  // developer alias
   never blocks the app. A later `start` creates a new engine and session.
 - `setUserId` / `setTraits` survive `stop` and `start`. Traits JSON cannot
   carry (NaN, infinities) are ignored and logged.
+- When the app's primary locale changes (`Application.onConfigurationChanged`),
+  the SDK posts `locale.set` with the same locale JSON shape as `session.start`
+  (deduped; unregistered on `stop`). Locale is evidence, not identity.
+- There is no on-device health snapshot API: the engine has no health surface.
+  With `captureDiagnostics` enabled, bounded `capture_diagnostic` events match
+  Flutter's counters; without it, only host-failure and first secure-window
+  diagnostics are recorded, so counting events understates capture problems.
 - `trackNavigation` needs `androidx.navigation` in the app (`compileOnly`
   here). Destination route patterns without arguments (else the id's entry
   name) become route keys for the controller's activity, and each
@@ -177,16 +198,17 @@ call.fail(NetworkFailure.NETWORK_ERROR)      // or CANCELLED; fail(failure, stat
 | Views adapter | `views/` | Turns activity windows into engine facts and computes masks (below). |
 | Evidence | `evidence/` | `EvidenceRecorder` (calling-thread timestamps, the transform, no-op and one-finish rules), `EvidenceEncoder` (typed values to the engine's input encoding), `evidence.externalEvent` / `evidence.networkCall`. |
 | Facade | `Tugboat`, `TugboatConfig`, `TugboatTag` | The public API above; thin over `sdk/TugboatRuntime`. |
-| Engine wiring | `sdk/` | `TugboatRuntime` (composition root: one engine, one session), `HostMetadata` + `DeviceSnapshot` (`engine.configure.host`, refused when incomplete), `EngineConfiguration`, `SessionMessages`, `AppLifecycleBridge` (`ProcessLifecycleOwner` to `app.lifecycle`), `SessionEndWatcher` + `StopSequence` (stop order), `NavigationTracking`. |
+| Engine wiring | `sdk/` | `TugboatRuntime` (composition root: one engine, one session), `HostMetadata` + `DeviceSnapshot` (`engine.configure.host`, refused when incomplete), `EngineConfiguration`, `SessionMessages`, `AppLifecycleBridge` (`ProcessLifecycleOwner` to `app.lifecycle`), `LocaleBridge` (`locale.set` on locale change), `SessionEndWatcher` + `StopSequence` (stop order), `NavigationTracking`. |
 | Capture | `capture/` | `CaptureCoordinator` answers `capture.request`; `FrameMasks` (the copy-time mask supplier); `RuntimeOutcomes` maps `capture-runtime` results; `CaptureResultJson`; `ForegroundWindow` + `SurfaceReporter` (`surface` facts); `CaptureGeometry`. |
 
 `engine.configure` (`sdk/EngineConfiguration`): `host` with every
 `session_start` field (`ipInfo.ip` is the placeholder `10.0.2.2`, as
 Flutter's Android host sends); `limits` at the Dart defaults; `gesture` from
 the adapter's `GestureConfig.toEngineJson()`; `capture.answerTimeoutMs` 5000;
-`collector.enabled`; `capabilities.focusChanges` / `systemInput` from the
-config. Then `session.start {viewport (dp), platform: android, sessionEpoch,
-locale}`.
+`collector.enabled`; `capabilities.focusChanges` / `systemInput` /
+`captureDiagnostics` from the config. Then `session.start {viewport (dp),
+platform: android, sessionEpoch, locale, activationRequestId?,
+explorationRunId?}`.
 
 ## Capture
 
@@ -307,11 +329,24 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
   `getDelegate()` accessors, and `Window.Callback` fields of non-platform
   wrapper classes, up to 16 links. A per-thread dispatch depth keeps facts
   single if two wrappers still end up in one chain.
-- **Stop.** After `stop()` nothing is emitted: window, fragment, and
-  lifecycle callbacks are removed, and every fact path is gated.
+- **Stop.** After `stop()` nothing is emitted: window callbacks detach and
+  every fact path is gated. Navigation lifecycle stays registered in
+  process scope so stacks keep updating while stopped (no facts until the
+  next `start()`). Process scope begins when observation installs, at the
+  first `start()`: activity, fragment, and `trackNavigation` stacks are
+  kept from then on. `trackNavigation` destinations reported before then are
+  discarded at installation, since no activity resume or destroy was seen
+  for their hosts.
 - **Navigation gate.** `ViewsAdapter(postNavigationFacts = false)` (the
   default) tracks navigation for route keys but posts no `navigation` facts;
   the SDK (`TugboatRuntime`) turns it on now that the engine has phase 3d.
+- **Session start route seed.** On each `start()` (including after `stop()`),
+  the adapter posts one `navigation` `session_start` per navigator with a
+  non-empty stack (`routes` bottom to top), snapshotting process-scoped
+  stacks. Seeds are walked from the activity tasks; a navigator whose host
+  route is in no stack is not seeded. Navigators first seen after that
+  record ordinary `push`/`pop` facts (including a new activity or nested
+  navigator mid-session).
 - **Motion fails closed.** A running legacy `Animation` (activity and
   fragment transitions) or `LayoutTransition` on a visible view draws away
   from layout bounds, so `WindowMasks` masks the whole frame (reason

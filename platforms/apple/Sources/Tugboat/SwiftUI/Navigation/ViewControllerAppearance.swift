@@ -9,9 +9,11 @@ import UIKit
 /// (`class_getInstanceMethod`, `method_exchangeImplementations`).
 ///
 /// Installing cannot be undone (another SDK may have exchanged the same
-/// methods since), so turning tracking off clears `observer` and the
-/// exchanged methods only forward. The adapter installs it unless its
-/// configuration opts out; `.tugboatScreen` alone is enough for route keys.
+/// methods since), so after `stop()` the exchange stays and records nothing
+/// while no adapter is recording. It is installed the first time an adapter
+/// that tracks hosting controllers starts (never when the configuration opts
+/// out), so a hosting controller already on screen at that first `start()`
+/// is not seen; `.tugboatScreen` alone is enough for route keys.
 ///
 /// Main thread only.
 enum ViewControllerAppearance {

@@ -7,12 +7,31 @@ package com.tugboat.android
 data class TugboatConfig @JvmOverloads constructor(
     val collector: CollectorConfig,
     val app: AppInfo,
+    /**
+     * When `false`, [com.tugboat.android.Tugboat.start] installs nothing: no
+     * engine, observers, or threads. Nothing is recorded and the host app is
+     * unchanged; the user id, traits, and event hooks keep their state for a
+     * later enabled start.
+     */
+    val enabled: Boolean = true,
     /** Only [MaskLevel.AllTextAndMedia] exists in this release. */
     val maskLevel: MaskLevel = MaskLevel.AllTextAndMedia,
     /** Records `focus_changed` for text-input focus transitions (engine capability `focusChanges`). */
     val captureFocusChanges: Boolean = false,
     /** Records `system_input` for allowlisted keys such as back (engine capability `systemInput`). */
     val captureSystemInput: Boolean = false,
+    /** Records bounded `capture_diagnostic` events (engine capability `captureDiagnostics`). */
+    val captureDiagnostics: Boolean = false,
+    /**
+     * Passed on `session.start` when non-blank; omitted when null or blank
+     * (blank is normalised to omitted, not sent as `""`).
+     */
+    val activationRequestId: String? = null,
+    /**
+     * Passed on `session.start` when non-blank; omitted when null or blank
+     * (blank is normalised to omitted, not sent as `""`).
+     */
+    val explorationRunId: String? = null,
     /** Emits native `scene.inventory` facts after captured frames (engine capability `nativeSceneInventory`). */
     val emitSceneInventory: Boolean = false,
 )

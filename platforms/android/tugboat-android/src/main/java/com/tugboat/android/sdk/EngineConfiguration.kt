@@ -16,7 +16,8 @@ import org.json.JSONObject
  * - `capture.answerTimeoutMs`: the C18 deadline for a `capture.result`.
  * - `collector.enabled`: the engine owns delivery; the host only performs
  *   `http.send`.
- * - `capabilities`: focus and system input from [TugboatConfig].
+ * - `capabilities`: focus, system input, and capture diagnostics from
+ *   [TugboatConfig].
  */
 internal object EngineConfiguration {
     const val MAX_EVENTS = 5000
@@ -42,6 +43,7 @@ internal object EngineConfiguration {
                 JSONObject()
                     .put("focusChanges", config.captureFocusChanges)
                     .put("systemInput", config.captureSystemInput)
+                    .put("captureDiagnostics", config.captureDiagnostics)
                     .put("nativeSceneInventory", config.emitSceneInventory),
             )
 }

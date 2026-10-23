@@ -54,7 +54,7 @@ class SceneInventoryEngineTest {
         val metadata = HostMetadata(app, device)
         val configure = EngineConfiguration.build(config, metadata, GestureConfig.from(context)).toString()
         assertOk(submit(EngineMessage(SessionMessages.ENGINE_CONFIGURE, configure, at = null).toJson()))
-        val start = SessionMessages.sessionStart(device, metadata, 0)
+        val start = SessionMessages.sessionStart(device, metadata, 0, activationRequestId = null, explorationRunId = null)
         assertOk(submit(EngineMessage(SessionMessages.SESSION_START, start, SystemHostClock.now()).toJson()))
 
         val input = buildInventory()

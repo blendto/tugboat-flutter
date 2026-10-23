@@ -1,12 +1,24 @@
 package com.tugboat.android.views.navigation
 
+/** How a nested navigator is hosted (activity task, fragments, or Jetpack nav). */
+internal enum class NavigatorHostKind {
+    ActivityTask,
+    Fragments,
+    Nav,
+}
+
 /**
  * The adapter's model of one navigator's stack (bottom first): an
  * activity task, or one `FragmentManager`. Each operation returns the
  * change to report, or null when nothing visible changed. The engine keeps
  * its own stacks; this one exists to tell push, pop, and replace apart.
  */
-internal class NavigatorStack(val navigatorId: String, val parentNavigatorId: String?) {
+internal class NavigatorStack(
+    val navigatorId: String,
+    val parentNavigatorId: String?,
+    val hostRouteInstanceId: String? = null,
+    val hostKind: NavigatorHostKind = NavigatorHostKind.ActivityTask,
+) {
     private val entries = ArrayList<RouteEntry>()
 
     val top: RouteEntry?

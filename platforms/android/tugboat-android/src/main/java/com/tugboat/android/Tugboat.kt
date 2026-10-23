@@ -5,6 +5,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.navigation.NavController
+import com.tugboat.android.engine.EngineTransport
+import com.tugboat.android.engine.JniEngineTransport
 import com.tugboat.android.evidence.EvidenceRecorder
 import com.tugboat.android.sdk.NavigationTracking
 import com.tugboat.android.sdk.SessionMessages
@@ -43,6 +45,26 @@ object Tugboat {
     private var userId: String? = null
     private var traitsInput: String? = null
 
+    /**
+     * Set on the main thread when [TugboatConfig.enabled] is `false` at [start];
+     * cleared by an enabled [start]. Only [start] and [trackNavigation] read it:
+     * the other APIs already record nothing without a runtime, and must keep
+     * their state (user id, traits, hooks) for a later enabled [start].
+     */
+    @Volatile
+    private var disabled = false
+
+    /** JVM tests only: clears the kill-switch state, the kept identity, and the transport seam. */
+    internal fun resetForTests() {
+        disabled = false
+        userId = null
+        traitsInput = null
+        openTransportForTesting = null
+    }
+
+    /** JVM tests only: replaces [JniEngineTransport.open] for [start]. */
+    internal var openTransportForTesting: (() -> EngineTransport?)? = null
+
     /** The running session's evidence path; written on the main thread, read from any. */
     @Volatile
     private var evidence: EvidenceRecorder? = null
@@ -59,7 +81,14 @@ object Tugboat {
             Log.i(TAG, "Tugboat is already started")
             return@onMain
         }
-        val started = TugboatRuntime.start(application, config, sessionEpoch++) ?: return@onMain
+        if (!config.enabled) {
+            disabled = true
+            Log.i(TAG, "Tugboat disabled by config")
+            return@onMain
+        }
+        disabled = false
+        val transport = openTransportForTesting ?: { JniEngineTransport.open() }
+        val started = TugboatRuntime.start(application, config, sessionEpoch++, openTransport = transport) ?: return@onMain
         runtime = started
         evidence = started.evidence
         // A new engine starts without a user id, so only a set one is sent.
@@ -106,12 +135,22 @@ object Tugboat {
      * activity (route pattern without arguments, else the id's resource name)
      * and `route_change`s on a navigator nested under the activity's.
      * Optional; needs `androidx.navigation` in the app. Call once per
-     * controller.
+     * controller. Destinations shown before the first [start] are not
+     * seeded into its session: the first change after it is a push.
+     *
+     * Call [start] before this when you use [TugboatConfig.enabled]: a call
+     * before any [start] cannot know the config, so it attaches the listener
+     * (it records nothing until an enabled [start]).
      */
     @JvmStatic
     fun trackNavigation(navController: NavController) = onMain("trackNavigation") {
+        if (disabled) return@onMain
         NavigationTracking.track(navController) { activity, current, previous ->
-            runtime?.onNavDestination(activity, current, previous)
+            com.tugboat.android.views.navigation.NavigationObservation.onNavDestination(
+                activity,
+                current,
+                previous,
+            )
         }
     }
 
@@ -151,8 +190,9 @@ object Tugboat {
      * stopped, or disabled.
      */
     @JvmStatic
-    fun beginNetworkCall(method: String, route: String?): NetworkCall =
-        guarded("beginNetworkCall") { evidence?.beginNetworkCall(method, route) } ?: NetworkCall.NOOP
+    fun beginNetworkCall(method: String, route: String?): NetworkCall {
+        return guarded("beginNetworkCall") { evidence?.beginNetworkCall(method, route) } ?: NetworkCall.NOOP
+    }
 
     /** Whether a call begun now would be recorded (`TugboatAdapters.isAcceptingEvidence`). */
     internal val isAcceptingEvidence: Boolean

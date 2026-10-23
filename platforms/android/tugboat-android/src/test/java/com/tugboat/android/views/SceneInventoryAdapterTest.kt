@@ -19,10 +19,12 @@ import com.tugboat.android.host.FakeClock
 import com.tugboat.android.views.inventory.SceneInventoryFactContract
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.navigation.NavEntry
+import com.tugboat.android.views.navigation.NavigationObservation
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -37,14 +39,21 @@ import org.robolectric.Shadows.shadowOf
 class SceneInventoryAdapterTest {
     private val sink = RecordingSink()
     private val frames = ManualFrames()
-    private val adapter = ViewsAdapter(
-        application = context as Application,
-        sink = sink,
-        hostClock = FakeClock(monoUs = 50_000_000),
-        frames = frames,
-        gesture = GestureConfig(touchSlop = 8.0, panSlop = 16.0, scaleSlop = 16.0),
-        emitSceneInventory = true,
-    ).apply { start() }
+    private lateinit var adapter: ViewsAdapter
+
+    @Before
+    fun setUp() {
+        NavigationObservation.resetForTests()
+        NavigationObservation.setFrameSchedulerForTests(frames)
+        adapter = ViewsAdapter(
+            application = context as Application,
+            sink = sink,
+            hostClock = FakeClock(monoUs = 50_000_000),
+            frames = frames,
+            gesture = GestureConfig(touchSlop = 8.0, panSlop = 16.0, scaleSlop = 16.0),
+            emitSceneInventory = true,
+        ).apply { start() }
+    }
 
     @After
     fun stop() = adapter.stop()
@@ -113,7 +122,7 @@ class SceneInventoryAdapterTest {
         sink.batches.clear()
 
         // The destination changes and its screen is swapped in, not yet laid out.
-        adapter.onNavDestination(activity, NavEntry("entry-2", "detail", 2), NavEntry("entry-1", "home", 1))
+        NavigationObservation.onNavDestination(activity, NavEntry("entry-2", "detail", 2), NavEntry("entry-1", "home", 1))
         screen.removeAllViews()
         screen.addView(Button(activity).apply { id = android.R.id.button2 }, FrameLayout.LayoutParams(300, 120))
         repeat(FRAMES) { frames.runFrame() }

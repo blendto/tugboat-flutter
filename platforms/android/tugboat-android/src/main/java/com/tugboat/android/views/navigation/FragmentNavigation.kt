@@ -49,7 +49,6 @@ internal class FragmentNavigation(
 ) {
     private val entries = WeakHashMap<Fragment, RouteEntry>()
     private val roots = WeakHashMap<View, RouteEntry>()
-    private val stacks = HashMap<String, NavigatorStack>()
     private val navigatorsByHost = HashMap<String, MutableSet<String>>()
     private val backStackSizes = HashMap<String, Int>()
     private val parked = HashMap<String, RouteEntry>()
@@ -58,7 +57,7 @@ internal class FragmentNavigation(
 
     /** Navigator ids currently tracked; for tests. */
     val navigatorIds: Set<String>
-        get() = stacks.keys.toSet()
+        get() = navigatorsByHost.values.flatten().toSet()
 
     fun register(activity: Activity) {
         if (activity !is FragmentActivity || registrations.containsKey(activity)) return
@@ -187,16 +186,17 @@ internal class FragmentNavigation(
         }
         val navigatorId = "$hostId/fragments"
         navigatorsByHost.getOrPut(hostId) { HashSet() } += navigatorId
-        return stacks.getOrPut(navigatorId) { NavigatorStack(navigatorId, parentNavigatorId) }
+        return NavigationProcessState.fragmentStack(navigatorId, parentNavigatorId, hostId)
     }
 
     private fun dropNavigatorsHostedBy(hostId: String) {
         val navigators = navigatorsByHost.remove(hostId) ?: return
         for (navigatorId in navigators) {
-            val stack = stacks.remove(navigatorId) ?: continue
+            val stack = NavigationProcessState.stackFor(navigatorId)
+            NavigationProcessState.forgetFragmentNavigator(navigatorId)
             backStackSizes.remove(navigatorId)
             parked.keys.removeAll { it.startsWith("$navigatorId|") }
-            stack.all().forEach { dropNavigatorsHostedBy(it.instanceId) }
+            stack?.all()?.forEach { dropNavigatorsHostedBy(it.instanceId) }
         }
     }
 

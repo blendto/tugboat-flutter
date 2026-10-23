@@ -21,6 +21,16 @@ namespace {
 void apply_navigation(const ModuleRegistry&, EngineState* state,
                       const NavigationFact& fact, const At& at, Output* out) {
   Turn turn{state, state->live_session(), at, out};
+  if (fact.kind == NavigationKind::kSessionStart) {
+    std::optional<VisibleRouteChange> change =
+        resolve_session_start_route_change(turn, fact);
+    if (!change) return;
+    const std::string event_id = state->ids.next("event");
+    record_route_change(turn, event_id, *change, std::nullopt,
+                        RouteChangeCapture{});
+    state->captures.restamp_initial_route(state);
+    return;
+  }
   std::optional<VisibleRouteChange> change = resolve_route_change(turn, fact);
   if (change) start_route_capture(turn, std::move(*change));
 }
@@ -49,6 +59,7 @@ void reset_for_session(const At&, EngineState* state, Output*) {
   NavigationState& navigation = state->navigation;
   navigation.registry.clear();
   navigation.visible = VisibleRoute{};
+  navigation.live_navigation_seen = false;
   navigation.visual_generation = 0;
 }
 

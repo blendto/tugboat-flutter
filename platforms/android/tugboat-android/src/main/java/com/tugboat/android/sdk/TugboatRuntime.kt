@@ -1,6 +1,5 @@
 package com.tugboat.android.sdk
 
-import android.app.Activity
 import android.app.Application
 import android.os.Handler
 import android.os.Looper
@@ -24,7 +23,6 @@ import com.tugboat.android.host.HttpExecutor
 import com.tugboat.android.host.SystemHostClock
 import com.tugboat.android.views.ViewsAdapter
 import com.tugboat.android.views.facts.FactSink
-import com.tugboat.android.views.navigation.NavEntry
 import com.tugboat.android.views.input.GestureConfig
 
 /**
@@ -38,6 +36,7 @@ internal class TugboatRuntime private constructor(
     private val host: EngineHost,
     private val adapter: ViewsAdapter,
     private val lifecycle: AppLifecycleBridge,
+    private val locale: LocaleBridge,
     private val foreground: ForegroundWindow,
     private val captures: CaptureCoordinator,
     private val watcher: SessionEndWatcher,
@@ -54,9 +53,6 @@ internal class TugboatRuntime private constructor(
     /** [traitsInput] is a [SessionMessages.traits] input. */
     fun setTraits(traitsInput: String) = host.post(SessionMessages.TRAITS_SET, traitsInput, clock.now())
 
-    fun onNavDestination(activity: Activity, current: NavEntry, previous: NavEntry?) =
-        adapter.onNavDestination(activity, current, previous)
-
     /**
      * Detaches every observer (pending facts are posted first), ends the
      * session, waits for its `session_end` post to settle, then disposes the
@@ -69,6 +65,7 @@ internal class TugboatRuntime private constructor(
         evidence.close()
         adapter.stop()
         lifecycle.stop()
+        locale.stop()
         foreground.stop()
         stopSequence.run(
             watcher = watcher,
@@ -176,20 +173,39 @@ internal class TugboatRuntime private constructor(
             val host = EngineHost.start(transport, frames, http = watcher, captures = captures)
             engineHost.value = host
             host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, gesture).toString())
-            host.post(SessionMessages.SESSION_START, SessionMessages.sessionStart(device, metadata, sessionEpoch), startAt)
+            host.post(
+                SessionMessages.SESSION_START,
+                SessionMessages.sessionStart(
+                    device,
+                    metadata,
+                    sessionEpoch,
+                    config.activationRequestId,
+                    config.explorationRunId,
+                ),
+                startAt,
+            )
             val lifecycle = AppLifecycleBridge(post = { state ->
                 host.post(SessionMessages.APP_LIFECYCLE, SessionMessages.appLifecycle(state), clock.now())
             })
+            val localeBridge = LocaleBridge(
+                application = application,
+                initial = device.locale,
+                post = { input -> host.post(SessionMessages.LOCALE_SET, input, clock.now()) },
+            )
             val evidence = EvidenceRecorder(clock, EngineEvidenceEncoder, hostRunning = { host.isRunning }, post = host::post)
             adapter.start()
             foreground.start()
             lifecycle.start()
+            localeBridge.start()
             return TugboatRuntime(
-                host, adapter, lifecycle, foreground, captures, watcher, clock, stopSequence, launchCorrelation, evidence,
+                host, adapter, lifecycle, localeBridge, foreground, captures, watcher, clock, stopSequence,
+                launchCorrelation, evidence,
             )
         }
     }
 }
+
+internal fun String?.normalizedSessionId(): String? = this?.takeIf { it.isNotBlank() }
 
 /** Holds the engine host while capture wiring is constructed. */
 private class EngineHostSlot {

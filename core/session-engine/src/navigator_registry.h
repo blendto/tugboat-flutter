@@ -58,6 +58,7 @@ class NavigatorRegistry {
   // Removes `departing` (its last occurrence) or else the top.
   int64_t pop(const std::string& navigator_id, const OptString& departing);
   OptString top(const std::string& navigator_id) const;
+  bool has_stack(const std::string& navigator_id) const;
 
   // Dart `remember`: records a route for stack snapshots and presentation.
   void remember(const std::string& instance_id,

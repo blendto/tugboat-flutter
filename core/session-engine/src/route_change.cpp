@@ -60,6 +60,9 @@ RouteSurface resolve_surface(NavigatorRegistry* registry,
       surface.route_instance_id =
           destination ? destination : registry->top(surface.navigator_id);
       break;
+    case NavigationKind::kSessionStart:
+      // Handled by `resolve_session_start_route_change`, not live surfaces.
+      break;
   }
   return surface;
 }
@@ -164,6 +167,25 @@ void put_presentation(Value* data, const VisibleRouteChange& change) {
   }
 }
 
+// The envelope fields live navigation and session_start both derive from
+// [change]'s navigator stack: the presentation of [presented] (the
+// navigation's own destination instance, when it has one) and the stack
+// snapshot.
+void fill_route_envelope(VisibleRouteChange* change,
+                         NavigatorRegistry* registry,
+                         const OptString& presented, bool push,
+                         int64_t route_stack_limit) {
+  const std::string& navigator_id = change->navigator_id;
+  if (presented) {
+    change->presentation = registry->presentation(
+        navigator_id, *presented, change->overlay_kind, push);
+  }
+  change->route_stack =
+      registry->stack_snapshot(navigator_id, route_stack_limit);
+  change->route_stack_truncated =
+      registry->stack_truncated(navigator_id, route_stack_limit);
+}
+
 // Dart `_liveRouteCauseFingerprint`: the cause's fingerprint and gesture as
 // they are now, while it is unpublished; else as they were at claim time.
 void put_live_cause(Value* data, const EngineState& state,
@@ -224,16 +246,63 @@ std::optional<VisibleRouteChange> resolve_route_change(
   change.transition_ms = fact.route ? fact.route->transition_ms : 0;
   change.visual_generation = navigation.visual_generation;
   change.cause = cause_from_claim(state, claim);
-  if (surface.route_instance_id) {
-    change.presentation = navigation.registry.presentation(
-        surface.navigator_id, *surface.route_instance_id, overlay,
-        fact.kind == NavigationKind::kPush);
+  fill_route_envelope(&change, &navigation.registry, surface.route_instance_id,
+                      fact.kind == NavigationKind::kPush,
+                      state.config.navigation.route_stack_limit);
+  return change;
+}
+
+std::optional<VisibleRouteChange> resolve_session_start_route_change(
+    Turn& turn, const NavigationFact& fact) {
+  EngineState& state = *turn.state;
+  NavigationState& navigation = state.navigation;
+  // A seed is only meaningful before the session's first live push, pop,
+  // replace, or visible removal: after it, every seed (on any navigator) is
+  // accepted and dropped.
+  if (navigation.live_navigation_seen) return std::nullopt;
+  const std::string navigator_id =
+      navigation.registry.navigator(fact.navigator_id, fact.parent_navigator_id);
+  if (navigation.registry.has_stack(navigator_id)) return std::nullopt;
+
+  const OptString parent = navigation.registry.parent_of(navigator_id);
+  std::optional<RouteIdentity> top_identity;
+  OptString top_instance;
+  OptString from_route_instance_id;
+  OverlayKind top_overlay = OverlayKind::kPage;
+  int64_t stack_revision = 0;
+
+  for (const FactRoute& route : fact.routes) {
+    const RouteIdentity identity = route_identity(route);
+    const std::string instance =
+        navigation.registry.route_instance(route.instance_id);
+    stack_revision = navigation.registry.push(navigator_id, instance);
+    navigation.registry.remember(instance, navigator_id, identity,
+                                 route.overlay_kind);
+    ++navigation.visual_generation;
+    from_route_instance_id = top_instance;
+    top_identity = identity;
+    top_instance = instance;
+    top_overlay = route.overlay_kind;
   }
-  const int64_t limit = state.config.navigation.route_stack_limit;
-  change.route_stack =
-      navigation.registry.stack_snapshot(surface.navigator_id, limit);
-  change.route_stack_truncated =
-      navigation.registry.stack_truncated(surface.navigator_id, limit);
+
+  if (!top_identity || !top_instance) return std::nullopt;
+
+  VisibleRouteChange change;
+  change.kind = NavigationKind::kSessionStart;
+  change.updates_route = true;
+  change.destination_route = top_identity->route;
+  change.identity = *top_identity;
+  change.navigator_id = navigator_id;
+  change.parent_navigator_id = parent;
+  change.route_instance_id = top_instance;
+  change.from_route_instance_id = from_route_instance_id;
+  change.stack_revision = stack_revision;
+  change.overlay_kind = top_overlay;
+  change.transition_ms = 0;
+  change.visual_generation = navigation.visual_generation;
+  fill_route_envelope(&change, &navigation.registry, top_instance, true,
+                      state.config.navigation.route_stack_limit);
+  apply_visible_route(change, &navigation.visible);
   return change;
 }
 
@@ -257,8 +326,9 @@ void record_route_change(Turn& turn, const std::string& event_id,
   event.type = "route_change";
   event.stream = EventStream::kEvidence;
   event.after_frame = after_frame;
+  const bool session_start = change.kind == NavigationKind::kSessionStart;
   const bool timed_out = capture.outcome == RouteOutcome::kTimedOut;
-  event.result = std::string(timed_out ? "unknown" : "navigated");
+  event.result = std::string(session_start || timed_out ? "unknown" : "navigated");
   Value data = Value::object();
   put_opt(&data, "fromRoute", change.previous_route);
   put_opt(&data, "route", change.destination_route);

@@ -6,6 +6,7 @@ import com.tugboat.android.TugboatConfig
 import com.tugboat.android.views.input.GestureConfig
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -101,7 +102,7 @@ class HostMetadataTest {
         assertEquals(5000, configure.getJSONObject("capture").getInt("answerTimeoutMs"))
         assertTrue(configure.getJSONObject("collector").getBoolean("enabled"))
         assertEquals(
-            """{"focusChanges":true,"systemInput":true,"nativeSceneInventory":false}""",
+            """{"focusChanges":true,"systemInput":true,"captureDiagnostics":false,"nativeSceneInventory":false}""",
             configure.getJSONObject("capabilities").toString(),
         )
         assertEquals("""{"maxEvents":5000,"maxFrames":500,"maxScrollSamples":200}""", configure.getJSONObject("limits").toString())
@@ -109,12 +110,79 @@ class HostMetadataTest {
 
     @Test
     fun sessionStartCarriesViewportPlatformEpochAndLocale() {
-        val start = JSONObject(SessionMessages.sessionStart(device, HostMetadata(app, device), sessionEpoch = 2))
+        val start = JSONObject(
+            SessionMessages.sessionStart(
+                device,
+                HostMetadata(app, device),
+                sessionEpoch = 2,
+                activationRequestId = null,
+                explorationRunId = null,
+            ),
+        )
 
         assertEquals(setOf("viewport", "platform", "sessionEpoch", "locale"), start.keySet())
         assertEquals(914.3, start.getJSONObject("viewport").getDouble("height"), 0.0)
         assertEquals("android", start.getString("platform"))
         assertEquals(2, start.getInt("sessionEpoch"))
+    }
+
+    @Test
+    fun captureDiagnosticsCapabilityFollowsConfig() {
+        val on = EngineConfiguration.build(
+            TugboatConfig(
+                collector = CollectorConfig("http://10.0.2.2:3000", "key"),
+                app = app,
+                captureDiagnostics = true,
+            ),
+            HostMetadata(app, device),
+            GestureConfig(touchSlop = 8.0, panSlop = 16.0, scaleSlop = 16.0),
+        )
+        assertTrue(on.getJSONObject("capabilities").getBoolean("captureDiagnostics"))
+    }
+
+    @Test
+    fun sessionStartOmitsOptionalIdsWhenNull() {
+        val start = JSONObject(
+            SessionMessages.sessionStart(
+                device,
+                HostMetadata(app, device),
+                sessionEpoch = 0,
+                activationRequestId = null,
+                explorationRunId = null,
+            ),
+        )
+        assertFalse(start.has("activationRequestId"))
+        assertFalse(start.has("explorationRunId"))
+    }
+
+    @Test
+    fun sessionStartPassesActivationAndExplorationIdsWhenSet() {
+        val start = JSONObject(
+            SessionMessages.sessionStart(
+                device,
+                HostMetadata(app, device),
+                sessionEpoch = 0,
+                activationRequestId = "act-9",
+                explorationRunId = "run-3",
+            ),
+        )
+        assertEquals("act-9", start.getString("activationRequestId"))
+        assertEquals("run-3", start.getString("explorationRunId"))
+    }
+
+    @Test
+    fun sessionStartOmitsBlankActivationAndExplorationIds() {
+        val start = JSONObject(
+            SessionMessages.sessionStart(
+                device,
+                HostMetadata(app, device),
+                sessionEpoch = 0,
+                activationRequestId = "",
+                explorationRunId = "   ",
+            ),
+        )
+        assertFalse(start.has("activationRequestId"))
+        assertFalse(start.has("explorationRunId"))
     }
 
     private fun JSONObject.keySet(): Set<String> = keys().asSequence().toSet()

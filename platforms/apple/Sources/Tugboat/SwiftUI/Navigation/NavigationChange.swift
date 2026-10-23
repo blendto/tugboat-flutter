@@ -1,6 +1,6 @@
-/// Engine `navigation.kind` values the adapter produces. SwiftUI exposes no
+/// Engine `navigation.kind` values for stack transitions. SwiftUI exposes no
 /// replacement or invisible removal, so `replace` and `remove` are never
-/// sent.
+/// sent; `session_start` is its own payload (`NavigationChange.Payload`).
 enum NavigationKind: String {
   case push
   case pop
@@ -8,34 +8,61 @@ enum NavigationKind: String {
 
 /// One stack change, as the engine's navigation fact (stateful-engine.md
 /// 8.1): `{kind, navigatorId, route: {instanceId, name?, type, overlayKind,
-/// transitionMs}, departing?: {instanceId, name?, type}}`.
+/// transitionMs}, departing?: {instanceId, name?, type}}`, or the session
+/// start seed `{kind: session_start, navigatorId, routes: [route, …]}`.
 ///
 /// As in Flutter's `NavigatorObserver` mapping, `route` is the route visible
 /// after the change (for `pop`, the one revealed) and `departing` the one
 /// leaving or covered. `overlayKind` is always `page`: a screen cannot tell
 /// whether it is presented as a sheet. `transitionMs` is UIKit's 350 ms
 /// navigation transition when a route is covered or revealed, 0 for the
-/// first route, so the engine's route capture waits for the animation.
+/// first route and for every seeded route, so the engine's route capture
+/// waits for the animation.
 struct NavigationChange: Equatable {
   static let transitionMs: Int64 = 350
 
-  let kind: NavigationKind
+  /// A transition always has a destination route; a seed always has a stack.
+  enum Payload: Equatable {
+    case transition(NavigationKind, route: RouteEntry, departing: RouteEntry?)
+    case sessionStart(routes: [RouteEntry])
+  }
+
   let navigatorId: String
-  let route: RouteEntry
-  let departing: RouteEntry?
+  let payload: Payload
+
+  init(kind: NavigationKind, navigatorId: String, route: RouteEntry, departing: RouteEntry?) {
+    self.navigatorId = navigatorId
+    self.payload = .transition(kind, route: route, departing: departing)
+  }
+
+  init(sessionStart navigatorId: String, routes: [RouteEntry]) {
+    self.navigatorId = navigatorId
+    self.payload = .sessionStart(routes: routes)
+  }
 
   func fact(at: HostTime) -> AdapterFact {
     var input = JSONObject()
-    input.set("kind", kind.rawValue)
-    input.set("navigatorId", navigatorId)
-    var routeJSON = NavigationChange.entryJSON(route)
-    routeJSON.set("overlayKind", "page")
-    routeJSON.set("transitionMs", departing == nil ? 0 : NavigationChange.transitionMs)
-    input.set("route", routeJSON)
-    if let departing = departing {
-      input.set("departing", NavigationChange.entryJSON(departing))
+    switch payload {
+    case let .transition(kind, route, departing):
+      input.set("kind", kind.rawValue)
+      input.set("navigatorId", navigatorId)
+      input.set("route", NavigationChange.routeJSON(route, transitionMs: departing == nil ? 0 : NavigationChange.transitionMs))
+      if let departing = departing {
+        input.set("departing", NavigationChange.entryJSON(departing))
+      }
+    case let .sessionStart(routes):
+      input.set("kind", "session_start")
+      input.set("navigatorId", navigatorId)
+      input.set("routes", .array(routes.map { .object(NavigationChange.routeJSON($0, transitionMs: 0)) }))
     }
     return AdapterFact(type: FactTypes.navigation, input: input, at: at)
+  }
+
+  private static func routeJSON(_ entry: RouteEntry, transitionMs: Int64) -> JSONObject {
+    var out = entryJSON(entry)
+    out.set("overlayKind", "page")
+    out.set("transitionMs", transitionMs)
+    return out
   }
 
   private static func entryJSON(_ entry: RouteEntry) -> JSONObject {

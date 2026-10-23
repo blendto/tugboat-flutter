@@ -72,7 +72,11 @@ class CollectorContractTest {
         )
 
         host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, GestureConfig.from(context)).toString())
-        host.post(SessionMessages.SESSION_START, SessionMessages.sessionStart(device, metadata, 0), SystemHostClock.now())
+        host.post(
+            SessionMessages.SESSION_START,
+            SessionMessages.sessionStart(device, metadata, 0, activationRequestId = null, explorationRunId = null),
+            SystemHostClock.now(),
+        )
 
         val start = JSONObject(awaitRequest { it.lane == "lifecycle" }.json())
         assertEquals("session_start", start.getString("eventType"))

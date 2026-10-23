@@ -20,11 +20,13 @@ import com.tugboat.android.views.ViewsAdapter
 import com.tugboat.android.views.context
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.inventory.SceneInventoryFactContract
+import com.tugboat.android.views.navigation.NavigationObservation
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
@@ -46,14 +48,21 @@ class ComposeFragmentSceneInventoryTest {
 
     private val sink = RecordingSink()
     private val frames = ManualFrames()
-    private val adapter = ViewsAdapter(
-        application = context as Application,
-        sink = sink,
-        hostClock = FakeClock(monoUs = 50_000_000),
-        frames = frames,
-        gesture = GestureConfig(touchSlop = 8.0, panSlop = 16.0, scaleSlop = 16.0),
-        emitSceneInventory = true,
-    ).apply { start() }
+    private lateinit var adapter: ViewsAdapter
+
+    @Before
+    fun setUp() {
+        NavigationObservation.resetForTests()
+        NavigationObservation.setFrameSchedulerForTests(frames)
+        adapter = ViewsAdapter(
+            application = context as Application,
+            sink = sink,
+            hostClock = FakeClock(monoUs = 50_000_000),
+            frames = frames,
+            gesture = GestureConfig(touchSlop = 8.0, panSlop = 16.0, scaleSlop = 16.0),
+            emitSceneInventory = true,
+        ).apply { start() }
+    }
 
     @After
     fun stop() = adapter.stop()
