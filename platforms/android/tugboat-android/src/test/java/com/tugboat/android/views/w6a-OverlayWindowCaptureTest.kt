@@ -51,11 +51,18 @@ class W6aOverlayWindowCaptureTest {
     @Config(sdk = [26])
     fun alertDialogShownAddsOverlayReasonViaFocus() {
         val controller = Robolectric.buildActivity(BlankActivity::class.java).setup()
-        AlertDialog.Builder(controller.get()).setMessage("hello").show()
+        val dialog = AlertDialog.Builder(controller.get()).setMessage("hello").show()
         shadowOf(android.os.Looper.getMainLooper()).idle()
         controller.get().window.callback.onWindowFocusChanged(false)
 
         assertTrue(
+            adapter.masks(controller.get().window).coverage.reasons.contains(MaskCoverageReason.OverlayWindow),
+        )
+
+        dialog.dismiss()
+        controller.get().window.callback.onWindowFocusChanged(true)
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertFalse(
             adapter.masks(controller.get().window).coverage.reasons.contains(MaskCoverageReason.OverlayWindow),
         )
     }
