@@ -99,6 +99,12 @@ final class HTTPExecutorTests: XCTestCase {
     XCTAssertNil(retryAfter)
   }
 
+  func testRetryAfterTrimsAsciiWhitespaceOnly() {
+    XCTAssertEqual(CollectorResponse.forwardRetryAfter("\t5\r\n"), "5")
+    XCTAssertEqual(CollectorResponse.forwardRetryAfter("\u{00A0}5"), "\u{00A0}5")
+    XCTAssertNil(CollectorResponse.forwardRetryAfter(" \t "))
+  }
+
   func testStatusAndBodyPassThroughForRejections() {
     StubURLProtocol.reset { _ in .response(status: 400, headers: [:], body: Data("{\"error\":\"bad\"}".utf8)) }
     XCTAssertEqual(perform(json("{}")), .http(status: 400, body: "{\"error\":\"bad\"}"))

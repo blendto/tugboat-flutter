@@ -300,8 +300,8 @@ void test_transport_retry_after_decode() {
   CHECK(result.status == 202);
   // Kept raw on decode; the one trim and length check is in the parser.
   CHECK(result.retry_after == long_retry);
-  CHECK(!tugboat::engine::parse_retry_after_delay_ms(*result.retry_after,
-                                                     std::nullopt, 60'000));
+  CHECK(!tugboat::engine::parse_retry_after_delay_ms(long_retry, std::nullopt,
+                                                     60'000));
 }
 
 }  // namespace

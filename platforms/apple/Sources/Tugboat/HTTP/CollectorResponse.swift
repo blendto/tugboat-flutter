@@ -13,8 +13,13 @@ enum CollectorResponse {
 
   static let validStatuses = 100...599
 
+  /// ASCII whitespace only, as the engine trims (C `isspace`).
+  private static let retryAfterWhitespace = CharacterSet(charactersIn: " \t\n\u{0B}\u{0C}\r")
+
+  /// The `Retry-After` value to forward: trimmed, or nil when empty or longer
+  /// than `maxRetryAfterBytes` UTF-8 bytes.
   static func forwardRetryAfter(_ raw: String?) -> String? {
-    let trimmed = raw?.trimmingCharacters(in: .whitespaces)
+    let trimmed = raw?.trimmingCharacters(in: retryAfterWhitespace)
     guard let trimmed, !trimmed.isEmpty, trimmed.utf8.count <= maxRetryAfterBytes else {
       return nil
     }

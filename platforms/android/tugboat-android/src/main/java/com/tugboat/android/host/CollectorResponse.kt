@@ -18,8 +18,12 @@ internal object CollectorResponse {
 
     val VALID_STATUSES = 100..599
 
+    /**
+     * The `Retry-After` value to forward: trimmed of ASCII whitespace (as the engine trims), or null
+     * when empty or longer than [MAX_RETRY_AFTER_BYTES] UTF-8 bytes.
+     */
     fun forwardRetryAfter(raw: String?): String? {
-        val trimmed = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val trimmed = raw?.trim { it == ' ' || it in '\t'..'\r' }?.takeIf { it.isNotEmpty() } ?: return null
         return if (utf8Size(trimmed) <= MAX_RETRY_AFTER_BYTES) trimmed else null
     }
 

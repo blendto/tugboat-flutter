@@ -81,6 +81,12 @@ class HttpExecutorTest {
     @Test
     fun retryAfterLongerThan128Utf8BytesIsDropped() {
         assertNull(CollectorResponse.forwardRetryAfter("a".repeat(129)))
+        // 65 UTF-16 units but 130 UTF-8 bytes: the bound is bytes.
+        assertNull(CollectorResponse.forwardRetryAfter("é".repeat(65)))
+        assertEquals("é".repeat(64), CollectorResponse.forwardRetryAfter("é".repeat(64)))
+        // ASCII whitespace only, as the engine trims.
+        assertEquals("5", CollectorResponse.forwardRetryAfter("\t5\r\n"))
+        assertEquals("\u00a05", CollectorResponse.forwardRetryAfter("\u00a05"))
         val header = "a".repeat(120)
         server.reply = { Response(429, "{}", mapOf("Retry-After" to header)) }
         assertEquals(TransportOutcome.Http(429, "{}", header), executor.perform(json("{}")))

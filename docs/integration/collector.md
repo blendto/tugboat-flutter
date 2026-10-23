@@ -333,15 +333,33 @@ refs. Backpressure may still drop the oldest pending frames when
 | `maxPendingBatches` | `20` |
 | `maxPendingEvents` | `60` |
 | `maxPendingFrames` | `20` |
+| `retryAfterCap` | `60 seconds` |
+| `endingRetryAfterCap` | `10 seconds` |
 
 A full batch triggers a flush; the periodic timer sends partial batches.
-Lifecycle backgrounding also asks the sink hub to flush, and session end drains
-events before posting the final lifecycle message.
+Lifecycle backgrounding also asks the sink hub to flush. Session end flushes
+pending events before queueing the final lifecycle message (`session_end`),
+except while the events lane waits on a `Retry-After` (below): then
+`session_end` is queued without waiting for those events, which stay queued.
 
 The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
 `429`, and `5xx`; other response codes are dropped. Retry batches, unsent
 events, and frames are bounded in memory. When a bound is exceeded the oldest
 items are discarded and a debug message is printed.
+
+When a `429` or `503` response carries `Retry-After` (delta-seconds or an
+IMF-fixdate), the sink holds that delivery lane (lifecycle posts, event
+batches, or frame uploads) until the hinted delay has passed, at most
+`retryAfterCap`; the other lanes keep sending. A lane timer then resumes the
+lane; the lifecycle lane then sends every queued post, so a `session_end`
+queued behind a waiting one goes out too. Fresh events not yet sent when the
+events lane starts waiting stay in the event queue. Once `endSession` is
+called, lifecycle waits are capped at `endingRetryAfterCap` instead, and a
+longer one already running is shortened to it, so `session_end` is not held
+past host shutdown. Both caps are clamped to between zero and 24 hours, and
+`Duration.zero` honours no hint. Values that do not parse, or longer than 128
+bytes, are ignored. Waits use a monotonic clock, so a wall-clock change does
+not shorten them.
 
 Collector and WebSocket delivery are best-effort. Bounded in-memory queues retry
 temporary failures while the process remains alive. The SDK does not persist

@@ -126,7 +126,8 @@ final class HTTPExecutor: HTTPSender {
   func received(response: URLResponse, taskId: Int) {
     guard let entry = inFlight[taskId], let http = response as? HTTPURLResponse else { return }
     entry.status = http.statusCode
-    entry.retryAfter = CollectorResponse.forwardRetryAfter(HTTPExecutor.header("Retry-After", in: http))
+    // Raw; `CollectorResponse.outcome` trims and bounds it once.
+    entry.retryAfter = HTTPExecutor.header("Retry-After", in: http)
   }
 
   /// A response header by case-insensitive name. `value(forHTTPHeaderField:)`
@@ -163,9 +164,9 @@ final class HTTPExecutor: HTTPSender {
       finish(taskId: taskId, outcome: timedOut ? .timeout : .error)
     } else if let status = entry.status {
       finish(
-      taskId: taskId,
-      outcome: CollectorResponse.outcome(
-        status: status, body: entry.body, retryAfter: entry.retryAfter))
+        taskId: taskId,
+        outcome: CollectorResponse.outcome(
+          status: status, body: entry.body, retryAfter: entry.retryAfter))
     } else {
       finish(taskId: taskId, outcome: .error)
     }

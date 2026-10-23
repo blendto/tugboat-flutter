@@ -119,11 +119,13 @@ content type) are the host's.
 `{requestId, outcome: "http" | "error" | "timeout", status?, body?, retryAfter?}`.
 `requestId` echoes the effect's string id. `status` comes with `http` only.
 `body` is the first 64 KiB of the response; the engine parses `sessionId` and
-`traitsId` from it. `retryAfter` is the raw `Retry-After` header value (trimmed,
-at most 128 bytes) and is only allowed with `outcome: "http"`; hosts send it
-whenever the response carries the header (any status). Values longer than 128
-bytes after trim are dropped by hosts and ignored by the engine (they never
-invalidate the delivery result). Strict decoding still rejects a non-string
+`traitsId` from it. `retryAfter` is the `Retry-After` header value and is only
+allowed with `outcome: "http"`; hosts send it whenever the response carries the
+header (any status), trimmed of ASCII whitespace and at most 128 UTF-8 bytes.
+The engine keeps it raw on decode and trims ASCII whitespace and checks the
+128-byte bound once, when it parses it. Values longer than 128 bytes after
+trim are dropped by hosts and ignored by the engine (they never invalidate
+the delivery result). Strict decoding still rejects a non-string
 `retryAfter` or one paired with a non-`http` outcome (host bugs).
 
 ## 4. Session state
@@ -378,13 +380,24 @@ unaffected. The engine arms `delivery.retryAfter.<lane>`; a flush while the lane
 waits skips that lane. A newer `Retry-After` replaces the older not-before.
 Unparseable values and other retry statuses keep today's timing.
 
-During `session.end`, a lane waiting on `delivery.retryAfter.<lane>` still
-delivers once the timer fires (including `session_end` on the lifecycle lane),
-subject to existing C15 dispose and host `stop()` bounds. While the session is
-ending (`session.end` through `session_end` accepted), lifecycle-lane
+Each pass checks a lane's wait once, where that lane's stage starts. A wait
+armed by a response during the pass stops that lane for the rest of the pass:
+fresh events not yet sent stay in the fresh queue (they never become retry
+batches unsent, so `maxPendingBatches` evicts only batches that were sent).
+The events and frames lane timers start one pass. The lifecycle lane timer
+drains the lifecycle lane, as `delivery.identity` does: the head is sent and,
+each time it is accepted, the next queued post follows. So a `session_end`
+queued behind a waiting head goes out right after it. The Flutter sink does
+the same (`_drainLifecyclePosts` after the lane timer), subject to existing
+C15 dispose and host `stop()` bounds.
+
+From `session.end` until the next `session.start` (phases draining and ended;
+in Flutter, from `endSession` until `startSession`), lifecycle-lane
 `Retry-After` waits are capped at `collector.maxEndingRetryAfterMs` (default 10
-s) so `session_end` can still complete within host `stop()` watchers (≤ 25 s).
-Other lanes keep the normal `maxRetryAfterMs` cap. Host watchers that wait ≤ 25
+s) so `session_end` can still complete within host `stop()` watchers (≤ 25 s):
+`session.end` shortens a longer lifecycle wait already running to that cap,
+and a 429/503 received meanwhile waits at most that long. Other lanes keep the
+normal `maxRetryAfterMs` cap. Host watchers that wait ≤ 25
 s for `session_end` to settle can still time out when a non-lifecycle lane waits
 longer; classify rules are unchanged so engine retry-classification tests still
 apply.

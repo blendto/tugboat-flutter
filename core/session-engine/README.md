@@ -523,14 +523,29 @@ request is in flight at a time across the three lanes.
   `batchSize`-th pending event, the periodic `delivery.flush` timer, an
   accepted frame (unless frames need retry), `delivery.background`
   (`backgroundFlushDelayMs` after `paused`/`hidden`; `resumed` cancels it),
-  `session.end`, and `transport.flush`. A trigger during a pass runs another
+  `session.end`, `transport.flush`, and `delivery.retryAfter.<lane>` (a
+  lane's `Retry-After` wait is over). A trigger during a pass runs another
   pass after it (C2).
 - **Outcomes.** HTTP 202 is accepted; 408, 429, 5xx, `error`, and `timeout`
   are retried; any other status drops the batch for good (C8 kept). JSON
   posts carry `jsonTimeoutMs` (C3), frame uploads `frameTimeoutMs`. Each
   request also arms `delivery.answer.<requestId>` at `timeoutMs +
   answerGraceMs`: without an answer by then it is a timeout and a late
-  answer is ignored (C15). Retries are paced by triggers only.
+  answer is ignored (C15). Retries are paced by triggers, and by
+  `Retry-After` waits.
+- **Retry-After** (`delivery_retry_after.cpp`, `retry_after.cpp`). HTTP 429
+  or 503 with a parseable `retryAfter` (delta-seconds or IMF-fixdate against
+  `at.wallUs`; ASCII whitespace trimmed; more than 128 bytes ignored) holds
+  that lane (`lifecycle`, `events`, or `frames`) until `min(delay,
+  maxRetryAfterMs)` has passed on the monotonic clock, arming
+  `delivery.retryAfter.<lane>`; a newer hint replaces it. Each pass checks a
+  lane where its stage starts and skips it while it waits; the other lanes
+  still send, and a wait armed mid-pass leaves unsent fresh events pending.
+  The lifecycle timer drains the whole lifecycle lane (as
+  `delivery.identity` does), so a `session_end` queued behind the waiting
+  head follows it. From `session.end` until the next `session.start`,
+  lifecycle waits cap at `maxEndingRetryAfterMs`, and `session.end` shortens
+  a longer running one. `session.start` clears every lane.
 - **Bounds** (`delivery_bounds.h`): `maxPendingEvents`, `maxPendingBatches`,
   and `maxPendingFrames` evict the oldest; failed frames are requeued at the
   front, so they go first.

@@ -2,13 +2,28 @@
 
 Prerelease.
 
+### Added
+
+- `TugboatCollectorConfig.retryAfterCap` and
+  `TugboatCollectorConfig.endingRetryAfterCap` (`Duration`): the longest
+  collector `Retry-After` wait honoured, and the shorter cap for lifecycle
+  posts once `endSession` is called. Both are clamped to between zero and
+  24 hours; `Duration.zero` honours no hint. See the defaults table in
+  `docs/integration/collector.md`.
+
 ### Changed
 
 - `CollectorHttpSink` honours collector `Retry-After` on HTTP 429 and 503 per
-  delivery lane (lifecycle, events, frames): blocked lanes skip sends until a
-  per-lane timer fires (`min(parsed delay, 60 s)`; lifecycle during
-  `endSession` uses a 10 s cap); delta-seconds and IMF-fixdate forms are
-  accepted; unparseable or oversize header values are ignored.
+  delivery lane (lifecycle, events, frames): a waiting lane skips sends until
+  its timer fires, at most `retryAfterCap` later (`endingRetryAfterCap` for
+  lifecycle while the session ends); the other lanes keep sending. When the
+  lifecycle lane resumes it sends every queued post, including a
+  `session_end` queued behind the waiting one. Fresh events not yet sent stay
+  queued while the events lane waits. Delta-seconds and IMF-fixdate forms are
+  accepted (ASCII whitespace trimmed); unparseable or oversize values are
+  ignored. Waits use a monotonic clock.
+- After `endSession`, the periodic flush keeps running until `session_end` is
+  accepted, so a `session_end` that is waiting or retrying still goes out.
 
 ## 0.10.11-dev.4
 
