@@ -451,6 +451,27 @@ void main() {
       h.sink.dispose();
     });
   });
+
+  test('a post dropped before session_end cannot keep the flush running', () {
+    final scheduler = ScenarioScheduler();
+    scheduler.run(() {
+      final h = _Harness(
+        (call, h) =>
+            call.eventType == 'session_start' ? _response(401) : _accepted(),
+      );
+      h.start();
+      scheduler.flushMicrotasks();
+      unawaited(h.sink.endSession());
+      scheduler.flushMicrotasks();
+      expect(h.client.lifecycleTypes.last, 'session_end');
+      final posts = h.client.lifecycleTypes.length;
+
+      // Several intervals later: the dropped session_start is not re-posted.
+      scheduler.advanceTo(30000000);
+      expect(h.client.lifecycleTypes.length, posts);
+      h.sink.dispose();
+    });
+  });
 }
 
 Future<void> _settle() async {

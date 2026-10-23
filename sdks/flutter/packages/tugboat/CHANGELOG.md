@@ -26,6 +26,9 @@ Prerelease.
   408, 429, 5xx) is re-posted on the periodic flush (`eventFlushInterval`)
   until it is accepted or dropped. A dropped one (any other non-202 status)
   is settled and never re-posted; either way the periodic flush then stops.
+  Once `session_end` is queued, an earlier post the collector dropped (for
+  example a rejected `session_start`) is settled too, so it cannot hold
+  `session_end` back.
 
 ## 0.10.11-dev.4
 

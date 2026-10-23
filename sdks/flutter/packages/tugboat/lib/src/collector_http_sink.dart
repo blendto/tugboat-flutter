@@ -511,10 +511,15 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
     final result = await _sendSessionLifecycle(pending, epoch);
     if (!_isCurrentEpoch(epoch)) return;
-    // A dropped `session_end` is settled; other dropped posts stay queued.
+    // A dropped `session_end` is settled. Once `session_end` is queued, any
+    // dropped head is settled too, so a post rejected for good (a 401'd
+    // `session_start`) cannot hold `session_end` back and keep the periodic
+    // flush re-posting after the session ended. Before that, dropped posts
+    // stay queued, as in the engine.
     final settled =
         result == _SendResult.accepted ||
-        (result == _SendResult.drop && _isSessionEnd(pending.eventType));
+        (result == _SendResult.drop &&
+            (_isSessionEnd(pending.eventType) || _sessionEndQueued));
     if (settled) _pendingLifecycle.removeAt(0);
   }
 

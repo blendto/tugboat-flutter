@@ -369,8 +369,9 @@ up to 3 s.
 | 408, 429, 5xx, transport error, timeout | retry | preserved |
 | any other status, including 200 / 201 / 204 | permanent drop | preserved; open question Q3 |
 
-Retries are paced only by flush triggers: there is no backoff and no attempt
-cap (change C4 proposes backoff later). Event batches retry until the
+Retries are paced by flush triggers and by `Retry-After` waits on 429/503:
+there is no backoff and no attempt cap (change C4 proposes backoff later).
+Event batches retry until the
 20-batch cap evicts the oldest, or until the session resets.
 
 When a lane receives HTTP 429 or 503 with a parseable `retryAfter` on
