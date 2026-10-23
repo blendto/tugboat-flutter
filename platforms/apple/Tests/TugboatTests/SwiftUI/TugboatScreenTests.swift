@@ -12,6 +12,7 @@ final class TugboatScreenTests: XCTestCase {
   override func tearDown() {
     hosted?.close()
     hosted = nil
+    HostingControllerTracker.shared.reset()
     super.tearDown()
   }
 
@@ -24,16 +25,18 @@ final class TugboatScreenTests: XCTestCase {
   func testAppearAndReplacementProduceNavigationFacts() throws {
     let clock = ManualClock()
     let tracker = ScreenTracker(clock: clock)
-    tracker.isRecording = true
     let window = HostedWindow(Text("Home").modifier(TugboatScreenModifier(name: "Home", tracker: tracker)).id("home"))
     hosted = window
     XCTAssertTrue(window.wait { self.top(tracker)?.name == "Home" })
-    let first = tracker.takeFacts()
+    let seed = tracker.sessionStartFact(at: clock.now())
+    tracker.isRecording = true
+    let first = seed.map { [$0] } ?? []
     XCTAssertEqual(first.count, 1)
     let push = first.first?.decodedInput
-    XCTAssertEqual(push?["kind"] as? String, "push")
+    XCTAssertEqual(push?["kind"] as? String, "session_start")
     XCTAssertEqual(push?["navigatorId"] as? String, "swiftui-screens")
-    let route = try XCTUnwrap(push?["route"] as? [String: Any])
+    let routes = try XCTUnwrap(push?["routes"] as? [[String: Any]])
+    let route = try XCTUnwrap(routes.first)
     XCTAssertEqual(route["name"] as? String, "Home")
     XCTAssertEqual(route["type"] as? String, "TugboatScreen")
     let homeId = try XCTUnwrap(route["instanceId"] as? String)
@@ -63,25 +66,78 @@ final class TugboatScreenTests: XCTestCase {
 
   func testHostingControllerAppearanceIsSilentOnceAScreenIsSeen() {
     let screens = ScreenTracker(clock: ManualClock())
-    var facts: [AdapterFact] = []
-    let tracker = HostingControllerTracker(screens: screens, clock: FactClock(clock: ManualClock()), emit: { facts.append($0) })
+    let tracker = HostingControllerTracker(screens: screens, clock: ManualClock())
     let window = HostedWindow(Text("Plain"))
     hosted = window
     let controller = window.window.rootViewController ?? UIViewController()
 
     tracker.controller(controller, appeared: true)
-    XCTAssertEqual(facts.count, 1)
-    let route = facts.first?.decodedInput["route"] as? [String: Any]
-    XCTAssertEqual(facts.first?.decodedInput["navigatorId"] as? String, "swiftui-hosting")
+    let seed = tracker.sessionStartFact(at: ManualClock().now())
+    XCTAssertNotNil(seed)
+    XCTAssertEqual(seed?.decodedInput["kind"] as? String, "session_start")
+    let routes = seed?.decodedInput["routes"] as? [[String: Any]]
+    let route = routes?.first
+    XCTAssertEqual(seed?.decodedInput["navigatorId"] as? String, "swiftui-hosting")
     XCTAssertEqual(route?["name"] as? String, RouteKey.hostingKey(controller))
     XCTAssertEqual(route?["type"] as? String, "UIHostingController")
 
+    tracker.isRecording = true
     tracker.controller(UIViewController(), appeared: true)
-    XCTAssertEqual(facts.count, 1, "not a hosting controller")
+    XCTAssertTrue(tracker.takeFacts().isEmpty, "not a hosting controller")
 
     screens.appeared(instanceId: "x", name: "Screen")
     tracker.controller(controller, appeared: false)
-    XCTAssertEqual(facts.count, 1, "screens win once seen")
+    XCTAssertTrue(tracker.takeFacts().isEmpty, "screens win once seen")
+  }
+
+  func testQueuedNavigationWhileStoppedIsDropped() {
+    let clock = ManualClock()
+    let tracker = ScreenTracker(clock: clock)
+    tracker.isRecording = false
+    let window = HostedWindow(Text("Home").modifier(TugboatScreenModifier(name: "Home", tracker: tracker)).id("home"))
+    hosted = window
+    XCTAssertTrue(window.wait { self.top(tracker)?.name == "Home" })
+    tracker.settle()
+    XCTAssertTrue(tracker.takeFacts().isEmpty)
+    tracker.isRecording = true
+    window.hosting?.rootView = AnyView(Text("Detail").modifier(TugboatScreenModifier(name: "Detail", tracker: tracker)).id("detail"))
+    XCTAssertTrue(window.wait { self.top(tracker)?.name == "Detail" })
+    let live = tracker.takeFacts()
+    XCTAssertEqual(live.count, 1)
+    XCTAssertEqual(live.first?.decodedInput["kind"] as? String, "push")
+  }
+
+  func testHostingStackIsSeededAfterStopStart() throws {
+    let clock = ManualClock()
+    let screens = ScreenTracker(clock: clock)
+    let sink = RecordingSink()
+    let frames = ManualFrames()
+    let adapter = SwiftUIAdapter(
+      sink: sink, hostClock: clock, frames: frames, trackHostingControllers: true, screens: screens)
+    adapter.start()
+    let window = HostedWindow(Text("First"))
+    hosted = window
+    XCTAssertTrue(window.wait { HostingControllerTracker.shared.sessionStartFact(at: clock.now()) != nil })
+    let firstSeed = try XCTUnwrap(HostingControllerTracker.shared.sessionStartFact(at: clock.now()))
+    let firstTop = (firstSeed.decodedInput["routes"] as? [[String: Any]])?.last?["instanceId"] as? String
+    adapter.stop()
+
+    let replacement = UIHostingController(rootView: Text("Second"))
+    window.window.rootViewController = replacement
+    replacement.viewDidAppear(false)
+
+    adapter.start()
+    frames.runFrame()
+    let lastSeed = sink.messages.reversed().first { message in
+      message.type == FactTypes.navigation &&
+        (decodeObject(message.inputJSON)?["kind"] as? String) == "session_start"
+    }
+    let seed = try XCTUnwrap(lastSeed)
+    let routes = decodeObject(seed.inputJSON)?["routes"] as? [[String: Any]]
+    // The replacement shown while stopped is the seeded top, not the first host.
+    XCTAssertNotNil(firstTop)
+    XCTAssertNotEqual(routes?.last?["instanceId"] as? String, firstTop)
+    adapter.stop()
   }
 
   func testViewControllerAppearanceForwardsAndCallsTheOriginal() {
@@ -96,8 +152,9 @@ final class TugboatScreenTests: XCTestCase {
     ViewControllerAppearance.install()
     XCTAssertTrue(ViewControllerAppearance.isInstalled)
     var seen: [(UIViewController, Bool)] = []
+    let previous = ViewControllerAppearance.observer
     ViewControllerAppearance.observer = { seen.append(($0, $1)) }
-    defer { ViewControllerAppearance.observer = nil }
+    defer { ViewControllerAppearance.observer = previous }
 
     let probe = Probe()
     probe.viewDidAppear(false)

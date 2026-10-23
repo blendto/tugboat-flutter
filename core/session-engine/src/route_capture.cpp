@@ -130,6 +130,7 @@ void start_route_capture(Turn& turn, VisibleRouteChange change) {
   NavigationState& navigation = state->navigation;
   RouteCaptures& routes = navigation.routes;
   apply_visible_route(change, &navigation.visible);
+  navigation.live_navigation_seen = true;
   const std::string key = change.navigator_id;
   const RouteWorkPtr* found = routes.active.find(key);
   const RouteWorkPtr prior = found == nullptr ? nullptr : *found;

@@ -21,6 +21,8 @@
 namespace tugboat {
 namespace engine {
 
+struct VisibleRoute;
+
 // Dart `_CaptureRequestContext`: the evidence fixed when a capture is
 // requested. A frame is attachable only to requests of the same session,
 // route epoch, route, navigator, route instance, and boundary generation.
@@ -70,6 +72,10 @@ class FrameStore {
  public:
   // Session start: forgets every frame and baseline.
   void reset();
+
+  // While no live navigation has run, session_start seeds restamp `initial`
+  // frame provenance to the seeded visible route.
+  void restamp_initial_route(const VisibleRoute& visible);
 
   // Dart `_publishPhysicalCaptureResult`: mints `frame-N`, appends it to
   // `session` (trimming beyond `max_frames`), emits its frame record, and

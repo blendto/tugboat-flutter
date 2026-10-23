@@ -18,13 +18,9 @@ import com.tugboat.android.views.input.FocusState
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.android.views.mask.WindowMasks
-import com.tugboat.android.views.navigation.ActivityNavigation
-import com.tugboat.android.views.navigation.ControllerNavigation
-import com.tugboat.android.views.navigation.DestinationTracker
-import com.tugboat.android.views.navigation.FragmentNavigation
-import com.tugboat.android.views.navigation.NavEntry
 import com.tugboat.android.views.navigation.NavigationChange
-import com.tugboat.android.views.navigation.ViewRouteResolver
+import com.tugboat.android.views.navigation.NavigationObservation
+import com.tugboat.android.views.navigation.NavigationProcessState
 
 /**
  * The Android Views toolkit adapter (native SDK note section 5): it turns
@@ -51,79 +47,69 @@ internal class ViewsAdapter(
      */
     private val postNavigationFacts: Boolean = false,
 ) : Application.ActivityLifecycleCallbacks {
+    init {
+        NavigationObservation.ensureInstalled(application)
+    }
+
     private val clock = FactClock(hostClock)
     private val batcher = FactBatcher(sink, frames, ::onFrame)
-    private val destinations = DestinationTracker()
-    private val routes = ViewRouteResolver(destinations) { view -> fragments?.routeRootedAt(view) }
-    private val anchors = AnchorResolver(AndroidResourceNames(application.resources), routes)
-    private val activities = ActivityNavigation(::reportNavigation)
-    private val controllers = ControllerNavigation(::reportNavigation)
-    private val fragments =
-        if (OptionalAndroidx.fragment) {
-            FragmentNavigation(activities, destinations, ::reportNavigation, batcher::requestFrame)
-        } else {
-            null
-        }
+    private val anchors =
+        AnchorResolver(AndroidResourceNames(application.resources), NavigationObservation.routesAccessor)
     private val sessions = HashMap<Activity, WindowSession>()
 
     /** Focus is app-wide: every window reports against the same last kind. */
     private val focusState = FocusState()
     private var started = false
+    private var windowCallbacksRegistered = false
 
     fun start() = AdapterGuard.run("start") {
         if (started) return@run
+        registerWindowCallbacks()
         started = true
-        application.registerActivityLifecycleCallbacks(this)
+        // Settle fragment changes made while stopped before seeding, and
+        // seed before recording, so a pre-start removal is never a live pop.
+        NavigationObservation.flushFragments()
+        emitSessionStartSeeds()
+        // Post the seeds now, not at the next frame: the runtime's lifecycle
+        // replay right after start() makes the engine request a capture, and
+        // its route context must already be the seeded one.
+        batcher.flush()
+        if (postNavigationFacts) {
+            NavigationObservation.setRecording(::reportNavigation)
+        }
     }
 
-    /** Posts what is pending, then detaches everywhere; nothing is emitted after it. */
+    /**
+     * Posts what is pending, then detaches window observers. Process-scoped
+     * navigation observation keeps updating stacks while stopped; nothing is
+     * emitted until the next [start].
+     */
     fun stop() = AdapterGuard.run("stop") {
         if (!started) return@run
         batcher.flush()
         started = false
-        application.unregisterActivityLifecycleCallbacks(this)
-        fragments?.unregisterAll()
+        NavigationObservation.setRecording(null)
+        unregisterWindowCallbacks()
         sessions.values.toList().forEach(WindowSession::detach)
         sessions.clear()
     }
 
-    /** Fragment navigator ids currently tracked; for tests. */
-    val fragmentNavigatorIds: Set<String>
-        get() = fragments?.navigatorIds.orEmpty()
+    private fun registerWindowCallbacks() {
+        if (windowCallbacksRegistered) return
+        application.registerActivityLifecycleCallbacks(this)
+        windowCallbacksRegistered = true
+    }
 
-    /** Mask rectangles for [window] under `allTextAndMedia`; called on the main thread per `capture.request`. */
+    private fun unregisterWindowCallbacks() {
+        if (!windowCallbacksRegistered) return
+        application.unregisterActivityLifecycleCallbacks(this)
+        windowCallbacksRegistered = false
+    }
+
     fun masks(window: Window): WindowMaskResult = WindowMasks.compute(window)
 
-    /**
-     * [activity]'s Jetpack Navigation destination changed: route keys only.
-     * The SDK facade uses [onNavDestination], which also reports navigation.
-     * The route pattern loses its arguments ([com.tugboat.android.views.navigation.RoutePattern]),
-     * so Views and Compose anchors and navigation facts share one route key.
-     */
-    fun onDestinationChanged(activity: Activity, route: String?, destinationId: Int) =
-        AdapterGuard.run("destination changed") { destinations.onDestinationChanged(activity, route, destinationId) }
-
-    /**
-     * The `trackNavigation` hook with the back stack: [current] is the
-     * controller's new current entry, [previous] the one below it. Updates the
-     * route key ([onDestinationChanged]) and reports the change as a
-     * `navigation` fact on the controller's navigator, nested under
-     * [activity]'s ([ControllerNavigation]).
-     */
-    fun onNavDestination(activity: Activity, current: NavEntry, previous: NavEntry?) =
-        AdapterGuard.run("nav destination") {
-            destinations.onDestinationChanged(activity, current.route, current.destinationId)
-            val navigatorId = ControllerNavigation.navigatorIdFor(activities.ensureEntry(activity).instanceId)
-            val routeKey = destinations.routeKey(activity, current.route, current.destinationId) ?: ControllerNavigation.TYPE
-            controllers.onDestinationChanged(navigatorId, activities.navigatorIdOf(activity), current, routeKey, previous)
-        }
-
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
-        AdapterGuard.run("activity created") {
-            activities.onCreated(activity)
-            fragments?.register(activity)
-            session(activity).ensureAttached()
-        }
+        AdapterGuard.run("activity created") { session(activity).ensureAttached() }
 
     override fun onActivityResumed(activity: Activity) =
         AdapterGuard.run("activity resumed") {
@@ -131,20 +117,10 @@ internal class ViewsAdapter(
                 ensureAttached()
                 onWindowActive()
             }
-            activities.onResumed(activity)
         }
 
     override fun onActivityDestroyed(activity: Activity) =
-        AdapterGuard.run("activity destroyed") {
-            sessions.remove(activity)?.detach()
-            fragments?.unregister(activity)
-            if (activity.isFinishing) {
-                fragments?.forget(activity)
-                destinations.clear(activity)
-                activities.entryOf(activity)?.let { controllers.forget(ControllerNavigation.navigatorIdFor(it.instanceId)) }
-            }
-            activities.onDestroyed(activity)
-        }
+        AdapterGuard.run("activity destroyed") { sessions.remove(activity)?.detach() }
 
     override fun onActivityStarted(activity: Activity) = Unit
 
@@ -159,17 +135,25 @@ internal class ViewsAdapter(
             WindowSession(activity, clock, gesture, anchors, ::emit, batcher::requestFrame, focusState)
         }
 
-    /** The only way facts reach the batcher: nothing after [stop]. */
     private fun emit(fact: ViewsFact) {
         if (started) batcher.add(fact)
     }
 
     private fun reportNavigation(change: NavigationChange) {
-        if (postNavigationFacts) emit(change.toFact(clock.now()))
+        if (!postNavigationFacts) return
+        emit(change.toFact(clock.now()))
+    }
+
+    private fun emitSessionStartSeeds() {
+        if (!postNavigationFacts) return
+        val now = clock.now()
+        NavigationProcessState.sessionStartSnapshots().forEach { snapshot ->
+            emit(snapshot.toFact(now))
+        }
     }
 
     private fun onFrame() {
-        fragments?.flush()
+        NavigationObservation.flushFragments()
         sessions.values.toList().forEach(WindowSession::onFrame)
     }
 }

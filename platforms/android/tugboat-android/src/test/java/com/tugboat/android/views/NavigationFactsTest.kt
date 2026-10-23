@@ -10,7 +10,9 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.tugboat.android.host.FakeClock
 import org.json.JSONObject
+import com.tugboat.android.views.navigation.NavigationObservation
 import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -25,13 +27,21 @@ import org.robolectric.RobolectricTestRunner
 class NavigationFactsTest {
     private val sink = RecordingSink()
     private val frames = ManualFrames()
-    private val adapter = ViewsAdapter(
-        application = context as android.app.Application,
-        sink = sink,
-        hostClock = FakeClock(),
-        frames = frames,
-        postNavigationFacts = true,
-    ).apply { start() }
+    private lateinit var adapter: ViewsAdapter
+
+    @Before
+    fun setUp() {
+        NavigationObservation.resetForTests()
+        NavigationObservation.setFrameSchedulerForTests(frames)
+        sink.batches.clear()
+        adapter = ViewsAdapter(
+            application = context as android.app.Application,
+            sink = sink,
+            hostClock = FakeClock(),
+            frames = frames,
+            postNavigationFacts = true,
+        ).apply { start() }
+    }
 
     @After
     fun stop() = adapter.stop()
@@ -135,9 +145,16 @@ class NavigationFactsTest {
     }
 
     @Test
+    fun navigationSurvivesAGarbageCollectionWhileRecording() {
+        repeat(3) { System.gc() }
+        Robolectric.buildActivity(FirstActivity::class.java).setup()
+        assertEquals("push", navigation().single().getString("kind"))
+    }
+
+    @Test
     fun recreatedActivitiesKeepTheirInstanceIdAndSendNothing() {
         val controller = Robolectric.buildActivity(FirstActivity::class.java).setup()
-        val instanceId = navigation().single().getJSONObject("route").getString("instanceId")
+        val instanceId = navigation().single().bottomRouteInstanceId()
         controller.recreate()
         assertTrue(navigation().isEmpty())
 
@@ -150,7 +167,7 @@ class NavigationFactsTest {
     @Test
     fun anActivityTheSystemDestroyedWithoutFinishingIsNotNavigation() {
         val first = Robolectric.buildActivity(FirstActivity::class.java).setup()
-        val instanceId = navigation().single().getJSONObject("route").getString("instanceId")
+        val instanceId = navigation().single().bottomRouteInstanceId()
         first.pause()
         val second = Robolectric.buildActivity(SecondActivity::class.java).setup()
         first.stop().destroy() // reclaimed in the back stack, not finishing
@@ -168,25 +185,24 @@ class NavigationFactsTest {
     @Test
     fun nestedFragmentNavigatorsAreForgottenWithTheirHosts() {
         val host = Robolectric.buildActivity(FragmentActivity::class.java).setup()
-        val activityId = navigation().single().getJSONObject("route").getString("instanceId")
+        val activityId = navigation().single().bottomRouteInstanceId()
         val parent = ParentFragment()
         host.get().supportFragmentManager.beginTransaction().add(android.R.id.content, parent, "parent").commitNow()
         val facts = navigation()
-        assertEquals(listOf("parent", "child"), facts.map { it.getJSONObject("route").getString("name") })
-        val parentId = facts.first { it.getJSONObject("route").getString("name") == "parent" }
-            .getJSONObject("route").getString("instanceId")
-        val child = facts.single { it.getJSONObject("route").getString("name") == "child" }
+        assertEquals(listOf("parent", "child"), facts.map { it.routeName() })
+        val parentId = facts.first { it.routeName() == "parent" }.routeInstanceId()
+        val child = facts.single { it.routeName() == "child" }
         assertEquals("$parentId/fragments", child.getString("navigatorId"))
         assertEquals("$activityId/fragments", child.getString("parentNavigatorId"))
-        assertEquals(setOf("$activityId/fragments", "$parentId/fragments"), adapter.fragmentNavigatorIds)
+        assertEquals(setOf("$activityId/fragments", "$parentId/fragments"), NavigationObservation.fragmentNavigatorIds)
 
         host.get().supportFragmentManager.beginTransaction().remove(parent).commitNow()
         navigation()
-        assertEquals(setOf("$activityId/fragments"), adapter.fragmentNavigatorIds)
+        assertEquals(setOf("$activityId/fragments"), NavigationObservation.fragmentNavigatorIds)
 
         host.get().finish()
         host.pause().stop().destroy()
-        assertTrue(adapter.fragmentNavigatorIds.isEmpty())
+        assertTrue(NavigationObservation.fragmentNavigatorIds.isEmpty())
     }
 
     @Test
@@ -204,8 +220,16 @@ class NavigationFactsTest {
     @Test
     fun instanceIdsAreDistinctPerInstance() {
         Robolectric.buildActivity(FirstActivity::class.java).setup()
+        while (frames.hasPending) frames.runFrame()
         Robolectric.buildActivity(FirstActivity::class.java).setup()
-        val ids = navigation().map { it.getJSONObject("route").getString("instanceId") }
+        while (frames.hasPending) frames.runFrame()
+        val ids = sink.batches.flatten().filter { it.type == "navigation" }.map { JSONObject(it.inputJson) }.map { fact ->
+            if (fact.getString("kind") == "session_start") {
+                fact.getJSONArray("routes").getJSONObject(0).getString("instanceId")
+            } else {
+                fact.getJSONObject("route").getString("instanceId")
+            }
+        }
         assertEquals(2, ids.size)
         assertNotEquals(ids[0], ids[1])
     }

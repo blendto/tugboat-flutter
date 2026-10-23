@@ -328,11 +328,24 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
   `getDelegate()` accessors, and `Window.Callback` fields of non-platform
   wrapper classes, up to 16 links. A per-thread dispatch depth keeps facts
   single if two wrappers still end up in one chain.
-- **Stop.** After `stop()` nothing is emitted: window, fragment, and
-  lifecycle callbacks are removed, and every fact path is gated.
+- **Stop.** After `stop()` nothing is emitted: window callbacks detach and
+  every fact path is gated. Navigation lifecycle stays registered in
+  process scope so stacks keep updating while stopped (no facts until the
+  next `start()`). Process scope begins when observation installs, at the
+  first `start()`: activity, fragment, and `trackNavigation` stacks are
+  kept from then on. `trackNavigation` destinations reported before then are
+  discarded at installation, since no activity resume or destroy was seen
+  for their hosts.
 - **Navigation gate.** `ViewsAdapter(postNavigationFacts = false)` (the
   default) tracks navigation for route keys but posts no `navigation` facts;
   the SDK (`TugboatRuntime`) turns it on now that the engine has phase 3d.
+- **Session start route seed.** On each `start()` (including after `stop()`),
+  the adapter posts one `navigation` `session_start` per navigator with a
+  non-empty stack (`routes` bottom to top), snapshotting process-scoped
+  stacks. Seeds are walked from the activity tasks; a navigator whose host
+  route is in no stack is not seeded. Navigators first seen after that
+  record ordinary `push`/`pop` facts (including a new activity or nested
+  navigator mid-session).
 - **Motion fails closed.** A running legacy `Animation` (activity and
   fragment transitions) or `LayoutTransition` on a visible view draws away
   from layout bounds, so `WindowMasks` masks the whole frame (reason

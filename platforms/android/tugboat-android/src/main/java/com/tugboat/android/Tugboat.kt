@@ -135,7 +135,8 @@ object Tugboat {
      * activity (route pattern without arguments, else the id's resource name)
      * and `route_change`s on a navigator nested under the activity's.
      * Optional; needs `androidx.navigation` in the app. Call once per
-     * controller.
+     * controller. Destinations shown before the first [start] are not
+     * seeded into its session: the first change after it is a push.
      *
      * Call [start] before this when you use [TugboatConfig.enabled]: a call
      * before any [start] cannot know the config, so it attaches the listener
@@ -145,7 +146,11 @@ object Tugboat {
     fun trackNavigation(navController: NavController) = onMain("trackNavigation") {
         if (disabled) return@onMain
         NavigationTracking.track(navController) { activity, current, previous ->
-            runtime?.onNavDestination(activity, current, previous)
+            com.tugboat.android.views.navigation.NavigationObservation.onNavDestination(
+                activity,
+                current,
+                previous,
+            )
         }
     }
 

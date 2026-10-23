@@ -25,7 +25,6 @@ import java.util.WeakHashMap
  */
 internal class ActivityNavigation(private val report: (NavigationChange) -> Unit) {
     private val entries = WeakHashMap<Activity, RouteEntry>()
-    private val stacks = HashMap<Int, NavigatorStack>()
     private val parked = HashMap<String, ArrayDeque<RouteEntry>>()
 
     fun entryOf(activity: Activity): RouteEntry? = entries[activity]
@@ -40,7 +39,8 @@ internal class ActivityNavigation(private val report: (NavigationChange) -> Unit
     }
 
     fun onResumed(activity: Activity) {
-        val stack = stacks.getOrPut(activity.taskId) { NavigatorStack(navigatorIdOf(activity), null) }
+        NavigationProcessState.noteResumed(activity.taskId)
+        val stack = NavigationProcessState.activityStack(activity.taskId, navigatorIdOf(activity))
         stack.onShown(ensureEntry(activity))?.let(report)
     }
 
@@ -54,9 +54,9 @@ internal class ActivityNavigation(private val report: (NavigationChange) -> Unit
             parked.getOrPut(parkingKey(activity)) { ArrayDeque() }.addLast(entry)
             return
         }
-        val stack = stacks[activity.taskId] ?: return
+        val stack = NavigationProcessState.activityStack(activity.taskId, navigatorIdOf(activity))
         stack.remove(entry)?.takeIf { it.kind == NavigationKind.Remove }?.let(report)
-        if (stack.top == null) stacks.remove(activity.taskId)
+        if (stack.top == null) NavigationProcessState.forgetActivityTask(activity.taskId)
     }
 
     private fun bind(activity: Activity, entry: RouteEntry): RouteEntry {

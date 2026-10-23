@@ -19,6 +19,7 @@ final class SwiftUIAdapterTests: XCTestCase {
     adapter = nil
     hosted?.close()
     hosted = nil
+    HostingControllerTracker.shared.reset()
     super.tearDown()
   }
 

@@ -1,5 +1,6 @@
 #include "navigation_facts.h"
 
+#include <set>
 #include <utility>
 
 #include "name_table.h"
@@ -14,6 +15,7 @@ constexpr NamedValue<NavigationKind> kKinds[] = {
     {"pop", NavigationKind::kPop},
     {"replace", NavigationKind::kReplace},
     {"remove", NavigationKind::kRemove},
+    {"session_start", NavigationKind::kSessionStart},
 };
 
 constexpr NamedValue<NavigationKind> kWireNames[] = {
@@ -21,6 +23,7 @@ constexpr NamedValue<NavigationKind> kWireNames[] = {
     {"route_pop", NavigationKind::kPop},
     {"route_replace", NavigationKind::kReplace},
     {"route_remove", NavigationKind::kRemove},
+    {"session_start", NavigationKind::kSessionStart},
 };
 
 constexpr NamedValue<OverlayKind> kOverlayKinds[] = {
@@ -103,17 +106,62 @@ RouteIdentity route_identity(const std::optional<FactRoute>& route) {
   return identity;
 }
 
+bool decode_routes(const ObjectReader& parent, NavigationFact* out,
+                   Error* error) {
+  const Value* json = parent.get("routes");
+  if (json == nullptr) return true;
+  if (!json->is_array()) {
+    return parent.reject("routes", "must be an array");
+  }
+  const std::vector<Value>& items = json->items();
+  if (items.empty()) {
+    return parent.reject("routes", "must not be empty");
+  }
+  out->routes.reserve(items.size());
+  std::set<std::string> seen_instance_ids;
+  for (size_t i = 0; i < items.size(); ++i) {
+    FactRoute route;
+    const std::string path =
+        parent.child("routes") + "[" + std::to_string(i) + "]";
+    const ObjectReader item(items[i], path, error);
+    if (!decode_route(items[i], path, &route, error)) return false;
+    if (!seen_instance_ids.insert(route.instance_id).second) {
+      return item.reject("instanceId", "duplicate");
+    }
+    if (route.transition_ms != 0) {
+      return item.reject("transitionMs", "must be 0 for session_start routes");
+    }
+    out->routes.push_back(std::move(route));
+  }
+  return true;
+}
+
 bool decode_navigation_fact(const Value& input, const std::string& path,
                             NavigationFact* out, Error* error) {
   const ObjectReader r(input, path, error);
   const Value* route = nullptr;
   if (!r.check_keys({"kind", "navigatorId", "parentNavigatorId", "route",
-                     "departing"}) ||
+                     "departing", "routes"}) ||
       !read_named(r, "kind", kKinds, &out->kind) ||
       !read_non_empty(r, "navigatorId", &out->navigator_id) ||
       !decode_parent(r, out) || !r.opt_object("route", &route) ||
-      !decode_departing(r, out, error)) {
+      !decode_departing(r, out, error) || !decode_routes(r, out, error)) {
     return false;
+  }
+  if (out->kind == NavigationKind::kSessionStart) {
+    if (route != nullptr) {
+      return r.reject("route", "must be absent for session_start");
+    }
+    if (out->departing_instance_id) {
+      return r.reject("departing", "must be absent for session_start");
+    }
+    if (out->routes.empty()) {
+      return r.reject("routes", "is required for session_start");
+    }
+    return true;
+  }
+  if (!out->routes.empty()) {
+    return r.reject("routes", "must be absent unless kind is session_start");
   }
   if (route == nullptr) return true;
   FactRoute decoded;
