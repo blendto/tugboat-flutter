@@ -88,7 +88,9 @@ void resolve_tap_evidence(Turn& turn, Transaction& tx,
   tx.target_anchor = evidence.anchor;
   tx.failure_reason = evidence.failure_reason;
   if (evidence.inventory) {
-    record_scene_inventory(turn, evidence.inventory->json);
+    const TapInventory& inventory = *evidence.inventory;
+    record_scene_inventory(turn, inventory.route_key, inventory.inventory_hash,
+                           "", inventory.json);
   }
 }
 

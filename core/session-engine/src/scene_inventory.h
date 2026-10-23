@@ -3,6 +3,7 @@
 #ifndef TUGBOAT_SESSION_ENGINE_SCENE_INVENTORY_H
 #define TUGBOAT_SESSION_ENGINE_SCENE_INVENTORY_H
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -34,10 +35,13 @@ struct SceneInventoryElement {
   std::vector<std::string> aliases;
 };
 
-// `scene.inventory {routeKey?, elements[]}`.
+// `scene.inventory {routeKey?, elements[], scrollKey?, totalElements?}`.
+// `total_elements` is how many elements the adapter found before its own
+// cap; C20 reports the larger of it and `elements.size()`.
 struct SceneInventoryFact {
   std::optional<std::string> route_key;
   std::optional<std::string> scroll_key;
+  std::optional<int64_t> total_elements;
   std::vector<SceneInventoryElement> elements;
 };
 
@@ -46,17 +50,16 @@ bool decode_scene_inventory_fact(const Value& json, const std::string& path,
 
 void apply_scene_inventory(Turn& turn, const SceneInventoryFact& fact);
 
-// Records `scene_inventory` when the dedupe key is new. `data` is the full
-// event payload (`inventoryHash`, `routeKey`, `elements`).
-void record_scene_inventory(Turn& turn, Value data,
-                            const std::string& scroll_key = "");
+// Records `scene_inventory` with `data` (the full event payload) unless
+// `route_key|inventory_hash|scroll_key` was already recorded this session.
+// With `truncated_from`, a new key first records the C20
+// `capture_diagnostic {component: scene_inventory, truncatedFrom}`; a
+// duplicate records nothing.
+void record_scene_inventory(Turn& turn, const std::string& route_key,
+                            const std::string& inventory_hash,
+                            const std::string& scroll_key, Value data,
+                            std::optional<int64_t> truncated_from = std::nullopt);
 
-std::string inventory_hash_for_elements(
-    const std::vector<SceneInventoryElement>& elements);
-
-Value scene_inventory_event_data(const std::string& route_key,
-                                 const std::vector<SceneInventoryElement>& elements,
-                                 const std::string& scroll_key = "");
 
 }  // namespace engine
 }  // namespace tugboat
