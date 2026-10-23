@@ -45,6 +45,7 @@ constexpr NamedValue<MaskReason> kMaskReasons[] = {
     {"surfaceLayer", MaskReason::kSurfaceLayer},
     {"unclassifiedLayer", MaskReason::kUnclassifiedLayer},
     {"secureText", MaskReason::kSecureText},
+    {"overlayWindow", MaskReason::kOverlayWindow},
 };
 
 // Dart `_captureOutcomeWireNames`.

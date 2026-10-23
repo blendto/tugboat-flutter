@@ -127,6 +127,8 @@ dependencies {
     compileOnly(optionalNavigation)
     testImplementation(optionalNavigation)
     testImplementation("androidx.navigation:navigation-testing:2.7.7")
+    // Off-screen pages capped at STARTED (SceneInventoryAdapterTest).
+    testImplementation("androidx.viewpager2:viewpager2:1.1.0")
     // The Compose compiler plugin (applied for the unit tests) refuses any
     // compilation without the Compose runtime on its classpath. Main and
     // instrumented code use no Compose; compileOnly keeps it out of the AAR,

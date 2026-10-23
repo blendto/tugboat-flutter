@@ -5,6 +5,11 @@
 Unpublished. The native Android SDK for Views apps: public facade, engine
 wiring, window capture, and the Android Views adapter.
 
+- Overlay windows: frames captured while a dialog, sheet, or focusable menu
+  of the activity is showing keep activity masks, add `overlayWindow` to
+  `maskCoverage.reasons`, and add an overlay token to the structure
+  signature, so they are never coalesced with overlay-free frames. Detected
+  by focus loss while resumed and, on API 29+, owned `WindowInspector` roots.
 - Public API (`com.tugboat.android`): `Tugboat.start(application,
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`,
@@ -25,9 +30,11 @@ wiring, window capture, and the Android Views adapter.
 - Native scene inventory: when `emitSceneInventory` is true, the Views
   adapter sends `scene.inventory` after each captured frame (the
   post-navigation route capture covers route changes) for the route of the
-  visible content (the deepest shown fragment, such as a `NavHostFragment`'s
-  destination, else the activity; activity-level chrome outside it, such as
-  a `Toolbar` or `BottomNavigationView`, is not inventoried); the engine
+  visible content (the deepest shown, resumed fragment, such as a
+  `NavHostFragment`'s destination or the current `ViewPager2` page, else the
+  activity; a fragment paused at `STARTED` while its host is resumed is
+  skipped; activity-level chrome outside it, such as a `Toolbar` or
+  `BottomNavigationView`, is not inventoried); the engine
   records deduped `scene_inventory` (`nativeSceneInventory` capability). A
   frame of a window without Compose hosts whose structure signature matches
   the route's last emitted inventory is not walked (a view that only becomes

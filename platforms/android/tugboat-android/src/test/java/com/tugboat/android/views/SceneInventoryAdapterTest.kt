@@ -15,6 +15,9 @@ import android.widget.LinearLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentContainerView
+import androidx.lifecycle.Lifecycle
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import androidx.viewpager2.widget.ViewPager2
 import com.tugboat.android.host.FakeClock
 import com.tugboat.android.views.inventory.SceneInventoryFactContract
 import com.tugboat.android.views.input.GestureConfig
@@ -110,6 +113,23 @@ class SceneInventoryAdapterTest {
         assertTrue(anchor.getString("fingerprint") in fingerprints(inventory))
     }
 
+    /** Split screen / picture-in-picture: the activity is paused but visible, so every fragment is paused too. */
+    @Test
+    fun aPausedButVisibleActivityKeepsTheVisibleFragmentAsTheInventoryRoute() {
+        val controller = Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val activity = controller.get()
+        val parent = ParentFragment()
+        activity.supportFragmentManager.beginTransaction().add(android.R.id.content, parent, "parent").commitNow()
+        val child = HomeFragment()
+        parent.childFragmentManager.beginTransaction().add(CHILD_CONTAINER_ID, child, "child").commitNow()
+        settle()
+        controller.pause()
+
+        adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
+        frames.runFrame()
+        assertEquals("child", inventoryInputs().single().getString("routeKey"))
+    }
+
     /**
      * The `NavHostFragment` shape: a host fragment whose key is not the
      * destination's, holding the destination fragment (`trackNavigation`
@@ -131,6 +151,74 @@ class SceneInventoryAdapterTest {
 
         val inventory = inventoryInputs().single()
         assertEquals("detail", inventory.getString("routeKey"))
+        assertEquals(listOf("Button#button2"), elements(inventory).map { it.getString("canonicalPath") })
+    }
+
+    /** Two children in one container; the last drawn was resumed, then capped at `STARTED`. */
+    @Test
+    fun aPausedSiblingFragmentIsNotTheInventoryRoute() {
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        val parent = ParentFragment()
+        activity.supportFragmentManager.beginTransaction().add(android.R.id.content, parent, "parent").commitNow()
+        val shown = DetailFragment()
+        val paused = HomeFragment()
+        parent.childFragmentManager.beginTransaction()
+            .add(CHILD_CONTAINER_ID, shown, "shown")
+            .add(CHILD_CONTAINER_ID, paused, "paused")
+            .commitNow()
+        parent.childFragmentManager.beginTransaction().setMaxLifecycle(paused, Lifecycle.State.STARTED).commitNow()
+        settle()
+        assertFalse(paused.isResumed)
+
+        adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
+        frames.runFrame()
+
+        val inventory = inventoryInputs().single()
+        assertEquals("shown", inventory.getString("routeKey"))
+        assertEquals(listOf("Button#button2"), elements(inventory).map { it.getString("canonicalPath") })
+    }
+
+    @Test
+    fun aParentWhoseChildrenAreAllPausedIsTheInventoryRoute() {
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        val parent = ParentFragment()
+        activity.supportFragmentManager.beginTransaction().add(android.R.id.content, parent, "parent").commitNow()
+        val child = HomeFragment()
+        parent.childFragmentManager.beginTransaction().add(CHILD_CONTAINER_ID, child, "child").commitNow()
+        parent.childFragmentManager.beginTransaction().setMaxLifecycle(child, Lifecycle.State.STARTED).commitNow()
+        settle()
+
+        adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
+        frames.runFrame()
+
+        assertEquals("parent", inventoryInputs().single().getString("routeKey"))
+    }
+
+    /**
+     * Tab 1 is visited, then the user returns to tab 0. With
+     * `offscreenPageLimit = 1`, tab 1 stays attached (the last drawn page)
+     * at `STARTED`; `FragmentStateAdapter` tags pages `f<itemId>`.
+     */
+    @Test
+    fun aViewPagerInventoriesTheCurrentPageAfterReturningToIt() {
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        val tabs = PagerFragment()
+        activity.supportFragmentManager.beginTransaction().add(android.R.id.content, tabs, "tabs").commitNow()
+        settle()
+        tabs.pager.setCurrentItem(1, false)
+        settle()
+        tabs.pager.setCurrentItem(0, false)
+        settle()
+        val pages = tabs.childFragmentManager.fragments.associateBy { it.tag }
+        assertEquals(setOf("f0", "f1"), pages.keys)
+        assertTrue(pages.getValue("f0").isResumed)
+        assertFalse(pages.getValue("f1").isResumed)
+
+        adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
+        frames.runFrame()
+
+        val inventory = inventoryInputs().single()
+        assertEquals("f0", inventory.getString("routeKey"))
         assertEquals(listOf("Button#button2"), elements(inventory).map { it.getString("canonicalPath") })
     }
 
@@ -308,6 +396,23 @@ class SceneInventoryAdapterTest {
             FrameLayout(inflater.context).apply {
                 addView(Button(inflater.context).apply { id = android.R.id.button2 }, FrameLayout.LayoutParams(300, 120))
             }
+    }
+
+    /** A two-page `ViewPager2`: page 0 is a [DetailFragment], page 1 a [HomeFragment]. */
+    class PagerFragment : Fragment() {
+        lateinit var pager: ViewPager2
+
+        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+            pager = ViewPager2(inflater.context).apply {
+                offscreenPageLimit = 1
+                adapter = object : FragmentStateAdapter(this@PagerFragment) {
+                    override fun getItemCount() = 2
+
+                    override fun createFragment(position: Int): Fragment = if (position == 0) DetailFragment() else HomeFragment()
+                }
+            }
+            return FrameLayout(inflater.context).apply { addView(pager, FrameLayout.LayoutParams(720, 600)) }
+        }
     }
 
     /** A full-screen fragment whose root is clickable, to stop clicks reaching what is below. */

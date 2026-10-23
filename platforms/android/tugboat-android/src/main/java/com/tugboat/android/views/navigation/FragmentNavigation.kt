@@ -7,6 +7,7 @@ import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.Lifecycle
 import com.tugboat.android.views.AdapterGuard
 import com.tugboat.android.views.OptionalAndroidx
 import com.tugboat.android.views.identity.Confidence
@@ -81,8 +82,9 @@ internal class FragmentNavigation(
      * `android.R.id.content`: walking down, last drawn visible child first,
      * through each shown fragment root into the fragments it hosts (a
      * `NavHostFragment`'s destination, a parent's child fragment); a root
-     * being removed is skipped with its subtree. Null when the content shows
-     * no fragment.
+     * being removed, or paused (capped at `STARTED`, such as an off-screen
+     * `ViewPager2` page), is skipped with its subtree. Null when the content
+     * shows no fragment.
      */
     fun visibleRouteRoot(activity: Activity): View? {
         val content = activity.findViewById<View>(android.R.id.content) as? ViewGroup ?: return null
@@ -96,7 +98,8 @@ internal class FragmentNavigation(
             val entry = roots[child]
             if (entry != null) {
                 // A shown root can host child fragments (NavHostFragment, a tab host): the deepest one wins.
-                if (!entry.isLeaving()) return (child as? ViewGroup)?.let(::topmostRoot) ?: child
+                // A paused root (an off-screen ViewPager2 page) is skipped like a leaving one.
+                if (!entry.isLeaving() && entry.isResumed()) return (child as? ViewGroup)?.let(::topmostRoot) ?: child
                 continue
             }
             if (child is ViewGroup) topmostRoot(child)?.let { return it }
@@ -158,7 +161,22 @@ internal class FragmentNavigation(
         entries[fragment] = entry
         val owner = WeakReference(fragment)
         entry.isLeaving = { owner.get()?.isRemoving ?: true }
+        entry.isResumed = { owner.get()?.let(::countsAsResumed) ?: false }
         return entry
+    }
+
+    /**
+     * A fragment counts as paused only while its host (parent fragment, else
+     * the activity) is resumed. A paused but visible activity (split screen,
+     * picture-in-picture, a capture racing `onPause`) pauses every fragment,
+     * and the visible one must still be the inventory route.
+     */
+    private fun countsAsResumed(fragment: Fragment): Boolean {
+        if (fragment.isResumed) return true
+        val parent = fragment.parentFragment
+        val hostResumed = parent?.isResumed
+            ?: (fragment.activity?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.RESUMED) == true)
+        return !hostResumed
     }
 
     private fun newEntry(fragment: Fragment): RouteEntry {
