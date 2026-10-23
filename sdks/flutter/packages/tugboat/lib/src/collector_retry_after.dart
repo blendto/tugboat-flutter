@@ -1,19 +1,24 @@
 /// Parses collector `Retry-After` response headers for [CollectorHttpSink].
 library;
 
-const collectorMaxRetryAfterMs = 60000;
-const collectorMaxEndingRetryAfterMs = 10000;
+/// Longest header value considered, in bytes after the trim (the engine's
+/// `kMaxRetryAfterHeaderBytes`). Longer values are ignored.
 const collectorMaxRetryAfterHeaderBytes = 128;
 
 /// Delay before retrying, in milliseconds, capped at [capMs]. Returns null when
 /// the header is missing or unparseable.
+///
+/// Trims ASCII whitespace only, as the engine does; a value that is empty or
+/// longer than [collectorMaxRetryAfterHeaderBytes] after the trim is ignored.
+/// A date relative to [now] (wall clock) in the past is zero.
 int? parseCollectorRetryAfterDelayMs(
   String? raw,
   DateTime now, {
-  int capMs = collectorMaxRetryAfterMs,
+  required int capMs,
 }) {
   if (raw == null) return null;
-  final value = raw.trim();
+  final value = _trimAsciiWhitespace(raw);
+  // Non-ASCII values never parse, so UTF-16 length stands in for bytes.
   if (value.isEmpty || value.length > collectorMaxRetryAfterHeaderBytes) {
     return null;
   }
@@ -25,6 +30,22 @@ int? parseCollectorRetryAfterDelayMs(
   final delay = date.difference(now).inMilliseconds;
   if (delay <= 0) return 0;
   return delay > capMs ? capMs : delay;
+}
+
+/// C `isspace` in the C locale: space, tab, LF, VT, FF, CR.
+bool _isAsciiWhitespace(int codeUnit) =>
+    codeUnit == 0x20 || (codeUnit >= 0x09 && codeUnit <= 0x0d);
+
+String _trimAsciiWhitespace(String raw) {
+  var start = 0;
+  var end = raw.length;
+  while (start < end && _isAsciiWhitespace(raw.codeUnitAt(start))) {
+    start++;
+  }
+  while (end > start && _isAsciiWhitespace(raw.codeUnitAt(end - 1))) {
+    end--;
+  }
+  return raw.substring(start, end);
 }
 
 int? _parseDeltaSecondsMs(String value, int capMs) {

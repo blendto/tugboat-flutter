@@ -4,9 +4,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/collector_retry_after.dart';
 
+import 'helpers/conformance_fixture.dart';
+
 void main() {
   final vectorsFile = File(
-    '${Directory.current.path}/../../../../conformance/retry_after_vectors.json',
+    '${findConformanceRoot().path}/$conformanceRetryAfterVectorsFile',
   );
 
   test('shared conformance vectors', () {

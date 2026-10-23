@@ -239,6 +239,7 @@ class ScenarioDelivery {
       client: client,
       identityDebounceDuration: collector.identityDebounce,
       debugNow: now,
+      debugElapsed: () => Duration(microseconds: scheduler.nowUs),
     );
   }
 
@@ -285,15 +286,16 @@ class ScenarioDelivery {
   /// flush 500 ms later; resumed and detached cancel it.
   void appLifecycle(String state) {
     if (!enabled) return;
-    if (state == 'paused' || state == 'hidden') {
-      _backgroundFlush?.cancel();
-      _backgroundFlush = Timer(const Duration(milliseconds: 500), () {
+    switch (state) {
+      case 'paused' || 'hidden':
+        _backgroundFlush?.cancel();
+        _backgroundFlush = Timer(const Duration(milliseconds: 500), () {
+          _backgroundFlush = null;
+          unawaited(sink.flush());
+        });
+      case 'resumed' || 'detached':
+        _backgroundFlush?.cancel();
         _backgroundFlush = null;
-        unawaited(sink.flush());
-      });
-    } else if (state == 'resumed' || state == 'detached') {
-      _backgroundFlush?.cancel();
-      _backgroundFlush = null;
     }
   }
 
@@ -344,8 +346,10 @@ ScenarioCollector scenarioCollector(
       maxPendingBatches: setting('maxPendingBatches', 20),
       maxPendingEvents: setting('maxPendingEvents', 60),
       maxPendingFrames: setting('maxPendingFrames', 20),
-      maxRetryAfterMs: setting('maxRetryAfterMs', 60000),
-      maxEndingRetryAfterMs: setting('maxEndingRetryAfterMs', 10000),
+      retryAfterCap: Duration(milliseconds: setting('maxRetryAfterMs', 60000)),
+      endingRetryAfterCap: Duration(
+        milliseconds: setting('maxEndingRetryAfterMs', 10000),
+      ),
     ),
     identityDebounce: Duration(
       milliseconds: setting('identityDebounceMs', 3000),
