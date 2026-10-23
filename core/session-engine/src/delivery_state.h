@@ -6,6 +6,7 @@
 #ifndef TUGBOAT_SESSION_ENGINE_DELIVERY_STATE_H
 #define TUGBOAT_SESSION_ENGINE_DELIVERY_STATE_H
 
+#include <array>
 #include <cstdint>
 #include <optional>
 
@@ -56,6 +57,9 @@ struct DeliveryState {
   FlushCursor pass;
   int64_t next_request = 0;  // `http-N`, per engine handle, never reset
   int64_t flush_deadline_us = 0;  // the periodic timer's current deadline
+  // Per-lane not-before mono time after a 429/503 `Retry-After` (index:
+  // lifecycle, events, frames).
+  std::array<int64_t, 3> lane_send_not_before_mono_us = {0, 0, 0};
 };
 
 }  // namespace engine

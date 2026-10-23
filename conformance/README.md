@@ -28,6 +28,7 @@ Three families of fixture:
 conformance/
   README.md
   change_ids.json                   section 11 change ids (not a fixture)
+  retry_after_vectors.json          shared Retry-After parser vectors (not a fixture)
   fingerprint/
     identity_parts/<name>.json      kind fingerprint.identityParts
     label_hash/<name>.json          kind fingerprint.labelHash

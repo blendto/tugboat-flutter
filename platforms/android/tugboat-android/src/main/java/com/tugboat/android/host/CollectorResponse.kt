@@ -13,17 +13,29 @@ internal object CollectorResponse {
     /** `transport.result.body` carries at most this many UTF-8 bytes. */
     const val MAX_BODY_BYTES = 64 * 1024
 
+    /** `transport.result.retryAfter` carries at most this many bytes. */
+    const val MAX_RETRY_AFTER_BYTES = 128
+
     val VALID_STATUSES = 100..599
+
+    /**
+     * The `Retry-After` value to forward: trimmed of ASCII whitespace (as the engine trims), or null
+     * when empty or longer than [MAX_RETRY_AFTER_BYTES] UTF-8 bytes.
+     */
+    fun forwardRetryAfter(raw: String?): String? {
+        val trimmed = raw?.trim { it == ' ' || it in '\t'..'\r' }?.takeIf { it.isNotEmpty() } ?: return null
+        return if (utf8Size(trimmed) <= MAX_RETRY_AFTER_BYTES) trimmed else null
+    }
 
     private const val TAG = "TugboatHttp"
 
     /** [TransportOutcome.Http] for a status the engine accepts, otherwise [TransportOutcome.Error]. */
-    fun outcome(status: Int, body: ByteArray): TransportOutcome {
+    fun outcome(status: Int, body: ByteArray, retryAfter: String? = null): TransportOutcome {
         if (status !in VALID_STATUSES) {
             Log.w(TAG, "collector answered with status $status; reporting a transport error")
             return TransportOutcome.Error
         }
-        return TransportOutcome.Http(status, text(body))
+        return TransportOutcome.Http(status, text(body), forwardRetryAfter(retryAfter))
     }
 
     /**

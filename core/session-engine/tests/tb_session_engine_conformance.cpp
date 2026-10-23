@@ -27,6 +27,7 @@
 #include "conformance/engine_client.h"
 #include "conformance/evidence_runner.h"
 #include "conformance/scenario_runner.h"
+#include "conformance_files.h"
 
 #ifndef TB_CONFORMANCE_DIR
 #error "TB_CONFORMANCE_DIR must point at <repo>/conformance"
@@ -237,6 +238,7 @@ int main(int argc, char** argv) {
     if (entry.is_regular_file() && entry.path().extension() == ".json") {
       std::string relative = fs::relative(entry.path(), root).generic_string();
       if (relative != conformance::kChangeIdsFile &&
+          relative != conformance::kRetryAfterVectorsFile &&
           relative.find(filter) != std::string::npos) {
         files.emplace_back(std::move(relative), entry.path());
       }

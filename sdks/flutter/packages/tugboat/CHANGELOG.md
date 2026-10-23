@@ -1,4 +1,4 @@
-## 0.10.11-dev.5
+## 0.10.11-dev.6
 
 Prerelease.
 
@@ -6,6 +6,38 @@ Prerelease.
 
 - Scene inventory hashes are computed by one internal helper, which the
   shared engine conformance fixtures also use. The hash is unchanged.
+
+## 0.10.11-dev.5
+
+Prerelease.
+
+### Added
+
+- `TugboatCollectorConfig.retryAfterCap` and
+  `TugboatCollectorConfig.endingRetryAfterCap` (`Duration`): the longest
+  collector `Retry-After` wait honoured, and the shorter cap for lifecycle
+  posts once `endSession` is called. Both are clamped to between zero and
+  24 hours; `Duration.zero` honours no hint. See the defaults table in
+  `docs/integration/collector.md`.
+
+### Changed
+
+- `CollectorHttpSink` honours collector `Retry-After` on HTTP 429 and 503 per
+  delivery lane (lifecycle, events, frames): a waiting lane skips sends until
+  its timer fires, at most `retryAfterCap` later (`endingRetryAfterCap` for
+  lifecycle while the session ends); the other lanes keep sending. When the
+  lifecycle lane resumes it sends every queued post, including a
+  `session_end` queued behind the waiting one. Fresh events not yet sent stay
+  queued while the events lane waits. Delta-seconds and IMF-fixdate forms are
+  accepted (ASCII whitespace trimmed); unparseable or oversize values are
+  ignored. Waits use a monotonic clock.
+- After `endSession`, a `session_end` with a retry outcome (transport error,
+  408, 429, 5xx) is re-posted on the periodic flush (`eventFlushInterval`)
+  until it is accepted or dropped. A dropped one (any other non-202 status)
+  is settled and never re-posted; either way the periodic flush then stops.
+  Once `session_end` is queued, an earlier post the collector dropped (for
+  example a rejected `session_start`) is settled too, so it cannot hold
+  `session_end` back.
 
 ## 0.10.11-dev.4
 

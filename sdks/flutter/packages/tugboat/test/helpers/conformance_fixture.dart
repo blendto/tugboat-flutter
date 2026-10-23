@@ -82,6 +82,7 @@ enum ConformanceRunner { cpp, dart }
 /// The list of docs/stateful-engine.md section 11 change ids, shared with
 /// the C++ runner. Not a fixture.
 const conformanceChangeIdsFile = 'change_ids.json';
+const conformanceRetryAfterVectorsFile = 'retry_after_vectors.json';
 
 /// Reads the section 11 change ids from `<root>/change_ids.json`.
 Set<String> readConformanceChangeIds(Directory root) {
@@ -120,9 +121,11 @@ List<File> listFixtureFiles(Directory root) {
       .listSync(recursive: true)
       .whereType<File>()
       .where((file) => file.path.endsWith('.json'))
-      .where(
-        (file) => fixtureRelativePath(root, file) != conformanceChangeIdsFile,
-      )
+      .where((file) {
+        final relative = fixtureRelativePath(root, file);
+        return relative != conformanceChangeIdsFile &&
+            relative != conformanceRetryAfterVectorsFile;
+      })
       .toList();
   files.sort((a, b) => a.path.compareTo(b.path));
   return files;

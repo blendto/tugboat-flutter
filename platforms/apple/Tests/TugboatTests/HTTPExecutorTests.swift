@@ -76,6 +76,35 @@ final class HTTPExecutorTests: XCTestCase {
     }
   }
 
+  func testRetryAfterHeaderIsForwardedOnTransportResult() {
+    StubURLProtocol.reset { _ in
+      .response(status: 429, headers: ["Retry-After": " 12 "], body: Data("{}".utf8))
+    }
+    guard case let .http(status, _, retryAfter)? = perform(json("{}")) else {
+      return XCTFail("expected HTTP outcome")
+    }
+    XCTAssertEqual(status, 429)
+    XCTAssertEqual(retryAfter, "12")
+  }
+
+  func testRetryAfterLongerThan128Utf8BytesIsDropped() {
+    let header = String(repeating: "😀", count: 65)
+    StubURLProtocol.reset { _ in
+      .response(status: 429, headers: ["Retry-After": header], body: Data("{}".utf8))
+    }
+    guard case let .http(status, _, retryAfter)? = perform(json("{}")) else {
+      return XCTFail("expected HTTP outcome")
+    }
+    XCTAssertEqual(status, 429)
+    XCTAssertNil(retryAfter)
+  }
+
+  func testRetryAfterTrimsAsciiWhitespaceOnly() {
+    XCTAssertEqual(CollectorResponse.forwardRetryAfter("\t5\r\n"), "5")
+    XCTAssertEqual(CollectorResponse.forwardRetryAfter("\u{00A0}5"), "\u{00A0}5")
+    XCTAssertNil(CollectorResponse.forwardRetryAfter(" \t "))
+  }
+
   func testStatusAndBodyPassThroughForRejections() {
     StubURLProtocol.reset { _ in .response(status: 400, headers: [:], body: Data("{\"error\":\"bad\"}".utf8)) }
     XCTAssertEqual(perform(json("{}")), .http(status: 400, body: "{\"error\":\"bad\"}"))
@@ -88,7 +117,7 @@ final class HTTPExecutorTests: XCTestCase {
         : .redirect(status: 302, location: "/elsewhere")
     }
     let outcome = perform(json("{}", timeoutMs: 2_000))
-    guard case let .http(status, _)? = outcome else {
+    guard case let .http(status, _, _)? = outcome else {
       return XCTFail("expected the 302, got \(String(describing: outcome))")
     }
     XCTAssertEqual(status, 302)
@@ -115,7 +144,7 @@ final class HTTPExecutorTests: XCTestCase {
     StubURLProtocol.reset { _ in
       .response(status: 202, headers: [:], body: Data(String(repeating: "x", count: 100 * 1024).utf8))
     }
-    guard case let .http(status, body)? = perform(json("{}")) else {
+    guard case let .http(status, body, _)? = perform(json("{}")) else {
       return XCTFail("expected an HTTP outcome")
     }
     XCTAssertEqual(status, 202)
