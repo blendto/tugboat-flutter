@@ -17,6 +17,7 @@
 #define TUGBOAT_SESSION_ENGINE_CAPTURE_EXECUTION_H
 
 #include <optional>
+#include <string>
 
 #include "capture_scheduler.h"
 #include "capture_types.h"
@@ -81,12 +82,18 @@ enum class CapturedDisposition {
   kAccepted,       // a new frame
 };
 
+struct CapturedClassification {
+  CapturedDisposition disposition = CapturedDisposition::kAccepted;
+  // `kContentReused`: the retained frame to reuse; empty otherwise.
+  std::string reuse_frame_id;
+};
+
 // Dart `_reusePhysicalCaptureResult`. A perceptual match counts only when
 // the engine offered a baseline and the host reports that baseline's dHash
 // under the same visible structure.
-CapturedDisposition classify_captured(const FrameStore& frames,
-                                      const InFlightCapture& capture,
-                                      const CapturedFrame& frame);
+CapturedClassification classify_captured(const FrameStore& frames,
+                                         const InFlightCapture& capture,
+                                         const CapturedFrame& frame);
 
 // Dart `_executionForCaptureWaiter`: a waiter keeps the frame only when it
 // is compatible with the waiter's own context.

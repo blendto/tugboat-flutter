@@ -325,7 +325,9 @@ ExecutionResult CaptureSeam::execute_captured(EngineState* state,
                                               const InFlightCapture& flight,
                                               const CapturedFrame& frame) {
   const RequestContext& context = flight.capture.context;
-  switch (classify_captured(frames_, flight, frame)) {
+  const CapturedClassification classification =
+      classify_captured(frames_, flight, frame);
+  switch (classification.disposition) {
     case CapturedDisposition::kCoalesced: {
       release(frame, out);
       // The baselines stay those of the frame that is referenced.
@@ -338,9 +340,7 @@ ExecutionResult CaptureSeam::execute_captured(EngineState* state,
       release(frame, out);
       ExecutionResult reused;
       reused.outcome = CaptureOutcome::kExactContentReused;
-      reused.frame_id = frames_.reuse(
-          *frames_.frame_with_content(frame.content_hash, frame.mask_coverage),
-          context);
+      reused.frame_id = frames_.reuse(classification.reuse_frame_id, context);
       reused.reuse_reason = std::string("content_hash");
       frames_.commit_baselines(frame);
       return with_backend(std::move(reused), frame);

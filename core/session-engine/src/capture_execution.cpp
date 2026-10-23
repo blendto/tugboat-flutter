@@ -60,13 +60,15 @@ CaptureOutcome failure_outcome(const std::optional<CaptureFailure>& failure) {
   return CaptureOutcome::kCaptureProcessingFailed;
 }
 
-CapturedDisposition classify_captured(const FrameStore& frames,
-                                      const InFlightCapture& capture,
-                                      const CapturedFrame& frame) {
+CapturedClassification classify_captured(const FrameStore& frames,
+                                         const InFlightCapture& capture,
+                                         const CapturedFrame& frame) {
+  CapturedClassification classification;
   const std::optional<DHashBaseline>& baseline = capture.baseline;
   if (baseline && frame.dhash == baseline->dhash &&
       frame.structure_signature == baseline->structure_signature) {
-    return CapturedDisposition::kCoalesced;
+    classification.disposition = CapturedDisposition::kCoalesced;
+    return classification;
   }
   const ScheduledCapture& scheduled = capture.capture;
   // Change C21: only a frame masked with the same coverage is the same
@@ -76,9 +78,10 @@ CapturedDisposition classify_captured(const FrameStore& frames,
   if (!scheduled.force &&
       scheduled.freshness == CaptureFreshness::kReusable && existing &&
       frames.is_compatible(*existing, scheduled.context)) {
-    return CapturedDisposition::kContentReused;
+    classification.disposition = CapturedDisposition::kContentReused;
+    classification.reuse_frame_id = *existing;
   }
-  return CapturedDisposition::kAccepted;
+  return classification;
 }
 
 ExecutionResult for_waiter(const FrameStore& frames,
