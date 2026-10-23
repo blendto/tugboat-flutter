@@ -68,7 +68,7 @@ enum ViewTree {
   /// `.tugboatSensitive` marker (so marking a view never shifts ordinals).
   static func isExcludedFromIdentity(_ node: ViewNode) -> Bool {
     let view = node.view
-    return node.kind == .sdkOwned || node.kind == .sensitiveMarker || view.isHidden || view.alpha <= 0.01
+    return node.kind.isTugboatMarker || view.isHidden || view.alpha <= 0.01
       || view.bounds.width <= 0 || view.bounds.height <= 0
   }
 

@@ -18,6 +18,13 @@ extension ViewKind {
     }
   }
 
+  /// A view a Tugboat modifier added (`.tugboatTag`, `.tugboatSensitive`
+  /// markers and their hosts): never part of identity. Masks still meet a
+  /// sensitive marker (`WindowMasks.maskOrWalk`).
+  var isTugboatMarker: Bool {
+    self == .sdkOwned || self == .sensitiveMarker
+  }
+
   /// Kinds an untagged tap can resolve to. A nested hosting view is a path
   /// segment, never a target on its own.
   var isTarget: Bool {

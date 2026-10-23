@@ -91,8 +91,8 @@ their whole bounds because the SDK cannot see inside them.
 **Every toolkit, every mode:** a `tugboatSensitive` mark adds the marked
 bounds to the union above. Views: the view and each view below it outside
 those bounds. Compose (both modes; already covered by `WholeHost`): the
-node and each semantics node below it outside those bounds, read from the
-unmerged tree. SwiftUI: the marker host's frame, met by the same view walk
+element's registered bounds (it adds no semantics node), and each unmerged
+semantics node whose layout ancestry holds the element, outside those bounds. SwiftUI: the marker host's frame, met by the same view walk
 before any layer-allowlist decision. A mark never removes a rect and never
 enters identity (section 6).
 

@@ -12,6 +12,10 @@ extension View {
   /// The frame is this view's layout frame; drawing that overflows it (a
   /// shadow, an offset overlay) is masked only if something else masks it.
   /// Remove the modifier to stop masking; it has no `false` form.
+  ///
+  /// Applied to a hosting controller's root view, it changes that
+  /// controller's type and so its route key (like any modifier there): apply
+  /// it inside the root view's body, or name the screen with `.tugboatScreen`.
   public func tugboatSensitive() -> some View {
     modifier(TugboatSensitiveModifier())
   }

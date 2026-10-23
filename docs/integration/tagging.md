@@ -155,8 +155,8 @@ same with or without it.
 | Platform | What is masked | Notes |
 | --- | --- | --- |
 | Flutter | The widget's subtree | `TugboatSensitive(child: ...)` or `.tugboatSensitive()`. |
-| SwiftUI | The view's layout frame | Masked by the same view walk as every other mask, so in every mask mode. Drawing outside the frame (an offset overlay, a shadow) is not covered by the mark. |
-| Compose | The node and every semantics node below it, each at its own unclipped bounds | Under the default `WholeHost` the host is already masked whole. Drawing with no semantics node of its own that lands outside the marked bounds is not covered. |
+| SwiftUI | The view's layout frame | Masked by the same view walk as every other mask, so in every mask mode. Drawing outside the frame (an offset overlay, a shadow) is not covered by the mark. Applied to a hosting controller's root view, it changes that controller's type and so its route key (like any modifier there): apply it inside the root view's body, or name the screen with `.tugboatScreen`. |
+| Compose | The element's bounds at its place in the modifier chain, and every semantics node laid out inside it, each at its own unclipped bounds | It adds no semantics node, so list items, scroll targets and scene inventory are unchanged too, and `clearAndSetSemantics` on the same element does not remove it. Under the default `WholeHost` the host is already masked whole. Drawing with no semantics node of its own that lands outside the marked bounds is not covered. |
 | Views | The view and every view below it, each at its own bounds | A subview drawn outside its marked parent is masked at its own bounds. |
 
 There is no un-mark on Views: a marked view stays marked for its lifetime,

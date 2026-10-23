@@ -130,8 +130,8 @@ frame. `CaptureResult.maskSnapshot` returns what was applied.
 The native SDK adapters (Android Views, Compose, SwiftUI) build these rects
 from their mask sources. A developer `tugboatSensitive` mark adds the
 marked view's bounds (Views and Compose: also each view or semantics node
-below it that lies outside them) in every mask mode, during the same
-synchronous mask walk. It only adds rects, never removes one, and is not an
+laid out inside it that lies outside them) in every mask mode, during the
+same synchronous mask walk. The Compose mark adds no semantics node. It only adds rects, never removes one, and is not an
 identity input ([tagging](../integration/tagging.md#sensitive-content-always-masked)).
 
 ## Coverage
