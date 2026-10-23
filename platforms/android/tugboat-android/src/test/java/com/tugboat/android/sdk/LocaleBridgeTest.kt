@@ -19,10 +19,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
+@Config(application = CallbackCountingApplication::class)
 class LocaleBridgeTest {
-    private val application = RuntimeEnvironment.getApplication() as Application
+    private val application = RuntimeEnvironment.getApplication() as CallbackCountingApplication
     private val config = TugboatConfig(
         collector = CollectorConfig("http://10.0.2.2:3000", "key"),
         app = AppInfo("Sample", "1.0.0", "1", "com.example.sample", "install-1"),
@@ -64,8 +66,11 @@ class LocaleBridgeTest {
     @Test
     fun localeObserverUnregistersOnStop() {
         val transport = FakeEngineTransport()
+        val callbacksBefore = application.componentCallbackCount()
         val runtime = TugboatRuntime.start(application, config, sessionEpoch = 0, openTransport = { transport })!!
+        assertTrue(application.componentCallbackCount() > callbacksBefore)
         runtime.stop()
+        assertEquals(callbacksBefore, application.componentCallbackCount())
 
         val frConfig = Configuration(application.resources.configuration)
         frConfig.setLocales(LocaleList(Locale.GERMANY))

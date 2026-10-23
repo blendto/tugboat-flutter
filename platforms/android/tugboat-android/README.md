@@ -41,9 +41,13 @@ view.tugboatTag = "checkout"                  // developer alias
 - Every method can be called from any thread; the work runs on the main
   thread in call order. Nothing throws into the app: failures are logged
   (tag `Tugboat`) and capture stops.
-- `TugboatConfig.enabled` (default `true`): when `false`, `start` installs
-  nothing (no engine, lifecycle, window callbacks, or threads) and every
-  public API is a no-op; the host app is unchanged.
+- `TugboatConfig.enabled` (default `true`): when `false`, Tugboat itself
+  registers nothing (no engine, lifecycle observers, window callbacks, or
+  threads) and every public API is a no-op; the host app is unchanged. The
+  `androidx.lifecycle:lifecycle-process` dependency still merges AndroidX App
+  Startup's `ProcessLifecycleInitializer` at process launch (before
+  `Tugboat.start`); remove it with `tools:node="remove"` on that provider if
+  you need to.
 - Call `start` once per process, from `Application.onCreate`. It is
   idempotent while started. It **refuses to start** (and logs the missing
   paths) when a field the collector requires on `session_start` is blank:
@@ -60,9 +64,10 @@ view.tugboatTag = "checkout"                  // developer alias
 - When the app's primary locale changes (`Application.onConfigurationChanged`),
   the SDK posts `locale.set` with the same locale JSON shape as `session.start`
   (deduped; unregistered on `stop`). Locale is evidence, not identity.
-- There is no on-device health snapshot API: the engine has no health surface;
-  count `capture_diagnostic` events instead (as Flutter's bounded counters do,
-  not as records).
+- There is no on-device health snapshot API: the engine has no health surface.
+  With `captureDiagnostics` enabled, bounded `capture_diagnostic` events match
+  Flutter's counters; without it, only host-failure and first secure-window
+  diagnostics are recorded, so counting events understates capture problems.
 - `trackNavigation` needs `androidx.navigation` in the app (`compileOnly`
   here). Destination route patterns without arguments (else the id's entry
   name) become route keys for the controller's activity, and each

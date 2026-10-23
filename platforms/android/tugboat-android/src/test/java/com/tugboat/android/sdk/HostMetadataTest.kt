@@ -110,7 +110,15 @@ class HostMetadataTest {
 
     @Test
     fun sessionStartCarriesViewportPlatformEpochAndLocale() {
-        val start = JSONObject(SessionMessages.sessionStart(device, HostMetadata(app, device), sessionEpoch = 2))
+        val start = JSONObject(
+            SessionMessages.sessionStart(
+                device,
+                HostMetadata(app, device),
+                sessionEpoch = 2,
+                activationRequestId = null,
+                explorationRunId = null,
+            ),
+        )
 
         assertEquals(setOf("viewport", "platform", "sessionEpoch", "locale"), start.keySet())
         assertEquals(914.3, start.getJSONObject("viewport").getDouble("height"), 0.0)
@@ -160,6 +168,21 @@ class HostMetadataTest {
         )
         assertEquals("act-9", start.getString("activationRequestId"))
         assertEquals("run-3", start.getString("explorationRunId"))
+    }
+
+    @Test
+    fun sessionStartOmitsBlankActivationAndExplorationIds() {
+        val start = JSONObject(
+            SessionMessages.sessionStart(
+                device,
+                HostMetadata(app, device),
+                sessionEpoch = 0,
+                activationRequestId = "",
+                explorationRunId = "   ",
+            ),
+        )
+        assertFalse(start.has("activationRequestId"))
+        assertFalse(start.has("explorationRunId"))
     }
 
     private fun JSONObject.keySet(): Set<String> = keys().asSequence().toSet()

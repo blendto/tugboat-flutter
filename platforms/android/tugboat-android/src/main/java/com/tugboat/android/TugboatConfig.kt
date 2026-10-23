@@ -21,9 +21,15 @@ data class TugboatConfig @JvmOverloads constructor(
     val captureSystemInput: Boolean = false,
     /** Records bounded `capture_diagnostic` events (engine capability `captureDiagnostics`). */
     val captureDiagnostics: Boolean = false,
-    /** Passed on `session.start` when set; omitted when null. */
+    /**
+     * Passed on `session.start` when non-blank; omitted when null or blank
+     * (blank is normalised to omitted, not sent as `""`).
+     */
     val activationRequestId: String? = null,
-    /** Passed on `session.start` when set; omitted when null. */
+    /**
+     * Passed on `session.start` when non-blank; omitted when null or blank
+     * (blank is normalised to omitted, not sent as `""`).
+     */
     val explorationRunId: String? = null,
 )
 

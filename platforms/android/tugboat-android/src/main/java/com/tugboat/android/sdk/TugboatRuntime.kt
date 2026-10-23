@@ -93,7 +93,6 @@ internal class TugboatRuntime private constructor(
             openTransport: () -> EngineTransport? = { JniEngineTransport.open() },
             stopSequence: StopSequence = StopSequence(),
         ): TugboatRuntime? {
-            if (!config.enabled) return null
             val device = DeviceSnapshot.read(application)
             val metadata = HostMetadata(config.app, device)
             val missing = metadata.missingFields() + collectorProblems(config)
@@ -172,9 +171,9 @@ internal class TugboatRuntime private constructor(
             })
             val localeBridge = LocaleBridge(
                 application = application,
+                initial = device.locale,
                 post = { input -> host.post(SessionMessages.LOCALE_SET, input, clock.now()) },
             )
-            localeBridge.seedInitial(device.locale)
             val evidence = EvidenceRecorder(clock, EngineEvidenceEncoder, hostRunning = { host.isRunning }, post = host::post)
             adapter.start()
             foreground.start()
@@ -184,3 +183,5 @@ internal class TugboatRuntime private constructor(
         }
     }
 }
+
+internal fun String?.normalizedSessionId(): String? = this?.takeIf { it.isNotBlank() }

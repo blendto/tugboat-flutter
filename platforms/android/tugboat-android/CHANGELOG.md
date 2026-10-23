@@ -38,7 +38,8 @@ wiring, window capture, and the Android Views adapter.
 - Engine wiring: `engine.configure` with every `session_start` field the
   collector requires (start is refused and logged when one is blank),
   `limits`, the adapter's `gesture`, `capture.answerTimeoutMs` 5000,
-  `collector.enabled`, `focusChanges` / `systemInput` capabilities;
+  `collector.enabled`, `focusChanges` / `systemInput` / `captureDiagnostics`
+  capabilities;
   `session.start`; `ProcessLifecycleOwner` to `app.lifecycle`
   (`androidx.lifecycle:lifecycle-process`, the one new runtime dependency);
   `identity.set` / `traits.set`; adapter facts as per-frame batches with

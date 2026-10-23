@@ -16,21 +16,19 @@ internal object SessionMessages {
         device: DeviceSnapshot,
         host: HostMetadata,
         sessionEpoch: Int,
-        activationRequestId: String? = null,
-        explorationRunId: String? = null,
+        activationRequestId: String?,
+        explorationRunId: String?,
     ): String =
         JSONObject()
             .put("viewport", JSONObject().put("width", device.screenWidthDp).put("height", device.screenHeightDp))
             .put("platform", HostMetadata.PLATFORM)
             .put("sessionEpoch", sessionEpoch)
             .put("locale", host.sessionLocaleJson())
-            .also { json ->
-                activationRequestId?.let { json.put("activationRequestId", it) }
-                explorationRunId?.let { json.put("explorationRunId", it) }
-            }
+            .putOpt("activationRequestId", activationRequestId.normalizedSessionId())
+            .putOpt("explorationRunId", explorationRunId.normalizedSessionId())
             .toString()
 
-    fun localeSet(locale: org.json.JSONObject): String = JSONObject().put("locale", locale).toString()
+    fun localeSet(locale: JSONObject): String = JSONObject().put("locale", locale).toString()
 
     fun sessionEnd(): String = JSONObject().put("reason", "session_end").toString()
 

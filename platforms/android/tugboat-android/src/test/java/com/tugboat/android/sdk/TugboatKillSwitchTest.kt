@@ -4,11 +4,21 @@ import android.app.Activity
 import android.app.Application
 import android.os.Looper
 import android.view.Window
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.navigation.NavController
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestinationBuilder
+import androidx.navigation.Navigator
+import androidx.navigation.createGraph
+import androidx.navigation.testing.TestNavHostController
 import com.tugboat.android.AppInfo
 import com.tugboat.android.CollectorConfig
 import com.tugboat.android.Tugboat
 import com.tugboat.android.TugboatConfig
 import com.tugboat.android.host.FakeEngineTransport
+import com.tugboat.android.views.callback.CallbackChain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -18,36 +28,45 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 
 /** [TugboatConfig.enabled] = false installs nothing and leaves the host unchanged. */
 @RunWith(RobolectricTestRunner::class)
+@Config(application = CallbackCountingApplication::class)
 class TugboatKillSwitchTest {
-    private val application = RuntimeEnvironment.getApplication() as Application
-    private val config = TugboatConfig(
+    private val application = RuntimeEnvironment.getApplication() as CallbackCountingApplication
+    private val disabledConfig = TugboatConfig(
         collector = CollectorConfig("http://10.0.2.2:3000", "key"),
         app = AppInfo("Sample", "1.0.0", "1", "com.example.sample", "install-1"),
         enabled = false,
     )
+    private val enabledConfig = disabledConfig.copy(enabled = true)
+
+    @After
+    fun tearDown() {
+        Tugboat.stop()
+        Tugboat.openTransportForTesting = null
+        shadowOf(Looper.getMainLooper()).idle()
+    }
 
     @Test
-    fun disabledConfigDoesNotOpenTheEngine() {
+    fun disabledStartDoesNotOpenTheEngine() {
         var opened = false
-        val runtime = TugboatRuntime.start(
-            application,
-            config,
-            sessionEpoch = 0,
-            openTransport = {
-                opened = true
-                FakeEngineTransport()
-            },
-        )
-        assertTrue(runtime == null && !opened)
+        Tugboat.openTransportForTesting = {
+            opened = true
+            FakeEngineTransport()
+        }
+        Tugboat.start(application, disabledConfig)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(!opened)
     }
 
     @Test
     fun disabledStartRegistersNoActivityLifecycleCallbacks() {
         val before = activityLifecycleCallbackCount(application)
-        Tugboat.start(application, config)
+        Tugboat.openTransportForTesting = { FakeEngineTransport() }
+        Tugboat.start(application, disabledConfig)
+        shadowOf(Looper.getMainLooper()).idle()
         Tugboat.stop()
         assertEquals(before, activityLifecycleCallbackCount(application))
     }
@@ -55,30 +74,88 @@ class TugboatKillSwitchTest {
     @Test
     fun enabledStartRegistersActivityLifecycleCallbacks() {
         val before = activityLifecycleCallbackCount(application)
-        val runtime = TugboatRuntime.start(
-            application,
-            config.copy(enabled = true),
-            sessionEpoch = 0,
-            openTransport = { FakeEngineTransport() },
-            stopSequence = StopSequence(maxDrainMs = 10),
-        )
-        assertTrue(runtime != null)
+        Tugboat.openTransportForTesting = { FakeEngineTransport() }
+        Tugboat.start(application, enabledConfig)
+        shadowOf(Looper.getMainLooper()).idle()
         assertTrue(activityLifecycleCallbackCount(application) > before)
-        runtime!!.stop()
+        Tugboat.stop()
+    }
+
+    @Test
+    fun disabledStartRegistersNoComponentCallbacksOrProcessLifecycleObservers() {
+        val callbacksBefore = application.componentCallbackCount()
+        val observersBefore = processLifecycleObserverCount()
+        Tugboat.openTransportForTesting = { FakeEngineTransport() }
+        Tugboat.start(application, disabledConfig)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(callbacksBefore, application.componentCallbackCount())
+        assertEquals(observersBefore, processLifecycleObserverCount())
+        Tugboat.stop()
+    }
+
+    @Test
+    fun enabledStartRegistersComponentCallbacksAndProcessLifecycleObservers() {
+        val callbacksBefore = application.componentCallbackCount()
+        val observersBefore = processLifecycleObserverCount()
+        Tugboat.openTransportForTesting = { FakeEngineTransport() }
+        Tugboat.start(application, enabledConfig)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(application.componentCallbackCount() > callbacksBefore)
+        assertTrue(processLifecycleObserverCount() > observersBefore)
+        Tugboat.stop()
     }
 
     @Test
     fun disabledStartLeavesTheWindowCallbackUntouched() {
-        val controller = Robolectric.buildActivity(Activity::class.java).create().start().resume()
-        val window: Window = controller.get().window
-        val original = window.callback
-
-        Tugboat.start(application, config)
+        Tugboat.openTransportForTesting = { FakeEngineTransport() }
+        Tugboat.start(application, disabledConfig)
         shadowOf(Looper.getMainLooper()).idle()
 
-        assertSame(original, window.callback)
+        val controller = Robolectric.buildActivity(Activity::class.java).create().start().resume()
+        val window: Window = controller.get().window
+        assertSame(controller.get(), window.callback)
+
         Tugboat.stop()
     }
+
+    @Test
+    fun enabledStartWrapsTheWindowCallback() {
+        Tugboat.openTransportForTesting = { FakeEngineTransport() }
+        Tugboat.start(application, enabledConfig)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val activity = Robolectric.buildActivity(Activity::class.java).create().start().resume().get()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(1, CallbackChain.countTugboat(activity.window.callback))
+
+        Tugboat.stop()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertSame(activity, activity.window.callback)
+    }
+
+    @Test
+    fun disabledStartThenTrackNavigationAddsNoDestinationListener() {
+        Tugboat.openTransportForTesting = { FakeEngineTransport() }
+        Tugboat.start(application, disabledConfig)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val controller = testNavController()
+        val before = destinationListenerCount(controller)
+        Tugboat.trackNavigation(controller)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(before, destinationListenerCount(controller))
+
+        Tugboat.stop()
+    }
+
+    private fun testNavController(): NavController =
+        TestNavHostController(application).apply {
+            graph = createGraph(startDestination = "home") {
+                val navigator = provider.getNavigator<Navigator<NavDestination>>("test")
+                destination(NavDestinationBuilder(navigator, "home"))
+                destination(NavDestinationBuilder(navigator, "away"))
+            }
+        }
 
     private fun activityLifecycleCallbackCount(application: Application): Int {
         val field = Application::class.java.getDeclaredField("mActivityLifecycleCallbacks")
@@ -87,4 +164,15 @@ class TugboatKillSwitchTest {
         return (field.get(application) as? ArrayList<*>)?.size ?: 0
     }
 
+    private fun processLifecycleObserverCount(): Int {
+        val registry = ProcessLifecycleOwner.get().lifecycle as LifecycleRegistry
+        return registry.observerCount
+    }
+
+    private fun destinationListenerCount(controller: NavController): Int {
+        val field = NavController::class.java.getDeclaredField("onDestinationChangedListeners")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        return (field.get(controller) as? Collection<*>)?.size ?: 0
+    }
 }

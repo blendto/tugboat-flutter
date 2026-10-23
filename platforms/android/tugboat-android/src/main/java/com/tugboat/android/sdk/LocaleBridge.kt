@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ComponentCallbacks
 import android.content.res.Configuration
 import com.tugboat.android.views.AdapterGuard
+import java.util.Locale
 
 /**
  * Posts `locale.set` when the app's primary locale changes
@@ -12,14 +13,11 @@ import com.tugboat.android.views.AdapterGuard
  */
 internal class LocaleBridge(
     private val application: Application,
+    initial: Locale,
     private val post: (input: String) -> Unit,
 ) : ComponentCallbacks {
     private var observing = false
-    private var lastTag: String? = null
-
-    fun seedInitial(locale: java.util.Locale) {
-        lastTag = locale.toLanguageTag()
-    }
+    private var lastTag: String? = initial.toLanguageTag()
 
     fun start() = AdapterGuard.run("locale start") {
         if (observing) return@run
