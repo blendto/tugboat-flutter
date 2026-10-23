@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import com.tugboat.android.toolkit.MaskCoverageReason
 import com.tugboat.android.toolkit.RegionMasks
+import com.tugboat.android.toolkit.SensitiveRects
 import com.tugboat.android.views.identity.ViewGeometry
 import com.tugboat.android.views.identity.ViewTags
 import com.tugboat.android.views.region.RegionHost
@@ -34,10 +35,9 @@ internal class MaskWalk(private val decor: View) {
 
     /**
      * [sensitive] is true below a `tugboatSensitive` view; [cover] is the
-     * last sensitive rect added above [view]. Each view adds at most one rect
-     * of its own bounds: as a mask source, or as sensitive content outside
-     * [cover] (a sensitive `TextView` is masked once, and a child inside its
-     * sensitive parent adds nothing new).
+     * last sensitive rect added above [view] ([SensitiveRects]). A region
+     * host is asked for its masks first, so a whole-host answer counts as the
+     * host's own mask source and is added once.
      */
     private fun collect(view: View, sensitive: Boolean, cover: RectF?) {
         if (wholeFrameReason != null) return
@@ -45,16 +45,16 @@ internal class MaskWalk(private val decor: View) {
         if (isHidden(view)) return
         val marked = sensitive || ViewTags.isSensitive(view)
         val region = Regions.regionOf(view)
+        val regionMasks = region?.let { RegionHost(view, it) }?.let(::regionMasks)
         val source = if (region == null) WindowMasks.sourceOf(view) else null
-        val bounds = if (source != null || marked) ViewGeometry.boundsIn(decor, view) else null
-        val covered = bounds != null && cover?.contains(bounds) == true
-        val masked = bounds != null && (source != null || (marked && !covered))
-        if (masked) bounds?.let(::add)
-        if (region != null) return region(RegionHost(view, region), boundsMasked = masked)
+        val isSource = source != null || regionMasks is RegionMasks.WholeHost
+        val bounds = if (isSource || marked) ViewGeometry.boundsIn(decor, view) else null
+        val step = SensitiveRects.step(marked, isSource, bounds, cover)
+        if (step.addsRect && bounds != null) add(bounds)
+        if (regionMasks != null) return applyRegion(view, regionMasks)
         if (source == MaskSource.FailClosed) return failClosed(view)
         if (view is ViewGroup) {
-            val childCover = if (marked && !covered) bounds else cover
-            for (i in 0 until view.childCount) collect(view.getChildAt(i), marked, childCover)
+            for (i in 0 until view.childCount) collect(view.getChildAt(i), marked, step.childCover)
         }
     }
 
@@ -62,19 +62,22 @@ internal class MaskWalk(private val decor: View) {
 
     fun structureSignature(): String = structure.value()
 
-    /** [boundsMasked]: the host's own bounds are already a rect (it is sensitive). */
-    private fun region(host: RegionHost, boundsMasked: Boolean) {
+    private fun regionMasks(host: RegionHost): RegionMasks {
         metRegionHost = true
-        when (val masks = host.masks()) {
+        return host.masks()
+    }
+
+    /** A region's answer; its whole-host bounds were already added in [collect]. */
+    private fun applyRegion(view: View, masks: RegionMasks) {
+        when (masks) {
             is RegionMasks.WholeFrame -> wholeFrameReason = masks.reason
             is RegionMasks.WholeHost -> {
                 wholeHost = true
                 reasons += masks.reason
-                if (!boundsMasked) ViewGeometry.boundsIn(decor, host.view)?.let(::add)
             }
             is RegionMasks.Rects -> {
                 reasons += masks.reasons
-                for (rect in masks.rects) ViewGeometry.mapRect(decor, host.view, rect)?.let(::add)
+                for (rect in masks.rects) ViewGeometry.mapRect(decor, view, rect)?.let(::add)
             }
         }
     }

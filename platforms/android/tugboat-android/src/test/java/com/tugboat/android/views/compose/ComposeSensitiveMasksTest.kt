@@ -16,7 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
@@ -94,18 +96,25 @@ class ComposeSensitiveMasksTest {
         assertTrue(isMasked(masks(), "chip"))
     }
 
+    /** The marked box has no semantics node; the child is found through its layout ancestry. */
     @Test
     fun aDescendantPlacedOutsideTheSensitiveNodeIsMasked() {
         compose.setContent {
-            Box(Modifier.size(40.dp).tugboatSensitive().testTag("parent")) {
-                Box(Modifier.offset(y = 60.dp).size(40.dp).background(Color.Red).clickable {}.testTag("child"))
+            Box(Modifier.fillMaxSize()) {
+                Box(Modifier.size(40.dp).tugboatSensitive()) {
+                    Box(Modifier.offset(y = 60.dp).size(40.dp).background(Color.Red).clickable {}.testTag("child"))
+                }
             }
         }
         val result = masks()
-        assertTrue(isMasked(result, "parent"))
-        // Semantics bounds clip the child to its parent, so its drawn area is computed: 60-100 dp below the parent's top.
-        val parent = compose.onNodeWithTag("parent", useUnmergedTree = true).node.boundsInWindow
-        val drawn = with(compose.density) { Rect(parent.left, parent.top + 60.dp.toPx(), parent.left + 40.dp.toPx(), parent.top + 100.dp.toPx()) }
+        // Semantics bounds clip the child to its parent, so both areas come from the child's layout position.
+        val origin = compose.onNodeWithTag("child", useUnmergedTree = true).node.layoutInfo.coordinates.positionInWindow()
+        val (drawn, parent) = with(compose.density) {
+            val side = 40.dp.toPx()
+            Rect(origin.x, origin.y, origin.x + side, origin.y + side) to
+                Rect(origin.x, origin.y - 60.dp.toPx(), origin.x + side, origin.y - 60.dp.toPx() + side)
+        }
+        assertTrue("the marked box at $parent: ${result.rects}", covered(result.rects, parent, compose.activity.decor))
         assertTrue("the child drawn outside its sensitive parent at $drawn: ${result.rects}", covered(result.rects, drawn, compose.activity.decor))
     }
 
@@ -116,7 +125,27 @@ class ComposeSensitiveMasksTest {
         assertTrue(isMasked(before, "text"))
         compose.runOnUiThread { marked.value = true }
         compose.waitForIdle()
-        assertEquals("no duplicate and no removed rect", before.rects, masks().rects)
+        val after = masks()
+        assertTrue(isMasked(after, "text"))
+        assertEquals("the text is masked once, not once as text and again as sensitive: ${after.rects}", before.rects.size, after.rects.size)
+    }
+
+    /** `clearAndSetSemantics` drops semantics set inside it on the same node; the mark is not semantics, so both orders mask. */
+    @Test
+    fun aMarkBesideClearAndSetSemanticsIsMaskedInEitherOrder() {
+        compose.setContent {
+            Column {
+                Box(Modifier.testTag("outer")) {
+                    Image(ColorPainter(Color.Red), null, Modifier.size(40.dp).clearAndSetSemantics {}.tugboatSensitive())
+                }
+                Box(Modifier.testTag("inner")) {
+                    Image(ColorPainter(Color.Blue), null, Modifier.size(40.dp).tugboatSensitive().clearAndSetSemantics {})
+                }
+            }
+        }
+        val result = masks()
+        assertTrue("clearAndSetSemantics outside the mark: ${result.rects}", isMasked(result, "outer"))
+        assertTrue("clearAndSetSemantics inside the mark: ${result.rects}", isMasked(result, "inner"))
     }
 
     @Test
