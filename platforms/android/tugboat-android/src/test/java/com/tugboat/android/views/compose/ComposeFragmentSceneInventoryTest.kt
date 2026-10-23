@@ -76,7 +76,7 @@ class ComposeFragmentSceneInventoryTest {
         val host = composeHost(activity.window.decorView)
         if (host == null) return fail("expected a Compose host")
 
-        adapter.onCapturedFrame(activity.window, "structure-1")
+        adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = true)
         frames.runFrame()
         val inventory = sink.batches.flatten().single { it.type == "scene.inventory" }.let { JSONObject(it.inputJson) }
         sink.batches.clear()

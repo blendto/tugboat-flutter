@@ -10,6 +10,7 @@ import android.widget.LinearLayout
 import com.tugboat.android.views.FixedRoutes
 import com.tugboat.android.views.identity.AnchorResolver
 import com.tugboat.android.views.identity.AndroidResourceNames
+import com.tugboat.android.views.identity.IdCounts
 import com.tugboat.android.views.layOut
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -28,7 +29,8 @@ class SceneInventoryBuilderTest {
     private val routes = FixedRoutes(root)
     private val names = AndroidResourceNames(activity.resources)
     private val anchors = AnchorResolver(names, routes)
-    private val builder = SceneInventoryBuilder(names, routes, anchors)
+    private var idWalks = 0
+    private val builder = SceneInventoryBuilder(names, routes, anchors, newIdCounts = { IdCounts { idWalks++ } })
 
     @Test
     fun tappedControlFingerprintAppearsInInventory() {
@@ -71,7 +73,7 @@ class SceneInventoryBuilderTest {
         val inventory = build()
 
         assertEquals(FRAMEWORK_IDS.size, inventory.getJSONArray("elements").length())
-        assertEquals(1, anchors.idCountWalks)
+        assertEquals(1, idWalks)
         // A unique id is still the element's alias, as on its tap anchor.
         val alias = anchors.anchorFor(column.getChildAt(0), root.rootView)?.tagFingerprint
         assertEquals(listOf(alias), aliases(elements(inventory).first()))
@@ -102,7 +104,7 @@ class SceneInventoryBuilderTest {
     }
 
     private fun build(limit: Int = SceneInventoryBuilder.MAX_ELEMENTS): JSONObject {
-        val inventory = builder.build(root.rootView, routes.routeFor(root), limit)
+        val inventory = builder.build(root.rootView, routes.routeFor(root).value, limit)
         assertTrue("expected a scene inventory", inventory != null)
         return inventory?.toJson() ?: JSONObject()
     }

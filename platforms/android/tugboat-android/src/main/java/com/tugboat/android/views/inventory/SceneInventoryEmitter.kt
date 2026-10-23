@@ -18,7 +18,10 @@ import com.tugboat.android.views.identity.RouteResolver
  * - A `FLAG_SECURE` window has no inventory.
  * - The route is resolved first; when the frame's structure signature (the
  *   one its masks were computed from) equals the last emitted inventory's for
- *   that route, nothing is walked.
+ *   that route, nothing is walked. Never for a frame whose window had region
+ *   hosts (Compose): the signature does not see their content, so those are
+ *   walked on every captured frame (the capture cadence and budget bound it).
+ *   Views-only gap: a view that only becomes clickable changes no signature.
  * - The signature is stored only once a non-empty inventory was emitted.
  *
  * Main thread only: called elsewhere, it logs and drops the frame.
@@ -32,7 +35,7 @@ internal class SceneInventoryEmitter(
 ) {
     private val lastStructureByRoute = HashMap<String, String>()
 
-    fun onCapturedFrame(window: Window, structureSignature: String) {
+    fun onCapturedFrame(window: Window, structureSignature: String, hasRegionHosts: Boolean) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             Log.w(TAG, "scene inventory off the main thread; dropped")
             return
@@ -40,8 +43,8 @@ internal class SceneInventoryEmitter(
         if (window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0) return
         val decor = window.decorView
         val route = routes.visibleRoute(decor) ?: return
-        if (lastStructureByRoute[route.value] == structureSignature) return
-        val inventory = builder.build(decor, route) ?: return
+        if (!hasRegionHosts && lastStructureByRoute[route.value] == structureSignature) return
+        val inventory = builder.build(decor, route.value) ?: return
         if (emit(ViewsFact(FactTypes.SCENE_INVENTORY, inventory.toJson(), clock.now()))) {
             lastStructureByRoute[route.value] = structureSignature
         }

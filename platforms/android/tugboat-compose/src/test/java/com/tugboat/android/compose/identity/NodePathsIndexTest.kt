@@ -21,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import com.tugboat.android.compose.semantics.NodeRules
 import com.tugboat.android.compose.semantics.SemanticsAccess
+import com.tugboat.android.toolkit.RegionHit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -29,14 +30,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** [NodePaths.index] gives every node the path [NodePaths.build] (the tap path) gives it. */
+/** Tap and inventory paths come from [NodePaths.index]; pinned on a fixture tree to the values the old tap path gave. */
 @RunWith(RobolectricTestRunner::class)
 class NodePathsIndexTest {
     @get:Rule
     val compose = createComposeRule()
 
     @Test
-    fun theIndexEqualsTheTapPathForEveryNode() {
+    fun tapAndIndexPathsArePinned() {
         compose.setContent {
             Column {
                 Button(onClick = {}) { Text("A") }
@@ -65,17 +66,22 @@ class NodePathsIndexTest {
         if (root == null) return fail("no semantics root")
 
         val index = NodePaths.index(root)
-        val nodes = placed(root)
-        assertTrue(nodes.size > 10)
-        for (node in nodes) {
-            val built = NodePaths.build(root, node)
-            val indexed = index[node.id]
-            assertEquals("node ${node.id}", built?.segments, indexed?.segments)
-            assertEquals("node ${node.id}", built?.inListItem, indexed?.inListItem)
+        // Pinned from NodePaths.build (the tap path before m-3) on this tree.
+        assertEquals(
+            listOf(
+                "|false", "Button#0|false", "Button#1|false", "Checkbox#0|false", "Node#0|false", "Node#1|false",
+                "Scrollable#0/[item]/Button#0|false", "Scrollable#0/[item]/Button#0|false",
+                "Scrollable#0/[item]/Button#0|false", "Scrollable#0|false", "[item:0]/Button#0|true", "[item:0]|true",
+                "[item]/Button#0|false", "[item]/Node#0|false",
+            ),
+            index.values.map { it.segments.joinToString("/") + "|" + it.inListItem }.sorted(),
+        )
+        assertEquals(placed(root).map { it.id }.toSet(), index.keys)
+        val taps = PINNED_TAPS.keys.associateWith { label ->
+            val center = compose.onNodeWithText(label).fetchSemanticsNode().boundsInRoot.center
+            (NodeTargets.at(root, center.x, center.y) as? RegionHit.Target)?.path?.joinToString("/")
         }
-        val paths = index.values.map { it.segments.joinToString("/") }
-        assertTrue(paths.toString(), paths.any { it.startsWith("[item:0]/Button#0") })
-        assertTrue(paths.toString(), paths.any { it.startsWith("[item]/Button#0") })
+        assertEquals(PINNED_TAPS, taps)
     }
 
     /** Every node below [root] that is not excluded, with its subtree. */
@@ -88,5 +94,20 @@ class NodePathsIndexTest {
         }
         root.children.forEach(::visit)
         return out
+    }
+
+    private companion object {
+        /** Labels (test-only reads) to tap paths. */
+        val PINNED_TAPS = mapOf(
+            "A" to "Button#0",
+            "B" to "Button#1",
+            "Title" to "Node#0",
+            "Label" to "Node#1",
+            "Row 0" to "[item:0]/Button#0",
+            "Row 1" to "[item]/Button#0",
+            "Row 2" to "[item]/Node#0",
+            "Lazy 0" to "Scrollable#0/[item]/Button#0",
+            "Lazy 1" to "Scrollable#0/[item]/Button#0",
+        )
     }
 }

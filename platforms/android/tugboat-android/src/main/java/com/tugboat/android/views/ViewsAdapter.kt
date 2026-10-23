@@ -50,6 +50,8 @@ internal class ViewsAdapter(
     private val postNavigationFacts: Boolean = false,
     /** `TugboatConfig.emitSceneInventory`: [onCapturedFrame] emits `scene.inventory` ([SceneInventoryEmitter]). */
     private val emitSceneInventory: Boolean = false,
+    /** Told at the start of each scene inventory walk; a seam for tests. */
+    onInventoryWalk: () -> Unit = {},
 ) : Application.ActivityLifecycleCallbacks {
     init {
         NavigationObservation.ensureInstalled(application)
@@ -60,8 +62,11 @@ internal class ViewsAdapter(
     private val routes = NavigationObservation.routesAccessor
     private val names = AndroidResourceNames(application.resources)
     private val anchors = AnchorResolver(names, routes)
-    private val inventoryBuilder = SceneInventoryBuilder(names, routes, anchors)
-    private val inventory = SceneInventoryEmitter(routes, inventoryBuilder, clock) { fact ->
+    private val inventory = SceneInventoryEmitter(
+        routes,
+        SceneInventoryBuilder(names, routes, anchors, onWalk = onInventoryWalk),
+        clock,
+    ) { fact ->
         if (started) batcher.add(fact)
         started
     }
@@ -116,21 +121,35 @@ internal class ViewsAdapter(
         windowCallbacksRegistered = false
     }
 
-    /** Scene inventory walks so far; for tests. */
-    val sceneInventoryWalks: Int
-        get() = inventoryBuilder.walks
-
     /** Mask rectangles for [window] under `allTextAndMedia`; called on the main thread per `capture.request`. */
     fun masks(window: Window): WindowMaskResult = WindowMasks.compute(window)
 
     /**
-     * A capture of [window] completed with [structureSignature] (its masks'
-     * structure): emits the visible route's `scene.inventory` when
-     * [emitSceneInventory] is on. Main thread.
+     * Any thread: a capture completed with [structureSignature] and
+     * [hasRegionHosts] (from its masks' walk). When [emitSceneInventory] is
+     * on, posts [onCapturedFrame] to [mainThread] for the window [window]
+     * gives there (main-thread state, read when the walk runs); otherwise
+     * does nothing.
      */
-    fun onCapturedFrame(window: Window, structureSignature: String) = AdapterGuard.run("scene inventory") {
-        if (emitSceneInventory && started) inventory.onCapturedFrame(window, structureSignature)
+    fun onCaptureCompleted(
+        structureSignature: String,
+        hasRegionHosts: Boolean,
+        mainThread: (Runnable) -> Boolean,
+        window: () -> Window?,
+    ) {
+        if (!emitSceneInventory) return
+        mainThread(Runnable { window()?.let { onCapturedFrame(it, structureSignature, hasRegionHosts) } })
     }
+
+    /**
+     * A capture of [window] completed: emits the visible route's
+     * `scene.inventory` when [emitSceneInventory] is on
+     * ([SceneInventoryEmitter]). Main thread.
+     */
+    fun onCapturedFrame(window: Window, structureSignature: String, hasRegionHosts: Boolean) =
+        AdapterGuard.run("scene inventory") {
+            if (emitSceneInventory && started) inventory.onCapturedFrame(window, structureSignature, hasRegionHosts)
+        }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
         AdapterGuard.run("activity created") { session(activity).ensureAttached() }

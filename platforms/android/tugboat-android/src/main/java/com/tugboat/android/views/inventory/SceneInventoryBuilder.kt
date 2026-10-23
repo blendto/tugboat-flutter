@@ -7,8 +7,8 @@ import android.widget.ImageView
 import android.widget.TextView
 import com.tugboat.android.toolkit.InventoryTier
 import com.tugboat.android.views.identity.AnchorResolver
+import com.tugboat.android.views.identity.IdCounts
 import com.tugboat.android.views.identity.ResourceNames
-import com.tugboat.android.views.identity.RouteKey
 import com.tugboat.android.views.identity.RouteResolver
 import com.tugboat.android.views.identity.TargetAnchor
 import com.tugboat.android.views.identity.ViewGeometry
@@ -32,20 +32,20 @@ internal class SceneInventoryBuilder(
     private val names: ResourceNames,
     private val routes: RouteResolver,
     private val anchors: AnchorResolver,
+    /** One per walk, shared by its anchors. A seam for tests, which count the id walks. */
+    private val newIdCounts: () -> IdCounts = { IdCounts() },
+    /** Told at the start of each walk; a seam for tests. */
+    private val onWalk: () -> Unit = {},
 ) {
-    /** Inventory walks so far, for tests. */
-    var walks = 0
-        private set
-
     /**
-     * The elements of [route] in [decor]: views (and region targets) whose
-     * own route key is [route]'s. At most [limit] are collected; the rest
+     * The elements of [routeKey] in [decor]: views (and region targets)
+     * whose own route key it is. At most [limit] are collected; the rest
      * are only counted. Null when there are none.
      */
-    fun build(decor: View, route: RouteKey, limit: Int = MAX_ELEMENTS): SceneInventory? {
+    fun build(decor: View, routeKey: String, limit: Int = MAX_ELEMENTS): SceneInventory? {
         if (decor.width <= 0 || decor.height <= 0) return null
-        walks++
-        val walk = InventoryWalk(names, routes, anchors, decor, route.value, limit)
+        onWalk()
+        val walk = InventoryWalk(names, routes, anchors, newIdCounts(), decor, routeKey, limit)
         walk.visit(decor)
         return walk.result()
     }
@@ -70,11 +70,16 @@ internal class SceneInventory(val routeKey: String, val elements: List<Inventory
 
 /** An anchor, its bounds, and its tier; interactive elements also carry their aliases. */
 internal class InventoryElement(val anchor: TargetAnchor, val bounds: NormalizedBounds, val tier: InventoryTier) {
-    val aliases = TreeSet<String>()
+    private val aliases = TreeSet<String>()
 
     init {
         val tag = anchor.tagFingerprint
         if (tier == InventoryTier.Interactive && tag != null && tag != anchor.fingerprint) aliases += tag
+    }
+
+    /** Takes [other]'s aliases: the same fingerprint seen again. */
+    fun merge(other: InventoryElement) {
+        aliases += other.aliases
     }
 
     /** Dart `TugboatSceneInventoryEntry.toJson`: content elements carry only identity, bounds, and `role: display`. */
@@ -137,13 +142,13 @@ private class InventoryWalk(
     private val names: ResourceNames,
     private val routes: RouteResolver,
     private val anchors: AnchorResolver,
+    private val ids: IdCounts,
     private val decor: View,
     private val routeKey: String,
     private val limit: Int,
 ) {
     private val width = decor.width.toDouble()
     private val height = decor.height.toDouble()
-    private val ids = anchors.idCounts()
     private val elements = LinkedHashMap<String, InventoryElement>()
     private var found = 0
 
@@ -203,7 +208,7 @@ private class InventoryWalk(
     private fun add(element: InventoryElement) {
         val existing = elements[element.anchor.fingerprint]
         if (existing != null) {
-            existing.aliases += element.aliases
+            existing.merge(element)
             return
         }
         elements[element.anchor.fingerprint] = element

@@ -72,7 +72,7 @@ class ViewsAdapterTest {
         shadowOf(Looper.getMainLooper()).idle()
         drain()
 
-        inventoryAdapter.onCapturedFrame(activity.window, "structure-1")
+        inventoryAdapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
         frames.runFrame()
         val inventoryFact = sink.batches.single().single()
         assertEquals("scene.inventory", inventoryFact.type)

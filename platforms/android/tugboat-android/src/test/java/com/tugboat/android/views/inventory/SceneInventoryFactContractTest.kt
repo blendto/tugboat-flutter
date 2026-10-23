@@ -31,7 +31,7 @@ class SceneInventoryFactContractTest {
         val routes = FixedRoutes(screen)
         val names = AndroidResourceNames(activity.resources)
         val inventory = SceneInventoryBuilder(names, routes, AnchorResolver(names, routes))
-            .build(root.rootView, routes.routeFor(screen))
+            .build(root.rootView, routes.routeFor(screen).value)
             ?.toJson()
         if (inventory == null) return fail("expected a scene inventory")
 

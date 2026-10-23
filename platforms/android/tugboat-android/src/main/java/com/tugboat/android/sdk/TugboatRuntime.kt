@@ -163,10 +163,9 @@ internal class TugboatRuntime private constructor(
                     engineHost.withHost {
                         it.post(HostMessages.CAPTURE_RESULT, answer.toInputJson(), clock.now(), answer.frameHandles)
                     }
-                    if (config.emitSceneInventory && answer is CaptureAnswer.Captured) {
-                        val signature = answer.frame.structureSignature
-                        // ForegroundWindow is main-thread state: read it there, when the walk runs.
-                        main.post { foreground.window?.let { adapter.onCapturedFrame(it, signature) } }
+                    if (answer is CaptureAnswer.Captured) {
+                        val frame = answer.frame
+                        adapter.onCaptureCompleted(frame.structureSignature, frame.hasRegionHosts, main::post) { foreground.window }
                     }
                 },
             )

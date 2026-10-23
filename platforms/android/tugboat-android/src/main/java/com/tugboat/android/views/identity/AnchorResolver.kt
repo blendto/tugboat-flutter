@@ -37,19 +37,12 @@ internal class AnchorResolver(
         return TapEvidence.of(anchor)
     }
 
-    /** Subtree walks that counted resource ids, for tests: one per anchor, or one per route root with [IdCounts]. */
-    var idCountWalks = 0
-        private set
-
-    /** Resource id counts shared by many [anchorFor] calls (one inventory walk): each route root is counted once. */
-    fun idCounts(): IdCounts = IdCounts { idCountWalks++ }
-
     /**
      * The anchor of [view], or null when it is not attached under [window]. A
-     * region host anchors as its region. [ids] shares id counts across calls;
-     * without it each call counts its route root's ids.
+     * region host anchors as its region. [ids] can be shared across calls
+     * (one inventory walk) so each route root's ids are counted once.
      */
-    fun anchorFor(view: View, window: View = view.rootView, ids: IdCounts? = null): TargetAnchor? {
+    fun anchorFor(view: View, window: View = view.rootView, ids: IdCounts = IdCounts()): TargetAnchor? {
         Regions.hostOf(view)?.let { return regions.anchor(it, target = null, window) }
         val route = routes.routeFor(view) ?: return null
         val path = paths.build(route.root, view) ?: return null
@@ -78,16 +71,10 @@ internal class AnchorResolver(
             else -> Confidence.Low
         }
 
-    private fun alias(root: View, view: View, ids: IdCounts?): String? {
+    private fun alias(root: View, view: View, ids: IdCounts): String? {
         ViewTags.alias(view)?.let { return it }
         val name = names.entryName(view) ?: return null
-        val count = if (ids != null) ids.count(root, view.id) else countIdOnce(root, view.id)
-        return name.takeIf { count == 1 }
-    }
-
-    private fun countIdOnce(root: View, id: Int): Int {
-        idCountWalks++
-        return IdCounts.countWithId(root, id)
+        return name.takeIf { ids.count(root, view.id) == 1 }
     }
 
     private inline fun nearest(start: View, stop: View, predicate: (View) -> Boolean): View? {

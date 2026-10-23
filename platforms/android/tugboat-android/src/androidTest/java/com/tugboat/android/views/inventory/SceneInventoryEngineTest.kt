@@ -82,7 +82,7 @@ class SceneInventoryEngineTest {
             val routes = RouteResolver { RouteKey("home", Confidence.High, screen) }
             val names = AndroidResourceNames(context.resources)
             input = SceneInventoryBuilder(names, routes, AnchorResolver(names, routes))
-                .build(decor, RouteKey("home", Confidence.High, screen))
+                .build(decor, "home")
                 ?.toJson()
         }
         return checkNotNull(input) { "expected a scene inventory" }

@@ -71,7 +71,7 @@ abstract class ComposeSceneInventoryTest(masking: ComposeMasking) {
         val tap = anchors.tapAt(compose.activity, compose.onNodeWithText("Pay"))
         assertNoText(tap, "Pay")
         val fingerprint = tap.anchor().getString("fingerprint")
-        val inventory = SceneInventoryBuilder(names, routes, anchors).build(decor, routes.routeFor(decor))?.toJson()
+        val inventory = SceneInventoryBuilder(names, routes, anchors).build(decor, routes.routeFor(decor).value)?.toJson()
         if (inventory == null) {
             fail("expected scene inventory")
             return emptyList()

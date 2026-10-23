@@ -77,10 +77,12 @@ internal class FragmentNavigation(
     fun routeRootedAt(view: View): RouteEntry? = roots[view]
 
     /**
-     * The root view of [activity]'s topmost shown fragment below
+     * The root view of [activity]'s topmost, deepest shown fragment below
      * `android.R.id.content`: walking down, last drawn visible child first,
-     * the first shown fragment root; one being removed is skipped with its
-     * subtree. Null when the content shows no fragment.
+     * through each shown fragment root into the fragments it hosts (a
+     * `NavHostFragment`'s destination, a parent's child fragment); a root
+     * being removed is skipped with its subtree. Null when the content shows
+     * no fragment.
      */
     fun visibleRouteRoot(activity: Activity): View? {
         val content = activity.findViewById<View>(android.R.id.content) as? ViewGroup ?: return null
@@ -93,7 +95,8 @@ internal class FragmentNavigation(
             if (child.visibility != View.VISIBLE) continue
             val entry = roots[child]
             if (entry != null) {
-                if (!entry.isLeaving()) return child
+                // A shown root can host child fragments (NavHostFragment, a tab host): the deepest one wins.
+                if (!entry.isLeaving()) return (child as? ViewGroup)?.let(::topmostRoot) ?: child
                 continue
             }
             if (child is ViewGroup) topmostRoot(child)?.let { return it }
