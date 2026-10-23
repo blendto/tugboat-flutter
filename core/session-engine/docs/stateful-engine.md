@@ -648,11 +648,12 @@ capture.result  {requestId, outcome: captured|paintUnchanged|failed|cancelled,
   `representable`, `webView`, `renderer`, `surfaceLayer`,
   `unclassifiedLayer`, `secureText`, `overlayWindow`: every value the
   Android and SwiftUI adapters emit), possibly empty. An unknown value is
-  `invalid_message` and the host keeps the handle. When the engine accepts the frame it records
-  `capture_diagnostic` `{component: capture_masking, frameId, mode,
-  reasons}` right after the frame record, before the frame-accepted hooks
-  run (so a delivery eviction gap follows it), always (with or without the
-  `captureDiagnostics` capability), so a whole-masked host can be told
+  `invalid_message` and the host keeps the handle. When the engine accepts
+  the frame it records `capture_diagnostic` `{component: capture_masking,
+  frameId, mode, reasons}` right after the frame record, before the
+  frame-accepted hooks run (so a delivery eviction gap follows it), always
+  (with or without the `captureDiagnostics` capability), so a whole-masked
+  host can be told
   from a broken capture. The frame record and `frameMetadata` never carry
   it. A frame without `maskCoverage` (Flutter, older hosts) records nothing
   new; a frame the engine reuses, coalesces, or releases records nothing.
