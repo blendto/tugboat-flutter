@@ -446,5 +446,11 @@ void CaptureSeam::resolve_waiter(EngineState* state, const At& at,
                                                execution.frame_id}});
 }
 
+void CaptureSeam::restamp_initial_route(EngineState* state) {
+  const VisibleRoute& visible = state->navigation.visible;
+  scheduler_.restamp_initial_route(visible);
+  frames_.restamp_initial_route(visible);
+}
+
 }  // namespace engine
 }  // namespace tugboat

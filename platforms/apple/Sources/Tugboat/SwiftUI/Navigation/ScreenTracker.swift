@@ -78,6 +78,14 @@ final class ScreenTracker {
     queued.removeAll()
     facts.removeAll()
     stack.removeAll()
+    hasSeenScreen = false
+  }
+
+  func sessionStartFact(at: HostTime) -> AdapterFact? {
+    settle()
+    let routes = stack.entries
+    guard !routes.isEmpty else { return nil }
+    return NavigationChange(sessionStart: ScreenTracker.navigatorId, routes: routes).fact(at: at)
   }
 
   /// Applies queued callbacks: appearances first, then disappearances.

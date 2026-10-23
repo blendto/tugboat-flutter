@@ -26,6 +26,7 @@ final class SwiftUIAdapter {
   private let resolver: AnchorResolver
   private let screens: ScreenTracker
   private let trackHostingControllers: Bool
+  private let hostClock: HostClock
   private let center: NotificationCenter
   private lazy var focus = FocusObserver(
     clock: clock,
@@ -38,11 +39,7 @@ final class SwiftUIAdapter {
     emit: { [weak self] in self?.batcher.add($0) },
     requestFrame: { [weak self] in self?.batcher.requestFrame() }
   )
-  private lazy var hostingControllers = HostingControllerTracker(
-    screens: screens,
-    clock: clock,
-    emit: { [weak self] in self?.batcher.add($0) }
-  )
+  private let hostingControllers = HostingControllerTracker.shared
   /// One recognizer per observed window. Entries whose window is gone are
   /// dropped on the next attach.
   private struct Attachment {
@@ -75,6 +72,7 @@ final class SwiftUIAdapter {
     self.resolver = AnchorResolver(tags: tags, screens: screens, accessibility: accessibility)
     self.trackHostingControllers = trackHostingControllers
     self.center = center
+    self.hostClock = hostClock
     batcher.onFrame { [weak self] in self?.onFrame() }
   }
 
@@ -83,18 +81,19 @@ final class SwiftUIAdapter {
   func start() {
     guard !isStarted else { return }
     isStarted = true
+    // Bound at start, not init: a second adapter must not take the running one's frames.
+    hostingControllers.bind(screens: screens, clock: hostClock) { [weak self] in self?.batcher.requestFrame() }
+    if trackHostingControllers {
+      hostingControllers.installAppearanceObserverIfNeeded()
+    }
+    seedSessionStartNavigation()
     screens.isRecording = true
+    hostingControllers.isRecording = trackHostingControllers
     screens.onEvent = { [weak self] in self?.batcher.requestFrame() }
     focus.start(center: center)
     keyWindowToken = center.addObserver(forName: UIWindow.didBecomeKeyNotification, object: nil, queue: nil) { [weak self] note in
       guard let window = note.object as? UIWindow else { return }
       self?.attach(to: window)
-    }
-    if trackHostingControllers {
-      ViewControllerAppearance.observer = { [weak self] controller, appeared in
-        self?.hostingControllers.controller(controller, appeared: appeared)
-      }
-      ViewControllerAppearance.install()
     }
     SwiftUIAdapter.keyWindows().forEach(attach(to:))
   }
@@ -108,9 +107,6 @@ final class SwiftUIAdapter {
     }
     keyWindowToken = nil
     focus.stop(center: center)
-    if trackHostingControllers {
-      ViewControllerAppearance.observer = nil
-    }
     for attachment in attachments.values {
       attachment.window?.removeGestureRecognizer(attachment.recognizer)
     }
@@ -119,7 +115,18 @@ final class SwiftUIAdapter {
     // The last flush still collects screen facts; recording stops after it.
     batcher.close()
     screens.isRecording = false
+    hostingControllers.isRecording = false
     screens.onEvent = nil
+  }
+
+  private func seedSessionStartNavigation() {
+    let at = clock.now()
+    if let fact = screens.sessionStartFact(at: at) {
+      batcher.add(fact)
+    }
+    if trackHostingControllers, let fact = hostingControllers.sessionStartFact(at: at) {
+      batcher.add(fact)
+    }
   }
 
   /// Mask rectangles for `window` under `allTextAndMedia`; called on the
@@ -162,7 +169,7 @@ final class SwiftUIAdapter {
   }
 
   private func onFrame() {
-    let navigation = screens.takeFacts()
+    let navigation = screens.takeFacts() + hostingControllers.takeFacts()
     navigation.forEach(batcher.add)
     if !navigation.isEmpty {
       // A screen came or went: find its scroll views before a finger does.

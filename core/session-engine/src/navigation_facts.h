@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "json.h"
 #include "models.h"
@@ -16,7 +17,7 @@ namespace tugboat {
 namespace engine {
 
 // Dart `_RouteNavigationKind`.
-enum class NavigationKind { kPush, kPop, kReplace, kRemove };
+enum class NavigationKind { kPush, kPop, kReplace, kRemove, kSessionStart };
 
 // `route_push`, `route_pop`, `route_replace`, `route_remove`: the
 // `route_change.data.navigation` value.
@@ -59,6 +60,8 @@ struct NavigationFact {
   OptString parent_navigator_id;
   std::optional<FactRoute> route;
   OptString departing_instance_id;
+  // `session_start` only: bottom to top; each `transitionMs` must be 0.
+  std::vector<FactRoute> routes;
 };
 
 bool decode_navigation_fact(const Value& input, const std::string& path,

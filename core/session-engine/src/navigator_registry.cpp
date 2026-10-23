@@ -94,6 +94,11 @@ OptString NavigatorRegistry::top(const std::string& navigator_id) const {
   return it->second.back();
 }
 
+bool NavigatorRegistry::has_stack(const std::string& navigator_id) const {
+  const auto it = stacks_.find(navigator_id);
+  return it != stacks_.end() && !it->second.empty();
+}
+
 void NavigatorRegistry::remember(const std::string& instance_id,
                                  const std::string& navigator_id,
                                  const RouteIdentity& identity,

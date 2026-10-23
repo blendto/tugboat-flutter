@@ -21,6 +21,8 @@
 namespace tugboat {
 namespace engine {
 
+struct VisibleRoute;
+
 // Dart `_CaptureFreshness`: whether a capture must observe a fresh paint.
 enum class CaptureFreshness { kReusable, kFreshPaint };
 
@@ -105,6 +107,9 @@ class CaptureScheduler {
   void advance_generation() { ++generation_; }
   // `capture-N`: one per physical attempt, never reused.
   std::string next_host_request_id();
+
+  // Aligns queued and in-flight `initial` capture contexts with a seed.
+  void restamp_initial_route(const VisibleRoute& visible);
 
  private:
   std::deque<ScheduledCapture> queue_;

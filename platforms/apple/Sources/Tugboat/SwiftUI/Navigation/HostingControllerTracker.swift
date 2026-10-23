@@ -10,22 +10,51 @@ import UIKit
 ///   its hashed type (`host:<16 hex>`, the same route key identity uses).
 /// - Once any `.tugboatScreen` has appeared in the process it stays silent,
 ///   so a route is never reported by both sources.
+/// - The stack survives adapter stop/start; `session_start` is emitted only
+///   from [sessionStartFact] while live changes respect [isRecording].
 ///
 /// Main thread only.
 final class HostingControllerTracker {
+  static let shared = HostingControllerTracker()
   static let navigatorId = "swiftui-hosting"
   static let routeType = "UIHostingController"
 
-  private let screens: ScreenTracker
-  private let clock: FactClock
-  private let emit: (AdapterFact) -> Void
+  private var screens: ScreenTracker
+  private var clock: HostClock
   private var stack = ScreenStack(navigatorId: HostingControllerTracker.navigatorId)
   private let ids = ObjectIds(prefix: "swiftui-host")
+  private var facts: [AdapterFact] = []
+  private var requestFrame: (() -> Void)?
 
-  init(screens: ScreenTracker, clock: FactClock, emit: @escaping (AdapterFact) -> Void) {
+  /// Live facts are produced only while true (the adapter is running).
+  var isRecording = false
+
+  init(screens: ScreenTracker = .shared, clock: HostClock = SystemHostClock()) {
     self.screens = screens
     self.clock = clock
-    self.emit = emit
+  }
+
+  /// Binds the adapter's screen registry, clock, and frame scheduler (process-scoped stack).
+  func bind(screens: ScreenTracker, clock: HostClock, requestFrame: @escaping () -> Void) {
+    self.screens = screens
+    self.clock = clock
+    self.requestFrame = requestFrame
+  }
+
+  private static var appearanceInstalled = false
+
+  /// Installs the process-wide `UIViewController` appearance exchange the
+  /// first time an adapter that tracks hosting controllers starts; an app
+  /// that opts out (`trackHostingControllers: false`) is never swizzled.
+  /// It stays installed after `stop()` and records nothing while no
+  /// adapter is recording.
+  func installAppearanceObserverIfNeeded() {
+    guard !HostingControllerTracker.appearanceInstalled else { return }
+    HostingControllerTracker.appearanceInstalled = true
+    ViewControllerAppearance.observer = { controller, appeared in
+      HostingControllerTracker.shared.controller(controller, appeared: appeared)
+    }
+    ViewControllerAppearance.install()
   }
 
   /// A disappearing controller is matched by identity: its view has usually
@@ -45,8 +74,29 @@ final class HostingControllerTracker {
       guard let known = ids.existingId(of: controller) else { return }
       change = stack.disappeared(instanceId: known)
     }
-    if let change = change {
-      emit(change.fact(at: clock.now()))
+    record(change, at: clock.now())
+  }
+
+  func sessionStartFact(at: HostTime) -> AdapterFact? {
+    guard !screens.hasSeenScreen, !stack.entries.isEmpty else { return nil }
+    return NavigationChange(sessionStart: HostingControllerTracker.navigatorId, routes: stack.entries).fact(at: at)
+  }
+
+  func takeFacts() -> [AdapterFact] {
+    defer { facts.removeAll() }
+    return facts
+  }
+
+  func reset() {
+    facts.removeAll()
+    stack.removeAll()
+  }
+
+  private func record(_ change: NavigationChange?, at: HostTime) {
+    guard let change = change else { return }
+    if isRecording {
+      facts.append(change.fact(at: at))
+      requestFrame?()
     }
   }
 

@@ -47,7 +47,15 @@ wiring, window capture, and the Android Views adapter.
   `navigation` facts on (engine phase 3d).
 - `trackNavigation` destinations are `navigation` facts on a navigator
   nested under the activity's (`route_change` per destination, route names
-  without arguments).
+  without arguments). Once the SDK has started, the NavController listener
+  updates process-scoped stacks even while the SDK is stopped; the next
+  `start()` seeds the current destination. Destinations reported before the
+  first `start()` are not seeded: that stack is discarded when observation
+  installs, and the next destination change is a `push`.
+- Adapter `start()` emits `session_start` snapshots in tree order
+  (background tasks first, visible chain last) so the engine's visible route
+  matches the foreground screen. A navigator whose host route is in no stack
+  is not seeded.
 - Focus is reported once per frame where it settled: a Compose host taking
   View focus before its text field does is one `text_input`. Focus is
   app-wide: a window that becomes active (its activity resumed) reports
