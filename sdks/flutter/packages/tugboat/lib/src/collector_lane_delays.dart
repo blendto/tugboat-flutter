@@ -60,14 +60,13 @@ class CollectorLaneDelays {
     _notBefore.clear();
   }
 
+  /// Whether [lane] still waits. A pure comparison, as the engine's
+  /// `lane_send_blocked`: only the lane timer clears the lane and readies it,
+  /// so a flush that runs past the deadline never cancels that timer (and
+  /// the lifecycle drain it starts).
   bool isBlocked(CollectorDeliveryLane lane) {
     final until = _notBefore[lane];
-    if (until == null) return false;
-    if (_elapsed() >= until) {
-      _clearLane(lane);
-      return false;
-    }
-    return true;
+    return until != null && _elapsed() < until;
   }
 
   /// Shortens a lifecycle wait to at most [capMs] from now (session ending).

@@ -124,6 +124,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
   late final CollectorLaneDelays _laneDelays;
   bool _sessionEnding = false;
 
+  /// `endSession` queued `session_end` for the current session.
+  bool _sessionEndQueued = false;
+
   /// Runtime user id (may change via [setUserId]).
   String? _userId;
 
@@ -186,6 +189,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _userTriggeredAt = null;
     _traitsTriggeredAt = null;
     _sessionEnding = false;
+    _sessionEndQueued = false;
     _laneDelays.clear();
     _scheduleFlushTimer();
     _enqueueSessionLifecycle(
@@ -270,18 +274,34 @@ class CollectorHttpSink implements TugboatCaptureSink {
       if (identical(_flushInFlight, operation)) {
         _flushInFlight = null;
       }
+      _stopFlushTimerOnceSessionEndSettled();
     });
     _flushInFlight = operation;
     return operation;
   }
 
-  /// Wait for any in-flight flush, then run another so newly enqueued work is sent.
-  Future<void> _kickFlush() async {
+  /// The post-pass stop rule (the engine's `on_pass_finished`): once the
+  /// queued `session_end` has left the lifecycle lane (accepted, or dropped
+  /// for good, as the native `SessionEndWatcher.isFinal` settles it), the
+  /// periodic flush stops. A `session_end` with a retry outcome stays queued
+  /// and is re-posted on the periodic flush. Unlike the engine, there is no
+  /// events or frames drain after `session_end`.
+  void _stopFlushTimerOnceSessionEndSettled() {
+    if (!_sessionEndQueued) return;
+    if (_pendingLifecycle.any((p) => _isSessionEnd(p.eventType))) return;
+    _cancelFlushTimer();
+  }
+
+  /// Runs [then] once any in-flight flush is done, unless disposed.
+  Future<void> _afterInFlight(Future<void> Function() then) async {
     final active = _flushInFlight;
     if (active != null) await active;
     if (_disposed) return;
-    await flush();
+    await then();
   }
+
+  /// Wait for any in-flight flush, then run another so newly enqueued work is sent.
+  Future<void> _kickFlush() => _afterInFlight(flush);
 
   /// A lane's `Retry-After` wait is over. Like the identity debounce, the
   /// lifecycle lane drains every queued post, so a `session_end` queued
@@ -289,17 +309,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
   void _onLaneReady(CollectorDeliveryLane lane) {
     if (_disposed) return;
     if (lane == CollectorDeliveryLane.lifecycle) {
-      unawaited(_drainLifecycleAfterWait());
+      unawaited(_afterInFlight(_drainLifecyclePosts));
     } else {
       unawaited(_kickFlush());
     }
-  }
-
-  Future<void> _drainLifecycleAfterWait() async {
-    final active = _flushInFlight;
-    if (active != null) await active;
-    if (_disposed) return;
-    await _drainLifecyclePosts();
   }
 
   /// While the session ends, lifecycle waits use the shorter ending cap.
@@ -420,11 +433,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
       TugboatCollectorSessionEventType.sessionEnd.wireValue,
       _now(),
     );
+    _sessionEndQueued = true;
+    // The periodic flush keeps running until `session_end` settles
+    // ([_stopFlushTimerOnceSessionEndSettled]).
     await _drainLifecyclePosts();
-    if (!_isCurrentEpoch(epoch)) return;
-    // A lifecycle post still waiting (Retry-After or a retry) keeps the
-    // periodic flush; accepting `session_end` stops it.
-    if (_pendingLifecycle.isEmpty) _cancelFlushTimer();
   }
 
   @override
@@ -443,6 +455,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingLifecycle.clear();
     _laneDelays.clear();
     _sessionEnding = false;
+    _sessionEndQueued = false;
     _flushInFlight = null;
     _session = null;
     _collectorSessionId = null;
@@ -498,13 +511,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
     final result = await _sendSessionLifecycle(pending, epoch);
     if (!_isCurrentEpoch(epoch)) return;
-    if (result != _SendResult.accepted) return;
-    _pendingLifecycle.removeAt(0);
-    if (pending.eventType ==
-            TugboatCollectorSessionEventType.sessionEnd.wireValue &&
-        _pendingLifecycle.isEmpty) {
-      _cancelFlushTimer();
-    }
+    // A dropped `session_end` is settled; other dropped posts stay queued.
+    final settled =
+        result == _SendResult.accepted ||
+        (result == _SendResult.drop && _isSessionEnd(pending.eventType));
+    if (settled) _pendingLifecycle.removeAt(0);
   }
 
   Future<_SendResult> _sendSessionLifecycle(
@@ -531,8 +542,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final sent = await _collectorPost(
       CollectorDeliveryLane.lifecycle,
       '/v1/sessions',
-      () => _client.post(
-        _baseUri.resolve('/v1/sessions'),
+      (url) => _client.post(
+        url,
         headers: _CollectorHttpClient._jsonHeaders,
         body: jsonEncode(body),
       ),
@@ -552,6 +563,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   bool _isSessionStart(String eventType) =>
       eventType == TugboatCollectorSessionEventType.sessionStart.wireValue;
+
+  bool _isSessionEnd(String eventType) =>
+      eventType == TugboatCollectorSessionEventType.sessionEnd.wireValue;
 
   void _applyLifecycleResponse(
     String eventType,
@@ -654,8 +668,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final sent = await _collectorPost(
       CollectorDeliveryLane.events,
       '/v1/events/batch',
-      () => _client.post(
-        _baseUri.resolve('/v1/events/batch'),
+      (url) => _client.post(
+        url,
         headers: _CollectorHttpClient._jsonHeaders,
         body: jsonEncode({'events': events}),
       ),
@@ -684,24 +698,26 @@ class CollectorHttpSink implements TugboatCaptureSink {
     await _flushEvents(epoch);
   }
 
-  /// One collector request on [lane]. Owns, for every lane, the send, the
-  /// session-epoch re-check after the response ([_SendResult.stale]: a
-  /// response for an older session changes nothing), and arming the lane's
-  /// `Retry-After` wait. Never throws: a failed send is a retry.
+  /// One collector request to [path] on [lane]. Owns, for every lane, the
+  /// send (to [path] resolved against the base URL), the session-epoch
+  /// re-check after the response, and arming the lane's `Retry-After` wait.
+  /// A response for an older session arms nothing and returns no response;
+  /// callers re-check the epoch and drop it. Never throws: a failed send is
+  /// a retry.
   Future<({_SendResult result, http.Response? response})> _collectorPost(
     CollectorDeliveryLane lane,
     String path,
-    Future<http.Response> Function() send,
+    Future<http.Response> Function(Uri url) send,
     int epoch, {
     Duration? timeout,
   }) async {
     try {
-      final traced = _tracedResponse(path, send);
+      final traced = _tracedResponse(path, () => send(_baseUri.resolve(path)));
       final response = await (timeout == null
           ? traced
           : traced.timeout(timeout));
       if (!_isCurrentEpoch(epoch)) {
-        return (result: _SendResult.stale, response: response);
+        return (result: _SendResult.retry, response: null);
       }
       _laneDelays.armFromResponse(
         lane,
@@ -780,14 +796,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
   }
 }
 
-enum _SendResult {
-  accepted,
-  retry,
-  drop,
-
-  /// Answered after the session changed; ignored.
-  stale,
-}
+enum _SendResult { accepted, retry, drop }
 
 class _CollectorHttpClient extends http.BaseClient {
   _CollectorHttpClient({

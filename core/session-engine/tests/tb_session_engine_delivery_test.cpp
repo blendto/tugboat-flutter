@@ -20,6 +20,7 @@
 #include "output.h"
 #include "retry_after.h"
 #include "transport.h"
+#include "conformance_files.h"
 #include "unit_support.h"
 
 namespace {
@@ -239,7 +240,8 @@ void test_retry_after_parse() {
   using tugboat::engine::parse_json;
   using tugboat::engine::ParseError;
   using tugboat::engine::Value;
-  std::ifstream in(std::string(TB_CONFORMANCE_DIR) + "/retry_after_vectors.json");
+  std::ifstream in(std::string(TB_CONFORMANCE_DIR) + "/" +
+                  conformance::kRetryAfterVectorsFile);
   std::stringstream buffer;
   buffer << in.rdbuf();
   Value doc;

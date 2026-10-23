@@ -27,6 +27,7 @@
 #include "conformance/engine_client.h"
 #include "conformance/evidence_runner.h"
 #include "conformance/scenario_runner.h"
+#include "conformance_files.h"
 
 #ifndef TB_CONFORMANCE_DIR
 #error "TB_CONFORMANCE_DIR must point at <repo>/conformance"

@@ -63,9 +63,10 @@ bool decode_transport_result(const Value& input, const std::string& path,
     return false;
   }
   out->body = body.value_or(std::string());
+  const bool has_retry_after = retry_after.has_value();
   // Trimmed and length-checked once, when it is parsed (retry_after.h).
   out->retry_after = std::move(retry_after);
-  return check_http_fields(r, *out, body.has_value(), retry_after.has_value());
+  return check_http_fields(r, *out, body.has_value(), has_retry_after);
 }
 
 Verdict classify(const TransportResult& result) {

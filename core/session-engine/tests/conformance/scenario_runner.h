@@ -13,8 +13,6 @@ namespace conformance {
 // The file under conformance/ that lists the section 11 change ids. It is
 // not a fixture.
 constexpr char kChangeIdsFile[] = "change_ids.json";
-// Shared Retry-After parser vectors (not a fixture).
-constexpr char kRetryAfterVectorsFile[] = "retry_after_vectors.json";
 
 // Reads `changeIds` from the change-id list. Returns an empty string on
 // success.

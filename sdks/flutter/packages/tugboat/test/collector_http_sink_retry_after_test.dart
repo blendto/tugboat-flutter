@@ -9,6 +9,8 @@ import 'package:tugboat/src/collector_http_sink.dart';
 import 'package:tugboat/src/collector_lane_delays.dart';
 import 'package:tugboat/src/models.dart';
 
+import 'helpers/engine_scenario_delivery.dart';
+
 void main() {
   test('collector config defaults to 60 s and 10 s Retry-After caps', () {
     expect(_config().retryAfterCap, const Duration(seconds: 60));
@@ -361,6 +363,93 @@ void main() {
     await none.sink.flush();
     expect(none.client.lifecycleTypes, ['session_start', 'session_start']);
     none.sink.dispose();
+  });
+
+  test(
+    'a flush past the deadline leaves the lane timer to drain lifecycle',
+    () async {
+      final h = _Harness(
+        (call, h) => call.isLifecycle && h.client.lifecycleTypes.length == 1
+            ? _response(429, retryAfter: '10')
+            : _accepted(),
+      );
+      h.start();
+      await h.sink.flush();
+      await h.sink.endSession();
+      expect(h.client.lifecycleTypes, ['session_start']);
+      expect(h.timers.pending, hasLength(1));
+
+      // The deadline passes; an ordinary flush runs before the lane timer.
+      h.clock.advance(const Duration(seconds: 10));
+      await h.sink.flush();
+      expect(h.client.lifecycleTypes, ['session_start', 'session_start']);
+      // That flush did not cancel the lane timer, which drains session_end.
+      expect(h.timers.pending, hasLength(1));
+      h.timers.fireLast();
+      await _settle();
+      expect(h.client.lifecycleTypes, [
+        'session_start',
+        'session_start',
+        'session_end',
+      ]);
+      h.sink.dispose();
+    },
+  );
+
+  test('a retried session_end is re-posted on the periodic flush', () {
+    final scheduler = ScenarioScheduler();
+    scheduler.run(() {
+      final h = _Harness((call, h) {
+        if (call.eventType != 'session_end') return _accepted();
+        // First session_end: 503 without Retry-After (a plain retry).
+        return h.client.lifecycleTypes.length == 2
+            ? _response(503)
+            : _accepted();
+      });
+      h.start();
+      scheduler.flushMicrotasks();
+      unawaited(h.sink.endSession());
+      scheduler.flushMicrotasks();
+      expect(h.client.lifecycleTypes, ['session_start', 'session_end']);
+
+      // Past eventFlushInterval (3 s): the periodic flush re-posts it.
+      scheduler.advanceTo(3100000);
+      expect(h.client.lifecycleTypes, [
+        'session_start',
+        'session_end',
+        'session_end',
+      ]);
+
+      // Accepted, so the periodic flush stopped: a late event stays unsent.
+      h.recordEvent('late');
+      scheduler.advanceTo(30000000);
+      expect(h.client.batches, isEmpty);
+      expect(h.client.lifecycleTypes, hasLength(3));
+      h.sink.dispose();
+    });
+  });
+
+  test('a dropped session_end is settled and never re-posted', () {
+    final scheduler = ScenarioScheduler();
+    scheduler.run(() {
+      final h = _Harness(
+        (call, h) =>
+            call.eventType == 'session_end' ? _response(401) : _accepted(),
+      );
+      h.start();
+      scheduler.flushMicrotasks();
+      unawaited(h.sink.endSession());
+      scheduler.flushMicrotasks();
+      expect(h.client.lifecycleTypes, ['session_start', 'session_end']);
+
+      // Several intervals later: no second post, and the periodic flush is
+      // stopped (a late event stays unsent).
+      h.recordEvent('late');
+      scheduler.advanceTo(30000000);
+      expect(h.client.lifecycleTypes, ['session_start', 'session_end']);
+      expect(h.client.batches, isEmpty);
+      h.sink.dispose();
+    });
   });
 }
 

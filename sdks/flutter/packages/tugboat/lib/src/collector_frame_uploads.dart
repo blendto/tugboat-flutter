@@ -107,8 +107,8 @@ extension _CollectorFrameUploads on CollectorHttpSink {
     final sent = await _collectorPost(
       CollectorDeliveryLane.frames,
       '/v1/frames',
-      () async => http.Response.fromStream(
-        await _client.send(_frameUploadRequest(sessionId, uploads)),
+      (url) async => http.Response.fromStream(
+        await _client.send(_frameUploadRequest(url, sessionId, uploads)),
       ),
       epoch,
       timeout: _frameUploadTimeout,
@@ -117,13 +117,11 @@ extension _CollectorFrameUploads on CollectorHttpSink {
   }
 
   http.MultipartRequest _frameUploadRequest(
+    Uri url,
     String sessionId,
     List<_PendingFrameUpload> uploads,
   ) {
-    final request = http.MultipartRequest(
-      'POST',
-      _baseUri.resolve('/v1/frames'),
-    );
+    final request = http.MultipartRequest('POST', url);
     request.fields['sessionId'] = sessionId;
     request.fields['frameNos'] = uploads
         .map((upload) => upload.frameNo.toString())
