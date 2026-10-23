@@ -10,11 +10,14 @@
 /// disappears the batch's appearances are already on screen.
 ///
 /// - **Keys and ids.** Navigators are keyed by their `NavigatorScope` id
-///   (`swiftui-screens/<name>`). The id sent to the engine is the key for
-///   a name's first incarnation in the session and `<key>#<n>` (n = 2, 3,
-///   …) for each later one, after the previous one was forgotten, so the
-///   engine starts a fresh stack (as Android ids its nested navigators per
-///   host instance). Children name their parent's current id.
+///   (`swiftui-screens/<name>`). An engine id is issued at most once per
+///   session: a new navigator takes the first of `<key>`, `<key>#2`,
+///   `<key>#3`, … not yet issued, so a navigator forgotten and used again
+///   gets a fresh engine stack (as Android ids its nested navigators per
+///   host instance), and a name containing `#` cannot collide with another
+///   navigator's id. A new session (`resetIncarnations()`) keeps only the
+///   live navigators' ids as issued. Children name their parent's current
+///   id.
 /// - **On screen.** Every entry is on screen from its `onAppear` until its
 ///   `onDisappear`. Activity is appearances only: each applied appearance
 ///   (a push, a pop by reappearance, or a top shown again) stamps its
@@ -77,8 +80,8 @@ struct NavigatorTree {
   ]
   /// The instance ids whose last callback was `onAppear`.
   private(set) var onScreen: Set<String> = []
-  /// Incarnations per key in this session.
-  private var incarnations: [String: Int] = [:]
+  /// The engine ids issued in this session (the root's included).
+  private var issued: Set<String> = [NavigatorTree.rootId]
   private var appearances: Int64 = 0
 
   /// The known navigators' keys, sorted.
@@ -111,10 +114,11 @@ struct NavigatorTree {
     nodes.filter { $0.value.parentKey == key }.map { $0.key }.sorted()
   }
 
-  /// A new session: the next incarnation of every name is its first again.
-  /// Live navigators keep their ids.
+  /// A new session: only the live navigators' ids (which they keep, and
+  /// which the session's seeds use) count as issued; a forgotten name's
+  /// bare id is free again.
   mutating func resetIncarnations() {
-    incarnations.removeAll()
+    issued = Set(nodes.values.map { $0.stack.navigatorId })
   }
 
   /// Makes every navigator around `scope` known. A known navigator keeps
@@ -122,16 +126,31 @@ struct NavigatorTree {
   /// first parent it learns.
   mutating func register(_ scope: NavigatorScope) {
     for level in scope.levels where nodes[level.navigatorId] == nil {
+      // Levels run outermost first and the root always exists, so the
+      // parent is known; a level without one is skipped, never guessed.
+      guard let parent = nodes[level.parentNavigatorId] else { continue }
       let key = level.navigatorId
-      let incarnation = (incarnations[key] ?? 0) + 1
-      incarnations[key] = incarnation
+      let id = unissuedId(for: key)
+      issued.insert(id)
       nodes[key] = Node(
-        navigatorId: incarnation == 1 ? key : "\(key)#\(incarnation)",
+        navigatorId: id,
         parentKey: level.parentNavigatorId,
-        parentNavigatorId: nodes[level.parentNavigatorId]?.stack.navigatorId ?? level.parentNavigatorId,
+        parentNavigatorId: parent.stack.navigatorId,
         hostRouteInstanceId: level.hostRouteInstanceId
       )
     }
+  }
+
+  /// The first of `key`, `key#2`, `key#3`, … not issued in this session.
+  /// It ends: `issued` is finite.
+  private func unissuedId(for key: String) -> String {
+    var candidate = key
+    var incarnation = 1
+    while issued.contains(candidate) {
+      incarnation += 1
+      candidate = "\(key)#\(incarnation)"
+    }
+    return candidate
   }
 
   mutating func appeared(_ entry: RouteEntry, on key: String) -> NavigationChange? {

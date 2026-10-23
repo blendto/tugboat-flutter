@@ -21,8 +21,11 @@ extension View {
   /// Give every tab its own navigator with a `.tugboatScreen` inside: a tab
   /// with no sibling navigator on screen when you switch away is torn down,
   /// and its next back is reported as a `push`. A sheet's navigator that is
-  /// forgotten and opened again is a new navigator for the engine
-  /// (`swiftui-screens/<name>#<n>`).
+  /// forgotten and opened again is a new navigator for the engine (an id
+  /// not yet used in the session, `swiftui-screens/<name>#<n>`). A hidden
+  /// tab of a tab container that goes away while its host screen stays (a
+  /// `TabView` in a dismissed sheet) is kept: it is seeded on restart, and
+  /// its next visit's first screen is a `push` departing the old one.
   ///
   /// Sibling navigators (same enclosing navigator) are treated as mutually
   /// exclusive, like tabs: do not put `.tugboatNavigator` on any

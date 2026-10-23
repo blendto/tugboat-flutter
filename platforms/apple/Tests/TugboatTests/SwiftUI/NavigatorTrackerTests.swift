@@ -683,7 +683,8 @@ final class NavigatorTrackerTests: XCTestCase {
     XCTAssertEqual(facts.map { $0["navigatorId"] as? String }, ["swiftui-screens/sheet#2", "swiftui-screens/pane"])
     XCTAssertEqual(facts.map { $0["parentNavigatorId"] as? String }, [root, "swiftui-screens/sheet#2"], "children name the current incarnation")
 
-    // A new session: the next incarnation is the bare name again; live ones keep theirs.
+    // A new session: live navigators keep their ids, and only those stay
+    // issued, so the bare id is free again; `#2` (seeded) is not.
     tracker.beginSession()
     XCTAssertEqual(tracker.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet#2")
     tracker.disappeared(instanceId: "p1")
@@ -692,6 +693,117 @@ final class NavigatorTrackerTests: XCTestCase {
     tracker.appeared(instanceId: "r3", name: "R", overlayKind: .sheet, scope: sheet)
     tracker.settle()
     XCTAssertEqual(tracker.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet")
+    tracker.disappeared(instanceId: "r3")
+    tracker.settle()
+    tracker.appeared(instanceId: "r4", name: "R", overlayKind: .sheet, scope: sheet)
+    tracker.settle()
+    XCTAssertEqual(tracker.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet#3", "never the seeded #2 again")
+  }
+
+  /// Review 4 M1: a stacked sheet is open (bare id) when a new session
+  /// starts; its seed fills the new engine's `sheet`. Dismissed and
+  /// reopened, it must not reuse that id.
+  func testAReopenAfterARestartWithTheSheetOpenGetsAnUnseededId() throws {
+    let tracker = ScreenTracker(clock: ManualClock())
+    tracker.appeared(instanceId: "details", name: "Details")
+    tracker.settle()
+    let sheet = scope("sheet", hostedBy: "details")
+    tracker.appeared(instanceId: "root1", name: "SheetRoot", overlayKind: .sheet, scope: sheet)
+    tracker.settle()
+    tracker.appeared(instanceId: "detail1", name: "SheetDetail", scope: sheet)
+    tracker.disappeared(instanceId: "root1")
+    tracker.settle()
+
+    tracker.beginSession()
+    let seeded = Set(seeds(tracker).compactMap { $0["navigatorId"] as? String })
+    XCTAssertEqual(seeded, [root, "swiftui-screens/sheet"])
+    tracker.isRecording = true
+    tracker.disappeared(instanceId: "detail1")
+    XCTAssertTrue(tracker.takeFacts().isEmpty, "teardown")
+    tracker.appeared(instanceId: "root2", name: "SheetRoot", overlayKind: .sheet, scope: sheet)
+    let reopened = try XCTUnwrap(tracker.takeFacts().first?.decodedInput, "the reopen is pushed")
+    let id = try XCTUnwrap(reopened["navigatorId"] as? String)
+    XCTAssertFalse(seeded.contains(id), "\(id) was seeded in this session")
+    XCTAssertEqual(id, "swiftui-screens/sheet#2")
+    XCTAssertNil(reopened["departing"])
+  }
+
+  /// Review 4 n1: a navigator literally named `sheet#2` and the second
+  /// incarnation of `sheet` never share an engine id, in either order.
+  func testANameContainingAHashNeverSharesAnId() {
+    for literalFirst in [true, false] {
+      let tracker = ScreenTracker(clock: ManualClock())
+      tracker.appeared(instanceId: "home", name: "Home")
+      tracker.settle()
+      let sheet = scope("sheet", hostedBy: "home")
+      let literal = scope("sheet#2", hostedBy: "home")
+      tracker.appeared(instanceId: "s1", name: "S", scope: sheet)
+      tracker.settle()
+      tracker.disappeared(instanceId: "s1")
+      tracker.settle()
+      if literalFirst {
+        tracker.appeared(instanceId: "l1", name: "L", scope: literal)
+        tracker.appeared(instanceId: "s2", name: "S", scope: sheet)
+      } else {
+        tracker.appeared(instanceId: "s2", name: "S", scope: sheet)
+        tracker.appeared(instanceId: "l1", name: "L", scope: literal)
+      }
+      tracker.settle()
+      let ids = [tracker.engineNavigatorId(of: "swiftui-screens/sheet"), tracker.engineNavigatorId(of: "swiftui-screens/sheet#2")]
+      XCTAssertEqual(Set(ids.compactMap { $0 }).count, 2, "literal first: \(literalFirst), ids \(ids)")
+    }
+  }
+
+  /// Review 4 m1 (known limit): a TabView inside a stackless sheet hosted
+  /// by Details. Visit y, return to x, dismiss: x is torn down, but the
+  /// hidden y is kept (its host Details stays). Route keys still go back to
+  /// Details because the visible chain only passes on-screen tops.
+  func testAHiddenTabOfADismissedTabContainerIsKeptButNotVisible() {
+    let tracker = ScreenTracker(clock: ManualClock())
+    tracker.appeared(instanceId: "details", name: "Details")
+    tracker.settle()
+    let x = scope("x", hostedBy: "details")
+    let y = scope("y", hostedBy: "details")
+    tracker.appeared(instanceId: "x1", name: "X1", scope: x)
+    tracker.settle()
+    tracker.appeared(instanceId: "y1", name: "Y1", scope: y)
+    tracker.disappeared(instanceId: "x1")
+    tracker.settle()
+    tracker.appeared(instanceId: "x1", name: "X1", scope: x)
+    tracker.disappeared(instanceId: "y1")
+    tracker.settle()
+    XCTAssertEqual(tracker.visibleTop?.name, "X1")
+
+    tracker.disappeared(instanceId: "x1")
+    tracker.settle()
+    XCTAssertNil(tracker.entries(of: "swiftui-screens/x"), "the shown tab is torn down")
+    XCTAssertEqual(tracker.visibleTop?.name, "Details", "the kept hidden tab's off-screen top is not visible")
+    // The documented limit: the hidden tab is kept and seeded.
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens/y")?.map { $0.name }, ["Y1"])
+    XCTAssertEqual(seeds(tracker).map { $0["navigatorId"] as? String }, ["swiftui-screens/y", root])
+  }
+
+  /// Review 4 m2 (known limit): navigation queued while not observed (before
+  /// `Tugboat.start()` or while stopped) settles as one batch. Push Details
+  /// on tab A, switch to B, switch back to A, then start: the batch
+  /// collapses, both tabs are torn down, and route keys lag on Shell.
+  func testNavigationQueuedWhileUnobservedSettlesAsOneBatch() {
+    let tracker = ScreenTracker(clock: ManualClock())
+    let tabA = scope("tabA", hostedBy: "shell")
+    let tabB = scope("tabB", hostedBy: "shell")
+    tracker.appeared(instanceId: "shell", name: "Shell")
+    tracker.appeared(instanceId: "home", name: "Home", scope: tabA)
+    tracker.appeared(instanceId: "details", name: "Details", scope: tabA)
+    tracker.disappeared(instanceId: "home")
+    tracker.appeared(instanceId: "inbox", name: "Inbox", scope: tabB)
+    tracker.disappeared(instanceId: "details")
+    tracker.appeared(instanceId: "details", name: "Details", scope: tabA)
+    tracker.disappeared(instanceId: "inbox")
+    // Adapter start: one settle for everything queued.
+    tracker.beginSession()
+    XCTAssertEqual(seeds(tracker).map { $0["navigatorId"] as? String }, [root])
+    XCTAssertEqual(tracker.visibleTop?.name, "Shell", "route keys lag until the next navigation")
+    XCTAssertEqual(tracker.navigatorIds, [root])
   }
 
   // MARK: Route key source

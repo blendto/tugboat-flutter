@@ -315,8 +315,13 @@ final class TugboatScreenTests: XCTestCase {
     frames.runFrame()
     screens.appeared(instanceId: "r3", name: "R", overlayKind: .sheet, scope: sheet)
     frames.runFrame()
+    XCTAssertEqual(screens.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet", "the bare id is free in the new session")
+    screens.disappeared(instanceId: "r3")
+    frames.runFrame()
+    screens.appeared(instanceId: "r4", name: "R", overlayKind: .sheet, scope: sheet)
+    frames.runFrame()
     adapter.stop()
-    XCTAssertEqual(screens.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet", "a new session starts at the bare id")
+    XCTAssertEqual(screens.engineNavigatorId(of: "swiftui-screens/sheet"), "swiftui-screens/sheet#3", "never the #2 this session seeded")
   }
 
   func testViewControllerAppearanceForwardsAndCallsTheOriginal() {

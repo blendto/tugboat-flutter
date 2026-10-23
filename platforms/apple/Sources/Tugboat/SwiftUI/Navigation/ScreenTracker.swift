@@ -74,14 +74,14 @@ final class ScreenTracker {
   }
 
   /// The id sent to the engine for the navigator `swiftui-screens/<name>`:
-  /// the same for its first incarnation in the session, `…#<n>` after it
-  /// was forgotten and used again.
+  /// the bare id when it is free in the session, else `…#<n>`; an id is
+  /// never issued twice in a session.
   func engineNavigatorId(of navigatorId: String) -> String? {
     tree.navigatorId(of: navigatorId)
   }
 
-  /// A new session (adapter `start()`): a name forgotten from now on gets
-  /// its bare id again on its next use. Live navigators keep their ids.
+  /// A new session (adapter `start()`): the live navigators keep their ids
+  /// (the seeds use them), and only those ids stay issued.
   func beginSession() {
     tree.resetIncarnations()
   }
@@ -105,8 +105,8 @@ final class ScreenTracker {
     return facts
   }
 
-  /// Forgets every screen, navigator and queued callback (tests, and
-  /// adapter stop).
+  /// Forgets every screen, navigator and queued callback (tests only: the
+  /// stacks deliberately survive adapter stop and start).
   func reset() {
     queued.removeAll()
     facts.removeAll()

@@ -67,8 +67,9 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   keeps its stack; route keys follow the shown tab). The first navigation
   after a tab return or a stacked sheet's dismissal is not attributed to
   its tap (no cause, no afterFrame). A navigator forgotten and used again
-  in a session gets a new engine id (`<name>#<n>`), so a reopened stacked
-  sheet starts a fresh engine stack. Sibling navigators are treated as
+  in a session gets an engine id not yet issued in that session
+  (`<name>`, `<name>#2`, …; navigators live at `start()` keep theirs), so
+  a reopened stacked sheet starts a fresh engine stack. Sibling navigators are treated as
   mutually exclusive, like tabs: not for any `NavigationSplitView` column
   or panes shown together (a collapsed split's back sends nothing and the
   detail stack grows; detail-only opt-in reports each back as a root
