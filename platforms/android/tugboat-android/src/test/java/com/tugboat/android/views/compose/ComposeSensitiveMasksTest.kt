@@ -184,8 +184,12 @@ class ComposeSensitiveMasksTest {
             }
         }
         assertVisibleRowsMasked(expectFirst = 0)
-        compose.onNodeWithTag("list").performScrollToIndex(60)
-        compose.waitForIdle()
+        // Small steps: rows that leave go to the reuse pool and the next rows take those slots. One jump would compose
+        // the new rows before releasing the old ones, so nothing would be reused.
+        for (index in 2..60 step 2) {
+            compose.onNodeWithTag("list").performScrollToIndex(index)
+            compose.waitForIdle()
+        }
         assertVisibleRowsMasked(expectFirst = 60)
     }
 
