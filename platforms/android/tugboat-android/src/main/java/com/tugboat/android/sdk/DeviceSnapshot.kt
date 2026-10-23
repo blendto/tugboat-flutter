@@ -1,6 +1,7 @@
 package com.tugboat.android.sdk
 
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Build
 import java.util.Locale
 import java.util.TimeZone
@@ -41,8 +42,11 @@ internal data class DeviceSnapshot(
             )
         }
 
-        private fun primaryLocale(context: Context): Locale {
-            val locales = context.resources.configuration.locales
+        private fun primaryLocale(context: Context): Locale = primaryLocale(context.resources.configuration)
+
+        /** The first `Configuration.locales` entry, as on `session.start`. */
+        fun primaryLocale(configuration: Configuration): Locale {
+            val locales = configuration.locales
             return if (locales.isEmpty) Locale.getDefault() else locales[0]
         }
     }
