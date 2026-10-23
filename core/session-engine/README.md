@@ -418,9 +418,10 @@ scheduler:
   boundary generation, or capture generation changed: never reaches the
   host); then the host's answer: paint-unchanged reuse, perceptual
   coalescing (the offered `dHashBaseline` matched under the same
-  structure), exact-content reuse (a compatible retained frame with the
-  same `contentHash` and, change C21, the same `maskCoverage` mode and
-  reasons), or `fresh_accepted`. An answer whose context went
+  structure), exact-content reuse (the newest compatible retained frame
+  with the same `contentHash`, kept only when it also has, change C21,
+  the same `maskCoverage` mode and reasons; an older frame with that hash
+  is not considered), or `fresh_accepted`. An answer whose context went
   stale meanwhile is `superseded_route_epoch`. Each waiter keeps the frame
   only when it is compatible with its own context.
 - **Ids and diagnostics.** One `capture_execution-N` per execution (one per
