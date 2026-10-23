@@ -5,7 +5,8 @@
 Unpublished. The Jetpack Compose adapter for the native Android SDK.
 
 - Public API: `TugboatCompose.install(composeMasking)` (the app calls once
-  when it ships this module), `ComposeMasking`, and `Modifier.tugboatTag(...)`.
+  when it ships this module), `ComposeMasking`, `Modifier.tugboatTag(...)`, and
+  `Modifier.tugboatSensitive()`.
 - Registers a Compose region with `tugboat-android`'s toolkit-region seam,
   read through `ViewRootForTest.semanticsOwner` (`runCatching`).
 - Masks under `allTextAndMedia`: every Compose host whole by default
@@ -14,6 +15,13 @@ Unpublished. The Jetpack Compose adapter for the native Android SDK.
   `AndroidView` interop bounds fail-closed; it leaves content without
   semantics unmasked (documented) and is ignored outside the tested Compose
   UI range. The whole frame when the semantics owner is unavailable.
+- `Modifier.tugboatSensitive()`: a `Modifier.Node` that adds no semantics.
+  While attached it registers with its Compose host; `ComposeMasks` masks
+  its unclipped bounds and every semantics node laid out inside it (found
+  through the node's layout ancestry), each outside the marked bounds at its
+  own bounds. Identity never sees it: taps, paths, list items, scroll
+  targets, scene inventory, and fingerprints are unchanged, and
+  `clearAndSetSemantics` on the same element does not drop it.
 - Identity: semantics hit-test at the down position, role tokens,
   `[item:n]` from `CollectionItemInfo` (`[item]` without it), paths below
   the host's Views path, `tugboatTag` / `testTag` aliases, the Views route
