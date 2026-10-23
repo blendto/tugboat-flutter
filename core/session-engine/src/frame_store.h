@@ -54,6 +54,8 @@ struct FrameProvenance {
   int64_t sequence = 0;
   int64_t pixel_width = 0;
   int64_t pixel_height = 0;
+  // The host's `maskCoverage` for the frame, if it sent one (change C21).
+  std::optional<MaskCoverage> mask_coverage;
   // False once the frame is trimmed from the session (a tombstone).
   bool available = true;
 };
@@ -101,6 +103,10 @@ class FrameStore {
   OptString reuse(const std::string& frame_id, const RequestContext& context);
   // The retained frame with this content hash (Dart `_hashToFrameId`).
   OptString frame_with_content(const std::string& content_hash) const;
+  // Change C21: whether `frame_id` was accepted with the same mask coverage
+  // (mode, and reasons as a set; absent only matches absent).
+  bool same_mask_coverage(const std::string& frame_id,
+                          const std::optional<MaskCoverage>& coverage) const;
   // Dart `_latestFrameId != null`.
   bool has_latest() const { return latest_frame_id_.has_value(); }
 

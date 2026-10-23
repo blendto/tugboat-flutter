@@ -203,6 +203,45 @@ void test_execution_helpers() {
   CHECK(other.outcome == CaptureOutcome::kNoCompatibleFrame);
 }
 
+// Change C21: exact-content reuse needs the retained frame's mask coverage
+// (mode, and reasons as a set) to match; absent matches only absent.
+void test_content_reuse_needs_same_mask_coverage() {
+  Session session(SessionHeader{});
+  IdCounter ids;
+  Output out;
+  FrameStore frames;
+  FrameRetention retention;
+  RequestContext ctx = context(1);
+  CapturedFrame first = captured("h1", "x");
+  first.mask_coverage =
+      MaskCoverage{MaskMode::kPrecise,
+                   {MaskReason::kInterop, MaskReason::kWebView}};
+  frames.accept(first, ctx, 10, 5, &ids, &session, &retention, &out);
+  InFlightCapture flight;
+  flight.capture = scheduled(FrameTrigger::kManual, "m", 0);
+  CapturedFrame same = captured("h2", "x");
+  same.mask_coverage =
+      MaskCoverage{MaskMode::kPrecise,
+                   {MaskReason::kWebView, MaskReason::kInterop}};
+  CHECK(classify_captured(frames, flight, same) ==
+        CapturedDisposition::kContentReused);
+  CapturedFrame overlay = same;
+  overlay.mask_coverage->reasons.push_back(MaskReason::kOverlayWindow);
+  CHECK(classify_captured(frames, flight, overlay) ==
+        CapturedDisposition::kAccepted);
+  CapturedFrame coarser = same;
+  coarser.mask_coverage->mode = MaskMode::kWholeHost;
+  CHECK(classify_captured(frames, flight, coarser) ==
+        CapturedDisposition::kAccepted);
+  CHECK(classify_captured(frames, flight, captured("h3", "x")) ==
+        CapturedDisposition::kAccepted);
+  // A frame accepted without coverage (Flutter) is reused as before.
+  frames.accept(captured("h4", "y"), ctx, 20, 5, &ids, &session, &retention,
+                &out);
+  CHECK(classify_captured(frames, flight, captured("h5", "y")) ==
+        CapturedDisposition::kContentReused);
+}
+
 // --------------------------------------------------------------- budget
 
 void test_budget() {
@@ -346,7 +385,7 @@ constexpr const char* kDocumentedReasons[] = {
     "animating",        "unverifiedLayerAllowlist", "walkExhausted",
     "noWindowSize",     "noDecor",                  "representable",
     "webView",          "renderer",                 "surfaceLayer",
-    "unclassifiedLayer", "secureText"};
+    "unclassifiedLayer", "secureText", "overlayWindow"};
 
 void test_mask_vocabulary() {
   int index = 0;
@@ -363,7 +402,7 @@ void test_mask_vocabulary() {
     CHECK(reason && static_cast<int>(*reason) == index++);
     CHECK(reason && std::string(mask_reason_name(*reason)) == name);
   }
-  CHECK(index == static_cast<int>(MaskReason::kSecureText) + 1);
+  CHECK(index == static_cast<int>(MaskReason::kOverlayWindow) + 1);
   CHECK(!parse_mask_reason("compose_default"));
   CHECK(kMaxMaskReasons == 8);
 
@@ -550,6 +589,7 @@ int main() {
   test_scheduler_queue();
   test_frame_store_compatibility_and_trim();
   test_execution_helpers();
+  test_content_reuse_needs_same_mask_coverage();
   test_budget();
   test_navigator_registry();
   test_route_identity();

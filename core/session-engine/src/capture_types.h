@@ -69,6 +69,7 @@ enum class MaskReason {
   kSurfaceLayer,
   kUnclassifiedLayer,
   kSecureText,
+  kOverlayWindow,
 };
 
 // At most this many reasons, each at most once.

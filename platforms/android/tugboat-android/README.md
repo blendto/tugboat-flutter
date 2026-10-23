@@ -358,15 +358,34 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
   `animating`); the frame is still captured, fully masked. Masks are taken at
   copy time, so `ViewPropertyAnimator` motion, scrolling, and IME resizes are
   in the bounds and need no fallback.
+- **Overlay windows.** The copy holds the activity window only, so a frame
+  taken while another window of the activity covers it keeps its activity
+  masks and mode, adds `overlayWindow` to `maskCoverage.reasons`, and adds
+  an overlay token to its structure signature. The token keeps the dHash
+  skip and engine coalescing from merging overlay and overlay-free frames;
+  the engine does not reuse a frame with other mask coverage for the same
+  pixels either (change C21). Detection is public API only: focus lost
+  while the activity is resumed (cleared only when focus returns, read only
+  while resumed), and on API 29+ `WindowInspector.getGlobalWindowViews()`
+  roots that are shown and carry this activity's token (its app token or
+  its decor's window token): dialogs (application windows other than the
+  starting window) and focusable sub-windows (`Spinner`, `PopupMenu`).
+  Non-focusable popups (text-selection handles, tooltips) are not flagged,
+  and neither are windows another activity left up. In multi-window mode on
+  API 29+ only `WindowInspector` counts.
 - **Failures.** Every adapter callback is guarded; the first failure per site
   is logged and nothing reaches the app.
 
 Activities the system destroys without finishing (configuration change,
 back-stack reclaim) keep their route identity when recreated.
 
-Known gaps: dialog and popup windows are not wrapped for pointer facts and
-are not in the captured frame (the copy is the activity window); predictive
-back is not observed; overscroll is reported for `RecyclerView` only;
+Known gaps: dialogs, sheets and menus are not captured or tapped; frames taken
+while one is shown carry `overlayWindow`. Non-focusable popups (text-selection
+handles, tooltips) are neither captured nor flagged. Below API 29 only the
+focus signal exists: a dialog shown before the activity window first gains
+focus (for example from `onCreate`) is not flagged, and in multi-window mode
+focus taken by another app's window flags frames. Predictive back is not
+observed; overscroll is reported for `RecyclerView` only;
 fragment `hide`/`show` is not reported; `transitionMs` is 0; window-manager
 activity transitions (not view animations) are not detected for the motion
 fallback.

@@ -9,6 +9,8 @@ internal interface WindowEventObserver {
     fun onTouch(event: MotionEvent)
 
     fun onKey(event: KeyEvent)
+
+    fun onWindowFocusChanged(hasFocus: Boolean) = Unit
 }
 
 /**

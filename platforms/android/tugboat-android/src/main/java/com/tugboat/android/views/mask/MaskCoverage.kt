@@ -27,6 +27,9 @@ internal data class MaskCoverage(val mode: MaskMode, val reasons: Set<MaskCovera
             .put("mode", mode.wire)
             .put("reasons", JSONArray(reasons.map { it.wire }.sorted()))
 
+    /** The same mode, with [reason] among the reasons. */
+    operator fun plus(reason: MaskCoverageReason): MaskCoverage = copy(reasons = reasons + reason)
+
     companion object {
         val PRECISE = MaskCoverage(MaskMode.Precise)
 
