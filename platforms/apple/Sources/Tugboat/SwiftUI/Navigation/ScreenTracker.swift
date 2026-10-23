@@ -8,23 +8,17 @@ import Foundation
 /// - Every screen modifier instance is one route with a stable opaque
 ///   `instanceId`, on the navigator its environment names (`NavigatorScope`):
 ///   the root `swiftui-screens`, or `swiftui-screens/<name>` inside
-///   `.tugboatNavigator(name)`, whose facts carry `parentNavigatorId`. A
-///   sheet's screen is a route on the navigator that presented it.
+///   `.tugboatNavigator(name)`, whose facts carry `parentNavigatorId`.
 /// - Callbacks are queued and applied together on the next frame,
 ///   appearances first. SwiftUI does not order `onAppear` and
 ///   `onDisappear` of two screens consistently within a frame; applying
 ///   appearances first keeps a covered screen on the stack instead of
-///   popping it.
-/// - A screen under a covered host route (a route on the parent's stack
-///   that is no longer its top) disappearing changes nothing: it was
-///   covered with its host, as a covered screen on one stack is.
-/// - A nested navigator is forgotten, with no fact, once its host route has
-///   left the parent's stack, once its parent is forgotten, or once its
-///   stack is empty and no navigator below it remains (Android forgets a
-///   fragment navigator whose host left the same way).
+///   popping it. What a callback means for the navigators (covered or
+///   popped, which navigators are forgotten, the visible chain) is
+///   `NavigatorTree`'s.
 /// - `visibleTop` is the route key source for identity: the top of the
-///   visible chain as of the last `settle()` (identity settles before
-///   reading it). The stacks are kept even while the adapter is not
+///   visible chain, computed at the end of each `settle()` (identity settles
+///   before reading it). The stacks are kept even while the adapter is not
 ///   recording; facts are only kept while it is.
 ///
 /// Main thread only (SwiftUI runs view callbacks there).
@@ -39,31 +33,10 @@ final class ScreenTracker {
     case disappeared(String, HostTime)
   }
 
-  /// One navigator: its stack (which knows its parent), the route on the
-  /// parent's stack that hosts it, and when it or a navigator below it
-  /// last changed.
-  private struct Navigator {
-    var stack: ScreenStack
-    let hostRouteInstanceId: String?
-    /// True once the host route was seen on the parent's stack; only then
-    /// can it leave. Callbacks of one SwiftUI update arrive together, but a
-    /// host seen a frame late must not drop the navigator first.
-    var hostSeen = false
-    var lastActive: Int64 = 0
-
-    init(navigatorId: String, parentNavigatorId: String?, hostRouteInstanceId: String?) {
-      stack = ScreenStack(navigatorId: navigatorId, parentNavigatorId: parentNavigatorId)
-      self.hostRouteInstanceId = hostRouteInstanceId
-    }
-
-    static var root: Navigator {
-      Navigator(navigatorId: ScreenTracker.navigatorId, parentNavigatorId: nil, hostRouteInstanceId: nil)
-    }
-  }
-
   private let clock: HostClock
-  private var navigators: [String: Navigator] = [ScreenTracker.navigatorId: .root]
-  private var activity: Int64 = 0
+  private var tree = NavigatorTree()
+  /// `tree.visibleChain()` as of the last `settle()`.
+  private var chain: [ScreenStack] = []
   private var queued: [Event] = []
   private var facts: [AdapterFact] = []
 
@@ -83,23 +56,20 @@ final class ScreenTracker {
     instances.nextId(prefix: "swiftui-screen")
   }
 
-  /// The top route of the visible chain, as of the last `settle()`: from
-  /// the root navigator down through the navigators its top routes host
-  /// (the most recently changed one where several are uncovered), the
-  /// deepest non-empty stack's top. It is the route the last
-  /// `session_start` seed ends on.
+  /// The top route of the visible chain as of the last `settle()`: the
+  /// route the last `session_start` seed ends on.
   var visibleTop: RouteEntry? {
-    seedOrder().last?.top
+    chain.last?.top
   }
 
   /// The known navigators, sorted (tests and diagnostics).
   var navigatorIds: [String] {
-    navigators.keys.sorted()
+    tree.ids
   }
 
   /// `navigatorId`'s stack, bottom first; nil when it is not known.
   func entries(of navigatorId: String) -> [RouteEntry]? {
-    navigators[navigatorId]?.stack.entries
+    tree.entries(of: navigatorId)
   }
 
   func appeared(instanceId: String, name: String, overlayKind: OverlayKind = .page, scope: NavigatorScope = .root) {
@@ -126,156 +96,40 @@ final class ScreenTracker {
   func reset() {
     queued.removeAll()
     facts.removeAll()
-    navigators = [ScreenTracker.navigatorId: .root]
-    activity = 0
+    tree = NavigatorTree()
+    chain = []
     hasSeenScreen = false
   }
 
-  /// One `session_start` per navigator with a non-empty stack, in
-  /// `seedOrder()`: navigators hosted by covered routes first, the visible
-  /// chain last (the engine takes the last seed's top as the visible route).
+  /// One `session_start` per navigator with a non-empty stack, in the
+  /// visible chain's seed order (the engine takes the last seed's top as
+  /// the visible route).
   func sessionStartFacts(at: HostTime) -> [AdapterFact] {
     settle()
-    return seedOrder().map { stack in
+    return chain.map { stack in
       NavigationChange(sessionStart: stack.navigatorId, parentNavigatorId: stack.parentNavigatorId, routes: stack.entries)
         .fact(at: at)
     }
   }
 
-  /// Applies queued callbacks: appearances first, then disappearances, then
-  /// forgets the navigators that left.
+  /// Applies queued callbacks: appearances first, then disappearances
+  /// (which see the batch's appearances), then forgets the navigators that
+  /// left and recomputes the visible chain.
   func settle() {
     guard !queued.isEmpty else { return }
     let events = queued
     queued.removeAll()
+    var appearedOn: Set<String> = []
     for case let .appeared(entry, scope, at) in events {
-      register(scope)
-      record(change(on: scope.navigatorId) { $0.appeared(entry) }, at: at)
+      tree.register(scope)
+      appearedOn.insert(scope.navigatorId)
+      record(tree.appeared(entry, on: scope.navigatorId), at: at)
     }
     for case let .disappeared(instanceId, at) in events {
-      // Only a top route's disappearance changes a stack, and not under a
-      // covered host: SwiftUI also calls `onDisappear` for covered screens.
-      guard
-        let id = navigators.first(where: { $0.value.stack.top?.instanceId == instanceId })?.key,
-        !isUnderCoveredHost(id)
-      else { continue }
-      record(change(on: id) { $0.disappeared(instanceId: instanceId) }, at: at)
+      record(tree.disappeared(instanceId: instanceId, appearedOn: appearedOn), at: at)
     }
-    forgetLeftNavigators()
-  }
-
-  /// Makes every navigator around `scope` known. A known navigator keeps
-  /// the parent and host it was first seen with, as the engine keeps the
-  /// first parent it learns.
-  private func register(_ scope: NavigatorScope) {
-    for level in scope.levels where navigators[level.navigatorId] == nil {
-      navigators[level.navigatorId] = Navigator(
-        navigatorId: level.navigatorId,
-        parentNavigatorId: level.parentNavigatorId,
-        hostRouteInstanceId: level.hostRouteInstanceId
-      )
-    }
-  }
-
-  private func change(on navigatorId: String, _ apply: (inout ScreenStack) -> NavigationChange?) -> NavigationChange? {
-    guard var navigator = navigators[navigatorId] else { return nil }
-    let change = apply(&navigator.stack)
-    navigators[navigatorId] = navigator
-    if change != nil {
-      markActive(navigatorId)
-    }
-    return change
-  }
-
-  /// Stamps `navigatorId` and its ancestors as the most recently changed.
-  private func markActive(_ navigatorId: String) {
-    activity += 1
-    var next: String? = navigatorId
-    var hops = 0
-    while let id = next, hops <= navigators.count, var navigator = navigators[id] {
-      navigator.lastActive = activity
-      navigators[id] = navigator
-      next = navigator.stack.parentNavigatorId
-      hops += 1
-    }
-  }
-
-  /// True when the route hosting `navigatorId`, or one hosting a navigator
-  /// above it, is on its parent's stack but not on top: the navigator is
-  /// covered, so its screens disappearing pops nothing.
-  private func isUnderCoveredHost(_ navigatorId: String) -> Bool {
-    var next: String? = navigatorId
-    var hops = 0
-    while let id = next, hops <= navigators.count, let navigator = navigators[id] {
-      if let host = navigator.hostRouteInstanceId, isHostOnParent(navigator),
-        navigator.stack.parentNavigatorId.flatMap({ navigators[$0]?.stack.top?.instanceId }) != host {
-        return true
-      }
-      next = navigator.stack.parentNavigatorId
-      hops += 1
-    }
-    return false
-  }
-
-  private func forgetLeftNavigators() {
-    for (id, navigator) in navigators where !navigator.hostSeen && isHostOnParent(navigator) {
-      navigators[id]?.hostSeen = true
-    }
-    var forgotten = true
-    while forgotten {
-      forgotten = false
-      for (id, navigator) in navigators where id != ScreenTracker.navigatorId && hasLeft(id, navigator) {
-        navigators[id] = nil
-        forgotten = true
-      }
-    }
-  }
-
-  /// The parent is gone, the host route left the parent's stack, or the
-  /// stack is empty with no navigator below it.
-  private func hasLeft(_ id: String, _ navigator: Navigator) -> Bool {
-    guard let parent = navigator.stack.parentNavigatorId, navigators[parent] != nil else { return true }
-    if navigator.hostSeen, navigator.hostRouteInstanceId != nil, !isHostOnParent(navigator) {
-      return true
-    }
-    return navigator.stack.entries.isEmpty && !navigators.values.contains { $0.stack.parentNavigatorId == id }
-  }
-
-  private func isHostOnParent(_ navigator: Navigator) -> Bool {
-    guard let host = navigator.hostRouteInstanceId, let parent = navigator.stack.parentNavigatorId else { return false }
-    return navigators[parent]?.stack.contains(instanceId: host) ?? false
-  }
-
-  /// The non-empty stacks in seed order (Android `sessionStartSnapshots`).
-  /// From the root, for each navigator: the navigators hosted by its
-  /// covered routes, then its own stack, then the navigators under its top
-  /// route or hosted by no route, least recently changed first. A
-  /// navigator whose host route is not on its parent's stack is not
-  /// visited: it cannot be visible.
-  private func seedOrder() -> [ScreenStack] {
-    var out: [ScreenStack] = []
-    var visited: Set<String> = []
-    visit(ScreenTracker.navigatorId, into: &out, visited: &visited)
-    return out
-  }
-
-  private func visit(_ id: String, into out: inout [ScreenStack], visited: inout Set<String>) {
-    guard let navigator = navigators[id], visited.insert(id).inserted else { return }
-    let top = navigator.stack.top?.instanceId
-    let children = navigators.filter { $0.value.stack.parentNavigatorId == id }
-    let covered = children
-      .filter { $0.value.hostRouteInstanceId != nil && $0.value.hostRouteInstanceId != top && isHostOnParent($0.value) }
-      .map { $0.key }
-      .sorted()
-    let uncovered = children
-      .filter { $0.value.hostRouteInstanceId == nil || $0.value.hostRouteInstanceId == top }
-      .sorted { ($0.value.lastActive, $0.key) < ($1.value.lastActive, $1.key) }
-      .map { $0.key }
-    covered.forEach { visit($0, into: &out, visited: &visited) }
-    if !navigator.stack.entries.isEmpty {
-      out.append(navigator.stack)
-    }
-    uncovered.forEach { visit($0, into: &out, visited: &visited) }
+    tree.prune()
+    chain = tree.visibleChain()
   }
 
   private func record(_ change: NavigationChange?, at: HostTime) {

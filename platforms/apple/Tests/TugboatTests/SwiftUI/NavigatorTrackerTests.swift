@@ -131,6 +131,8 @@ final class NavigatorTrackerTests: XCTestCase {
     let direct = outer.nested("direct")
     XCTAssertNil(direct.levels.last?.hostRouteInstanceId, "no screen between the two navigators")
     XCTAssertEqual(outer.nested("outer"), outer, "a navigator is never its own parent")
+    let middle = outer.nested("middle")
+    XCTAssertEqual(middle.nested("outer"), middle, "nor its own ancestor")
     var deep = NavigatorScope.root
     for index in 0..<(NavigatorScope.maxDepth + 4) {
       deep = deep.nested("n\(index)")
@@ -158,7 +160,7 @@ final class NavigatorTrackerTests: XCTestCase {
     tracker.settle()
   }
 
-  func testSessionStartSeedsEveryNavigatorWithTheVisibleChainLast() {
+  func testSessionStartSeedsEveryNavigatorWithTheVisibleChainLast() throws {
     let tracker = ScreenTracker(clock: ManualClock())
     shellWithTabAndSheet(tracker)
     let seeds = seeds(tracker)
@@ -170,7 +172,8 @@ final class NavigatorTrackerTests: XCTestCase {
     ])
     XCTAssertEqual(seeds.map { names($0) }, [["Shell"], ["Pane"], ["Home", "Details", "SheetRoot"], ["SheetDetail"]])
     XCTAssertTrue(seeds.allSatisfy { $0["kind"] as? String == "session_start" })
-    let sheetRoute = (seeds[2]["routes"] as? [[String: Any]])?.last
+    let tabASeed = try XCTUnwrap(seeds.dropFirst(2).first, "fewer than three seeds")
+    let sheetRoute = (tabASeed["routes"] as? [[String: Any]])?.last
     XCTAssertEqual(sheetRoute?["overlayKind"] as? String, "sheet")
     XCTAssertEqual(sheetRoute?["transitionMs"] as? Int, 0)
     XCTAssertEqual(tracker.visibleTop?.name, "SheetDetail", "the last seed's top")
@@ -297,6 +300,168 @@ final class NavigatorTrackerTests: XCTestCase {
     tracker.settle()
     XCTAssertEqual(tracker.visibleTop?.name, "A")
     XCTAssertEqual(seeds(tracker).map { $0["navigatorId"] as? String }, [root, "swiftui-screens/inner"])
+  }
+
+  // MARK: Tabs (silent switches) and activity
+
+  /// Root `[Shell]`; `tabA` and `tabB` hosted by Shell. `tabA` gets
+  /// `aScreens`, then the user switches to tab B (first visit: `Inbox`).
+  private func shellWithTwoTabs(_ tracker: ScreenTracker, aScreens: [String]) -> (tabA: NavigatorScope, tabB: NavigatorScope) {
+    let tabA = scope("tabA", hostedBy: "shell")
+    let tabB = scope("tabB", hostedBy: "shell")
+    tracker.appeared(instanceId: "shell", name: "Shell")
+    for name in aScreens {
+      tracker.appeared(instanceId: name, name: name, scope: tabA)
+      tracker.settle()
+    }
+    return (tabA, tabB)
+  }
+
+  /// A tab switch: the incoming tab's top appears, the outgoing tab's top
+  /// disappears, in one batch.
+  private func switchTab(_ tracker: ScreenTracker, show shown: String, in scope: NavigatorScope, hide hidden: String) -> [[String: Any]] {
+    tracker.appeared(instanceId: shown, name: shown, scope: scope)
+    tracker.disappeared(instanceId: hidden)
+    return tracker.takeFacts().map { $0.decodedInput }
+  }
+
+  func testATabSwitchIsSilentAndRouteKeysFollowTheShownTab() {
+    let tracker = ScreenTracker(clock: ManualClock())
+    let tabs = shellWithTwoTabs(tracker, aScreens: ["Home", "Details"])
+    tracker.isRecording = true
+
+    let first = switchTab(tracker, show: "Inbox", in: tabs.tabB, hide: "Details")
+    XCTAssertEqual(first.map { $0["kind"] as? String }, ["push"], "tab B's first route only; tab A does not pop")
+    XCTAssertEqual(first.first?["navigatorId"] as? String, "swiftui-screens/tabB")
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens/tabA")?.map { $0.name }, ["Home", "Details"], "the hidden tab keeps its stack")
+    XCTAssertEqual(tracker.visibleTop?.name, "Inbox")
+
+    let back = switchTab(tracker, show: "Details", in: tabs.tabA, hide: "Inbox")
+    XCTAssertTrue(back.isEmpty, "no pop or push on the switch: \(back)")
+    XCTAssertEqual(tracker.visibleTop?.name, "Details")
+    let again = switchTab(tracker, show: "Inbox", in: tabs.tabB, hide: "Details")
+    XCTAssertTrue(again.isEmpty, "no pop or push on the switch: \(again)")
+    XCTAssertEqual(tracker.visibleTop?.name, "Inbox")
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens/tabA")?.map { $0.name }, ["Home", "Details"])
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens/tabB")?.map { $0.name }, ["Inbox"])
+    XCTAssertEqual(seeds(tracker).last?["navigatorId"] as? String, "swiftui-screens/tabB", "the shown tab is seeded last")
+  }
+
+  func testASingleScreenTabRoundTripAddsNothing() {
+    let tracker = ScreenTracker(clock: ManualClock())
+    let tabs = shellWithTwoTabs(tracker, aScreens: ["Home"])
+    _ = switchTab(tracker, show: "Inbox", in: tabs.tabB, hide: "Home")
+    tracker.isRecording = true
+    for _ in 0..<3 {
+      XCTAssertTrue(switchTab(tracker, show: "Home", in: tabs.tabA, hide: "Inbox").isEmpty)
+      XCTAssertEqual(tracker.visibleTop?.name, "Home")
+      XCTAssertTrue(switchTab(tracker, show: "Inbox", in: tabs.tabB, hide: "Home").isEmpty)
+      XCTAssertEqual(tracker.visibleTop?.name, "Inbox")
+    }
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens/tabA")?.map { $0.name }, ["Home"])
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens/tabB")?.map { $0.name }, ["Inbox"])
+    XCTAssertEqual(tracker.navigatorIds, [root, "swiftui-screens/tabA", "swiftui-screens/tabB"])
+  }
+
+  func testAPopFromADisappearanceIsNotActivity() {
+    let tracker = ScreenTracker(clock: ManualClock())
+    let left = scope("left", hostedBy: "shell")
+    tracker.appeared(instanceId: "shell", name: "Shell")
+    tracker.appeared(instanceId: "l1", name: "L1", scope: left)
+    tracker.settle()
+    tracker.appeared(instanceId: "l2", name: "L2", scope: left)
+    tracker.settle()
+    tracker.appeared(instanceId: "r1", name: "R1", scope: scope("right", hostedBy: "shell"))
+    tracker.settle()
+    tracker.isRecording = true
+    // L2 leaves with no appearance in the batch: a real pop, but the shown
+    // column is still the one that last appeared.
+    tracker.disappeared(instanceId: "l2")
+    let facts = tracker.takeFacts().map { $0.decodedInput }
+    XCTAssertEqual(facts.map { $0["kind"] as? String }, ["pop"])
+    XCTAssertEqual(facts.first?["navigatorId"] as? String, "swiftui-screens/left")
+    XCTAssertEqual(tracker.visibleTop?.name, "R1")
+    // The revealed screen's own appearance makes its navigator the shown one.
+    tracker.appeared(instanceId: "l1", name: "L1", scope: left)
+    XCTAssertTrue(tracker.takeFacts().isEmpty, "L1 is already the top")
+    XCTAssertEqual(tracker.visibleTop?.name, "L1")
+  }
+
+  func testAHostlessNavigatorIsVisibleOnlyWithTheNewestAppearance() {
+    let tracker = ScreenTracker(clock: ManualClock())
+    // No screen around the tab's navigator; a sheet attached to the TabView is on the root.
+    tracker.appeared(instanceId: "home", name: "Home", scope: scope("tabA", hostedBy: nil))
+    tracker.settle()
+    XCTAssertEqual(tracker.visibleTop?.name, "Home")
+    tracker.appeared(instanceId: "paywall", name: "Paywall", overlayKind: .sheet)
+    tracker.settle()
+    XCTAssertEqual(tracker.visibleTop?.name, "Paywall", "the root's own appearance is newer")
+    XCTAssertEqual(seeds(tracker).map { $0["navigatorId"] as? String }, ["swiftui-screens/tabA", root])
+    tracker.appeared(instanceId: "detail", name: "Detail", scope: scope("tabA", hostedBy: nil))
+    tracker.settle()
+    XCTAssertEqual(tracker.visibleTop?.name, "Detail")
+  }
+
+  func testCoveredNavigatorsAreSeededInStackOrder() {
+    let tracker = ScreenTracker(clock: ManualClock())
+    for screen in ["a", "b", "c"] {
+      tracker.appeared(instanceId: screen, name: screen.uppercased())
+      tracker.settle()
+    }
+    // Named against key order: `z` is hosted by the lower route.
+    tracker.appeared(instanceId: "z1", name: "Z1", scope: scope("z", hostedBy: "a"))
+    tracker.appeared(instanceId: "y1", name: "Y1", scope: scope("y", hostedBy: "b"))
+    tracker.settle()
+    XCTAssertEqual(seeds(tracker).map { $0["navigatorId"] as? String }, ["swiftui-screens/z", "swiftui-screens/y", root])
+    XCTAssertEqual(tracker.visibleTop?.name, "C")
+  }
+
+  // MARK: Sheet with its root inside its navigator (the documented pattern)
+
+  /// `.sheet { NavigationStack { SheetRoot().tugboatScreen("SheetRoot",
+  /// presentation: .sheet) }.tugboatNavigator("sheet") }`, attached inside
+  /// the Details screen on the root.
+  func testASheetWithItsRootInsideItsNavigator() throws {
+    let tracker = ScreenTracker(clock: ManualClock())
+    tracker.appeared(instanceId: "home", name: "Home")
+    tracker.settle()
+    tracker.appeared(instanceId: "details", name: "Details")
+    tracker.settle()
+    tracker.isRecording = true
+    let sheet = scope("sheet", hostedBy: "details")
+
+    tracker.appeared(instanceId: "sheetRoot", name: "SheetRoot", overlayKind: .sheet, scope: sheet)
+    let opened = try XCTUnwrap(tracker.takeFacts().first, "the sheet root is pushed")
+    XCTAssertEqual(
+      opened.input.json,
+      "{\"kind\":\"push\",\"navigatorId\":\"swiftui-screens/sheet\",\"parentNavigatorId\":\"swiftui-screens\",\"route\":{\"instanceId\":\"sheetRoot\",\"name\":\"SheetRoot\",\"type\":\"TugboatScreen\",\"overlayKind\":\"sheet\",\"transitionMs\":0}}",
+      "the first route on the child navigator is the sheet root"
+    )
+    XCTAssertEqual(tracker.visibleTop?.name, "SheetRoot")
+
+    // A push inside the sheet: same navigator as the visible route, so the tap's claim holds.
+    tracker.appeared(instanceId: "sheetDetail", name: "SheetDetail", scope: sheet)
+    tracker.disappeared(instanceId: "sheetRoot")
+    let pushed = tracker.takeFacts().map { $0.decodedInput }
+    XCTAssertEqual(pushed.map { $0["kind"] as? String }, ["push"])
+    XCTAssertEqual(pushed.first?["navigatorId"] as? String, "swiftui-screens/sheet")
+    XCTAssertEqual((pushed.first?["departing"] as? [String: Any])?["name"] as? String, "SheetRoot")
+    XCTAssertEqual((pushed.first?["route"] as? [String: Any])?["transitionMs"] as? Int, 350)
+
+    // Back to the sheet root: a pop on the sheet's navigator.
+    tracker.appeared(instanceId: "sheetRoot", name: "SheetRoot", overlayKind: .sheet, scope: sheet)
+    tracker.disappeared(instanceId: "sheetDetail")
+    let popped = tracker.takeFacts().map { $0.decodedInput }
+    XCTAssertEqual(popped.map { $0["kind"] as? String }, ["pop"])
+    XCTAssertEqual(popped.first?["navigatorId"] as? String, "swiftui-screens/sheet")
+    XCTAssertEqual((popped.first?["route"] as? [String: Any])?["name"] as? String, "SheetRoot")
+    XCTAssertEqual(tracker.visibleTop?.name, "SheetRoot")
+
+    // Dismissed: the emptied navigator is forgotten without a fact; route keys return to Details.
+    tracker.disappeared(instanceId: "sheetRoot")
+    XCTAssertTrue(tracker.takeFacts().isEmpty)
+    XCTAssertNil(tracker.entries(of: "swiftui-screens/sheet"))
+    XCTAssertEqual(tracker.visibleTop?.name, "Details")
   }
 
   // MARK: Route key source

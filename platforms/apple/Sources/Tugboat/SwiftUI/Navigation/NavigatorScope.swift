@@ -8,9 +8,9 @@
 ///   Its parent is the enclosing navigator. Its host route is the innermost
 ///   `.tugboatScreen` around it on that parent, or nil when no screen sits
 ///   between the two navigators.
-/// - A name that repeats the enclosing navigator's, or nesting deeper than
+/// - A name that repeats any enclosing navigator's, or nesting deeper than
 ///   `maxDepth`, stays on the enclosing navigator: a navigator is never its
-///   own parent.
+///   own ancestor.
 struct NavigatorScope: Equatable {
   /// One nested navigator.
   struct Level: Equatable {
@@ -45,7 +45,7 @@ struct NavigatorScope: Equatable {
   /// The scope inside `.tugboatNavigator(name)`.
   func nested(_ name: String) -> NavigatorScope {
     let id = NavigatorScope.navigatorId(named: name)
-    guard id != navigatorId, levels.count < NavigatorScope.maxDepth else { return self }
+    guard !levels.contains(where: { $0.navigatorId == id }), levels.count < NavigatorScope.maxDepth else { return self }
     let level = Level(navigatorId: id, parentNavigatorId: navigatorId, hostRouteInstanceId: hostRouteInstanceId)
     return NavigatorScope(levels: levels + [level], hostRouteInstanceId: nil)
   }
