@@ -42,6 +42,7 @@ internal class TugboatRuntime private constructor(
     private val watcher: SessionEndWatcher,
     private val clock: HostClock,
     private val stopSequence: StopSequence,
+    private val launchCorrelation: LaunchCorrelation,
     /** Coded events and network calls; any thread. */
     val evidence: EvidenceRecorder,
 ) {
@@ -63,6 +64,7 @@ internal class TugboatRuntime private constructor(
     fun stop() {
         if (stopped) return
         stopped = true
+        launchCorrelation.stop()
         evidence.close()
         adapter.stop()
         lifecycle.stop()
@@ -138,7 +140,16 @@ internal class TugboatRuntime private constructor(
                 postNavigationFacts = true,
             )
             val surfaces = SurfaceReporter { input -> host.post(SurfaceReporter.FACT_TYPE, input, clock.now()) }
-            val foreground = ForegroundWindow(application, surfaces::observe)
+            val startAt = clock.now()
+            val launchCorrelation = LaunchCorrelation(
+                sessionWallUs = startAt.wallUs,
+                isHostRunning = { host.isRunning },
+            )
+            val foreground = ForegroundWindow(
+                application,
+                onResumed = launchCorrelation::onActivityResumed,
+                onBoundary = surfaces::observe,
+            )
             val main = Handler(Looper.getMainLooper())
             val captures = CaptureCoordinator(
                 mainThread = main::post,
@@ -153,7 +164,7 @@ internal class TugboatRuntime private constructor(
             )
             host = EngineHost.start(transport, frames, http = watcher, captures = captures)
             host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, gesture).toString())
-            host.post(SessionMessages.SESSION_START, SessionMessages.sessionStart(device, metadata, sessionEpoch), clock.now())
+            host.post(SessionMessages.SESSION_START, SessionMessages.sessionStart(device, metadata, sessionEpoch), startAt)
             val lifecycle = AppLifecycleBridge(post = { state ->
                 host.post(SessionMessages.APP_LIFECYCLE, SessionMessages.appLifecycle(state), clock.now())
             })
@@ -161,7 +172,9 @@ internal class TugboatRuntime private constructor(
             adapter.start()
             foreground.start()
             lifecycle.start()
-            return TugboatRuntime(host, adapter, lifecycle, foreground, captures, watcher, clock, stopSequence, evidence)
+            return TugboatRuntime(
+                host, adapter, lifecycle, foreground, captures, watcher, clock, stopSequence, launchCorrelation, evidence,
+            )
         }
     }
 }

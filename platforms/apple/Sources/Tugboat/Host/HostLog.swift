@@ -5,6 +5,11 @@ import os.log
 /// key, frame bytes, or response bodies other than engine error documents.
 enum HostLog {
   private static let log = OSLog(subsystem: "com.gettugboat.sdk", category: "engine")
+  private static let launchLog = OSLog(subsystem: "com.gettugboat.sdk", category: "launch")
+
+  static func launch(_ message: String) {
+    os_log("%{public}@", log: launchLog, type: .default, message as NSString)
+  }
 
   static func warning(_ message: String) {
     os_log("%{public}@", log: log, type: .default, message as NSString)
