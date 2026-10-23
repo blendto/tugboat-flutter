@@ -11,6 +11,17 @@
 namespace tugboat {
 namespace engine {
 
+namespace {
+
+bool same_coverage(const MaskCoverage& a, const MaskCoverage& b) {
+  if (a.mode != b.mode) return false;
+  const std::set<MaskReason> left(a.reasons.begin(), a.reasons.end());
+  const std::set<MaskReason> right(b.reasons.begin(), b.reasons.end());
+  return left == right;
+}
+
+}  // namespace
+
 bool RequestContext::surface_compatible_with(
     const RequestContext& other) const {
   return session_id == other.session_id && route_epoch == other.route_epoch &&
@@ -69,6 +80,7 @@ FrameRecord FrameStore::accept(const CapturedFrame& captured,
   provenance.sequence = ++sequence_;
   provenance.pixel_width = captured.width;
   provenance.pixel_height = captured.height;
+  provenance.mask_coverage = captured.mask_coverage;
   provenance_[frame.id] = std::move(provenance);
   frame_by_content_[captured.content_hash] = frame.id;
   latest_frame_id_ = frame.id;
@@ -173,6 +185,17 @@ OptString FrameStore::frame_with_content(
   const auto it = frame_by_content_.find(content_hash);
   if (it == frame_by_content_.end()) return std::nullopt;
   return it->second;
+}
+
+bool FrameStore::same_mask_coverage(
+    const std::string& frame_id,
+    const std::optional<MaskCoverage>& coverage) const {
+  const FrameProvenance* frame = find(frame_id);
+  if (frame == nullptr) return false;
+  if (!frame->mask_coverage || !coverage) {
+    return !frame->mask_coverage && !coverage;
+  }
+  return same_coverage(*frame->mask_coverage, *coverage);
 }
 
 std::optional<DHashBaseline> FrameStore::dhash_baseline() const {

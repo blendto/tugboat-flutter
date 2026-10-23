@@ -23,6 +23,7 @@ import com.tugboat.android.views.mask.WindowMasks
 import com.tugboat.android.views.navigation.NavigationChange
 import com.tugboat.android.views.navigation.NavigationObservation
 import com.tugboat.android.views.navigation.NavigationProcessState
+import com.tugboat.android.views.overlay.withOverlayWindow
 
 /**
  * The Android Views toolkit adapter (native SDK note section 5): it turns
@@ -122,7 +123,12 @@ internal class ViewsAdapter(
     }
 
     /** Mask rectangles for [window] under `allTextAndMedia`; called on the main thread per `capture.request`. */
-    fun masks(window: Window): WindowMaskResult = WindowMasks.compute(window)
+    fun masks(window: Window): WindowMaskResult {
+        val masks = WindowMasks.compute(window)
+        val activity = window.context as? Activity ?: return masks
+        val session = sessions[activity] ?: return masks
+        return if (session.overlayAtCapture(window)) masks.withOverlayWindow() else masks
+    }
 
     /**
      * Any thread: a capture completed with [structureSignature] and
@@ -167,7 +173,8 @@ internal class ViewsAdapter(
 
     override fun onActivityStarted(activity: Activity) = Unit
 
-    override fun onActivityPaused(activity: Activity) = Unit
+    override fun onActivityPaused(activity: Activity) =
+        AdapterGuard.run("activity paused") { sessions[activity]?.onActivityPaused() }
 
     override fun onActivityStopped(activity: Activity) = Unit
 

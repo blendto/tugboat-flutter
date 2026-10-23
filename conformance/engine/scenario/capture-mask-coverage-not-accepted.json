@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "capture-mask-coverage-not-accepted",
-  "description": "Only a frame the engine accepts records capture_masking. Answers that carry maskCoverage but are coalesced (the offered dHash baseline matched under the same structure), exact-content reused (a compatible retained frame has the same content hash), or stale (a navigation superseded the capture in flight) release their frame and record no capture_masking diagnostic; with the captureDiagnostics capability each resolution's own capture_diagnostic names its outcome (perceptual_hash_coalesced, exact_content_reused, superseded_route_epoch). The route capture after the navigation is accepted and records one.",
+  "description": "Only a frame the engine accepts records capture_masking. Answers that carry maskCoverage but are coalesced (the offered dHash baseline matched under the same structure), exact-content reused (a compatible retained frame has the same content hash and, change C21, the same mask coverage), or stale (a navigation superseded the capture in flight) release their frame and record no capture_masking diagnostic; with the captureDiagnostics capability each resolution's own capture_diagnostic names its outcome (perceptual_hash_coalesced, exact_content_reused, superseded_route_epoch). The route capture after the navigation is accepted and records one.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -391,7 +391,7 @@
         }
       },
       {
-        "note": "Same content as frame-2: exact_content_reused, released, no capture_masking.",
+        "note": "Same content and the same mask coverage as frame-2: exact_content_reused, released, no capture_masking.",
         "send": {
           "type": "capture.result",
           "at": {
@@ -413,9 +413,9 @@
               "requestedBackend": "nativeCpuExperimental",
               "resolvedBackend": "nativeCpuExperimental",
               "maskCoverage": {
-                "mode": "precise",
+                "mode": "wholeHost",
                 "reasons": [
-                  "interop"
+                  "composeDefault"
                 ]
               }
             },
