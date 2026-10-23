@@ -10,6 +10,7 @@ plugins {
     id("com.android.library") version "8.9.1" apply false
     id("com.android.application") version "8.9.1" apply false
     id("org.jetbrains.kotlin.android") version "2.1.0" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.1.0" apply false
     id("com.vanniktech.maven.publish") version "0.34.0" apply false
 }
 
@@ -27,6 +28,11 @@ dependencyResolutionManagement {
 rootProject.name = "tugboat-android"
 include(":capture-runtime")
 include(":capture-runtime-test")
+include(":tugboat-android")
+// Native SDK sample app (Views + Compose); built from the project, no local Maven needed.
+include(":tugboat-sample")
+include(":tugboat-compose")
+include(":tugboat-okhttp")
 
 val runtimeVersion =
     java.util.Properties()

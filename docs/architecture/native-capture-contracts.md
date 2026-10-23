@@ -31,7 +31,9 @@ recording (`MediaProjection`, ScreenCaptureKit).
 
 Dart allocates a monotonic `requestId` (`uint64`) per plugin instance.
 Native is a FIFO of one in-flight capture. Different buffers are not
-processed in parallel.
+processed in parallel. On Android, `capture(view, …)` and
+`capture(window, …)` share that one queue and one pipeline; only the
+`PixelCopy` source differs.
 
 | Field | Type | Rule |
 | --- | --- | --- |
@@ -39,7 +41,7 @@ processed in parallel.
 | `pixelWidth`, `pixelHeight` | int | Exact bitmap size. Equals the Dart capturer’s scaled size for this request (`capturePixelRatio`, max bounds, degraded scale). Native must not PixelCopy device pixels and hash that. |
 | `force` | bool | When true, do not dHash-skip. Required so interaction frames keep session semantics. |
 | `lastDHash` | 64-char `'0'/'1'` or empty | Same encoding as `computeDHashFromRgba`. Empty means “no previous”. |
-| `masks` | list of `{x,y,width,height}` | Normalized CaptureBoundary local space. See Masks. |
+| `masks` | list of `{x,y,width,height}` | Normalized CaptureBoundary local space; on window capture, the window's decor view. See Masks. |
 
 Capture scale stays Dart-owned. If the runtime cannot map CaptureBoundary
 space onto the PixelCopy bitmap, status `processingFailed` and Flutter
@@ -57,7 +59,7 @@ fallback — do not encode.
 | `dHash` | 64-char `'0'/'1'` or empty | Bit-for-bit with `sdks/flutter/packages/tugboat/lib/src/perceptual_hash.dart` on the masked RGBA buffer. |
 | `contentHash` | lowercase hex SHA-256 of JPEG | Empty on skip. |
 | `timings` | int microseconds | Stages in the clock table. Missing keys are zero. |
-| `renderMode` | `surfaceView` / `textureView` / `hybrid` / `unknown` | Diagnostic only. |
+| `renderMode` | `surfaceView` / `textureView` / `hybrid` / `unknown` | Diagnostic only. Always `unknown` on window captures. |
 | `incomplete` | bool | Only meaningful for `viewHierarchy`. |
 
 The runtime does not retain JPEG or bitmap after the reply. Dart owns
@@ -111,6 +113,20 @@ drop if right <= left or bottom <= top
 C ABI rectangles are inclusive-start exclusive-end integers. Overlaps stay
 opaque. Never round toward unmasking. A wrong origin is a privacy failure.
 
+On Android window capture (`windowComposite`), the mask space is the
+window's decor view, which is the area `PixelCopy.request(Window, …)`
+copies. Callers normalize rects against the decor view's width and height.
+The mapping rule above is unchanged.
+
+With a `WindowMaskSupplier` (`capture(window, request, masks, onComplete)`),
+masks are evaluated on the main thread for the frame being copied: the
+supplier runs in the same main-thread task as `PixelCopy.request`, after the
+committed-frame wait and the `FLAG_SECURE` re-check, and its masks replace
+`request.masks`. Layout that moves between the request and the copy
+(scrolling, animations, an IME resize) therefore cannot move content out of
+its mask. A supplier that throws, or reports `wholeFrame`, masks the whole
+frame. `CaptureResult.maskSnapshot` returns what was applied.
+
 ## Coverage
 
 Closed: `engineSurface | windowComposite | viewHierarchy`.
@@ -118,7 +134,7 @@ Closed: `engineSurface | windowComposite | viewHierarchy`.
 | Value | First milestone |
 | --- | --- |
 | `engineSurface` | Android `PixelCopy` of the active `FlutterSurfaceView`, or Apple rendering of the live Flutter layer. Not the final window composition. |
-| `windowComposite` | Forbidden until that path exists. Do not report it. |
+| `windowComposite` | Android `PixelCopy` of one app window's surface (API 26+). Not the full-screen composition. |
 | `viewHierarchy` | Optional Apple `drawHierarchy` compatibility mode. Incomplete descendants set `incomplete=true`. |
 
 The Flutter Apple plugin reports `engineSurface` on `ok` and
@@ -130,6 +146,25 @@ Not guaranteed on `engineSurface`: platform views, separate video/map
 surfaces, secure / DRM content, `FlutterTextureView`, hybrid composition.
 Those are unsupported render modes or missing layers, never an unmasked
 substitute.
+
+`windowComposite` is one app window's surface: the views drawn into that
+window, `TextureView` included. It is not the full-screen composition.
+Missing from it:
+
+- `SurfaceView` / `GLSurfaceView` layers (video players, camera previews,
+  maps that render to a `SurfaceView`). Callers mask their bounds
+  fail-closed.
+- Every other window: dialogs, `PopupWindow`s, dropdowns, the IME.
+
+A window flagged `FLAG_SECURE` when the copy is issued is never copied:
+the result is `secureWindow`, with no frame. `PixelCopy` of a window returns
+its last queued buffer, which can still hold a secure screen just after the
+flag is cleared. So the runtime checks the flag on the main thread,
+invalidates the window, waits until a frame drawn after that check has been
+committed (`registerFrameCommitCallback` on API 29+ hardware-accelerated
+windows, otherwise two animation frames), checks the flag again, and only
+then copies. The wait counts toward the runtime timeout and `surfaceCopy`; a
+window that draws no frame (for example, a hidden one) reports `timeout`.
 
 ## Status × fallback × publish
 
@@ -145,6 +180,13 @@ substitute.
 | `processingFailed` | yes | no |
 | `cancelled` | no | no |
 | `disposed` | no | no |
+| `secureWindow` | no | no |
+
+`secureWindow` is reported only by Android window capture, for a window
+with `FLAG_SECURE`. It carries no frame and no coverage. It is not a
+failure: hosts emit a `capture_diagnostic` event instead of a frame, never
+fall back to another pixel path for that window, and do not count it toward
+the consecutive failure limit below. Window capture below API 26 reports `unsupportedApi`.
 
 Fallback is one-way for that `requestId`. Do not publish native and Flutter
 together. After fallback starts, a Dart failure is the outcome; do not
@@ -171,7 +213,7 @@ them.
 | --- | --- | --- |
 | `frameWait` | Dart | Existing compositor wait |
 | `maskCollect` | Dart | Widget-tree rects + normalize. Native emits 0 |
-| `surfaceCopy` | Runtime | PixelCopy into the target bitmap |
+| `surfaceCopy` | Runtime | PixelCopy into the target bitmap. On window capture, includes the wait for one committed frame |
 | `pixelReadback` | Runtime | 0 — pixels are already CPU after PixelCopy. Do not fold PixelCopy here |
 | `maskFill` | C++ core | ABI timing |
 | `dHash` | C++ core | ABI timing |

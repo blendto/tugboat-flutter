@@ -1,0 +1,346 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "evidence-external-event",
+  "description": "evidence.externalEvent records external_event on the evidence stream with the session's capture id and no action context; atMonoUs (default at.monoUs) is the fact time. Before the first session it is dropped with no id; an empty name records nothing and mints no id.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 1000000
+          },
+          "input": {
+            "name": "USER_LOGIN",
+            "source": "analytics",
+            "policy": {
+              "mode": "allow_list",
+              "allowedKeys": [
+                "method"
+              ]
+            },
+            "parameters": {
+              "map": [
+                [
+                  "method",
+                  "email"
+                ],
+                [
+                  "email",
+                  null
+                ]
+              ]
+            },
+            "atMonoUs": 7000400
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        },
+        "note": "Before the first session: dropped, no id."
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 8000000
+          },
+          "input": {
+            "name": "USER_LOGIN",
+            "source": "analytics",
+            "policy": {
+              "mode": "allow_list",
+              "allowedKeys": [
+                "method"
+              ]
+            },
+            "parameters": {
+              "map": [
+                [
+                  "method",
+                  "email"
+                ],
+                [
+                  "email",
+                  null
+                ]
+              ]
+            },
+            "atMonoUs": 7000400
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 2000,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "source": "analytics",
+                  "name": "USER_LOGIN",
+                  "parameterKeys": [
+                    "method",
+                    "email"
+                  ],
+                  "parameters": {
+                    "method": "email"
+                  },
+                  "capture": {
+                    "values": "allow_list",
+                    "truncated": false,
+                    "droppedCount": 1
+                  }
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 8500000
+          },
+          "input": {
+            "name": " \t",
+            "policy": {
+              "mode": "allow_all"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        },
+        "note": "Empty name after trimming: nothing recorded."
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 9000000
+          },
+          "input": {
+            "name": "search",
+            "policy": {
+              "mode": "names_only"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "query",
+                  null
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 4000,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "search",
+                  "parameterKeys": [
+                    "query"
+                  ],
+                  "capture": {
+                    "values": "names_only",
+                    "truncated": false,
+                    "droppedCount": 0
+                  }
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-2",
+          "atMs": 2000,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "source": "analytics",
+            "name": "USER_LOGIN",
+            "parameterKeys": [
+              "method",
+              "email"
+            ],
+            "parameters": {
+              "method": "email"
+            },
+            "capture": {
+              "values": "allow_list",
+              "truncated": false,
+              "droppedCount": 1
+            }
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 4000,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "search",
+            "parameterKeys": [
+              "query"
+            ],
+            "capture": {
+              "values": "names_only",
+              "truncated": false,
+              "droppedCount": 0
+            }
+          }
+        }
+      ]
+    }
+  }
+}

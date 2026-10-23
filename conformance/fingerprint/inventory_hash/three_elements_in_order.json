@@ -1,0 +1,20 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.inventoryHash",
+  "name": "three_elements_in_order",
+  "description": "inventoryHash keeps fingerprints that already arrive in UTF-16 order in that order: the sort is a strict ordering, not a swap of any two different fingerprints.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "fingerprints": [
+      "aaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbb",
+      "cccccccccccccccc"
+    ]
+  },
+  "expected": {
+    "hash": "ec07ea81595af81a"
+  }
+}

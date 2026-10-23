@@ -1,0 +1,159 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "allow-all-values",
+  "description": "allow_all keeps every JSON-safe value in host order: integers, doubles in Dart's format, booleans, null, lists, nested maps. capture is {values, truncated, droppedCount}.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "USER_LOGIN",
+    "source": "analytics",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "method",
+          "email"
+        ],
+        [
+          "count",
+          3
+        ],
+        [
+          "ratio",
+          {
+            "double": 0.5
+          }
+        ],
+        [
+          "whole",
+          {
+            "double": 100
+          }
+        ],
+        [
+          "big",
+          {
+            "double": 1e+21
+          }
+        ],
+        [
+          "small",
+          {
+            "double": 1.5e-07
+          }
+        ],
+        [
+          "negZero",
+          {
+            "double": "-0.0"
+          }
+        ],
+        [
+          "flag",
+          true
+        ],
+        [
+          "nothing",
+          null
+        ],
+        [
+          "max",
+          9223372036854775807
+        ],
+        [
+          "min",
+          -9223372036854775808
+        ],
+        [
+          "list",
+          [
+            1,
+            "a",
+            [
+              true
+            ]
+          ]
+        ],
+        [
+          "nested",
+          {
+            "map": [
+              [
+                "b",
+                1
+              ],
+              [
+                "a",
+                {
+                  "map": [
+                    [
+                      "z",
+                      null
+                    ]
+                  ]
+                }
+              ]
+            ]
+          }
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "source": "analytics",
+      "name": "USER_LOGIN",
+      "parameterKeys": [
+        "method",
+        "count",
+        "ratio",
+        "whole",
+        "big",
+        "small",
+        "negZero",
+        "flag",
+        "nothing",
+        "max",
+        "min",
+        "list",
+        "nested"
+      ],
+      "parameters": {
+        "method": "email",
+        "count": 3,
+        "ratio": 0.5,
+        "whole": 100.0,
+        "big": 1e+21,
+        "small": 1.5e-07,
+        "negZero": -0.0,
+        "flag": true,
+        "nothing": null,
+        "max": 9223372036854775807,
+        "min": -9223372036854775808,
+        "list": [
+          1,
+          "a",
+          [
+            true
+          ]
+        ],
+        "nested": {
+          "b": 1,
+          "a": {
+            "z": null
+          }
+        }
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": false,
+        "droppedCount": 0
+      }
+    }
+  }
+}

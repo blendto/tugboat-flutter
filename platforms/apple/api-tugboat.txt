@@ -1,0 +1,83 @@
+## Evidence/TugboatAdapters.swift
+public enum TugboatAdapters
+  public static var isAcceptingEvidence: Bool
+  public static func beginNetworkCall(method: String, route: String?) -> TugboatNetworkCall
+  public static func route(for request: URLRequest, _ resolver: TugboatRouteResolver) -> String?
+  public static func errorResponseBody(bytes: Data, contentType: String?) -> Any?
+  public static func tapEvidenceForTesting( _ sink: @escaping (_ type: String, _ inputJSON: String) -> Void ) -> TugboatEvidenceTap
+public final class TugboatEvidenceTap
+  public func close()
+
+## Evidence/TugboatEventHook.swift
+public final class TugboatEventHook: @unchecked Sendable
+  public func record(_ name: String, parameters: [String: Any]? = nil)
+
+## Evidence/TugboatNetworkCall.swift
+public enum TugboatNetworkFailure: Sendable
+  case networkError
+  case cancelled
+public final class TugboatNetworkCall: @unchecked Sendable
+  public func complete(statusCode: Int? = nil, attemptCount: Int? = nil, errorResponseBody: Any? = nil)
+  public func fail( _ failure: TugboatNetworkFailure, statusCode: Int? = nil, attemptCount: Int? = nil, errorResponseBody: Any? = nil )
+
+## Evidence/TugboatParameterPolicy.swift
+public enum TugboatParameterPolicy: Sendable
+  case namesOnly
+  case allowList(Set<String>)
+  case transform(@Sendable (_ key: String, _ value: Any) throws -> Any?)
+  case allowAll
+  public static let drop = TugboatParameterDrop()
+public struct TugboatParameterDrop: Sendable
+
+## Public/SwiftUIAccessibilityIdentity.swift
+public enum SwiftUIAccessibilityIdentity: Equatable
+  case off
+  case sampled(rate: Double)
+  case on
+
+## Public/Tugboat+URLSession.swift
+public typealias TugboatRouteResolver = (URLRequest) throws -> String?
+extension Tugboat
+  public static func instrumentedSession( configuration: URLSessionConfiguration = .default, delegate: URLSessionDelegate? = nil, delegateQueue: OperationQueue? = nil, routeResolver: @escaping TugboatRouteResolver ) -> URLSession
+  public static func data( for request: URLRequest, session: URLSession = .shared, delegate: URLSessionTaskDelegate? = nil, route: String? ) async throws -> (Data, URLResponse)
+
+## Public/Tugboat.swift
+public enum Tugboat
+  public static func start(_ config: TugboatConfig)
+  public static func setUserId(_ id: String?)
+  public static func setTraits(_ traits: [String: Any])
+  public static func stop()
+  public static func eventHook( source: String? = nil, parameterPolicy: TugboatParameterPolicy = .allowAll ) -> TugboatEventHook
+  public static func beginNetworkCall(method: String, route: String?) -> TugboatNetworkCall
+
+## Public/TugboatConfig.swift
+public struct TugboatConfig
+  public var collector: Collector
+  public var app: App
+  public var maskLevel: MaskLevel
+  public var captureFocusChanges: Bool
+  public var trackHostingControllers: Bool
+  public var swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity
+  public init( collector: Collector, app: App, maskLevel: MaskLevel = .allTextAndMedia, captureFocusChanges: Bool = false, trackHostingControllers: Bool = true, swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off )
+  public struct Collector: CustomStringConvertible
+    public var baseURL: URL
+    public var apiKey: String
+    public init(baseURL: URL, apiKey: String)
+    public var description: String
+  public struct App
+    public var name: String
+    public var version: String
+    public var buildNumber: String
+    public var appId: String
+    public var installationId: String
+    public init(name: String, version: String, buildNumber: String, appId: String, installationId: String)
+  public enum MaskLevel
+    case allTextAndMedia
+
+## SwiftUI/Modifiers/TugboatScreen.swift
+extension View
+  public func tugboatScreen(_ name: String) -> some View
+
+## SwiftUI/Modifiers/TugboatTag.swift
+extension View
+  public func tugboatTag(_ tag: String, accessibility: Bool = false) -> some View

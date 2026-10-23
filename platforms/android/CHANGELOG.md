@@ -1,5 +1,43 @@
 # Android capture-runtime
 
+## 0.3.0
+
+Unpublished; supersedes the never-published 0.2.0. Additive.
+
+- `CaptureRuntime.capture(window, request, masks: WindowMaskSupplier,
+  onComplete)`: the supplier runs on the main thread right after the
+  committed-frame wait and the `FLAG_SECURE` re-check, immediately before
+  `PixelCopy.request`, so masks describe the frame being copied. Its
+  `MaskSnapshot` (masks, `wholeFrame`, the host's `structureSignature` and
+  `MaskCoverage`) replaces `request.masks`; a throwing supplier masks the
+  whole frame. `capture(window, request, onComplete)` delegates with the
+  request's masks.
+- `CaptureRequest.lastStructureSignature`: with a supplier, the dHash skip
+  uses `lastDHash` only when the snapshot's structure signature matches.
+- `CaptureResult.maskSnapshot` and `CaptureTimings.maskComputeMicros`.
+
+## 0.2.0
+
+Unpublished. Additive; the `FlutterSurfaceView` path is unchanged.
+
+- `CaptureRuntime.capture(window, request, onComplete)`: `PixelCopy` of one
+  app `Window`'s surface (API 26+, `MIN_WINDOW_API`; below that
+  `UnsupportedApi`). Reports coverage `WindowComposite`. Masks are normalized
+  to the window's decor view. `TextureView` is in the copy; `SurfaceView` /
+  `GLSurfaceView` layers and other windows (dialogs, popups, the IME) are
+  not, so callers mask `SurfaceView` bounds fail-closed.
+- `CaptureStatus.SecureWindow`: a window flagged `FLAG_SECURE` when the copy
+  is issued is never copied. The result has no frame and no coverage. The
+  copy is taken from a frame committed after the main-thread check, so a
+  stale secure buffer is not copied right after the flag is cleared.
+- `CaptureCoverage.WindowComposite`.
+- View and window captures share one queue and one pipeline (cancellation,
+  disposal, mask mapping, C++ mask fill + dHash, JPEG q80, SHA-256, timings).
+
+The Flutter plugin still pins `0.1.0`. Its exhaustive `when` over
+`CaptureStatus` and `CaptureCoverage` needs `SecureWindow` and
+`WindowComposite` branches before it can compile against `0.2.0`.
+
 ## 0.1.0
 
 Initial Maven artifact `com.gettugboat.sdk:capture-runtime:0.1.0`.

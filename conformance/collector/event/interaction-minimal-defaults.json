@@ -1,0 +1,68 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "interaction-minimal-defaults",
+  "description": "Edge: empty data. interactionSchema defaults to 2; no sessionId (before the start handshake) omits sessionId; null userId is sent as null; no traitsId omits it.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "installationId": "inst-0002",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390,
+          "height": 844
+        },
+        "screenDensity": 3,
+        "screenDpi": 460,
+        "screenPixelDensity": 3
+      },
+      "ip": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "configuredUserId": null
+    },
+    "session": {
+      "sessionId": null,
+      "startedAtEpochMs": 1781827200000,
+      "userId": null
+    },
+    "event": {
+      "id": "event-1",
+      "atMs": 0,
+      "type": "interaction",
+      "stream": "semantic",
+      "data": {}
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-1",
+      "atMs": 0,
+      "triggeredAt": "2026-06-19T00:00:00.000Z",
+      "userId": null,
+      "eventType": "interaction",
+      "stream": "semantic",
+      "enrichmentCandidate": true,
+      "interactionSchema": 2,
+      "build": {
+        "appId": "com.example.app",
+        "platform": "ios",
+        "versionName": "1.0.0",
+        "buildNumber": "1",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- View tag key for the developer alias (`tugboatTag`). Its entry name
+         doubles as the resource-name obfuscation probe. -->
+    <item name="tugboat_view_tag" type="id" />
+    <!-- View tag key marking SDK-owned views, which identity and masks skip. -->
+    <item name="tugboat_sdk_owned" type="id" />
+</resources>

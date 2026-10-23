@@ -441,12 +441,11 @@ When the matching capabilities are enabled, the controller may emit:
 
 ## Privacy and payload boundary
 
-Use `TugboatSensitive` for content that must always be hidden in screenshots:
+Use `.tugboatSensitive()` for content that must always be hidden in screenshots.
+It is equivalent to wrapping the widget in `TugboatSensitive(child: ...)`:
 
 ```dart
-TugboatSensitive(
-  child: Text('Do not show in replay'),
-)
+Text('Do not show in replay').tugboatSensitive(),
 ```
 
 Available mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
@@ -462,8 +461,8 @@ items use structural positions. Telemetry does include developer-authored
 routing and identity strings where applicable:
 
 - route names in `route_change.data` and anchor `routeKey` fields;
-- `TugboatSubView.label` in state/scroll context;
-- `TugboatTag.id` in `targetAnchor.fingerprintParts.tag` (and its hashed
+- the `.tugboatSubView(label)` / `TugboatSubView` label in state/scroll context;
+- the `.tugboatTag(id)` / `TugboatTag` id in `targetAnchor.fingerprintParts.tag` (and its hashed
   `tagFingerprint`);
 - widget type names and canonical structural paths;
 - active app locale language, country, script, and BCP 47 tag when available;
@@ -584,17 +583,43 @@ remain the primary gesture-level visual evidence.
 Fingerprint schema v6 derives target identity from route plus a normalized
 canonical widget path. Wrapper widgets are filtered, same-type siblings receive
 ordinals, and list or grid items receive structural `[item:index]` tokens.
-`TugboatTag` adds an alias without changing the structural fingerprint:
+`.tugboatTag(id)` adds an alias without changing the structural fingerprint.
+Adding it is a one-line suffix on the control:
 
 ```dart
-TugboatTag(
+FilledButton(onPressed: submit, child: const Text('Submit')).tugboatTag(
   'checkout-submit',
-  child: FilledButton(onPressed: submit, child: const Text('Submit')),
-)
+),
 ```
 
-`TugboatSubView` adds a developer-owned section label useful for nested content
-and scroll attribution. `widgetNames` can replace runtime type names used in
+Pass `accessibility: true` to also publish the id as the platform accessibility
+identifier (Android resource-id, iOS `accessibilityIdentifier`). It is off by
+default. Enable it on a single control, not on a container: the identifier is
+placed on a node above the control's subtree, so it does not identify the
+controls inside a container. On Material buttons (`ElevatedButton`,
+`TextButton`, `FilledButton`, `OutlinedButton`, `IconButton`) the identifier
+lands on a label-less parent node above the labelled button, not on the button
+node itself. For non-button controls (`ListTile`, `Checkbox`, `Switch`,
+`TextField`, `GestureDetector`, `InkWell`) it sits on the control's own node
+and the screen-reader semantics are otherwise unchanged.
+
+```dart
+FilledButton(onPressed: submit, child: const Text('Submit')).tugboatTag(
+  'checkout-submit',
+  accessibility: true,
+),
+```
+
+`.tugboatSubView(label)` adds a developer-owned section label useful for nested
+content and scroll attribution:
+
+```dart
+ListView(...).tugboatSubView('feed'),
+```
+
+Each marker has an equivalent wrapper widget (`TugboatTag`, `TugboatSensitive`,
+`TugboatSubView`) that you can use instead when a suffix reads poorly. Both
+spellings produce the same identity, masking, and scroll attribution. `widgetNames` can replace runtime type names used in
 canonical paths, which is particularly useful when an obfuscated build needs a
 generated stable-name map.
 
@@ -665,8 +690,9 @@ so it is suitable for health polling and cannot grow with session duration.
 The supported import exports `TugboatReplay` (including `setTraits` /
 `setUserId`), `TugboatNavigatorObserver`, `TugboatReplayConfig`,
 capture/semantic/masking enums and policies, collector configuration and host
-helpers, markers (`TugboatSensitive`, `TugboatTag`, `TugboatSubView`,
-`TugboatInternal`), anchor and session models, the controller, and
+helpers, markers (the `TugboatMarkers` extension methods `tugboatTag`,
+`tugboatSensitive`, and `tugboatSubView`; the `TugboatSensitive`, `TugboatTag`,
+and `TugboatSubView` wrappers; and `TugboatInternal`), anchor and session models, the controller, and
 `TugboatExplorationTransport`.
 
 `TugboatCaptureSink` and the built-in sink implementations are internal today;

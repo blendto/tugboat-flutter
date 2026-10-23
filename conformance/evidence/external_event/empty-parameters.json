@@ -1,0 +1,31 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "empty-parameters",
+  "description": "A map without entries is the same as no parameters.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "app_open",
+    "source": "  ",
+    "policy": {
+      "mode": "names_only"
+    },
+    "parameters": {
+      "map": []
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "app_open",
+      "parameterKeys": [],
+      "capture": {
+        "values": "names_only",
+        "truncated": false,
+        "droppedCount": 0
+      }
+    }
+  }
+}

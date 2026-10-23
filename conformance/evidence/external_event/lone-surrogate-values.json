@@ -1,0 +1,46 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "lone-surrogate-values",
+  "description": "Lone surrogates in values and keys are kept and written as escapes.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "surrogates",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "t",
+          "\udc00x\ud83d"
+        ],
+        [
+          "\ud800",
+          1
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "surrogates",
+      "parameterKeys": [
+        "t",
+        "\ud800"
+      ],
+      "parameters": {
+        "t": "\udc00x\ud83d",
+        "\ud800": 1
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": false,
+        "droppedCount": 0
+      }
+    }
+  }
+}

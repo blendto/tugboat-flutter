@@ -24,7 +24,27 @@ jobs:
         run: bash tool/ci/verify-native-capture-pigeon.sh
       - name: Test collector frame delivery
         working-directory: sdks/flutter/packages/tugboat
-        run: flutter test test/collector_http_sink_test.dart
+        run: flutter test test/collector_http_sink_test.dart test/collector_http_sink_retry_after_test.dart test/collector_retry_after_test.dart
+
+  conformance:
+    name: Dart conformance fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Install Dart dependencies
+        run: flutter pub get
+      # Same fixtures as the C++ session engine job in image-core.yml; this
+      # holds the Dart SDK to them, including the engine.scenario runner
+      # (test/helpers/engine_scenario.dart) for non-engineOnly scenarios. No
+      # path filter, so fixture-only changes run it too.
+      - name: Test Dart against conformance/
+        working-directory: sdks/flutter/packages/tugboat
+        run: flutter test test/conformance_fixtures_test.dart
 
   pub-dry-run:
     name: pub publish dry-run

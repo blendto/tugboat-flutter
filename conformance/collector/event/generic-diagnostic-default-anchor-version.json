@@ -1,0 +1,76 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "generic-diagnostic-default-anchor-version",
+  "description": "Edge: a diagnostic event whose anchor has the default schemaVersion 1, which the anchor JSON omits. enrichmentCandidate is false for non-interaction types.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "installationId": "inst-0002",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390,
+          "height": 844
+        },
+        "screenDensity": 3,
+        "screenDpi": 460,
+        "screenPixelDensity": 3
+      },
+      "ip": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "configuredUserId": null
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": null
+    },
+    "event": {
+      "id": "event-120",
+      "atMs": 120000,
+      "type": "capture_health",
+      "stream": "diagnostic",
+      "targetAnchor": {
+        "schemaVersion": 1,
+        "fingerprint": "0000111122223333"
+      },
+      "data": {}
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-120",
+      "atMs": 120000,
+      "triggeredAt": "2026-06-19T00:02:00.000Z",
+      "sessionId": "collector-session-9",
+      "userId": null,
+      "eventType": "capture_health",
+      "stream": "diagnostic",
+      "enrichmentCandidate": false,
+      "targetAnchor": {
+        "fingerprint": "0000111122223333"
+      },
+      "payload": {},
+      "build": {
+        "appId": "com.example.app",
+        "platform": "ios",
+        "versionName": "1.0.0",
+        "buildNumber": "1",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

@@ -60,31 +60,25 @@ class _PaymentScreenState extends State<PaymentScreen> {
             DemoSection(
               title: 'Card details',
               children: [
-                const TugboatSensitive(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Card number',
-                      hintText: '4242 4242 4242 4242',
-                    ),
+                const TextField(
+                  decoration: InputDecoration(
+                    labelText: 'Card number',
+                    hintText: '4242 4242 4242 4242',
                   ),
-                ),
+                ).tugboatSensitive(),
                 const SizedBox(height: 12),
-                const Row(
+                Row(
                   children: [
                     Expanded(
-                      child: TugboatSensitive(
-                        child: TextField(
-                          decoration: InputDecoration(labelText: 'Expiry'),
-                        ),
-                      ),
+                      child: const TextField(
+                        decoration: InputDecoration(labelText: 'Expiry'),
+                      ).tugboatSensitive(),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: TugboatSensitive(
-                        child: TextField(
-                          decoration: InputDecoration(labelText: 'CVC'),
-                        ),
-                      ),
+                      child: const TextField(
+                        decoration: InputDecoration(labelText: 'CVC'),
+                      ).tugboatSensitive(),
                     ),
                   ],
                 ),

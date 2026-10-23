@@ -1,0 +1,171 @@
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+    // Only the unit tests have Composables (the Compose adapter's end-to-end
+    // tests); main code has none and no Compose dependency.
+    id("org.jetbrains.kotlin.plugin.compose")
+    id("com.vanniktech.maven.publish")
+}
+
+// Versioned independently of capture-runtime (ADR 0008). Unpublished: the
+// only repository below is the untracked `.local-maven`.
+val tugboatAndroidVersion = "0.1.0"
+
+android {
+    namespace = "com.tugboat.android"
+    compileSdk = 36
+    ndkVersion = "28.2.13676358"
+
+    defaultConfig {
+        minSdk = 24
+        consumerProguardFiles("consumer-rules.pro")
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "SDK_VERSION", "\"$tugboatAndroidVersion\"")
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+        externalNativeBuild {
+            cmake {
+                arguments += listOf(
+                    "-DTB_SESSION_ENGINE_DIR=${rootProject.projectDir.resolve("../../core/session-engine").canonicalPath}",
+                    "-DTB_SESSION_ENGINE_BUILD_TESTS=OFF",
+                    "-DANDROID_STL=c++_static",
+                )
+            }
+        }
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+        jvmTarget = "11"
+        // This module defines the toolkit-region and HTTP-adapter seams and uses them internally.
+        freeCompilerArgs += "-opt-in=com.tugboat.android.toolkit.TugboatToolkitApi"
+        freeCompilerArgs += "-opt-in=com.tugboat.android.adapter.TugboatAdapterApi"
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+        // The Views adapter tests resolve resource entry names (R.id.*).
+        unitTests.isIncludeAndroidResources = true
+        // Byte-exact fixtures shared with the Apple host (conformance/host),
+        // and the identity-parts vectors the Views adapter hashes against.
+        val hostFixtures = rootProject.projectDir.resolve("../../conformance/host").canonicalFile
+        // The engine's delivery rule that `SessionEndWatcher` repeats (EngineRetryRuleTest).
+        val engineSources = rootProject.projectDir.resolve("../../core/session-engine").canonicalFile
+        val statusFixture = rootProject.projectDir.resolve("../../conformance/engine/scenario/delivery-status-classification.json").canonicalFile
+        val identityFixtures = rootProject.projectDir.resolve("../../conformance/fingerprint/identity_parts").canonicalFile
+        // Evidence messages as the engine takes them, and the data it records (EvidenceConformanceTest).
+        val evidenceFixtures = rootProject.projectDir.resolve("../../conformance/evidence").canonicalFile
+        unitTests.all { test ->
+            test.systemProperty("tugboat.engineSources", engineSources.path)
+            test.inputs.file(engineSources.resolve("src/transport.cpp"))
+            test.inputs.file(statusFixture)
+            test.systemProperty("tugboat.hostFixtures", hostFixtures.path)
+            test.inputs.dir(hostFixtures)
+            test.systemProperty("tugboat.identityFixtures", identityFixtures.path)
+            test.inputs.dir(identityFixtures)
+            test.systemProperty("tugboat.evidenceFixtures", evidenceFixtures.path)
+            test.inputs.dir(evidenceFixtures)
+        }
+    }
+
+    sourceSets {
+        // The evidence fixture reader is shared by the unit and device tests;
+        // the device tests read the fixtures as assets.
+        getByName("test").java.srcDir("src/testShared/java")
+        getByName("androidTest").java.srcDir("src/testShared/java")
+        getByName("androidTest").assets.srcDir(rootProject.projectDir.resolve("../../conformance/evidence"))
+    }
+
+    buildTypes {
+        release {
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
+        }
+    }
+}
+
+// The Views adapter supports these androidx libraries when the app has them,
+// without depending on them: each is probed on the classpath at runtime.
+val optionalAndroidx = listOf(
+    "androidx.core:core:1.13.1",
+    "androidx.fragment:fragment:1.7.1",
+    "androidx.recyclerview:recyclerview:1.3.2",
+)
+
+// `Tugboat.trackNavigation(navController)` compiles against Jetpack
+// Navigation; only apps that have it can call it.
+val optionalNavigation = "androidx.navigation:navigation-runtime:2.7.7"
+// The Compose adapter's end-to-end tests run here, against this module's
+// internals: `tugboat-compose` (which depends on this module) and Compose UI
+// test are test-only. `-Ptugboat.composeBom=2024.09.00` runs them on the
+// floor of the tested Compose range (README of tugboat-compose).
+val composeTestBom = providers.gradleProperty("tugboat.composeBom").getOrElse("2025.06.01")
+
+dependencies {
+    // The pixel runtime (window capture, masks before encoding), built from this repository.
+    implementation(project(":capture-runtime"))
+    // ProcessLifecycleOwner for `app.lifecycle` (native SDK note section 5).
+    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
+    optionalAndroidx.forEach { compileOnly(it) }
+    optionalAndroidx.forEach { testImplementation(it) }
+    compileOnly(optionalNavigation)
+    testImplementation(optionalNavigation)
+    testImplementation("androidx.navigation:navigation-testing:2.7.7")
+    // Off-screen pages capped at STARTED (SceneInventoryAdapterTest).
+    testImplementation("androidx.viewpager2:viewpager2:1.1.0")
+    // The Compose compiler plugin (applied for the unit tests) refuses any
+    // compilation without the Compose runtime on its classpath. Main and
+    // instrumented code use no Compose; compileOnly keeps it out of the AAR,
+    // the POM, and the test APK.
+    compileOnly("androidx.compose.runtime:runtime:1.7.0")
+    androidTestCompileOnly("androidx.compose.runtime:runtime:1.7.0")
+    testImplementation(project(":tugboat-compose"))
+    testImplementation(platform("androidx.compose:compose-bom:$composeTestBom"))
+    testImplementation("androidx.compose.ui:ui")
+    testImplementation("androidx.compose.foundation:foundation")
+    testImplementation("androidx.compose.material3:material3")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("androidx.compose.ui:ui-test-manifest")
+    testImplementation("androidx.activity:activity-compose:1.9.3")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+}
+
+mavenPublishing {
+    coordinates(
+        groupId = "com.gettugboat.sdk",
+        artifactId = "tugboat-android",
+        version = tugboatAndroidVersion,
+    )
+    pom {
+        name.set("Tugboat Android")
+        description.set("Native Android host for the Tugboat session engine.")
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "LocalCapture"
+            url = uri(rootProject.projectDir.resolve("../../.local-maven"))
+        }
+    }
+}

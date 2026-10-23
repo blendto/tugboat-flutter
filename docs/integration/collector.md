@@ -270,6 +270,43 @@ The observed frame, when present, is the envelope's `afterFrame`. Deploy
 collector acceptance for these event types before enabling either capability
 in production: a non-retryable rejection drops the whole batch.
 
+### Network calls and external events
+
+`network_call` and `external_event` use the generic envelope with
+`stream: evidence`. They never carry an action ID or target anchor. Every SDK
+sends the same `payload` shape and applies the same limits and parameter
+policies before anything leaves the device. Flutter does this in Dart. The
+native SDKs do it in the shared session engine, held to the same conformance
+fixtures (`conformance/evidence/`). So the collector treats the two kinds of
+SDK the same. Query strings, headers, request bodies, and transport error text
+are never captured. An error body is captured only for HTTP status 400 or
+more, and it is bounded to 4 KiB.
+
+| | Coded events (`external_event`) | Manual network calls (`network_call`) | Automatic network capture |
+| --- | --- | --- | --- |
+| Flutter | `TugboatReplay.eventHook(source:, parameterPolicy:).record(name, parameters:)` | `TugboatReplay.beginNetworkCall(method:, route:)` then `.complete(...)` / `.fail(...)` | `tugboat_dio` interceptor |
+| Android | `Tugboat.eventHook(source, parameterPolicy).record(name, parameters)` | `Tugboat.beginNetworkCall(method, route)` then `.complete(...)` / `.fail(NetworkFailure...)` | `tugboat-okhttp`: `TugboatOkHttpInterceptor(routeResolver)`, added first with `addInterceptor` |
+| Apple | `Tugboat.eventHook(source:parameterPolicy:).record(_:parameters:)` | `Tugboat.beginNetworkCall(method:route:)` then `.complete(...)` / `.fail(...)` | `Tugboat.instrumentedSession(configuration:delegate:delegateQueue:routeResolver:)`; `Tugboat.data(for:session:delegate:route:)` for `async` calls; optional `TugboatAlamofire` `TugboatAlamofireMonitor` |
+
+The route always comes from the host, as a bounded absolute path, never a URL.
+An empty route records nothing. On Apple, `URLSession.shared` and other
+sessions are covered only when the app routes calls through an instrumented
+session or the `data(for:)` helper. The SDK does not swizzle `URLSession`.
+
+Differences between the SDKs that the collector may see:
+
+- **`atMs` of `network_call`.** Native SDKs stamp the call's start. Flutter
+  stamps its finish. `durationMs` is the same in both.
+- **Large JSON error bodies on native adapters.** OkHttp and URLSession peek
+  at most 64 KiB of an error body. A JSON body larger than that is recorded as
+  a 4 KiB text prefix, where `tugboat_dio` records a 4 KiB JSON
+  `serialized_prefix`.
+- **Empty error bodies.** An instrumented URLSession records no body for an
+  empty error response, where `tugboat_dio` records an empty text body.
+- **`attemptCount`.** `tugboat_dio` and `TugboatAlamofire` report it when
+  retries are observable. The OkHttp interceptor and instrumented URLSession
+  sessions never report it: retries happen below them.
+
 For schema-v2 interactions, `afterFrame` is a temporal visual observation. It
 does not assert that the interaction caused that frame, route, or UI state.
 
@@ -296,15 +333,36 @@ refs. Backpressure may still drop the oldest pending frames when
 | `maxPendingBatches` | `20` |
 | `maxPendingEvents` | `60` |
 | `maxPendingFrames` | `20` |
+| `retryAfterCap` | `60 seconds` |
+| `endingRetryAfterCap` | `10 seconds` |
 
 A full batch triggers a flush; the periodic timer sends partial batches.
-Lifecycle backgrounding also asks the sink hub to flush, and session end drains
-events before posting the final lifecycle message.
+Lifecycle backgrounding also asks the sink hub to flush. Session end flushes
+pending events before queueing the final lifecycle message (`session_end`),
+except while the events lane waits on a `Retry-After` (below): then
+`session_end` is queued without waiting for those events, which stay queued.
+A `session_end` with a retry outcome is re-posted on the periodic flush until
+it is accepted or dropped (a dropped one is not re-posted); then the periodic
+flush stops.
 
 The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
 `429`, and `5xx`; other response codes are dropped. Retry batches, unsent
 events, and frames are bounded in memory. When a bound is exceeded the oldest
 items are discarded and a debug message is printed.
+
+When a `429` or `503` response carries `Retry-After` (delta-seconds or an
+IMF-fixdate), the sink holds that delivery lane (lifecycle posts, event
+batches, or frame uploads) until the hinted delay has passed, at most
+`retryAfterCap`; the other lanes keep sending. A lane timer then resumes the
+lane; the lifecycle lane then sends every queued post, so a `session_end`
+queued behind a waiting one goes out too. Fresh events not yet sent when the
+events lane starts waiting stay in the event queue. Once `endSession` is
+called, lifecycle waits are capped at `endingRetryAfterCap` instead, and a
+longer one already running is shortened to it, so `session_end` is not held
+past host shutdown. Both caps are clamped to between zero and 24 hours, and
+`Duration.zero` honours no hint. Values that do not parse, or longer than 128
+bytes, are ignored. Waits use a monotonic clock, so a wall-clock change does
+not shorten them.
 
 Collector and WebSocket delivery are best-effort. Bounded in-memory queues retry
 temporary failures while the process remains alive. The SDK does not persist

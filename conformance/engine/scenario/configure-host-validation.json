@@ -1,0 +1,491 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "configure-host-validation",
+  "description": "The collector rejects a session_start without app version and build number, the full device with screen size and densities, the client IP, and the configured locale, so engine.configure rejects a host missing any of them with the exact path, and session.start is rejected until a host is configured. Other configure groups are validated too.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "limits": {
+        "maxEvents": 100
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "buildNumber": "240",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "manufacturer": "Google",
+                "model": "Pixel 8",
+                "osVersion": "15",
+                "networkType": "wifi",
+                "screenSize": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "screenDensity": 2.625,
+                "screenDpi": 420,
+                "screenPixelDensity": 2.625
+              },
+              "ip": {
+                "ip": "203.0.113.7"
+              },
+              "locale": {
+                "language": "en",
+                "country": "US",
+                "timezone": "Europe/Lisbon"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.host.app.version"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "version": "2.4.0",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "manufacturer": "Google",
+                "model": "Pixel 8",
+                "osVersion": "15",
+                "networkType": "wifi",
+                "screenSize": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "screenDensity": 2.625,
+                "screenDpi": 420,
+                "screenPixelDensity": 2.625
+              },
+              "ip": {
+                "ip": "203.0.113.7"
+              },
+              "locale": {
+                "language": "en",
+                "country": "US",
+                "timezone": "Europe/Lisbon"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.host.app.buildNumber"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "version": "2.4.0",
+                "buildNumber": "240",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "screenSize": {
+                  "width": 412.0
+                },
+                "screenDensity": 2.625,
+                "screenDpi": 420,
+                "screenPixelDensity": 2.625
+              },
+              "ip": {
+                "ip": "203.0.113.7"
+              },
+              "locale": {
+                "language": "en",
+                "country": "US",
+                "timezone": "Europe/Lisbon"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.host.device.screenSize.height"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "version": "2.4.0",
+                "buildNumber": "240",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "screenSize": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "screenDpi": 420,
+                "screenPixelDensity": 2.625
+              },
+              "ip": {
+                "ip": "203.0.113.7"
+              },
+              "locale": {
+                "language": "en",
+                "country": "US",
+                "timezone": "Europe/Lisbon"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.host.device.screenDensity"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "version": "2.4.0",
+                "buildNumber": "240",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "screenSize": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "screenDensity": 2.625,
+                "screenPixelDensity": 2.625
+              },
+              "ip": {
+                "ip": "203.0.113.7"
+              },
+              "locale": {
+                "language": "en",
+                "country": "US",
+                "timezone": "Europe/Lisbon"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.host.device.screenDpi"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "version": "2.4.0",
+                "buildNumber": "240",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "screenSize": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "screenDensity": 2.625,
+                "screenDpi": 420
+              },
+              "ip": {
+                "ip": "203.0.113.7"
+              },
+              "locale": {
+                "language": "en",
+                "country": "US",
+                "timezone": "Europe/Lisbon"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.host.device.screenPixelDensity"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "version": "2.4.0",
+                "buildNumber": "240",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "screenSize": {
+                  "width": 1e400,
+                  "height": 915.0
+                },
+                "screenDensity": 2.625,
+                "screenDpi": 420,
+                "screenPixelDensity": 2.625
+              },
+              "ip": {
+                "ip": "203.0.113.7"
+              },
+              "locale": {
+                "language": "en",
+                "country": "US",
+                "timezone": "Europe/Lisbon"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.host.device.screenSize.width"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "version": "2.4.0",
+                "buildNumber": "240",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "manufacturer": "Google",
+                "model": "Pixel 8",
+                "osVersion": "15",
+                "networkType": "wifi",
+                "screenSize": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "screenDensity": 2.625,
+                "screenDpi": 420,
+                "screenPixelDensity": 2.625
+              },
+              "ip": {
+                "city": "Lisbon"
+              },
+              "locale": {
+                "language": "en",
+                "country": "US",
+                "timezone": "Europe/Lisbon"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.host.ip.ip"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "version": "2.4.0",
+                "buildNumber": "240",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "manufacturer": "Google",
+                "model": "Pixel 8",
+                "osVersion": "15",
+                "networkType": "wifi",
+                "screenSize": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "screenDensity": 2.625,
+                "screenDpi": 420,
+                "screenPixelDensity": 2.625
+              },
+              "ip": {
+                "ip": "203.0.113.7"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.host.locale"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "limits": {
+              "maxEvents": 0
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.limits.maxEvents"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "collector": {
+              "batchSize": 10,
+              "retries": 3
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.collector.retries"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "capture": {
+              "degradedScale": 1.5
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.capture.degradedScale"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "input": {
+            "hosts": {}
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.hosts"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$"
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": null
+  }
+}
