@@ -6,19 +6,33 @@ extension _CollectorFrameUploads on CollectorHttpSink {
   /// Uploads every pending frame in frame-number order, [_frameChunk] per
   /// request. The caller checks the frames lane is not waiting.
   Future<void> _flushFrames() async {
-    if (_pendingFrames.isEmpty) return;
-    final epoch = _sessionEpoch;
     final sessionId = _collectorSessionId;
     // Confirm the current collector session before draining so frames queued
     // for a newer session cannot be cleared by a stale in-flight flush.
-    if (sessionId == null || sessionId.isEmpty || !_isCurrentEpoch(epoch)) {
+    if (_pendingFrames.isEmpty || sessionId == null || sessionId.isEmpty) {
       return;
     }
-
     final uploads = List<_PendingFrameUpload>.from(_pendingFrames)
       ..sort((a, b) => a.frameNo.compareTo(b.frameNo));
     _pendingFrames.clear();
 
+    final dropped = await _uploadFrameChunks(sessionId, uploads, _sessionEpoch);
+    if (dropped == null) return;
+    _framesNeedRetry = false;
+    if (_frameUploadFailureReported && !dropped) {
+      _recordUploadDiagnostic('recovered', null, 0);
+      _frameUploadFailureReported = false;
+    }
+  }
+
+  /// Sends [uploads] chunk by chunk. Returns whether any chunk was dropped,
+  /// or null when the pass stopped early: a retry outcome requeued that
+  /// chunk and every later one, or the session changed.
+  Future<bool?> _uploadFrameChunks(
+    String sessionId,
+    List<_PendingFrameUpload> uploads,
+    int epoch,
+  ) async {
     var droppedBatch = false;
     for (var start = 0; start < uploads.length; start += _frameChunk) {
       final end = start + _frameChunk < uploads.length
@@ -26,19 +40,15 @@ extension _CollectorFrameUploads on CollectorHttpSink {
           : uploads.length;
       final batch = uploads.sublist(start, end);
       final result = await _processFrameBatch(sessionId, batch, epoch);
-      if (!_isCurrentEpoch(epoch)) return;
+      if (!_isCurrentEpoch(epoch)) return null;
       if (result.retry) {
         _framesNeedRetry = true;
         _requeueFailedUploads(uploads.sublist(start + result.retryOffset));
-        return;
+        return null;
       }
       droppedBatch = droppedBatch || result.dropped;
     }
-    _framesNeedRetry = false;
-    if (_frameUploadFailureReported && !droppedBatch) {
-      _recordUploadDiagnostic('recovered', null, 0);
-      _frameUploadFailureReported = false;
-    }
+    return droppedBatch;
   }
 
   Future<({bool retry, bool dropped, int retryOffset})> _processFrameBatch(

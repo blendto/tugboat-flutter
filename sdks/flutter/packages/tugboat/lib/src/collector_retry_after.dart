@@ -64,45 +64,57 @@ const _weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /// IMF-fixdate (`Sun, 06 Nov 1994 08:49:37 GMT`), UTC.
 DateTime? _parseImfFixDate(String value) {
-  if (value.length != 29 ||
-      !value.endsWith(' GMT') ||
-      value[3] != ',' ||
-      value[4] != ' ' ||
-      value[7] != ' ' ||
-      value[11] != ' ' ||
-      value[16] != ' ' ||
-      value[19] != ':' ||
-      value[22] != ':') {
-    return null;
-  }
-  if (!_weekdays.any((day) => value.startsWith(day))) {
-    return null;
-  }
-  if (!_isTwoDigits(value, 5) ||
-      !_isFourDigits(value, 12) ||
-      !_isTwoDigits(value, 17) ||
-      !_isTwoDigits(value, 20) ||
-      !_isTwoDigits(value, 23)) {
-    return null;
-  }
+  if (!_hasImfFixDateShape(value)) return null;
   final day = _twoDigitValue(value, 5);
   final month = _monthIndex(value.substring(8, 11));
   final year = _fourDigitValue(value, 12);
   final hour = _twoDigitValue(value, 17);
   final minute = _twoDigitValue(value, 20);
-  var second = _twoDigitValue(value, 23);
+  final second = _twoDigitValue(value, 23);
   if (month == null ||
       !_civilDateValid(year, month, day) ||
-      hour > 23 ||
-      minute > 59 ||
-      second > 60) {
+      !_clockValid(hour, minute, second)) {
     return null;
   }
-  if (second == 60) {
-    second = 59;
-  }
-  return DateTime.utc(year, month, day, hour, minute, second);
+  // A leap second reads as the second before it.
+  return DateTime.utc(
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    second == 60 ? 59 : second,
+  );
 }
+
+/// Fixed separators of an IMF-fixdate, by offset.
+const _imfSeparators = {
+  3: ',',
+  4: ' ',
+  7: ' ',
+  11: ' ',
+  16: ' ',
+  19: ':',
+  22: ':',
+};
+
+/// Offsets of the two-digit day, hour, minute, and second fields.
+const _imfTwoDigitFields = [5, 17, 20, 23];
+
+/// Length, separators, weekday, `GMT`, and that every numeric field is
+/// digits (checked before any value is computed).
+bool _hasImfFixDateShape(String value) {
+  if (value.length != 29 || !value.endsWith(' GMT')) return false;
+  for (final separator in _imfSeparators.entries) {
+    if (value[separator.key] != separator.value) return false;
+  }
+  if (!_weekdays.any(value.startsWith)) return false;
+  return _isFourDigits(value, 12) &&
+      _imfTwoDigitFields.every((start) => _isTwoDigits(value, start));
+}
+
+bool _clockValid(int hour, int minute, int second) =>
+    hour <= 23 && minute <= 59 && second <= 60;
 
 bool _isTwoDigits(String value, int start) {
   final a = value.codeUnitAt(start);
