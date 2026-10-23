@@ -19,6 +19,8 @@ struct NavigatorScope: Equatable {
     let hostRouteInstanceId: String?
   }
 
+  /// The root navigator's id (`ScreenTracker.navigatorId` refers to it).
+  static let rootNavigatorId = "swiftui-screens"
   static let maxDepth = 16
   static let root = NavigatorScope(levels: [], hostRouteInstanceId: nil)
 
@@ -30,7 +32,7 @@ struct NavigatorScope: Equatable {
 
   /// The navigator a screen here belongs to.
   var navigatorId: String {
-    levels.last?.navigatorId ?? ScreenTracker.navigatorId
+    levels.last?.navigatorId ?? NavigatorScope.rootNavigatorId
   }
 
   /// That navigator's parent; nil on the root navigator.
@@ -39,7 +41,7 @@ struct NavigatorScope: Equatable {
   }
 
   static func navigatorId(named name: String) -> String {
-    ScreenTracker.navigatorId + "/" + name
+    NavigatorScope.rootNavigatorId + "/" + name
   }
 
   /// The scope inside `.tugboatNavigator(name)`.

@@ -24,7 +24,7 @@ import Foundation
 /// Main thread only (SwiftUI runs view callbacks there).
 final class ScreenTracker {
   static let shared = ScreenTracker()
-  static let navigatorId = "swiftui-screens"
+  static let navigatorId = NavigatorScope.rootNavigatorId
   static let routeType = "TugboatScreen"
   private static let instances = IdSequence()
 
@@ -113,20 +113,18 @@ final class ScreenTracker {
   }
 
   /// Applies queued callbacks: appearances first, then disappearances
-  /// (which see the batch's appearances), then forgets the navigators that
-  /// left and recomputes the visible chain.
+  /// (which see the batch's appearances on screen), then forgets the
+  /// navigators that left and recomputes the visible chain.
   func settle() {
     guard !queued.isEmpty else { return }
     let events = queued
     queued.removeAll()
-    var appearedOn: Set<String> = []
     for case let .appeared(entry, scope, at) in events {
       tree.register(scope)
-      appearedOn.insert(scope.navigatorId)
       record(tree.appeared(entry, on: scope.navigatorId), at: at)
     }
     for case let .disappeared(instanceId, at) in events {
-      record(tree.disappeared(instanceId: instanceId, appearedOn: appearedOn), at: at)
+      record(tree.disappeared(instanceId: instanceId), at: at)
     }
     tree.prune()
     chain = tree.visibleChain()
