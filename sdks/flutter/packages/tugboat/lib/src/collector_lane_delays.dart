@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-
 import 'collector_retry_after.dart';
 
 /// Per-lane `Retry-After` waits for [CollectorHttpSink].
@@ -17,7 +15,7 @@ class CollectorLaneDelays {
   CollectorLaneDelays(
     this._now,
     this._onLaneReady, {
-    @visibleForTesting CollectorLaneTimerSchedule? scheduleTimer,
+    CollectorLaneTimerSchedule? scheduleTimer,
   }) : _scheduleTimer = scheduleTimer ?? _defaultScheduleTimer;
 
   final DateTime Function() _now;

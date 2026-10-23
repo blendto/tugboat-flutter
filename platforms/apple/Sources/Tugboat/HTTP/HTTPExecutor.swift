@@ -126,9 +126,18 @@ final class HTTPExecutor: HTTPSender {
   func received(response: URLResponse, taskId: Int) {
     guard let entry = inFlight[taskId], let http = response as? HTTPURLResponse else { return }
     entry.status = http.statusCode
-    let retryAfter = CollectorResponse.forwardRetryAfter(
-      http.value(forHTTPHeaderField: "Retry-After"))
-    entry.retryAfter = retryAfter
+    entry.retryAfter = CollectorResponse.forwardRetryAfter(HTTPExecutor.header("Retry-After", in: http))
+  }
+
+  /// A response header by case-insensitive name. `value(forHTTPHeaderField:)`
+  /// needs macOS 10.15, below the package's macOS floor for `swift build`.
+  private static func header(_ name: String, in response: HTTPURLResponse) -> String? {
+    for (key, value) in response.allHeaderFields {
+      if let key = key as? String, key.caseInsensitiveCompare(name) == .orderedSame {
+        return value as? String
+      }
+    }
+    return nil
   }
 
   func received(data: Data, taskId: Int) {
