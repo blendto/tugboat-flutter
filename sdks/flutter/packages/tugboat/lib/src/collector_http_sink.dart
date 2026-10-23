@@ -9,7 +9,6 @@ import 'capture_sink.dart';
 import 'collector_config.dart';
 import 'collector_mapper.dart';
 import 'collector_lane_delays.dart';
-import 'collector_retry_after.dart';
 import 'models.dart';
 import 'sdk_version.dart';
 
