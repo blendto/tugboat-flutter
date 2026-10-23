@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "capture-overlay-window-cleared",
-  "description": "A dialog is dismissed over an unchanged activity (change C21). The initial frame carries overlayWindow. The next reusable capture has the same dHash and contentHash but no overlayWindow (and the structure without the overlay token): its mask coverage differs from the retained frame with that content, so it is accepted again rather than reused, and records capture_masking with reasons []. A later capture with the same content and the same coverage as that frame is still exact-content reused.",
+  "description": "A dialog is dismissed over an unchanged activity (change C21). The initial frame carries overlayWindow. The next reusable capture has the same dHash and contentHash but no overlayWindow (and the structure without the overlay token): its mask coverage differs from the retained frame with that content, so it is accepted again rather than reused, and records capture_masking with reasons []. A later capture with the same content and the same coverage as that frame is still exact-content reused. When the dialog opens and is dismissed again over the same screen, each frame is exact-content reused from the retained frame with the same content and the same coverage (the overlay frame, then the frame from before the overlay), not only from the newest frame with that content, so the dialog cycle adds no frame.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -513,6 +513,270 @@
             }
           ]
         }
+      },
+      {
+        "note": "The dialog opens again: a reusable manual capture, offered the d7/s7 baseline.",
+        "send": {
+          "type": "systemInput",
+          "at": {
+            "monoUs": 5300000
+          },
+          "input": {
+            "input": "back"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-3",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5300000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "dHashBaseline": {
+                "dHash": "d7",
+                "structureSignature": "s7"
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-3",
+              "atMonoUs": 10300000
+            }
+          ]
+        }
+      },
+      {
+        "note": "Same pixels with overlayWindow again: exact_content_reused of frame-2, the retained frame with that content and that coverage, though frame-8 has the same content and is newer.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5310000
+          },
+          "input": {
+            "requestId": "capture-3",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-overlay-again",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-screen",
+              "dHash": "d0",
+              "structureSignature": "s0|overlayWindow",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "nativeCpuExperimental",
+              "resolvedBackend": "nativeCpuExperimental",
+              "maskCoverage": {
+                "mode": "precise",
+                "reasons": [
+                  "overlayWindow"
+                ]
+              }
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-19",
+                "atMs": 310,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "version": 1,
+                  "outcome": "exact_content_reused",
+                  "requestId": "capture_request-17",
+                  "executionId": "capture_execution-18",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "manual",
+                  "visualEvidence": "reused",
+                  "interactionEvidence": "not_applicable",
+                  "reuseReason": "content_hash",
+                  "requestedBackend": "nativeCpuExperimental",
+                  "resolvedBackend": "nativeCpuExperimental"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-16",
+                "atMs": 300,
+                "type": "system_input",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "input": "back"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-3"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-overlay-again"
+            }
+          ]
+        }
+      },
+      {
+        "note": "The dialog is dismissed again: a reusable manual capture, offered the d0/s0|overlayWindow baseline.",
+        "send": {
+          "type": "systemInput",
+          "at": {
+            "monoUs": 5400000
+          },
+          "input": {
+            "input": "back"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-4",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5400000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "dHashBaseline": {
+                "dHash": "d0",
+                "structureSignature": "s0|overlayWindow"
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-4",
+              "atMonoUs": 10400000
+            }
+          ]
+        }
+      },
+      {
+        "note": "Same pixels, no overlay: exact_content_reused of frame-8, the frame from before the overlay, not a new frame; frame-2 (the overlay frame) is the latest frame but has other coverage.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5410000
+          },
+          "input": {
+            "requestId": "capture-4",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-cleared-again",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-screen",
+              "dHash": "d0",
+              "structureSignature": "s0",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "nativeCpuExperimental",
+              "resolvedBackend": "nativeCpuExperimental",
+              "maskCoverage": {
+                "mode": "precise",
+                "reasons": []
+              }
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-23",
+                "atMs": 410,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-8",
+                "data": {
+                  "version": 1,
+                  "outcome": "exact_content_reused",
+                  "requestId": "capture_request-21",
+                  "executionId": "capture_execution-22",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "manual",
+                  "visualEvidence": "reused",
+                  "interactionEvidence": "not_applicable",
+                  "reuseReason": "content_hash",
+                  "requestedBackend": "nativeCpuExperimental",
+                  "resolvedBackend": "nativeCpuExperimental"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-20",
+                "atMs": 400,
+                "type": "system_input",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-8",
+                "data": {
+                  "input": "back"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-4"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-cleared-again"
+            }
+          ]
+        }
       }
     ]
   },
@@ -686,6 +950,72 @@
         {
           "id": "event-12",
           "atMs": 200,
+          "type": "system_input",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-8",
+          "data": {
+            "input": "back"
+          }
+        },
+        {
+          "id": "event-19",
+          "atMs": 310,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "version": 1,
+            "outcome": "exact_content_reused",
+            "requestId": "capture_request-17",
+            "executionId": "capture_execution-18",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "manual",
+            "visualEvidence": "reused",
+            "interactionEvidence": "not_applicable",
+            "reuseReason": "content_hash",
+            "requestedBackend": "nativeCpuExperimental",
+            "resolvedBackend": "nativeCpuExperimental"
+          }
+        },
+        {
+          "id": "event-16",
+          "atMs": 300,
+          "type": "system_input",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "input": "back"
+          }
+        },
+        {
+          "id": "event-23",
+          "atMs": 410,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-8",
+          "data": {
+            "version": 1,
+            "outcome": "exact_content_reused",
+            "requestId": "capture_request-21",
+            "executionId": "capture_execution-22",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "manual",
+            "visualEvidence": "reused",
+            "interactionEvidence": "not_applicable",
+            "reuseReason": "content_hash",
+            "requestedBackend": "nativeCpuExperimental",
+            "resolvedBackend": "nativeCpuExperimental"
+          }
+        },
+        {
+          "id": "event-20",
+          "atMs": 400,
           "type": "system_input",
           "stream": "evidence",
           "captureSessionId": "session-1781827200000000",
