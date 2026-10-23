@@ -47,19 +47,42 @@ internal object NavigationProcessState {
             ?: fragmentStacks[navigatorId]
             ?: controllerStacks[navigatorId]
 
-    /** Non-empty stacks: activities, fragment navigators, then `/nav` controllers. */
-    fun sessionStartSnapshots(): List<SessionStartSnapshot> = buildList {
-        appendSnapshots(activityStacks.values, this)
-        appendSnapshots(fragmentStacks.values, this)
-        appendSnapshots(controllerStacks.values, this)
+    /**
+     * Non-empty stacks in the order the engine must apply their seeds: each
+     * activity task, then, for each of its routes bottom to top, the
+     * navigators that route hosts (`<route instanceId>/fragments` before
+     * `<route instanceId>/nav`), depth first. Parents precede children
+     * (stateful-engine.md 8.1) and the chain under every top route comes
+     * last, so the engine's visible route ends on the visible screen; ids
+     * are never compared as strings (`activity-11` vs `activity-8`).
+     * Navigators whose host route is gone come first, where they cannot
+     * become the visible route.
+     */
+    fun sessionStartSnapshots(): List<SessionStartSnapshot> {
+        val hosted = (fragmentStacks.values + controllerStacks.values)
+            .filter { it.top != null }
+            .groupBy { it.navigatorId.substringBeforeLast('/') }
+        val out = ArrayList<SessionStartSnapshot>()
+        val visited = HashSet<String>()
+        fun visit(stack: NavigatorStack) {
+            if (!visited.add(stack.navigatorId)) return
+            out.add(SessionStartSnapshot(stack.navigatorId, stack.parentNavigatorId, stack.all()))
+            stack.all().forEach { entry -> hosted[entry.instanceId]?.sortedBy(::hostedOrder)?.forEach(::visit) }
+        }
+        val roots = activityStacks.entries.sortedBy { it.key }.map { it.value }.filter { it.top != null }
+        val hostIds = roots.flatMap { root -> root.all().map { it.instanceId } }.toHashSet()
+        val reachable = HashSet<String>()
+        fun mark(hostId: String) {
+            hosted[hostId]?.forEach { child ->
+                if (reachable.add(child.navigatorId)) child.all().forEach { mark(it.instanceId) }
+            }
+        }
+        hostIds.forEach(::mark)
+        hosted.values.flatten().filter { it.navigatorId !in reachable }.sortedBy(::hostedOrder).forEach(::visit)
+        roots.forEach(::visit)
+        return out
     }
 
-    private fun appendSnapshots(stacks: Collection<NavigatorStack>, out: MutableList<SessionStartSnapshot>) {
-        stacks
-            .sortedBy { it.navigatorId }
-            .filter { it.top != null }
-            .forEach { stack ->
-                out.add(SessionStartSnapshot(stack.navigatorId, stack.parentNavigatorId, stack.all()))
-            }
-    }
+    /** `/fragments` before `/nav` under the same host route. */
+    private fun hostedOrder(stack: NavigatorStack): Int = if (stack.navigatorId.endsWith("/nav")) 1 else 0
 }

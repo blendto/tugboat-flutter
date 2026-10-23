@@ -107,7 +107,7 @@ final class TugboatScreenTests: XCTestCase {
     XCTAssertEqual(live.first?.decodedInput["kind"] as? String, "push")
   }
 
-  func testHostingStackIsSeededAfterStopStart() {
+  func testHostingStackIsSeededAfterStopStart() throws {
     let clock = ManualClock()
     let screens = ScreenTracker(clock: clock)
     let sink = RecordingSink()
@@ -118,6 +118,8 @@ final class TugboatScreenTests: XCTestCase {
     let window = HostedWindow(Text("First"))
     hosted = window
     XCTAssertTrue(window.wait { HostingControllerTracker.shared.sessionStartFact(at: clock.now()) != nil })
+    let firstSeed = try XCTUnwrap(HostingControllerTracker.shared.sessionStartFact(at: clock.now()))
+    let firstTop = (firstSeed.decodedInput["routes"] as? [[String: Any]])?.last?["instanceId"] as? String
     adapter.stop()
 
     let replacement = UIHostingController(rootView: Text("Second"))
@@ -130,7 +132,11 @@ final class TugboatScreenTests: XCTestCase {
       message.type == FactTypes.navigation &&
         (decodeObject(message.inputJSON)?["kind"] as? String) == "session_start"
     }
-    XCTAssertNotNil(lastSeed)
+    let seed = try XCTUnwrap(lastSeed)
+    let routes = decodeObject(seed.inputJSON)?["routes"] as? [[String: Any]]
+    // The replacement shown while stopped is the seeded top, not the first host.
+    XCTAssertNotNil(firstTop)
+    XCTAssertNotEqual(routes?.last?["instanceId"] as? String, firstTop)
     adapter.stop()
   }
 

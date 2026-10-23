@@ -65,14 +65,15 @@ internal class ViewsAdapter(
 
     fun start() = AdapterGuard.run("start") {
         if (started) return@run
-        NavigationObservation.ensureInstalled(application)
+        registerWindowCallbacks()
+        started = true
+        // Settle fragment changes made while stopped before seeding, and
+        // seed before recording, so a pre-start removal is never a live pop.
+        NavigationObservation.flushFragments()
+        emitSessionStartSeeds()
         if (postNavigationFacts) {
             NavigationObservation.setRecording(::reportNavigation)
         }
-        registerWindowCallbacks()
-        started = true
-        NavigationObservation.flushFragments()
-        emitSessionStartSeeds()
     }
 
     /**

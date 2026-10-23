@@ -26,6 +26,7 @@ final class SwiftUIAdapter {
   private let resolver: AnchorResolver
   private let screens: ScreenTracker
   private let trackHostingControllers: Bool
+  private let hostClock: HostClock
   private let center: NotificationCenter
   private lazy var focus = FocusObserver(
     clock: clock,
@@ -71,7 +72,7 @@ final class SwiftUIAdapter {
     self.resolver = AnchorResolver(tags: tags, screens: screens, accessibility: accessibility)
     self.trackHostingControllers = trackHostingControllers
     self.center = center
-    hostingControllers.bind(screens: screens, clock: hostClock) { [weak self] in self?.batcher.requestFrame() }
+    self.hostClock = hostClock
     batcher.onFrame { [weak self] in self?.onFrame() }
   }
 
@@ -80,6 +81,8 @@ final class SwiftUIAdapter {
   func start() {
     guard !isStarted else { return }
     isStarted = true
+    // Bound at start, not init: a second adapter must not take the running one's frames.
+    hostingControllers.bind(screens: screens, clock: hostClock) { [weak self] in self?.batcher.requestFrame() }
     if trackHostingControllers {
       hostingControllers.installAppearanceObserverIfNeeded()
     }

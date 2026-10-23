@@ -70,7 +70,15 @@ class SessionStartNavigationTest {
         sink.batches.clear()
         adapter.start()
         val facts = drainNavigation()
-        assertTrue(facts.any { it.getString("kind") == "session_start" })
+        val activitySeed = facts.single {
+            it.getString("kind") == "session_start" && it.getString("navigatorId").startsWith("activities:")
+        }
+        val routes = activitySeed.getJSONArray("routes")
+        // The activity started while stopped is the seeded top.
+        assertEquals(
+            NavigationFactsTest.SecondActivity::class.java.name,
+            routes.getJSONObject(routes.length() - 1).getString("name"),
+        )
         adapter.stop()
     }
 

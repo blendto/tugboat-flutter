@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "navigation-session-start-tap-after-seed",
-  "description": "After session_start seeds the visible route, a tap settles on that route without a navigation cause and does not advance routeEpoch; a later push can still claim the tap.",
+  "description": "After session_start seeds the visible route, a tap settles on that route without a navigation cause and does not advance routeEpoch. A later push claiming the tap is navigation-session-start-tap-claims-push.",
   "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
   "runners": ["cpp"],
   "input": {

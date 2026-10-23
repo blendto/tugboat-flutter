@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "navigation-session-start-route-epoch",
-  "description": "session_start replays the stack without advancing routeEpoch or requesting route capture.",
+  "description": "session_start replays the stack without requesting a route capture (no capture.request follows the seed). routeEpoch after a seed is asserted in navigation-session-start-tap-after-seed.",
   "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
   "runners": ["cpp"],
   "input": {
