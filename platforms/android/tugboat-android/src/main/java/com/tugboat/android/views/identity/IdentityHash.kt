@@ -24,7 +24,13 @@ internal object IdentityHash {
 
     fun fingerprint(parts: Map<String, String>): String {
         if (parts.isEmpty()) return ""
-        val digest = MessageDigest.getInstance("SHA-256").digest(utf8(canonicalString(parts)))
+        return labelHash(canonicalString(parts))
+    }
+
+    /** Dart `tugboatLabelHash` over the UTF-8 bytes of [value]. */
+    fun labelHash(value: String): String {
+        if (value.isEmpty()) return ""
+        val digest = MessageDigest.getInstance("SHA-256").digest(utf8(value))
         return digest.joinToString(separator = "") { "%02x".format(it.toInt() and 0xff) }.take(HEX_LENGTH)
     }
 

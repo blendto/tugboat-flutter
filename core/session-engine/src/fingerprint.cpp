@@ -89,5 +89,28 @@ bool run_label_hash(const Value& input, Value* result, Error* error) {
   return true;
 }
 
+bool run_inventory_hash(const Value& input, Value* result, Error* error) {
+  const ObjectReader reader(input, "$.input", error);
+  const Value* fingerprints = nullptr;
+  if (!reader.check_keys({"fingerprints"}) ||
+      !reader.req_array("fingerprints", &fingerprints)) {
+    return false;
+  }
+  const std::string path = reader.child("fingerprints");
+  std::vector<std::string> values;
+  for (size_t i = 0; i < fingerprints->items().size(); ++i) {
+    const Value& item = fingerprints->items()[i];
+    if (!item.is_string()) {
+      return invalid(error, path + "[" + std::to_string(i) + "]",
+                     "expected string");
+    }
+    values.push_back(item.as_string());
+  }
+  *result = Value::object();
+  result->set("hash",
+              Value::string(inventory_hash_from_fingerprints(std::move(values))));
+  return true;
+}
+
 }  // namespace engine
 }  // namespace tugboat

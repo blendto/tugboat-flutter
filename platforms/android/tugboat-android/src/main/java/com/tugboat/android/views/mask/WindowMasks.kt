@@ -35,13 +35,20 @@ internal enum class MaskSource {
  * Masks for one capture; [failClosed] when the whole frame is masked.
  * [coverage] says which masking applied, for the host's per-frame report;
  * [structureSignature] is the visible structure the masks were computed
- * from ([StructureHasher], opaque).
+ * from ([StructureHasher], opaque); it does not see inside region hosts
+ * ([hasRegionHosts]).
  */
 internal data class WindowMaskResult(
     val rects: List<MaskRect>,
     val failClosed: Boolean,
     val coverage: MaskCoverage,
     val structureSignature: String,
+    /**
+     * True when the walk met a toolkit region host (Compose): the signature
+     * then covers only the host view and its masks, not the region's
+     * content, so it cannot tell whether that content changed.
+     */
+    val hasRegionHosts: Boolean = false,
 ) {
     companion object {
         fun wholeFrame(reason: MaskCoverageReason) =
@@ -93,9 +100,9 @@ internal object WindowMasks {
             walk.collect(decor)
             val wholeFrame = walk.wholeFrameReason
             if (wholeFrame != null) {
-                WindowMaskResult.wholeFrame(wholeFrame)
+                WindowMaskResult.wholeFrame(wholeFrame).copy(hasRegionHosts = walk.metRegionHost)
             } else {
-                WindowMaskResult(walk.rects, failClosed = false, walk.coverage(), walk.structureSignature())
+                WindowMaskResult(walk.rects, failClosed = false, walk.coverage(), walk.structureSignature(), walk.metRegionHost)
             }
         }
 

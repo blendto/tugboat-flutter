@@ -51,6 +51,8 @@ internal data class CapturedFrame(
     /** The visible structure the masks were computed from (copy time). */
     val structureSignature: String,
     val maskCoverage: MaskCoverage,
+    /** The masks' walk met a region host, whose content [structureSignature] does not cover. */
+    val hasRegionHosts: Boolean,
 )
 
 /** The capture boundary in logical pixels (dp) of the window's decor view. */

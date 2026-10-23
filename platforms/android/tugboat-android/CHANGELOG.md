@@ -13,14 +13,27 @@ wiring, window capture, and the Android Views adapter.
 - Public API (`com.tugboat.android`): `Tugboat.start(application,
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
-  `CollectorConfig`, `AppInfo`, `MaskLevel`. Idempotent start; nothing
-  throws into the app. `TugboatConfig.enabled` (default `true`): when
-  `false`, `start` installs nothing and nothing is recorded; the user id,
-  traits, and event hooks are kept for a later enabled `start`.
+  `CollectorConfig`, `AppInfo`, `MaskLevel`, `emitSceneInventory` (default
+  false). Idempotent start; nothing throws into the app.
+  `TugboatConfig.enabled` (default `true`): when `false`, `start` installs
+  nothing and nothing is recorded; the user id, traits, and event hooks are
+  kept for a later enabled `start`.
 - Config: `captureDiagnostics` (engine capability), optional
   `activationRequestId` / `explorationRunId` on `session.start` when set.
 - Locale: `locale.set` on primary locale change (`onConfigurationChanged`),
   deduped, unregistered on `stop`.
+- Native scene inventory: when `emitSceneInventory` is true, the Views
+  adapter sends `scene.inventory` after each captured frame (the
+  post-navigation route capture covers route changes) for the route of the
+  visible content (the deepest shown fragment, such as a `NavHostFragment`'s
+  destination, else the activity; activity-level chrome outside it, such as
+  a `Toolbar` or `BottomNavigationView`, is not inventoried); the engine
+  records deduped `scene_inventory` (`nativeSceneInventory` capability). A
+  frame of a window without Compose hosts whose structure signature matches
+  the route's last emitted inventory is not walked (a view that only becomes
+  clickable is then missed); windows with Compose hosts are walked on every
+  captured frame. `FLAG_SECURE` windows have none. The walk collects at most
+  500 elements and sends the candidates found as `totalElements`.
 - Coded events and manual network calls: `Tugboat.eventHook(source,
   parameterPolicy).record(name, parameters)` (`external_event`) and
   `Tugboat.beginNetworkCall(method, route)` with `complete(statusCode,

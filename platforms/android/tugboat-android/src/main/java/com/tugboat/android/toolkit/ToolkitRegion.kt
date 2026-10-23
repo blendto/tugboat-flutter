@@ -37,6 +37,12 @@ interface ToolkitRegion {
 
     /** What has input focus inside [host], or null when unreadable. */
     fun focus(host: View): RegionFocus?
+
+    /**
+     * Salient nodes in [host] for a scene inventory: at most [limit] entries
+     * in tree order, with the count of every one found; empty when unreadable.
+     */
+    fun inventory(host: View, limit: Int): RegionInventory = RegionInventory.EMPTY
 }
 
 /** What has focus inside a region host (the engine's `focus.kind`, minus `none`). */

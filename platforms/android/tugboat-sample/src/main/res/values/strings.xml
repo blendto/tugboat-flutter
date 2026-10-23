@@ -22,4 +22,10 @@
     <string name="compose_semantics_title">Compose, semantics masking</string>
     <string name="compose_row_title">Compose row %1$s</string>
     <string name="compose_image_description">Gallery placeholder</string>
+    <string name="open_fragments">Fragments</string>
+    <string name="show_views_fragment">Views fragment</string>
+    <string name="show_compose_fragment">Compose fragment</string>
+    <string name="fragment_title">A fragment screen</string>
+    <string name="fragment_action">Fragment action</string>
+    <string name="compose_fragment_action">Compose fragment action</string>
 </resources>

@@ -3276,10 +3276,10 @@ class TugboatReplayController extends ChangeNotifier {
         .toList(growable: false);
     if (elements.isEmpty) return null;
     if (elements.length == inventory.elements.length) return inventory;
-    final fingerprints = elements.map((entry) => entry.fingerprint).toList()
-      ..sort();
     return TugboatSceneInventory(
-      inventoryHash: tugboatLabelHash(fingerprints.join('|')),
+      inventoryHash: tugboatInventoryHash([
+        for (final entry in elements) entry.fingerprint,
+      ]),
       routeKey: inventory.routeKey,
       elements: elements,
     );

@@ -1,5 +1,6 @@
 #include "text.h"
 
+#include <algorithm>
 #include <cstring>
 
 namespace tugboat {
@@ -311,6 +312,20 @@ std::string label_hash(std::string_view wtf8) {
     return std::string();
   }
   return sha256_hex(wtf8_to_utf8(wtf8)).substr(0, 16);
+}
+
+std::string inventory_hash_from_fingerprints(
+    std::vector<std::string> fingerprints) {
+  std::sort(fingerprints.begin(), fingerprints.end(),
+            [](const std::string& a, const std::string& b) {
+              return compare_utf16(a, b) < 0;
+            });
+  std::string joined;
+  for (size_t i = 0; i < fingerprints.size(); ++i) {
+    if (i > 0) joined.push_back('|');
+    joined += fingerprints[i];
+  }
+  return label_hash(joined);
 }
 
 }  // namespace engine

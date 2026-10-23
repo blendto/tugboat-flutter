@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.tugboat.android.compose.semantics.SemanticsAccess
+import com.tugboat.android.toolkit.InventoryTier
 import com.tugboat.android.toolkit.MaskCoverageReason
 import com.tugboat.android.toolkit.RegionHit
 import com.tugboat.android.toolkit.RegionMasks
@@ -84,5 +85,20 @@ class ComposeRegionTest {
         val region = ComposeRegion(ComposeMasking.WholeHost)
         assertTrue(region.hosts(host))
         assertTrue(!region.hosts(host.parent as ViewGroup))
+    }
+
+    @Test
+    fun inventoryListsTheInteractiveControlInWholeHostMode() {
+        val entries = ComposeRegion(ComposeMasking.WholeHost).inventory(host, limit = 500).entries
+        assertTrue(entries.any { it.tier == InventoryTier.Interactive && it.target.actions.isNotEmpty() })
+        assertTrue(entries.none { it.target.widgetType.contains("Pay", ignoreCase = true) })
+    }
+
+    @Test
+    fun inventoryListsTheInteractiveControlInSemanticsMaskingMode() {
+        val entries =
+            ComposeRegion(ComposeMasking.SemanticsBestEffort, versionVerified = { true }).inventory(host, limit = 500).entries
+        assertTrue(entries.any { it.tier == InventoryTier.Interactive && it.target.actions.isNotEmpty() })
+        assertTrue(entries.none { it.target.path.any { segment -> segment.contains("Pay") } })
     }
 }

@@ -91,6 +91,7 @@ opt-in `@TugboatToolkitApi`, see the `tugboat-android` README):
 | `masks` | Per `ComposeMasking` and the version gate, above. |
 | `scrollablesAt` | The nodes with a `ScrollAxisRange` under the touch, resolved once per gesture; their ranges read live state, so frames read offsets without walking the tree. |
 | `focus` | `TextInput` when a focused node is editable. |
+| `inventory` | Kept semantics nodes for `scene.inventory`, with their tap targets and paths (both masking modes; unindexed lazy items collapse to one `[item]` entry; large text is measured against the window). At most `limit` entries; the rest are counted. |
 
 The region keeps no listeners; the Views adapter drives it, so it is inert
 once the adapter stops.

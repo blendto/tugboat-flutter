@@ -2,6 +2,7 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
+| Flutter `tugboat` | 0.10.11-dev.6 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease; scene inventory hashes come from one internal helper shared with the engine conformance fixtures; no behaviour change. |
 | Flutter `tugboat` | 0.10.11-dev.5 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease honouring HTTP `Retry-After` on 429/503 per delivery lane (`CollectorHttpSink` waits before retrying that lane, capped by the new `TugboatCollectorConfig.retryAfterCap` / `endingRetryAfterCap`). After `endSession`, a `session_end` with a retry outcome is re-posted every `eventFlushInterval` (default 3 s) until accepted or dropped; a dropped one (any status other than 202, 408, 429, 5xx) is not re-posted. |
 | Flutter `tugboat` | 0.10.11-dev.4 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease adding the `.tugboatTag` / `.tugboatSensitive` / `.tugboatSubView` marker extensions and an opt-in `accessibility` identifier on tags; no default behaviour change. |
 | Flutter `tugboat` | 0.10.11-dev.3 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; prerelease with a test-only collector sink wall clock; no behaviour change. |

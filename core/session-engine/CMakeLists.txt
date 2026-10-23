@@ -89,6 +89,8 @@ set(_tb_engine_sources
   src/route_barrier.cpp
   src/route_capture.cpp
   src/route_change.cpp
+  src/scene_inventory.cpp
+  src/scene_inventory_module.cpp
   src/scroll_interactions.cpp
   src/session.cpp
   src/session_module.cpp

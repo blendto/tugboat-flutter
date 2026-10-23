@@ -1,3 +1,12 @@
+## 0.10.11-dev.6
+
+Prerelease.
+
+### Changed
+
+- Scene inventory hashes are computed by one internal helper, which the
+  shared engine conformance fixtures also use. The hash is unchanged.
+
 ## 0.10.11-dev.5
 
 Prerelease.

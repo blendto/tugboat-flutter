@@ -23,4 +23,6 @@ internal object FactTypes {
 
     /** Phase 3d: the engine rejects this type until navigation lands. */
     const val NAVIGATION = "navigation"
+
+    const val SCENE_INVENTORY = "scene.inventory"
 }
