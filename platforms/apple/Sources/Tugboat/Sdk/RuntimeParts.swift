@@ -14,6 +14,8 @@ extension TugboatRuntime {
     let watcher: SessionEndWatcher
     let session: SessionFlag
     let clock: HostClock
+    let launchCorrelation: LaunchCorrelation
+    let sessionStartAt: HostTime
 
     static func assemble(config: TugboatConfig, transport: EngineTransport) -> Parts {
       let clock = SystemHostClock()
@@ -53,6 +55,10 @@ extension TugboatRuntime {
         trackHostingControllers: config.trackHostingControllers,
         accessibilityIdentity: config.swiftUIAccessibilityIdentity)
       let session = SessionFlag()
+      let startAt = clock.now()
+      let launchCorrelation = LaunchCorrelation(
+        sessionWallUs: startAt.wallUs,
+        isEngineActive: { host.isRunning && session.isLive })
       let lifecycle = AppLifecycleBridge { state in
         ref.host?.post(type: SessionMessages.appLifecycle, inputJSON: SessionMessages.appLifecycleInput(state), at: clock.now())
         // The engine ends the session on `detached`.
@@ -60,7 +66,8 @@ extension TugboatRuntime {
       }
       return Parts(
         host: host, adapter: adapter, lifecycle: lifecycle, surfaces: SurfaceObserver(reporter: reporter),
-        captures: captures, watcher: watcher, session: session, clock: clock)
+        captures: captures, watcher: watcher, session: session, clock: clock, launchCorrelation: launchCorrelation,
+        sessionStartAt: startAt)
     }
 
     /// One capture's mask supplier: the adapter's mask walk, the current
