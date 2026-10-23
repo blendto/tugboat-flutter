@@ -37,6 +37,7 @@ internal class TugboatRuntime private constructor(
     private val host: EngineHost,
     private val adapter: ViewsAdapter,
     private val lifecycle: AppLifecycleBridge,
+    private val locale: LocaleBridge,
     private val foreground: ForegroundWindow,
     private val captures: CaptureCoordinator,
     private val watcher: SessionEndWatcher,
@@ -68,6 +69,7 @@ internal class TugboatRuntime private constructor(
         evidence.close()
         adapter.stop()
         lifecycle.stop()
+        locale.stop()
         foreground.stop()
         stopSequence.run(
             watcher = watcher,
@@ -164,17 +166,36 @@ internal class TugboatRuntime private constructor(
             )
             host = EngineHost.start(transport, frames, http = watcher, captures = captures)
             host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, gesture).toString())
-            host.post(SessionMessages.SESSION_START, SessionMessages.sessionStart(device, metadata, sessionEpoch), startAt)
+            host.post(
+                SessionMessages.SESSION_START,
+                SessionMessages.sessionStart(
+                    device,
+                    metadata,
+                    sessionEpoch,
+                    config.activationRequestId,
+                    config.explorationRunId,
+                ),
+                startAt,
+            )
             val lifecycle = AppLifecycleBridge(post = { state ->
                 host.post(SessionMessages.APP_LIFECYCLE, SessionMessages.appLifecycle(state), clock.now())
             })
+            val localeBridge = LocaleBridge(
+                application = application,
+                initial = device.locale,
+                post = { input -> host.post(SessionMessages.LOCALE_SET, input, clock.now()) },
+            )
             val evidence = EvidenceRecorder(clock, EngineEvidenceEncoder, hostRunning = { host.isRunning }, post = host::post)
             adapter.start()
             foreground.start()
             lifecycle.start()
+            localeBridge.start()
             return TugboatRuntime(
-                host, adapter, lifecycle, foreground, captures, watcher, clock, stopSequence, launchCorrelation, evidence,
+                host, adapter, lifecycle, localeBridge, foreground, captures, watcher, clock, stopSequence,
+                launchCorrelation, evidence,
             )
         }
     }
 }
+
+internal fun String?.normalizedSessionId(): String? = this?.takeIf { it.isNotBlank() }

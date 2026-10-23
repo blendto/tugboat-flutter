@@ -55,7 +55,11 @@ class EvidenceContractTest {
         val transport = checkNotNull(JniEngineTransport.open()) { "libtugboat_engine.so must load" }
         host = EngineHost.start(transport, FrameHandleTable(), http = http, captures = {})
         host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, GestureConfig.from(context)).toString())
-        host.post(SessionMessages.SESSION_START, SessionMessages.sessionStart(device, metadata, 0), SystemHostClock.now())
+        host.post(
+            SessionMessages.SESSION_START,
+            SessionMessages.sessionStart(device, metadata, 0, activationRequestId = null, explorationRunId = null),
+            SystemHostClock.now(),
+        )
         awaitRequest { it.lane == "lifecycle" }
 
         val recorder = EvidenceRecorder(SystemHostClock, EngineEvidenceEncoder, hostRunning = { host.isRunning }, post = host::post)
