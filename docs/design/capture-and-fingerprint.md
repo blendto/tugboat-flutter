@@ -385,12 +385,21 @@ plus, only when the app opts in, the accessibility tree (ADR 0010).
 - **Lists.** A `List` cell (`UICollectionView` on iOS 16+, `UITableView` on
   iOS 15) adds `[item:<section>.<row>]` from its index path; a tapped cell
   ends with `Cell#0`.
-- **Route key.** The name of the `.tugboatScreen` on top of the screen
-  stack, else `host:<16 hex>`, the identity hash of the nearest hosting
-  controller's Swift type name (`medium`; `low` when the type contains
-  `AnyView`, since type-erased roots share one key), else `swiftui:window`
-  (`low`).
-  Paths start below that hosting controller's view.
+- **Route key.** The name of the `.tugboatScreen` on top of the visible
+  chain of navigators, else `host:<16 hex>`, the identity hash of the
+  nearest hosting controller's Swift type name (`medium`; `low` when the
+  type contains `AnyView`, since type-erased roots share one key), else
+  `swiftui:window` (`low`).
+  Paths start below that hosting controller's view. Screens belong to the
+  root navigator `swiftui-screens` unless a `.tugboatNavigator(name)`
+  encloses them (`swiftui-screens/<name>`, nested in the enclosing
+  navigator and hosted by the `.tugboatScreen` around it). The visible
+  chain runs from the root through the navigators that each top screen
+  hosts, the most recently changed where several are uncovered; its
+  deepest top screen is the key, the route the last `session_start` seed
+  ends on. A sheet's screen is a route on the presenting navigator, so it
+  keys targets inside the sheet. `presentation:` sets the route's
+  `overlayKind`, never the route key.
 - **Confidence.** The floor of the route's and the path's. The path is
   `high` with a tag, `medium` inside a list cell, and `low` otherwise.
   Accessibility-tree segments never raise it.

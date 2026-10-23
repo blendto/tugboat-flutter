@@ -12,8 +12,8 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   `stop`; `TugboatConfig` (`Collector`, `App`, `MaskLevel`,
   `captureFocusChanges`, `trackHostingControllers`,
   `swiftUIAccessibilityIdentity`);
-  the `.tugboatTag(_:accessibility:)` and `.tugboatScreen(_:)` view
-  modifiers. Idempotent start; nothing throws or traps into the app.
+  the `.tugboatTag(_:accessibility:)`, `.tugboatScreen(_:presentation:)`
+  and `.tugboatNavigator(_:)` view modifiers. Idempotent start; nothing throws or traps into the app.
 - Coded events and network calls, the Flutter evidence API:
   `Tugboat.eventHook(source:parameterPolicy:)` → `TugboatEventHook.record(_:parameters:)`
   (`external_event`), with `TugboatParameterPolicy` `.allowAll` (default),
@@ -49,6 +49,22 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   `EvidenceEncoder` sends a byte-read JSON body as `{"jsonText": …}`, and
   `@_spi(TugboatAdapters)` adds what the separate `TugboatAlamofire`
   package needs.
+- Nested navigators and presentation kinds, set by the app (nothing is
+  read from UIKit yet): `.tugboatScreen(_:presentation:)` takes
+  `TugboatScreenPresentation` `.automatic` (default, `page` for now),
+  `.page`, `.sheet`, `.dialog` or `.popup` as the route's `overlayKind`;
+  `.tugboatScreen("X")` still compiles and its facts are unchanged. A
+  sheet's screen is a route on the presenting navigator, so the engine
+  records `presentedOver*`; its dismissal is the existing `pop`.
+  `.tugboatNavigator(name)` puts the screens inside it on navigator
+  `swiftui-screens/<name>`, with `parentNavigatorId` the enclosing
+  navigator on transitions and `session_start`; the root navigator stays
+  `swiftui-screens` with no parent. A nested navigator is forgotten when
+  its host screen leaves. `session_start` seeds every navigator with a
+  non-empty stack, the visible chain last, and route keys follow the
+  visible chain's top. Contract change for apps that opt in: a sheet's
+  route identity moves from `page` to `sheet`. Hosting-controller routes
+  stay `page`.
 - `.tugboatTag(_:accessibility:)`: `accessibility: true` (default false)
   also sets the tag as the content's `accessibilityIdentifier`, for UI tests
   and exploration runs; the marker stays hidden from accessibility and

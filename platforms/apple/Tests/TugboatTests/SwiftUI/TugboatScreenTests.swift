@@ -139,6 +139,100 @@ final class TugboatScreenTests: XCTestCase {
     adapter.stop()
   }
 
+  func testANavigatorNestsTheScreensInsideIt() throws {
+    let tracker = ScreenTracker(clock: ManualClock())
+    tracker.isRecording = true
+    let window = HostedWindow(
+      Text("Inner")
+        .modifier(TugboatScreenModifier(name: "Inner", tracker: tracker))
+        .tugboatNavigator("inner")
+        .modifier(TugboatScreenModifier(name: "Shell", tracker: tracker))
+    )
+    hosted = window
+    XCTAssertTrue(window.wait { self.top(tracker)?.name == "Inner" })
+    let facts = tracker.takeFacts().map { $0.decodedInput }
+    func fact(_ name: String) -> [String: Any]? {
+      facts.first { ($0["route"] as? [String: Any])?["name"] as? String == name }
+    }
+    let shell = try XCTUnwrap(fact("Shell"))
+    XCTAssertEqual(shell["navigatorId"] as? String, "swiftui-screens")
+    XCTAssertNil(shell["parentNavigatorId"], "the root navigator's facts are unchanged")
+    let inner = try XCTUnwrap(fact("Inner"))
+    XCTAssertEqual(inner["kind"] as? String, "push")
+    XCTAssertEqual(inner["navigatorId"] as? String, "swiftui-screens/inner")
+    XCTAssertEqual(inner["parentNavigatorId"] as? String, "swiftui-screens")
+    XCTAssertEqual(tracker.entries(of: "swiftui-screens")?.map { $0.name }, ["Shell"])
+  }
+
+  func testAScreenPresentedAsASheetIsASheetRouteOnThePresentingNavigator() throws {
+    let tracker = ScreenTracker(clock: ManualClock())
+    tracker.isRecording = true
+    let window = HostedWindow(
+      Text("Details")
+        .modifier(TugboatScreenModifier(name: "Details", tracker: tracker))
+        .sheet(isPresented: .constant(true)) {
+          Text("Sheet").modifier(TugboatScreenModifier(name: "Sheet", presentation: .sheet, tracker: tracker))
+        }
+        .tugboatNavigator("tabA")
+    )
+    hosted = window
+    defer { window.window.rootViewController?.dismiss(animated: false) }
+    XCTAssertTrue(window.wait(timeout: 5) { self.top(tracker)?.name == "Sheet" })
+    let facts = tracker.takeFacts().map { $0.decodedInput }
+    let sheet = try XCTUnwrap(facts.first { ($0["route"] as? [String: Any])?["name"] as? String == "Sheet" })
+    let route = try XCTUnwrap(sheet["route"] as? [String: Any])
+    XCTAssertEqual(route["overlayKind"] as? String, "sheet")
+    XCTAssertEqual(sheet["kind"] as? String, "push")
+    XCTAssertEqual(sheet["navigatorId"] as? String, "swiftui-screens/tabA", "the presenter's navigator, through the environment")
+    XCTAssertEqual((sheet["departing"] as? [String: Any])?["name"] as? String, "Details")
+  }
+
+  func testTheRouteKeyFollowsTheVisibleChainTop() {
+    let tracker = ScreenTracker(clock: ManualClock())
+    tracker.appeared(instanceId: "home", name: "Home")
+    tracker.appeared(instanceId: "inner", name: "Inner", scope: NavigatorScope.root.hosted(by: "home").nested("pane"))
+    tracker.settle()
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let view = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    window.addSubview(view)
+    let nested = RouteKey.resolve(for: view, in: window, screen: tracker.visibleTop)
+    XCTAssertEqual(nested.value, "Inner")
+    XCTAssertEqual(nested.confidence, .high)
+
+    tracker.disappeared(instanceId: "inner")
+    tracker.settle()
+    XCTAssertEqual(RouteKey.resolve(for: view, in: window, screen: tracker.visibleTop).value, "Home")
+  }
+
+  func testStopThenStartSeedsEveryNavigatorWithTheVisibleChainLast() throws {
+    let clock = ManualClock()
+    let screens = ScreenTracker(clock: clock)
+    let sink = RecordingSink()
+    let frames = ManualFrames()
+    let adapter = SwiftUIAdapter(
+      sink: sink, hostClock: clock, frames: frames, trackHostingControllers: false, screens: screens)
+    adapter.start()
+    let tabA = NavigatorScope.root.hosted(by: "shell").nested("tabA")
+    screens.appeared(instanceId: "shell", name: "Shell")
+    screens.appeared(instanceId: "home", name: "Home", scope: tabA)
+    frames.runFrame()
+    adapter.stop()
+    screens.appeared(instanceId: "details", name: "Details", scope: tabA)
+    let posted = sink.messages.count
+
+    adapter.start()
+    frames.runFrame()
+    adapter.stop()
+    let seeds = sink.messages.dropFirst(posted)
+      .filter { $0.type == FactTypes.navigation }
+      .compactMap { decodeObject($0.inputJSON) }
+    XCTAssertEqual(seeds.map { $0["kind"] as? String }, ["session_start", "session_start"])
+    XCTAssertEqual(seeds.map { $0["navigatorId"] as? String }, ["swiftui-screens", "swiftui-screens/tabA"])
+    XCTAssertEqual(seeds.map { $0["parentNavigatorId"] as? String }, [nil, "swiftui-screens"])
+    let routes = try XCTUnwrap(seeds.last?["routes"] as? [[String: Any]])
+    XCTAssertEqual(routes.map { $0["name"] as? String }, ["Home", "Details"], "the push made while stopped is in the seed")
+  }
+
   func testViewControllerAppearanceForwardsAndCallsTheOriginal() {
     final class Probe: UIViewController {
       var didAppear = 0
