@@ -52,8 +52,9 @@ final class LaunchCorrelationTests: XCTestCase {
     let second = correlation(sessionWallUs: 200)
     second.startIfNeeded(parsed: options)
     drainMain()
-    XCTAssertEqual(lines.count, 1)
-    XCTAssertTrue(lines[0].contains("session-100"))
+    let launches = launchLines()
+    XCTAssertEqual(launches.count, 1)
+    XCTAssertTrue(launches.first?.contains("session-100") ?? false)
   }
 
   func testStopThenSecondStartDoesNotLogAgain() {
@@ -65,7 +66,7 @@ final class LaunchCorrelationTests: XCTestCase {
     let second = correlation(sessionWallUs: 60)
     second.startIfNeeded(parsed: options)
     drainMain()
-    XCTAssertEqual(lines.count, 1)
+    XCTAssertEqual(launchLines().count, 1)
   }
 
   func testHealthActiveIncludesSessionId() {
@@ -102,6 +103,11 @@ final class LaunchCorrelationTests: XCTestCase {
     let object = try XCTUnwrap(
       try JSONSerialization.jsonObject(with: Data(jsonPart.utf8)) as? [String: Any])
     XCTAssertEqual(object["automationRunId"] as? String, runId)
+  }
+
+  /// The default `schedule` runs HEALTH at once, so count LAUNCH lines only.
+  private func launchLines() -> [String] {
+    lines.filter { $0.hasPrefix("TUGBOAT_LAUNCH ") }
   }
 
   /// Runs the main queue until the blocks `LaunchCorrelation` posted have run.
