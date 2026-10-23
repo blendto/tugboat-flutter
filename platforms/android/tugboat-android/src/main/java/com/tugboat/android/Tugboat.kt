@@ -59,6 +59,7 @@ object Tugboat {
             Log.i(TAG, "Tugboat is already started")
             return@onMain
         }
+        if (!config.enabled) return@onMain
         val started = TugboatRuntime.start(application, config, sessionEpoch++) ?: return@onMain
         runtime = started
         evidence = started.evidence

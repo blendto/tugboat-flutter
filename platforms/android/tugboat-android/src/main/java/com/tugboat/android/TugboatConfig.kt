@@ -7,12 +7,24 @@ package com.tugboat.android
 data class TugboatConfig @JvmOverloads constructor(
     val collector: CollectorConfig,
     val app: AppInfo,
+    /**
+     * When `false`, [com.tugboat.android.Tugboat.start] installs nothing: no
+     * engine, observers, or threads. Every public API is a no-op and the host
+     * app is unchanged.
+     */
+    val enabled: Boolean = true,
     /** Only [MaskLevel.AllTextAndMedia] exists in this release. */
     val maskLevel: MaskLevel = MaskLevel.AllTextAndMedia,
     /** Records `focus_changed` for text-input focus transitions (engine capability `focusChanges`). */
     val captureFocusChanges: Boolean = false,
     /** Records `system_input` for allowlisted keys such as back (engine capability `systemInput`). */
     val captureSystemInput: Boolean = false,
+    /** Records bounded `capture_diagnostic` events (engine capability `captureDiagnostics`). */
+    val captureDiagnostics: Boolean = false,
+    /** Passed on `session.start` when set; omitted when null. */
+    val activationRequestId: String? = null,
+    /** Passed on `session.start` when set; omitted when null. */
+    val explorationRunId: String? = null,
 )
 
 /** The collector the SDK delivers to. */

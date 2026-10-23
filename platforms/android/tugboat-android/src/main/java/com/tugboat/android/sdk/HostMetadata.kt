@@ -1,6 +1,7 @@
 package com.tugboat.android.sdk
 
 import com.tugboat.android.AppInfo
+import java.util.Locale
 import org.json.JSONObject
 
 /**
@@ -35,13 +36,7 @@ internal class HostMetadata(private val app: AppInfo, private val device: Device
             .put("locale", configuredLocaleJson())
 
     /** `session.start.locale` (`TugboatLocaleInfo`): language and tag required. */
-    fun sessionLocaleJson(): JSONObject {
-        val locale = device.locale
-        val json = JSONObject().put("language", locale.language)
-        locale.country.takeIf { it.isNotEmpty() }?.let { json.put("country", it) }
-        locale.script.takeIf { it.isNotEmpty() }?.let { json.put("script", it) }
-        return json.put("tag", locale.toLanguageTag())
-    }
+    fun sessionLocaleJson(): JSONObject = sessionLocaleJson(device.locale)
 
     private fun appJson(): JSONObject =
         JSONObject()
@@ -88,5 +83,13 @@ internal class HostMetadata(private val app: AppInfo, private val device: Device
          * from the request).
          */
         const val PLACEHOLDER_IP = "10.0.2.2"
+
+        /** `session.start.locale` / `locale.set.locale` for [locale]. */
+        fun sessionLocaleJson(locale: Locale): JSONObject {
+            val json = JSONObject().put("language", locale.language)
+            locale.country.takeIf { it.isNotEmpty() }?.let { json.put("country", it) }
+            locale.script.takeIf { it.isNotEmpty() }?.let { json.put("script", it) }
+            return json.put("tag", locale.toLanguageTag())
+        }
     }
 }

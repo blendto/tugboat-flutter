@@ -23,9 +23,13 @@ which `tugboat-okhttp` uses, are public but not app API; everything else is
 Tugboat.start(application, TugboatConfig(
     collector = CollectorConfig(baseUrl, apiKey),
     app = AppInfo(name, version, buildNumber, appId, installationId),
+    enabled = true,                          // false: install nothing (kill switch)
     maskLevel = MaskLevel.AllTextAndMedia,   // default, the only level
     captureFocusChanges = false,             // engine capability focusChanges
     captureSystemInput = false,              // engine capability systemInput
+    captureDiagnostics = false,              // engine capability captureDiagnostics
+    activationRequestId = null,              // optional session.start field
+    explorationRunId = null,                 // optional session.start field
 ))
 Tugboat.setUserId(id); Tugboat.setTraits(map); Tugboat.stop()
 Tugboat.trackNavigation(navController)       // Jetpack Navigation, optional
@@ -37,6 +41,9 @@ view.tugboatTag = "checkout"                  // developer alias
 - Every method can be called from any thread; the work runs on the main
   thread in call order. Nothing throws into the app: failures are logged
   (tag `Tugboat`) and capture stops.
+- `TugboatConfig.enabled` (default `true`): when `false`, `start` installs
+  nothing (no engine, lifecycle, window callbacks, or threads) and every
+  public API is a no-op; the host app is unchanged.
 - Call `start` once per process, from `Application.onCreate`. It is
   idempotent while started. It **refuses to start** (and logs the missing
   paths) when a field the collector requires on `session_start` is blank:
@@ -50,6 +57,12 @@ view.tugboatTag = "checkout"                  // developer alias
   never blocks the app. A later `start` creates a new engine and session.
 - `setUserId` / `setTraits` survive `stop` and `start`. Traits JSON cannot
   carry (NaN, infinities) are ignored and logged.
+- When the app's primary locale changes (`Application.onConfigurationChanged`),
+  the SDK posts `locale.set` with the same locale JSON shape as `session.start`
+  (deduped; unregistered on `stop`). Locale is evidence, not identity.
+- There is no on-device health snapshot API: the engine has no health surface;
+  count `capture_diagnostic` events instead (as Flutter's bounded counters do,
+  not as records).
 - `trackNavigation` needs `androidx.navigation` in the app (`compileOnly`
   here). Destination route patterns without arguments (else the id's entry
   name) become route keys for the controller's activity, and each
@@ -147,16 +160,17 @@ call.fail(NetworkFailure.NETWORK_ERROR)      // or CANCELLED; fail(failure, stat
 | Views adapter | `views/` | Turns activity windows into engine facts and computes masks (below). |
 | Evidence | `evidence/` | `EvidenceRecorder` (calling-thread timestamps, the transform, no-op and one-finish rules), `EvidenceEncoder` (typed values to the engine's input encoding), `evidence.externalEvent` / `evidence.networkCall`. |
 | Facade | `Tugboat`, `TugboatConfig`, `TugboatTag` | The public API above; thin over `sdk/TugboatRuntime`. |
-| Engine wiring | `sdk/` | `TugboatRuntime` (composition root: one engine, one session), `HostMetadata` + `DeviceSnapshot` (`engine.configure.host`, refused when incomplete), `EngineConfiguration`, `SessionMessages`, `AppLifecycleBridge` (`ProcessLifecycleOwner` to `app.lifecycle`), `SessionEndWatcher` + `StopSequence` (stop order), `NavigationTracking`. |
+| Engine wiring | `sdk/` | `TugboatRuntime` (composition root: one engine, one session), `HostMetadata` + `DeviceSnapshot` (`engine.configure.host`, refused when incomplete), `EngineConfiguration`, `SessionMessages`, `AppLifecycleBridge` (`ProcessLifecycleOwner` to `app.lifecycle`), `LocaleBridge` (`locale.set` on locale change), `SessionEndWatcher` + `StopSequence` (stop order), `NavigationTracking`. |
 | Capture | `capture/` | `CaptureCoordinator` answers `capture.request`; `FrameMasks` (the copy-time mask supplier); `RuntimeOutcomes` maps `capture-runtime` results; `CaptureResultJson`; `ForegroundWindow` + `SurfaceReporter` (`surface` facts); `CaptureGeometry`. |
 
 `engine.configure` (`sdk/EngineConfiguration`): `host` with every
 `session_start` field (`ipInfo.ip` is the placeholder `10.0.2.2`, as
 Flutter's Android host sends); `limits` at the Dart defaults; `gesture` from
 the adapter's `GestureConfig.toEngineJson()`; `capture.answerTimeoutMs` 5000;
-`collector.enabled`; `capabilities.focusChanges` / `systemInput` from the
-config. Then `session.start {viewport (dp), platform: android, sessionEpoch,
-locale}`.
+`collector.enabled`; `capabilities.focusChanges` / `systemInput` /
+`captureDiagnostics` from the config. Then `session.start {viewport (dp),
+platform: android, sessionEpoch, locale, activationRequestId?,
+explorationRunId?}`.
 
 ## Capture
 

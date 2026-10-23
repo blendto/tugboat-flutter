@@ -9,7 +9,12 @@ wiring, window capture, and the Android Views adapter.
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
   `CollectorConfig`, `AppInfo`, `MaskLevel`. Idempotent start; nothing
-  throws into the app.
+  throws into the app. `TugboatConfig.enabled` (default `true`): when
+  `false`, `start` installs nothing and every API is a no-op.
+- Config: `captureDiagnostics` (engine capability), optional
+  `activationRequestId` / `explorationRunId` on `session.start` when set.
+- Locale: `locale.set` on primary locale change (`onConfigurationChanged`),
+  deduped, unregistered on `stop`.
 - Coded events and manual network calls: `Tugboat.eventHook(source,
   parameterPolicy).record(name, parameters)` (`external_event`) and
   `Tugboat.beginNetworkCall(method, route)` with `complete(statusCode,
