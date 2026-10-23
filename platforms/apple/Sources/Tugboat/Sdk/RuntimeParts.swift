@@ -56,9 +56,10 @@ extension TugboatRuntime {
         accessibilityIdentity: config.swiftUIAccessibilityIdentity)
       let session = SessionFlag()
       let startAt = clock.now()
-      let launchCorrelation = LaunchCorrelation(sessionWallUs: startAt.wallUs)
+      let launchCorrelation = LaunchCorrelation(
+        sessionWallUs: startAt.wallUs,
+        isEngineActive: { host.isRunning && session.isLive })
       let lifecycle = AppLifecycleBridge { state in
-        launchCorrelation.onProcessLifecycle(state)
         ref.host?.post(type: SessionMessages.appLifecycle, inputJSON: SessionMessages.appLifecycleInput(state), at: clock.now())
         // The engine ends the session on `detached`.
         if state == AppLifecycleBridge.detached { session.isLive = false }

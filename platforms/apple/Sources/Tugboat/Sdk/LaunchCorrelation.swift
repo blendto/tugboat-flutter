@@ -1,41 +1,44 @@
 #if canImport(UIKit)
 import Foundation
-import os.log
 
-/// Device Farm launch / health lines for human and future log scraping.
+/// Device Farm launch / health lines for human and future log scraping. Emits
+/// at most once per process (first `start()` wins).
 final class LaunchCorrelation {
-  private static let log = OSLog(subsystem: "com.gettugboat.sdk", category: "launch")
+  private static var processLaunchLogged = false
+  private static var firstSessionWallUs: Int64 = 0
 
-  private let sessionWallUs: Int64?
+  private let sessionWallUs: Int64
+  private let isEngineActive: () -> Bool
   private let schedule: (_ delay: TimeInterval, _ block: @escaping () -> Void) -> DispatchWorkItem
   private let cancel: (_ work: DispatchWorkItem) -> Void
   private let emit: (String) -> Void
 
-  private var launchLogged = false
   private var healthWork: DispatchWorkItem?
-  private var processLifecycle = "resumed"
   private let queue = DispatchQueue.main
 
   init(
-    sessionWallUs: Int64?,
+    sessionWallUs: Int64,
+    isEngineActive: @escaping () -> Bool,
     schedule: @escaping (_ delay: TimeInterval, _ block: @escaping () -> Void) -> DispatchWorkItem = LaunchCorrelation.defaultSchedule,
     cancel: @escaping (_ work: DispatchWorkItem) -> Void = { $0.cancel() },
-    emit: @escaping (String) -> Void = { line in os_log("%{public}@", log: LaunchCorrelation.log, type: .default, line as NSString) }
+    emit: @escaping (String) -> Void = { HostLog.launch($0) }
   ) {
     self.sessionWallUs = sessionWallUs
+    self.isEngineActive = isEngineActive
     self.schedule = schedule
     self.cancel = cancel
     self.emit = emit
   }
 
-  func onProcessLifecycle(_ state: String) {
-    queue.async { self.processLifecycle = state }
+  func startIfNeeded() {
+    startIfNeeded(parsed: LaunchOptions.fromProcessInfo())
   }
 
-  func startIfNeeded() {
+  func startIfNeeded(parsed options: LaunchOptions?) {
     queue.async {
-      guard !self.launchLogged, let options = LaunchOptions.fromProcessInfo() else { return }
-      self.launchLogged = true
+      guard !Self.processLaunchLogged, let options = options else { return }
+      Self.processLaunchLogged = true
+      Self.firstSessionWallUs = self.sessionWallUs
       self.emit(options.launchLine(sessionWallUs: self.sessionWallUs))
       let work = self.schedule(10) { [weak self] in self?.logHealth() }
       self.healthWork = work
@@ -53,13 +56,14 @@ final class LaunchCorrelation {
 
   private func logHealth() {
     healthWork = nil
-    guard let wallUs = sessionWallUs else { return }
-    let lifecycle = Self.healthLifecycle(processLifecycle)
-    emit(LaunchOptions.healthLine(lifecycle: lifecycle, sessionWallUs: wallUs))
+    guard Self.processLaunchLogged else { return }
+    let lifecycle = isEngineActive() ? "active" : "dormant"
+    emit(LaunchOptions.healthLine(lifecycle: lifecycle, sessionWallUs: Self.firstSessionWallUs))
   }
 
-  static func healthLifecycle(_ appLifecycleState: String) -> String {
-    appLifecycleState == "resumed" ? "active" : appLifecycleState
+  static func resetForTests() {
+    processLaunchLogged = false
+    firstSessionWallUs = 0
   }
 
   private static func defaultSchedule(_ delay: TimeInterval, block: @escaping () -> Void) -> DispatchWorkItem {

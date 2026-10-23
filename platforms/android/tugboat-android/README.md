@@ -48,30 +48,6 @@ view.tugboatTag = "checkout"                  // developer alias
   retry), then submits `engine.dispose` and destroys the handle. The wait is
   bounded at 25 s (`endDrainTimeoutMs` + one `jsonTimeoutMs` + slack); it
   never blocks the app. A later `start` creates a new engine and session.
-
-## Device Farm / exploration correlation
-
-Automation can pass the same intent extras as the Flutter plugin (for example
-`adb shell am start … --ez tugboat_emit_scene_inventory true --ez
-tugboat_accept_action_context true --es tugboat_automation_run_id <id>`).
-Values `1`, `true`, and `yes` (case-insensitive) enable a flag; anything else
-is off. When `emitSceneInventory` or `acceptActionContext` is on, the SDK logs
-once per process:
-
-- `TUGBOAT_LAUNCH` with `captureRequested`, the flags, optional
-  `automationRunId`, and `captureSessionId` (`session-<wallUs>` from
-  `session.start`).
-- Ten seconds later, `TUGBOAT_HEALTH` with `lifecycle` (engine `resumed` maps
-  to `active`) and the same `captureSessionId`.
-
-Both lines use `Log.i` with tag `Tugboat`. They never include the collector
-base URL, API key, or auth headers. `tugboat_collector_base_url` is read for
-parity with Flutter but **not applied** in v1: `session.start` is posted from
-`Application.onCreate` before any activity intent exists, so a runtime URL
-override cannot be applied cleanly without deferring session start (tracked
-separately). `tugboat_automation_run_id` alone does not enable logging (same
-as Dart `captureRequested`). Scene-inventory and action-context flags gate
-logging only; native features for those capabilities ship in later milestones.
 - `setUserId` / `setTraits` survive `stop` and `start`. Traits JSON cannot
   carry (NaN, infinities) are ignored and logged.
 - `trackNavigation` needs `androidx.navigation` in the app (`compileOnly`
@@ -89,6 +65,34 @@ logging only; native features for those capabilities ship in later milestones.
   `tugboatTag` and the id is unique under the route root. One
   `android:id` therefore serves both. Tugboat installs no
   `AccessibilityDelegate`, so an app's own delegate is never replaced.
+
+## Device Farm / exploration correlation
+
+Automation can pass the same intent extras as the Flutter plugin (for example
+`adb shell am start … --ez tugboat_emit_scene_inventory true --ez
+tugboat_accept_action_context true --es tugboat_automation_run_id <id>`).
+Values `1`, `true`, and `yes` (case-insensitive) enable a flag; anything else
+is off. When `emitSceneInventory` or `acceptActionContext` is enabled, the SDK
+logs once per process from the **first resumed activity whose intent carries
+the extras**:
+
+- `TUGBOAT_LAUNCH` with `captureRequested`, the flags, optional
+  `automationRunId`, and `captureSessionId` (`session-<wallUs>` from
+  `session.start`).
+- Ten seconds later, `TUGBOAT_HEALTH` with `lifecycle` `active` when the
+  engine host is still running, otherwise `dormant` (no `captureSessionId` when
+  dormant). Uses the first session's `captureSessionId` when active.
+
+Both lines use `Log.i` with tag `Tugboat`. They never include the collector
+base URL, API key, or auth headers. Intent extra `tugboat_collector_base_url` is
+**ignored** in v1 (`session.start` is posted before any activity intent exists;
+a runtime URL override would need deferred session start, tracked separately).
+`tugboat_automation_run_id` alone does not enable logging (same as Dart
+`captureRequested`). Scene-inventory and action-context flags gate logging
+only; native features for those capabilities ship in later milestones. A later
+`stop` and `start` does not emit new lines. Context Graph Device Farm
+exploration tooling still filters `flutter:I` only until a follow-up adds
+`Tugboat:I`.
 
 ## Coded events and network calls
 

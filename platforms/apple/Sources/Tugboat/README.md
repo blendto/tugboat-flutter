@@ -43,22 +43,6 @@ the evidence API and
 [Automatic network capture](#automatic-network-capture-urlsession-and-alamofire)
 for the URLSession helpers and `TugboatAlamofire`.
 
-## Device Farm / exploration correlation
-
-Process environment `TUGBOAT_EMIT_SCENE_INVENTORY` /
-`TUGBOAT_ACCEPT_ACTION_CONTEXT` (and optional `TUGBOAT_AUTOMATION_RUN_ID`)
-or the same spellings as launch arguments (`--tugboat-emit-scene-inventory`,
-and so on) mirror the Flutter plugin. Environment wins when both are set.
-When either scene-inventory or action-context is enabled (`1` / `true` /
-`yes`, case-insensitive), the SDK logs `TUGBOAT_LAUNCH` once and
-`TUGBOAT_HEALTH` ten seconds later through `os_log` (subsystem
-`com.gettugboat.sdk`, category `launch`). Payloads match the Android lines;
-`captureSessionId` comes from the same `session.start` clock reading. Lines
-never include collector URL or API material. `TUGBOAT_COLLECTOR_BASE_URL` is
-not applied in v1 (same session-start timing gap as Android). **Nothing in
-tugboat-context-graph reads iOS device logs today**; hosted iOS runs correlate
-via collector metadata instead.
-
 - `.tugboatTag(_:accessibility:)` with `accessibility: true` also sets the tag
   as the view's `accessibilityIdentifier`, so XCUITest, Maestro, Appium and
   exploration runs find the control by the same id
@@ -95,6 +79,25 @@ via collector metadata instead.
   on a background `tugboat-stop` thread; at once when no `session_end` will
   be posted (the host stopped, or `willTerminate` already ended the
   session). The main thread never waits.
+
+## Device Farm / exploration correlation
+
+Process environment `TUGBOAT_EMIT_SCENE_INVENTORY` /
+`TUGBOAT_ACCEPT_ACTION_CONTEXT` (and optional `TUGBOAT_AUTOMATION_RUN_ID`)
+or the same spellings as launch arguments (`--tugboat-emit-scene-inventory`,
+and so on) mirror the Flutter plugin. Environment wins when both are set.
+When either scene-inventory or action-context is enabled (`1` / `true` /
+`yes`, case-insensitive), the SDK logs `TUGBOAT_LAUNCH` once per process and
+`TUGBOAT_HEALTH` ten seconds later through `os_log` (subsystem
+`com.gettugboat.sdk`, category `launch`). Payloads match the Android lines;
+`captureSessionId` comes from the first `session.start` clock reading.
+`TUGBOAT_HEALTH` uses `lifecycle` `active` when the engine host and session
+are still live at the ten-second mark, otherwise `dormant` without
+`captureSessionId`. Lines never include collector URL or API material.
+`TUGBOAT_COLLECTOR_BASE_URL` is not applied in v1 (collector override is out
+of scope here). A later `stop` and `start` does not emit new lines. Device
+Farm exploration tooling does not read iOS device logs today; hosted iOS runs
+correlate via collector metadata instead.
 
 ## Coded events and network calls
 

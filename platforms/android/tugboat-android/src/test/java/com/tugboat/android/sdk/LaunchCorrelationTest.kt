@@ -7,6 +7,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -20,8 +21,20 @@ import java.util.concurrent.TimeUnit
 class LaunchCorrelationTest {
     private val lines = mutableListOf<String>()
 
-    private fun correlation(sessionWallUs: Long? = 1_781_827_200_000_000L) =
-        LaunchCorrelation(sessionWallUs = sessionWallUs, emit = lines::add)
+    @Before
+    fun resetLatch() {
+        LaunchCorrelation.resetForTests()
+        lines.clear()
+    }
+
+    private fun correlation(
+        sessionWallUs: Long = 1_781_827_200_000_000L,
+        hostRunning: Boolean = true,
+    ) = LaunchCorrelation(
+        sessionWallUs = sessionWallUs,
+        isHostRunning = { hostRunning },
+        emit = lines::add,
+    )
 
     @Test
     fun noExtrasEmitsNoLines() {
@@ -51,12 +64,64 @@ class LaunchCorrelationTest {
     }
 
     @Test
+    fun resumeWithoutExtrasThenWithExtrasLogsOnce() {
+        val plain = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val withExtras = activityWithExtras(
+            Bundle().apply { putString(LaunchExtraKeys.EMIT_SCENE_INVENTORY, "1") },
+        )
+        val correlation = correlation()
+        correlation.onActivityResumed(plain)
+        correlation.onActivityResumed(withExtras)
+        assertEquals(1, lines.size)
+        assertTrue(lines[0].startsWith("TUGBOAT_LAUNCH "))
+    }
+
+    @Test
+    fun stopStartAndResumeWithExtrasLogsNoSecondLaunch() {
+        val activity = activityWithExtras(
+            Bundle().apply { putString(LaunchExtraKeys.ACCEPT_ACTION_CONTEXT, "true") },
+        )
+        val first = correlation(sessionWallUs = 100)
+        first.onActivityResumed(activity)
+        first.stop()
+        val second = correlation(sessionWallUs = 200)
+        second.onActivityResumed(activity)
+        assertEquals(1, lines.size)
+        assertTrue(lines[0].contains("session-100"))
+    }
+
+    @Test
+    fun wrongExtraTypesTurnFlagsOffWithoutCrashing() {
+        val activity = activityWithExtras(
+            Bundle().apply {
+                putStringArray(LaunchExtraKeys.EMIT_SCENE_INVENTORY, arrayOf("1"))
+                putBoolean(LaunchExtraKeys.ACCEPT_ACTION_CONTEXT, false)
+            },
+        )
+        correlation().onActivityResumed(activity)
+        assertTrue(lines.isEmpty())
+    }
+
+    @Test
+    fun automationRunIdWithControlCharactersStillParsesAsJson() {
+        val runId = "run\u0001\"x"
+        val activity = activityWithExtras(
+            Bundle().apply {
+                putString(LaunchExtraKeys.EMIT_SCENE_INVENTORY, "1")
+                putString(LaunchExtraKeys.AUTOMATION_RUN_ID, runId)
+            },
+        )
+        correlation().onActivityResumed(activity)
+        val json = JSONObject(lines[0].removePrefix("TUGBOAT_LAUNCH "))
+        assertEquals(runId, json.getString("automationRunId"))
+    }
+
+    @Test
     fun healthFiresAfterTenSecondsWithActiveLifecycle() {
         val activity = activityWithExtras(
             Bundle().apply { putBoolean(LaunchExtraKeys.EMIT_SCENE_INVENTORY, true) },
         )
         val correlation = correlation()
-        correlation.onProcessLifecycle("resumed")
         correlation.onActivityResumed(activity)
         ShadowLooper.shadowMainLooper().idleFor(10, TimeUnit.SECONDS)
         assertEquals(2, lines.size)
@@ -65,6 +130,19 @@ class LaunchCorrelationTest {
         assertEquals("active", json.getString("lifecycle"))
         assertEquals("session-1781827200000000", json.getString("captureSessionId"))
         assertTrue(SESSION_ID_REGEX.matches(json.getString("captureSessionId")))
+    }
+
+    @Test
+    fun healthIsDormantWithoutSessionIdWhenHostStopped() {
+        val activity = activityWithExtras(
+            Bundle().apply { putString(LaunchExtraKeys.EMIT_SCENE_INVENTORY, "1") },
+        )
+        val correlation = correlation(hostRunning = false)
+        correlation.onActivityResumed(activity)
+        ShadowLooper.shadowMainLooper().idleFor(10, TimeUnit.SECONDS)
+        val json = JSONObject(lines[1].removePrefix("TUGBOAT_HEALTH "))
+        assertEquals("dormant", json.getString("lifecycle"))
+        assertFalse(json.has("captureSessionId"))
     }
 
     @Test
@@ -90,7 +168,6 @@ class LaunchCorrelationTest {
 
     @Test
     fun parseBoolMatchesDart() {
-        assertTrue(TugboatLaunchParsers.parseBool(true))
         assertTrue(TugboatLaunchParsers.parseBool("1"))
         assertTrue(TugboatLaunchParsers.parseBool(" True "))
         assertFalse(TugboatLaunchParsers.parseBool(null))

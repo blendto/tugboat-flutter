@@ -3,6 +3,7 @@ package com.tugboat.android.sdk
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import org.json.JSONObject
 
 /** Device Farm intent extras; spellings match the Flutter plugin. */
 internal object LaunchExtraKeys {
@@ -13,8 +14,9 @@ internal object LaunchExtraKeys {
 }
 
 /**
- * Parsed launch inputs from the first resumed activity's intent. Collector
- * URL is read but never logged (v1 does not apply the override; see README).
+ * Parsed launch inputs from the first resumed activity whose intent carries
+ * capture extras. Collector URL extra is ignored (v1 does not apply overrides;
+ * see README).
  */
 internal data class LaunchOptions(
     val emitSceneInventory: Boolean,
@@ -24,25 +26,27 @@ internal data class LaunchOptions(
     val captureRequested: Boolean
         get() = emitSceneInventory || acceptActionContext
 
-    fun toLaunchJson(sessionWallUs: Long?): String {
+    fun toLaunchJson(sessionWallUs: Long): String {
         val parts = buildList {
             add("\"captureRequested\":true")
             add("\"emitSceneInventory\":$emitSceneInventory")
             add("\"acceptActionContext\":$acceptActionContext")
             val runId = automationRunId
             if (runId != null) {
-                add("\"automationRunId\":${jsonString(runId)}")
+                add("\"automationRunId\":${JSONObject.quote(runId)}")
             }
-            if (sessionWallUs != null) {
-                add("\"captureSessionId\":\"session-$sessionWallUs\"")
-            }
+            add("\"captureSessionId\":\"session-$sessionWallUs\"")
         }
         return "{${parts.joinToString(",")}}"
     }
 
     companion object {
         fun healthJson(lifecycle: String, sessionWallUs: Long): String =
-            "{\"lifecycle\":${jsonString(lifecycle)},\"captureSessionId\":\"session-$sessionWallUs\"}"
+            if (lifecycle == "dormant") {
+                "{\"lifecycle\":${JSONObject.quote(lifecycle)}}"
+            } else {
+                "{\"lifecycle\":${JSONObject.quote(lifecycle)},\"captureSessionId\":\"session-$sessionWallUs\"}"
+            }
 
         fun fromActivity(activity: Activity): LaunchOptions? {
             val intent = activity.intent ?: return null
@@ -71,25 +75,8 @@ internal data class LaunchOptions(
 
 /** Normalization shared with Dart `TugboatLaunchParsers`. */
 internal object TugboatLaunchParsers {
-    fun parseBool(value: Any?): Boolean {
-        if (value is Boolean) return value
-        val normalized = value?.toString()?.trim()?.lowercase()
+    fun parseBool(value: String?): Boolean {
+        val normalized = value?.trim()?.lowercase()
         return normalized == "1" || normalized == "true" || normalized == "yes"
     }
 }
-
-private fun jsonString(value: String): String =
-    buildString(value.length + 2) {
-        append('"')
-        value.forEach { ch ->
-            when (ch) {
-                '\\' -> append("\\\\")
-                '"' -> append("\\\"")
-                '\n' -> append("\\n")
-                '\r' -> append("\\r")
-                '\t' -> append("\\t")
-                else -> append(ch)
-            }
-        }
-        append('"')
-    }

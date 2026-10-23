@@ -68,6 +68,7 @@ internal class ForegroundWindow(
     }
 
     override fun onActivityResumed(activity: Activity) = AdapterGuard.run("foreground resumed") {
+        onResumed(activity)
         this.activity = WeakReference(activity)
         val view = activity.window?.peekDecorView() ?: return@run
         if (view !== decor) {
@@ -77,7 +78,6 @@ internal class ForegroundWindow(
         }
         report(view)
         releaseWaiting()
-        onResumed(activity)
     }
 
     override fun onActivityDestroyed(activity: Activity) = AdapterGuard.run("foreground destroyed") {

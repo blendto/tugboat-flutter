@@ -62,38 +62,23 @@ struct LaunchOptions {
     return options.captureRequested ? options : nil
   }
 
-  func launchLine(sessionWallUs: Int64?) -> String {
+  func launchLine(sessionWallUs: Int64) -> String {
     var parts = [
       "\"captureRequested\":true",
       "\"emitSceneInventory\":\(emitSceneInventory)",
       "\"acceptActionContext\":\(acceptActionContext)",
     ]
     if let automationRunId {
-      parts.append("\"automationRunId\":\(jsonString(automationRunId))")
+      parts.append("\"automationRunId\":\(JSONText.quoted(automationRunId))")
     }
-    if let sessionWallUs {
-      parts.append("\"captureSessionId\":\"session-\(sessionWallUs)\"")
-    }
+    parts.append("\"captureSessionId\":\"session-\(sessionWallUs)\"")
     return "TUGBOAT_LAUNCH {" + parts.joined(separator: ",") + "}"
   }
 
   static func healthLine(lifecycle: String, sessionWallUs: Int64) -> String {
-    "TUGBOAT_HEALTH {\"lifecycle\":\(jsonString(lifecycle)),\"captureSessionId\":\"session-\(sessionWallUs)\"}"
-  }
-}
-
-private func jsonString(_ value: String) -> String {
-  var out = "\""
-  for ch in value {
-    switch ch {
-    case "\\": out += "\\\\"
-    case "\"": out += "\\\""
-    case "\n": out += "\\n"
-    case "\r": out += "\\r"
-    case "\t": out += "\\t"
-    default: out.append(ch)
+    if lifecycle == "dormant" {
+      return "TUGBOAT_HEALTH {\"lifecycle\":\(JSONText.quoted(lifecycle))}"
     }
+    return "TUGBOAT_HEALTH {\"lifecycle\":\(JSONText.quoted(lifecycle)),\"captureSessionId\":\"session-\(sessionWallUs)\"}"
   }
-  out += "\""
-  return out
 }

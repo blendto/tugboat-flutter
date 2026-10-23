@@ -4,32 +4,30 @@ import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.tugboat.android.views.AdapterGuard
 
 /**
  * Emits `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH` for Device Farm correlation when
- * launch extras request capture. Main thread only.
+ * launch extras request capture. Main thread only. LAUNCH and HEALTH fire at
+ * most once per process (first `start()` wins).
  */
 internal class LaunchCorrelation(
-    private val sessionWallUs: Long?,
+    private val sessionWallUs: Long,
+    private val isHostRunning: () -> Boolean,
     private val handler: Handler = Handler(Looper.getMainLooper()),
     private val emit: (String) -> Unit = { line -> Log.i(TAG, line) },
 ) {
-    private var launchLogged = false
     private var healthTask: Runnable? = null
-    private var processLifecycle = "resumed"
-    private var options: LaunchOptions? = null
-
-    fun onProcessLifecycle(state: String) {
-        processLifecycle = state
-    }
 
     fun onActivityResumed(activity: Activity) {
-        if (launchLogged) return
+        if (LaunchCorrelationLatch.launchLogged) return
         val parsed = LaunchOptions.fromActivity(activity) ?: return
-        options = parsed
-        launchLogged = true
+        LaunchCorrelationLatch.launchLogged = true
+        LaunchCorrelationLatch.firstSessionWallUs = sessionWallUs
         emit("TUGBOAT_LAUNCH ${parsed.toLaunchJson(sessionWallUs)}")
-        val task = Runnable { logHealth() }
+        val task = Runnable {
+            AdapterGuard.run("launch health") { logHealth() }
+        }
         healthTask = task
         handler.postDelayed(task, HEALTH_DELAY_MS)
     }
@@ -41,8 +39,9 @@ internal class LaunchCorrelation(
 
     private fun logHealth() {
         healthTask = null
-        val wallUs = sessionWallUs ?: return
-        val lifecycle = healthLifecycle(processLifecycle)
+        if (!LaunchCorrelationLatch.launchLogged) return
+        val lifecycle = if (isHostRunning()) "active" else "dormant"
+        val wallUs = LaunchCorrelationLatch.firstSessionWallUs
         emit("TUGBOAT_HEALTH ${LaunchOptions.healthJson(lifecycle, wallUs)}")
     }
 
@@ -50,11 +49,15 @@ internal class LaunchCorrelation(
         const val TAG = "Tugboat"
         const val HEALTH_DELAY_MS = 10_000L
 
-        /** Maps engine `app.lifecycle` to the health `lifecycle` field. */
-        fun healthLifecycle(appLifecycleState: String): String =
-            when (appLifecycleState) {
-                "resumed" -> "active"
-                else -> appLifecycleState
-            }
+        internal fun resetForTests() {
+            LaunchCorrelationLatch.launchLogged = false
+            LaunchCorrelationLatch.firstSessionWallUs = 0L
+        }
     }
+}
+
+/** Process-wide latch: first capture session id used for both correlation lines. */
+internal object LaunchCorrelationLatch {
+    @Volatile var launchLogged: Boolean = false
+    @Volatile var firstSessionWallUs: Long = 0L
 }

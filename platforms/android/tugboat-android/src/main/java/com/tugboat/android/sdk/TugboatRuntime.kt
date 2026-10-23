@@ -141,7 +141,10 @@ internal class TugboatRuntime private constructor(
             )
             val surfaces = SurfaceReporter { input -> host.post(SurfaceReporter.FACT_TYPE, input, clock.now()) }
             val startAt = clock.now()
-            val launchCorrelation = LaunchCorrelation(sessionWallUs = startAt.wallUs)
+            val launchCorrelation = LaunchCorrelation(
+                sessionWallUs = startAt.wallUs,
+                isHostRunning = { host.isRunning },
+            )
             val foreground = ForegroundWindow(
                 application,
                 onResumed = launchCorrelation::onActivityResumed,
@@ -163,7 +166,6 @@ internal class TugboatRuntime private constructor(
             host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, gesture).toString())
             host.post(SessionMessages.SESSION_START, SessionMessages.sessionStart(device, metadata, sessionEpoch), startAt)
             val lifecycle = AppLifecycleBridge(post = { state ->
-                launchCorrelation.onProcessLifecycle(state)
                 host.post(SessionMessages.APP_LIFECYCLE, SessionMessages.appLifecycle(state), clock.now())
             })
             val evidence = EvidenceRecorder(clock, EngineEvidenceEncoder, hostRunning = { host.isRunning }, post = host::post)
