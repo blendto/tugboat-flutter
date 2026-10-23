@@ -1,6 +1,5 @@
 package com.tugboat.android.sdk
 
-import android.app.Activity
 import android.app.Application
 import android.os.Handler
 import android.os.Looper

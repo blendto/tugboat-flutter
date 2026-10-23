@@ -70,6 +70,10 @@ internal class ViewsAdapter(
         // seed before recording, so a pre-start removal is never a live pop.
         NavigationObservation.flushFragments()
         emitSessionStartSeeds()
+        // Post the seeds now, not at the next frame: the runtime's lifecycle
+        // replay right after start() makes the engine request a capture, and
+        // its route context must already be the seeded one.
+        batcher.flush()
         if (postNavigationFacts) {
             NavigationObservation.setRecording(::reportNavigation)
         }

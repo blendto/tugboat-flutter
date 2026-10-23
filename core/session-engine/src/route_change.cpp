@@ -256,8 +256,9 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
     Turn& turn, const NavigationFact& fact) {
   EngineState& state = *turn.state;
   NavigationState& navigation = state.navigation;
-  // A seed is only meaningful before the session's first live push, pop, or
-  // replace: after it, every seed (on any navigator) is accepted and dropped.
+  // A seed is only meaningful before the session's first live push, pop,
+  // replace, or visible removal: after it, every seed (on any navigator) is
+  // accepted and dropped.
   if (navigation.live_navigation_seen) return std::nullopt;
   const std::string navigator_id =
       navigation.registry.navigator(fact.navigator_id, fact.parent_navigator_id);

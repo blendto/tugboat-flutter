@@ -136,7 +136,7 @@ class CaptureSeam {
 
   // A recorded session_start seed: aligns the queued, in-flight, and
   // accepted `initial` capture contexts with the visible route. Seeds after
-  // the first live push, pop, or replace are dropped before this runs.
+  // the first live push, pop, replace, or visible removal are dropped before this runs.
   void restamp_initial_route(EngineState* state);
 
  private:
