@@ -21,3 +21,14 @@ import com.tugboat.android.views.identity.ViewTags
 var View.tugboatTag: String?
     get() = ViewTags.alias(this)
     set(value) = ViewTags.setAlias(this, value?.takeIf { it.isNotEmpty() })
+
+/**
+ * Marks this view and its whole subtree as always masked in screenshots, at
+ * every mask level. Pixels are redacted; taps and fingerprints are unchanged.
+ *
+ * From Java, call `TugboatViews.tugboatSensitive(view)`.
+ */
+fun View.tugboatSensitive(): View {
+    ViewTags.setSensitive(this, true)
+    return this
+}

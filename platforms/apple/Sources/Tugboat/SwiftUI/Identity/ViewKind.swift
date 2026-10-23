@@ -47,7 +47,7 @@ enum ViewKind: Equatable {
     let kind = classKind(cls)
     switch kind {
     case .representable, .internalPlatformView:
-      return view.subviews.contains { $0 is TagMarkerView } ? .sdkOwned : kind
+      return view.subviews.contains { $0 is TagMarkerView || $0 is SensitiveMarkerView } ? .sdkOwned : kind
     case .other:
       return insideHosting && isAppDefined(cls) ? .representable : .other
     default:
@@ -66,7 +66,7 @@ enum ViewKind: Equatable {
   }
 
   private static func computeKind(_ cls: UIView.Type) -> ViewKind {
-    if cls.isSubclass(of: TagMarkerView.self) { return .sdkOwned }
+    if cls.isSubclass(of: TagMarkerView.self) || cls.isSubclass(of: SensitiveMarkerView.self) { return .sdkOwned }
     if let web = webViewClass, cls.isSubclass(of: web) { return .webView }
     if cls.isSubclass(of: UITextField.self) || cls.isSubclass(of: UITextView.self) { return .textInput }
     if cls.isSubclass(of: UILabel.self) { return .label }

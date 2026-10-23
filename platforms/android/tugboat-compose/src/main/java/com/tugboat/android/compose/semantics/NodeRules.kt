@@ -5,6 +5,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import com.tugboat.android.compose.TugboatSensitiveKey
 import com.tugboat.android.compose.TugboatTagKey
 
 /**
@@ -34,9 +35,11 @@ internal object NodeRules {
         SemanticsProperties.VerticalScrollAxisRange in node.config ||
             SemanticsProperties.HorizontalScrollAxisRange in node.config
 
+    fun isSensitive(node: SemanticsNode): Boolean = node.config.getOrNull(TugboatSensitiveKey) == true
+
     fun isMaskable(node: SemanticsNode): Boolean {
         val config = node.config
-        return SemanticsProperties.Text in config || SemanticsProperties.EditableText in config ||
+        return isSensitive(node) || SemanticsProperties.Text in config || SemanticsProperties.EditableText in config ||
             SemanticsProperties.ContentDescription in config || role(node) == Role.Image
     }
 

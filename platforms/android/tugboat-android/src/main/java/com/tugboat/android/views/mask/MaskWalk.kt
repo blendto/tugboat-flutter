@@ -26,10 +26,14 @@ internal class MaskWalk(private val decor: View) {
     var wholeFrameReason: MaskCoverageReason? = null
         private set
 
-    fun collect(view: View) {
+    fun collect(view: View, subtreeSensitive: Boolean = false) {
         if (wholeFrameReason != null) return
         structure.addView(view)
         if (isHidden(view)) return
+        val sensitive = subtreeSensitive || ViewTags.isSensitive(view)
+        if (sensitive) {
+            ViewGeometry.boundsIn(decor, view)?.let(::add)
+        }
         val region = Regions.regionOf(view)
         if (region != null) return region(RegionHost(view, region))
         val source = WindowMasks.sourceOf(view)
@@ -38,7 +42,7 @@ internal class MaskWalk(private val decor: View) {
             if (source == MaskSource.FailClosed) return failClosed(view)
         }
         if (view is ViewGroup) {
-            for (i in 0 until view.childCount) collect(view.getChildAt(i))
+            for (i in 0 until view.childCount) collect(view.getChildAt(i), sensitive)
         }
     }
 

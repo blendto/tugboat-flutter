@@ -93,6 +93,38 @@ binding.payButton.tugboatTag = "checkout.pay"
 
 Setting `null` or an empty string removes the tag.
 
+## Sensitive content (always masked)
+
+Use `tugboatSensitive` when pixels must be hidden in every screenshot mask
+level, including the most permissive. It redacts only pixels: taps still
+resolve to the control and fingerprints are unchanged. Sensitive is not a
+tag and does not enter identity.
+
+### Flutter
+
+```dart
+Text('Do not show in replay').tugboatSensitive(),
+```
+
+### SwiftUI
+
+```swift
+TextField("Card", text: $number)
+  .tugboatSensitive()
+```
+
+### Jetpack Compose
+
+```kotlin
+Text("•••• 4242", modifier = Modifier.tugboatSensitive())
+```
+
+### Android Views
+
+```kotlin
+binding.cardNumber.tugboatSensitive()
+```
+
 ### React Native
 
 There is no React Native SDK yet. It will use the same `tugboatTag` name.

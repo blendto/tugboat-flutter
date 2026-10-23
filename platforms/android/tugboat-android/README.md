@@ -36,6 +36,7 @@ Tugboat.trackNavigation(navController)       // Jetpack Navigation, optional
 Tugboat.eventHook(source, parameterPolicy).record(name, parameters)
 Tugboat.beginNetworkCall(method, route).complete(statusCode)  // or fail(NetworkFailure)
 view.tugboatTag = "checkout"                  // developer alias
+view.tugboatSensitive()                       // always mask pixels in screenshots
 ```
 
 - Every method can be called from any thread; the work runs on the main

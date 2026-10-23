@@ -12,8 +12,9 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   `stop`; `TugboatConfig` (`Collector`, `App`, `MaskLevel`,
   `captureFocusChanges`, `trackHostingControllers`,
   `swiftUIAccessibilityIdentity`);
-  the `.tugboatTag(_:accessibility:)` and `.tugboatScreen(_:)` view
-  modifiers. Idempotent start; nothing throws or traps into the app.
+  the `.tugboatTag(_:accessibility:)`, `.tugboatSensitive()`, and
+  `.tugboatScreen(_:)` view modifiers. Idempotent start; nothing throws or
+  traps into the app.
 - Coded events and network calls, the Flutter evidence API:
   `Tugboat.eventHook(source:parameterPolicy:)` → `TugboatEventHook.record(_:parameters:)`
   (`external_event`), with `TugboatParameterPolicy` `.allowAll` (default),

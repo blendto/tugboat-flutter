@@ -32,6 +32,9 @@ enum WindowMasks {
     }
     var acc = MaskAccumulator(window: window)
     visit(ViewTree.node(window), allowlist: allowlist, iOSMajor: iOSMajor, into: &acc)
+    if !acc.isDone {
+      SensitiveRegistry.shared.addMasks(in: window, into: &acc)
+    }
     return acc.result()
   }
 

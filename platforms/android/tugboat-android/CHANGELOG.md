@@ -7,7 +7,8 @@ wiring, window capture, and the Android Views adapter.
 
 - Public API (`com.tugboat.android`): `Tugboat.start(application,
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
-  (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
+  (Jetpack Navigation, `compileOnly`), `View.tugboatTag`, `View.tugboatSensitive()`;
+  `TugboatConfig`,
   `CollectorConfig`, `AppInfo`, `MaskLevel`. Idempotent start; nothing
   throws into the app. `TugboatConfig.enabled` (default `true`): when
   `false`, `start` installs nothing and nothing is recorded; the user id,
