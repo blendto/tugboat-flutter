@@ -419,7 +419,8 @@ scheduler:
   host); then the host's answer: paint-unchanged reuse, perceptual
   coalescing (the offered `dHashBaseline` matched under the same
   structure), exact-content reuse (a compatible retained frame with the
-  same `contentHash`), or `fresh_accepted`. An answer whose context went
+  same `contentHash` and, change C21, the same `maskCoverage` mode and
+  reasons), or `fresh_accepted`. An answer whose context went
   stale meanwhile is `superseded_route_epoch`. Each waiter keeps the frame
   only when it is compatible with its own context.
 - **Ids and diagnostics.** One `capture_execution-N` per execution (one per

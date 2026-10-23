@@ -70,9 +70,12 @@ CapturedDisposition classify_captured(const FrameStore& frames,
   }
   const ScheduledCapture& scheduled = capture.capture;
   const OptString existing = frames.frame_with_content(frame.content_hash);
+  // Change C21: a frame masked with different coverage is other evidence,
+  // even with the same pixels.
   if (!scheduled.force &&
       scheduled.freshness == CaptureFreshness::kReusable && existing &&
-      frames.is_compatible(*existing, scheduled.context)) {
+      frames.is_compatible(*existing, scheduled.context) &&
+      frames.same_mask_coverage(*existing, frame.mask_coverage)) {
     return CapturedDisposition::kContentReused;
   }
   return CapturedDisposition::kAccepted;

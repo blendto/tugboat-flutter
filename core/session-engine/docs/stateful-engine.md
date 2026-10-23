@@ -646,9 +646,9 @@ capture.result  {requestId, outcome: captured|paintUnchanged|failed|cancelled,
   `interop`, `regionUnreadable`, `treeUnreadable`, `animating`,
   `unverifiedLayerAllowlist`, `walkExhausted`, `noWindowSize`, `noDecor`,
   `representable`, `webView`, `renderer`, `surfaceLayer`,
-  `unclassifiedLayer`, `secureText`, `overlayWindow`: every value the Android and SwiftUI
-  adapters emit), possibly empty. An unknown value is `invalid_message` and
-  the host keeps the handle. When the engine accepts the frame it records
+  `unclassifiedLayer`, `secureText`, `overlayWindow`: every value the
+  Android and SwiftUI adapters emit), possibly empty. An unknown value is
+  `invalid_message` and the host keeps the handle. When the engine accepts the frame it records
   `capture_diagnostic` `{component: capture_masking, frameId, mode,
   reasons}` right after the frame record, before the frame-accepted hooks
   run (so a delivery eviction gap follows it), always (with or without the
@@ -656,6 +656,15 @@ capture.result  {requestId, outcome: captured|paintUnchanged|failed|cancelled,
   from a broken capture. The frame record and `frameMetadata` never carry
   it. A frame without `maskCoverage` (Flutter, older hosts) records nothing
   new; a frame the engine reuses, coalesces, or releases records nothing.
+- Change C21: exact-content reuse also needs the retained frame's
+  `maskCoverage` to match: the same `mode` and the same set of `reasons`
+  (absent matches only absent). A frame with the same pixels but other
+  masking provenance (an `overlayWindow` frame over an unchanged screen,
+  or the first frame after the overlay is gone) is accepted as a new frame
+  and records its own `capture_masking`. Coalescing is unchanged: it
+  compares the host's `structureSignature`, so a host whose coverage
+  changes identity folds it into that token (Android adds an overlay token
+  while `overlayWindow` is reported).
 - `secureWindow`: a native host never copies a window flagged secure
   (Android `FLAG_SECURE`). It resolves as `capture_processing_failed`, like
   the other non-retryable failures, and its `capture_diagnostic` carries
@@ -692,7 +701,7 @@ What the engine owns:
   2. budget skip;
   3. paint-unchanged reuse;
   4. dHash coalescing;
-  5. exact-content reuse;
+  5. exact-content reuse (same mask coverage, change C21);
   6. `fresh_accepted`.
 - Frame provenance and the compatibility predicate.
 - The temporal after-frame rules.
@@ -895,6 +904,7 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C17 | Navigator and route-instance ids are per session | A route object keeps its `route-N` across sessions (`Expando`) while the counter restarts, so ids can collide | yes: `routeInstanceId` of a route seen in an earlier session | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C18 | Capture answer deadline: a `capture.request` unanswered `capture.answerTimeoutMs` (default 5000) after it was issued resolves as `paint_readiness_timeout` with `capture_diagnostic` `failure: answer_timeout` (always recorded); a late answer is ignored (frame released) | No deadline (the frame wait times out on the UI thread) | yes: a route or interaction whose capture the host dropped is recorded without a frame instead of never | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C19 | A `network_call` from `evidence.networkCall` is stamped with the call's start (`startMonoUs`) | Dart stamps `atMs` when the call finishes | yes: `triggeredAt` of native network calls is the request start | Yes (engine-only; decided by the ADR 0009 orchestrator for native evidence 2026-10-16) |
+| C21 | Exact-content reuse requires the retained frame's `maskCoverage` (mode and reason set) to equal the answer's; otherwise the answer is accepted as a new frame and records `capture_masking` | Dart has no `maskCoverage`: reuse matches `contentHash` only | yes: native hosts get a new frame (and `capture_masking`) when masking provenance changes over unchanged pixels, e.g. `overlayWindow` | Yes (engine-only; decided by the ADR 0009 orchestrator for W6a, PR #119, 2026-10-23) |
 
 ## 12. Open questions and decisions
 
