@@ -15,7 +15,7 @@ it).
 
 | API | Use |
 | --- | --- |
-| `TugboatCompose.install(composeMasking = ComposeMasking.WholeHost)` | Called by the SDK facade when the app ships this module. Registers the Compose region with the Views adapter. Installing again replaces the choice. Never throws. |
+| `TugboatCompose.install(composeMasking = ComposeMasking.WholeHost)` | The app must call once when it ships this module (for example from `Application.onCreate`, after `Tugboat.start` — see `tugboat-sample`). Registers the Compose region with the Views adapter. Without it, each `AndroidComposeView` is fail-closed: masked over its whole bounds and not read for semantics identity. Installing again replaces the choice. Never throws. |
 | `ComposeMasking` | `WholeHost` (default) or `SemanticsBestEffort` (below). |
 | `Modifier.tugboatTag("checkout", accessibility = false)` | Developer alias, like `View.tugboatTag`. A high-confidence `tagFingerprint`; the structural fingerprint is unchanged. `accessibility = true` also sets `testTag` (below). |
 
