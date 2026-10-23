@@ -1,14 +1,5 @@
 # tugboat-android
 
-## Unreleased
-
-- Device Farm / exploration correlation: when `tugboat_emit_scene_inventory` or
-  `tugboat_accept_action_context` is present on the first resumed activity's
-  intent, log `TUGBOAT_LAUNCH` once per process and `TUGBOAT_HEALTH` ten
-  seconds later (`Log.i`, tag `Tugboat`). Includes `captureSessionId` from the
-  `session.start` wall clock. Never logs collector URL or secrets. Intent
-  `tugboat_collector_base_url` is ignored in v1 (known gap; see README).
-
 ## 0.1.0
 
 Unpublished. The native Android SDK for Views apps: public facade, engine
@@ -112,3 +103,9 @@ wiring, window capture, and the Android Views adapter.
     at most 64 KiB cut at a UTF-8 boundary, and statuses outside 100–599
     reported as `error`, so the engine never rejects a `transport.result`);
   - `frame.release` (frame handle table).
+- Device Farm / exploration correlation: when `tugboat_emit_scene_inventory` or
+  `tugboat_accept_action_context` is present on the first resumed activity's
+  intent, log `TUGBOAT_LAUNCH` once per process and `TUGBOAT_HEALTH` ten
+  seconds later (`Log.i`, tag `Tugboat`). Includes `captureSessionId` from the
+  `session.start` wall clock. Never logs collector URL or secrets. Intent
+  `tugboat_collector_base_url` is ignored in v1 (known gap; see README).

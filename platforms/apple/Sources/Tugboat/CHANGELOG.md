@@ -3,15 +3,6 @@
 The version is `TugboatVersion.current` in `TugboatVersion.swift`; the newest
 entry here must match it.
 
-## Unreleased
-
-- Device Farm launch correlation: when `TUGBOAT_EMIT_SCENE_INVENTORY` /
-  `TUGBOAT_ACCEPT_ACTION_CONTEXT` (environment or `--tugboat-*` launch args)
-  request capture, log `TUGBOAT_LAUNCH` and `TUGBOAT_HEALTH` via `os_log`
-  (subsystem `com.gettugboat.sdk`, category `launch`). Nothing in
-  tugboat-context-graph reads iOS logs today; parity is for operators and
-  future scraping. Collector URL override not applied in v1.
-
 ## 0.1.0
 
 Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
@@ -117,3 +108,9 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
     response body of at most 64 KiB cut at a UTF-8 boundary, and statuses
     outside 100–599 reported as `error`);
   - `frame.release` (frame handle table).
+- Device Farm launch correlation: when `TUGBOAT_EMIT_SCENE_INVENTORY` /
+  `TUGBOAT_ACCEPT_ACTION_CONTEXT` (environment or `--tugboat-*` launch args)
+  request capture, log `TUGBOAT_LAUNCH` and `TUGBOAT_HEALTH` via `os_log`
+  (subsystem `com.gettugboat.sdk`, category `launch`). Nothing in
+  tugboat-context-graph reads iOS logs today; parity is for operators and
+  future scraping. Collector URL override not applied in v1.
