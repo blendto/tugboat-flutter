@@ -7,6 +7,7 @@ import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.Lifecycle
 import com.tugboat.android.views.AdapterGuard
 import com.tugboat.android.views.OptionalAndroidx
 import com.tugboat.android.views.identity.Confidence
@@ -160,8 +161,22 @@ internal class FragmentNavigation(
         entries[fragment] = entry
         val owner = WeakReference(fragment)
         entry.isLeaving = { owner.get()?.isRemoving ?: true }
-        entry.isResumed = { owner.get()?.isResumed == true }
+        entry.isResumed = { owner.get()?.let(::countsAsResumed) ?: false }
         return entry
+    }
+
+    /**
+     * A fragment counts as paused only while its host (parent fragment, else
+     * the activity) is resumed. A paused but visible activity (split screen,
+     * picture-in-picture, a capture racing `onPause`) pauses every fragment,
+     * and the visible one must still be the inventory route.
+     */
+    private fun countsAsResumed(fragment: Fragment): Boolean {
+        if (fragment.isResumed) return true
+        val parent = fragment.parentFragment
+        val hostResumed = parent?.isResumed
+            ?: (fragment.activity?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.RESUMED) == true)
+        return !hostResumed
     }
 
     private fun newEntry(fragment: Fragment): RouteEntry {

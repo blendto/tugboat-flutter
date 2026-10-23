@@ -113,6 +113,23 @@ class SceneInventoryAdapterTest {
         assertTrue(anchor.getString("fingerprint") in fingerprints(inventory))
     }
 
+    /** Split screen / picture-in-picture: the activity is paused but visible, so every fragment is paused too. */
+    @Test
+    fun aPausedButVisibleActivityKeepsTheVisibleFragmentAsTheInventoryRoute() {
+        val controller = Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val activity = controller.get()
+        val parent = ParentFragment()
+        activity.supportFragmentManager.beginTransaction().add(android.R.id.content, parent, "parent").commitNow()
+        val child = HomeFragment()
+        parent.childFragmentManager.beginTransaction().add(CHILD_CONTAINER_ID, child, "child").commitNow()
+        settle()
+        controller.pause()
+
+        adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
+        frames.runFrame()
+        assertEquals("child", inventoryInputs().single().getString("routeKey"))
+    }
+
     /**
      * The `NavHostFragment` shape: a host fragment whose key is not the
      * destination's, holding the destination fragment (`trackNavigation`
