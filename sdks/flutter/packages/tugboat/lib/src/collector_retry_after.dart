@@ -58,18 +58,18 @@ DateTime? _parseImfFixDate(String value) {
     return null;
   }
   if (!_isTwoDigits(value, 5) ||
-      !_isTwoDigits(value, 12) ||
+      !_isFourDigits(value, 12) ||
       !_isTwoDigits(value, 17) ||
       !_isTwoDigits(value, 20) ||
       !_isTwoDigits(value, 23)) {
     return null;
   }
-  final day = int.parse(value.substring(5, 7));
+  final day = _twoDigitValue(value, 5);
   final month = _monthIndex(value.substring(8, 11));
-  final year = int.parse(value.substring(12, 16));
-  final hour = int.parse(value.substring(17, 19));
-  final minute = int.parse(value.substring(20, 22));
-  var second = int.parse(value.substring(23, 25));
+  final year = _fourDigitValue(value, 12);
+  final hour = _twoDigitValue(value, 17);
+  final minute = _twoDigitValue(value, 20);
+  var second = _twoDigitValue(value, 23);
   if (month == null ||
       !_civilDateValid(year, month, day) ||
       hour > 23 ||
@@ -88,6 +88,17 @@ bool _isTwoDigits(String value, int start) {
   final b = value.codeUnitAt(start + 1);
   return a >= 0x30 && a <= 0x39 && b >= 0x30 && b <= 0x39;
 }
+
+bool _isFourDigits(String value, int start) {
+  return _isTwoDigits(value, start) && _isTwoDigits(value, start + 2);
+}
+
+int _twoDigitValue(String value, int start) =>
+    (value.codeUnitAt(start) - 0x30) * 10 +
+    (value.codeUnitAt(start + 1) - 0x30);
+
+int _fourDigitValue(String value, int start) =>
+    _twoDigitValue(value, start) * 100 + _twoDigitValue(value, start + 2);
 
 bool _civilDateValid(int year, int month, int day) {
   if (month < 1 || month > 12 || day < 1) return false;

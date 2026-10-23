@@ -5,6 +5,7 @@ import com.tugboat.android.host.LocalHttpServer.Response
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
@@ -75,6 +76,14 @@ class HttpExecutorTest {
     fun retryAfterHeaderIsForwardedOnTheWire() {
         server.reply = { Response(429, "{}", mapOf("Retry-After" to " 12 ")) }
         assertEquals(TransportOutcome.Http(429, "{}", "12"), executor.perform(json("{}")))
+    }
+
+    @Test
+    fun retryAfterLongerThan128Utf8BytesIsDropped() {
+        assertNull(CollectorResponse.forwardRetryAfter("a".repeat(129)))
+        val header = "a".repeat(120)
+        server.reply = { Response(429, "{}", mapOf("Retry-After" to header)) }
+        assertEquals(TransportOutcome.Http(429, "{}", header), executor.perform(json("{}")))
     }
 
     @Test

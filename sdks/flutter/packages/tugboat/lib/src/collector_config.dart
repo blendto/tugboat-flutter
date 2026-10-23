@@ -174,6 +174,8 @@ class TugboatCollectorConfig {
     this.maxPendingBatches = 20,
     this.maxPendingEvents = 60,
     this.maxPendingFrames = 20,
+    this.maxRetryAfterMs = 60000,
+    this.maxEndingRetryAfterMs = 10000,
   });
 
   final String baseUrl;
@@ -188,6 +190,8 @@ class TugboatCollectorConfig {
   final int maxPendingBatches;
   final int maxPendingEvents;
   final int maxPendingFrames;
+  final int maxRetryAfterMs;
+  final int maxEndingRetryAfterMs;
 
   TugboatCollectorConfig withUserId(String? userId) {
     return TugboatCollectorConfig(
@@ -203,6 +207,8 @@ class TugboatCollectorConfig {
       maxPendingBatches: maxPendingBatches,
       maxPendingEvents: maxPendingEvents,
       maxPendingFrames: maxPendingFrames,
+      maxRetryAfterMs: maxRetryAfterMs,
+      maxEndingRetryAfterMs: maxEndingRetryAfterMs,
     );
   }
 
@@ -221,6 +227,8 @@ class TugboatCollectorConfig {
       maxPendingBatches: maxPendingBatches,
       maxPendingEvents: maxPendingEvents,
       maxPendingFrames: maxPendingFrames,
+      maxRetryAfterMs: maxRetryAfterMs,
+      maxEndingRetryAfterMs: maxEndingRetryAfterMs,
     );
   }
 }

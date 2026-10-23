@@ -87,6 +87,18 @@ final class HTTPExecutorTests: XCTestCase {
     XCTAssertEqual(retryAfter, "12")
   }
 
+  func testRetryAfterLongerThan128Utf8BytesIsDropped() {
+    let header = String(repeating: "😀", count: 65)
+    StubURLProtocol.reset { _ in
+      .response(status: 429, headers: ["Retry-After": header], body: Data("{}".utf8))
+    }
+    guard case let .http(status, _, retryAfter)? = perform(json("{}")) else {
+      return XCTFail("expected HTTP outcome")
+    }
+    XCTAssertEqual(status, 429)
+    XCTAssertNil(retryAfter)
+  }
+
   func testStatusAndBodyPassThroughForRejections() {
     StubURLProtocol.reset { _ in .response(status: 400, headers: [:], body: Data("{\"error\":\"bad\"}".utf8)) }
     XCTAssertEqual(perform(json("{}")), .http(status: 400, body: "{\"error\":\"bad\"}"))

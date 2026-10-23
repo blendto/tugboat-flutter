@@ -4,7 +4,9 @@
 // bounds, and multipart bodies. Delivery behaviour over time is pinned by
 // conformance/engine/scenario/delivery-*.
 #include <cstdint>
+#include <fstream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -230,26 +232,43 @@ void test_classify() {
 }
 
 void test_retry_after_parse() {
+#ifndef TB_CONFORMANCE_DIR
+#error "TB_CONFORMANCE_DIR must point at <repo>/conformance"
+#endif
   using tugboat::engine::parse_retry_after_delay_ms;
-  const int64_t wall = 1'781'827'200'000'000;  // 2026-06-19T00:00:00Z
-  CHECK(parse_retry_after_delay_ms("5", wall, 60'000) == 5'000);
-  CHECK(parse_retry_after_delay_ms("not-a-date", wall, 60'000) == std::nullopt);
-  CHECK(parse_retry_after_delay_ms("120", wall, 60'000) == 60'000);
-  CHECK(parse_retry_after_delay_ms("10000000000000000", wall, 60'000) ==
-        60'000);
-  CHECK(parse_retry_after_delay_ms("18446744073709552", wall, 60'000) ==
-        60'000);
-  const auto past = parse_retry_after_delay_ms(
-      "Sun, 06 Nov 1994 08:49:37 GMT", wall, 60'000);
-  CHECK(past == 0);
-  CHECK(parse_retry_after_delay_ms("Sun, 30 Feb 1994 08:49:37 GMT", wall,
-                                   60'000) == std::nullopt);
-  CHECK(parse_retry_after_delay_ms("Sun, 06 Nov 1994 99:49:37 GMT", wall,
-                                   60'000) == std::nullopt);
-  const int64_t future_wall = wall + 10'000'000;  // +10s
-  CHECK(parse_retry_after_delay_ms("3", future_wall, 60'000) == 3'000);
+  using tugboat::engine::parse_json;
+  using tugboat::engine::ParseError;
+  using tugboat::engine::Value;
+  std::ifstream in(std::string(TB_CONFORMANCE_DIR) + "/retry_after_vectors.json");
+  std::stringstream buffer;
+  buffer << in.rdbuf();
+  Value doc;
+  ParseError parse_error;
+  CHECK(parse_json(buffer.str(), 64, &doc, &parse_error));
+  const Value* cap_value = doc.find("capMs");
+  const Value* wall_value = doc.find("nowWallUs");
+  const Value* vectors = doc.find("vectors");
+  CHECK(cap_value && cap_value->is_int());
+  CHECK(wall_value && wall_value->is_int());
+  CHECK(vectors && vectors->is_array());
+  const int64_t cap_ms = cap_value->as_int();
+  const int64_t wall = wall_value->as_int();
+  for (const Value& entry : vectors->items()) {
+    const Value* raw = entry.find("raw");
+    const Value* expected = entry.find("expectedMs");
+    CHECK(raw && raw->is_string());
+    const std::optional<int64_t> parsed =
+        parse_retry_after_delay_ms(raw->as_string(), wall, cap_ms);
+    if (expected->is_null()) {
+      CHECK(!parsed);
+    } else {
+      CHECK(expected->is_int());
+      CHECK(parsed.has_value() && *parsed == expected->as_int());
+    }
+  }
+  CHECK(parse_retry_after_delay_ms("3", wall + 10'000'000, cap_ms) == 3'000);
   CHECK(parse_retry_after_delay_ms("Sun, 06 Nov 1994 08:49:37 GMT",
-                                   std::nullopt, 60'000) == std::nullopt);
+                                   std::nullopt, cap_ms) == std::nullopt);
 }
 
 void test_transport_retry_after_decode() {

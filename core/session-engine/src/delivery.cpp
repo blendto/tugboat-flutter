@@ -239,6 +239,7 @@ void delivery_session_ending(const At& at, EngineState* state, Output* out) {
   // most `endDrainTimeoutMs`. Its `triggeredAt` is the end fact's time.
   d.held_session_end = at;
   d.phase = DeliveryPhase::kDraining;
+  clamp_lifecycle_retry_after_on_draining(ctx);
   if (lanes_empty(d) && !d.pass.in_flight) {
     finish_drain(ctx);  // nothing to drain
     return;

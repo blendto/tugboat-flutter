@@ -344,6 +344,8 @@ ScenarioCollector scenarioCollector(
       maxPendingBatches: setting('maxPendingBatches', 20),
       maxPendingEvents: setting('maxPendingEvents', 60),
       maxPendingFrames: setting('maxPendingFrames', 20),
+      maxRetryAfterMs: setting('maxRetryAfterMs', 60000),
+      maxEndingRetryAfterMs: setting('maxEndingRetryAfterMs', 10000),
     ),
     identityDebounce: Duration(
       milliseconds: setting('identityDebounceMs', 3000),

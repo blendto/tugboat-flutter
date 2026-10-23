@@ -68,6 +68,22 @@ bool lane_send_blocked(const DeliveryContext& ctx, HttpLane lane) {
   return not_before > ctx.at.mono_us;
 }
 
+void clamp_lifecycle_retry_after_on_draining(DeliveryContext& ctx) {
+  DeliveryState& d = ctx.delivery();
+  const size_t index = lane_index(HttpLane::kLifecycle);
+  const int64_t cap_us =
+      ctx.config().max_ending_retry_after_ms * 1000;
+  const int64_t capped = ctx.at.mono_us + cap_us;
+  if (d.lane_send_not_before_mono_us[index] <= capped) {
+    return;
+  }
+  d.lane_send_not_before_mono_us[index] = capped;
+  std::string timer_id = kRetryAfterTimerPrefix;
+  timer_id += http_lane_name(HttpLane::kLifecycle);
+  ctx.state->timers.cancel(timer_id, ctx.out);
+  ctx.state->timers.schedule(timer_id, capped, ctx.out);
+}
+
 void cancel_lane_retry_after_timers(DeliveryContext& ctx) {
   for (HttpLane lane :
        {HttpLane::kLifecycle, HttpLane::kEvents, HttpLane::kFrames}) {

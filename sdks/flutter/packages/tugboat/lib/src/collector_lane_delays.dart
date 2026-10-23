@@ -6,10 +6,8 @@ import 'collector_retry_after.dart';
 enum CollectorDeliveryLane { lifecycle, events, frames }
 
 /// Returns a cancel function for the scheduled callback.
-typedef CollectorLaneTimerSchedule = void Function() Function(
-  Duration wait,
-  void Function() onFire,
-);
+typedef CollectorLaneTimerSchedule =
+    void Function() Function(Duration wait, void Function() onFire);
 
 class CollectorLaneDelays {
   CollectorLaneDelays(
@@ -48,6 +46,26 @@ class CollectorLaneDelays {
       return false;
     }
     return true;
+  }
+
+  void clampLifecycleEnding(int capMs) {
+    const lane = CollectorDeliveryLane.lifecycle;
+    final until = _notBefore[lane];
+    if (until == null) return;
+    final maxUntil = _now().add(Duration(milliseconds: capMs));
+    if (!until.isAfter(maxUntil)) return;
+    _notBefore[lane] = maxUntil;
+    _cancelTimer[lane]?.call();
+    final wait = maxUntil.difference(_now());
+    if (wait <= Duration.zero) {
+      _clearLane(lane);
+      _onLaneReady();
+      return;
+    }
+    _cancelTimer[lane] = _scheduleTimer(wait, () {
+      _clearLane(lane);
+      _onLaneReady();
+    });
   }
 
   void armFromResponse(

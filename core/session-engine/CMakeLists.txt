@@ -146,6 +146,8 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
                             tb_session_engine_evidence_test)
     target_include_directories(${_tb_unit} PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_compile_definitions(${_tb_unit} PRIVATE
+      TB_CONFORMANCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../conformance")
   endforeach()
   add_executable(tb_session_engine_conformance
     tests/tb_session_engine_conformance.cpp

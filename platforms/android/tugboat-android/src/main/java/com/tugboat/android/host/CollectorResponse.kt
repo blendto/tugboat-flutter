@@ -20,7 +20,7 @@ internal object CollectorResponse {
 
     fun forwardRetryAfter(raw: String?): String? {
         val trimmed = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        return if (trimmed.length <= MAX_RETRY_AFTER_BYTES) trimmed else null
+        return if (utf8Size(trimmed) <= MAX_RETRY_AFTER_BYTES) trimmed else null
     }
 
     private const val TAG = "TugboatHttp"

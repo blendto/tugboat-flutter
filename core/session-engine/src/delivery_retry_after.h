@@ -19,6 +19,9 @@ bool lane_send_blocked(const DeliveryContext& ctx, HttpLane lane);
 
 void cancel_lane_retry_after_timers(DeliveryContext& ctx);
 
+// While entering `session.end` drain, cap an in-flight lifecycle wait.
+void clamp_lifecycle_retry_after_on_draining(DeliveryContext& ctx);
+
 void maybe_arm_lane_retry_after(DeliveryContext& ctx, HttpLane lane,
                                 const TransportResult& result);
 

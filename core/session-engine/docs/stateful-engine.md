@@ -123,7 +123,8 @@ content type) are the host's.
 at most 128 bytes) and is only allowed with `outcome: "http"`; hosts send it
 whenever the response carries the header (any status). Values longer than 128
 bytes after trim are dropped by hosts and ignored by the engine (they never
-invalidate the delivery result).
+invalidate the delivery result). Strict decoding still rejects a non-string
+`retryAfter` or one paired with a non-`http` outcome (host bugs).
 
 ## 4. Session state
 

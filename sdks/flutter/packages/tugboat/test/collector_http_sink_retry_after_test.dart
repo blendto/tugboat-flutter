@@ -90,9 +90,20 @@ void main() {
     expect(batchAttempts, 1);
     expect(frameAttempts, 1);
 
+    sink.recordFrame(
+      const TugboatFrame(
+        id: 'frame-1',
+        atMs: 1,
+        width: 10,
+        height: 10,
+        contentHash: 'h1',
+      ),
+      Uint8List.fromList([4, 5, 6]),
+      sessionId: 's1',
+    );
     await sink.flush();
     expect(batchAttempts, 1);
-    expect(frameAttempts, 1);
+    expect(frameAttempts, 2);
 
     pendingTimers.removeLast()();
     await sink.flush();
@@ -100,33 +111,36 @@ void main() {
     sink.dispose();
   });
 
-  test('endSession queues session_end without waiting on events delay', () async {
-    var now = DateTime.utc(2026, 1, 1);
-    final lifecycleTypes = <String>[];
-    final client = _LifecycleTapClient(
-      onLifecycle: (body) {
-        lifecycleTypes.add(
-          (jsonDecode(body) as Map<String, dynamic>)['eventType'] as String,
-        );
-        return http.StreamedResponse(
-          Stream.value(utf8.encode('{"sessionId":"srv"}')),
-          202,
-        );
-      },
-      onBatch: () => http.StreamedResponse(
-        Stream.value(utf8.encode('{}')),
-        429,
-        headers: const {'retry-after': '60'},
-      ),
-    );
-    final sink = _sink(client, () => now);
-    _startWithEvent(sink, now);
-    await sink.flush();
+  test(
+    'endSession queues session_end without waiting on events delay',
+    () async {
+      var now = DateTime.utc(2026, 1, 1);
+      final lifecycleTypes = <String>[];
+      final client = _LifecycleTapClient(
+        onLifecycle: (body) {
+          lifecycleTypes.add(
+            (jsonDecode(body) as Map<String, dynamic>)['eventType'] as String,
+          );
+          return http.StreamedResponse(
+            Stream.value(utf8.encode('{"sessionId":"srv"}')),
+            202,
+          );
+        },
+        onBatch: () => http.StreamedResponse(
+          Stream.value(utf8.encode('{}')),
+          429,
+          headers: const {'retry-after': '60'},
+        ),
+      );
+      final sink = _sink(client, () => now);
+      _startWithEvent(sink, now);
+      await sink.flush();
 
-    await sink.endSession();
-    expect(lifecycleTypes, contains('session_end'));
-    sink.dispose();
-  });
+      await sink.endSession();
+      expect(lifecycleTypes, contains('session_end'));
+      sink.dispose();
+    },
+  );
 
   test('startSession cancels a prior session Retry-After wait', () async {
     var now = DateTime.utc(2026, 1, 1);
@@ -177,6 +191,75 @@ void main() {
     expect(batchAttempts, greaterThan(1));
     sink.dispose();
   });
+
+  test('lifecycle lane delay does not block events', () async {
+    var now = DateTime.utc(2026, 1, 1);
+    var lifecycleAttempts = 0;
+    var batchAttempts = 0;
+    final client = _LifecycleTapClient(
+      onLifecycle: (body) {
+        lifecycleAttempts++;
+        if (lifecycleAttempts == 1) {
+          return http.StreamedResponse(
+            Stream.value(utf8.encode('{"sessionId":"srv"}')),
+            202,
+          );
+        }
+        return http.StreamedResponse(
+          Stream.value(utf8.encode('{}')),
+          429,
+          headers: const {'retry-after': '30'},
+        );
+      },
+      onBatch: () {
+        batchAttempts++;
+        return http.StreamedResponse(Stream.value(utf8.encode('{}')), 202);
+      },
+    );
+    final sink = _sink(client, () => now, identityDebounce: Duration.zero);
+    _startWithEvent(sink, now);
+    await sink.flush();
+    sink.setUserId('user-2');
+    await Future<void>.delayed(Duration.zero);
+    await sink.flush();
+    expect(lifecycleAttempts, greaterThanOrEqualTo(2));
+    expect(batchAttempts, 1);
+    sink.dispose();
+  });
+
+  test('events lane blocked keeps fresh events in the pending queue', () async {
+    var now = DateTime.utc(2026, 1, 1);
+    var batchAttempts = 0;
+    final client = _SequenceClient(
+      onBatch: () {
+        batchAttempts++;
+        if (batchAttempts == 1) {
+          return http.StreamedResponse(
+            Stream.value(utf8.encode('{}')),
+            429,
+            headers: const {'retry-after': '60'},
+          );
+        }
+        return http.StreamedResponse(Stream.value(utf8.encode('{}')), 202);
+      },
+    );
+    final sink = _sink(client, () => now);
+    _startWithEvent(sink, now);
+    sink.recordEvent(
+      const TugboatEvent(
+        id: 'e2',
+        atMs: 1,
+        type: 'external_event',
+        stream: TugboatEventStream.evidence,
+        data: {'name': 'b'},
+      ),
+    );
+    await sink.flush();
+    expect(batchAttempts, 1);
+    await sink.flush();
+    expect(batchAttempts, 1);
+    sink.dispose();
+  });
 }
 
 CollectorLaneTimerSchedule _queueTimer(List<void Function()> pending) {
@@ -192,12 +275,14 @@ CollectorHttpSink _sink(
   http.Client client,
   DateTime Function() now, {
   CollectorLaneTimerSchedule? scheduleTimer,
+  Duration identityDebounce = const Duration(seconds: 3),
 }) {
   return CollectorHttpSink(
     config: _config,
     client: client,
     debugNow: now,
     debugScheduleLaneTimer: scheduleTimer,
+    identityDebounceDuration: identityDebounce,
   );
 }
 

@@ -277,9 +277,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
     unawaited(_kickFlush());
   }
 
-  int _lifecycleRetryAfterCapMs() => _sessionEnding
-      ? collectorMaxEndingRetryAfterMs
-      : collectorMaxRetryAfterMs;
+  int _lifecycleRetryAfterCapMs() =>
+      _sessionEnding ? _config.maxEndingRetryAfterMs : _config.maxRetryAfterMs;
 
   /// Registers a full traits snapshot with the collector.
   ///
@@ -381,13 +380,18 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<void> endSession() async {
     if (_disposed || _session == null) return;
     await _flushIdentityDebounce();
-    await flush();
+    var epoch = _sessionEpoch;
+    if (!_isCurrentEpoch(epoch)) return;
     _sessionEnding = true;
+    _laneDelays.clampLifecycleEnding(_config.maxEndingRetryAfterMs);
+    await flush();
+    if (!_isCurrentEpoch(epoch)) return;
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionEnd.wireValue,
       _now(),
     );
     await _drainLifecyclePosts();
+    if (!_isCurrentEpoch(epoch)) return;
     _cancelFlushTimer();
   }
 
@@ -644,6 +648,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
         CollectorDeliveryLane.events,
         response.statusCode,
         response.headers,
+        capMs: _config.maxRetryAfterMs,
       );
       return _classifyResponse(response.statusCode);
     } catch (_) {
@@ -662,12 +667,18 @@ class CollectorHttpSink implements TugboatCaptureSink {
     // Upload visual evidence before publishing events that reference frame IDs.
     // Session completion may trigger inspection as soon as those events arrive.
     await _flushFrames();
+    if (!_isCurrentEpoch(epoch)) return;
+    if (_laneDelays.isBlocked(CollectorDeliveryLane.events)) {
+      return;
+    }
     if (_retryBatches.isNotEmpty) {
       // Try the retry head once, but keep draining fresh events below.
       await _flushRetryBatches();
     }
+    if (!_isCurrentEpoch(epoch)) return;
     while (_pendingEvents.isNotEmpty) {
       await _flushEventBatch();
+      if (!_isCurrentEpoch(epoch)) return;
     }
   }
 
@@ -720,7 +731,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     List<_PendingFrameUpload> batch,
     int epoch,
   ) async {
-    final result = await _sendFrameBatch(sessionId, batch);
+    final result = await _sendFrameBatch(sessionId, batch, epoch);
     if (!_isCurrentEpoch(epoch)) {
       return (retry: false, dropped: false, retryOffset: 0);
     }
@@ -749,7 +760,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     var dropped = false;
     // A single invalid capture must not discard its valid neighbors.
     for (var index = 0; index < batch.length; index++) {
-      final result = await _sendFrameBatch(sessionId, [batch[index]]);
+      final result = await _sendFrameBatch(sessionId, [batch[index]], epoch);
       if (!_isCurrentEpoch(epoch)) break;
       if (result.result == _SendResult.retry) {
         _reportFrameUploadFailure(result.statusCode, 1);
@@ -766,6 +777,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<({_SendResult result, int? statusCode})> _sendFrameBatch(
     String sessionId,
     List<_PendingFrameUpload> uploads,
+    int epoch,
   ) async {
     try {
       if (_laneDelays.isBlocked(CollectorDeliveryLane.frames)) {
@@ -776,10 +788,14 @@ class CollectorHttpSink implements TugboatCaptureSink {
         '/v1/frames',
         () async => http.Response.fromStream(await _client.send(request)),
       ).timeout(const Duration(seconds: 15));
+      if (!_isCurrentEpoch(epoch)) {
+        return (result: _SendResult.retry, statusCode: response.statusCode);
+      }
       _laneDelays.armFromResponse(
         CollectorDeliveryLane.frames,
         response.statusCode,
         response.headers,
+        capMs: _config.maxRetryAfterMs,
       );
       return (
         result: _classifyResponse(response.statusCode),
