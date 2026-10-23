@@ -3,14 +3,6 @@
 The version is `TugboatVersion.current` in `TugboatVersion.swift`; the newest
 entry here must match it.
 
-## Unreleased
-
-### Changed
-
-- `HTTPExecutor` forwards trimmed `Retry-After` on `transport.result` (max 128
-  bytes); longer values are dropped so the engine never rejects an otherwise
-  valid answer.
-
 ## 0.1.0
 
 Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
@@ -116,3 +108,6 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
     response body of at most 64 KiB cut at a UTF-8 boundary, and statuses
     outside 100–599 reported as `error`);
   - `frame.release` (frame handle table).
+- `HTTPExecutor` forwards a trimmed `Retry-After` on `transport.result` (at most
+  128 bytes); a longer value is dropped so the engine never rejects an
+  otherwise valid answer.

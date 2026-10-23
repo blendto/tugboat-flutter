@@ -1,13 +1,5 @@
 # tugboat-android
 
-## Unreleased
-
-### Changed
-
-- `HttpExecutor` forwards trimmed `Retry-After` on `transport.result` (max 128
-  bytes); longer values are dropped so the engine never rejects an otherwise
-  valid answer.
-
 ## 0.1.0
 
 Unpublished. The native Android SDK for Views apps: public facade, engine
@@ -111,3 +103,6 @@ wiring, window capture, and the Android Views adapter.
     at most 64 KiB cut at a UTF-8 boundary, and statuses outside 100–599
     reported as `error`, so the engine never rejects a `transport.result`);
   - `frame.release` (frame handle table).
+- `HttpExecutor` forwards a trimmed `Retry-After` on `transport.result` (at most
+  128 bytes); a longer value is dropped so the engine never rejects an
+  otherwise valid answer.
