@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "route_change.h"
+
 namespace tugboat {
 namespace engine {
 

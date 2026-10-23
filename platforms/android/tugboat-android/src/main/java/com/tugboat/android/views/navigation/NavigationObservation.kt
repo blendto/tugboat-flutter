@@ -13,6 +13,8 @@ import com.tugboat.android.views.facts.FrameScheduler
  * stacks). Installed from the first [com.tugboat.android.views.ViewsAdapter]
  * construction and left registered after [stop]; stacks keep updating while
  * stopped but nothing is emitted until a recording adapter is attached.
+ * NavController stacks reported before installation are discarded when it
+ * installs ([ensureInstalled]).
  *
  * Main thread only.
  */
@@ -68,6 +70,11 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
 
     fun ensureInstalled(app: Application) {
         if (installed) return
+        // `trackNavigation` before installation records controller stacks
+        // with no activity resume or destroy seen for their hosts, so they
+        // may be covered or finished: discard them. The next destination
+        // change pushes onto an empty stack.
+        controllers.forgetAll()
         application = app
         viewRoutes()
         fragments =

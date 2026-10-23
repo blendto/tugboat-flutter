@@ -108,7 +108,7 @@ class ViewsAdapterTest {
         activity.setContentView(button)
         shadowOf(Looper.getMainLooper()).idle()
         drain()
-        adapter.onDestinationChanged(activity, "checkout/{id}?step={step}", 0)
+        NavigationObservation.onDestinationChanged(activity, "checkout/{id}?step={step}", 0)
 
         tap(activity.window, button)
         frames.runFrame()

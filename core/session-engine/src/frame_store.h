@@ -15,12 +15,13 @@
 #include "capture_types.h"
 #include "frame_retention.h"
 #include "models.h"
-#include "route_change.h"
 #include "output.h"
 #include "session.h"
 
 namespace tugboat {
 namespace engine {
+
+struct VisibleRoute;
 
 // Dart `_CaptureRequestContext`: the evidence fixed when a capture is
 // requested. A frame is attachable only to requests of the same session,

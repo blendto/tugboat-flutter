@@ -17,10 +17,11 @@
 #include "capture_types.h"
 #include "frame_store.h"
 #include "models.h"
-#include "route_change.h"
 
 namespace tugboat {
 namespace engine {
+
+struct VisibleRoute;
 
 // Dart `_CaptureFreshness`: whether a capture must observe a fresh paint.
 enum class CaptureFreshness { kReusable, kFreshPaint };

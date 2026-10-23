@@ -134,15 +134,12 @@ class CaptureSeam {
     return frames_.observed_after(frame_id, boundary);
   }
 
-  // Session-start seeds: align the initial capture with the visible route
-  // until the first live push, pop, or replace.
-  void restamp_initial_route_from_visible(EngineState* state);
-  // First live navigation: align pending or accepted `initial` captures with
-  // the route that push/replace revealed (session_start restamp stops after).
-  void restamp_initial_route_on_first_live_navigation(EngineState* state);
+  // A recorded session_start seed: aligns the queued, in-flight, and
+  // accepted `initial` capture contexts with the visible route. Seeds after
+  // the first live push, pop, or replace are dropped before this runs.
+  void restamp_initial_route(EngineState* state);
 
  private:
-  void restamp_initial_route(EngineState* state);
   // Runs the queue head while nothing is in flight and it is due.
   void pump(EngineState* state, const At& at, Output* out);
   // Decision steps 1, 2 and the staleness check, then the request.

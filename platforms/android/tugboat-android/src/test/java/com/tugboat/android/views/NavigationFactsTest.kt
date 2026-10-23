@@ -194,15 +194,15 @@ class NavigationFactsTest {
         val child = facts.single { it.routeName() == "child" }
         assertEquals("$parentId/fragments", child.getString("navigatorId"))
         assertEquals("$activityId/fragments", child.getString("parentNavigatorId"))
-        assertEquals(setOf("$activityId/fragments", "$parentId/fragments"), adapter.fragmentNavigatorIds)
+        assertEquals(setOf("$activityId/fragments", "$parentId/fragments"), NavigationObservation.fragmentNavigatorIds)
 
         host.get().supportFragmentManager.beginTransaction().remove(parent).commitNow()
         navigation()
-        assertEquals(setOf("$activityId/fragments"), adapter.fragmentNavigatorIds)
+        assertEquals(setOf("$activityId/fragments"), NavigationObservation.fragmentNavigatorIds)
 
         host.get().finish()
         host.pause().stop().destroy()
-        assertTrue(adapter.fragmentNavigatorIds.isEmpty())
+        assertTrue(NavigationObservation.fragmentNavigatorIds.isEmpty())
     }
 
     @Test

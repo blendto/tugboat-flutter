@@ -1,12 +1,13 @@
 package com.tugboat.android.views
 
 import android.app.Activity
+import com.tugboat.android.Tugboat
 import com.tugboat.android.host.FakeClock
-import com.tugboat.android.sdk.NavigationTracking
 import com.tugboat.android.sdk.rowsController
 import com.tugboat.android.views.navigation.NavigationObservation
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -87,19 +88,11 @@ class SessionStartNavigationTest {
 
     @Test
     fun navControllerChangesWhileStoppedAreSeededOnStart() {
-        val adapter = ViewsAdapter(
-            application = context as android.app.Application,
-            sink = sink,
-            hostClock = FakeClock(),
-            frames = frames,
-            postNavigationFacts = true,
-        )
+        val adapter = adapter()
         adapter.start()
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val controller = rowsController(activity)
-        NavigationTracking.track(controller) { a, current, previous ->
-            NavigationObservation.onNavDestination(a, current, previous)
-        }
+        Tugboat.trackNavigation(controller)
         drainNavigation()
         adapter.stop()
 
@@ -110,7 +103,37 @@ class SessionStartNavigationTest {
             it.getString("kind") == "session_start" && it.getString("navigatorId").endsWith("/nav")
         }
         val routes = navSeed.getJSONArray("routes")
-        assertEquals("row", routes.getJSONObject(routes.length() - 1).getString("name"))
+        val top = routes.getJSONObject(routes.length() - 1)
+        assertEquals("row", top.getString("name"))
+
+        sink.batches.clear()
+        controller.navigate("row/4")
+        val next = drainNavigation().single { it.getString("navigatorId") == navSeed.getString("navigatorId") }
+        assertEquals("push", next.getString("kind"))
+        assertEquals(top.getString("instanceId"), next.getJSONObject("departing").getString("instanceId"))
+        adapter.stop()
+    }
+
+    @Test
+    fun navControllerTrackedBeforeTheFirstStartIsNotSeeded() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val controller = rowsController(activity)
+        Tugboat.trackNavigation(controller)
+        controller.navigate("row/3")
+
+        val adapter = adapter()
+        adapter.start()
+        assertTrue(
+            drainNavigation().none {
+                it.getString("kind") == "session_start" && it.getString("navigatorId").endsWith("/nav")
+            },
+        )
+
+        controller.navigate("row/4")
+        val next = drainNavigation().single { it.getString("navigatorId").endsWith("/nav") }
+        assertEquals("push", next.getString("kind"))
+        // The stack recorded before observation installed was discarded.
+        assertFalse(next.has("departing"))
         adapter.stop()
     }
 
@@ -134,6 +157,14 @@ class SessionStartNavigationTest {
         assertTrue(drainNavigation().none { it.getString("kind") == "push" })
         adapter.stop()
     }
+
+    private fun adapter() = ViewsAdapter(
+        application = context as android.app.Application,
+        sink = sink,
+        hostClock = FakeClock(),
+        frames = frames,
+        postNavigationFacts = true,
+    )
 
     private fun drainNavigation(): List<JSONObject> {
         while (frames.hasPending) frames.runFrame()

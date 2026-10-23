@@ -64,16 +64,18 @@ class SessionStartOrderTest {
     }
 
     @Test
-    fun navigatorsWhoseHostIsGoneComeFirst() {
+    fun navigatorsWhoseHostIsInNoStackAreNotSeeded() {
         NavigationProcessState.activityStack(1, "activities:1").push(entry("activity-2"))
         NavigationProcessState.fragmentStack("activity-99/fragments", "activities:1", "activity-99")
             .push(entry("fragment-100"))
+        NavigationProcessState.controllerStack("activity-99/nav", "activities:1", "activity-99")
+            .push(entry("dest-101"))
         NavigationProcessState.fragmentStack("activity-2/fragments", "activities:1", "activity-2")
             .push(entry("fragment-3"))
 
         val order = NavigationProcessState.sessionStartSnapshots().map { it.navigatorId }
 
-        assertEquals(listOf("activity-99/fragments", "activities:1", "activity-2/fragments"), order)
+        assertEquals(listOf("activities:1", "activity-2/fragments"), order)
     }
 
     @Test

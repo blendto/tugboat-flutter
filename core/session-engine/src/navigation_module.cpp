@@ -28,7 +28,7 @@ void apply_navigation(const ModuleRegistry&, EngineState* state,
     const std::string event_id = state->ids.next("event");
     record_route_change(turn, event_id, *change, std::nullopt,
                         RouteChangeCapture{});
-    state->captures.restamp_initial_route_from_visible(state);
+    state->captures.restamp_initial_route(state);
     return;
   }
   std::optional<VisibleRouteChange> change = resolve_route_change(turn, fact);

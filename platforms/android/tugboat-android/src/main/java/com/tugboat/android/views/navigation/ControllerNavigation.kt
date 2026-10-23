@@ -55,6 +55,12 @@ internal class ControllerNavigation(private val report: (NavigationChange) -> Un
         entries.keys.removeAll { it.startsWith("$navigatorId|") }
     }
 
+    /** Forgets every controller stack and entry. */
+    fun forgetAll() {
+        NavigationProcessState.forgetAllControllers()
+        entries.clear()
+    }
+
     private fun entryFor(navigatorId: String, entry: NavEntry, routeKey: String): RouteEntry =
         entries.getOrPut(key(navigatorId, entry.id)) {
             RouteEntry(

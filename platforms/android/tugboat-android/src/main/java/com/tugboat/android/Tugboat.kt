@@ -106,7 +106,8 @@ object Tugboat {
      * activity (route pattern without arguments, else the id's resource name)
      * and `route_change`s on a navigator nested under the activity's.
      * Optional; needs `androidx.navigation` in the app. Call once per
-     * controller.
+     * controller. Destinations shown before the first [start] are not
+     * seeded into its session: the first change after it is a push.
      */
     @JvmStatic
     fun trackNavigation(navController: NavController) = onMain("trackNavigation") {

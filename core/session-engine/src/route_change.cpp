@@ -167,18 +167,27 @@ void put_presentation(Value* data, const VisibleRouteChange& change) {
   }
 }
 
-// Dart `_liveRouteCauseFingerprint`: the cause's fingerprint and gesture as
-// they are now, while it is unpublished; else as they were at claim time.
-void fill_route_stack_envelope(VisibleRouteChange* change,
-                               NavigatorRegistry* registry,
-                               const std::string& navigator_id,
-                               int64_t route_stack_limit) {
+// The envelope fields live navigation and session_start both derive from
+// [change]'s navigator stack: the presentation of [presented] (the
+// navigation's own destination instance, when it has one) and the stack
+// snapshot.
+void fill_route_envelope(VisibleRouteChange* change,
+                         NavigatorRegistry* registry,
+                         const OptString& presented, bool push,
+                         int64_t route_stack_limit) {
+  const std::string& navigator_id = change->navigator_id;
+  if (presented) {
+    change->presentation = registry->presentation(
+        navigator_id, *presented, change->overlay_kind, push);
+  }
   change->route_stack =
       registry->stack_snapshot(navigator_id, route_stack_limit);
   change->route_stack_truncated =
       registry->stack_truncated(navigator_id, route_stack_limit);
 }
 
+// Dart `_liveRouteCauseFingerprint`: the cause's fingerprint and gesture as
+// they are now, while it is unpublished; else as they were at claim time.
 void put_live_cause(Value* data, const EngineState& state,
                     const VisibleRouteChange& change) {
   if (!change.cause) return;
@@ -237,13 +246,9 @@ std::optional<VisibleRouteChange> resolve_route_change(
   change.transition_ms = fact.route ? fact.route->transition_ms : 0;
   change.visual_generation = navigation.visual_generation;
   change.cause = cause_from_claim(state, claim);
-  if (surface.route_instance_id) {
-    change.presentation = navigation.registry.presentation(
-        surface.navigator_id, *surface.route_instance_id, overlay,
-        fact.kind == NavigationKind::kPush);
-  }
-  fill_route_stack_envelope(&change, &navigation.registry, surface.navigator_id,
-                            state.config.navigation.route_stack_limit);
+  fill_route_envelope(&change, &navigation.registry, surface.route_instance_id,
+                      fact.kind == NavigationKind::kPush,
+                      state.config.navigation.route_stack_limit);
   return change;
 }
 
@@ -251,6 +256,9 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
     Turn& turn, const NavigationFact& fact) {
   EngineState& state = *turn.state;
   NavigationState& navigation = state.navigation;
+  // A seed is only meaningful before the session's first live push, pop, or
+  // replace: after it, every seed (on any navigator) is accepted and dropped.
+  if (navigation.live_navigation_seen) return std::nullopt;
   const std::string navigator_id =
       navigation.registry.navigator(fact.navigator_id, fact.parent_navigator_id);
   if (navigation.registry.has_stack(navigator_id)) return std::nullopt;
@@ -291,15 +299,9 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
   change.overlay_kind = top_overlay;
   change.transition_ms = 0;
   change.visual_generation = navigation.visual_generation;
-  change.presentation = navigation.registry.presentation(
-      navigator_id, *top_instance, top_overlay, true);
-  fill_route_stack_envelope(&change, &navigation.registry, navigator_id,
-                            state.config.navigation.route_stack_limit);
-  // After live navigation, seeds may still register covered navigators but must
-  // not move the interaction-visible route (no re-stamp of tap attribution).
-  if (!navigation.live_navigation_seen) {
-    apply_visible_route(change, &navigation.visible);
-  }
+  fill_route_envelope(&change, &navigation.registry, top_instance, true,
+                      state.config.navigation.route_stack_limit);
+  apply_visible_route(change, &navigation.visible);
   return change;
 }
 

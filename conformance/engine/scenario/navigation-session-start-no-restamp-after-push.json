@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "navigation-session-start-no-restamp-after-push",
-  "description": "After a live push, the initial frame keeps the pushed route when answered; a dropped session_start on another navigator does not re-stamp it, and a tap matches /home with beforeFrame and position.",
+  "description": "A session_start after a live push is accepted and dropped with no record, whatever its navigator. The push makes the in-flight initial capture stale (route epoch 0), so its answer releases h-initial and no initial frame is recorded; the route capture records the route frame and the route_push. The later seed on another navigator (secondary, /feed) records nothing, and the tap is stamped with the pushed /home, beforeFrame the route frame, and a position.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -323,42 +323,7 @@
           }
         },
         "expect": {
-          "records": [
-            {
-              "kind": "event",
-              "event": {
-                "id": "event-7",
-                "atMs": 1300,
-                "type": "route_change",
-                "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "result": "unknown",
-                "data": {
-                  "route": "/feed",
-                  "navigation": "session_start",
-                  "routeName": "/feed",
-                  "routeType": "Page",
-                  "routeNamed": true,
-                  "navigatorId": "nav-1",
-                  "routeInstanceId": "route-1",
-                  "stackRevision": 1,
-                  "overlayKind": "page",
-                  "visualObservationGeneration": 2,
-                  "navigationOrigin": "automatic_or_unknown",
-                  "routeStack": [
-                    {
-                      "routeInstanceId": "route-1",
-                      "route": "/feed",
-                      "routeNamed": true,
-                      "overlayKind": "page",
-                      "navigatorId": "nav-1"
-                    }
-                  ]
-                }
-              },
-              "userId": null
-            }
-          ],
+          "records": [],
           "effects": []
         }
       },
@@ -465,7 +430,7 @@
               "kind": "frame",
               "handle": "h-tap",
               "frame": {
-                "id": "frame-10",
+                "id": "frame-9",
                 "atMs": 1500,
                 "width": 1080,
                 "height": 2400,
@@ -480,7 +445,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-7",
                 "atMs": 1400,
                 "type": "interaction",
                 "stream": "semantic",
@@ -490,7 +455,7 @@
                   "fingerprint": "fp-buy"
                 },
                 "beforeFrame": "frame-4",
-                "afterFrame": "frame-10",
+                "afterFrame": "frame-9",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap",
@@ -555,7 +520,7 @@
           "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "frame-10",
+          "id": "frame-9",
           "atMs": 1500,
           "width": 1080,
           "height": 2400,
@@ -609,36 +574,6 @@
         },
         {
           "id": "event-7",
-          "atMs": 1300,
-          "type": "route_change",
-          "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "result": "unknown",
-          "data": {
-            "route": "/feed",
-            "navigation": "session_start",
-            "routeName": "/feed",
-            "routeType": "Page",
-            "routeNamed": true,
-            "navigatorId": "nav-1",
-            "routeInstanceId": "route-1",
-            "stackRevision": 1,
-            "overlayKind": "page",
-            "visualObservationGeneration": 2,
-            "navigationOrigin": "automatic_or_unknown",
-            "routeStack": [
-              {
-                "routeInstanceId": "route-1",
-                "route": "/feed",
-                "routeNamed": true,
-                "overlayKind": "page",
-                "navigatorId": "nav-1"
-              }
-            ]
-          }
-        },
-        {
-          "id": "event-8",
           "atMs": 1400,
           "type": "interaction",
           "stream": "semantic",
@@ -648,7 +583,7 @@
             "fingerprint": "fp-buy"
           },
           "beforeFrame": "frame-4",
-          "afterFrame": "frame-10",
+          "afterFrame": "frame-9",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap",

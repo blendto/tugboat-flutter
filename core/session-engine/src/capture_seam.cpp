@@ -452,15 +452,5 @@ void CaptureSeam::restamp_initial_route(EngineState* state) {
   frames_.restamp_initial_route(visible);
 }
 
-void CaptureSeam::restamp_initial_route_from_visible(EngineState* state) {
-  if (state->navigation.live_navigation_seen) return;
-  restamp_initial_route(state);
-}
-
-void CaptureSeam::restamp_initial_route_on_first_live_navigation(
-    EngineState* state) {
-  restamp_initial_route(state);
-}
-
 }  // namespace engine
 }  // namespace tugboat

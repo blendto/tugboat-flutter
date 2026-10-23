@@ -102,13 +102,7 @@ internal class ViewsAdapter(
         windowCallbacksRegistered = false
     }
 
-    val fragmentNavigatorIds: Set<String>
-        get() = NavigationObservation.fragmentNavigatorIds
-
     fun masks(window: Window): WindowMaskResult = WindowMasks.compute(window)
-
-    fun onDestinationChanged(activity: Activity, route: String?, destinationId: Int) =
-        NavigationObservation.onDestinationChanged(activity, route, destinationId)
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
         AdapterGuard.run("activity created") { session(activity).ensureAttached() }
