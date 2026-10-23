@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "capture-overlay-window-cleared",
-  "description": "A dialog is dismissed over an unchanged activity (change C21). The initial frame carries overlayWindow. The next reusable capture has the same dHash and contentHash but no overlayWindow (and the structure without the overlay token): its mask coverage differs from the retained frame with that content, so it is accepted again rather than reused, and records capture_masking with reasons []. A later capture with the same content and the same coverage as that frame is still exact-content reused. When the dialog opens and is dismissed again over the same screen, each frame is exact-content reused from the retained frame with the same content and the same coverage (the overlay frame, then the frame from before the overlay), not only from the newest frame with that content, so the dialog cycle adds no frame.",
+  "description": "A dialog is dismissed over an unchanged activity (change C21). The initial frame carries overlayWindow. The next reusable capture has the same dHash and contentHash but no overlayWindow (and the structure without the overlay token): its mask coverage differs from the retained frame with that content, so it is accepted again rather than reused, and records capture_masking with reasons []. A later capture with the same content and the same coverage as that frame is still exact-content reused. When the dialog opens and is dismissed again over the same screen, each capture is exact-content reused from the retained frame with the same content and the same coverage, so the dialog cycle adds no frame: first the overlay frame, though the frame without the overlay has the same content and is newer, then the frame without the overlay.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -515,7 +515,7 @@
         }
       },
       {
-        "note": "The dialog opens again: a reusable manual capture, offered the d7/s7 baseline.",
+        "note": "A reusable manual capture while the dialog is up again, offered the d7/s7 baseline.",
         "send": {
           "type": "systemInput",
           "at": {
@@ -688,7 +688,7 @@
         }
       },
       {
-        "note": "Same pixels, no overlay: exact_content_reused of frame-8, the frame from before the overlay, not a new frame; frame-2 (the overlay frame) is the latest frame but has other coverage.",
+        "note": "Same pixels, no overlay: exact_content_reused of frame-8, the retained frame with that content and that coverage, not a new frame. frame-8 is also the newest frame accepted with that content (step 7 reused frame-2 and accepted nothing), so this step passes with an index keyed by content alone; capture-overlay-window-unchanged-pixels pins reuse past a newer frame with other coverage.",
         "send": {
           "type": "capture.result",
           "at": {

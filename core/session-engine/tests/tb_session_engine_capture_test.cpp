@@ -182,15 +182,15 @@ void test_execution_helpers() {
   CapturedFrame match = captured("h2", "new");
   match.dhash = std::string("d");
   match.structure_signature = std::string("s");
-  CHECK(classify_captured(frames, flight, match) ==
+  CHECK(classify_captured(frames, flight, match).disposition ==
         CapturedDisposition::kCoalesced);
   match.structure_signature = std::string("other");
-  CHECK(classify_captured(frames, flight, match) ==
+  CHECK(classify_captured(frames, flight, match).disposition ==
         CapturedDisposition::kAccepted);
-  CHECK(classify_captured(frames, flight, captured("h3", "x")) ==
+  CHECK(classify_captured(frames, flight, captured("h3", "x")).disposition ==
         CapturedDisposition::kContentReused);
   flight.capture.force = true;
-  CHECK(classify_captured(frames, flight, captured("h3", "x")) ==
+  CHECK(classify_captured(frames, flight, captured("h3", "x")).disposition ==
         CapturedDisposition::kAccepted);
 
   // A waiter keeps a frame only when it is compatible with its own context.
@@ -223,22 +223,22 @@ void test_content_reuse_needs_same_mask_coverage() {
   same.mask_coverage =
       MaskCoverage{MaskMode::kPrecise,
                    {MaskReason::kWebView, MaskReason::kInterop}};
-  CHECK(classify_captured(frames, flight, same) ==
+  CHECK(classify_captured(frames, flight, same).disposition ==
         CapturedDisposition::kContentReused);
   CapturedFrame overlay = same;
   overlay.mask_coverage->reasons.push_back(MaskReason::kOverlayWindow);
-  CHECK(classify_captured(frames, flight, overlay) ==
+  CHECK(classify_captured(frames, flight, overlay).disposition ==
         CapturedDisposition::kAccepted);
   CapturedFrame coarser = same;
   coarser.mask_coverage->mode = MaskMode::kWholeHost;
-  CHECK(classify_captured(frames, flight, coarser) ==
+  CHECK(classify_captured(frames, flight, coarser).disposition ==
         CapturedDisposition::kAccepted);
-  CHECK(classify_captured(frames, flight, captured("h3", "x")) ==
+  CHECK(classify_captured(frames, flight, captured("h3", "x")).disposition ==
         CapturedDisposition::kAccepted);
   // A frame accepted without coverage (Flutter) is reused as before.
   frames.accept(captured("h4", "y"), ctx, 20, 5, &ids, &session, &retention,
                 &out);
-  CHECK(classify_captured(frames, flight, captured("h5", "y")) ==
+  CHECK(classify_captured(frames, flight, captured("h5", "y")).disposition ==
         CapturedDisposition::kContentReused);
 }
 
@@ -272,8 +272,10 @@ void test_content_index_keys_survive_trim() {
   flight.capture = scheduled(FrameTrigger::kManual, "m", 0);
   CapturedFrame cleared = captured("h5", "x");
   cleared.mask_coverage = none;
-  CHECK(classify_captured(frames, flight, cleared) ==
-        CapturedDisposition::kContentReused);
+  const CapturedClassification reuse =
+      classify_captured(frames, flight, cleared);
+  CHECK(reuse.disposition == CapturedDisposition::kContentReused);
+  CHECK(reuse.reuse_frame_id == a.frame.id);
   // maxFrames 2: c trims a. Its key goes; b's key, same pixels under other
   // coverage, still names b, and b does not take over a's key.
   const FrameRecord c = frames.accept(captured("h3", "z"), ctx, 30, 2, &ids,
