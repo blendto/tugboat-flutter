@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FragmentsActivity's container: a resource id, so recreated fragments find it. -->
+    <item name="fragment_container" type="id" />
+</resources>

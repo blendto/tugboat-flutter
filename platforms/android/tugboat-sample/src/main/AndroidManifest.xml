@@ -26,5 +26,8 @@
             android:name=".ComposeSemanticsActivity"
             android:exported="false"
             android:windowSoftInputMode="stateAlwaysHidden" />
+        <activity
+            android:name=".FragmentsActivity"
+            android:exported="false" />
     </application>
 </manifest>

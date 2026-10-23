@@ -22,6 +22,7 @@ class CaptureResultJsonTest {
         frame = CapturedFrame(
             "frame-1", 300, 600, "sha", true, 1234, 5000, "00ff", "sig",
             MaskCoverage(MaskMode.WholeHost, setOf(MaskCoverageReason.ComposeDefault, MaskCoverageReason.WebView)),
+            hasRegionHosts = true,
         ),
         boundaryRect = BoundaryRect(0.0, 0.0, 400.0, 800.0),
         timings = CaptureTimingsMicros(1, 2, 3, 4),

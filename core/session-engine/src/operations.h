@@ -18,6 +18,9 @@ bool run_identity_parts(const Value& input, Value* result, Error* error);
 // `fingerprint.labelHash`: `tugboatLabelHash`.
 bool run_label_hash(const Value& input, Value* result, Error* error);
 
+// `fingerprint.inventoryHash`: sorted element fingerprints joined by `|`.
+bool run_inventory_hash(const Value& input, Value* result, Error* error);
+
 // `collector.event`: `mapTugboatEventToCollectorEvent`.
 bool run_collector_event(const Value& input, Value* result, Error* error);
 

@@ -124,7 +124,7 @@ class CollectorContractTest {
         val handle = frames.put(jpeg)
         val reply = CaptureAnswer.Captured(
             requestId = requestId,
-            frame = CapturedFrame(handle, 300, 600, "sha-$requestId", true, jpeg.size, 1000, "00ff00ff00ff00ff", "sig", COVERAGE),
+            frame = CapturedFrame(handle, 300, 600, "sha-$requestId", true, jpeg.size, 1000, "00ff00ff00ff00ff", "sig", COVERAGE, false),
             boundaryRect = BoundaryRect(0.0, 0.0, 400.0, 800.0),
             timings = CaptureTimingsMicros(readbackMicros = 500),
         )

@@ -21,6 +21,8 @@ Unpublished. The Jetpack Compose adapter for the native Android SDK.
 - Scroll facts from the scrollables under the touch, read live per frame
   during and after gestures (approximate offsets); `focus` from the focused
   editable node.
+- `ToolkitRegion.inventory` enumerates kept semantics nodes for native
+  `scene.inventory` (both masking modes).
 - Compose UI is `compileOnly` (floor 1.7.0); tested on 1.7.0 and 1.8.3.
 - `Modifier.tugboatTag(tag, accessibility = false)`: `accessibility = true`
   also sets `testTag(tag)` on the same node, so UI tests find the control

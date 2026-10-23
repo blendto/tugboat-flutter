@@ -16,6 +16,8 @@ import com.tugboat.android.views.identity.AnchorResolver
 import com.tugboat.android.views.identity.AndroidResourceNames
 import com.tugboat.android.views.input.FocusState
 import com.tugboat.android.views.input.GestureConfig
+import com.tugboat.android.views.inventory.SceneInventoryBuilder
+import com.tugboat.android.views.inventory.SceneInventoryEmitter
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.android.views.mask.WindowMasks
 import com.tugboat.android.views.navigation.NavigationChange
@@ -46,6 +48,10 @@ internal class ViewsAdapter(
      * TODO(ADR 0009 phase 3d): default to true once the engine accepts `navigation`.
      */
     private val postNavigationFacts: Boolean = false,
+    /** `TugboatConfig.emitSceneInventory`: [onCapturedFrame] emits `scene.inventory` ([SceneInventoryEmitter]). */
+    private val emitSceneInventory: Boolean = false,
+    /** Told at the start of each scene inventory walk; a seam for tests. */
+    onInventoryWalk: () -> Unit = {},
 ) : Application.ActivityLifecycleCallbacks {
     init {
         NavigationObservation.ensureInstalled(application)
@@ -53,8 +59,17 @@ internal class ViewsAdapter(
 
     private val clock = FactClock(hostClock)
     private val batcher = FactBatcher(sink, frames, ::onFrame)
-    private val anchors =
-        AnchorResolver(AndroidResourceNames(application.resources), NavigationObservation.routesAccessor)
+    private val routes = NavigationObservation.routesAccessor
+    private val names = AndroidResourceNames(application.resources)
+    private val anchors = AnchorResolver(names, routes)
+    private val inventory = SceneInventoryEmitter(
+        routes,
+        SceneInventoryBuilder(names, routes, anchors, onWalk = onInventoryWalk),
+        clock,
+    ) { fact ->
+        if (started) batcher.add(fact)
+        started
+    }
     private val sessions = HashMap<Activity, WindowSession>()
 
     /** Focus is app-wide: every window reports against the same last kind. */
@@ -106,7 +121,35 @@ internal class ViewsAdapter(
         windowCallbacksRegistered = false
     }
 
+    /** Mask rectangles for [window] under `allTextAndMedia`; called on the main thread per `capture.request`. */
     fun masks(window: Window): WindowMaskResult = WindowMasks.compute(window)
+
+    /**
+     * Any thread: a capture completed with [structureSignature] and
+     * [hasRegionHosts] (from its masks' walk). When [emitSceneInventory] is
+     * on, posts [onCapturedFrame] to [mainThread] for the window [window]
+     * gives there (main-thread state, read when the walk runs); otherwise
+     * does nothing.
+     */
+    fun onCaptureCompleted(
+        structureSignature: String,
+        hasRegionHosts: Boolean,
+        mainThread: (Runnable) -> Boolean,
+        window: () -> Window?,
+    ) {
+        if (!emitSceneInventory) return
+        mainThread(Runnable { window()?.let { onCapturedFrame(it, structureSignature, hasRegionHosts) } })
+    }
+
+    /**
+     * A capture of [window] completed: emits the visible route's
+     * `scene.inventory` when [emitSceneInventory] is on
+     * ([SceneInventoryEmitter]). Main thread.
+     */
+    fun onCapturedFrame(window: Window, structureSignature: String, hasRegionHosts: Boolean) =
+        AdapterGuard.run("scene inventory") {
+            if (emitSceneInventory && started) inventory.onCapturedFrame(window, structureSignature, hasRegionHosts)
+        }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
         AdapterGuard.run("activity created") { session(activity).ensureAttached() }
