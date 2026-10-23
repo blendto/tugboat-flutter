@@ -12,10 +12,13 @@ struct ScreenStack {
   static let maxEntries = 64
 
   let navigatorId: String
+  /// Sent on every change of a nested navigator; nil on a root navigator.
+  let parentNavigatorId: String?
   private(set) var entries: [RouteEntry] = []
 
-  init(navigatorId: String) {
+  init(navigatorId: String, parentNavigatorId: String? = nil) {
     self.navigatorId = navigatorId
+    self.parentNavigatorId = parentNavigatorId
   }
 
   var top: RouteEntry? {
@@ -44,11 +47,15 @@ struct ScreenStack {
     return change(.pop, route: revealed, departing: top)
   }
 
+  func contains(instanceId: String) -> Bool {
+    entries.contains { $0.instanceId == instanceId }
+  }
+
   mutating func removeAll() {
     entries.removeAll()
   }
 
   private func change(_ kind: NavigationKind, route: RouteEntry, departing: RouteEntry?) -> NavigationChange {
-    NavigationChange(kind: kind, navigatorId: navigatorId, route: route, departing: departing)
+    NavigationChange(kind: kind, navigatorId: navigatorId, parentNavigatorId: parentNavigatorId, route: route, departing: departing)
   }
 }

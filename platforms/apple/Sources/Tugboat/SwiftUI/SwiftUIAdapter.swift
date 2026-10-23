@@ -121,9 +121,7 @@ final class SwiftUIAdapter {
 
   private func seedSessionStartNavigation() {
     let at = clock.now()
-    if let fact = screens.sessionStartFact(at: at) {
-      batcher.add(fact)
-    }
+    screens.sessionStartFacts(at: at).forEach(batcher.add)
     if trackHostingControllers, let fact = hostingControllers.sessionStartFact(at: at) {
       batcher.add(fact)
     }

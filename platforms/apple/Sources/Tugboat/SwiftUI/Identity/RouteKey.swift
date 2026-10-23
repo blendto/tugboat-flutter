@@ -4,7 +4,8 @@ import UIKit
 /// The route a target belongs to (native SDK note section 6.3), in priority
 /// order:
 ///
-/// 1. the `.tugboatScreen` name on top of the screen stack: `high`;
+/// 1. the name of the `.tugboatScreen` on top of the visible chain of
+///    navigators (`ScreenTracker.visibleTop`): `high`;
 /// 2. the nearest hosting controller's Swift type name, hashed because it is
 ///    long (`host:<16 hex>`): `medium`. Swift type names are not
 ///    obfuscated, but a type name changes when the view tree's type does.

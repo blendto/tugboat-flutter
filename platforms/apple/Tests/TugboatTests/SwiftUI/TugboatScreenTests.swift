@@ -19,7 +19,7 @@ final class TugboatScreenTests: XCTestCase {
   /// The top screen after applying queued callbacks.
   private func top(_ tracker: ScreenTracker) -> RouteEntry? {
     tracker.settle()
-    return tracker.top
+    return tracker.visibleTop
   }
 
   func testAppearAndReplacementProduceNavigationFacts() throws {
@@ -28,9 +28,8 @@ final class TugboatScreenTests: XCTestCase {
     let window = HostedWindow(Text("Home").modifier(TugboatScreenModifier(name: "Home", tracker: tracker)).id("home"))
     hosted = window
     XCTAssertTrue(window.wait { self.top(tracker)?.name == "Home" })
-    let seed = tracker.sessionStartFact(at: clock.now())
+    let first = tracker.sessionStartFacts(at: clock.now())
     tracker.isRecording = true
-    let first = seed.map { [$0] } ?? []
     XCTAssertEqual(first.count, 1)
     let push = first.first?.decodedInput
     XCTAssertEqual(push?["kind"] as? String, "session_start")
@@ -58,7 +57,7 @@ final class TugboatScreenTests: XCTestCase {
     let window = HostedWindow(Text("A").modifier(TugboatScreenModifier(name: "A", tracker: tracker)))
     hosted = window
     XCTAssertTrue(window.wait { self.top(tracker) != nil })
-    let id = tracker.top?.instanceId
+    let id = tracker.visibleTop?.instanceId
     window.hosting?.rootView = AnyView(Text("A changed").modifier(TugboatScreenModifier(name: "A", tracker: tracker)))
     window.settle()
     XCTAssertEqual(top(tracker)?.instanceId, id)

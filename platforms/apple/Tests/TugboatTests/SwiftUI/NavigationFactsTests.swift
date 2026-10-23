@@ -71,14 +71,14 @@ final class NavigationFactsTests: XCTestCase {
     XCTAssertEqual(facts.first?.decodedInput["kind"] as? String, "push")
     XCTAssertEqual((facts.first?.decodedInput["departing"] as? [String: Any])?["name"] as? String, "Home")
     XCTAssertEqual(facts.first?.at, clock.now(), "the appear callback's time")
-    XCTAssertEqual(tracker.top?.name, "Detail")
+    XCTAssertEqual(tracker.visibleTop?.name, "Detail")
   }
 
   func testTrackerKeepsTheStackButNoFactsWhileNotRecording() {
     let tracker = ScreenTracker(clock: ManualClock())
     tracker.appeared(instanceId: "a", name: "Home")
     XCTAssertTrue(tracker.takeFacts().isEmpty)
-    XCTAssertEqual(tracker.top?.name, "Home", "route keys work before the adapter starts")
+    XCTAssertEqual(tracker.visibleTop?.name, "Home", "route keys work before the adapter starts")
     XCTAssertTrue(tracker.hasSeenScreen)
   }
 
