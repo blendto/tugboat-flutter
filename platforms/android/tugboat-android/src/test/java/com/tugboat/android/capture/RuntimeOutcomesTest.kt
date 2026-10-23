@@ -62,7 +62,7 @@ class RuntimeOutcomesTest {
 
         assertEquals(3, frames[answer.frame.handle]?.size)
         assertEquals(
-            CapturedFrame(answer.frame.handle, 810, 1800, "sha", true, 3, 8_000, "0f0f", "sig", coverage),
+            CapturedFrame(answer.frame.handle, 810, 1800, "sha", true, 3, 8_000, "0f0f", "sig", coverage, false),
             answer.frame,
         )
         assertEquals("the copy-time decor, not the request-time one", BoundaryRect(0.0, 0.0, 1080.0, 2400.0), answer.boundaryRect)

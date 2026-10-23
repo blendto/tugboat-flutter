@@ -182,10 +182,27 @@ the delivery result). Strict decoding still rejects a non-string
 
 ### 4.3 Adapter-produced events
 
-Some evidence is entirely toolkit-produced: `scene_inventory`,
-`viewport_semantic_map`, `scroll_semantic_snapshot`, `network_call`,
-`external_event`, adapter `capture_diagnostic`. These arrive as
-`event.record`:
+Some evidence is toolkit-produced via `event.record`: `viewport_semantic_map`,
+`scroll_semantic_snapshot`, `network_call`, `external_event`, adapter
+`capture_diagnostic`. Native scene inventory uses the `scene.inventory` fact
+instead; the engine records `scene_inventory` and rejects `event.record`
+forgery. Adapters send `{routeKey?, elements[], scrollKey?, totalElements?}`
+(optional `scrollKey` for Dart scroll inventories later; native v1 sends
+none). An element's `canonicalPath` may be `""` (a route root), as on
+`targetAnchor`. Dedupe is `routeKey|inventoryHash|scrollKey` (empty
+`scrollKey` when omitted). The engine keeps the first
+`limits.maxSceneInventoryElements` elements (C20). Adapters stop collecting
+at that limit but keep counting, and send the count as `totalElements`:
+the candidates found, an upper bound (a repeated fingerprint past the limit
+is still counted). Sending at least `elements.length` is the adapter's
+obligation; the engine accepts any non-negative integer and uses the larger
+of the two. When the larger of `totalElements` and
+`elements.length` exceeds the limit, the engine records `capture_diagnostic`
+`{component: scene_inventory, truncatedFrom: n}` just before the
+`scene_inventory`, and only when the dedupe key is new; a duplicate records
+neither. `inventoryHash` is over the kept element list. Dart exploration
+still attaches inventory on pointer `down` when `sceneInventory` is on.
+Legacy `event.record` for other toolkit types:
 
 `{eventType, stream, data?, targetAnchor?, atMonoUs?, attachActionContext}`
 
@@ -296,7 +313,7 @@ again between sessions.
 | Group | Fields (Dart defaults) |
 | --- | --- |
 | `host` | app, device, ip, locale, configuredUserId (the slice 1 vocabulary) |
-| `limits` | maxEvents 5000, maxFrames 500, maxScrollSamples 200 |
+| `limits` | maxEvents 5000, maxFrames 500, maxScrollSamples 200, maxSceneInventoryElements 500 (change C20) |
 | `gesture` | touchSlop, panSlop, scaleSlop, trackpadScaleThreshold. These are toolkit values: Flutter uses 18 / 36 / 18 / 1.08, Android uses `ViewConfiguration`, iOS uses UIKit recognizer defaults. |
 | `interaction` | claimWindowMs 1250, settleDelayMs 1000, maxReleased 8, scrollEndCaptureDelayMs 0, captureScrollSamples false, scrollCaptureIntervalMs 2000, factGraceMs |
 | `navigation` | routeBarrierTimeoutMs 5000, routeStackLimit 16 |
@@ -895,6 +912,7 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C17 | Navigator and route-instance ids are per session | A route object keeps its `route-N` across sessions (`Expando`) while the counter restarts, so ids can collide | yes: `routeInstanceId` of a route seen in an earlier session | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C18 | Capture answer deadline: a `capture.request` unanswered `capture.answerTimeoutMs` (default 5000) after it was issued resolves as `paint_readiness_timeout` with `capture_diagnostic` `failure: answer_timeout` (always recorded); a late answer is ignored (frame released) | No deadline (the frame wait times out on the UI thread) | yes: a route or interaction whose capture the host dropped is recorded without a frame instead of never | Yes (engine-only; approved by local orchestrator 2026-10-12) |
 | C19 | A `network_call` from `evidence.networkCall` is stamped with the call's start (`startMonoUs`) | Dart stamps `atMs` when the call finishes | yes: `triggeredAt` of native network calls is the request start | Yes (engine-only; decided by the ADR 0009 orchestrator for native evidence 2026-10-16) |
+| C20 | `scene.inventory` facts are capped at `limits.maxSceneInventoryElements` (default 500) before `inventoryHash` and `scene_inventory` are recorded. Adapters stop collecting at the same limit and send what they found as `totalElements`; when the larger of `totalElements` and the elements sent exceeds the limit, a new (not deduped) inventory first records `capture_diagnostic` `{component: scene_inventory, truncatedFrom}` | Dart has no element cap | yes: native inventory size bound | Yes (engine-only; approved by orchestrator 2026-10-22, truncation owner 2026-10-23, PR #116) |
 
 ## 12. Open questions and decisions
 

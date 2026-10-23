@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.tugboat.android.TugboatConfig
+import com.tugboat.android.capture.CaptureAnswer
 import com.tugboat.android.capture.CaptureCoordinator
 import com.tugboat.android.capture.ForegroundWindow
 import com.tugboat.android.capture.RuntimeWindowCapturer
@@ -129,18 +130,21 @@ internal class TugboatRuntime private constructor(
             )
             val watcher = SessionEndWatcher(HttpExecutor(hostConfig, frames::get))
             val gesture = GestureConfig.from(application)
-            lateinit var host: EngineHost
+            val engineHost = EngineHostSlot()
             val adapter = ViewsAdapter(
                 application = application,
-                sink = FactSink { batch -> host.postBatch(batch) },
+                sink = FactSink { batch -> engineHost.withHost { it.postBatch(batch) } },
                 gesture = gesture,
                 postNavigationFacts = true,
+                emitSceneInventory = config.emitSceneInventory,
             )
-            val surfaces = SurfaceReporter { input -> host.post(SurfaceReporter.FACT_TYPE, input, clock.now()) }
+            val surfaces = SurfaceReporter { input ->
+                engineHost.withHost { it.post(SurfaceReporter.FACT_TYPE, input, clock.now()) }
+            }
             val startAt = clock.now()
             val launchCorrelation = LaunchCorrelation(
                 sessionWallUs = startAt.wallUs,
-                isHostRunning = { host.isRunning },
+                isHostRunning = { engineHost.value?.isRunning == true },
             )
             val foreground = ForegroundWindow(
                 application,
@@ -156,10 +160,17 @@ internal class TugboatRuntime private constructor(
                 capturer = RuntimeWindowCapturer(),
                 frames = frames,
                 answer = { answer ->
-                    host.post(HostMessages.CAPTURE_RESULT, answer.toInputJson(), clock.now(), answer.frameHandles)
+                    engineHost.withHost {
+                        it.post(HostMessages.CAPTURE_RESULT, answer.toInputJson(), clock.now(), answer.frameHandles)
+                    }
+                    if (answer is CaptureAnswer.Captured) {
+                        val frame = answer.frame
+                        adapter.onCaptureCompleted(frame.structureSignature, frame.hasRegionHosts, main::post) { foreground.window }
+                    }
                 },
             )
-            host = EngineHost.start(transport, frames, http = watcher, captures = captures)
+            val host = EngineHost.start(transport, frames, http = watcher, captures = captures)
+            engineHost.value = host
             host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, gesture).toString())
             host.post(
                 SessionMessages.SESSION_START,
@@ -194,3 +205,13 @@ internal class TugboatRuntime private constructor(
 }
 
 internal fun String?.normalizedSessionId(): String? = this?.takeIf { it.isNotBlank() }
+
+/** Holds the engine host while capture wiring is constructed. */
+private class EngineHostSlot {
+    @Volatile var value: EngineHost? = null
+
+    inline fun withHost(block: (EngineHost) -> Unit) {
+        val current = value
+        if (current != null) block(current)
+    }
+}

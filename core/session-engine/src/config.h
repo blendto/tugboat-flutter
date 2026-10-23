@@ -20,6 +20,8 @@ struct LimitsConfig {
   int64_t max_events = 5000;
   int64_t max_frames = 500;
   int64_t max_scroll_samples = 200;
+  // Change C20: native `scene.inventory` element cap per fact.
+  int64_t max_scene_inventory_elements = 500;
 };
 
 // Toolkit gesture thresholds; the defaults are Flutter's.
@@ -79,6 +81,9 @@ struct CollectorConfig {
 // TugboatReplayConfig evidence switches.
 struct Capabilities {
   bool scene_inventory = false;
+  // Native adapters send `scene.inventory`; distinct from Dart exploration
+  // mode (`sceneInventory`), which moves tap evidence to pointer-down.
+  bool native_scene_inventory = false;
   bool viewport_semantic_map = false;
   bool capture_diagnostics = false;
   bool action_context = false;

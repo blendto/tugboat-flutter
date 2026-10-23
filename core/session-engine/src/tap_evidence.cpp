@@ -5,7 +5,7 @@
 #include "engine_state.h"
 #include "interaction_transaction.h"
 #include "name_table.h"
-#include "recorder.h"
+#include "scene_inventory.h"
 #include "turn.h"
 
 namespace tugboat {
@@ -39,18 +39,6 @@ bool decode_inventory(const ObjectReader& r, TapEvidence* out, Error* error) {
   tap_inventory.json = *json;
   out->inventory = std::move(tap_inventory);
   return true;
-}
-
-// Dart `_emitSceneInventory` for tap evidence: once per route and hash.
-void record_inventory(Turn& turn, const TapInventory& inventory) {
-  EngineState& state = *turn.state;
-  const std::string key =
-      inventory.route_key + "|" + inventory.inventory_hash + "|";
-  if (!state.interactions.emitted_inventories.insert(key).second) return;
-  Event event = make_event(&state, *turn.session, "scene_inventory",
-                           turn.at.mono_us);
-  event.data = inventory.json;
-  record_event(&state, *turn.session, std::move(event), true, turn.out);
 }
 
 }  // namespace
@@ -99,7 +87,11 @@ void resolve_tap_evidence(Turn& turn, Transaction& tx,
   const TapEvidence& evidence = *tx.pre_tap_evidence;
   tx.target_anchor = evidence.anchor;
   tx.failure_reason = evidence.failure_reason;
-  if (evidence.inventory) record_inventory(turn, *evidence.inventory);
+  if (evidence.inventory) {
+    const TapInventory& inventory = *evidence.inventory;
+    record_scene_inventory(turn, inventory.route_key, inventory.inventory_hash,
+                           "", inventory.json);
+  }
 }
 
 }  // namespace engine

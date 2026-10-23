@@ -22,63 +22,49 @@ internal class NodePath(val segments: List<String>, val inListItem: Boolean)
  * host's own path. Aliases and text never enter it.
  */
 internal object NodePaths {
-    /** [target]'s path below [root], or null when [target] is not in [root]'s tree. */
-    fun build(root: SemanticsNode, target: SemanticsNode): NodePath? {
-        val chain = chainTo(root, target.id) ?: return null
-        val segments = ArrayList<String>()
-        var scope = root
-        var parent = root
-        var inListItem = false
-        for (node in chain) {
+    /**
+     * Every node id below [root] to its path, in one top-down walk: each
+     * node's children are read once, and ordinals are counted per scope as
+     * the walk meets them (paint order). Excluded nodes
+     * ([NodeRules.isExcluded]) and their subtrees have no entry. The one path
+     * implementation: taps ([NodeTargets.at]) and inventory read it.
+     */
+    fun index(root: SemanticsNode): Map<Int, NodePath> {
+        val index = PathIndex()
+        for (child in root.children) index.walk(child, parent = root, scope = root, emptyList(), inListItem = false)
+        return index.paths
+    }
+
+    /** [index]'s walk state: the paths so far and, per scope node id, the next ordinal of each token. */
+    private class PathIndex {
+        val paths = HashMap<Int, NodePath>()
+        private val ordinals = HashMap<Int, HashMap<String, Int>>()
+
+        fun walk(node: SemanticsNode, parent: SemanticsNode, scope: SemanticsNode, segments: List<String>, inListItem: Boolean) {
+            if (NodeRules.isExcluded(node)) return
             val item = ListItems.of(parent, node)
-            parent = node
+            var childSegments = segments
+            var childScope = scope
+            var childInListItem = inListItem
             if (item != null) {
-                segments += item.segment
-                inListItem = inListItem || item.indexed
-                scope = node
-                if (NodeRules.isKept(node)) segments += "${NodeRoles.token(node)}#0"
-                continue
+                childSegments = segments + item.segment
+                if (NodeRules.isKept(node)) childSegments = childSegments + "${NodeRoles.token(node)}#0"
+                childInListItem = inListItem || item.indexed
+                childScope = node
+            } else if (NodeRules.isKept(node)) {
+                val token = NodeRoles.token(node)
+                childSegments = segments + "$token#${nextOrdinal(scope, token)}"
+                childScope = node
             }
-            if (!NodeRules.isKept(node)) continue
-            val token = NodeRoles.token(node)
-            segments += "$token#${ordinal(scope, node, token)}"
-            scope = node
+            paths[node.id] = NodePath(childSegments, childInListItem)
+            for (child in node.children) walk(child, node, childScope, childSegments, childInListItem)
         }
-        return NodePath(segments, inListItem)
-    }
 
-    /** The nodes strictly below [root] down to the node with [id], top first. */
-    private fun chainTo(root: SemanticsNode, id: Int): List<SemanticsNode>? {
-        for (child in root.children) {
-            if (child.id == id) return listOf(child)
-            chainTo(child, id)?.let { return listOf(child) + it }
-        }
-        return null
-    }
-
-    private fun ordinal(scope: SemanticsNode, node: SemanticsNode, token: String): Int {
-        var ordinal = 0
-        for ((parent, sibling) in filteredChildren(scope)) {
-            if (sibling.id == node.id) return ordinal
-            if (ListItems.of(parent, sibling) == null && NodeRoles.token(sibling) == token) ordinal++
-        }
-        return ordinal
-    }
-
-    /** The kept nodes and list items whose nearest scope is [scope], with their parents, in paint order. */
-    private fun filteredChildren(scope: SemanticsNode): List<Pair<SemanticsNode, SemanticsNode>> {
-        val out = ArrayList<Pair<SemanticsNode, SemanticsNode>>()
-        collect(scope, out)
-        return out
-    }
-
-    private fun collect(parent: SemanticsNode, out: MutableList<Pair<SemanticsNode, SemanticsNode>>) {
-        for (child in parent.children) {
-            when {
-                NodeRules.isExcluded(child) -> Unit
-                ListItems.of(parent, child) != null || NodeRules.isKept(child) -> out += parent to child
-                else -> collect(child, out)
-            }
+        private fun nextOrdinal(scope: SemanticsNode, token: String): Int {
+            val counts = ordinals.getOrPut(scope.id) { HashMap() }
+            val ordinal = counts[token] ?: 0
+            counts[token] = ordinal + 1
+            return ordinal
         }
     }
 }

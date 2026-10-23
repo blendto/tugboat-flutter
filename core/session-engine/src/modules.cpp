@@ -15,6 +15,7 @@ ModuleRegistry build_module_registry() {
   register_delivery_module(&registry);
   register_interaction_module(&registry);
   register_navigation_module(&registry);
+  register_scene_inventory_module(&registry);
   register_capture_module(&registry);
   register_coordination_module(&registry);
   return registry;

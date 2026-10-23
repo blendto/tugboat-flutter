@@ -19,10 +19,12 @@ internal object NodeTargets {
         return of(root, node) ?: RegionHit.Unreadable
     }
 
-    /** [node]'s target, or null when it is no longer in [root]'s tree. */
-    fun of(root: SemanticsNode, node: SemanticsNode): RegionHit.Target? {
-        val path = NodePaths.build(root, node) ?: return null
-        return RegionHit.Target(
+    /** [node]'s target, or null when it is no longer in [root]'s placed tree. */
+    fun of(root: SemanticsNode, node: SemanticsNode): RegionHit.Target? = NodePaths.index(root)[node.id]?.let { of(node, it) }
+
+    /** [node]'s target at a [path] already known ([NodePaths.index]). */
+    fun of(node: SemanticsNode, path: NodePath): RegionHit.Target =
+        RegionHit.Target(
             path = path.segments,
             widgetType = NodeRoles.token(node),
             role = NodeRoles.role(node),
@@ -32,5 +34,4 @@ internal object NodeTargets {
             inListItem = path.inListItem,
             bounds = NodeBounds.bounds(node),
         )
-    }
 }

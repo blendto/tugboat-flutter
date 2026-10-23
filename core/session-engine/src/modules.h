@@ -41,6 +41,9 @@ void register_interaction_module(ModuleRegistry* registry);
 // Navigation (section 8.1).
 void register_navigation_module(ModuleRegistry* registry);
 
+// Native scene inventory (`scene.inventory` fact).
+void register_scene_inventory_module(ModuleRegistry* registry);
+
 // Capture coordination (section 8.2).
 void register_capture_module(ModuleRegistry* registry);
 

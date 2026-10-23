@@ -18,4 +18,10 @@ internal class RouteKey(val value: String, val confidence: Confidence, val root:
 /** Resolves the route of any attached view; the navigation module implements it. */
 internal fun interface RouteResolver {
     fun routeFor(view: View): RouteKey?
+
+    /**
+     * The route of what [decor]'s window shows: by default the route of its
+     * `android.R.id.content` view (the decor view when it has none).
+     */
+    fun visibleRoute(decor: View): RouteKey? = routeFor(decor.findViewById(android.R.id.content) ?: decor)
 }

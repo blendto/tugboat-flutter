@@ -57,6 +57,37 @@ class ViewsAdapterTest {
     fun stop() = adapter.stop()
 
     @Test
+    fun sceneInventoryBeforeTapIncludesTheTappedFingerprint() {
+        val inventoryAdapter = ViewsAdapter(
+            application = context as Application,
+            sink = sink,
+            hostClock = clock,
+            frames = frames,
+            gesture = GestureConfig(touchSlop = 8.0, panSlop = 16.0, scaleSlop = 16.0),
+            emitSceneInventory = true,
+        ).apply { start() }
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        val button = Button(activity).apply { id = android.R.id.button1 }
+        activity.setContentView(LinearLayout(activity).apply { addView(button, LinearLayout.LayoutParams(400, 200)) })
+        shadowOf(Looper.getMainLooper()).idle()
+        drain()
+
+        inventoryAdapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
+        frames.runFrame()
+        val inventoryFact = sink.batches.single().single()
+        assertEquals("scene.inventory", inventoryFact.type)
+
+        tap(activity.window, button)
+        frames.runFrame()
+        val tapAnchor = JSONObject(sink.batches.last()[1].inputJson).getJSONObject("tap").getJSONObject("anchor")
+        val fingerprint = tapAnchor.getString("fingerprint")
+        val elements = JSONObject(inventoryFact.inputJson).getJSONArray("elements")
+        val fingerprints = (0 until elements.length()).map { elements.getJSONObject(it).getString("fingerprint") }
+        assertTrue(fingerprint in fingerprints)
+        inventoryAdapter.stop()
+    }
+
+    @Test
     fun aTapOnAnActivityButtonIsPostedInOneBatchWithItsAnchor() {
         val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
         val button = Button(activity).apply { id = android.R.id.button1 }
