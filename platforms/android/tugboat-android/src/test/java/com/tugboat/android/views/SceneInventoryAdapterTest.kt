@@ -222,6 +222,24 @@ class SceneInventoryAdapterTest {
     }
 
     @Test
+    fun aCaptureCompletionReachesTheMainThreadOnlyWhenInventoryIsOn() {
+        val off = ViewsAdapter(application = context as Application, sink = sink, frames = frames).apply { start() }
+        var posted = 0
+        off.onCaptureCompleted("structure-1", hasRegionHosts = false, mainThread = { posted++; true }) { null }
+        off.stop()
+        assertEquals(0, posted)
+
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        activity.setContentView(Button(activity))
+        settle()
+        adapter.onCaptureCompleted("structure-1", hasRegionHosts = false, mainThread = { it.run(); posted++; true }) { activity.window }
+        frames.runFrame()
+
+        assertEquals(1, posted)
+        assertEquals(1, inventoryInputs().size)
+    }
+
+    @Test
     fun aSecureWindowIsNeverWalked() {
         val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
         activity.setContentView(Button(activity))

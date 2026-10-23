@@ -192,8 +192,11 @@ none). An element's `canonicalPath` may be `""` (a route root), as on
 `targetAnchor`. Dedupe is `routeKey|inventoryHash|scrollKey` (empty
 `scrollKey` when omitted). The engine keeps the first
 `limits.maxSceneInventoryElements` elements (C20). Adapters stop collecting
-at that limit but keep counting, and send the count as `totalElements` (at
-least `elements.length`). When the larger of `totalElements` and
+at that limit but keep counting, and send the count as `totalElements`:
+the candidates found, an upper bound (a repeated fingerprint past the limit
+is still counted). Sending at least `elements.length` is the adapter's
+obligation; the engine accepts any non-negative integer and uses the larger
+of the two. When the larger of `totalElements` and
 `elements.length` exceeds the limit, the engine records `capture_diagnostic`
 `{component: scene_inventory, truncatedFrom: n}` just before the
 `scene_inventory`, and only when the dedupe key is new; a duplicate records

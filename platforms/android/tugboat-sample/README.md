@@ -173,7 +173,9 @@ the Navigation route keys `rows` and `row` (arguments stripped).
     In step 12 they are `views_home` (with an element whose `canonicalPath`
     is `""`: the fragment's clickable root) and `compose_home`, not the
     activity class; each tapped `targetAnchor.fingerprint` is an element
-    `fingerprint` (or alias) of the preceding inventory for its route;
+    `fingerprint` (or alias) of the preceding inventory for its route,
+    except taps on activity-level chrome outside the shown fragment (here the
+    "Views fragment" / "Compose fragment" buttons), which have no inventory;
   - the "Stop Tugboat" tap (step 13) as `interaction` `gesture: cancelled`
     with a `beforeFrame` and no `afterFrame`, just before `session_end`: the
     session ends while the tap is still settling, and ending a session

@@ -20,11 +20,15 @@ wiring, window capture, and the Android Views adapter.
 - Native scene inventory: when `emitSceneInventory` is true, the Views
   adapter sends `scene.inventory` after each captured frame (the
   post-navigation route capture covers route changes) for the route of the
-  visible content (the topmost shown fragment, else the activity); the
-  engine records deduped `scene_inventory` (`nativeSceneInventory`
-  capability). A frame whose structure signature matches the route's last
-  emitted inventory is not walked; `FLAG_SECURE` windows have none. The walk
-  collects at most 500 elements and sends the full count as `totalElements`.
+  visible content (the deepest shown fragment, such as a `NavHostFragment`'s
+  destination, else the activity; activity-level chrome outside it, such as
+  a `Toolbar` or `BottomNavigationView`, is not inventoried); the engine
+  records deduped `scene_inventory` (`nativeSceneInventory` capability). A
+  frame of a window without Compose hosts whose structure signature matches
+  the route's last emitted inventory is not walked (a view that only becomes
+  clickable is then missed); windows with Compose hosts are walked on every
+  captured frame. `FLAG_SECURE` windows have none. The walk collects at most
+  500 elements and sends the candidates found as `totalElements`.
 - Coded events and manual network calls: `Tugboat.eventHook(source,
   parameterPolicy).record(name, parameters)` (`external_event`) and
   `Tugboat.beginNetworkCall(method, route)` with `complete(statusCode,

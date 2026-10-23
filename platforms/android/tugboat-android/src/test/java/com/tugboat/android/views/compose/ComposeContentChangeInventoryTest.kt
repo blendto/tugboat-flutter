@@ -3,11 +3,13 @@ package com.tugboat.android.views.compose
 import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.tugboat.android.host.FakeClock
 import com.tugboat.android.views.ManualFrames
@@ -69,7 +71,8 @@ class ComposeContentChangeInventoryTest {
     fun changedComposeContentUnderAnUnchangedSignatureIsInventoriedAgain() {
         var loaded by mutableStateOf(false)
         compose.setContent {
-            Column {
+            // A full-screen layout, as screens are: the host keeps its size when the content changes.
+            Column(Modifier.fillMaxSize()) {
                 if (loaded) {
                     Button(onClick = {}) { Text("Pay") }
                     Button(onClick = {}) { Text("Later") }

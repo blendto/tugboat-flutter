@@ -69,10 +69,12 @@ class NodePathsIndexTest {
         // Pinned from NodePaths.build (the tap path before m-3) on this tree.
         assertEquals(
             listOf(
-                "|false", "Button#0|false", "Button#1|false", "Checkbox#0|false", "Node#0|false", "Node#1|false",
+                "Button#0|false", "Button#1|false", "Checkbox#0|false", "Node#0|false", "Node#1|false",
                 "Scrollable#0/[item]/Button#0|false", "Scrollable#0/[item]/Button#0|false",
                 "Scrollable#0/[item]/Button#0|false", "Scrollable#0|false", "[item:0]/Button#0|true", "[item:0]|true",
                 "[item]/Button#0|false", "[item]/Node#0|false",
+                // The unkept collection Column itself: no segment of its own.
+                "|false",
             ),
             index.values.map { it.segments.joinToString("/") + "|" + it.inListItem }.sorted(),
         )

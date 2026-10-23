@@ -68,6 +68,11 @@ view.tugboatTag = "checkout"                  // developer alias
 - When the app's primary locale changes (`Application.onConfigurationChanged`),
   the SDK posts `locale.set` with the same locale JSON shape as `session.start`
   (deduped; unregistered on `stop`). Locale is evidence, not identity.
+- Scene inventory (`emitSceneInventory`) covers the route of the visible
+  content: the deepest shown fragment (a `NavHostFragment`'s destination, a
+  parent's child fragment), else the activity. Activity-level chrome outside
+  that fragment (`Toolbar`, `BottomNavigationView`) has the activity route
+  and is not in it, so taps on chrome have no preceding inventory.
 - There is no on-device health snapshot API: the engine has no health surface.
   With `captureDiagnostics` enabled, bounded `capture_diagnostic` events match
   Flutter's counters; without it, only host-failure and first secure-window

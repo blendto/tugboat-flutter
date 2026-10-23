@@ -56,7 +56,7 @@ internal class SceneInventoryBuilder(
     }
 }
 
-/** One `scene.inventory` input; [totalElements] counts what the walk found, collected or not. */
+/** One `scene.inventory` input; [totalElements] counts the candidates the walk found, collected or not (an upper bound). */
 internal class SceneInventory(val routeKey: String, val elements: List<InventoryElement>, val totalElements: Int) {
     fun toJson(): JSONObject {
         val array = JSONArray()
