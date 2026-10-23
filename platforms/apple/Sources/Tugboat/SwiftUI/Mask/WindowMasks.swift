@@ -59,6 +59,10 @@ enum WindowMasks {
   private static func maskOrWalk(_ node: ViewNode, allowlist: LayerAllowlist?, iOSMajor: Int, into acc: inout MaskAccumulator) -> Bool {
     let view = node.view
     switch node.kind {
+    case .sensitiveMarker:
+      acc.stats.sensitiveViews += 1
+      acc.add(view: view)
+      return false
     case .webView, .representable, .renderer:
       return box(view, node.kind, into: &acc)
     case .textInput, .label:
@@ -83,7 +87,7 @@ enum WindowMasks {
       }
       LayerWalk(classify: allowlist).walk(view, into: &acc)
       return true
-    case .cell, .scrollView, .control, .other, .sdkOwned, .sensitiveMarker:
+    case .cell, .scrollView, .control, .other, .sdkOwned:
       LayerWalk(classify: node.insideHosting ? allowlist : nil).walk(view, into: &acc)
       return true
     }
