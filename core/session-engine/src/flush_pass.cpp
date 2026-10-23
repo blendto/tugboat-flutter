@@ -13,6 +13,7 @@
 #include "collector_mapping.h"
 #include "delivery_bounds.h"
 #include "delivery_context.h"
+#include "delivery_retry_after.h"
 
 namespace tugboat {
 namespace engine {
@@ -99,6 +100,10 @@ void enter_lifecycle(DeliveryContext& ctx) {
     after_lifecycle(ctx);
     return;
   }
+  if (lane_send_blocked(ctx, HttpLane::kLifecycle)) {
+    after_lifecycle(ctx);
+    return;
+  }
   InFlight flight;
   flight.kind = RequestKind::kLifecycle;
   send(ctx, HttpLane::kLifecycle, "/v1/sessions",
@@ -120,6 +125,10 @@ void on_lifecycle_result(DeliveryContext& ctx, const TransportResult& result) {
 void enter_frames(DeliveryContext& ctx) {
   DeliveryState& d = ctx.delivery();
   if (d.frames.empty()) {
+    enter_retry_batches(ctx);
+    return;
+  }
+  if (lane_send_blocked(ctx, HttpLane::kFrames)) {
     enter_retry_batches(ctx);
     return;
   }
@@ -248,6 +257,10 @@ void enter_retry_batches(DeliveryContext& ctx) {
     enter_fresh_events(ctx);
     return;
   }
+  if (lane_send_blocked(ctx, HttpLane::kEvents)) {
+    end_pass(ctx);
+    return;
+  }
   InFlight flight;
   flight.kind = RequestKind::kRetryBatch;
   send(ctx, HttpLane::kEvents, "/v1/events/batch",
@@ -277,6 +290,10 @@ void on_retry_batch_result(DeliveryContext& ctx,
 void enter_fresh_events(DeliveryContext& ctx) {
   DeliveryState& d = ctx.delivery();
   if (d.events.pending() == 0) {
+    end_pass(ctx);
+    return;
+  }
+  if (lane_send_blocked(ctx, HttpLane::kEvents)) {
     end_pass(ctx);
     return;
   }
@@ -350,6 +367,7 @@ void apply_transport_result(DeliveryContext& ctx,
     on_pass_finished(ctx);
     return;
   }
+  maybe_arm_lane_retry_after(ctx, http_lane_for_request(flight.kind), result);
   switch (flight.kind) {
     case RequestKind::kLifecycle:
       on_lifecycle_result(ctx, result);

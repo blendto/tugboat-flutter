@@ -199,8 +199,17 @@ class ScenarioCollectorClient extends http.BaseClient {
     switch (input['outcome']) {
       case 'http':
         final body = utf8.encode((input['body'] ?? '') as String);
+        final headers = <String, String>{};
+        final retryAfter = input['retryAfter'];
+        if (retryAfter is String && retryAfter.isNotEmpty) {
+          headers['retry-after'] = retryAfter;
+        }
         response.complete(
-          http.StreamedResponse(Stream.value(body), input['status']! as int),
+          http.StreamedResponse(
+            Stream.value(body),
+            input['status']! as int,
+            headers: headers,
+          ),
         );
       case 'timeout':
         response.completeError(TimeoutException('scenario timeout'));
@@ -230,6 +239,7 @@ class ScenarioDelivery {
       client: client,
       identityDebounceDuration: collector.identityDebounce,
       debugNow: now,
+      debugElapsed: () => Duration(microseconds: scheduler.nowUs),
     );
   }
 
@@ -336,6 +346,10 @@ ScenarioCollector scenarioCollector(
       maxPendingBatches: setting('maxPendingBatches', 20),
       maxPendingEvents: setting('maxPendingEvents', 60),
       maxPendingFrames: setting('maxPendingFrames', 20),
+      retryAfterCap: Duration(milliseconds: setting('maxRetryAfterMs', 60000)),
+      endingRetryAfterCap: Duration(
+        milliseconds: setting('maxEndingRetryAfterMs', 10000),
+      ),
     ),
     identityDebounce: Duration(
       milliseconds: setting('identityDebounceMs', 3000),

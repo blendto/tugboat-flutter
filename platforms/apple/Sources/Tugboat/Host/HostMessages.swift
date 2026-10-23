@@ -15,8 +15,11 @@ enum HostMessages {
   static func transportResultInput(requestId: String, outcome: TransportOutcome) -> String {
     var out = "{\"requestId\":" + JSONText.quoted(requestId)
     switch outcome {
-    case let .http(status, body):
+    case let .http(status, body, retryAfter):
       out += ",\"outcome\":\"http\",\"status\":\(status),\"body\":" + JSONText.quoted(body)
+      if let retryAfter {
+        out += ",\"retryAfter\":" + JSONText.quoted(retryAfter)
+      }
     case .error:
       out += ",\"outcome\":\"error\""
     case .timeout:
