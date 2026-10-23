@@ -116,10 +116,17 @@ the request. All values are strings. Headers (API key, app identity,
 content type) are the host's.
 
 `transport.result` input:
-`{requestId, outcome: "http" | "error" | "timeout", status?, body?}`.
+`{requestId, outcome: "http" | "error" | "timeout", status?, body?, retryAfter?}`.
 `requestId` echoes the effect's string id. `status` comes with `http` only.
 `body` is the first 64 KiB of the response; the engine parses `sessionId` and
-`traitsId` from it.
+`traitsId` from it. `retryAfter` is the `Retry-After` header value and is only
+allowed with `outcome: "http"`; hosts send it whenever the response carries the
+header (any status), trimmed of ASCII whitespace and at most 128 UTF-8 bytes.
+The engine keeps it raw on decode and trims ASCII whitespace and checks the
+128-byte bound once, when it parses it. Values longer than 128 bytes after
+trim are dropped by hosts and ignored by the engine (they never invalidate
+the delivery result). Strict decoding still rejects a non-string
+`retryAfter` or one paired with a non-`http` outcome (host bugs).
 
 ## 4. Session state
 
@@ -294,7 +301,7 @@ again between sessions.
 | `interaction` | claimWindowMs 1250, settleDelayMs 1000, maxReleased 8, scrollEndCaptureDelayMs 0, captureScrollSamples false, scrollCaptureIntervalMs 2000, factGraceMs |
 | `navigation` | routeBarrierTimeoutMs 5000, routeStackLimit 16 |
 | `capture` | budgetMs 60, budgetWindowMs 5000, degradedScale, answerTimeoutMs 5000 (change C18) |
-| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs 5000 (change C5), reportEventLaneGaps false (change C6), answerGraceMs 5000 (change C15) |
+| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs 5000 (change C5), reportEventLaneGaps false (change C6), answerGraceMs 5000 (change C15), maxRetryAfterMs 60000, maxEndingRetryAfterMs 10000 |
 | `capabilities` | the `TugboatReplayConfig` evidence switches (inventory, semantic map, focus, system input, …) |
 
 ## 7. Collector delivery (phase 3b)
@@ -362,9 +369,39 @@ up to 3 s.
 | 408, 429, 5xx, transport error, timeout | retry | preserved |
 | any other status, including 200 / 201 / 204 | permanent drop | preserved; open question Q3 |
 
-Retries are paced only by flush triggers: there is no backoff and no attempt
-cap (change C4 proposes backoff later). Event batches retry until the
-20-batch cap evicts the oldest, or until the session resets.
+Retries are paced by flush triggers and by `Retry-After` waits on 429/503:
+there is no backoff and no attempt cap (change C4 proposes backoff later).
+Event batches retry until the 20-batch cap evicts the oldest, or until the
+session resets.
+
+When a lane receives HTTP 429 or 503 with a parseable `retryAfter` on
+`transport.result`, that lane does not send again before
+`now + min(parsed, collector.maxRetryAfterMs)` (default 60 s); other lanes are
+unaffected. The engine arms `delivery.retryAfter.<lane>`; a flush while the lane
+waits skips that lane. A newer `Retry-After` replaces the older not-before.
+Unparseable values and other retry statuses keep today's timing.
+
+Each pass checks a lane's wait once, where that lane's stage starts. A wait
+armed by a response during the pass stops that lane for the rest of the pass:
+fresh events not yet sent stay in the fresh queue (they never become retry
+batches unsent, so `maxPendingBatches` evicts only batches that were sent).
+The events and frames lane timers start one pass. The lifecycle lane timer
+drains the lifecycle lane, as `delivery.identity` does: the head is sent and,
+each time it is accepted, the next queued post follows. So a `session_end`
+queued behind a waiting head goes out right after it. The Flutter sink does
+the same (`_drainLifecyclePosts` after the lane timer), subject to existing
+C15 dispose and host `stop()` bounds.
+
+From `session.end` until the next `session.start` (phases draining and ended;
+in Flutter, from `endSession` until `startSession`), lifecycle-lane
+`Retry-After` waits are capped at `collector.maxEndingRetryAfterMs` (default 10
+s) so `session_end` can still complete within host `stop()` watchers (≤ 25 s):
+`session.end` shortens a longer lifecycle wait already running to that cap,
+and a 429/503 received meanwhile waits at most that long. Other lanes keep the
+normal `maxRetryAfterMs` cap. Host watchers that wait ≤ 25
+s for `session_end` to settle can still time out when a non-lifecycle lane waits
+longer; classify rules are unchanged so engine retry-classification tests still
+apply.
 
 ### 7.5 Queues and bounds
 
@@ -843,7 +880,7 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C2 | A flush trigger during a pass schedules a follow-up pass | Trigger dropped; up to 3 s extra latency | timing only | Yes |
 | C3 | Timeout on JSON posts | None; one hung request stalls all delivery | no | Yes, `jsonTimeoutMs` 15000 |
 | C4 | Exponential retry backoff with jitter | Retries paced only by flush triggers | timing only | Later, after the durable outbox |
-| C5 | `session_end` waits for a bounded drain and keeps retrying | `session_end` goes first; never retried after failure | order: frames/events no longer arrive after `session_end` | Yes |
+| C5 | `session_end` waits for a bounded drain and keeps retrying | `session_end` goes first. Before 0.10.11-dev.5 it was never retried after failure; Flutter 0.10.11-dev.5+ re-posts a retried `session_end` on the periodic flush (`eventFlushInterval`) until it is accepted or dropped (a dropped one is settled, as the native `SessionEndWatcher.isFinal`), then stops the flush; there is no events/frames drain | order: frames/events no longer arrive after `session_end` | Yes |
 | C6 | Delivery gaps become engine records; event-lane drops can also report gaps | Frame lane only; invisible to other sinks | new `component` values | Records: yes. Event-lane gaps: opt-in, default off |
 | C7 | Per-engine id counter and non-contiguous `frameNo` | as stated | no | Keep (no change) |
 | C8 | 202-only acceptance | 200/201/204 count as drops | no | Keep (Q3) |

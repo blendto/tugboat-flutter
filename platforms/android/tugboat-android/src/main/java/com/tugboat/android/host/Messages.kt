@@ -50,7 +50,10 @@ internal object HostMessages {
     fun transportResultInput(requestId: String, outcome: TransportOutcome): String {
         val input = JSONObject().put("requestId", requestId)
         when (outcome) {
-            is TransportOutcome.Http -> input.put("outcome", "http").put("status", outcome.status).put("body", outcome.body)
+            is TransportOutcome.Http -> {
+                input.put("outcome", "http").put("status", outcome.status).put("body", outcome.body)
+                outcome.retryAfter?.let { input.put("retryAfter", it) }
+            }
             TransportOutcome.Error -> input.put("outcome", "error")
             TransportOutcome.Timeout -> input.put("outcome", "timeout")
         }

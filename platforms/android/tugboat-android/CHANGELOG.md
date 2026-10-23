@@ -118,6 +118,9 @@ wiring, window capture, and the Android Views adapter.
     at most 64 KiB cut at a UTF-8 boundary, and statuses outside 100–599
     reported as `error`, so the engine never rejects a `transport.result`);
   - `frame.release` (frame handle table).
+- `HttpExecutor` forwards a trimmed `Retry-After` on `transport.result` (at most
+  128 bytes); a longer value is dropped so the engine never rejects an
+  otherwise valid answer.
 - Device Farm exploration tooling: when `tugboat_emit_scene_inventory` or
   `tugboat_accept_action_context` is enabled on the first resumed activity
   whose intent carries the extras, log `TUGBOAT_LAUNCH` once per process and

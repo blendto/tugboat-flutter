@@ -78,7 +78,7 @@ final class SessionEndWatcher: HTTPSender {
   /// 5xx, `error`, and `timeout` are retried; anything else is dropped for
   /// good.
   static func isFinal(_ outcome: TransportOutcome) -> Bool {
-    guard case let .http(status, _) = outcome else { return false }
+    guard case let .http(status, _, _) = outcome else { return false }
     return status != 408 && status != 429 && status < 500
   }
 }

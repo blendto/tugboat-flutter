@@ -24,7 +24,7 @@ jobs:
         run: bash tool/ci/verify-native-capture-pigeon.sh
       - name: Test collector frame delivery
         working-directory: sdks/flutter/packages/tugboat
-        run: flutter test test/collector_http_sink_test.dart
+        run: flutter test test/collector_http_sink_test.dart test/collector_http_sink_retry_after_test.dart test/collector_retry_after_test.dart
 
   conformance:
     name: Dart conformance fixtures

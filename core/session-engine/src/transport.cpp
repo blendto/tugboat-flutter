@@ -1,5 +1,7 @@
 #include "transport.h"
 
+#include <utility>
+
 namespace tugboat {
 namespace engine {
 
@@ -23,12 +25,16 @@ bool decode_outcome(const ObjectReader& r, TransportOutcome* out) {
 }
 
 bool check_http_fields(const ObjectReader& r, const TransportResult& result,
-                       bool has_body) {
+                       bool has_body, bool has_retry_after) {
   if (result.outcome != TransportOutcome::kHttp) {
     if (result.status) {
       return r.reject("status", "only allowed with outcome http");
     }
-    return !has_body || r.reject("body", "only allowed with outcome http");
+    if (has_body) {
+      return r.reject("body", "only allowed with outcome http");
+    }
+    return !has_retry_after ||
+           r.reject("retryAfter", "only allowed with outcome http");
   }
   if (!result.status) {
     return r.reject("status", "required with outcome http");
@@ -48,14 +54,19 @@ bool decode_transport_result(const Value& input, const std::string& path,
                              TransportResult* out, Error* error) {
   const ObjectReader r(input, path, error);
   std::optional<std::string> body;
-  if (!r.check_keys({"requestId", "outcome", "status", "body"}) ||
+  std::optional<std::string> retry_after;
+  if (!r.check_keys({"requestId", "outcome", "status", "body", "retryAfter"}) ||
       !r.req_string("requestId", &out->request_id) ||
       !decode_outcome(r, &out->outcome) || !r.opt_int("status", &out->status) ||
-      !r.opt_string("body", &body)) {
+      !r.opt_string("body", &body) ||
+      !r.opt_string("retryAfter", &retry_after)) {
     return false;
   }
   out->body = body.value_or(std::string());
-  return check_http_fields(r, *out, body.has_value());
+  const bool has_retry_after = retry_after.has_value();
+  // Trimmed and length-checked once, when it is parsed (retry_after.h).
+  out->retry_after = std::move(retry_after);
+  return check_http_fields(r, *out, body.has_value(), has_retry_after);
 }
 
 Verdict classify(const TransportResult& result) {

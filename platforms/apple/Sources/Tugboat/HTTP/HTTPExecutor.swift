@@ -33,6 +33,7 @@ final class HTTPExecutor: HTTPSender {
     let watchdog: DispatchSourceTimer
     let onResult: (TransportOutcome) -> Void
     var status: Int?
+    var retryAfter: String?
     var body = Data()
 
     init(task: URLSessionTask, watchdog: DispatchSourceTimer, onResult: @escaping (TransportOutcome) -> Void) {
@@ -125,6 +126,19 @@ final class HTTPExecutor: HTTPSender {
   func received(response: URLResponse, taskId: Int) {
     guard let entry = inFlight[taskId], let http = response as? HTTPURLResponse else { return }
     entry.status = http.statusCode
+    // Raw; `CollectorResponse.outcome` trims and bounds it once.
+    entry.retryAfter = HTTPExecutor.header("Retry-After", in: http)
+  }
+
+  /// A response header by case-insensitive name. `value(forHTTPHeaderField:)`
+  /// needs macOS 10.15, below the package's macOS floor for `swift build`.
+  private static func header(_ name: String, in response: HTTPURLResponse) -> String? {
+    for (key, value) in response.allHeaderFields {
+      if let key = key as? String, key.caseInsensitiveCompare(name) == .orderedSame {
+        return value as? String
+      }
+    }
+    return nil
   }
 
   func received(data: Data, taskId: Int) {
@@ -133,7 +147,10 @@ final class HTTPExecutor: HTTPSender {
     entry.body.append(data.prefix(room))
     guard entry.body.count >= CollectorResponse.maxBodyBytes, let status = entry.status else { return }
     // The engine only reads the first 64 KiB; stop downloading the rest.
-    finish(taskId: taskId, outcome: CollectorResponse.outcome(status: status, body: entry.body))
+    finish(
+      taskId: taskId,
+      outcome: CollectorResponse.outcome(
+        status: status, body: entry.body, retryAfter: entry.retryAfter))
     entry.task.cancel()
   }
 
@@ -146,7 +163,10 @@ final class HTTPExecutor: HTTPSender {
       }
       finish(taskId: taskId, outcome: timedOut ? .timeout : .error)
     } else if let status = entry.status {
-      finish(taskId: taskId, outcome: CollectorResponse.outcome(status: status, body: entry.body))
+      finish(
+        taskId: taskId,
+        outcome: CollectorResponse.outcome(
+          status: status, body: entry.body, retryAfter: entry.retryAfter))
     } else {
       finish(taskId: taskId, outcome: .error)
     }
