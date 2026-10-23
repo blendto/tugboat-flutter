@@ -11,7 +11,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
-class W6aOverlayWindowRootsTest {
+class OverlayWindowRootsTest {
     @Test
     fun activityDecorOnlyIsNotAnOverlay() {
         val decor = FrameLayout(context)

@@ -17,7 +17,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.Shadows.shadowOf
 
 @RunWith(RobolectricTestRunner::class)
-class W6aOverlayWindowCaptureTest {
+class OverlayWindowCaptureTest {
     private val adapter =
         ViewsAdapter(
             application = context as android.app.Application,

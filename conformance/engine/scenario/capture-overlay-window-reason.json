@@ -1,7 +1,7 @@
 {
   "fixtureFormat": 1,
   "kind": "engine.scenario",
-  "name": "w6a-capture-overlay-window",
+  "name": "capture-overlay-window-reason",
   "description": "A native frame whose maskCoverage.reasons include overlayWindow is accepted and records capture_masking with the reason.",
   "contract": {
     "sessionSchemaVersion": 10,
