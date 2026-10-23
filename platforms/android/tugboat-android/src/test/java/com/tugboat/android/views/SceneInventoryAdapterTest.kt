@@ -98,25 +98,36 @@ class SceneInventoryAdapterTest {
     @Test
     fun navigationAloneEmitsNoInventoryUntilTheRouteCaptureAnswers() {
         val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
-        activity.setContentView(Button(activity).apply { id = android.R.id.button1 })
+        val screen = FrameLayout(activity)
+        activity.setContentView(
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(Button(activity).apply { id = android.R.id.button1 }, LinearLayout.LayoutParams(400, 120))
+                addView(screen, LinearLayout.LayoutParams(720, 600))
+            },
+        )
+        screen.addView(Button(activity), FrameLayout.LayoutParams(300, 120))
         settle()
         adapter.onCapturedFrame(activity.window, "home-structure")
         frames.runFrame()
         sink.batches.clear()
 
+        // The destination changes and its screen is swapped in, not yet laid out.
         adapter.onNavDestination(activity, NavEntry("entry-2", "detail", 2), NavEntry("entry-1", "home", 1))
-        val detail = Button(activity).apply { id = android.R.id.button2 }
-        activity.setContentView(detail)
+        screen.removeAllViews()
+        screen.addView(Button(activity).apply { id = android.R.id.button2 }, FrameLayout.LayoutParams(300, 120))
         repeat(FRAMES) { frames.runFrame() }
+        assertEquals(emptyList<JSONObject>(), inventoryInputs())
         shadowOf(Looper.getMainLooper()).idle()
         repeat(FRAMES) { frames.runFrame() }
         assertEquals(emptyList<JSONObject>(), inventoryInputs())
 
+        // The route capture answers: the inventory holds the new screen.
         adapter.onCapturedFrame(activity.window, "detail-structure")
         frames.runFrame()
         val inventory = inventoryInputs().single()
         assertEquals("detail", inventory.getString("routeKey"))
-        assertEquals(listOf("Button#button2"), elements(inventory).map { it.getString("canonicalPath") })
+        assertTrue(elements(inventory).toString(), elements(inventory).any { it.getString("canonicalPath") == "Button#button2" })
     }
 
     @Test
