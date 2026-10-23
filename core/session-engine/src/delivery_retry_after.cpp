@@ -133,7 +133,13 @@ bool delivery_retry_after_timer_fired(const std::string& timer_id,
   }
   DeliveryState& d = ctx.delivery();
   d.lane_send_not_before_mono_us[lane_index(*lane)] = 0;
-  request_pass(ctx);
+  if (*lane == HttpLane::kLifecycle) {
+    // Like `delivery.identity`: send every queued lifecycle post, so a
+    // `session_end` queued behind the waiting head goes out too.
+    request_lifecycle_drain(ctx);
+  } else {
+    request_pass(ctx);
+  }
   return true;
 }
 

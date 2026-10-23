@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
     if (entry.is_regular_file() && entry.path().extension() == ".json") {
       std::string relative = fs::relative(entry.path(), root).generic_string();
       if (relative != conformance::kChangeIdsFile &&
-          relative != "retry_after_vectors.json" &&
+          relative != conformance::kRetryAfterVectorsFile &&
           relative.find(filter) != std::string::npos) {
         files.emplace_back(std::move(relative), entry.path());
       }

@@ -144,13 +144,13 @@
           "type": "transport.result",
           "at": {
             "monoUs": 7000000,
-            "wallUs": 1781827200000000
+            "wallUs": 1781827202000000
           },
           "input": {
             "requestId": "http-0",
             "outcome": "http",
             "status": 429,
-            "retryAfter": "Fri, 19 Jun 2026 00:00:10 GMT"
+            "retryAfter": "Fri, 19 Jun 2026 00:00:12 GMT"
           }
         },
         "expect": {
@@ -173,7 +173,7 @@
           "type": "transport.flush",
           "at": {
             "monoUs": 16900000,
-            "wallUs": 1781827200900000
+            "wallUs": 1781827211900000
           },
           "input": {}
         },
@@ -187,7 +187,7 @@
           "type": "timer.fired",
           "at": {
             "monoUs": 17000000,
-            "wallUs": 1781827201000000
+            "wallUs": 1781827212000000
           },
           "input": {
             "timerId": "delivery.retryAfter.lifecycle"

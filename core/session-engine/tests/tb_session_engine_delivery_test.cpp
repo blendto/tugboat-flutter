@@ -298,7 +298,10 @@ void test_transport_retry_after_decode() {
   CHECK(parse_json(accepted_json, 512, &accepted, &parse_error));
   CHECK(decode_transport_result(accepted, "$.input", &result, &decode_error));
   CHECK(result.status == 202);
-  CHECK(!result.retry_after);
+  // Kept raw on decode; the one trim and length check is in the parser.
+  CHECK(result.retry_after == long_retry);
+  CHECK(!tugboat::engine::parse_retry_after_delay_ms(*result.retry_after,
+                                                     std::nullopt, 60'000));
 }
 
 }  // namespace

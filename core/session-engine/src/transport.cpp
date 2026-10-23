@@ -1,6 +1,6 @@
 #include "transport.h"
 
-#include "retry_after.h"
+#include <utility>
 
 namespace tugboat {
 namespace engine {
@@ -63,9 +63,8 @@ bool decode_transport_result(const Value& input, const std::string& path,
     return false;
   }
   out->body = body.value_or(std::string());
-  if (retry_after) {
-    out->retry_after = trim_retry_after_field(*retry_after);
-  }
+  // Trimmed and length-checked once, when it is parsed (retry_after.h).
+  out->retry_after = std::move(retry_after);
   return check_http_fields(r, *out, body.has_value(), retry_after.has_value());
 }
 

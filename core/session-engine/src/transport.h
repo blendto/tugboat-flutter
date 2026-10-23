@@ -27,7 +27,7 @@ struct TransportResult {
   TransportOutcome outcome = TransportOutcome::kError;
   std::optional<int64_t> status;
   std::string body;
-  std::optional<std::string> retry_after;
+  std::optional<std::string> retry_after;  // raw; parse_retry_after_delay_ms trims
 };
 
 bool decode_transport_result(const Value& input, const std::string& path,

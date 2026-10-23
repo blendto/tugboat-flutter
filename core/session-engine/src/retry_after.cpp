@@ -146,22 +146,13 @@ bool parse_imf_fixdate(const std::string& value, int64_t* out_epoch_ms) {
 
 }  // namespace
 
-std::optional<std::string> trim_retry_after_field(const std::string& raw) {
+std::optional<int64_t> parse_retry_after_delay_ms(
+    const std::string& raw, std::optional<int64_t> now_wall_us,
+    int64_t cap_ms) {
   const std::string value = trim(raw);
   if (value.empty() || value.size() > kMaxRetryAfterHeaderBytes) {
     return std::nullopt;
   }
-  return value;
-}
-
-std::optional<int64_t> parse_retry_after_delay_ms(
-    const std::string& raw, std::optional<int64_t> now_wall_us,
-    int64_t cap_ms) {
-  const std::optional<std::string> trimmed = trim_retry_after_field(raw);
-  if (!trimmed) {
-    return std::nullopt;
-  }
-  const std::string& value = *trimmed;
   if (all_digits(value)) {
     return parse_delta_seconds_ms(value, cap_ms);
   }
