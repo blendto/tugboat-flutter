@@ -80,9 +80,12 @@ final class SwiftUIAdapter {
   func start() {
     guard !isStarted else { return }
     isStarted = true
+    if trackHostingControllers {
+      hostingControllers.installAppearanceObserverIfNeeded()
+    }
     seedSessionStartNavigation()
     screens.isRecording = true
-    hostingControllers.isRecording = true
+    hostingControllers.isRecording = trackHostingControllers
     screens.onEvent = { [weak self] in self?.batcher.requestFrame() }
     focus.start(center: center)
     keyWindowToken = center.addObserver(forName: UIWindow.didBecomeKeyNotification, object: nil, queue: nil) { [weak self] note in

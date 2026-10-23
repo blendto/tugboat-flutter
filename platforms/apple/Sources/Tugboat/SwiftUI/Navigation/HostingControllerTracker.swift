@@ -32,7 +32,6 @@ final class HostingControllerTracker {
   init(screens: ScreenTracker = .shared, clock: HostClock = SystemHostClock()) {
     self.screens = screens
     self.clock = clock
-    installAppearanceObserverIfNeeded()
   }
 
   /// Binds the adapter's screen registry, clock, and frame scheduler (process-scoped stack).
@@ -44,7 +43,12 @@ final class HostingControllerTracker {
 
   private static var appearanceInstalled = false
 
-  private func installAppearanceObserverIfNeeded() {
+  /// Installs the process-wide `UIViewController` appearance exchange the
+  /// first time an adapter that tracks hosting controllers starts; an app
+  /// that opts out (`trackHostingControllers: false`) is never swizzled.
+  /// It stays installed after `stop()` and records nothing while no
+  /// adapter is recording.
+  func installAppearanceObserverIfNeeded() {
     guard !HostingControllerTracker.appearanceInstalled else { return }
     HostingControllerTracker.appearanceInstalled = true
     ViewControllerAppearance.observer = { controller, appeared in

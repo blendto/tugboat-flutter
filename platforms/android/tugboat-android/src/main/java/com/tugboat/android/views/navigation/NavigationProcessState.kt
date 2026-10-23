@@ -63,9 +63,3 @@ internal object NavigationProcessState {
             }
     }
 }
-
-internal data class SessionStartSnapshot(
-    val navigatorId: String,
-    val parentNavigatorId: String?,
-    val routes: List<RouteEntry>,
-)

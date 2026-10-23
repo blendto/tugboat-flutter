@@ -153,7 +153,7 @@ internal class ViewsAdapter(
         if (!postNavigationFacts) return
         val now = clock.now()
         NavigationProcessState.sessionStartSnapshots().forEach { snapshot ->
-            emit(NavigationChange.sessionStart(snapshot).toFact(now))
+            emit(snapshot.toFact(now))
         }
     }
 

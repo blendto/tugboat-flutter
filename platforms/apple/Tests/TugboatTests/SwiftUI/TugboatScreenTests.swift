@@ -12,6 +12,7 @@ final class TugboatScreenTests: XCTestCase {
   override func tearDown() {
     hosted?.close()
     hosted = nil
+    HostingControllerTracker.shared.reset()
     super.tearDown()
   }
 
