@@ -81,7 +81,8 @@ the extras**:
   `session.start`).
 - Ten seconds later, `TUGBOAT_HEALTH` with `lifecycle` `active` when the
   engine host is still running, otherwise `dormant` (no `captureSessionId` when
-  dormant). Uses the first session's `captureSessionId` when active.
+  dormant). Uses the first session's `captureSessionId` when active. A
+  `Tugboat.stop()` before the ten-second mark cancels it: no HEALTH line.
 
 Both lines use `Log.i` with tag `Tugboat`. They never include the collector
 base URL, API key, or auth headers. Intent extra `tugboat_collector_base_url` is

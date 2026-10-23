@@ -1,3 +1,4 @@
+#if canImport(UIKit)
 import XCTest
 @testable import Tugboat
 
@@ -35,7 +36,7 @@ final class LaunchCorrelationTests: XCTestCase {
       sessionWallUs: sessionWallUs,
       isEngineActive: { engineActive },
       schedule: schedule,
-      emit: { lines.append($0) }
+      emit: { [unowned self] in self.lines.append($0) }
     )
   }
 
@@ -88,22 +89,28 @@ final class LaunchCorrelationTests: XCTestCase {
     let correlation = correlation(engineActive: false)
     correlation.startIfNeeded(parsed: captureOptions())
     drainMain()
+    XCTAssertEqual(lines.count, 2)
+    guard lines.count == 2 else { return }
     XCTAssertTrue(lines[1].contains("\"lifecycle\":\"dormant\""))
     XCTAssertFalse(lines[1].contains("captureSessionId"))
   }
 
-  func testAutomationRunIdEscapesControlCharacters() {
+  func testAutomationRunIdEscapesControlCharacters() throws {
     let runId = "run\u{01}\"x"
     let line = captureOptions(runId: runId).launchLine(sessionWallUs: 1)
     let jsonPart = String(line.dropFirst("TUGBOAT_LAUNCH ".count))
-    let object = try! JSONSerialization.jsonObject(with: Data(jsonPart.utf8)) as! [String: Any]
+    let object = try XCTUnwrap(
+      try JSONSerialization.jsonObject(with: Data(jsonPart.utf8)) as? [String: Any])
     XCTAssertEqual(object["automationRunId"] as? String, runId)
   }
 
+  /// Runs the main queue until the blocks `LaunchCorrelation` posted have run.
+  /// XCTest runs on main, so waiting on an expectation (which spins the run
+  /// loop) is the only way to let them execute.
   private func drainMain() {
-    let group = DispatchGroup()
-    group.enter()
-    DispatchQueue.main.async { group.leave() }
-    group.wait()
+    let drained = expectation(description: "main queue drained")
+    DispatchQueue.main.async { drained.fulfill() }
+    wait(for: [drained], timeout: 2)
   }
 }
+#endif

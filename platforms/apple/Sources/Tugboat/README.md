@@ -93,7 +93,8 @@ When either scene-inventory or action-context is enabled (`1` / `true` /
 `captureSessionId` comes from the first `session.start` clock reading.
 `TUGBOAT_HEALTH` uses `lifecycle` `active` when the engine host and session
 are still live at the ten-second mark, otherwise `dormant` without
-`captureSessionId`. Lines never include collector URL or API material.
+`captureSessionId`. A `Tugboat.stop()` before the ten-second mark cancels the
+HEALTH line. Lines never include collector URL or API material.
 `TUGBOAT_COLLECTOR_BASE_URL` is not applied in v1 (collector override is out
 of scope here). A later `stop` and `start` does not emit new lines. Device
 Farm exploration tooling does not read iOS device logs today; hosted iOS runs

@@ -46,7 +46,14 @@ class LaunchCorrelationRuntimeTest {
             stopSequence = StopSequence(maxDrainMs = 10),
         )
         assertNotNull(runtime)
+        try {
+            assertLaunchIdMatchesSessionStart(transport)
+        } finally {
+            runtime?.stop()
+        }
+    }
 
+    private fun assertLaunchIdMatchesSessionStart(transport: FakeEngineTransport) {
         Robolectric.buildActivity(
             Activity::class.java,
             Intent().putExtras(Bundle().apply { putString(LaunchExtraKeys.EMIT_SCENE_INVENTORY, "1") }),
@@ -62,7 +69,5 @@ class LaunchCorrelationRuntimeTest {
             .first { it.contains("TUGBOAT_LAUNCH") }
         val launchJson = JSONObject(launchLine.removePrefix("TUGBOAT_LAUNCH ").trim())
         assertEquals("session-$wallUs", launchJson.getString("captureSessionId"))
-
-        runtime!!.stop()
     }
 }

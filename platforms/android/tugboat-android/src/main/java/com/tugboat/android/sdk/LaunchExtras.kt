@@ -9,7 +9,6 @@ import org.json.JSONObject
 internal object LaunchExtraKeys {
     const val EMIT_SCENE_INVENTORY = "tugboat_emit_scene_inventory"
     const val ACCEPT_ACTION_CONTEXT = "tugboat_accept_action_context"
-    const val COLLECTOR_BASE_URL = "tugboat_collector_base_url"
     const val AUTOMATION_RUN_ID = "tugboat_automation_run_id"
 }
 

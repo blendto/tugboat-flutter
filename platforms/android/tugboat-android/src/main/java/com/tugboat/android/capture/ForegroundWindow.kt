@@ -67,8 +67,14 @@ internal class ForegroundWindow(
         releaseWaiting()
     }
 
-    override fun onActivityResumed(activity: Activity) = AdapterGuard.run("foreground resumed") {
-        onResumed(activity)
+    override fun onActivityResumed(activity: Activity) {
+        // Its own guard: reading launch extras can throw (an unloadable
+        // Parcelable), and that must not cost foreground tracking.
+        AdapterGuard.run("launch correlation") { onResumed(activity) }
+        trackResumed(activity)
+    }
+
+    private fun trackResumed(activity: Activity) = AdapterGuard.run("foreground resumed") {
         this.activity = WeakReference(activity)
         val view = activity.window?.peekDecorView() ?: return@run
         if (view !== decor) {
