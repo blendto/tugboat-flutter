@@ -339,7 +339,8 @@ ExecutionResult CaptureSeam::execute_captured(EngineState* state,
       ExecutionResult reused;
       reused.outcome = CaptureOutcome::kExactContentReused;
       reused.frame_id = frames_.reuse(
-          *frames_.frame_with_content(frame.content_hash), context);
+          *frames_.frame_with_content(frame.content_hash, frame.mask_coverage),
+          context);
       reused.reuse_reason = std::string("content_hash");
       frames_.commit_baselines(frame);
       return with_backend(std::move(reused), frame);

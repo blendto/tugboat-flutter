@@ -420,12 +420,14 @@ scheduler:
   boundary generation, or capture generation changed: never reaches the
   host); then the host's answer: paint-unchanged reuse, perceptual
   coalescing (the offered `dHashBaseline` matched under the same
-  structure), exact-content reuse (the newest compatible retained frame
-  with the same `contentHash`, kept only when it also has, change C21,
-  the same `maskCoverage` mode and reasons; an older frame with that hash
-  is not considered), or `fresh_accepted`. An answer whose context went
-  stale meanwhile is `superseded_route_epoch`. Each waiter keeps the frame
-  only when it is compatible with its own context.
+  structure), exact-content reuse (the newest retained frame with the
+  same `contentHash` and, change C21, the same `maskCoverage` mode and
+  reasons, when it is compatible; a newer frame with the same pixels
+  under other coverage does not hide it, so the frame from before an
+  overlay is reused once the overlay is gone), or `fresh_accepted`. An
+  answer whose context went stale meanwhile is `superseded_route_epoch`.
+  Each waiter keeps the frame only when it is compatible with its own
+  context.
 - **Ids and diagnostics.** One `capture_execution-N` per execution (one per
   request for cancellations and rejections), in Dart's order. With
   `capabilities.captureDiagnostics` every resolution records

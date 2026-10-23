@@ -69,13 +69,13 @@ CapturedDisposition classify_captured(const FrameStore& frames,
     return CapturedDisposition::kCoalesced;
   }
   const ScheduledCapture& scheduled = capture.capture;
-  const OptString existing = frames.frame_with_content(frame.content_hash);
-  // Change C21: a frame masked with different coverage is other evidence,
-  // even with the same pixels.
+  // Change C21: only a frame masked with the same coverage is the same
+  // evidence; the same pixels under other coverage are not a candidate.
+  const OptString existing =
+      frames.frame_with_content(frame.content_hash, frame.mask_coverage);
   if (!scheduled.force &&
       scheduled.freshness == CaptureFreshness::kReusable && existing &&
-      frames.is_compatible(*existing, scheduled.context) &&
-      frames.same_mask_coverage(*existing, frame.mask_coverage)) {
+      frames.is_compatible(*existing, scheduled.context)) {
     return CapturedDisposition::kContentReused;
   }
   return CapturedDisposition::kAccepted;
