@@ -111,7 +111,11 @@ object Tugboat {
     @JvmStatic
     fun trackNavigation(navController: NavController) = onMain("trackNavigation") {
         NavigationTracking.track(navController) { activity, current, previous ->
-            runtime?.onNavDestination(activity, current, previous)
+            com.tugboat.android.views.navigation.NavigationObservation.onNavDestination(
+                activity,
+                current,
+                previous,
+            )
         }
     }
 

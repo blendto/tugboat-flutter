@@ -1,5 +1,6 @@
 #include "navigation_facts.h"
 
+#include <set>
 #include <utility>
 
 #include "name_table.h"
@@ -117,12 +118,16 @@ bool decode_routes(const ObjectReader& parent, NavigationFact* out,
     return parent.reject("routes", "must not be empty");
   }
   out->routes.reserve(items.size());
+  std::set<std::string> seen_instance_ids;
   for (size_t i = 0; i < items.size(); ++i) {
     FactRoute route;
     const std::string path =
         parent.child("routes") + "[" + std::to_string(i) + "]";
     const ObjectReader item(items[i], path, error);
     if (!decode_route(items[i], path, &route, error)) return false;
+    if (!seen_instance_ids.insert(route.instance_id).second) {
+      return item.reject("instanceId", "duplicate");
+    }
     if (route.transition_ms != 0) {
       return item.reject("transitionMs", "must be 0 for session_start routes");
     }

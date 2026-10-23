@@ -497,8 +497,15 @@ a route below the top (same as Flutter `asSessionStartWireChange`), and
 `navigationOrigin: automatic_or_unknown`. Outside a live session the fact is
 dropped like every event-producing fact. When the navigator already has a
 stack in the current session, the fact is accepted and dropped with no
-record (it does not poison a batch). Nested navigators send one
-`session_start` each (parent first).
+record (it does not poison a batch). Adapters may send seeds in any order;
+a child seed may precede its parent (`NavigatorRegistry::navigator` mints
+the parent). The last seed's top route is the visible route; adapters send
+the visible chain last. Each nested navigator still sends one `session_start`.
+While no live push, pop, or replace has run in the session, each
+`session_start` re-stamps the session's `initial` capture context (queued,
+in flight, or already accepted) to the newly visible route so the first tap
+has a compatible before-frame, matching Flutter's outcome when
+`seedSessionStartRoute()` runs before the initial capture request.
 
 `route` is the destination: the pushed route, the replacement, or the route
 a pop or removal reveals; it is absent when none is (Dart's `previousRoute`

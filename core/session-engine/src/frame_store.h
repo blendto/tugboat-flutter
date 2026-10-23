@@ -15,6 +15,7 @@
 #include "capture_types.h"
 #include "frame_retention.h"
 #include "models.h"
+#include "route_change.h"
 #include "output.h"
 #include "session.h"
 
@@ -70,6 +71,10 @@ class FrameStore {
  public:
   // Session start: forgets every frame and baseline.
   void reset();
+
+  // While no live navigation has run, session_start seeds restamp `initial`
+  // frame provenance to the seeded visible route.
+  void restamp_initial_route(const VisibleRoute& visible);
 
   // Dart `_publishPhysicalCaptureResult`: mints `frame-N`, appends it to
   // `session` (trimming beyond `max_frames`), emits its frame record, and

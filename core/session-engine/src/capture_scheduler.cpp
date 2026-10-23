@@ -115,5 +115,32 @@ std::string CaptureScheduler::next_host_request_id() {
   return "capture-" + std::to_string(host_requests_++);
 }
 
+namespace {
+
+void stamp_initial_route_onto(RequestContext* context,
+                              const VisibleRoute& visible) {
+  if (context->trigger != FrameTrigger::kInitial) return;
+  context->route = visible.route;
+  context->navigator_id = visible.navigator_id;
+  context->route_instance_id = visible.route_instance_id;
+}
+
+}  // namespace
+
+void CaptureScheduler::restamp_initial_route(const VisibleRoute& visible) {
+  for (ScheduledCapture& scheduled : queue_) {
+    stamp_initial_route_onto(&scheduled.context, visible);
+    for (CaptureWaiter& waiter : scheduled.waiters) {
+      stamp_initial_route_onto(&waiter.context, visible);
+    }
+  }
+  if (in_flight_.has_value()) {
+    stamp_initial_route_onto(&in_flight_->capture.context, visible);
+    for (CaptureWaiter& waiter : in_flight_->capture.waiters) {
+      stamp_initial_route_onto(&waiter.context, visible);
+    }
+  }
+}
+
 }  // namespace engine
 }  // namespace tugboat

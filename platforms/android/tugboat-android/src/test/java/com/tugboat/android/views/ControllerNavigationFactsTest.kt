@@ -49,7 +49,9 @@ class ControllerNavigationFactsTest {
         val activityRoute = activityPush.bottomRouteInstanceId()
 
         val controller = rowsController(activity)
-        NavigationTracking.track(controller) { a, current, previous -> adapter.onNavDestination(a, current, previous) }
+        NavigationTracking.track(controller) { a, current, previous ->
+            NavigationObservation.onNavDestination(a, current, previous)
+        }
         val start = navigation().single()
         assertEquals("push", start.getString("kind"))
         controller.navigate("row/3")
@@ -89,7 +91,9 @@ class ControllerNavigationFactsTest {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         navigation()
         val controller = rowsController(activity)
-        NavigationTracking.track(controller) { a, current, previous -> adapter.onNavDestination(a, current, previous) }
+        NavigationTracking.track(controller) { a, current, previous ->
+            NavigationObservation.onNavDestination(a, current, previous)
+        }
         controller.navigate("row/1")
         navigation()
 
@@ -105,12 +109,14 @@ class ControllerNavigationFactsTest {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         navigation()
         val controller = rowsController(activity)
-        NavigationTracking.track(controller) { a, current, previous -> adapter.onNavDestination(a, current, previous) }
+        NavigationTracking.track(controller) { a, current, previous ->
+            NavigationObservation.onNavDestination(a, current, previous)
+        }
         navigation()
 
         // The same back-stack entry reported again (as after a recreation restores it).
         val entry = checkNotNull(controller.currentBackStackEntry)
-        adapter.onNavDestination(
+        NavigationObservation.onNavDestination(
             activity,
             com.tugboat.android.views.navigation.NavEntry(entry.id, entry.destination.route, entry.destination.id),
             null,

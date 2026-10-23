@@ -43,6 +43,10 @@
       {
         "send": {"type": "navigation", "at": {"monoUs": 5500000}, "input": {"kind": "session_start", "navigatorId": "root", "routes": [{"instanceId": "a", "name": "/x", "type": "Page", "overlayKind": "page", "transitionMs": 350}]}},
         "expect": {"error": {"status": "invalid_message", "path": "$.input.routes[0].transitionMs"}}
+      },
+      {
+        "send": {"type": "navigation", "at": {"monoUs": 5600000}, "input": {"kind": "session_start", "navigatorId": "root", "routes": [{"instanceId": "a", "name": "/x", "type": "Page", "overlayKind": "page", "transitionMs": 0}, {"instanceId": "a", "name": "/y", "type": "Page", "overlayKind": "page", "transitionMs": 0}]}},
+        "expect": {"error": {"status": "invalid_message", "path": "$.input.routes[1].instanceId"}}
       }
     ]
   },

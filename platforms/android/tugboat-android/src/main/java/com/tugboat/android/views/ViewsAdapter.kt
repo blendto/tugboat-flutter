@@ -18,7 +18,6 @@ import com.tugboat.android.views.input.FocusState
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.android.views.mask.WindowMasks
-import com.tugboat.android.views.navigation.NavEntry
 import com.tugboat.android.views.navigation.NavigationChange
 import com.tugboat.android.views.navigation.NavigationObservation
 import com.tugboat.android.views.navigation.NavigationProcessState
@@ -110,9 +109,6 @@ internal class ViewsAdapter(
 
     fun onDestinationChanged(activity: Activity, route: String?, destinationId: Int) =
         NavigationObservation.onDestinationChanged(activity, route, destinationId)
-
-    fun onNavDestination(activity: Activity, current: NavEntry, previous: NavEntry?) =
-        NavigationObservation.onNavDestination(activity, current, previous)
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
         AdapterGuard.run("activity created") { session(activity).ensureAttached() }

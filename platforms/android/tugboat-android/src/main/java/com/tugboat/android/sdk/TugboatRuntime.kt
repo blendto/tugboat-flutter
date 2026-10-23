@@ -23,7 +23,6 @@ import com.tugboat.android.host.HttpExecutor
 import com.tugboat.android.host.SystemHostClock
 import com.tugboat.android.views.ViewsAdapter
 import com.tugboat.android.views.facts.FactSink
-import com.tugboat.android.views.navigation.NavEntry
 import com.tugboat.android.views.input.GestureConfig
 
 /**
@@ -51,9 +50,6 @@ internal class TugboatRuntime private constructor(
 
     /** [traitsInput] is a [SessionMessages.traits] input. */
     fun setTraits(traitsInput: String) = host.post(SessionMessages.TRAITS_SET, traitsInput, clock.now())
-
-    fun onNavDestination(activity: Activity, current: NavEntry, previous: NavEntry?) =
-        adapter.onNavDestination(activity, current, previous)
 
     /**
      * Detaches every observer (pending facts are posted first), ends the

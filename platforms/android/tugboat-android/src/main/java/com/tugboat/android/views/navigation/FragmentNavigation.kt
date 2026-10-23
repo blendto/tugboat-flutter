@@ -160,7 +160,7 @@ internal class FragmentNavigation(
         }
         val navigatorId = "$hostId/fragments"
         navigatorsByHost.getOrPut(hostId) { HashSet() } += navigatorId
-        return NavigationProcessState.fragmentStack(navigatorId, parentNavigatorId)
+        return NavigationProcessState.fragmentStack(navigatorId, parentNavigatorId, hostId)
     }
 
     private fun dropNavigatorsHostedBy(hostId: String) {

@@ -14,21 +14,53 @@ internal object NavigationProcessState {
     private val fragmentStacks = HashMap<String, NavigatorStack>()
     private val controllerStacks = HashMap<String, NavigatorStack>()
 
+    /** Task of the most recently resumed activity; seeds visit that root last. */
+    var lastResumedTaskId: Int? = null
+
     /** Clears process stacks (unit tests only). */
     internal fun resetForTests() {
         activityStacks.clear()
         fragmentStacks.clear()
         controllerStacks.clear()
+        lastResumedTaskId = null
+    }
+
+    fun noteResumed(taskId: Int) {
+        lastResumedTaskId = taskId
     }
 
     fun activityStack(taskId: Int, navigatorId: String): NavigatorStack =
-        activityStacks.getOrPut(taskId) { NavigatorStack(navigatorId, null) }
+        activityStacks.getOrPut(taskId) {
+            NavigatorStack(navigatorId, null, hostKind = NavigatorHostKind.ActivityTask)
+        }
 
-    fun fragmentStack(navigatorId: String, parentNavigatorId: String): NavigatorStack =
-        fragmentStacks.getOrPut(navigatorId) { NavigatorStack(navigatorId, parentNavigatorId) }
+    fun fragmentStack(
+        navigatorId: String,
+        parentNavigatorId: String,
+        hostRouteInstanceId: String,
+    ): NavigatorStack =
+        fragmentStacks.getOrPut(navigatorId) {
+            NavigatorStack(
+                navigatorId,
+                parentNavigatorId,
+                hostRouteInstanceId,
+                NavigatorHostKind.Fragments,
+            )
+        }
 
-    fun controllerStack(navigatorId: String, parentNavigatorId: String): NavigatorStack =
-        controllerStacks.getOrPut(navigatorId) { NavigatorStack(navigatorId, parentNavigatorId) }
+    fun controllerStack(
+        navigatorId: String,
+        parentNavigatorId: String,
+        hostRouteInstanceId: String,
+    ): NavigatorStack =
+        controllerStacks.getOrPut(navigatorId) {
+            NavigatorStack(
+                navigatorId,
+                parentNavigatorId,
+                hostRouteInstanceId,
+                NavigatorHostKind.Nav,
+            )
+        }
 
     fun forgetFragmentNavigator(navigatorId: String) {
         fragmentStacks.remove(navigatorId)
@@ -48,41 +80,71 @@ internal object NavigationProcessState {
             ?: controllerStacks[navigatorId]
 
     /**
-     * Non-empty stacks in the order the engine must apply their seeds: each
-     * activity task, then, for each of its routes bottom to top, the
-     * navigators that route hosts (`<route instanceId>/fragments` before
-     * `<route instanceId>/nav`), depth first. Parents precede children
-     * (stateful-engine.md 8.1) and the chain under every top route comes
-     * last, so the engine's visible route ends on the visible screen; ids
-     * are never compared as strings (`activity-11` vs `activity-8`).
-     * Navigators whose host route is gone come first, where they cannot
-     * become the visible route.
+     * Non-empty stacks for `session_start`: orphans first, then each activity
+     * task (background tasks first, the foreground task last). Per task:
+     * navigators hosted by covered routes, the task stack, then the visible
+     * chain under the top route (`fragments` before `nav` at each level).
+     * The last seed is the deepest visible navigator, or the root stack when
+     * the top route hosts nothing.
      */
     fun sessionStartSnapshots(): List<SessionStartSnapshot> {
-        val hosted = (fragmentStacks.values + controllerStacks.values)
-            .filter { it.top != null }
-            .groupBy { it.navigatorId.substringBeforeLast('/') }
+        val hostedStacks = (fragmentStacks.values + controllerStacks.values).filter { it.top != null }
+        val hostedByRoute = hostedStacks.groupBy { it.hostRouteInstanceId }
+        val liveRouteIds = HashSet<String>()
+        fun collectRouteIds(stack: NavigatorStack) {
+            stack.all().forEach { liveRouteIds.add(it.instanceId) }
+        }
+        activityStacks.values.forEach { collectRouteIds(it) }
+        fragmentStacks.values.forEach { collectRouteIds(it) }
+        controllerStacks.values.forEach { collectRouteIds(it) }
+
         val out = ArrayList<SessionStartSnapshot>()
         val visited = HashSet<String>()
-        fun visit(stack: NavigatorStack) {
+
+        fun hostedOrder(a: NavigatorStack, b: NavigatorStack): Int {
+            val rankA = if (a.hostKind == NavigatorHostKind.Fragments) 0 else 1
+            val rankB = if (b.hostKind == NavigatorHostKind.Fragments) 0 else 1
+            return rankA - rankB
+        }
+
+        fun emit(stack: NavigatorStack) {
             if (!visited.add(stack.navigatorId)) return
             out.add(SessionStartSnapshot(stack.navigatorId, stack.parentNavigatorId, stack.all()))
-            stack.all().forEach { entry -> hosted[entry.instanceId]?.sortedBy(::hostedOrder)?.forEach(::visit) }
         }
-        val roots = activityStacks.entries.sortedBy { it.key }.map { it.value }.filter { it.top != null }
-        val hostIds = roots.flatMap { root -> root.all().map { it.instanceId } }.toHashSet()
-        val reachable = HashSet<String>()
-        fun mark(hostId: String) {
-            hosted[hostId]?.forEach { child ->
-                if (reachable.add(child.navigatorId)) child.all().forEach { mark(it.instanceId) }
+
+        fun walkNavigatorStack(stack: NavigatorStack) {
+            fun walkHostedFromRoute(hostRouteId: String?) {
+                if (hostRouteId == null) return
+                val children = hostedByRoute[hostRouteId]?.sortedWith(::hostedOrder) ?: return
+                for (child in children) walkNavigatorStack(child)
             }
+            val topId = stack.top?.instanceId
+            for (entry in stack.all()) {
+                if (entry.instanceId != topId) walkHostedFromRoute(entry.instanceId)
+            }
+            emit(stack)
+            walkHostedFromRoute(topId)
         }
-        hostIds.forEach(::mark)
-        hosted.values.flatten().filter { it.navigatorId !in reachable }.sortedBy(::hostedOrder).forEach(::visit)
-        roots.forEach(::visit)
+
+        hostedStacks
+            .filter { it.hostRouteInstanceId != null && it.hostRouteInstanceId !in liveRouteIds }
+            .sortedWith(
+                compareBy<NavigatorStack> { it.navigatorId }
+                    .thenBy { if (it.hostKind == NavigatorHostKind.Fragments) 0 else 1 },
+            )
+            .forEach { emit(it) }
+
+        val foreground = lastResumedTaskId
+        val roots = activityStacks.entries
+            .filter { it.value.top != null }
+            .sortedWith(
+                compareBy<Map.Entry<Int, NavigatorStack>> { (taskId, _) ->
+                    if (foreground != null && taskId == foreground) 1 else 0
+                }.thenBy { it.key },
+            )
+            .map { it.value }
+
+        roots.forEach(::walkNavigatorStack)
         return out
     }
-
-    /** `/fragments` before `/nav` under the same host route. */
-    private fun hostedOrder(stack: NavigatorStack): Int = if (stack.navigatorId.endsWith("/nav")) 1 else 0
 }

@@ -28,6 +28,7 @@ void apply_navigation(const ModuleRegistry&, EngineState* state,
     const std::string event_id = state->ids.next("event");
     record_route_change(turn, event_id, *change, std::nullopt,
                         RouteChangeCapture{});
+    state->captures.restamp_initial_route_from_visible(state);
     return;
   }
   std::optional<VisibleRouteChange> change = resolve_route_change(turn, fact);
@@ -58,6 +59,7 @@ void reset_for_session(const At&, EngineState* state, Output*) {
   NavigationState& navigation = state->navigation;
   navigation.registry.clear();
   navigation.visible = VisibleRoute{};
+  navigation.live_navigation_seen = false;
   navigation.visual_generation = 0;
 }
 

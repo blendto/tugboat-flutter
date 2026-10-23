@@ -37,6 +37,8 @@ struct RouteCaptures {
 struct NavigationState {
   NavigatorRegistry registry;
   VisibleRoute visible;
+  // True after the first live push, pop, or replace in the session.
+  bool live_navigation_seen = false;
   // Never reset, so frames of an old session never match a new one.
   int64_t route_epoch = 0;
   int64_t visual_generation = 0;

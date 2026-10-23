@@ -74,7 +74,7 @@ final class HostingControllerTracker {
       guard let known = ids.existingId(of: controller) else { return }
       change = stack.disappeared(instanceId: known)
     }
-    record(change, at: FactClock(clock: clock).now())
+    record(change, at: clock.now())
   }
 
   func sessionStartFact(at: HostTime) -> AdapterFact? {

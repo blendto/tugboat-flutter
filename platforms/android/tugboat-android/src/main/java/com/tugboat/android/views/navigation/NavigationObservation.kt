@@ -10,8 +10,8 @@ import com.tugboat.android.views.facts.FrameScheduler
 
 /**
  * Process-scoped navigation observation (activity, fragment, and NavController
- * stacks). Registered on the first adapter [start] and left registered after
- * [com.tugboat.android.views.ViewsAdapter.stop]; stacks keep updating while
+ * stacks). Installed from the first [com.tugboat.android.views.ViewsAdapter]
+ * construction and left registered after [stop]; stacks keep updating while
  * stopped but nothing is emitted until a recording adapter is attached.
  *
  * Main thread only.
@@ -110,30 +110,20 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
     fun onNavDestination(activity: Activity, current: NavEntry, previous: NavEntry?) =
         AdapterGuard.run("nav destination") {
             destinations.onDestinationChanged(activity, current.route, current.destinationId)
-            val navigatorId = ControllerNavigation.navigatorIdFor(ensureEntry(activity).instanceId)
+            val hostRoute = ensureEntry(activity).instanceId
+            val navigatorId = ControllerNavigation.navigatorIdFor(hostRoute)
             val routeKey =
                 destinations.routeKey(activity, current.route, current.destinationId)
                     ?: ControllerNavigation.TYPE
-            onNavDestination(
-                activity,
+            controllers.onDestinationChanged(
                 navigatorId,
                 navigatorIdOf(activity),
+                hostRoute,
                 current,
                 routeKey,
                 previous,
             )
         }
-
-    fun onNavDestination(
-        activity: Activity,
-        navigatorId: String,
-        parentNavigatorId: String,
-        current: NavEntry,
-        routeKey: String,
-        previous: NavEntry?,
-    ) = AdapterGuard.run("nav destination") {
-        controllers.onDestinationChanged(navigatorId, parentNavigatorId, current, routeKey, previous)
-    }
 
     private fun report(change: NavigationChange) {
         recording?.invoke(change)

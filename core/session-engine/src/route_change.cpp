@@ -61,6 +61,7 @@ RouteSurface resolve_surface(NavigatorRegistry* registry,
           destination ? destination : registry->top(surface.navigator_id);
       break;
     case NavigationKind::kSessionStart:
+      // Handled by `resolve_session_start_route_change`, not live surfaces.
       break;
   }
   return surface;
@@ -168,6 +169,16 @@ void put_presentation(Value* data, const VisibleRouteChange& change) {
 
 // Dart `_liveRouteCauseFingerprint`: the cause's fingerprint and gesture as
 // they are now, while it is unpublished; else as they were at claim time.
+void fill_route_stack_envelope(VisibleRouteChange* change,
+                               NavigatorRegistry* registry,
+                               const std::string& navigator_id,
+                               int64_t route_stack_limit) {
+  change->route_stack =
+      registry->stack_snapshot(navigator_id, route_stack_limit);
+  change->route_stack_truncated =
+      registry->stack_truncated(navigator_id, route_stack_limit);
+}
+
 void put_live_cause(Value* data, const EngineState& state,
                     const VisibleRouteChange& change) {
   if (!change.cause) return;
@@ -231,11 +242,8 @@ std::optional<VisibleRouteChange> resolve_route_change(
         surface.navigator_id, *surface.route_instance_id, overlay,
         fact.kind == NavigationKind::kPush);
   }
-  const int64_t limit = state.config.navigation.route_stack_limit;
-  change.route_stack =
-      navigation.registry.stack_snapshot(surface.navigator_id, limit);
-  change.route_stack_truncated =
-      navigation.registry.stack_truncated(surface.navigator_id, limit);
+  fill_route_stack_envelope(&change, &navigation.registry, surface.navigator_id,
+                            state.config.navigation.route_stack_limit);
   return change;
 }
 
@@ -270,7 +278,6 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
 
   if (!top_identity || !top_instance) return std::nullopt;
 
-  const int64_t limit = state.config.navigation.route_stack_limit;
   VisibleRouteChange change;
   change.kind = NavigationKind::kSessionStart;
   change.updates_route = true;
@@ -286,10 +293,8 @@ std::optional<VisibleRouteChange> resolve_session_start_route_change(
   change.visual_generation = navigation.visual_generation;
   change.presentation = navigation.registry.presentation(
       navigator_id, *top_instance, top_overlay, true);
-  change.route_stack =
-      navigation.registry.stack_snapshot(navigator_id, limit);
-  change.route_stack_truncated =
-      navigation.registry.stack_truncated(navigator_id, limit);
+  fill_route_stack_envelope(&change, &navigation.registry, navigator_id,
+                            state.config.navigation.route_stack_limit);
   apply_visible_route(change, &navigation.visible);
   return change;
 }

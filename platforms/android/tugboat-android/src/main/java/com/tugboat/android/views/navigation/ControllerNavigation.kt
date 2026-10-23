@@ -33,11 +33,12 @@ internal class ControllerNavigation(private val report: (NavigationChange) -> Un
     fun onDestinationChanged(
         navigatorId: String,
         parentNavigatorId: String,
+        hostRouteInstanceId: String,
         current: NavEntry,
         routeKey: String,
         previous: NavEntry?,
     ) {
-        val stack = NavigationProcessState.controllerStack(navigatorId, parentNavigatorId)
+        val stack = NavigationProcessState.controllerStack(navigatorId, parentNavigatorId, hostRouteInstanceId)
         val known = entries[key(navigatorId, current.id)]
         val change = when {
             known != null && known in stack -> stack.popTo(known)

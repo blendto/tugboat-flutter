@@ -214,5 +214,17 @@ OptString FrameStore::observed_after(
   return frame_id;
 }
 
+void FrameStore::restamp_initial_route(const VisibleRoute& visible) {
+  for (auto& entry : provenance_) {
+    FrameProvenance& frame = entry.second;
+    if (!frame.available || frame.context.trigger != FrameTrigger::kInitial) {
+      continue;
+    }
+    frame.context.route = visible.route;
+    frame.context.navigator_id = visible.navigator_id;
+    frame.context.route_instance_id = visible.route_instance_id;
+  }
+}
+
 }  // namespace engine
 }  // namespace tugboat

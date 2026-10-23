@@ -39,6 +39,7 @@ internal class ActivityNavigation(private val report: (NavigationChange) -> Unit
     }
 
     fun onResumed(activity: Activity) {
+        NavigationProcessState.noteResumed(activity.taskId)
         val stack = NavigationProcessState.activityStack(activity.taskId, navigatorIdOf(activity))
         stack.onShown(ensureEntry(activity))?.let(report)
     }

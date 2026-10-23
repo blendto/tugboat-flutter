@@ -1,8 +1,11 @@
 package com.tugboat.android.views
 
+import android.app.Activity
 import com.tugboat.android.host.FakeClock
-import org.json.JSONObject
+import com.tugboat.android.sdk.NavigationTracking
+import com.tugboat.android.sdk.rowsController
 import com.tugboat.android.views.navigation.NavigationObservation
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Assert.assertTrue
@@ -79,6 +82,35 @@ class SessionStartNavigationTest {
             NavigationFactsTest.SecondActivity::class.java.name,
             routes.getJSONObject(routes.length() - 1).getString("name"),
         )
+        adapter.stop()
+    }
+
+    @Test
+    fun navControllerChangesWhileStoppedAreSeededOnStart() {
+        val adapter = ViewsAdapter(
+            application = context as android.app.Application,
+            sink = sink,
+            hostClock = FakeClock(),
+            frames = frames,
+            postNavigationFacts = true,
+        )
+        adapter.start()
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val controller = rowsController(activity)
+        NavigationTracking.track(controller) { a, current, previous ->
+            NavigationObservation.onNavDestination(a, current, previous)
+        }
+        drainNavigation()
+        adapter.stop()
+
+        controller.navigate("row/3")
+        sink.batches.clear()
+        adapter.start()
+        val navSeed = drainNavigation().single {
+            it.getString("kind") == "session_start" && it.getString("navigatorId").endsWith("/nav")
+        }
+        val routes = navSeed.getJSONArray("routes")
+        assertEquals("row", routes.getJSONObject(routes.length() - 1).getString("name"))
         adapter.stop()
     }
 
