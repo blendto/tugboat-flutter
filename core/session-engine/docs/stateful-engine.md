@@ -845,7 +845,7 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C2 | A flush trigger during a pass schedules a follow-up pass | Trigger dropped; up to 3 s extra latency | timing only | Yes |
 | C3 | Timeout on JSON posts | None; one hung request stalls all delivery | no | Yes, `jsonTimeoutMs` 15000 |
 | C4 | Exponential retry backoff with jitter | Retries paced only by flush triggers | timing only | Later, after the durable outbox |
-| C5 | `session_end` waits for a bounded drain and keeps retrying | `session_end` goes first; never retried after failure | order: frames/events no longer arrive after `session_end` | Yes |
+| C5 | `session_end` waits for a bounded drain and keeps retrying | `session_end` goes first. Before 0.10.11-dev.5 it was never retried after failure; Flutter 0.10.11-dev.5+ re-posts a retried `session_end` on the periodic flush (`eventFlushInterval`) until it is accepted or dropped (a dropped one is settled, as the native `SessionEndWatcher.isFinal`), then stops the flush; there is no events/frames drain | order: frames/events no longer arrive after `session_end` | Yes |
 | C6 | Delivery gaps become engine records; event-lane drops can also report gaps | Frame lane only; invisible to other sinks | new `component` values | Records: yes. Event-lane gaps: opt-in, default off |
 | C7 | Per-engine id counter and non-contiguous `frameNo` | as stated | no | Keep (no change) |
 | C8 | 202-only acceptance | 200/201/204 count as drops | no | Keep (Q3) |

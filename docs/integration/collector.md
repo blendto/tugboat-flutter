@@ -341,6 +341,9 @@ Lifecycle backgrounding also asks the sink hub to flush. Session end flushes
 pending events before queueing the final lifecycle message (`session_end`),
 except while the events lane waits on a `Retry-After` (below): then
 `session_end` is queued without waiting for those events, which stay queued.
+A `session_end` with a retry outcome is re-posted on the periodic flush until
+it is accepted or dropped (a dropped one is not re-posted); then the periodic
+flush stops.
 
 The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
 `429`, and `5xx`; other response codes are dropped. Retry batches, unsent

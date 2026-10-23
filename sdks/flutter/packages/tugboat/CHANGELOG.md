@@ -22,8 +22,10 @@ Prerelease.
   queued while the events lane waits. Delta-seconds and IMF-fixdate forms are
   accepted (ASCII whitespace trimmed); unparseable or oversize values are
   ignored. Waits use a monotonic clock.
-- After `endSession`, the periodic flush keeps running until `session_end` is
-  accepted, so a `session_end` that is waiting or retrying still goes out.
+- After `endSession`, a `session_end` with a retry outcome (transport error,
+  408, 429, 5xx) is re-posted on the periodic flush (`eventFlushInterval`)
+  until it is accepted or dropped. A dropped one (any other non-202 status)
+  is settled and never re-posted; either way the periodic flush then stops.
 
 ## 0.10.11-dev.4
 
