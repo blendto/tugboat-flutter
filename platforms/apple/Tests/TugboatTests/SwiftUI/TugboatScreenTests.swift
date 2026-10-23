@@ -9,11 +9,44 @@ import XCTest
 final class TugboatScreenTests: XCTestCase {
   private var hosted: HostedWindow?
 
+  override func setUp() {
+    super.setUp()
+    TugboatScreenTests.dismissLeftoverPresentations()
+  }
+
   override func tearDown() {
     hosted?.close()
     hosted = nil
     HostingControllerTracker.shared.reset()
+    TugboatScreenTests.dismissLeftoverPresentations()
     super.tearDown()
+  }
+
+  /// The test host's own key window (its connected scene's), not a
+  /// `HostedWindow`.
+  private static func hostKeyWindow() -> UIWindow? {
+    let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }
+    return windows.first { $0.isKeyWindow } ?? windows.first
+  }
+
+  /// Dismisses what earlier tests left presented (sheets of closed hosted
+  /// windows leave `UITransitionView` / `UIDropShadowView` behind).
+  private static func dismissLeftoverPresentations() {
+    let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }
+    let presenting = windows.compactMap { $0.rootViewController }.filter { $0.presentedViewController != nil }
+    guard !presenting.isEmpty else { return }
+    presenting.forEach { $0.dismiss(animated: false) }
+    RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+  }
+
+  /// Spins the run loop until `condition` holds or `timeout` passes.
+  private static func wait(timeout: TimeInterval = 3, until condition: () -> Bool) -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !condition() {
+      if Date() > deadline { return false }
+      RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    }
+    return true
   }
 
   /// The top screen after applying queued callbacks.
@@ -164,29 +197,32 @@ final class TugboatScreenTests: XCTestCase {
     XCTAssertEqual(tracker.entries(of: "swiftui-screens")?.map { $0.name }, ["Shell"])
   }
 
-  /// The sheet is presented only once the window is up and Details has
-  /// appeared (a sheet presented while the window is created never shows
-  /// in the test host). "Not presented" and "landed on the wrong
-  /// navigator" fail with different messages.
+  /// Presented from the test host's key window (its root view controller
+  /// presents the presenter full screen), and the sheet only once Details
+  /// has appeared. "Not presented" and "landed on the wrong navigator" fail
+  /// with different messages.
   func testAScreenPresentedAsASheetIsASheetRouteOnThePresentingNavigator() throws {
     let tracker = ScreenTracker(clock: ManualClock())
     tracker.isRecording = true
     let toggle = SheetToggle()
-    let window = HostedWindow(SheetPresenter(tracker: tracker, toggle: toggle).tugboatNavigator("tabA"))
-    hosted = window
-    window.window.makeKeyAndVisible()
+    let window = try XCTUnwrap(TugboatScreenTests.hostKeyWindow(), "the test host has no scene window")
+    let root = try XCTUnwrap(window.rootViewController, "the test host's key window has no root view controller")
+    let presenter = UIHostingController(rootView: SheetPresenter(tracker: tracker, toggle: toggle).tugboatNavigator("tabA"))
+    presenter.modalPresentationStyle = .fullScreen
+    root.present(presenter, animated: false)
     defer {
       toggle.presented = false
-      window.window.rootViewController?.dismiss(animated: false)
+      root.dismiss(animated: false)
     }
-    XCTAssertTrue(window.wait { self.top(tracker)?.name == "Details" }, "the presenter never appeared")
+    XCTAssertTrue(TugboatScreenTests.wait { self.top(tracker)?.name == "Details" }, "the presenter never appeared")
 
     toggle.presented = true
     func sheetNavigator() -> String? {
       tracker.settle()
       return tracker.navigatorIds.first { id in tracker.entries(of: id)?.contains { $0.name == "Sheet" } ?? false }
     }
-    let presented = window.wait(timeout: 5) { sheetNavigator() != nil }
+    let presented = TugboatScreenTests.wait(timeout: 5) { sheetNavigator() != nil }
+    print("W7ASHEET keyWindow=\(type(of: window)) root=\(type(of: root)) rootPresented=\(root.presentedViewController === presenter) presenterPresented=\(String(describing: presenter.presentedViewController.map { type(of: $0) }))")
     XCTAssertTrue(presented, "the sheet was not presented: no Sheet route on any navigator")
     guard presented else { return }
 
