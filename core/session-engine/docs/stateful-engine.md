@@ -575,7 +575,7 @@ capture.result  {requestId, outcome: captured|paintUnchanged|failed|cancelled,
   `interop`, `regionUnreadable`, `treeUnreadable`, `animating`,
   `unverifiedLayerAllowlist`, `walkExhausted`, `noWindowSize`, `noDecor`,
   `representable`, `webView`, `renderer`, `surfaceLayer`,
-  `unclassifiedLayer`, `secureText`: every value the Android and SwiftUI
+  `unclassifiedLayer`, `secureText`, `overlayWindow`: every value the Android and SwiftUI
   adapters emit), possibly empty. An unknown value is `invalid_message` and
   the host keeps the handle. When the engine accepts the frame it records
   `capture_diagnostic` `{component: capture_masking, frameId, mode,

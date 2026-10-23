@@ -346,7 +346,7 @@ constexpr const char* kDocumentedReasons[] = {
     "animating",        "unverifiedLayerAllowlist", "walkExhausted",
     "noWindowSize",     "noDecor",                  "representable",
     "webView",          "renderer",                 "surfaceLayer",
-    "unclassifiedLayer", "secureText"};
+    "unclassifiedLayer", "secureText", "overlayWindow"};
 
 void test_mask_vocabulary() {
   int index = 0;
@@ -363,7 +363,7 @@ void test_mask_vocabulary() {
     CHECK(reason && static_cast<int>(*reason) == index++);
     CHECK(reason && std::string(mask_reason_name(*reason)) == name);
   }
-  CHECK(index == static_cast<int>(MaskReason::kSecureText) + 1);
+  CHECK(index == static_cast<int>(MaskReason::kOverlayWindow) + 1);
   CHECK(!parse_mask_reason("compose_default"));
   CHECK(kMaxMaskReasons == 8);
 

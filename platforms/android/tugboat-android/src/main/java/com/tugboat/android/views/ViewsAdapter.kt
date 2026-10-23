@@ -18,6 +18,7 @@ import com.tugboat.android.views.input.FocusState
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.android.views.mask.WindowMasks
+import com.tugboat.android.views.overlay.withOverlayWindowReason
 import com.tugboat.android.views.navigation.ActivityNavigation
 import com.tugboat.android.views.navigation.ControllerNavigation
 import com.tugboat.android.views.navigation.DestinationTracker
@@ -92,7 +93,12 @@ internal class ViewsAdapter(
         get() = fragments?.navigatorIds.orEmpty()
 
     /** Mask rectangles for [window] under `allTextAndMedia`; called on the main thread per `capture.request`. */
-    fun masks(window: Window): WindowMaskResult = WindowMasks.compute(window)
+    fun masks(window: Window): WindowMaskResult {
+        val masks = WindowMasks.compute(window)
+        val activity = window.context as? Activity ?: return masks
+        val session = sessions[activity] ?: return masks
+        return if (session.overlayAtCapture(window)) masks.withOverlayWindowReason() else masks
+    }
 
     /**
      * [activity]'s Jetpack Navigation destination changed: route keys only.
@@ -148,7 +154,8 @@ internal class ViewsAdapter(
 
     override fun onActivityStarted(activity: Activity) = Unit
 
-    override fun onActivityPaused(activity: Activity) = Unit
+    override fun onActivityPaused(activity: Activity) =
+        AdapterGuard.run("activity paused") { sessions[activity]?.onActivityPaused() }
 
     override fun onActivityStopped(activity: Activity) = Unit
 

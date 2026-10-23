@@ -4,6 +4,7 @@ import android.app.Activity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.Window
 import com.tugboat.android.views.callback.WindowCallbackInstaller
 import com.tugboat.android.views.callback.WindowEventObserver
 import com.tugboat.android.views.facts.FactClock
@@ -15,6 +16,7 @@ import com.tugboat.android.views.input.FocusState
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.input.PointerFactProducer
 import com.tugboat.android.views.input.SystemInputProducer
+import com.tugboat.android.views.overlay.OverlayWindowInspector
 import com.tugboat.android.views.region.Regions
 import com.tugboat.android.views.scroll.OffsetScrollTracker
 import com.tugboat.android.views.scroll.RecyclerScrollTracker
@@ -46,6 +48,8 @@ internal class WindowSession(
         if (OptionalAndroidx.hasRecyclerView) RecyclerScrollTracker(clock, anchors::anchorFor, ::emitIfAttached) else null
     private var scrolls: OffsetScrollTracker? = null
     private var regionScrolls: RegionScrollTracker? = null
+    private var activityResumed = false
+    private var overlayFromFocus = false
 
     /** Wraps the window callback if needed and hooks the decor view once it exists. */
     fun ensureAttached() {
@@ -76,8 +80,21 @@ internal class WindowSession(
 
     /** This window became the active one (its activity resumed): report its focus on the next frame. */
     fun onWindowActive() {
-        if (attached) focus.activate()
+        if (!attached) return
+        activityResumed = true
+        focus.activate()
     }
+
+    fun onActivityPaused() {
+        activityResumed = false
+        overlayFromFocus = false
+    }
+
+    /** Whether an overlay was up when [window] is captured (focus and/or inspector). */
+    fun overlayAtCapture(window: Window): Boolean =
+        AdapterGuard.run("overlay detection", false) {
+            overlayFromFocus || OverlayWindowInspector.reportsOverlay(window)
+        }
 
     fun onFrame() {
         if (!attached) return
@@ -106,6 +123,11 @@ internal class WindowSession(
         if (!attached) return
         keys.onKey(event)
         inputHappened()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        if (!attached || !activityResumed) return
+        overlayFromFocus = !hasFocus
     }
 
     private fun unhookDecor() {

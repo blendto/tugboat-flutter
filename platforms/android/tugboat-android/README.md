@@ -345,8 +345,9 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
 Activities the system destroys without finishing (configuration change,
 back-stack reclaim) keep their route identity when recreated.
 
-Known gaps: dialog and popup windows are not wrapped for pointer facts and
-are not in the captured frame (the copy is the activity window); predictive
+Known gaps: dialogs, sheets and menus are not captured or tapped; frames taken
+while one is shown carry `overlayWindow`. Popup windows are not wrapped for
+pointer facts and are not in the captured frame; predictive
 back is not observed; overscroll is reported for `RecyclerView` only;
 fragment `hide`/`show` is not reported; `transitionMs` is 0; window-manager
 activity transitions (not view animations) are not detected for the motion

@@ -52,4 +52,7 @@ enum class MaskCoverageReason(val wire: String) {
 
     /** A `SurfaceView` / `TextureView` is masked over its whole bounds. */
     SurfaceLayer("surfaceLayer"),
+
+    /** Another application window (dialog, sheet, menu) was up; pixels are the activity only. */
+    OverlayWindow("overlayWindow"),
 }
