@@ -230,7 +230,6 @@ final class TugboatScreenTests: XCTestCase {
       return tracker.navigatorIds.first { id in tracker.entries(of: id)?.contains { $0.name == "Sheet" } ?? false }
     }
     let presented = TugboatScreenTests.wait(timeout: 5) { sheetNavigator() != nil }
-    print("W7ASHEET keyWindow=\(type(of: window)) root=\(type(of: root)) rootPresented=\(root.presentedViewController === presenter) presenterPresented=\(String(describing: presenter.presentedViewController.map { type(of: $0) }))")
     XCTAssertTrue(presented, "the sheet was not presented: no Sheet route on any navigator")
     guard presented else { return }
 

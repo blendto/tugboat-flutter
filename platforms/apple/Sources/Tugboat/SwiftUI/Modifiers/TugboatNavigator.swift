@@ -10,11 +10,18 @@ extension View {
   /// it, every screen is on the app's root navigator.
   ///
   /// - A tab switch sends nothing: the hidden tab keeps its stack and route
-  ///   keys follow the shown tab.
+  ///   keys follow the shown tab. The first navigation after a tab return
+  ///   or a stacked sheet's dismissal is not attributed to its tap (no
+  ///   cause, no afterFrame).
   /// - On a sheet with its own stack, put the sheet's root screen inside
   ///   the navigator, `.sheet { NavigationStack { Root().tugboatScreen("Sheet",
   ///   presentation: .sheet) }.tugboatNavigator("sheet") }`, so pushes and
   ///   pops inside the sheet stay on one navigator.
+  ///
+  /// Sibling navigators (same enclosing navigator) are treated as mutually
+  /// exclusive, like tabs: do not put them on `NavigationSplitView` columns
+  /// or on panes shown together (a collapsed split view's back would send
+  /// nothing).
   ///
   /// Use a stable name, such as `"cart"`, unique among the navigators that
   /// exist together, covered screens included: a screen that can be pushed

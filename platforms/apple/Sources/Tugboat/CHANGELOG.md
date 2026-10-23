@@ -62,8 +62,13 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   `swiftui-screens/<name>`, with `parentNavigatorId` the enclosing
   navigator on transitions and `session_start`; the root navigator stays
   `swiftui-screens` with no parent. A nested navigator is forgotten when
-  its host screen leaves. Tab switches send nothing (the hidden tab keeps
-  its stack; route keys follow the shown tab). `session_start` seeds every navigator with a
+  its host screen leaves, and a stacked sheet's navigator when the sheet is
+  dismissed from any depth. Tab switches send nothing (the hidden tab
+  keeps its stack; route keys follow the shown tab). The first navigation
+  after a tab return or a stacked sheet's dismissal is not attributed to
+  its tap (no cause, no afterFrame). Sibling navigators are treated as
+  mutually exclusive, like tabs: not for split-view columns or panes shown
+  together. `session_start` seeds every navigator with a
   non-empty stack, the visible chain last, and route keys follow the
   visible chain's top. Contract change for apps that opt in: a sheet's
   route identity moves from `page` to `sheet`. Hosting-controller routes
