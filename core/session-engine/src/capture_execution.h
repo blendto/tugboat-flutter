@@ -6,6 +6,7 @@
 //   3. paint-unchanged reuse the host saw no new paint
 //   4. dHash coalescing      the host matched the offered baseline
 //   5. exact-content reuse   a retained frame has the same content hash
+//                            and mask coverage (change C21)
 //   6. fresh_accepted        a new `frame-N`
 //
 // Steps 1, 2, and the staleness check run before the host is asked
@@ -75,7 +76,8 @@ ExecutionResult failed_execution(const std::optional<CaptureFailure>& failure);
 // How a `captured` answer resolves (steps 4 to 6).
 enum class CapturedDisposition {
   kCoalesced,      // the frame matched the offered dHash baseline
-  kContentReused,  // a compatible retained frame has the same content
+  kContentReused,  // a compatible retained frame has the same content and
+                   // mask coverage (change C21)
   kAccepted,       // a new frame
 };
 

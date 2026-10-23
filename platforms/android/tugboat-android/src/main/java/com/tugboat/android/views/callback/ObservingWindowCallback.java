@@ -148,6 +148,13 @@ final class ObservingWindowCallback implements TugboatWindowCallback {
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
+        if (isOutermost()) {
+            try {
+                observer.onWindowFocusChanged(hasFocus);
+            } catch (Throwable failure) {
+                logOnce(failure);
+            }
+        }
         delegate.onWindowFocusChanged(hasFocus);
     }
 

@@ -97,7 +97,8 @@ class CaptureResultJsonTest {
         val ENGINE_MASK_REASONS = setOf(
             "composeDefault", "composeVersionUnverified", "composeOwnerUnavailable", "interop", "animating",
             "unverifiedLayerAllowlist", "walkExhausted", "noWindowSize", "noDecor", "representable", "webView",
-            "surfaceLayer", "unclassifiedLayer", "secureText", "regionUnreadable", "treeUnreadable", "renderer",
+            "surfaceLayer", "unclassifiedLayer", "secureText", "overlayWindow", "regionUnreadable", "treeUnreadable",
+            "renderer",
         )
     }
 }
