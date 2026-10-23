@@ -5,8 +5,11 @@
 Unpublished. The native Android SDK for Views apps: public facade, engine
 wiring, window capture, and the Android Views adapter.
 
-- Overlay windows: frames captured while a dialog, sheet, or menu is showing
-  keep activity masks and add `overlayWindow` to `maskCoverage.reasons`.
+- Overlay windows: frames captured while a dialog, sheet, or focusable menu
+  of the activity is showing keep activity masks, add `overlayWindow` to
+  `maskCoverage.reasons`, and add an overlay token to the structure
+  signature, so they are never coalesced with overlay-free frames. Detected
+  by focus loss while resumed and, on API 29+, owned `WindowInspector` roots.
 - Public API (`com.tugboat.android`): `Tugboat.start(application,
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,

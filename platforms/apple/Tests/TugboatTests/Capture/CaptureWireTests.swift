@@ -107,6 +107,7 @@ final class CaptureWireTests: XCTestCase {
       "composeDefault", "composeVersionUnverified", "composeOwnerUnavailable", "interop", "regionUnreadable",
       "treeUnreadable", "animating", "unverifiedLayerAllowlist", "walkExhausted", "noWindowSize", "noDecor",
       "representable", "webView", "renderer", "surfaceLayer", "unclassifiedLayer", "secureText",
+      "overlayWindow",
     ]
     for reason in MaskCoverage.Reason.allCases {
       XCTAssertTrue(engineReasons.contains(reason.rawValue), "\(reason)")
