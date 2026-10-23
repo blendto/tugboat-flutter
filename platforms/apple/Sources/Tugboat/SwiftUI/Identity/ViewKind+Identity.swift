@@ -14,7 +14,7 @@ extension ViewKind {
     case .scrollView: return "Scrollable"
     case .control: return "Control"
     case .representable, .webView, .renderer: return CanonicalPath.boxToken
-    case .internalPlatformView, .label, .image, .sdkOwned, .other: return nil
+    case .internalPlatformView, .label, .image, .sdkOwned, .sensitiveMarker, .other: return nil
     }
   }
 

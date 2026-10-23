@@ -88,6 +88,14 @@ their whole bounds because the SDK cannot see inside them.
 | Compose (opt-in `ComposeMasking.SemanticsBestEffort`) | nodes with `Text` or `EditableText` semantics | `Role.Image`, and nodes with a `ContentDescription` (image-like) | `AndroidView` interop bounds; the whole frame when the semantics owner is unavailable (section 6.2); the whole host outside the tested Compose UI range (the opt-in is ignored). **Not masked (accepted by opting in):** content without semantics, such as `Image` / `Icon` / `AsyncImage` with a null `contentDescription`, `drawText`, and Canvas / `drawBehind` / `Modifier.paint` drawing. |
 | SwiftUI | allowlisted SwiftUI drawing layers (section 6.3); `UITextField`, `UITextView`, `UILabel` | allowlisted SwiftUI image layers, padded; `UIImageView` | `WKWebView`; any `UIViewRepresentable` host view; any unclassified layer with `contents` inside a hosting view; the whole frame on an iOS major version without a verified allowlist (section 6.3) |
 
+**Every toolkit, every mode:** a `tugboatSensitive` mark adds the marked
+bounds to the union above. Views: the view and each view below it outside
+those bounds. Compose (both modes; already covered by `WholeHost`): the
+node and each semantics node below it outside those bounds, read from the
+unmerged tree. SwiftUI: the marker host's frame, met by the same view walk
+before any layer-allowlist decision. A mark never removes a rect and never
+enters identity (section 6).
+
 Adapter tests assert each row (section 8).
 
 ## 3. Public API

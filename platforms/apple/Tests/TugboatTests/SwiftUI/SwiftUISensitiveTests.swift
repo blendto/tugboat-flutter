@@ -5,11 +5,10 @@ import XCTest
 
 @testable import Tugboat
 
-/// `.tugboatSensitive` masks and tap evidence.
+/// `.tugboatSensitive`: masked in every mask mode, one rect per marker, and
+/// no change to tap targets, canonical paths or fingerprints.
 final class SwiftUISensitiveTests: XCTestCase {
   private var hosted: HostedWindow?
-  private let registry = SensitiveRegistry()
-  private let screens = ScreenTracker(clock: ManualClock())
 
   override func tearDown() {
     hosted?.close()
@@ -17,60 +16,133 @@ final class SwiftUISensitiveTests: XCTestCase {
     super.tearDown()
   }
 
-  private var resolver: AnchorResolver {
-    AnchorResolver(tags: .shared, screens: screens)
+  /// Applies `.tugboatSensitive()` only when `on`, so one screen is built
+  /// with and without the marker.
+  private struct Marked: ViewModifier {
+    let on: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+      if on {
+        content.tugboatSensitive()
+      } else {
+        content
+      }
+    }
   }
 
-  func testSensitiveFrameIsMaskedAtPermissiveLevel() throws {
-    let truth = TruthFrames()
+  /// A plain fill beside a marked one: plain colour fills are contents-less
+  /// layers that the verified allowlist leaves visible.
+  private func hostFills(_ truth: TruthFrames) -> HostedWindow {
     let window = HostedWindow(
       HStack(spacing: 16) {
         Color.red.frame(width: 44, height: 44).truth("plain", in: truth)
-        Color.blue.frame(width: 44, height: 44)
-          .modifier(TugboatSensitiveModifier(registry: registry))
-          .truth("sensitive", in: truth)
+        Color.blue.frame(width: 44, height: 44).tugboatSensitive().truth("sensitive", in: truth)
       }
     )
     hosted = window
-    XCTAssertTrue(window.wait { truth.frames["sensitive"] != nil && truth.frames["plain"] != nil })
-    let result = window.settledMasks()
+    XCTAssertTrue(window.wait { truth.frames["sensitive"] != nil && truth.frames["plain"] != nil && !window.views(SensitiveMarkerView.self).isEmpty })
+    return window
+  }
+
+  func testTheSensitiveFrameIsMaskedOnTheVerifiedLayerAllowlistPath() throws {
+    let truth = TruthFrames()
+    let window = hostFills(truth)
+    let allowlist = try XCTUnwrap(LayerAllowlist.forMajor(LayerAllowlist.runningMajor) ?? LayerAllowlist.forMajor(26))
+    let result = window.settledMasks(allowlist: allowlist)
+    XCTAssertNil(result.fallback, "\(result.stats)")
     let sensitive = try XCTUnwrap(truth.frames["sensitive"])
     let plain = try XCTUnwrap(truth.frames["plain"])
-    XCTAssertGreaterThan(result.fractionMasked(of: sensitive, in: window.window), 0.9)
-    XCTAssertLessThan(result.fractionMasked(of: plain, in: window.window), 0.2)
+    XCTAssertEqual(result.fractionMasked(of: sensitive, in: window.window), 1, "\(result.rects)")
+    XCTAssertLessThan(result.fractionMasked(of: plain, in: window.window), 0.2, "the same fill unmarked stays visible")
+    XCTAssertEqual(result.stats.sensitiveViews, 1)
   }
 
-  func testTapOnSensitiveViewStillCarriesAnchor() throws {
-    let window = HostedWindow(
-      Button("Secret") {}
-        .modifier(TugboatSensitiveModifier(registry: registry))
-        .modifier(TugboatScreenModifier(name: "Form", tracker: screens))
-    )
-    hosted = window
-    XCTAssertTrue(window.wait { !registry.all.isEmpty })
-    let marker = try XCTUnwrap(registry.all.first { $0.window != nil })
-    let frame = marker.convert(marker.bounds, to: window.window)
-    let point = CGPoint(x: frame.midX, y: frame.midY)
-    let evidence = resolver.tapEvidence(in: window.window, at: point)
-    guard case let .anchor(anchor) = evidence else {
-      return XCTFail("expected anchor, got \(evidence)")
-    }
-    XCTAssertEqual(anchor.routeKey, "Form")
-    XCTAssertEqual(anchor.toolkit, "swiftui")
-  }
-
-  func testSensitiveInsideMaskedTextDoesNotRemoveCoverage() throws {
+  func testTheSensitiveFrameIsMaskedOnTheWholeFrameFallback() throws {
     let truth = TruthFrames()
-    let window = HostedWindow(
-      Text("Account 1234")
-        .modifier(TugboatSensitiveModifier(registry: registry))
-        .truth("label", in: truth)
-    )
+    let window = hostFills(truth)
+    let result = window.settledMasks(allowlist: nil)
+    XCTAssertEqual(result.fallback, .unverifiedLayerAllowlist(iOSMajor: LayerAllowlist.runningMajor))
+    let sensitive = try XCTUnwrap(truth.frames["sensitive"])
+    XCTAssertEqual(result.fractionMasked(of: sensitive, in: window.window), 1)
+  }
+
+  func testMarkingMaskedTextAddsOneRectAndRemovesNone() throws {
+    let allowlist = try XCTUnwrap(LayerAllowlist.forMajor(LayerAllowlist.runningMajor) ?? LayerAllowlist.forMajor(26))
+    let before = masks(of: Text("Account 1234").padding(8).modifier(Marked(on: false)), allowlist: allowlist)
+    let after = masks(of: Text("Account 1234").padding(8).modifier(Marked(on: true)), allowlist: allowlist)
+    XCTAssertNil(after.fallback, "\(after.stats)")
+    XCTAssertTrue(before.rects.allSatisfy { after.rects.contains($0) }, "no rect removed: \(before.rects) vs \(after.rects)")
+    XCTAssertEqual(after.rects.count, before.rects.count + 1, "only the marked frame is added: \(after.rects)")
+    XCTAssertEqual(after.stats.sensitiveViews, 1)
+  }
+
+  func testMarkingChangesNoTapTargetPathOrFingerprint() throws {
+    let plain = try taps(marked: false)
+    let marked = try taps(marked: true)
+    XCTAssertEqual(plain.count, 4)
+    XCTAssertEqual(plain, marked)
+    for (unmarked, sensitive) in zip(plain, marked) {
+      guard case let .anchor(a) = unmarked, case let .anchor(b) = sensitive else { continue }
+      XCTAssertEqual(a.canonicalPath, b.canonicalPath)
+      XCTAssertEqual(a.fingerprint, b.fingerprint)
+      XCTAssertEqual(a.widgetType, b.widgetType)
+    }
+    guard case let .anchor(c) = plain[3] else { return XCTFail("C resolves: \(plain[3])") }
+    XCTAssertTrue(c.canonicalPath.hasSuffix("TextField#2"), c.canonicalPath)
+  }
+
+  func testTheSensitiveMarkerNeverTakesPartInHitTesting() throws {
+    let window = HostedWindow(Text("Secret").padding(30).tugboatSensitive())
     hosted = window
-    XCTAssertTrue(window.wait { truth.frames["label"] != nil })
-    let result = window.settledMasks()
-    let frame = try XCTUnwrap(truth.frames["label"])
-    XCTAssertGreaterThan(result.fractionMasked(of: frame, in: window.window), 0.9)
+    XCTAssertTrue(window.wait { !window.views(SensitiveMarkerView.self).isEmpty })
+    let marker = try XCTUnwrap(window.views(SensitiveMarkerView.self).first)
+    let frame = window.frame(of: marker)
+    let hit = window.window.hitTest(CGPoint(x: frame.midX, y: frame.midY), with: nil)
+    XCTAssertFalse(hit is SensitiveMarkerView)
+    XCTAssertFalse(hit === marker.superview, "the marker's SwiftUI host does not take touches")
+    XCTAssertFalse(marker.isUserInteractionEnabled)
+    XCTAssertTrue(marker.accessibilityElementsHidden)
+  }
+
+  private func masks<Content: View>(of content: Content, allowlist: LayerAllowlist) -> MaskResult {
+    let window = HostedWindow(content)
+    defer { window.close() }
+    window.settle(0.3)
+    return window.settledMasks(allowlist: allowlist)
+  }
+
+  /// Taps on A, B, the blank padding left of B, and C, on
+  /// `A; VStack { B }.padding(12) (marked); C (marked)`.
+  private func taps(marked: Bool) throws -> [TapEvidence] {
+    let screens = ScreenTracker(clock: ManualClock())
+    let window = HostedWindow(
+      VStack(spacing: 24) {
+        TextField("A", text: .constant("")).textFieldStyle(.roundedBorder)
+        VStack {
+          TextField("B", text: .constant("")).textFieldStyle(.roundedBorder)
+        }
+        .padding(12)
+        .modifier(Marked(on: marked))
+        TextField("C", text: .constant("")).textFieldStyle(.roundedBorder).modifier(Marked(on: marked))
+        Spacer()
+      }
+      .padding()
+      .modifier(TugboatScreenModifier(name: "Form", tracker: screens))
+    )
+    defer { window.close() }
+    XCTAssertTrue(window.wait { window.views(UITextField.self).count == 3 })
+    if marked {
+      XCTAssertTrue(window.wait { window.views(SensitiveMarkerView.self).count == 2 })
+    }
+    window.settle()
+    let resolver = AnchorResolver(tags: TagRegistry(), screens: screens)
+    let fields = window.views(UITextField.self).map { window.frame(of: $0) }.sorted { $0.minY < $1.minY }
+    XCTAssertEqual(fields.count, 3)
+    let b = try XCTUnwrap(fields.dropFirst().first)
+    let points = fields.map { CGPoint(x: $0.midX, y: $0.midY) }
+    let padding = CGPoint(x: b.minX - 6, y: b.midY)
+    return [points[0], points[1], padding, points[2]].map { resolver.tapEvidence(in: window.window, at: $0) }
   }
 }
 #endif

@@ -15,6 +15,11 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   the `.tugboatTag(_:accessibility:)`, `.tugboatSensitive()`, and
   `.tugboatScreen(_:)` view modifiers. Idempotent start; nothing throws or
   traps into the app.
+- `.tugboatSensitive()`: the view's frame is masked in every mask mode,
+  including the verified layer-allowlist path where plain colour fills stay
+  visible. The mask walk masks the marker's host by kind
+  (`ViewKind.sensitiveMarker`); identity skips it, so taps, paths, and
+  fingerprints are unchanged.
 - Coded events and network calls, the Flutter evidence API:
   `Tugboat.eventHook(source:parameterPolicy:)` → `TugboatEventHook.record(_:parameters:)`
   (`external_event`), with `TugboatParameterPolicy` `.allowAll` (default),

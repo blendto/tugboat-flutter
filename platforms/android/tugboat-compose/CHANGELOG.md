@@ -15,6 +15,10 @@ Unpublished. The Jetpack Compose adapter for the native Android SDK.
   `AndroidView` interop bounds fail-closed; it leaves content without
   semantics unmasked (documented) and is ignored outside the tested Compose
   UI range. The whole frame when the semantics owner is unavailable.
+- `Modifier.tugboatSensitive()`: the node and every semantics node below it
+  are masked in both modes, each outside the marked bounds at its own
+  bounds (unmerged tree). Read only by the mask layer (`ComposeMasks`), never
+  by `NodeRules`, so taps, paths, and fingerprints are unchanged.
 - Identity: semantics hit-test at the down position, role tokens,
   `[item:n]` from `CollectionItemInfo` (`[item]` without it), paths below
   the host's Views path, `tugboatTag` / `testTag` aliases, the Views route

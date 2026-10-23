@@ -24,7 +24,7 @@ Tugboat.setTraits(["plan": "pro"])      // JSON values; kept across stop/start
 Tugboat.stop()
 someView.tugboatTag("checkout")         // developer alias for a target
 someView.tugboatTag("checkout", accessibility: true) // also its accessibilityIdentifier
-someView.tugboatSensitive()           // always mask pixels in screenshots
+someView.tugboatSensitive()             // always mask its frame; identity unchanged
 someView.tugboatScreen("Checkout")      // route identity for a screen
 
 let events = Tugboat.eventHook(source: "analytics", parameterPolicy: .allowList(["method"]))

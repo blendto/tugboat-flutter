@@ -13,7 +13,8 @@ enum class ComposeMasking {
 
     /**
      * Masks only what the semantics tree describes: text, editable text,
-     * images with `Role.Image`, nodes with a content description, and
+     * images with `Role.Image`, nodes with a content description, nodes
+     * marked with [tugboatSensitive] and every node below them, and
      * `AndroidView` interop bounds. Identity, scroll, and focus are the same
      * in both modes.
      *
@@ -23,7 +24,9 @@ enum class ComposeMasking {
      * - `drawText`, and anything drawn on a `Canvas`, in `drawBehind` /
      *   `drawWithContent`, or by `Modifier.paint`.
      *
-     * Use it only for screens where such content shows nothing private.
+     * Use it only for screens where such content shows nothing private, or
+     * mark the private parts with [tugboatSensitive], which masks a node's
+     * bounds whether or not it has semantics of its own.
      * Outside the tested Compose UI range it is ignored and hosts are masked
      * whole.
      */

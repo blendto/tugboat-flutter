@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.platform.testTag
@@ -102,7 +103,10 @@ class ComposeSensitiveMasksTest {
         }
         val result = masks()
         assertTrue(isMasked(result, "parent"))
-        assertTrue("the child drawn outside its sensitive parent: ${result.rects}", isMasked(result, "child"))
+        // Semantics bounds clip the child to its parent, so its drawn area is computed: 60-100 dp below the parent's top.
+        val parent = compose.onNodeWithTag("parent", useUnmergedTree = true).node.boundsInWindow
+        val drawn = with(compose.density) { Rect(parent.left, parent.top + 60.dp.toPx(), parent.left + 40.dp.toPx(), parent.top + 100.dp.toPx()) }
+        assertTrue("the child drawn outside its sensitive parent at $drawn: ${result.rects}", covered(result.rects, drawn, compose.activity.decor))
     }
 
     @Test

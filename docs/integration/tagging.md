@@ -93,38 +93,6 @@ binding.payButton.tugboatTag = "checkout.pay"
 
 Setting `null` or an empty string removes the tag.
 
-## Sensitive content (always masked)
-
-Use `tugboatSensitive` when pixels must be hidden in every screenshot mask
-level, including the most permissive. It redacts only pixels: taps still
-resolve to the control and fingerprints are unchanged. Sensitive is not a
-tag and does not enter identity.
-
-### Flutter
-
-```dart
-Text('Do not show in replay').tugboatSensitive(),
-```
-
-### SwiftUI
-
-```swift
-TextField("Card", text: $number)
-  .tugboatSensitive()
-```
-
-### Jetpack Compose
-
-```kotlin
-Text("•••• 4242", modifier = Modifier.tugboatSensitive())
-```
-
-### Android Views
-
-```kotlin
-binding.cardNumber.tugboatSensitive()
-```
-
 ### React Native
 
 There is no React Native SDK yet. It will use the same `tugboatTag` name.
@@ -174,6 +142,57 @@ already has as the alias. A `tugboatTag` always wins.
 The same naming rules apply to these identifiers when Tugboat reads them:
 a data value in a `ValueKey` or `testTag` is sent like a data value in a
 tag.
+
+## Sensitive content (always masked)
+
+Use `tugboatSensitive` when pixels must be hidden in every screenshot mask
+level, including the most permissive: Compose `SemanticsBestEffort`, and
+SwiftUI's verified layer allowlist, where plain colour fills stay visible.
+A mark only adds mask coverage; it never removes any. It is not a tag:
+it masks pixels only, and taps, canonical paths and fingerprints are the
+same with or without it.
+
+| Platform | What is masked | Notes |
+| --- | --- | --- |
+| Flutter | The widget's subtree | `TugboatSensitive(child: ...)` or `.tugboatSensitive()`. |
+| SwiftUI | The view's layout frame | Masked by the same view walk as every other mask, so in every mask mode. Drawing outside the frame (an offset overlay, a shadow) is not covered by the mark. |
+| Compose | The node and every semantics node below it, each at its own unclipped bounds | Under the default `WholeHost` the host is already masked whole. Drawing with no semantics node of its own that lands outside the marked bounds is not covered. |
+| Views | The view and every view below it, each at its own bounds | A subview drawn outside its marked parent is masked at its own bounds. |
+
+There is no un-mark on Views: a marked view stays marked for its lifetime,
+including a recycled `RecyclerView` row. That fails safe: it over-masks.
+On SwiftUI and Compose, remove the modifier to stop masking.
+
+### Flutter
+
+```dart
+Text('Do not show in replay').tugboatSensitive(),
+```
+
+### SwiftUI
+
+```swift
+TextField("Card", text: $number)
+  .tugboatSensitive()
+```
+
+### Jetpack Compose
+
+```kotlin
+import com.tugboat.android.compose.tugboatSensitive
+
+Text("•••• 4242", modifier = Modifier.tugboatSensitive())
+```
+
+### Android Views
+
+```kotlin
+import com.tugboat.android.tugboatSensitive
+
+binding.cardNumber.tugboatSensitive()
+```
+
+From Java: `TugboatViews.tugboatSensitive(view)`.
 
 ## Tagging with a coding agent
 
