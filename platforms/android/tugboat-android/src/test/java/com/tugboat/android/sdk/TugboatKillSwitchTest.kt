@@ -19,7 +19,9 @@ import com.tugboat.android.TugboatConfig
 import com.tugboat.android.host.FakeEngineTransport
 import com.tugboat.android.views.callback.CallbackChain
 import org.junit.After
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -45,8 +47,8 @@ class TugboatKillSwitchTest {
     @After
     fun tearDown() {
         Tugboat.stop()
-        Tugboat.openTransportForTesting = null
         shadowOf(Looper.getMainLooper()).idle()
+        Tugboat.resetForTests()
     }
 
     @Test
@@ -58,7 +60,7 @@ class TugboatKillSwitchTest {
         }
         Tugboat.start(application, disabledConfig)
         shadowOf(Looper.getMainLooper()).idle()
-        assertTrue(!opened)
+        assertFalse(opened)
     }
 
     @Test
@@ -67,8 +69,26 @@ class TugboatKillSwitchTest {
         Tugboat.openTransportForTesting = { FakeEngineTransport() }
         Tugboat.start(application, disabledConfig)
         shadowOf(Looper.getMainLooper()).idle()
-        Tugboat.stop()
+        // Before stop(): stop() unregisters, so a later assert passes either way.
         assertEquals(before, activityLifecycleCallbackCount(application))
+    }
+
+    @Test
+    fun stateSetWhileDisabledIsKeptForALaterEnabledStart() {
+        val transport = FakeEngineTransport()
+        Tugboat.openTransportForTesting = { transport }
+        Tugboat.start(application, disabledConfig)
+        Tugboat.setUserId("u-42")
+        val hook = Tugboat.eventHook(source = "analytics")
+        shadowOf(Looper.getMainLooper()).idle()
+
+        Tugboat.start(application, enabledConfig)
+        shadowOf(Looper.getMainLooper()).idle()
+        hook.record("AFTER_ENABLE")
+
+        awaitUntil { transport.submitted.any { it.contains("AFTER_ENABLE") } }
+        val identity = transport.submitted.map(::JSONObject).first { it.getString("type") == "identity.set" }
+        assertEquals("u-42", identity.getJSONObject("input").getString("userId"))
     }
 
     @Test
@@ -174,5 +194,14 @@ class TugboatKillSwitchTest {
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
         return (field.get(controller) as? Collection<*>)?.size ?: 0
+    }
+
+    private fun awaitUntil(condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (!condition() && System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertTrue("timed out", condition())
     }
 }

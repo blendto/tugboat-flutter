@@ -43,11 +43,14 @@ view.tugboatTag = "checkout"                  // developer alias
   (tag `Tugboat`) and capture stops.
 - `TugboatConfig.enabled` (default `true`): when `false`, Tugboat itself
   registers nothing (no engine, lifecycle observers, window callbacks, or
-  threads) and every public API is a no-op; the host app is unchanged. The
-  `androidx.lifecycle:lifecycle-process` dependency still merges AndroidX App
-  Startup's `ProcessLifecycleInitializer` at process launch (before
-  `Tugboat.start`); remove it with `tools:node="remove"` on that provider if
-  you need to.
+  threads) and records nothing; the host app is unchanged. `setUserId`,
+  `setTraits`, and event hooks keep their state for a later enabled `start`.
+  Call `start` before `trackNavigation`: a controller tracked before any
+  `start` cannot know the config. The `androidx.lifecycle:lifecycle-process`
+  dependency still runs AndroidX App Startup's `ProcessLifecycleInitializer`
+  at process launch; that is the app's dependency, not Tugboat's, and Tugboat
+  needs it when enabled (`app.lifecycle` and the background flush), so do not
+  remove it.
 - Call `start` once per process, from `Application.onCreate`. It is
   idempotent while started. It **refuses to start** (and logs the missing
   paths) when a field the collector requires on `session_start` is blank:

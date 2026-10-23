@@ -45,9 +45,20 @@ object Tugboat {
     private var userId: String? = null
     private var traitsInput: String? = null
 
-    /** Set on the main thread when [TugboatConfig.enabled] is `false` at [start]; cleared by an enabled [start]. */
+    /**
+     * Set on the main thread when [TugboatConfig.enabled] is `false` at [start];
+     * cleared by an enabled [start]. Only [start] and [trackNavigation] read it:
+     * the other APIs already record nothing without a runtime, and must keep
+     * their state (user id, traits, hooks) for a later enabled [start].
+     */
     @Volatile
     private var disabled = false
+
+    /** JVM tests only: clears the kill-switch state and the transport seam. */
+    internal fun resetForTests() {
+        disabled = false
+        openTransportForTesting = null
+    }
 
     /** JVM tests only: replaces [JniEngineTransport.open] for [start]. */
     internal var openTransportForTesting: (() -> EngineTransport?)? = null
@@ -86,7 +97,6 @@ object Tugboat {
     /** The runtime user id stamped on later events; null clears it. Kept across [stop] and [start]. */
     @JvmStatic
     fun setUserId(id: String?) = onMain("setUserId") {
-        if (disabled) return@onMain
         userId = id
         runtime?.setUserId(id)
     }
@@ -98,11 +108,9 @@ object Tugboat {
      */
     @JvmStatic
     fun setTraits(traits: Map<String, Any?>) {
-        if (disabled) return
         // Encoded now: the caller may change the map after this returns.
         val input = guarded("setTraits") { SessionMessages.traits(traits) } ?: return
         onMain("setTraits") {
-            if (disabled) return@onMain
             traitsInput = input
             runtime?.setTraits(input)
         }
@@ -129,7 +137,7 @@ object Tugboat {
      *
      * Call [start] before this when you use [TugboatConfig.enabled]: a call
      * before any [start] cannot know the config, so it attaches the listener
-     * (inert until an enabled [start]).
+     * (it records nothing until an enabled [start]).
      */
     @JvmStatic
     fun trackNavigation(navController: NavController) = onMain("trackNavigation") {
@@ -156,7 +164,7 @@ object Tugboat {
     @JvmStatic
     @JvmOverloads
     fun eventHook(source: String? = null, parameterPolicy: ParameterPolicy = ParameterPolicy.allowAll): EventHook =
-        if (disabled) EventHook(source, parameterPolicy) { null } else EventHook(source, parameterPolicy) { evidence }
+        EventHook(source, parameterPolicy) { evidence }
 
     /**
      * Begins one logical HTTP call (`network_call` evidence); finish it with
@@ -176,7 +184,6 @@ object Tugboat {
      */
     @JvmStatic
     fun beginNetworkCall(method: String, route: String?): NetworkCall {
-        if (disabled) return NetworkCall.NOOP
         return guarded("beginNetworkCall") { evidence?.beginNetworkCall(method, route) } ?: NetworkCall.NOOP
     }
 

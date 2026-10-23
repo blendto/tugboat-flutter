@@ -9,8 +9,9 @@ data class TugboatConfig @JvmOverloads constructor(
     val app: AppInfo,
     /**
      * When `false`, [com.tugboat.android.Tugboat.start] installs nothing: no
-     * engine, observers, or threads. Every public API is a no-op and the host
-     * app is unchanged.
+     * engine, observers, or threads. Nothing is recorded and the host app is
+     * unchanged; the user id, traits, and event hooks keep their state for a
+     * later enabled start.
      */
     val enabled: Boolean = true,
     /** Only [MaskLevel.AllTextAndMedia] exists in this release. */
