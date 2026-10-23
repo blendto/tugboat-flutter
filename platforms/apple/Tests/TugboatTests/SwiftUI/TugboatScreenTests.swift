@@ -164,27 +164,40 @@ final class TugboatScreenTests: XCTestCase {
     XCTAssertEqual(tracker.entries(of: "swiftui-screens")?.map { $0.name }, ["Shell"])
   }
 
+  /// The sheet is presented only once the window is up and Details has
+  /// appeared (a sheet presented while the window is created never shows
+  /// in the test host). "Not presented" and "landed on the wrong
+  /// navigator" fail with different messages.
   func testAScreenPresentedAsASheetIsASheetRouteOnThePresentingNavigator() throws {
     let tracker = ScreenTracker(clock: ManualClock())
     tracker.isRecording = true
-    let window = HostedWindow(
-      Text("Details")
-        .modifier(TugboatScreenModifier(name: "Details", tracker: tracker))
-        .sheet(isPresented: .constant(true)) {
-          Text("Sheet").modifier(TugboatScreenModifier(name: "Sheet", presentation: .sheet, tracker: tracker))
-        }
-        .tugboatNavigator("tabA")
-    )
+    let toggle = SheetToggle()
+    let window = HostedWindow(SheetPresenter(tracker: tracker, toggle: toggle).tugboatNavigator("tabA"))
     hosted = window
-    defer { window.window.rootViewController?.dismiss(animated: false) }
-    XCTAssertTrue(window.wait(timeout: 5) { self.top(tracker)?.name == "Sheet" })
+    window.window.makeKeyAndVisible()
+    defer {
+      toggle.presented = false
+      window.window.rootViewController?.dismiss(animated: false)
+    }
+    XCTAssertTrue(window.wait { self.top(tracker)?.name == "Details" }, "the presenter never appeared")
+
+    toggle.presented = true
+    func sheetNavigator() -> String? {
+      tracker.settle()
+      return tracker.navigatorIds.first { id in tracker.entries(of: id)?.contains { $0.name == "Sheet" } ?? false }
+    }
+    let presented = window.wait(timeout: 5) { sheetNavigator() != nil }
+    XCTAssertTrue(presented, "the sheet was not presented: no Sheet route on any navigator")
+    guard presented else { return }
+
+    XCTAssertEqual(sheetNavigator(), "swiftui-screens/tabA", "the sheet content did not get the presenter's navigator through the environment")
+    let entry = tracker.entries(of: "swiftui-screens/tabA")?.first { $0.name == "Sheet" }
+    XCTAssertEqual(entry?.overlayKind, .sheet)
     let facts = tracker.takeFacts().map { $0.decodedInput }
-    let sheet = try XCTUnwrap(facts.first { ($0["route"] as? [String: Any])?["name"] as? String == "Sheet" })
-    let route = try XCTUnwrap(sheet["route"] as? [String: Any])
-    XCTAssertEqual(route["overlayKind"] as? String, "sheet")
-    XCTAssertEqual(sheet["kind"] as? String, "push")
-    XCTAssertEqual(sheet["navigatorId"] as? String, "swiftui-screens/tabA", "the presenter's navigator, through the environment")
-    XCTAssertEqual((sheet["departing"] as? [String: Any])?["name"] as? String, "Details")
+    let push = facts.first { ($0["route"] as? [String: Any])?["name"] as? String == "Sheet" }
+    XCTAssertEqual(push?["kind"] as? String, "push")
+    XCTAssertEqual((push?["route"] as? [String: Any])?["overlayKind"] as? String, "sheet")
+    XCTAssertEqual((push?["departing"] as? [String: Any])?["name"] as? String, "Details")
   }
 
   func testTheRouteKeyFollowsTheVisibleChainTop() {
@@ -256,6 +269,25 @@ final class TugboatScreenTests: XCTestCase {
     XCTAssertEqual(seen.count, 2, "installed once: one notification per call")
     XCTAssertTrue(seen.first?.0 === probe)
     XCTAssertEqual(seen.map { $0.1 }, [true, false])
+  }
+}
+
+/// Presents the sheet when the test says so.
+private final class SheetToggle: ObservableObject {
+  @Published var presented = false
+}
+
+/// Details, presenting a `.sheet` screen from its navigator.
+private struct SheetPresenter: View {
+  let tracker: ScreenTracker
+  @ObservedObject var toggle: SheetToggle
+
+  var body: some View {
+    Text("Details")
+      .modifier(TugboatScreenModifier(name: "Details", tracker: tracker))
+      .sheet(isPresented: $toggle.presented) {
+        Text("Sheet").modifier(TugboatScreenModifier(name: "Sheet", presentation: .sheet, tracker: tracker))
+      }
   }
 }
 #endif

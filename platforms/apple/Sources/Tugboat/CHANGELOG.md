@@ -54,13 +54,16 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   `TugboatScreenPresentation` `.automatic` (default, `page` for now),
   `.page`, `.sheet`, `.dialog` or `.popup` as the route's `overlayKind`;
   `.tugboatScreen("X")` still compiles and its facts are unchanged. A
-  sheet's screen is a route on the presenting navigator, so the engine
-  records `presentedOver*`; its dismissal is the existing `pop`.
+  sheet's screen without its own stack is a route on the presenting
+  navigator, so the engine records `presentedOver*`, and its dismissal is
+  the existing `pop`; a sheet with its own stack puts its root screen
+  inside its `.tugboatNavigator`.
   `.tugboatNavigator(name)` puts the screens inside it on navigator
   `swiftui-screens/<name>`, with `parentNavigatorId` the enclosing
   navigator on transitions and `session_start`; the root navigator stays
   `swiftui-screens` with no parent. A nested navigator is forgotten when
-  its host screen leaves. `session_start` seeds every navigator with a
+  its host screen leaves. Tab switches send nothing (the hidden tab keeps
+  its stack; route keys follow the shown tab). `session_start` seeds every navigator with a
   non-empty stack, the visible chain last, and route keys follow the
   visible chain's top. Contract change for apps that opt in: a sheet's
   route identity moves from `page` to `sheet`. Hosting-controller routes

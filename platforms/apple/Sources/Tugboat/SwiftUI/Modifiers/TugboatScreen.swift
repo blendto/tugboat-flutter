@@ -9,9 +9,11 @@ extension View {
   /// each screen (each `NavigationStack` destination, sheet, or tab).
   ///
   /// The screen is a route on the navigator around it: the app's root
-  /// navigator, or the innermost `.tugboatNavigator`. A sheet's screen is a
-  /// route on the navigator that presented it; pass `presentation: .sheet`
-  /// so it is recorded as presented over the screen below.
+  /// navigator, or the innermost `.tugboatNavigator`. Pass
+  /// `presentation: .sheet` on a sheet's root screen. Without a navigator
+  /// of its own, the sheet is a route on the navigator that presented it,
+  /// recorded as presented over the screen below; with one, put the screen
+  /// inside it (see `tugboatNavigator(_:)`).
   /// `presentation: .automatic` (the default) is `.page` in this release.
   public func tugboatScreen(_ name: String, presentation: TugboatScreenPresentation = .automatic) -> some View {
     modifier(TugboatScreenModifier(name: name, presentation: presentation))

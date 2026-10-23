@@ -394,11 +394,14 @@ plus, only when the app opts in, the accessibility tree (ADR 0010).
   root navigator `swiftui-screens` unless a `.tugboatNavigator(name)`
   encloses them (`swiftui-screens/<name>`, nested in the enclosing
   navigator and hosted by the `.tugboatScreen` around it). The visible
-  chain runs from the root through the navigators that each top screen
-  hosts, the most recently changed where several are uncovered; its
-  deepest top screen is the key, the route the last `session_start` seed
-  ends on. A sheet's screen is a route on the presenting navigator, so it
-  keys targets inside the sheet. `presentation:` sets the route's
+  chain runs from the root through the child navigator hosted by the top
+  screen, or hosted by no screen, whichever had the most recent screen
+  appearance (a child with no host only when its appearance is newer than
+  its parent's own); its deepest top screen is the key, the route the last
+  `session_start` seed ends on. A tab switch changes the key to the shown
+  tab's top without a navigation fact. A sheet's screen keys the targets
+  inside the sheet, whether it is a route on the presenting navigator or
+  the root of the sheet's own navigator. `presentation:` sets the route's
   `overlayKind`, never the route key.
 - **Confidence.** The floor of the route's and the path's. The path is
   `high` with a tag, `medium` inside a list cell, and `low` otherwise.

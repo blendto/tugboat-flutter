@@ -9,11 +9,17 @@ extension View {
   /// if any: the navigator is forgotten once that screen leaves. Without
   /// it, every screen is on the app's root navigator.
   ///
-  /// Use a stable name, unique among the navigators shown together, such
-  /// as `"cart"`. Apply it inside the screen that hosts it: on a sheet,
-  /// `NavigationStack { … }.tugboatNavigator("sheet").tugboatScreen("Sheet",
-  /// presentation: .sheet)` keeps the sheet's own screen on the presenting
-  /// navigator. A name equal to the enclosing navigator's adds nothing.
+  /// - A tab switch sends nothing: the hidden tab keeps its stack and route
+  ///   keys follow the shown tab.
+  /// - On a sheet with its own stack, put the sheet's root screen inside
+  ///   the navigator, `.sheet { NavigationStack { Root().tugboatScreen("Sheet",
+  ///   presentation: .sheet) }.tugboatNavigator("sheet") }`, so pushes and
+  ///   pops inside the sheet stay on one navigator.
+  ///
+  /// Use a stable name, such as `"cart"`, unique among the navigators that
+  /// exist together, covered screens included: a screen that can be pushed
+  /// on top of itself must give each instance's navigator its own name. A
+  /// name equal to an enclosing navigator's adds nothing.
   public func tugboatNavigator(_ name: String) -> some View {
     modifier(TugboatNavigatorModifier(name: name))
   }
