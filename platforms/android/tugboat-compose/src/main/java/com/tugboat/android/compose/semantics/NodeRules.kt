@@ -5,7 +5,6 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
-import com.tugboat.android.compose.TugboatSensitiveKey
 import com.tugboat.android.compose.TugboatTagKey
 
 /**
@@ -17,6 +16,10 @@ import com.tugboat.android.compose.TugboatTagKey
  *   Everything else collapses.
  * - **Maskable**: `Text` or `EditableText`, `Role.Image`, or a
  *   `ContentDescription` (image-like). Text never enters identity.
+ *
+ * `Modifier.tugboatSensitive()` is deliberately not a rule here: it is a
+ * mask-only input read by `ComposeMasks`, so it never changes which nodes
+ * are kept, their paths, or tap targets.
  */
 internal object NodeRules {
     fun isExcluded(node: SemanticsNode): Boolean =
@@ -35,11 +38,9 @@ internal object NodeRules {
         SemanticsProperties.VerticalScrollAxisRange in node.config ||
             SemanticsProperties.HorizontalScrollAxisRange in node.config
 
-    fun isSensitive(node: SemanticsNode): Boolean = node.config.getOrNull(TugboatSensitiveKey) == true
-
     fun isMaskable(node: SemanticsNode): Boolean {
         val config = node.config
-        return isSensitive(node) || SemanticsProperties.Text in config || SemanticsProperties.EditableText in config ||
+        return SemanticsProperties.Text in config || SemanticsProperties.EditableText in config ||
             SemanticsProperties.ContentDescription in config || role(node) == Role.Image
     }
 
