@@ -31,6 +31,20 @@ final class SwiftUISensitiveTests: XCTestCase {
     }
   }
 
+  /// An app-defined view: its SwiftUI host is a `Representable` tap target,
+  /// so a marker host counted as one would shift the ordinals.
+  private final class AppBoxView: UIView {}
+
+  private struct AppBox: UIViewRepresentable {
+    func makeUIView(context: Context) -> AppBoxView {
+      let view = AppBoxView(frame: .zero)
+      view.backgroundColor = .systemTeal
+      return view
+    }
+
+    func updateUIView(_ uiView: AppBoxView, context: Context) {}
+  }
+
   /// A plain fill beside a marked one: plain colour fills are contents-less
   /// layers that the verified allowlist leaves visible.
   private func hostFills(_ truth: TruthFrames) -> HostedWindow {
@@ -80,7 +94,7 @@ final class SwiftUISensitiveTests: XCTestCase {
   func testMarkingChangesNoTapTargetPathOrFingerprint() throws {
     let plain = try taps(marked: false)
     let marked = try taps(marked: true)
-    XCTAssertEqual(plain.count, 4)
+    XCTAssertEqual(plain.count, 6)
     XCTAssertEqual(plain, marked)
     for (unmarked, sensitive) in zip(plain, marked) {
       guard case let .anchor(a) = unmarked, case let .anchor(b) = sensitive else { continue }
@@ -88,8 +102,12 @@ final class SwiftUISensitiveTests: XCTestCase {
       XCTAssertEqual(a.fingerprint, b.fingerprint)
       XCTAssertEqual(a.widgetType, b.widgetType)
     }
-    guard case let .anchor(c) = plain[3] else { return XCTFail("C resolves: \(plain[3])") }
-    XCTAssertTrue(c.canonicalPath.hasSuffix("TextField#2"), c.canonicalPath)
+    let paths = [0, 1, 3, 4, 5].compactMap { index -> String? in
+      guard case let .anchor(anchor) = plain[index] else { return nil }
+      return anchor.canonicalPath
+    }
+    XCTAssertEqual(paths.count, 5, "A, B, C and both boxes resolve: \(plain)")
+    XCTAssertEqual(Set(paths).count, 5, "five distinct targets: \(paths)")
   }
 
   func testTheSensitiveMarkerNeverTakesPartInHitTesting() throws {
@@ -112,8 +130,9 @@ final class SwiftUISensitiveTests: XCTestCase {
     return window.settledMasks(allowlist: allowlist)
   }
 
-  /// Taps on A, B, the blank padding left of B, and C, on
-  /// `A; VStack { B }.padding(12) (marked); C (marked)`.
+  /// Taps on A, B, the blank padding left of B, C, R1 and R2, on
+  /// `A; VStack { B }.padding(12) (marked); C (marked); R1; R2 (marked)`,
+  /// where R1 and R2 are app representables.
   private func taps(marked: Bool) throws -> [TapEvidence] {
     let screens = ScreenTracker(clock: ManualClock())
     let window = HostedWindow(
@@ -125,15 +144,17 @@ final class SwiftUISensitiveTests: XCTestCase {
         .padding(12)
         .modifier(Marked(on: marked))
         TextField("C", text: .constant("")).textFieldStyle(.roundedBorder).modifier(Marked(on: marked))
+        AppBox().frame(height: 44)
+        AppBox().frame(height: 44).modifier(Marked(on: marked))
         Spacer()
       }
       .padding()
       .modifier(TugboatScreenModifier(name: "Form", tracker: screens))
     )
     defer { window.close() }
-    XCTAssertTrue(window.wait { window.views(UITextField.self).count == 3 })
+    XCTAssertTrue(window.wait { window.views(UITextField.self).count == 3 && window.views(AppBoxView.self).count == 2 })
     if marked {
-      XCTAssertTrue(window.wait { window.views(SensitiveMarkerView.self).count == 2 })
+      XCTAssertTrue(window.wait { window.views(SensitiveMarkerView.self).count == 3 })
     }
     window.settle()
     let resolver = AnchorResolver(tags: TagRegistry(), screens: screens)
@@ -142,7 +163,9 @@ final class SwiftUISensitiveTests: XCTestCase {
     let b = try XCTUnwrap(fields.dropFirst().first)
     let points = fields.map { CGPoint(x: $0.midX, y: $0.midY) }
     let padding = CGPoint(x: b.minX - 6, y: b.midY)
-    return [points[0], points[1], padding, points[2]].map { resolver.tapEvidence(in: window.window, at: $0) }
+    let boxes = window.views(AppBoxView.self).map { window.frame(of: $0) }.sorted { $0.minY < $1.minY }
+    let boxPoints = boxes.map { CGPoint(x: $0.midX, y: $0.midY) }
+    return ([points[0], points[1], padding, points[2]] + boxPoints).map { resolver.tapEvidence(in: window.window, at: $0) }
   }
 }
 #endif
