@@ -38,8 +38,11 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
     private fun viewRoutes(): ViewRouteResolver {
         val existing = routes
         if (existing != null) return existing
-        val created =
-            ViewRouteResolver(destinations) { view -> fragments?.routeRootedAt(view) }
+        val created = ViewRouteResolver(
+            destinations,
+            fragmentRoute = { view -> fragments?.routeRootedAt(view) },
+            visibleFragmentRoot = { activity -> fragments?.visibleRouteRoot(activity) },
+        )
         routes = created
         return created
     }

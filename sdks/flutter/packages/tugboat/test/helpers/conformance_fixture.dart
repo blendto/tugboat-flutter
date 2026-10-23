@@ -18,6 +18,7 @@ const int conformanceFixtureFormat = 1;
 enum ConformanceKind {
   identityParts('fingerprint.identityParts', 'fingerprint/identity_parts'),
   labelHash('fingerprint.labelHash', 'fingerprint/label_hash'),
+  inventoryHash('fingerprint.inventoryHash', 'fingerprint/inventory_hash'),
   collectorEvent('collector.event', 'collector/event'),
   sessionLifecycle('collector.sessionLifecycle', 'collector/session_lifecycle'),
   engineScenario('engine.scenario', 'engine/scenario'),
@@ -244,6 +245,13 @@ Map<String, Object?> evaluateFixture(ConformanceFixture fixture) {
       return {
         'hash': tugboatLabelHash(_requireString(input, 'value', 'input')),
       };
+    case ConformanceKind.inventoryHash:
+      _checkKeys(input, const {'fingerprints'}, 'input');
+      final raw = _list(input['fingerprints'], 'input.fingerprints');
+      final fingerprints = raw
+          .map((v) => _requireStringElement(v, 'input.fingerprints[]'))
+          .toList();
+      return {'hash': tugboatInventoryHash(fingerprints)};
     case ConformanceKind.collectorEvent:
       return _evaluateCollectorEvent(input);
     case ConformanceKind.sessionLifecycle:
@@ -730,6 +738,11 @@ String? _optString(Map<String, Object?> json, String key, String where) =>
 
 String _requireString(Map<String, Object?> json, String key, String where) =>
     _require<String>(json, key, where);
+
+String _requireStringElement(Object? value, String where) {
+  if (value is String) return value;
+  throw FormatException('$where: expected String, got $value');
+}
 
 int? _optInt(Map<String, Object?> json, String key, String where) =>
     _opt<int>(json, key, where);

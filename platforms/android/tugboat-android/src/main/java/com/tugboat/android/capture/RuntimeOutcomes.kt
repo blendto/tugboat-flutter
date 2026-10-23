@@ -91,6 +91,7 @@ internal class RuntimeOutcomes(private val frames: FrameHandleTable, private val
                 dHash = dHash,
                 structureSignature = structureSignature,
                 maskCoverage = masks.coverage,
+                hasRegionHosts = masks.hasRegionHosts,
             ),
             boundaryRect = (capture.masks.geometry ?: capture.requestGeometry).boundaryRect,
             timings = timings(capture, result),

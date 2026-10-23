@@ -32,6 +32,7 @@ conformance/
   fingerprint/
     identity_parts/<name>.json      kind fingerprint.identityParts
     label_hash/<name>.json          kind fingerprint.labelHash
+    inventory_hash/<name>.json      kind fingerprint.inventoryHash
   collector/
     event/<name>.json               kind collector.event
     session_lifecycle/<name>.json   kind collector.sessionLifecycle
@@ -118,6 +119,18 @@ The privacy hash for labels (`tugboatLabelHash`).
 | Expected | Meaning |
 | --- | --- |
 | `hash` | First 16 lowercase hex characters of SHA-256 over the UTF-8 bytes, or `""` for `""`. |
+
+### `fingerprint.inventoryHash`
+
+Scene inventory hash (`tugboatInventoryHash`): sorted element fingerprints joined by `|`, then `tugboatLabelHash`.
+
+| Input | Type | Meaning |
+| --- | --- | --- |
+| `fingerprints` | string array | Element fingerprints in any order. |
+
+| Expected | Meaning |
+| --- | --- |
+| `hash` | `tugboatLabelHash` of the sorted fingerprints joined by `\|`. |
 
 ### Shared collector inputs
 

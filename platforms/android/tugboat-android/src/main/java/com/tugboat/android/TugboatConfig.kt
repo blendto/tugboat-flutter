@@ -32,6 +32,8 @@ data class TugboatConfig @JvmOverloads constructor(
      * (blank is normalised to omitted, not sent as `""`).
      */
     val explorationRunId: String? = null,
+    /** Emits native `scene.inventory` facts after captured frames (engine capability `nativeSceneInventory`). */
+    val emitSceneInventory: Boolean = false,
 )
 
 /** The collector the SDK delivers to. */

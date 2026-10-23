@@ -22,6 +22,10 @@ internal class MaskWalk(private val decor: View) {
     private val structure = StructureHasher(decor.width, decor.height)
     private var wholeHost = false
 
+    /** Set when the walk met a region host; [structureSignature] does not see inside one. */
+    var metRegionHost = false
+        private set
+
     /** Set when a region asked for the whole frame; the walk stops there. */
     var wholeFrameReason: MaskCoverageReason? = null
         private set
@@ -60,6 +64,7 @@ internal class MaskWalk(private val decor: View) {
 
     /** [boundsMasked]: the host's own bounds are already a rect (it is sensitive). */
     private fun region(host: RegionHost, boundsMasked: Boolean) {
+        metRegionHost = true
         when (val masks = host.masks()) {
             is RegionMasks.WholeFrame -> wholeFrameReason = masks.reason
             is RegionMasks.WholeHost -> {

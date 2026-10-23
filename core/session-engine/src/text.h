@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace tugboat {
 namespace engine {
@@ -50,6 +51,11 @@ std::string_view utf8_prefix(std::string_view wtf8, size_t max_bytes);
 // Dart `tugboatLabelHash`: first 16 hex chars of SHA-256 over the UTF-8
 // bytes, or "" for "".
 std::string label_hash(std::string_view wtf8);
+
+// Dart `tugboatInventoryHash`: `label_hash` of the fingerprints sorted by
+// UTF-16 code units (`compare_utf16`) and joined by `|`.
+std::string inventory_hash_from_fingerprints(
+    std::vector<std::string> fingerprints);
 
 }  // namespace engine
 }  // namespace tugboat

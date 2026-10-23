@@ -5,6 +5,7 @@ import android.view.View
 import com.tugboat.android.toolkit.MaskCoverageReason
 import com.tugboat.android.toolkit.RegionFocus
 import com.tugboat.android.toolkit.RegionHit
+import com.tugboat.android.toolkit.RegionInventory
 import com.tugboat.android.toolkit.RegionMasks
 import com.tugboat.android.toolkit.RegionScrollable
 import com.tugboat.android.toolkit.ToolkitRegion
@@ -30,6 +31,9 @@ internal class RegionHost(val view: View, val region: ToolkitRegion) {
     }
 
     fun focus(): RegionFocus? = AdapterGuard.run("region focus", null) { region.focus(view) }
+
+    fun inventory(limit: Int): RegionInventory =
+        AdapterGuard.run("region inventory", RegionInventory.EMPTY) { region.inventory(view, limit) }
 
     private companion object {
         val UNREADABLE = RegionMasks.WholeFrame(MaskCoverageReason.WalkExhausted)
