@@ -8,6 +8,8 @@ import androidx.navigation.NavController
 import com.tugboat.android.engine.EngineTransport
 import com.tugboat.android.engine.JniEngineTransport
 import com.tugboat.android.evidence.EvidenceRecorder
+import com.tugboat.android.outbox.OutboxPolicy
+import com.tugboat.android.outbox.Outboxes
 import com.tugboat.android.sdk.LaunchCorrelation
 import com.tugboat.android.sdk.LifecycleSnapshot
 import com.tugboat.android.sdk.NavigationTracking
@@ -115,6 +117,7 @@ object Tugboat {
         afterStopLockForTesting = null
         LaunchCorrelation.resetForTests()
         NavigationObservation.resetForTests()
+        Outboxes.resetForTests()
     }
 
     /** JVM tests only: replaces [JniEngineTransport.open] for [start]. */
@@ -166,6 +169,11 @@ object Tugboat {
      * open, the session is refused. Either way the state returns to dormant
      * and an activation request is kept, so [activate] with the same id
      * retries.
+     *
+     * With [TugboatConfig.durableOutbox] off, deletes the requests an
+     * earlier launch kept on disk (in the background). A dormant start
+     * ([TugboatConfig.enabled] false) with the outbox on keeps them for the
+     * first session, which replays them.
      */
     @JvmStatic
     fun start(application: Application, config: TugboatConfig) = onMain("start") {
@@ -182,6 +190,9 @@ object Tugboat {
         this.application = application
         this.config = config
         configGeneration++
+        val outbox = Outboxes.at(application)
+        val clearRequested = Outboxes.takePendingClear()
+        if (OutboxPolicy.wipeAtStart(config) || clearRequested) outbox.wipe()
         NavigationObservation.ensureInstalled(application)
         NavigationObservation.onResumed = launch::onActivityResumed
         reconcile()
@@ -240,6 +251,18 @@ object Tugboat {
             }
             onMain("deactivate", ::reconcile)
         }
+    }
+
+    /**
+     * Deletes every collector request the durable outbox keeps on disk
+     * ([TugboatConfig.durableOutbox]), in the background: requests not yet
+     * delivered are lost. A request in flight still completes. Before the
+     * first [start] the delete waits for it. Works whatever the state, and
+     * does not change it.
+     */
+    @JvmStatic
+    fun clearPendingData() {
+        guarded("clearPendingData") { Outboxes.clear() }
     }
 
     /** The runtime user id stamped on later events; null clears it. Kept across [stop] and [start]. */

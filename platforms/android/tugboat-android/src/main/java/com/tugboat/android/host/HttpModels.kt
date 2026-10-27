@@ -7,6 +7,8 @@ internal data class HttpRequest(
     val path: String,
     val timeoutMs: Int,
     val body: HttpBody,
+    /** Sent after the collector headers; the durable outbox adds `Tugboat-Delivery-Key`. */
+    val headers: Map<String, String> = emptyMap(),
 )
 
 internal sealed interface HttpBody {
