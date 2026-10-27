@@ -254,24 +254,32 @@ class TugboatActivationTest {
     }
 
     @Test
-    fun launchAndHealthLinesFollowAnActivationWhileResumed() {
-        Tugboat.start(application, config)
-        idle()
-        Robolectric.buildActivity(
-            Activity::class.java,
-            Intent().putExtras(Bundle().apply { putString(LaunchExtraKeys.EMIT_SCENE_INVENTORY, "1") }),
-        ).setup()
-        idle()
-        assertTrue(logLines("TUGBOAT_LAUNCH").isEmpty())
+    fun launchPrintsAtTheFirstResumeWhileDormantAndHealthReportsTheSessionRunningWhenItPrints() {
+        startWithLaunchExtrasActivity()
+        val launch = JSONObject(logLines("TUGBOAT_LAUNCH").single().removePrefix("TUGBOAT_LAUNCH ").trim())
+        assertFalse(launch.has("captureSessionId"))
 
         Tugboat.activate("h")
         idle()
+        val wallUs = awaitSessionStart(0).getJSONObject("at").getLong("wallUs")
         assertEquals(1, logLines("TUGBOAT_LAUNCH").size)
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LaunchCorrelation.HEALTH_DELAY_MS))
         val health = JSONObject(logLines("TUGBOAT_HEALTH").single().removePrefix("TUGBOAT_HEALTH ").trim())
         assertEquals("active", health.getString("lifecycle"))
         assertEquals("h", health.getString("activationRequestId"))
-        assertTrue(health.has("captureSessionId"))
+        assertEquals("session-$wallUs", health.getString("captureSessionId"))
+    }
+
+    @Test
+    fun launchAndHealthPrintWhileDormantWithoutASession() {
+        startWithLaunchExtrasActivity()
+        assertEquals(1, logLines("TUGBOAT_LAUNCH").size)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LaunchCorrelation.HEALTH_DELAY_MS))
+        val health = JSONObject(logLines("TUGBOAT_HEALTH").single().removePrefix("TUGBOAT_HEALTH ").trim())
+        assertEquals("dormant", health.getString("lifecycle"))
+        assertFalse(health.has("captureSessionId"))
+        assertFalse(health.has("activationRequestId"))
+        assertTrue(transports.isEmpty())
     }
 
     @Test
@@ -311,11 +319,12 @@ class TugboatActivationTest {
         assertEquals(1, logLines("TUGBOAT_LAUNCH").size)
         Tugboat.activate("h2")
         idle()
+        val secondWallUs = awaitSessionStart(1).getJSONObject("at").getLong("wallUs")
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LaunchCorrelation.HEALTH_DELAY_MS))
         val health = JSONObject(logLines("TUGBOAT_HEALTH").single().removePrefix("TUGBOAT_HEALTH ").trim())
         assertEquals("active", health.getString("lifecycle"))
         assertEquals("h2", health.getString("activationRequestId"))
-        assertTrue(health.has("captureSessionId"))
+        assertEquals("session-$secondWallUs", health.getString("captureSessionId"))
     }
 
     @Test

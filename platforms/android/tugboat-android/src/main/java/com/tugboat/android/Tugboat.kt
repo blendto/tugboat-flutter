@@ -162,6 +162,7 @@ object Tugboat {
         this.application = application
         this.config = config
         NavigationObservation.ensureInstalled(application)
+        NavigationObservation.onResumed = launch::onActivityResumed
         reconcile()
     }
 
@@ -266,6 +267,7 @@ object Tugboat {
             onMain("stop") {
                 endSession()
                 LaunchCorrelation.cancelPendingHealth()
+                NavigationObservation.onResumed = null
                 application = null
                 config = null
                 markDormant(epoch)
@@ -366,7 +368,6 @@ object Tugboat {
             config,
             sessionEpoch++,
             activationRequestId = id,
-            lifecycle = ::healthLifecycle,
             openTransport = transport,
         )
         if (started == null) return markFailed(epoch)
@@ -383,16 +384,27 @@ object Tugboat {
 
     /**
      * Main thread: fences evidence and stops the runtime (`session.end` is
-     * posted before this returns). A pending `TUGBOAT_HEALTH` line survives;
-     * only [stop] cancels it.
+     * posted before this returns). A pending `TUGBOAT_HEALTH` line survives
+     * (it is process-scoped); only [stop] cancels it.
      */
     private fun endSession() {
         val ending = runtime ?: return
         synchronized(lock) { evidence = null }
         runtime = null
         runtimeActivationId = null
-        ending.stop(cancelHealth = false)
+        ending.stop()
     }
+
+    /**
+     * `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH` (process-scoped, from the first
+     * resume with launch extras whatever the state). Main thread.
+     */
+    private val launch: LaunchCorrelation by lazy {
+        LaunchCorrelation(captureSessionId = ::runningSessionId, lifecycle = ::healthLifecycle)
+    }
+
+    /** Main thread: the running session's `captureSessionId`, null when none runs. */
+    private fun runningSessionId(): String? = runtime?.takeIf { it.isHostRunning }?.captureSessionId
 
     /**
      * Main thread, when `TUGBOAT_HEALTH` fires: the state and id at that

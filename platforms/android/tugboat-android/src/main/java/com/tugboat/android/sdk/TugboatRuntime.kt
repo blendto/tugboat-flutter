@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.tugboat.android.TugboatConfig
-import com.tugboat.android.TugboatLifecycleState
 import com.tugboat.android.capture.CaptureAnswer
 import com.tugboat.android.capture.CaptureCoordinator
 import com.tugboat.android.capture.ForegroundWindow
@@ -44,7 +43,8 @@ internal class TugboatRuntime private constructor(
     private val watcher: SessionEndWatcher,
     private val clock: HostClock,
     private val stopSequence: StopSequence,
-    private val launchCorrelation: LaunchCorrelation,
+    /** `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH`'s `captureSessionId`: `session-<wallUs>` of `session.start`. */
+    val captureSessionId: String,
     /** Coded events and network calls; any thread. */
     val evidence: EvidenceRecorder,
 ) {
@@ -62,14 +62,11 @@ internal class TugboatRuntime private constructor(
     /**
      * Detaches every observer (pending facts are posted first), ends the
      * session, waits for its `session_end` post to settle, then disposes the
-     * engine and the pixel runtime ([StopSequence]). [cancelHealth] false
-     * (the facade's `deactivate` or a replacing `activate`) leaves a pending
-     * `TUGBOAT_HEALTH` line to fire; `Tugboat.stop` cancels it.
+     * engine and the pixel runtime ([StopSequence]).
      */
-    fun stop(cancelHealth: Boolean = true) {
+    fun stop() {
         if (stopped) return
         stopped = true
-        if (cancelHealth) launchCorrelation.stop()
         evidence.close()
         adapter.stop()
         lifecycle.stop()
@@ -98,12 +95,6 @@ internal class TugboatRuntime private constructor(
             sessionEpoch: Int,
             /** From `Tugboat.activate`; passed on `session.start` when non-blank. */
             activationRequestId: String? = null,
-            /**
-             * The facade's lifecycle, read when `TUGBOAT_HEALTH` fires (maybe
-             * after this session ended). Null: active with [activationRequestId]
-             * while this engine host runs, else dormant.
-             */
-            lifecycle: (() -> LifecycleSnapshot)? = null,
             openTransport: () -> EngineTransport? = { JniEngineTransport.open() },
             stopSequence: StopSequence = StopSequence(),
         ): TugboatRuntime? {
@@ -118,7 +109,7 @@ internal class TugboatRuntime private constructor(
                 Log.e(TAG, "Tugboat not started: the session engine is unavailable")
                 return null
             }
-            val session = SessionInputs(sessionEpoch, activationRequestId, lifecycle)
+            val session = SessionInputs(sessionEpoch, activationRequestId)
             return assemble(application, config, transport, device, metadata, session, stopSequence)
         }
 
@@ -159,21 +150,9 @@ internal class TugboatRuntime private constructor(
                 engineHost.withHost { it.post(SurfaceReporter.FACT_TYPE, input, clock.now()) }
             }
             val startAt = clock.now()
-            val launchCorrelation = LaunchCorrelation(
-                sessionWallUs = startAt.wallUs,
-                lifecycle = session.lifecycle ?: {
-                    // A host that stopped running records nothing: dormant.
-                    if (engineHost.value?.isRunning == true) {
-                        LifecycleSnapshot(TugboatLifecycleState.ACTIVE, session.activationRequestId)
-                    } else {
-                        LifecycleSnapshot.DORMANT
-                    }
-                },
-            )
             val foreground = ForegroundWindow(
                 application,
                 resumedActivity = NavigationObservation::resumedActivity,
-                onResumed = launchCorrelation::onActivityResumed,
                 onBoundary = surfaces::observe,
             )
             val main = Handler(Looper.getMainLooper())
@@ -223,7 +202,7 @@ internal class TugboatRuntime private constructor(
             localeBridge.start()
             return TugboatRuntime(
                 host, adapter, lifecycle, localeBridge, foreground, captures, watcher, clock, stopSequence,
-                launchCorrelation, evidence,
+                LaunchCorrelation.captureSessionId(startAt.wallUs), evidence,
             )
         }
     }
@@ -233,7 +212,6 @@ internal class TugboatRuntime private constructor(
 private class SessionInputs(
     val sessionEpoch: Int,
     val activationRequestId: String?,
-    val lifecycle: (() -> LifecycleSnapshot)?,
 )
 
 internal fun String?.normalizedSessionId(): String? = this?.takeIf { it.isNotBlank() }

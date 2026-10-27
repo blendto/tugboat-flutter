@@ -33,6 +33,13 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
     private var frameScheduled = false
 
     private val live = LiveActivities()
+
+    /**
+     * Told of every activity resume, whatever the lifecycle state (the
+     * facade's launch correlation). Its own guard: reading launch extras can
+     * throw (an unloadable Parcelable), and that must not cost navigation.
+     */
+    var onResumed: ((Activity) -> Unit)? = null
     private val destinations = DestinationTracker()
     private val activities = ActivityNavigation(::report)
     private val controllers = ControllerNavigation(::report)
@@ -61,6 +68,7 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
             application = null
         }
         recording = null
+        onResumed = null
         live.clear()
         frameScheduled = false
         frameScheduler = ChoreographerFrames()
@@ -157,11 +165,14 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
             fragments?.register(activity)
         }
 
-    override fun onActivityResumed(activity: Activity) =
+    override fun onActivityResumed(activity: Activity) {
         AdapterGuard.run("activity resumed") {
             live.onResumed(activity)
             activities.onResumed(activity)
         }
+        val hook = onResumed ?: return
+        AdapterGuard.run("launch correlation") { hook(activity) }
+    }
 
     override fun onActivityDestroyed(activity: Activity) =
         AdapterGuard.run("activity destroyed") {

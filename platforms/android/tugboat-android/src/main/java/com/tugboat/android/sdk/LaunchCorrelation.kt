@@ -9,16 +9,19 @@ import com.tugboat.android.views.AdapterGuard
 
 /**
  * Emits `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH` for Device Farm correlation when
- * launch extras request capture. Main thread only. LAUNCH and HEALTH fire at
- * most once per process (the first session that sees the extras wins).
- * The pending HEALTH line is process-wide: it outlives the session that
- * scheduled it (a `deactivate` or a replacing `activate` does not cancel
- * it) and reports [lifecycle] as it is when it fires. Only `Tugboat.stop`
- * ([cancelPendingHealth]) or [stop] cancels it.
+ * launch extras request capture. Main thread only. Process-scoped (owned by
+ * the `Tugboat` facade, fed by the resumed-activity tracker), so, like the
+ * Flutter host that prints at config time, LAUNCH prints at the first
+ * resume of an activity whose intent carries the extras whatever the
+ * lifecycle state, and HEALTH [HEALTH_DELAY_MS] later. One of each per
+ * process. Both read [captureSessionId] (the running session's, null when
+ * none runs) and HEALTH reads [lifecycle] when the line prints, never from
+ * the session running when the timer started. Only [cancelPendingHealth]
+ * (`Tugboat.stop`) or [stop] cancels a pending HEALTH line.
  */
 internal class LaunchCorrelation(
-    private val sessionWallUs: Long,
-    /** Read when HEALTH fires. */
+    /** `session-<wallUs>` of the running session, null when none runs. */
+    private val captureSessionId: () -> String?,
     private val lifecycle: () -> LifecycleSnapshot,
     private val handler: Handler = Handler(Looper.getMainLooper()),
     private val emit: (String) -> Unit = { line -> Log.i(TAG, line) },
@@ -29,11 +32,8 @@ internal class LaunchCorrelation(
         if (LaunchCorrelationLatch.launchLogged) return
         val parsed = LaunchOptions.fromActivity(activity) ?: return
         LaunchCorrelationLatch.launchLogged = true
-        LaunchCorrelationLatch.firstSessionWallUs = sessionWallUs
-        emit("TUGBOAT_LAUNCH ${parsed.toLaunchJson(sessionWallUs)}")
-        val task = Runnable {
-            AdapterGuard.run("launch health") { logHealth() }
-        }
+        emit("TUGBOAT_LAUNCH ${parsed.toLaunchJson(captureSessionId())}")
+        val task = Runnable { AdapterGuard.run("launch health") { logHealth(lifecycle(), captureSessionId()) } }
         healthTask = task
         LaunchCorrelationLatch.cancelHealth = { handler.removeCallbacks(task) }
         handler.postDelayed(task, HEALTH_DELAY_MS)
@@ -46,19 +46,17 @@ internal class LaunchCorrelation(
         LaunchCorrelationLatch.cancelHealth = null
     }
 
-    private fun logHealth() {
+    private fun logHealth(lifecycle: LifecycleSnapshot, captureSessionId: String?) {
         healthTask = null
         LaunchCorrelationLatch.cancelHealth = null
-        if (!LaunchCorrelationLatch.launchLogged) return
-        val wallUs = LaunchCorrelationLatch.firstSessionWallUs
-        emit("TUGBOAT_HEALTH ${LaunchOptions.healthJson(lifecycle(), wallUs)}")
+        emit("TUGBOAT_HEALTH ${LaunchOptions.healthJson(lifecycle, captureSessionId)}")
     }
 
     companion object {
         const val TAG = "Tugboat"
         const val HEALTH_DELAY_MS = 10_000L
 
-        /** `Tugboat.stop`: cancels the pending HEALTH line, whichever session scheduled it. Main thread. */
+        /** `Tugboat.stop`: cancels the pending HEALTH line, whichever instance scheduled it. Main thread. */
         fun cancelPendingHealth() {
             LaunchCorrelationLatch.cancelHealth?.invoke()
             LaunchCorrelationLatch.cancelHealth = null
@@ -67,8 +65,10 @@ internal class LaunchCorrelation(
         internal fun resetForTests() {
             cancelPendingHealth()
             LaunchCorrelationLatch.launchLogged = false
-            LaunchCorrelationLatch.firstSessionWallUs = 0L
         }
+
+        /** The `captureSessionId` of a session whose `session.start` is at [wallUs]. */
+        fun captureSessionId(wallUs: Long): String = "session-$wallUs"
     }
 }
 
@@ -79,10 +79,9 @@ internal data class LifecycleSnapshot(val state: TugboatLifecycleState, val acti
     }
 }
 
-/** Process-wide latch: first capture session id used for both correlation lines. */
+/** Process-wide latch: LAUNCH (and so HEALTH) at most once per process. */
 internal object LaunchCorrelationLatch {
     @Volatile var launchLogged: Boolean = false
-    @Volatile var firstSessionWallUs: Long = 0L
 
     /** Cancels the pending HEALTH line; null when none is pending. Main thread. */
     var cancelHealth: (() -> Unit)? = null
