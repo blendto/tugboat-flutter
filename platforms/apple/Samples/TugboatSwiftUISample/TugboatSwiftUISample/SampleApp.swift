@@ -15,6 +15,7 @@ struct SampleApp: App {
           HomeScreen()
         }
       }
+      .onOpenURL { SampleConfiguration.handle($0) }
     }
   }
 }
@@ -28,6 +29,9 @@ final class SampleAppDelegate: NSObject, UIApplicationDelegate {
   ) -> Bool {
     if let config = SampleConfiguration.tugboat() {
       Tugboat.start(config)
+    }
+    if let id = SampleConfiguration.activationRequestId() {
+      Tugboat.activate(activationRequestId: id)
     }
     Tugboat.setTraits(["sample": "swiftui"])
     return true

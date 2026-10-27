@@ -15,9 +15,13 @@ extension TugboatRuntime {
     let session: SessionFlag
     let clock: HostClock
     let launchCorrelation: LaunchCorrelation
+    let locale: LocaleBridge
     let sessionStartAt: HostTime
 
-    static func assemble(config: TugboatConfig, transport: EngineTransport) -> Parts {
+    static func assemble(
+      config: TugboatConfig, transport: EngineTransport, initialLocale: LocaleSnapshot,
+      lifecycle: @escaping LaunchCorrelation.Lifecycle
+    ) -> Parts {
       let clock = SystemHostClock()
       let frames = FrameHandleTable()
       let hostConfig = HostConfig(
@@ -56,9 +60,10 @@ extension TugboatRuntime {
         accessibilityIdentity: config.swiftUIAccessibilityIdentity)
       let session = SessionFlag()
       let startAt = clock.now()
-      let launchCorrelation = LaunchCorrelation(
-        sessionWallUs: startAt.wallUs,
-        isEngineActive: { host.isRunning && session.isLive })
+      let launchCorrelation = LaunchCorrelation(sessionWallUs: startAt.wallUs, lifecycle: lifecycle)
+      let locale = LocaleBridge(initial: initialLocale) { input in
+        ref.host?.post(type: SessionMessages.localeSet, inputJSON: input, at: clock.now())
+      }
       let lifecycle = AppLifecycleBridge { state in
         ref.host?.post(type: SessionMessages.appLifecycle, inputJSON: SessionMessages.appLifecycleInput(state), at: clock.now())
         // The engine ends the session on `detached`.
@@ -67,7 +72,7 @@ extension TugboatRuntime {
       return Parts(
         host: host, adapter: adapter, lifecycle: lifecycle, surfaces: SurfaceObserver(reporter: reporter),
         captures: captures, watcher: watcher, session: session, clock: clock, launchCorrelation: launchCorrelation,
-        sessionStartAt: startAt)
+        locale: locale, sessionStartAt: startAt)
     }
 
     /// One capture's mask supplier: the adapter's mask walk, the current

@@ -9,8 +9,9 @@
 /// - `capture.answerTimeoutMs`: the C18 deadline for a `capture.result`.
 /// - `collector.enabled`: the engine owns delivery; the host only performs
 ///   `http.send`.
-/// - `capabilities`: `focusChanges` from `TugboatConfig`. iOS produces no
-///   system input facts, so `systemInput` keeps the engine default (off).
+/// - `capabilities`: `focusChanges` and `captureDiagnostics` from
+///   `TugboatConfig`. iOS produces no system input facts, so `systemInput`
+///   keeps the engine default (off).
 enum EngineConfiguration {
   static let maxEvents: Int64 = 5000
   static let maxFrames: Int64 = 500
@@ -28,6 +29,7 @@ enum EngineConfiguration {
     collector.set("enabled", true)
     var capabilities = JSONObject()
     capabilities.set("focusChanges", config.captureFocusChanges)
+    capabilities.set("captureDiagnostics", config.captureDiagnostics)
 
     var out = JSONObject()
     out.set("host", host.hostJSON)

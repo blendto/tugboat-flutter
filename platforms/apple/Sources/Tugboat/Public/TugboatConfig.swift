@@ -6,15 +6,27 @@ import Foundation
 public struct TugboatConfig {
   public var collector: Collector
   public var app: App
+  /// Whether `Tugboat.start` starts a session at once. Off by default, as
+  /// Flutter's `TugboatReplayConfig.enabled`: Tugboat stays dormant (no
+  /// engine, observers, method exchange, threads, or network; nothing
+  /// recorded; the app unchanged) until `Tugboat.activate`. When true, a
+  /// session starts at `start` with no `activationRequestId`. Either way,
+  /// `Tugboat.deactivate` turns capture off until the next `activate`.
+  public var enabled: Bool
   /// Only `allTextAndMedia` exists in this release.
   public var maskLevel: MaskLevel
   /// Records `focus_changed` for text-input focus transitions (engine
   /// capability `focusChanges`).
   public var captureFocusChanges: Bool
+  /// Records bounded `capture_diagnostic` events (engine capability
+  /// `captureDiagnostics`), as Flutter's `emitCaptureDiagnostics`.
+  public var captureDiagnostics: Bool
   /// Reports SwiftUI hosting controllers' appearance as routes until the
   /// first `.tugboatScreen` appears. Installs a one-time method exchange on
-  /// `UIViewController` appearance; set false to rely on `.tugboatScreen`
-  /// alone.
+  /// `UIViewController` appearance when the first session starts (never
+  /// while dormant); set false to rely on `.tugboatScreen` alone. The
+  /// exchange is never undone: after `deactivate` or `stop` it forwards to
+  /// the original methods and records nothing.
   public var trackHostingControllers: Bool
   /// Opt-in identity for untagged SwiftUI taps from the in-process
   /// accessibility tree (ADR 0010). Off by default; prefer `.tugboatTag`
@@ -58,21 +70,31 @@ public struct TugboatConfig {
   /// VoiceOver is running. Changing this changes identity: sampled-in
   /// processes give some taps a deeper path and a different fingerprint.
   public var swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity
+  /// Sent on every `session.start` when non-blank (omitted when nil or
+  /// blank), as Flutter's `TugboatReplayConfig.explorationRunId`. The
+  /// activation id is not configuration: it comes from `Tugboat.activate`.
+  public var explorationRunId: String?
 
   public init(
     collector: Collector,
     app: App,
+    enabled: Bool = false,
     maskLevel: MaskLevel = .allTextAndMedia,
     captureFocusChanges: Bool = false,
+    captureDiagnostics: Bool = false,
     trackHostingControllers: Bool = true,
-    swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off
+    swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off,
+    explorationRunId: String? = nil
   ) {
     self.collector = collector
     self.app = app
+    self.enabled = enabled
     self.maskLevel = maskLevel
     self.captureFocusChanges = captureFocusChanges
+    self.captureDiagnostics = captureDiagnostics
     self.trackHostingControllers = trackHostingControllers
     self.swiftUIAccessibilityIdentity = swiftUIAccessibilityIdentity
+    self.explorationRunId = explorationRunId
   }
 
   /// The collector the SDK delivers to.
@@ -95,8 +117,8 @@ public struct TugboatConfig {
 
   /// The app as the collector files it. Every field is required: the
   /// collector rejects a `session_start` without the version and build
-  /// number, so `Tugboat.start` refuses to start (and logs why) when one is
-  /// blank.
+  /// number, so `Tugboat.start` refuses the configuration (and logs why)
+  /// when one is blank.
   public struct App {
     public var name: String
     public var version: String

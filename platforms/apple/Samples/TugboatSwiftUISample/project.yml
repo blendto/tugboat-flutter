@@ -39,6 +39,11 @@ targets:
           NSAllowsLocalNetworking: true
         # A device reaching a collector on the LAN asks for local-network access.
         NSLocalNetworkUsageDescription: Sends test sessions to a Tugboat collector on your local network.
+        # `tugboat-sample://activate?id=<id>` and `tugboat-sample://deactivate`.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.gettugboat.sample.swiftui
+            CFBundleURLSchemes:
+              - tugboat-sample
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gettugboat.sample.swiftui

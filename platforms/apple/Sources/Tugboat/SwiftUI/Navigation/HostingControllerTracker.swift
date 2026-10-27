@@ -44,10 +44,11 @@ final class HostingControllerTracker {
   private static var appearanceInstalled = false
 
   /// Installs the process-wide `UIViewController` appearance exchange the
-  /// first time an adapter that tracks hosting controllers starts; an app
-  /// that opts out (`trackHostingControllers: false`) is never swizzled.
-  /// It stays installed after `stop()` and records nothing while no
-  /// adapter is recording.
+  /// first time an adapter that tracks hosting controllers starts (the
+  /// first session start, never while dormant); an app that opts out
+  /// (`trackHostingControllers: false`) is never swizzled. It stays
+  /// installed after `deactivate()` and `stop()` and records nothing while
+  /// no adapter is recording.
   func installAppearanceObserverIfNeeded() {
     guard !HostingControllerTracker.appearanceInstalled else { return }
     HostingControllerTracker.appearanceInstalled = true

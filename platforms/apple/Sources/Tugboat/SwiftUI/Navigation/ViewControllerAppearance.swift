@@ -8,12 +8,15 @@ import UIKit
 /// tell `observer`. Only public Objective-C runtime functions are used
 /// (`class_getInstanceMethod`, `method_exchangeImplementations`).
 ///
-/// Installing cannot be undone (another SDK may have exchanged the same
-/// methods since), so after `stop()` the exchange stays and records nothing
-/// while no adapter is recording. It is installed the first time an adapter
-/// that tracks hosting controllers starts (never when the configuration opts
-/// out), so a hosting controller already on screen at that first `start()`
-/// is not seen; `.tugboatScreen` alone is enough for route keys.
+/// It is installed the first time a session starts with
+/// `trackHostingControllers` (never while Tugboat is dormant, never when the
+/// configuration opts out), so a hosting controller already on screen at
+/// that first session start is not seen; `.tugboatScreen` alone is enough
+/// for route keys. It is never exchanged back, not even by
+/// `Tugboat.deactivate()` or `Tugboat.stop()`: another SDK may have
+/// exchanged the same methods since, and undoing ours would break its
+/// chain. While no session records, the exchanged methods call the
+/// originals and record nothing.
 ///
 /// Main thread only.
 enum ViewControllerAppearance {

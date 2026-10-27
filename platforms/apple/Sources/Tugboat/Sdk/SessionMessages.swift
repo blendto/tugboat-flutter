@@ -9,10 +9,15 @@ enum SessionMessages {
   static let appLifecycle = "app.lifecycle"
   static let identitySet = "identity.set"
   static let traitsSet = "traits.set"
+  static let localeSet = "locale.set"
 
   /// `viewport` is the key window's size in points when known, else the
-  /// screen's.
-  static func sessionStartInput(viewport: (width: Double, height: Double), host: HostMetadata, sessionEpoch: Int) -> String {
+  /// screen's. `activationRequestId` and `explorationRunId` are sent only
+  /// when non-blank (`normalizedSessionId`).
+  static func sessionStartInput(
+    viewport: (width: Double, height: Double), host: HostMetadata, sessionEpoch: Int,
+    activationRequestId: String? = nil, explorationRunId: String? = nil
+  ) -> String {
     var size = JSONObject()
     size.set("width", .double(viewport.width))
     size.set("height", .double(viewport.height))
@@ -21,7 +26,23 @@ enum SessionMessages {
     out.set("platform", HostMetadata.platform)
     out.set("sessionEpoch", Int64(sessionEpoch))
     out.set("locale", host.sessionLocaleJSON)
+    if let id = normalizedSessionId(activationRequestId) { out.set("activationRequestId", id) }
+    if let id = normalizedSessionId(explorationRunId) { out.set("explorationRunId", id) }
     return out.json
+  }
+
+  /// `locale.set`: the same locale object as `session.start.locale`.
+  static func localeSetInput(_ locale: LocaleSnapshot) -> String {
+    var out = JSONObject()
+    out.set("locale", HostMetadata.localeJSON(locale))
+    return out.json
+  }
+
+  /// `id` unchanged, or nil when nil or blank: a blank id is omitted from
+  /// the wire, as on Android (Flutter sends `""` verbatim).
+  static func normalizedSessionId(_ id: String?) -> String? {
+    guard let id = id, !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+    return id
   }
 
   static func sessionEndInput() -> String {

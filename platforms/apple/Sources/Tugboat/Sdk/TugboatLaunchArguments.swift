@@ -75,10 +75,16 @@ struct LaunchOptions {
     return "TUGBOAT_LAUNCH {" + parts.joined(separator: ",") + "}"
   }
 
-  static func healthLine(lifecycle: String, sessionWallUs: Int64) -> String {
-    if lifecycle == "dormant" {
-      return "TUGBOAT_HEALTH {\"lifecycle\":\(JSONText.quoted(lifecycle))}"
+  /// `lifecycle` is a `TugboatLifecycleState` name. `activationRequestId`
+  /// is added when non-nil; `captureSessionId` is left out while dormant.
+  static func healthLine(lifecycle: String, activationRequestId: String?, sessionWallUs: Int64) -> String {
+    var parts = ["\"lifecycle\":\(JSONText.quoted(lifecycle))"]
+    if let activationRequestId = activationRequestId {
+      parts.append("\"activationRequestId\":\(JSONText.quoted(activationRequestId))")
     }
-    return "TUGBOAT_HEALTH {\"lifecycle\":\(JSONText.quoted(lifecycle)),\"captureSessionId\":\"session-\(sessionWallUs)\"}"
+    if lifecycle != TugboatLifecycleState.dormant.rawValue {
+      parts.append("\"captureSessionId\":\"session-\(sessionWallUs)\"")
+    }
+    return "TUGBOAT_HEALTH {" + parts.joined(separator: ",") + "}"
   }
 }
