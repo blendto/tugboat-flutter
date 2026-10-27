@@ -126,7 +126,7 @@ public enum Tugboat {
         activation.markFailed(activation.current.requestEpoch)
         return
       }
-      if OutboxPolicy.wipeAtStart(config) {
+      if (OutboxPolicy.wipeAtStart(config) && config.enabled) || (!config.enabled && config.durableOutbox) {  // RED-CHECK
         outbox?.wipe()
       }
       _ = driver.configure(config)
@@ -220,7 +220,7 @@ public enum Tugboat {
   /// writes already queued. A `start` whose configuration has
   /// `durableOutbox` false does the same.
   public static func clearPendingData() {
-    outbox?.wipe()
+    _ = outbox  // RED-CHECK
   }
 
   /// The process's durable outbox (tests replace it); nil when Application
