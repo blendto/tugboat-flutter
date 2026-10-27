@@ -161,6 +161,70 @@ class OutboxSenderTest {
     }
 
     @Test
+    fun aSenderFromBeforeAWipeStillSendsButWritesNothingMore() {
+        // The engine of a stopped session is still draining when the app clears the outbox.
+        outbox.wipe()
+        sender.send(lifecycle(eventType = "session_end")) { answers += it }
+        settled()
+
+        assertEquals("still sent", 1, http.requests.size)
+        assertNull(http.requests.single().headers["Tugboat-Delivery-Key"])
+        assertTrue(entryDirs(root).isEmpty())
+
+        // A sender of the next session records again.
+        OutboxSender(http, outbox, inputs, "0.1.0", frameBytes::get).send(lifecycle("s-2")) {}
+        settled()
+        assertEquals(1, entryDirs(root).size)
+    }
+
+    @Test
+    fun aWriteQueuedJustAfterAWipeByAnOlderSenderLandsNothing() {
+        val older = outbox.registerSender()
+        // The sender checked its generation, then the wipe ran, then its write was queued.
+        outbox.wipe()
+        outbox.write(OutboxKeys.capture(lifecycle()) { null }.orEmpty(), inputs, "0.1.0", older)
+        settled()
+
+        assertTrue(entryDirs(root).isEmpty())
+    }
+
+    @Test
+    fun anEngineRequestStartsAtOnceWhileTheDiskIsBusy() {
+        val release = CountDownLatch(1)
+        val busyIo = java.util.concurrent.Executors.newSingleThreadExecutor()
+        busyIo.execute { release.await(10, TimeUnit.SECONDS) }
+        val busy = Outbox(root = { root }, processEpoch = "epoch-a", io = busyIo)
+        val busySender = OutboxSender(http, busy, inputs, "0.1.0", frameBytes::get)
+        try {
+            val sentAt = System.nanoTime()
+            busySender.send(lifecycle()) {}
+            val elapsedMs = (System.nanoTime() - sentAt) / 1_000_000
+
+            assertEquals(1, http.requests.size)
+            assertTrue("the send waited $elapsedMs ms for the disk", elapsedMs < 1_000)
+            assertTrue("the write is still queued", entryDirs(root).isEmpty())
+        } finally {
+            release.countDown()
+            busyIo.shutdown()
+        }
+    }
+
+    @Test
+    fun aReplacedSessionsLateSendNeverMovesTheCurrentSessionBack() {
+        val oldSender = sender
+        val newSender = OutboxSender(http, outbox, inputs, "0.1.0", frameBytes::get)
+        newSender.send(events("s-2")) {}
+        http.complete(0, TransportOutcome.Http(503, ""))
+        // The replaced session's session_end is still retrying.
+        oldSender.send(lifecycle("s-1", eventType = "session_end")) {}
+        settled()
+
+        assertEquals("s-2", outbox.currentSession)
+        val live = outbox.scanAndEvict().entries.single { it.sessionId == "s-2" }
+        assertTrue("the live session's batch stays the engine's", !outbox.isOrphan(live))
+    }
+
+    @Test
     fun closeLetsQueuedWritesLandBeforeTheExecutorCloses() {
         val release = CountDownLatch(1)
         val slowIo = java.util.concurrent.Executors.newSingleThreadExecutor()

@@ -19,6 +19,7 @@ import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -61,13 +62,15 @@ class OutboxDrainerTest {
         scheduler: ScheduledThreadPoolExecutor = RecordingScheduler(),
     ): OutboxDrainer {
         val replay = HttpExecutor(hostConfig("http://127.0.0.1:${server.port}"), outbox.store::readFrame)
-        return OutboxDrainer(outbox, identity, replay::perform, scheduler, replay::close) { logs += it }
+        return OutboxDrainer(outbox, identity, replay::send, scheduler, replay::close) { logs += it }
             .also { drainers += it }
     }
 
     private fun passes(count: Int) = awaitUntil { logs.size >= count }
 
-    private fun report(index: Int) = JSONObject(logs[index].removePrefix("outbox drain "))
+    /** The `outbox pass k=v …` line of pass [index]. */
+    private fun report(index: Int): Map<String, Long> =
+        logs[index].removePrefix("outbox pass ").split(' ').associate { it.substringBefore('=') to it.substringAfter('=').toLong() }
 
     @Test
     fun anEntryLeftByADeadProcessIsReplayedOnceThenDeleted() {
@@ -82,8 +85,8 @@ class OutboxDrainerTest {
         assertEquals("s-1/l/session_start/2026-10-27T10:00:00.000Z", replayed.headers["tugboat-delivery-key"])
         assertEquals("pmk_key", replayed.headers["x-tugboat-api-key"])
         assertEquals((lifecycle().body as com.tugboat.android.host.HttpBody.Json).text, replayed.body.toString(Charsets.UTF_8))
-        assertEquals(2, report(0).getInt("replayed"))
-        assertEquals(0L, report(0).getLong("bytesOnDisk"))
+        assertEquals(2, report(0).getValue("replayed").toInt())
+        assertEquals(0L, report(0).getValue("bytesOnDisk"))
         assertTrue(entryDirs(root).isEmpty())
 
         // Another restart: nothing is left to send.
@@ -120,23 +123,152 @@ class OutboxDrainerTest {
         passes(1)
 
         assertTrue(server.received.isEmpty())
-        assertEquals(1, report(0).getInt("identityMismatch"))
+        assertEquals(1, report(0).getValue("identityMismatch").toInt())
+        assertTrue(entryDirs(root).isEmpty())
+    }
+
+    private fun editEntry(edit: (JSONObject) -> Unit) {
+        val file = File(entryDirs(root).single(), "entry.json")
+        file.writeText(JSONObject(file.readText()).also(edit).toString())
+    }
+
+    private fun entryJson() = JSONObject(File(entryDirs(root).single(), "entry.json").readText())
+
+    @Test
+    fun anEntryReplayedMaxAttemptsTimesIsExpiredUnsent() {
+        leftByADeadProcess(lifecycle())
+        editEntry { it.put("replays", 8) }
+
+        drainer(OutboxFixtures.outbox(root, "epoch-b")).start()
+        passes(1)
+
+        assertTrue("sent anyway: ${server.received.size}", server.received.isEmpty())
+        assertEquals(1, report(0).getValue("expired").toInt())
         assertTrue(entryDirs(root).isEmpty())
     }
 
     @Test
-    fun anEntryAtMaxAttemptsIsExpiredUnsent() {
+    fun anEntryTheEngineRetriedThroughAnOutageIsStillReplayedAfterAKill() {
+        // Offline for about 25 s: the engine re-sent the lifecycle head 8 times, all errors; then the app was killed.
+        val a = OutboxFixtures.outbox(root, "epoch-a")
+        val engine = FakeHttpSender()
+        val sender = OutboxSender(engine, a, inputs, "0.1.0", frameBytes = { null })
+        repeat(8) { index ->
+            sender.send(lifecycle()) {}
+            engine.complete(index, TransportOutcome.Error)
+        }
+        assertTrue(a.awaitQueued(5_000))
+        assertEquals(8, entryJson().getInt("attempts"))
+
+        drainer(OutboxFixtures.outbox(root, "epoch-b")).start()
+        passes(1)
+
+        assertEquals("the online relaunch sends it", 1, server.received.size)
+        assertTrue(entryDirs(root).isEmpty())
+    }
+
+    @Test
+    fun theBackoffCountsReplaysNotTheEnginesAttempts() {
         leftByADeadProcess(lifecycle())
-        val b = OutboxFixtures.outbox(root, "epoch-b").apply {
-            settings = OutboxSettings(1L shl 30, 1000, 1L shl 40, maxAttempts = 1)
+        editEntry { it.put("attempts", 40) }
+        server.reply = { Response(503) }
+        val scheduler = RecordingScheduler()
+
+        drainer(OutboxFixtures.outbox(root, "epoch-b"), scheduler = scheduler).start()
+        passes(1)
+
+        assertEquals("first replay: the 2 s step", listOf(0L, 2_000L), scheduler.delays)
+        assertEquals(1, entryJson().getInt("replays"))
+    }
+
+    @Test
+    fun replaysGoOldestFirstEvenWhenTheKeysSortTheOtherWay() {
+        var now = System.currentTimeMillis() - 10_000
+        val a = OutboxFixtures.outbox(root, "epoch-a") { now }
+        val sender = OutboxSender(FakeHttpSender(), a, inputs, "0.1.0", frameBytes = { null })
+        // "s-1/l/…" sorts after "s-1/e/…", but was written first.
+        sender.send(lifecycle()) {}
+        assertTrue(a.awaitQueued(5_000))
+        now += 1_000
+        sender.send(events()) {}
+        assertTrue(a.awaitQueued(5_000))
+
+        drainer(OutboxFixtures.outbox(root, "epoch-b")).start()
+        passes(1)
+
+        assertEquals(listOf("/v1/sessions", "/v1/events/batch"), server.received.map { it.path })
+    }
+
+    @Test
+    fun aPayloadThatCannotBeReadIsSkippedNotDeleted() {
+        leftByADeadProcess(lifecycle())
+        val body = File(entryDirs(root).single(), "body").apply { setReadable(false) }
+        assumeFalse("running as root: every file is readable", body.canRead())
+        val b = OutboxFixtures.outbox(root, "epoch-b")
+        try {
+            drainer(b).start()
+            passes(1)
+            assertTrue(server.received.isEmpty())
+            assertEquals("kept", 1, entryDirs(root).size)
+        } finally {
+            body.setReadable(true)
         }
 
         drainer(b).start()
-        passes(1)
+        passes(2)
+        assertEquals(1, server.received.size)
+    }
 
+    @Test
+    fun noReplayStartsAfterStopReturns() {
+        leftByADeadProcess(lifecycle())
+        val sends = CopyOnWriteArrayList<String>()
+        val atSend = CountDownLatch(1)
+        val stopped = CountDownLatch(1)
+        val drainer = OutboxDrainer(
+            OutboxFixtures.outbox(root, "epoch-b"), inputs, { request, _ -> sends += request.path },
+            log = { logs += it },
+        ).also { drainers += it }
+        drainer.beforeSendForTesting = {
+            atSend.countDown()
+            // stop() interrupts this thread; hold on until it has returned regardless.
+            while (stopped.count > 0) {
+                try {
+                    stopped.await(5, TimeUnit.SECONDS)
+                } catch (_: InterruptedException) {
+                    // Keep waiting.
+                }
+            }
+        }
+
+        drainer.start()
+        assertTrue(atSend.await(5, TimeUnit.SECONDS))
+        drainer.stop()
+        stopped.countDown()
+        Thread.sleep(300)
+
+        assertTrue("a replay started after stop() returned", sends.isEmpty())
+    }
+
+    @Test
+    fun replaysThatNeverStartedDoNotUseUpTheBudget() {
+        leftByADeadProcess(lifecycle())
+        val b = OutboxFixtures.outbox(root, "epoch-b")
+        // Eight sessions, each stopped just as its replay would start.
+        repeat(8) {
+            val passDone = CountDownLatch(1)
+            val replay = HttpExecutor(hostConfig("http://127.0.0.1:${server.port}"), b.store::readFrame)
+            lateinit var quick: OutboxDrainer
+            quick = OutboxDrainer(b, inputs, replay::send, onStop = replay::close, log = { passDone.countDown() })
+            quick.beforeSendForTesting = { quick.stop() }
+            quick.start()
+            assertTrue(passDone.await(5, TimeUnit.SECONDS))
+        }
         assertTrue(server.received.isEmpty())
-        assertEquals(1, report(0).getInt("expired"))
-        assertTrue(entryDirs(root).isEmpty())
+
+        drainer(b).start()
+        passes(1)
+        assertEquals("the next session still replays it", 1, server.received.size)
     }
 
     @Test
@@ -191,7 +323,7 @@ class OutboxDrainerTest {
 
         assertEquals(1, server.received.size)
         assertEquals(listOf(0L, 120_000L), scheduler.delays)
-        assertTrue("the entry is still on disk", report(0).getLong("bytesOnDisk") > 0)
+        assertTrue("the entry is still on disk", report(0).getValue("bytesOnDisk") > 0)
         assertEquals(2, JSONObject(File(entryDirs(root).single(), "entry.json").readText()).getInt("attempts"))
     }
 
