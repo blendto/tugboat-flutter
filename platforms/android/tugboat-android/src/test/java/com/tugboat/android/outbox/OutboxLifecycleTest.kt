@@ -150,7 +150,7 @@ class OutboxLifecycleTest {
         concurrent.reply = { request ->
             if (request.path == "/v1/sessions") {
                 replayArrived.countDown()
-                releaseReplay.await(10, TimeUnit.SECONDS)
+                releaseReplay.await(30, TimeUnit.SECONDS)
             } else {
                 engineArrived.countDown()
             }
@@ -177,7 +177,7 @@ class OutboxLifecycleTest {
 
             runtime?.setUserId("u-1")
 
-            assertTrue("the engine request waited behind the replay", engineArrived.await(2, TimeUnit.SECONDS))
+            assertTrue("the engine request waited behind the replay", engineArrived.await(10, TimeUnit.SECONDS))
         } finally {
             releaseReplay.countDown()
             runtime?.stop()

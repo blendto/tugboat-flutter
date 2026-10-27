@@ -334,31 +334,30 @@ class OutboxDrainerTest {
         val releaseReplay = CountDownLatch(1)
         server.reply = {
             replayArrived.countDown()
-            releaseReplay.await(10, TimeUnit.SECONDS)
+            releaseReplay.await(30, TimeUnit.SECONDS)
             Response(202)
         }
         val engineServer = LocalHttpServer()
-        // The warm-up request, then the measured one.
-        val engineArrived = CountDownLatch(2)
+        val engineArrived = CountDownLatch(1)
+        // Ordering, not wall-clock: the engine request must reach the server
+        // while the replay is still held there. Behind the replay it would
+        // only arrive after the release.
+        val replayHeldOnArrival = CopyOnWriteArrayList<Boolean>()
         engineServer.reply = {
+            replayHeldOnArrival += releaseReplay.count == 1L
             engineArrived.countDown()
             Response(202)
         }
         val drainerScheduler = OutboxDrainer.newScheduler() as ScheduledThreadPoolExecutor
         val engineHttp = HttpExecutor(hostConfig("http://127.0.0.1:${engineServer.port}"), { null })
         try {
-            // Warm the engine path so the measurement is the queueing, not class loading.
-            engineHttp.perform(lifecycle())
             drainer(OutboxFixtures.outbox(root, "epoch-b"), scheduler = drainerScheduler).start()
             assertTrue(replayArrived.await(5, TimeUnit.SECONDS))
 
-            val sentAt = System.nanoTime()
             engineHttp.send(lifecycle("s-2")) {}
-            val started = engineArrived.await(2, TimeUnit.SECONDS)
-            val elapsedMs = (System.nanoTime() - sentAt) / 1_000_000
 
-            assertTrue("the engine request waited behind the replay", started)
-            assertTrue("started after $elapsedMs ms", elapsedMs < 50)
+            assertTrue("the engine request waited behind the replay", engineArrived.await(10, TimeUnit.SECONDS))
+            assertEquals(listOf(true), replayHeldOnArrival)
         } finally {
             releaseReplay.countDown()
             engineHttp.close()

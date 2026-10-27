@@ -196,12 +196,11 @@ class OutboxSenderTest {
         val busy = Outbox(root = { root }, processEpoch = "epoch-a", io = busyIo)
         val busySender = OutboxSender(http, busy, inputs, "0.1.0", frameBytes::get)
         try {
-            val sentAt = System.nanoTime()
             busySender.send(lifecycle()) {}
-            val elapsedMs = (System.nanoTime() - sentAt) / 1_000_000
 
+            // The disk is still held: had the send waited for it, it would only return after the release.
             assertEquals(1, http.requests.size)
-            assertTrue("the send waited $elapsedMs ms for the disk", elapsedMs < 1_000)
+            assertEquals("the send returned while the disk was busy", 1L, release.count)
             assertTrue("the write is still queued", entryDirs(root).isEmpty())
         } finally {
             release.countDown()
