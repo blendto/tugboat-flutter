@@ -117,13 +117,15 @@ final class TugboatActivationTests: XCTestCase {
   private func drainMain() {
     let drained = expectation(description: "main drained")
     DispatchQueue.main.async { drained.fulfill() }
-    wait(for: [drained], timeout: 2)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [drained], timeout: 30)
   }
 
   /// Spins the main run loop until `condition` holds (engine submits are
-  /// async).
+  /// async). A progress wait, not a speed bound: a loaded CI runner has
+  /// stalled the whole test process for 5 s and more (run 40564943387).
   @discardableResult
-  private func eventually(timeout: TimeInterval = 5, _ condition: () -> Bool) -> Bool {
+  private func eventually(timeout: TimeInterval = 30, _ condition: () -> Bool) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() {
       if Date() > deadline { return false }
@@ -140,7 +142,7 @@ final class TugboatActivationTests: XCTestCase {
       work()
       done.signal()
     }
-    XCTAssertEqual(done.wait(timeout: .now() + 5), .success)
+    XCTAssertEqual(done.wait(timeout: .now() + 30), .success)
   }
 
   func testTheDefaultConfigurationIsDormant() {
@@ -504,8 +506,10 @@ final class TugboatActivationTests: XCTestCase {
     Tugboat.start(config())
     drainMain()
     XCTAssertEqual(Tugboat.lifecycleState, .active)
+    // The newest engine's `session.start`, not the last one recorded: an
+    // earlier engine's submit can land after it.
     XCTAssertTrue(eventually {
-      self.recorder.inputs(SessionMessages.sessionStart).last?["activationRequestId"] as? String == "act-2"
+      self.recorder.inputs(SessionMessages.sessionStart, engine: self.recorder.opened).first?["activationRequestId"] as? String == "act-2"
     })
   }
 
