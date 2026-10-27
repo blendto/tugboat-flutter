@@ -92,7 +92,8 @@ final class CaptureRuntimeModeTests: XCTestCase {
       completed.fulfill()
     }
 
-    wait(for: [completed], timeout: 2)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [completed], timeout: 30)
     return try XCTUnwrap(captured)
   }
 }

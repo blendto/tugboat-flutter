@@ -32,7 +32,8 @@ extension MaskResult {
 extension HostedWindow {
   /// Masks once nothing is animating (appear transitions, scroll indicator
   /// flashes), or the animating result after `timeout`.
-  func settledMasks(allowlist: LayerAllowlist? = LayerAllowlist.forMajor(LayerAllowlist.runningMajor), timeout: TimeInterval = 4) -> MaskResult {
+  /// The default timeout is a progress wait, not a speed bound: CI runners stall for seconds.
+  func settledMasks(allowlist: LayerAllowlist? = LayerAllowlist.forMajor(LayerAllowlist.runningMajor), timeout: TimeInterval = 30) -> MaskResult {
     var result = WindowMasks.compute(window, allowlist: allowlist)
     wait(timeout: timeout) {
       result = WindowMasks.compute(self.window, allowlist: allowlist)
