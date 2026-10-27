@@ -19,11 +19,13 @@ import UIKit
 final class AppLifecycleBridge {
   /// The state after which the engine has ended the session.
   static let detached = "detached"
+  /// The state posted when the app enters the background.
+  static let paused = "paused"
 
   static let mapping: [(name: Notification.Name, state: String)] = [
     (UIApplication.didBecomeActiveNotification, "resumed"),
     (UIApplication.willResignActiveNotification, "inactive"),
-    (UIApplication.didEnterBackgroundNotification, "paused"),
+    (UIApplication.didEnterBackgroundNotification, paused),
     (UIApplication.willEnterForegroundNotification, "inactive"),
     (UIApplication.willTerminateNotification, detached),
   ]
