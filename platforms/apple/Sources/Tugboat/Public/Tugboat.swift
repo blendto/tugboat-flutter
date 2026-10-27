@@ -130,7 +130,7 @@ public enum Tugboat {
         outbox?.wipe()
       } else {
         // Dormant or not: the age and size bounds hold on disk (no network).
-        outbox?.sweepAtStart(bounds: OutboxPolicy.bounds(config))
+        _ = OutboxPolicy.bounds(config)  // RED-CHECK
       }
       _ = driver.configure(config)
       launchCorrelation.startIfNeeded(parsed: launchOptions())
