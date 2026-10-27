@@ -385,8 +385,15 @@ final class TugboatActivationTests: XCTestCase {
     // The tracker's seed, then what reached the engine (the adapter's batch
     // is flushed at the latest when the session ends).
     let trackerSeed = HostingControllerTracker.shared.sessionStartFact(at: HostTime(monoUs: 1, wallUs: 1))?.decodedInput
+    let root = hosting.window.rootViewController
+    let after = "running: \(Tugboat.isRunning), state: \(Tugboat.lifecycleState), screen seen now: "
+      + "\(ScreenTracker.shared.hasSeenScreen), recording: \(HostingControllerTracker.shared.isRecording), "
+      + "root: \(root.map { String(describing: type(of: $0)) } ?? "nil"), root in window: \(root?.viewIfLoaded?.window === hosting.window), "
+      + "key windows: \(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }.filter { $0.isKeyWindow }.count), "
+      + "ours key: \(hosting.window.isKeyWindow), installs: \(ViewControllerAppearance.installAttempts)"
     XCTAssertEqual(
-      ((trackerSeed?["routes"] as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }, expected, diagnostics)
+      ((trackerSeed?["routes"] as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }, expected,
+      diagnostics + "; " + after)
     Tugboat.deactivate()
     drainMain()
     let seed: () -> [String: Any]? = {
