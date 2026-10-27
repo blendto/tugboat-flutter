@@ -101,7 +101,7 @@ internal class TugboatRuntime private constructor(
         /** The outbox drainer, on its own thread and its own [HttpExecutor] (never the engine's IO thread). */
         private fun replayDrainer(outbox: Outbox, hostConfig: HostConfig, identity: OutboxIdentityInputs): OutboxDrainer {
             val replay = HttpExecutor(hostConfig, outbox.store::readFrame)
-            return OutboxDrainer(outbox, identity, replay::perform, onStop = replay::close)
+            return OutboxDrainer(outbox, identity, replay::send, onStop = replay::close)
         }
 
         /**
@@ -227,7 +227,6 @@ internal class TugboatRuntime private constructor(
                 startAt,
             )
             val drainer = outbox?.let { replayDrainer(it, hostConfig, outboxIdentity) }
-            drainer?.start()
             val lifecycle = AppLifecycleBridge(post = { state ->
                 host.post(SessionMessages.APP_LIFECYCLE, SessionMessages.appLifecycle(state), clock.now())
                 // With the outbox on, what waits for the flush timer is sent (and kept) before the app may die.
@@ -245,6 +244,8 @@ internal class TugboatRuntime private constructor(
             foreground.start()
             lifecycle.start()
             localeBridge.start()
+            // Last: if an earlier step throws, no drainer outlives the failed start.
+            drainer?.start()
             return TugboatRuntime(
                 host, adapter, lifecycle, localeBridge, foreground, captures, watcher, clock, stopSequence, drainer,
                 LaunchCorrelation.captureSessionId(startAt.wallUs), evidence,

@@ -1,5 +1,6 @@
 package com.tugboat.android.outbox
 
+import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.security.SecureRandom
@@ -21,16 +22,23 @@ internal class OutboxIdentityInputs(val collectorBaseUrl: String, val appId: Str
 internal class OutboxIdentity(private val saltFile: () -> File) {
     private val lock = Any()
     private var salt: ByteArray? = null
+
+    /** The salt file exists but cannot be read (or is the wrong size): the outbox is off for the process. */
+    private var disabled = false
     private var cached: Pair<OutboxIdentityInputs, String>? = null
 
-    /** The identity of [inputs]; null when the salt can neither be read nor created. */
+    /**
+     * The identity of [inputs]; null when the salt can neither be read nor
+     * created. An existing salt that cannot be read is never replaced (that
+     * would orphan every entry): the outbox stays off (no writes, no replay).
+     */
     fun of(inputs: OutboxIdentityInputs): String? = synchronized(lock) {
         cached?.takeIf { it.first === inputs }?.let { return it.second }
         val key = salt() ?: return null
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(key, "HmacSHA256"))
-        // NUL-separated so no two input triples share a message.
-        val message = listOf(inputs.collectorBaseUrl, inputs.appId, inputs.apiKey).joinToString("\u0000")
+        // Newline-separated, as the Apple host joins them.
+        val message = listOf(inputs.collectorBaseUrl, inputs.appId, inputs.apiKey).joinToString("\n")
         val identity = OutboxKeys.hex(mac.doFinal(message.toByteArray(Charsets.UTF_8)))
         cached = inputs to identity
         identity
@@ -38,10 +46,20 @@ internal class OutboxIdentity(private val saltFile: () -> File) {
 
     private fun salt(): ByteArray? {
         salt?.let { return it }
+        if (disabled) return null
         return try {
             val file = saltFile()
-            val existing = if (file.isFile) file.readBytes().takeIf { it.size == SALT_BYTES } else null
-            (existing ?: create(file)).also { salt = it }
+            if (!file.exists()) return create(file).also { salt = it }
+            val existing = try {
+                file.readBytes().takeIf { it.size == SALT_BYTES }
+            } catch (_: Throwable) {
+                null
+            }
+            existing?.also { salt = it } ?: run {
+                disabled = true
+                Log.w(TAG, "outbox off for this process: its salt cannot be read")
+                null
+            }
         } catch (_: Throwable) {
             null
         }
@@ -61,6 +79,7 @@ internal class OutboxIdentity(private val saltFile: () -> File) {
     }
 
     private companion object {
+        const val TAG = "TugboatOutbox"
         const val SALT_BYTES = 32
     }
 }

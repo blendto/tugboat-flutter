@@ -24,7 +24,12 @@ internal class OutboxSender(
     /** How long [close] waits for queued writes before closing [delegate]. */
     private val closeWaitMs: Long = CLOSE_WAIT_MS,
 ) : HttpSender {
+    /** Its id sets the current session only while it is the newest; it records only until the next wipe. */
+    private val registration = outbox.registerSender()
+
     override fun send(request: HttpRequest, onResult: (TransportOutcome) -> Unit) {
+        // After a wipe this sender's requests go out as before the outbox, without entries.
+        if (!outbox.records(registration)) return delegate.send(request, onResult)
         val captures = OutboxKeys.capture(request, frameBytes)
         val attempts = captures?.takeIf { it.isNotEmpty() }?.let(::record)
         if (captures == null || attempts == null) {
@@ -43,13 +48,13 @@ internal class OutboxSender(
         }
     }
 
-    /** Marks [captures] in flight and queues their writes; null (nothing marked) if that fails. */
+    /** Marks [captures] in flight and queues their writes (never waiting for the disk); null (nothing marked) if that fails. */
     private fun record(captures: List<OutboxCapture>): List<Long>? {
         val begun = ArrayList<Long>(captures.size)
         return try {
-            outbox.noteSession(captures.first().sessionId)
+            outbox.noteSession(captures.first().sessionId, registration)
             captures.forEach { begun += outbox.active.begin(it.key) }
-            outbox.write(captures, inputs, sdkVersion)
+            outbox.write(captures, inputs, sdkVersion, registration)
             begun
         } catch (_: Throwable) {
             begun.forEachIndexed { index, attempt -> outbox.active.end(captures[index].key, attempt) }

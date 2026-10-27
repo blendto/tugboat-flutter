@@ -37,10 +37,21 @@ internal class Outbox(
     @Volatile
     var settings: OutboxSettings = OutboxSettings.DEFAULT
 
-    /** The `sessionId` of the most recent `http.send`; null before any. */
+    /** The `sessionId` of the newest sender's most recent `http.send`; null before any. */
     @Volatile
     var currentSession: String? = null
         private set
+
+    /** Guards [currentSession], [currentSessionSender], and sender ids. */
+    private val sessionLock = Any()
+    private var currentSessionSender = 0
+    private var lastSender = 0
+
+    /** Bumped by every [wipe]: a sender registered before it records nothing more. */
+    private val generation = AtomicInteger()
+
+    /** Bytes of entry writes queued and not yet run; bounded by `outboxMaxBytes`. */
+    private val queuedBytes = AtomicLong()
 
     private val sessionListeners = CopyOnWriteArraySet<() -> Unit>()
 
@@ -66,20 +77,73 @@ internal class Outbox(
         return entry.sessionId != current
     }
 
-    /** Engine thread, per keyed `http.send`: a new session makes the last one's entries orphans. */
-    fun noteSession(sessionId: String) {
-        if (currentSession == sessionId) return
-        currentSession = sessionId
-        sessionListeners.forEach { listener -> guarded("session listener") { listener() } }
+    /** A sender's id (newer senders have larger ones) and the wipe generation it records for. */
+    class Registration(val id: Int, val generation: Int)
+
+    fun registerSender(): Registration = synchronized(sessionLock) {
+        lastSender++
+        Registration(lastSender, generation.get())
+    }
+
+    /** Whether [sender] still records: no [wipe] since it registered. */
+    fun records(sender: Registration): Boolean = generation.get() == sender.generation
+
+    /**
+     * Engine thread, per keyed `http.send`: a new session makes the last
+     * one's entries orphans. Only the newest sender moves it, so a replaced
+     * session's late sends (its `session_end` retries) never move it back.
+     */
+    fun noteSession(sessionId: String, sender: Registration) {
+        val changed = synchronized(sessionLock) {
+            if (sender.id < currentSessionSender || currentSession == sessionId) return@synchronized false
+            currentSession = sessionId
+            currentSessionSender = sender.id
+            true
+        }
+        if (changed) sessionListeners.forEach { listener -> guarded("session listener") { listener() } }
     }
 
     fun addSessionListener(listener: () -> Unit) = sessionListeners.add(listener)
 
     fun removeSessionListener(listener: () -> Unit) = sessionListeners.remove(listener)
 
-    /** Queues the entry writes of one send; a failure is counted, never thrown. */
-    fun write(captures: List<OutboxCapture>, inputs: OutboxIdentityInputs, sdkVersion: String) = submit("write") {
-        val meta = OutboxStore.EntryMeta(processEpoch, identity.of(inputs).orEmpty(), sdkVersion)
+    /**
+     * Queues the entry writes of one send for [sender]; a failure is counted,
+     * never thrown, and never waited for. Dropped (and counted) when the
+     * writes already queued hold `outboxMaxBytes`, or when a [wipe] ran
+     * since [sender] registered.
+     */
+    fun write(
+        captures: List<OutboxCapture>,
+        inputs: OutboxIdentityInputs,
+        sdkVersion: String,
+        sender: Registration,
+    ): Boolean {
+        val size = captures.sumOf { (it.body?.size ?: 0).toLong() + (it.jpeg?.size ?: 0) }
+        if (queuedBytes.addAndGet(size) > settings.maxBytes) {
+            queuedBytes.addAndGet(-size)
+            writeFailures.addAndGet(captures.size)
+            return false
+        }
+        val queued = submit("write") {
+            try {
+                if (records(sender)) writeNow(captures, inputs, sdkVersion)
+            } finally {
+                queuedBytes.addAndGet(-size)
+            }
+        }
+        if (!queued) queuedBytes.addAndGet(-size)
+        return queued
+    }
+
+    /** Outbox executor. */
+    private fun writeNow(captures: List<OutboxCapture>, inputs: OutboxIdentityInputs, sdkVersion: String) {
+        // An unreadable salt turns the outbox off for the process (OutboxIdentity).
+        val identity = identity.of(inputs) ?: run {
+            writeFailures.addAndGet(captures.size)
+            return
+        }
+        val meta = OutboxStore.EntryMeta(processEpoch, identity, sdkVersion)
         val now = wallMs()
         for (capture in captures) {
             when (store.write(capture, dirName(capture.key), meta, now)) {
@@ -102,11 +166,35 @@ internal class Outbox(
         if (!active.hasNewer(key, attempt)) store.delete(dirName(key))
     }
 
-    /** Queues the delete of every entry (start with the outbox off, `Tugboat.clearPendingData`). */
-    fun wipe() = submit("wipe") {
-        store.wipe()
-        approxBytes.set(0)
-        approxEntries.set(0)
+    /**
+     * Queues the delete of every entry (start with the outbox off,
+     * `Tugboat.clearPendingData`), after the writes queued before it. Senders
+     * registered before it record nothing more, so an engine still draining
+     * (after `stop`) cannot write evidence back.
+     */
+    fun wipe(): Boolean {
+        generation.incrementAndGet()
+        return submit("wipe") {
+            store.wipe()
+            approxBytes.set(0)
+            approxEntries.set(0)
+        }
+    }
+
+    /**
+     * At every `start` with the outbox on, dormant or not, on the outbox
+     * executor: deletes corrupt entries and those past the max age, and
+     * evicts for the bounds. Disk only; it sends nothing. Logs one
+     * `outbox sweep` line.
+     */
+    fun sweepAtStart(settings: OutboxSettings, log: (String) -> Unit = { line -> Log.i(TAG, line) }) = submit("sweep") {
+        this.settings = settings
+        val scan = scanAndEvict()
+        val line = OutboxDrainer.PassReport(expired = scan.expired, corrupt = scan.corrupt).apply {
+            evicted = this@Outbox.evicted.getAndSet(0)
+            bytesOnDisk = scan.entries.sumOf { it.bytes }
+        }.line("outbox sweep")
+        log(line)
     }
 
     /** Waits up to [timeoutMs] for every queued write and delete; true when they landed. */

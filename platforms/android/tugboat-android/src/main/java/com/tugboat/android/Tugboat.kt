@@ -9,6 +9,7 @@ import com.tugboat.android.engine.EngineTransport
 import com.tugboat.android.engine.JniEngineTransport
 import com.tugboat.android.evidence.EvidenceRecorder
 import com.tugboat.android.outbox.OutboxPolicy
+import com.tugboat.android.outbox.OutboxSettings
 import com.tugboat.android.outbox.Outboxes
 import com.tugboat.android.sdk.LaunchCorrelation
 import com.tugboat.android.sdk.LifecycleSnapshot
@@ -171,9 +172,11 @@ object Tugboat {
      * retries.
      *
      * With [TugboatConfig.durableOutbox] off, deletes the requests an
-     * earlier launch kept on disk (in the background). A dormant start
-     * ([TugboatConfig.enabled] false) with the outbox on keeps them for the
-     * first session, which replays them.
+     * earlier launch kept on disk (in the background). With it on, dormant
+     * included, deletes (in the background, sending nothing) the corrupt
+     * entries and those past [TugboatConfig.outboxMaxAgeMs], and evicts down
+     * to the bounds; the rest wait for the first session, which replays
+     * them.
      */
     @JvmStatic
     fun start(application: Application, config: TugboatConfig) = onMain("start") {
@@ -193,6 +196,8 @@ object Tugboat {
         val outbox = Outboxes.at(application)
         val clearRequested = Outboxes.takePendingClear()
         if (OutboxPolicy.wipeAtStart(config) || clearRequested) outbox.wipe()
+        // Dormant included: age, corrupt entries, and the bounds hold without a session (disk only, no network).
+        if (config.durableOutbox) outbox.sweepAtStart(OutboxSettings.of(config))
         NavigationObservation.ensureInstalled(application)
         NavigationObservation.onResumed = launch::onActivityResumed
         reconcile()

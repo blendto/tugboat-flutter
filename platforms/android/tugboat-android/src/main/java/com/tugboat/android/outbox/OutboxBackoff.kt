@@ -13,9 +13,10 @@ import java.util.TimeZone
 internal object OutboxBackoff {
     const val BASE_MS = 2_000L
     const val CAP_MS = 5L * 60 * 1000
-    const val RETRY_AFTER_CAP_MS = 60L * 60 * 1000
+    /** The same 5 min as the curve, as the Apple host caps it. */
+    const val RETRY_AFTER_CAP_MS = CAP_MS
 
-    /** [attempts]: sends of the entry so far, at least 1. */
+    /** [attempts]: the entry's replays so far (`StoredEntry.replays`), at least 1. */
     fun delayMs(attempts: Int, retryAfter: String?, nowWallMs: Long): Long {
         val shift = (attempts - 1).coerceIn(0, 30)
         val curve = (BASE_MS shl shift).coerceAtMost(CAP_MS)
