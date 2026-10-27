@@ -7,8 +7,8 @@ import Tugboat
 /// the simulator's loopback with the dev key. `-TugboatEnabled NO` starts
 /// dormant (default `YES`); `-TugboatCaptureDiagnostics YES` turns on
 /// `captureDiagnostics`; `-TugboatDurableOutbox YES` turns on
-/// `durableOutbox` (a launch without it wipes pending entries). App fields come from the bundle; the installation
-/// id is kept in user defaults.
+/// `durableOutbox` (a launch without it wipes pending entries). App fields
+/// come from the bundle; the installation id is kept in user defaults.
 enum SampleConfiguration {
   static let defaultCollectorURL = "http://127.0.0.1:3000"
   static let defaultCollectorKey = "pmk_blend-app-dev-secret"
