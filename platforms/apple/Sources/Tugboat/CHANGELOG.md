@@ -12,9 +12,9 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   `stop`; `TugboatConfig` (`Collector`, `App`, `MaskLevel`,
   `captureFocusChanges`, `trackHostingControllers`,
   `swiftUIAccessibilityIdentity`);
-  the `.tugboatTag(_:accessibility:)`, `.tugboatSensitive()`, and
-  `.tugboatScreen(_:)` view modifiers. Idempotent start; nothing throws or
-  traps into the app.
+  the `.tugboatTag(_:accessibility:)`, `.tugboatSensitive()`,
+  `.tugboatScreen(_:presentation:)` and `.tugboatNavigator(_:)` view
+  modifiers. Idempotent start; nothing throws or traps into the app.
 - `.tugboatSensitive()`: the view's frame is masked in every mask mode,
   including the verified layer-allowlist path where plain colour fills stay
   visible. The mask walk masks the marker's host by kind
@@ -55,6 +55,36 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   `EvidenceEncoder` sends a byte-read JSON body as `{"jsonText": …}`, and
   `@_spi(TugboatAdapters)` adds what the separate `TugboatAlamofire`
   package needs.
+- Nested navigators and presentation kinds, set by the app (nothing is
+  read from UIKit yet): `.tugboatScreen(_:presentation:)` takes
+  `TugboatScreenPresentation` `.automatic` (default, `page` for now),
+  `.page`, `.sheet`, `.dialog` or `.popup` as the route's `overlayKind`;
+  `.tugboatScreen("X")` still compiles and its facts are unchanged. A
+  sheet's screen without its own stack is a route on the presenting
+  navigator, so the engine records `presentedOver*`, and its dismissal is
+  the existing `pop`; a sheet with its own stack puts its root screen
+  inside its `.tugboatNavigator`.
+  `.tugboatNavigator(name)` puts the screens inside it on navigator
+  `swiftui-screens/<name>`, with `parentNavigatorId` the enclosing
+  navigator on transitions and `session_start`; the root navigator stays
+  `swiftui-screens` with no parent. A nested navigator is forgotten when
+  its host screen leaves, and a stacked sheet's navigator when the sheet is
+  dismissed from any depth. Tab switches send nothing (the hidden tab
+  keeps its stack; route keys follow the shown tab). The first navigation
+  after a tab return or a stacked sheet's dismissal is not attributed to
+  its tap (no cause, no afterFrame). A navigator forgotten and used again
+  in a session gets an engine id not yet issued in that session
+  (`<name>`, `<name>#2`, …; navigators live at `start()` keep theirs), so
+  a reopened stacked sheet starts a fresh engine stack. Sibling navigators are treated as
+  mutually exclusive, like tabs: not for any `NavigationSplitView` column
+  or panes shown together (a collapsed split's back sends nothing and the
+  detail stack grows; detail-only opt-in reports each back as a root
+  `push`), and every tab needs its own navigator with a screen (otherwise
+  a hidden tab is torn down and its next back is a `push`). `session_start` seeds every navigator with a
+  non-empty stack, the visible chain last, and route keys follow the
+  visible chain's top. Contract change for apps that opt in: a sheet's
+  route identity moves from `page` to `sheet`. Hosting-controller routes
+  stay `page`.
 - `.tugboatTag(_:accessibility:)`: `accessibility: true` (default false)
   also sets the tag as the content's `accessibilityIdentifier`, for UI tests
   and exploration runs; the marker stays hidden from accessibility and

@@ -26,6 +26,8 @@ someView.tugboatTag("checkout")         // developer alias for a target
 someView.tugboatTag("checkout", accessibility: true) // also its accessibilityIdentifier
 someView.tugboatSensitive()             // always mask its frame; identity unchanged
 someView.tugboatScreen("Checkout")      // route identity for a screen
+sheetRoot.tugboatScreen("Filters", presentation: .sheet) // .page (default .automatic), .sheet, .dialog, .popup
+stack.tugboatNavigator("cart")          // nested navigator swiftui-screens/cart (per tab, or a sheet's own stack)
 
 let events = Tugboat.eventHook(source: "analytics", parameterPolicy: .allowList(["method"]))
 events.record("USER_LOGIN", parameters: ["method": "email"])
@@ -59,6 +61,64 @@ for the URLSession helpers and `TugboatAlamofire`.
   leave the option off on controls that already have one. Measured by the
   sample's `TugboatSwiftUISampleUITests`. There is no UIKit tag API, so
   there is no UIKit equivalent.
+- `.tugboatScreen(_:presentation:)` reports the screen's presentation as
+  the route's `overlayKind`: `.page`, `.sheet`, `.dialog` or `.popup`.
+  `.automatic`, the default, is `.page` in this release. Opting a sheet in
+  changes its route identity from `page` to `sheet`.
+  - A sheet without its own stack:
+    `.sheet { Filters().tugboatScreen("Filters", presentation: .sheet) }`.
+    The content takes its navigator from the presenter's environment, so
+    the sheet is a route on the presenting navigator, recorded as presented
+    over the screen below, and swiping it away is a `pop`.
+  - A sheet with its own stack puts its root screen inside its navigator:
+    `.sheet { NavigationStack { FiltersRoot().tugboatScreen("Filters", presentation: .sheet) }.tugboatNavigator("filters") }`.
+    Pushes and pops inside the sheet then stay on one navigator, with
+    their cause and transition time. The sheet root is the first route on
+    `swiftui-screens/filters` (its host page is the presenter's page). The
+    tap that opens the sheet has no cause, so it has no after-frame, and
+    dismissing the sheet, from its root or any depth, sends no fact: its
+    navigator is forgotten, route keys return to the presenter at once,
+    the engine's visible route at the next navigation. Each reopen is a
+    new navigator for the engine (`swiftui-screens/filters#2`, `#3`, … in
+    the session), so it starts a fresh stack: its root has the
+    presenter's page as host page and nothing presented under it.
+- `.tugboatNavigator(_:)` makes a stack its own navigator, such as a
+  `NavigationStack` per tab or inside a sheet: the screens inside it are
+  routes on `swiftui-screens/<name>`, nested in the enclosing navigator and
+  hosted by the `.tugboatScreen` around it, if any (forgotten when that
+  screen leaves). A tab switch sends nothing, as Flutter's nested tab
+  navigators: the hidden tab keeps its stack, route keys follow the shown
+  tab, and the engine's visible route moves at the next navigation.
+  The first navigation after a tab return or a stacked sheet's dismissal
+  is not attributed to its tap (no cause, no afterFrame).
+  Without it every screen is on the root navigator `swiftui-screens`, as
+  before. Give every tab its own `.tugboatNavigator` with a
+  `.tugboatScreen` inside it. Known limits until UIKit detection lands:
+  - Sibling `.tugboatNavigator`s (same enclosing navigator) are treated as
+    mutually exclusive, like tabs. Do not put `.tugboatNavigator` on any
+    `NavigationSplitView` column, or on panes shown together:
+    - with both columns opted in, a collapsed split view's back sends
+      nothing, and the detail stack (the SDK's and the engine's) grows by
+      one entry per selection;
+    - with only the detail column opted in, each back is reported as a
+      first-route `push` of the list screen on the root navigator, uncaused
+      (the engine's root stack gains a duplicate per back), where without
+      the modifier it is a `pop`.
+  - A tab with no sibling navigator on screen when you switch away (the
+    other tab is a screen on the root, or has no `.tugboatScreen`) is torn
+    down: on return its top is a first-route `push`, and the next back in
+    it is a `push` of the screen below, the wrong kind.
+  - A hidden tab of a tab container that goes away without its host screen
+    leaving (a `TabView` inside a sheet, dismissed) is kept: it is seeded on
+    restart, and its first screen on the next visit is a `push` that
+    departs the old one. Route keys are not affected.
+  - Navigation before `Tugboat.start()` or while stopped is applied as one
+    batch at start: nested navigators may be torn down, and route keys may
+    lag until the next navigation.
+  - Names must differ among the navigators that exist together, covered
+    screens included: a screen that can be pushed on top of itself shares
+    one named navigator between both instances, so give each instance its
+    own name (for example with the item's id).
 
 - `swiftUIAccessibilityIdentity` (`.off` by default, `.sampled(rate:)`,
   `.on`) lets untagged SwiftUI taps take identity from the in-process
@@ -374,7 +434,7 @@ are in native SDK note sections 2.1, 5 and 6.3, and in
 | Pointer | `Input/WindowPointerRecognizer`, `PointerFactBuilder` | A recognizer on each window that becomes key: never cancels or delays touches, never prevents or is prevented, recognizes simultaneously, no swizzling. `input.pointer` in window points, a unique `pointerId` per contact, tap evidence on `up` under `touchSlop` resolved at the down position. |
 | Identity | `Identity/` | `ViewTree` / `ViewKind` classify every view once per walk. `.tugboatTag` markers (`TagMarkerView`, matched within the hit window and hosting root) first, then UIKit hit-testing (text inputs, list cells with index paths, scroll views, representable hosts), then, opt-in, the accessibility tree (`AccessibilityIdentity/`: `AccessibilityIdentitySource` gate and activation, `AccessibilityTreeReader` descent, ADR 0010); route key from `.tugboatScreen`, else the hashed hosting-controller type; `toolkit: "swiftui"`. `IdentityHash` matches every `conformance/fingerprint/identity_parts` vector. |
 | Scroll | `Scroll/` | KVO on `contentOffset` of the window's scroll views; `start` (with the anchor), one `update` per frame, one `overscroll` per scroll, `end` when no finger or momentum drives it and it has been still for 100 ms. |
-| Navigation | `Navigation/`, `Modifiers/TugboatScreen` | `.tugboatScreen` appear and disappear on navigator `swiftui-screens`; optional hosting-controller appearance (one-time method exchange, opt-out) on `swiftui-hosting` until a screen is seen. On each adapter `start()` (including after `stop()`), queued callbacks are settled without recording, then one `navigation` `session_start` per navigator is seeded from the retained stack (`routes` bottom to top); live facts follow only after recording resumes. Screen and hosting stacks survive stop/start. |
+| Navigation | `Navigation/`, `Modifiers/TugboatScreen`, `Modifiers/TugboatNavigator` | `.tugboatScreen` appear and disappear on the navigator its environment names: `swiftui-screens`, or `swiftui-screens/<name>` inside `.tugboatNavigator(name)` (`NavigatorScope`), whose facts carry `parentNavigatorId` (the enclosing navigator) on transitions and seeds. `presentation:` sets `route.overlayKind` (`.automatic` is `page`; nothing is read from UIKit yet); a sheet's screen without its own navigator is a route on the presenting navigator, so the engine records it as presented over the screen below, and its dismissal is a `pop`. `NavigatorTree` decides what a callback means from per-entry on-screen state (on from `onAppear` to `onDisappear`), assuming a real pop delivers the revealed screen's `onAppear` in the same frame: only appearances are activity; on a nested navigator a top screen disappearing is a `pop` only when the revealed screen is on screen, nothing when the navigator is covered (a covered host route, or a sibling navigator with a screen on screen: a tab switch), and otherwise a teardown (a stacked sheet dismissed from any depth: no fact, the navigator is forgotten). A sibling covers a navigator only when its on-screen top appeared more recently. A navigator forgotten and used again gets an engine id not yet issued in the session (`<key>`, `<key>#2`, …; navigators live at `start()` keep theirs), so the engine starts a fresh stack. The root navigator's pops are unchanged. A nested navigator is forgotten, with no fact, when the screen hosting it leaves its parent's stack or its own stack empties. The route key is the visible chain's top (`ScreenTracker.visibleTop`, computed at the end of each settle): through the child, hosted by the top screen or with no host, that has a screen on screen, the most recently appeared where several do. Optional hosting-controller appearance (one-time method exchange, opt-out) on `swiftui-hosting`, always `page`, until a screen is seen. On each adapter `start()` (including after `stop()`), queued callbacks are settled without recording, then one `navigation` `session_start` per navigator with a non-empty stack is seeded from the retained stacks (`routes` bottom to top; navigators hosted by covered screens first, in stack order, the visible chain last); live facts follow only after recording resumes. Screen and hosting stacks survive stop/start. |
 | Focus | `Input/FocusObserver` | `text_input` / `none` from `UITextField` / `UITextView` editing notifications. |
 | Masks | `Mask/` | `masks(for:)`: one view walk plus each view's layers (`LayerWalk`). UIKit text and images; boxes for web views, opaque renderers, app representables and unverified SwiftUI platform views (a SwiftUI host is walked only when the type it wraps is declared in `SwiftUI` and verified for the iOS major: `List`, `TextField`, `NavigationStack`, `NavigationView`, `TabView` on iOS 26); a box over 90% of the window makes the frame `wholeFrame`; allowlisted SwiftUI text, image and shape layers per iOS major (`LayerAllowlist`, `KnownPlatformViews`; iOS 26 verified). Unclassified layers are masked. The whole frame is masked on an unverified major with SwiftUI, during any animation, and over the walk's limits. `MaskResult.coverage` summarizes each frame: `precise` or `wholeFrame`, with closed reasons for the host to report. |
 

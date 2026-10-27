@@ -74,9 +74,21 @@ public struct TugboatConfig
   public enum MaskLevel
     case allTextAndMedia
 
+## Public/TugboatScreenPresentation.swift
+public enum TugboatScreenPresentation: Equatable, Sendable
+  case automatic
+  case page
+  case sheet
+  case dialog
+  case popup
+
+## SwiftUI/Modifiers/TugboatNavigator.swift
+extension View
+  public func tugboatNavigator(_ name: String) -> some View
+
 ## SwiftUI/Modifiers/TugboatScreen.swift
 extension View
-  public func tugboatScreen(_ name: String) -> some View
+  public func tugboatScreen(_ name: String, presentation: TugboatScreenPresentation = .automatic) -> some View
 
 ## SwiftUI/Modifiers/TugboatSensitive.swift
 extension View
