@@ -10,11 +10,14 @@ import com.tugboat.android.views.facts.FrameScheduler
 
 /**
  * Process-scoped navigation observation (activity, fragment, and NavController
- * stacks). Installed from the first [com.tugboat.android.views.ViewsAdapter]
- * construction and left registered after [stop]; stacks keep updating while
- * stopped but nothing is emitted until a recording adapter is attached.
- * NavController stacks reported before installation are discarded when it
- * installs ([ensureInstalled]).
+ * stacks) and the live activities. Installed by `Tugboat.start` (whether or
+ * not a session starts) or the first [com.tugboat.android.views.ViewsAdapter]
+ * construction, and left registered after [stop]; stacks keep updating while
+ * dormant or stopped but nothing is emitted until a recording adapter is
+ * attached. NavController stacks reported before installation are discarded
+ * when it installs ([ensureInstalled]). [liveActivities] and
+ * [resumedActivity] let a session that starts later attach to activities
+ * that already exist.
  *
  * Main thread only.
  */
@@ -29,6 +32,14 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
     private var frameScheduler: FrameScheduler = ChoreographerFrames()
     private var frameScheduled = false
 
+    private val live = LiveActivities()
+
+    /**
+     * Told of every activity resume, whatever the lifecycle state (the
+     * facade's launch correlation). Its own guard: reading launch extras can
+     * throw (an unloadable Parcelable), and that must not cost navigation.
+     */
+    var onResumed: ((Activity) -> Unit)? = null
     private val destinations = DestinationTracker()
     private val activities = ActivityNavigation(::report)
     private val controllers = ControllerNavigation(::report)
@@ -57,6 +68,8 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
             application = null
         }
         recording = null
+        onResumed = null
+        live.clear()
         frameScheduled = false
         frameScheduler = ChoreographerFrames()
         destinations.resetForTests()
@@ -110,6 +123,12 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
     val fragmentNavigatorIds: Set<String>
         get() = fragments?.navigatorIds.orEmpty()
 
+    /** Activities created or resumed since installation and not destroyed, oldest first. */
+    fun liveActivities(): List<Activity> = live.all()
+
+    /** The activity between its resume and pause, if any (and not finishing). */
+    fun resumedActivity(): Activity? = live.resumed()
+
     fun ensureEntry(activity: Activity): RouteEntry = activities.ensureEntry(activity)
 
     fun navigatorIdOf(activity: Activity): String = activities.navigatorIdOf(activity)
@@ -141,15 +160,23 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
         AdapterGuard.run("activity created") {
+            live.onCreated(activity)
             activities.onCreated(activity)
             fragments?.register(activity)
         }
 
-    override fun onActivityResumed(activity: Activity) =
-        AdapterGuard.run("activity resumed") { activities.onResumed(activity) }
+    override fun onActivityResumed(activity: Activity) {
+        AdapterGuard.run("activity resumed") {
+            live.onResumed(activity)
+            activities.onResumed(activity)
+        }
+        val hook = onResumed ?: return
+        AdapterGuard.run("launch correlation") { hook(activity) }
+    }
 
     override fun onActivityDestroyed(activity: Activity) =
         AdapterGuard.run("activity destroyed") {
+            live.onDestroyed(activity)
             fragments?.unregister(activity)
             if (activity.isFinishing) {
                 fragments?.forget(activity)
@@ -163,7 +190,8 @@ internal object NavigationObservation : Application.ActivityLifecycleCallbacks {
 
     override fun onActivityStarted(activity: Activity) = Unit
 
-    override fun onActivityPaused(activity: Activity) = Unit
+    override fun onActivityPaused(activity: Activity) =
+        AdapterGuard.run("activity paused") { live.onPaused(activity) }
 
     override fun onActivityStopped(activity: Activity) = Unit
 

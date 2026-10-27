@@ -7,15 +7,11 @@ import android.view.Window
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.navigation.NavController
-import androidx.navigation.NavDestination
-import androidx.navigation.NavDestinationBuilder
-import androidx.navigation.Navigator
-import androidx.navigation.createGraph
-import androidx.navigation.testing.TestNavHostController
 import com.tugboat.android.AppInfo
 import com.tugboat.android.CollectorConfig
 import com.tugboat.android.Tugboat
 import com.tugboat.android.TugboatConfig
+import com.tugboat.android.TugboatLifecycleState
 import com.tugboat.android.host.FakeEngineTransport
 import com.tugboat.android.views.callback.CallbackChain
 import org.junit.After
@@ -24,6 +20,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -32,17 +29,26 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/** [TugboatConfig.enabled] = false installs nothing and leaves the host unchanged. */
+/**
+ * The default config ([TugboatConfig.enabled] `false`) is dormant: no engine,
+ * window callbacks, component callbacks, or process observers; only the
+ * process-scoped activity lifecycle callbacks. Formerly the W5a kill-switch
+ * tests (`enabled = false` installed nothing).
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(application = CallbackCountingApplication::class)
-class TugboatKillSwitchTest {
+class TugboatDormantTest {
     private val application = RuntimeEnvironment.getApplication() as CallbackCountingApplication
     private val disabledConfig = TugboatConfig(
         collector = CollectorConfig("http://10.0.2.2:3000", "key"),
         app = AppInfo("Sample", "1.0.0", "1", "com.example.sample", "install-1"),
-        enabled = false,
     )
     private val enabledConfig = disabledConfig.copy(enabled = true)
+
+    @Before
+    fun setUp() {
+        Tugboat.resetForTests()
+    }
 
     @After
     fun tearDown() {
@@ -52,29 +58,35 @@ class TugboatKillSwitchTest {
     }
 
     @Test
-    fun disabledStartDoesNotOpenTheEngine() {
+    fun defaultConfigIsDormantAndRecordsNothing() {
+        assertFalse(TugboatConfig(disabledConfig.collector, disabledConfig.app).enabled)
         var opened = false
         Tugboat.openTransportForTesting = {
             opened = true
             FakeEngineTransport()
         }
         Tugboat.start(application, disabledConfig)
+        Tugboat.eventHook(source = "analytics").record("WHILE_DORMANT")
+        Tugboat.beginNetworkCall("GET", "/dormant").complete(statusCode = 200)
         shadowOf(Looper.getMainLooper()).idle()
         assertFalse(opened)
+        assertEquals(TugboatLifecycleState.DORMANT, Tugboat.lifecycleState)
+        assertFalse(Tugboat.isActivated)
+        assertFalse(Tugboat.isAcceptingEvidence)
     }
 
     @Test
-    fun disabledStartRegistersNoActivityLifecycleCallbacks() {
+    fun dormantStartRegistersOnlyTheProcessScopedActivityCallbacks() {
         val before = activityLifecycleCallbackCount(application)
         Tugboat.openTransportForTesting = { FakeEngineTransport() }
         Tugboat.start(application, disabledConfig)
         shadowOf(Looper.getMainLooper()).idle()
-        // Before stop(): stop() unregisters, so a later assert passes either way.
-        assertEquals(before, activityLifecycleCallbackCount(application))
+        // Navigation observation (stacks, live activities); no session callbacks.
+        assertEquals(before + 1, activityLifecycleCallbackCount(application))
     }
 
     @Test
-    fun stateSetWhileDisabledIsKeptForALaterEnabledStart() {
+    fun stateSetWhileDormantFeedsTheNextActivatedSession() {
         val transport = FakeEngineTransport()
         Tugboat.openTransportForTesting = { transport }
         Tugboat.start(application, disabledConfig)
@@ -83,7 +95,7 @@ class TugboatKillSwitchTest {
         val hook = Tugboat.eventHook(source = "analytics")
         shadowOf(Looper.getMainLooper()).idle()
 
-        Tugboat.start(application, enabledConfig)
+        Tugboat.activate("act-1")
         shadowOf(Looper.getMainLooper()).idle()
         hook.record("AFTER_ENABLE")
 
@@ -105,7 +117,7 @@ class TugboatKillSwitchTest {
     }
 
     @Test
-    fun disabledStartRegistersNoComponentCallbacksOrProcessLifecycleObservers() {
+    fun dormantStartRegistersNoComponentCallbacksOrProcessLifecycleObservers() {
         val callbacksBefore = application.componentCallbackCount()
         val observersBefore = processLifecycleObserverCount()
         Tugboat.openTransportForTesting = { FakeEngineTransport() }
@@ -129,7 +141,7 @@ class TugboatKillSwitchTest {
     }
 
     @Test
-    fun disabledStartLeavesTheWindowCallbackUntouched() {
+    fun dormantStartLeavesTheWindowCallbackUntouched() {
         Tugboat.openTransportForTesting = { FakeEngineTransport() }
         Tugboat.start(application, disabledConfig)
         shadowOf(Looper.getMainLooper()).idle()
@@ -157,28 +169,27 @@ class TugboatKillSwitchTest {
     }
 
     @Test
-    fun disabledStartThenTrackNavigationAddsNoDestinationListener() {
-        Tugboat.openTransportForTesting = { FakeEngineTransport() }
+    fun dormantStartThenTrackNavigationKeepsTheControllerWithoutAnEngine() {
+        var opened = false
+        Tugboat.openTransportForTesting = {
+            opened = true
+            FakeEngineTransport()
+        }
         Tugboat.start(application, disabledConfig)
         shadowOf(Looper.getMainLooper()).idle()
 
-        val controller = testNavController()
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val controller = rowsController(activity)
         val before = destinationListenerCount(controller)
         Tugboat.trackNavigation(controller)
+        controller.navigate("row/1")
         shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(before, destinationListenerCount(controller))
+        // The stack is kept for the next session's seed; nothing is sent.
+        assertEquals(before + 1, destinationListenerCount(controller))
+        assertFalse(opened)
 
         Tugboat.stop()
     }
-
-    private fun testNavController(): NavController =
-        TestNavHostController(application).apply {
-            graph = createGraph(startDestination = "home") {
-                val navigator = provider.getNavigator<Navigator<NavDestination>>("test")
-                destination(NavDestinationBuilder(navigator, "home"))
-                destination(NavDestinationBuilder(navigator, "away"))
-            }
-        }
 
     private fun activityLifecycleCallbackCount(application: Application): Int {
         val field = Application::class.java.getDeclaredField("mActivityLifecycleCallbacks")

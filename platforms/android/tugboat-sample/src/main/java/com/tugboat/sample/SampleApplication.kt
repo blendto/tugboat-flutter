@@ -24,6 +24,9 @@ class SampleApplication : Application() {
                     appId = BuildConfig.APPLICATION_ID,
                     installationId = installationId(),
                 ),
+                // The SDK default is dormant until Tugboat.activate; the sample
+                // records from launch (`-Ptugboat.enabled=false` to change it).
+                enabled = BuildConfig.TUGBOAT_ENABLED,
                 captureFocusChanges = true,
                 captureSystemInput = true,
                 emitSceneInventory = true,

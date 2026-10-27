@@ -31,8 +31,10 @@ import com.tugboat.android.views.overlay.withOverlayWindow
  * engine state; facts leave once per frame through [sink]
  * (`EngineHost::postBatch`).
  *
- * Start it from `Application.onCreate`: activities that already exist when
- * [start] runs are not observed. Main thread only. Internal: the public
+ * [start] attaches to the activities process-scoped observation
+ * ([NavigationObservation]) has seen since it was installed, the resumed
+ * one as if it had just resumed; activities created before that are
+ * observed from their next resume. Main thread only. Internal: the public
  * `Tugboat` facade, `trackNavigation`, and capture wiring are the SDK slice.
  */
 internal class ViewsAdapter(
@@ -93,12 +95,23 @@ internal class ViewsAdapter(
         if (postNavigationFacts) {
             NavigationObservation.setRecording(::reportNavigation)
         }
+        attachLiveActivities()
+    }
+
+    /**
+     * A session that starts after its activities (an `activate` while one is
+     * resumed, or a start after `stop`) attaches to them now, as their create
+     * and resume callbacks would have.
+     */
+    private fun attachLiveActivities() {
+        NavigationObservation.liveActivities().forEach { session(it).ensureAttached() }
+        NavigationObservation.resumedActivity()?.let { onActivityResumed(it) }
     }
 
     /**
      * Posts what is pending, then detaches window observers. Process-scoped
      * navigation observation keeps updating stacks while stopped; nothing is
-     * emitted until the next [start].
+     * emitted until the next [start], which attaches again.
      */
     fun stop() = AdapterGuard.run("stop") {
         if (!started) return@run

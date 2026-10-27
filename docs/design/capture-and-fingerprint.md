@@ -63,6 +63,12 @@ current controller and keeps future calls to `wrapApp` inert. Runtime
 requiring a host rebuild. `deactivate()` tears capture down through the same
 gate. Pause/hidden flush pending delivery; detach ends the session once.
 
+The native Android SDK (`tugboat-android`, unpublished) follows the same
+contract: `TugboatConfig.enabled` (default `false`), `Tugboat.activate` /
+`deactivate`, and the same four lifecycle states. Its `stop()` is not
+`disabled`: it ends the session and forgets the config and any activation
+request.
+
 Identity fields (session schema **v10** only):
 
 - `activationRequestId` — host request correlation
