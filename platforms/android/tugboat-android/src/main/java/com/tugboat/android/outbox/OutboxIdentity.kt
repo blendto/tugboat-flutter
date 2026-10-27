@@ -51,10 +51,12 @@ internal class OutboxIdentity(private val saltFile: () -> File) {
             val file = saltFile()
             if (!file.exists()) return create(file).also { salt = it }
             val existing = try {
-                file.readBytes().takeIf { it.size == SALT_BYTES }
+                file.readBytes()
             } catch (_: Throwable) {
                 null
             }
+            // Readable but the wrong size is corrupt: replaced, as the Apple host does (old entries then mismatch).
+            if (existing != null && existing.size != SALT_BYTES) return create(file).also { salt = it }
             existing?.also { salt = it } ?: run {
                 disabled = true
                 Log.w(TAG, "outbox off for this process: its salt cannot be read")

@@ -124,6 +124,20 @@ class OutboxStoreTest {
     }
 
     @Test
+    fun aReadableSaltOfTheWrongSizeIsReplaced() {
+        val salt = File(root, "install-salt").apply {
+            parentFile?.mkdirs()
+            writeBytes(ByteArray(5))
+        }
+
+        keep(lifecycle())
+
+        assertEquals(0, outbox.writeFailures.get())
+        assertEquals(1, entryDirs(root).size)
+        assertEquals(32, salt.readBytes().size)
+    }
+
+    @Test
     fun aCrashedWritersTempDirectoryIsCleanedAndOneBeingBuiltIsKept() {
         keep(lifecycle())
         val stale = File(root, "v1/.stale-entry").apply { mkdirs() }
