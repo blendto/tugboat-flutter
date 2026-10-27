@@ -43,7 +43,12 @@ extension Tugboat
 
 ## Public/Tugboat.swift
 public enum Tugboat
+  public static var lifecycleState: TugboatLifecycleState
+  public static var isActivated: Bool
+  public static var activationRequestId: String?
   public static func start(_ config: TugboatConfig)
+  public static func activate(activationRequestId: String)
+  public static func deactivate()
   public static func setUserId(_ id: String?)
   public static func setTraits(_ traits: [String: Any])
   public static func stop()
@@ -54,11 +59,14 @@ public enum Tugboat
 public struct TugboatConfig
   public var collector: Collector
   public var app: App
+  public var enabled: Bool
   public var maskLevel: MaskLevel
   public var captureFocusChanges: Bool
+  public var captureDiagnostics: Bool
   public var trackHostingControllers: Bool
   public var swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity
-  public init( collector: Collector, app: App, maskLevel: MaskLevel = .allTextAndMedia, captureFocusChanges: Bool = false, trackHostingControllers: Bool = true, swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off )
+  public var explorationRunId: String?
+  public init( collector: Collector, app: App, enabled: Bool = false, maskLevel: MaskLevel = .allTextAndMedia, captureFocusChanges: Bool = false, captureDiagnostics: Bool = false, trackHostingControllers: Bool = true, swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off, explorationRunId: String? = nil )
   public struct Collector: CustomStringConvertible
     public var baseURL: URL
     public var apiKey: String
@@ -73,6 +81,13 @@ public struct TugboatConfig
     public init(name: String, version: String, buildNumber: String, appId: String, installationId: String)
   public enum MaskLevel
     case allTextAndMedia
+
+## Public/TugboatLifecycleState.swift
+public enum TugboatLifecycleState: String, Sendable
+  case dormant
+  case starting
+  case active
+  case stopping
 
 ## SwiftUI/Modifiers/TugboatScreen.swift
 extension View

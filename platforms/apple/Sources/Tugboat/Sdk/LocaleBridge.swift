@@ -39,7 +39,7 @@ final class LocaleBridge {
       if Thread.isMainThread {
         self?.localeMayHaveChanged()
       } else {
-        DispatchQueue.main.async { self?.localeMayHaveChanged() }
+        DispatchQueue.main.async { [weak self] in self?.localeMayHaveChanged() }
       }
     }
   }
