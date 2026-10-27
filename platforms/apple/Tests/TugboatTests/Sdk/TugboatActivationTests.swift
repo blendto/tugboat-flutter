@@ -503,6 +503,7 @@ final class TugboatActivationTests: XCTestCase {
     Tugboat.activate(activationRequestId: "early")
     drainMain()
     XCTAssertEqual(Tugboat.lifecycleState, .active)
+    XCTAssertTrue(eventually { !self.recorder.inputs(SessionMessages.sessionStart).isEmpty })
     XCTAssertEqual(recorder.inputs(SessionMessages.sessionStart).first?["activationRequestId"] as? String, "early")
   }
 }

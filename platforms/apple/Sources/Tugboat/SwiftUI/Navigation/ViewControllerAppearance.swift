@@ -12,7 +12,7 @@ import UIKit
 /// `trackHostingControllers` (never while Tugboat is dormant, never when the
 /// configuration opts out). A hosting controller already on screen then
 /// never gets a `viewDidAppear` it sees, so `HostingControllerTracker`
-/// adopts the key window's controllers at install. It is never exchanged back, not even by
+/// adopts the key window's controllers at each session start. It is never exchanged back, not even by
 /// `Tugboat.deactivate()` or `Tugboat.stop()`: another SDK may have
 /// exchanged the same methods since, and undoing ours would break its
 /// chain. While no session records, the exchanged methods call the

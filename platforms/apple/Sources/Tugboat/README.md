@@ -192,9 +192,9 @@ Native activation follows Flutter's `TugboatReplay` (`enabled`, `activate`,
   `deactivate` or `stop` it stays installed and inert: the exchanged
   `viewDidAppear` / `viewDidDisappear` call the originals and record nothing.
   It is never exchanged back, because another SDK may have exchanged the same
-  methods since and undoing ours would break its chain. When it is installed,
-  the hosting controllers already on the key window (root, children and
-  navigation tops, then presented controllers) are adopted, so the session's
+  methods since and undoing ours would break its chain. At each session
+  start the hosting controllers already on the key window (root, children
+  and navigation tops, then presented controllers) are adopted, so the session's
   `session_start` seed names a hosting controller that was on screen before
   `activate`.
 - While no session records, `.tugboatScreen` callbacks keep only each

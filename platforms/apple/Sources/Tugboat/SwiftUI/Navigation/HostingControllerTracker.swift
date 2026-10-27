@@ -51,26 +51,19 @@ final class HostingControllerTracker {
   /// first session start, never while dormant); an app that opts out
   /// (`trackHostingControllers: false`) is never swizzled. It stays
   /// installed after `deactivate()` and `stop()` and records nothing while
-  /// no adapter is recording. When this call installs it, the hosting
-  /// controllers already on screen in `windows` are adopted
-  /// (`adoptControllersOnScreen`), so the session-start seed names them.
+  /// no adapter is recording. Then, at this and every later session start,
+  /// the hosting controllers already on screen in `windows` are adopted
+  /// (`adoptControllersOnScreen`), so the session-start seed names them even
+  /// when their `viewDidAppear` came before the exchange or was not seen.
   func installAppearanceObserverIfNeeded(adopting windows: [UIWindow]) {
-    // Both happen at the first session start; apart only when a test
-    // installed the exchange on its own first.
-    var startsObserving = false
     if !HostingControllerTracker.observerSet {
       HostingControllerTracker.observerSet = true
       ViewControllerAppearance.observer = { controller, appeared in
         HostingControllerTracker.shared.controller(controller, appeared: appeared)
       }
-      startsObserving = true
     }
-    if ViewControllerAppearance.install() {
-      startsObserving = true
-    }
-    if startsObserving {
-      adoptControllersOnScreen(in: windows)
-    }
+    ViewControllerAppearance.install()
+    adoptControllersOnScreen(in: windows)
   }
 
   /// Pushes the controllers on screen in `windows` through the `appeared`
