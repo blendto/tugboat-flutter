@@ -7,6 +7,9 @@ struct HTTPRequest: Equatable {
   let path: String
   let timeoutMs: Int
   let body: HTTPBody
+  /// `Tugboat-Delivery-Key`, set by the durable outbox for a request it
+  /// keeps on disk (W11); nil sends no header.
+  var deliveryKey: String? = nil
 }
 
 enum HTTPBody: Equatable {

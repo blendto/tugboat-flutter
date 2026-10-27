@@ -16,6 +16,7 @@ final class TugboatRuntime {
   private let session: SessionFlag
   private let clock: HostClock
   private let locale: LocaleBridge
+  private let outbox: OutboxParts?
   private var stopped = false
 
   /// The `session.start` wall clock: the session id is `session-<this>`.
@@ -35,6 +36,7 @@ final class TugboatRuntime {
     session = parts.session
     clock = parts.clock
     locale = parts.locale
+    outbox = parts.outbox
     sessionWallUs = parts.sessionStartAt.wallUs
   }
 
@@ -70,6 +72,8 @@ final class TugboatRuntime {
   func stop(sequence: StopSequence = StopSequence()) {
     guard !stopped else { return }
     stopped = true
+    // No replay once the session ends: nothing is sent while dormant.
+    outbox?.outbox.stopReplay()
     adapter.stop()
     lifecycle.stop()
     locale.stop()
@@ -116,6 +120,7 @@ final class TugboatRuntime {
         viewport: KeyWindow.viewport(fallback: device), host: metadata, sessionEpoch: sessionEpoch,
         activationRequestId: activationRequestId, explorationRunId: config.explorationRunId),
       at: parts.sessionStartAt)
+    parts.outbox?.startReplay()
     parts.lifecycle.start()
     parts.locale.start()
     parts.surfaces.start()

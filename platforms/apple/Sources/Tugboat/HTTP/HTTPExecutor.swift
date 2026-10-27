@@ -14,6 +14,8 @@ final class HTTPExecutor: HTTPSender {
   static let jsonContentType = "application/json; charset=utf-8"
   private static let jpegContentType = "image/jpeg"
   private static let framesField = "files"
+  /// The durable outbox's per-unit key; the collector ignores it today.
+  static let deliveryKeyHeader = "Tugboat-Delivery-Key"
 
   /// Session-wide backstop; each request's own deadline is its watchdog.
   static let resourceTimeout: TimeInterval = 120
@@ -197,6 +199,9 @@ final class HTTPExecutor: HTTPSender {
     urlRequest.httpMethod = "POST"
     for header in config.collectorHeaders {
       urlRequest.setValue(header.value, forHTTPHeaderField: header.name)
+    }
+    if let deliveryKey = request.deliveryKey {
+      urlRequest.setValue(deliveryKey, forHTTPHeaderField: HTTPExecutor.deliveryKeyHeader)
     }
     urlRequest.setValue(payload.contentType, forHTTPHeaderField: "Content-Type")
     urlRequest.httpBody = payload.bytes
