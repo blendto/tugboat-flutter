@@ -61,8 +61,9 @@ internal class DialogSessions(
         fragments?.showingWindows()?.forEach(::track)
     }
 
+    /** Ends the sessions whose decor was removed from the window manager. */
     fun sweepDetached() {
-        sessions.entries.filter { it.key?.isAttachedToWindow != true }.forEach { (decor, session) ->
+        sessions.entries.filter { !isAdded(it.key) }.forEach { (decor, session) ->
             sessions.remove(decor)
             session.detach()
         }
@@ -81,7 +82,7 @@ internal class DialogSessions(
 
     private fun track(window: Window) {
         val decor = window.peekDecorView() ?: return
-        if (!decor.isAttachedToWindow || sessions.containsKey(decor)) return
+        if (!isAdded(decor) || sessions.containsKey(decor)) return
         val session = DialogWindowSession(window, decor, context, ::onWindowDetached)
         sessions[decor] = session
         session.attach()
@@ -96,6 +97,14 @@ internal class DialogSessions(
         session.decor?.let { if (sessions[it] === session) sessions.remove(it) }
         session.detach()
     }
+
+    /**
+     * Whether [decor] is added to the window manager. Its window root
+     * becomes its parent in `addView`, before the first traversal attaches
+     * it (a dialog fragment's start runs in between), and stops being its
+     * parent when the window is removed.
+     */
+    private fun isAdded(decor: View?): Boolean = decor?.parent != null
 
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun ownedDialogRoots(): List<View> {
