@@ -38,7 +38,7 @@ final class OutboxDiskTests: XCTestCase {
     XCTAssertEqual(keys, ["new"])
     XCTAssertEqual(harness.directories.count, 1)
     XCTAssertEqual(
-      harness.lines.current, ["outbox sweep replayed=0 expired=1 evicted=0 corrupt=1 identityMismatch=0 bytesOnDisk=\(outbox.snapshot().entries[0].bytes)"])
+      harness.lines.current, ["outbox sweep replayed=0 expired=1 evicted=0 corrupt=1 identityMismatch=0 bytesOnDisk=\(outbox.snapshot().entries.first?.bytes ?? -1)"])
   }
 
   /// M2: the size and count bounds hold at a start sweep.
@@ -87,7 +87,7 @@ final class OutboxDiskTests: XCTestCase {
     XCTAssertEqual(drainer.requests.count, 0)
     XCTAssertEqual(harness.directories, [dir])
     XCTAssertEqual(
-      harness.lines.current.last, "outbox pass replayed=0 expired=0 evicted=0 corrupt=0 identityMismatch=0 bytesOnDisk=\(outbox.snapshot().entries[0].bytes)")
+      harness.lines.current.last, "outbox pass replayed=0 expired=0 evicted=0 corrupt=0 identityMismatch=0 bytesOnDisk=\(outbox.snapshot().entries.first?.bytes ?? -1)")
   }
 
   /// m1: a salt that exists but cannot be read turns the outbox off for the
