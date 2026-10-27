@@ -274,6 +274,87 @@ class TugboatActivationTest {
         assertTrue(health.has("captureSessionId"))
     }
 
+    @Test
+    fun anActivateBeforeStartReportsStartingAtOnce() {
+        Tugboat.activate("pending")
+        assertEquals(STARTING, Tugboat.lifecycleState)
+        assertTrue(Tugboat.isActivated)
+        assertEquals("pending", Tugboat.activationRequestId)
+    }
+
+    @Test
+    fun aSessionThatFailsToStartIsDormantAndTheSameIdRetries() {
+        var opens = 0
+        Tugboat.openTransportForTesting = {
+            opens++
+            if (opens == 1) null else FakeEngineTransport().also(transports::add)
+        }
+        Tugboat.start(application, config)
+        Tugboat.activate("a")
+        idle()
+        assertEquals(DORMANT, Tugboat.lifecycleState)
+        assertEquals("a", Tugboat.activationRequestId)
+        assertFalse(Tugboat.isActivated)
+        assertTrue(transports.isEmpty())
+
+        Tugboat.activate("a")
+        idle()
+        assertEquals("a", awaitSessionStart(0).getJSONObject("input").getString("activationRequestId"))
+        assertEquals(ACTIVE, Tugboat.lifecycleState)
+    }
+
+    @Test
+    fun healthOutlivesAReplacingActivateAndReportsTheStateWhenItFires() {
+        startWithLaunchExtrasActivity()
+        Tugboat.activate("h1")
+        idle()
+        assertEquals(1, logLines("TUGBOAT_LAUNCH").size)
+        Tugboat.activate("h2")
+        idle()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LaunchCorrelation.HEALTH_DELAY_MS))
+        val health = JSONObject(logLines("TUGBOAT_HEALTH").single().removePrefix("TUGBOAT_HEALTH ").trim())
+        assertEquals("active", health.getString("lifecycle"))
+        assertEquals("h2", health.getString("activationRequestId"))
+        assertTrue(health.has("captureSessionId"))
+    }
+
+    @Test
+    fun healthOutlivesDeactivateAndReportsDormant() {
+        startWithLaunchExtrasActivity()
+        Tugboat.activate("h1")
+        idle()
+        Tugboat.deactivate()
+        idle()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LaunchCorrelation.HEALTH_DELAY_MS))
+        val health = JSONObject(logLines("TUGBOAT_HEALTH").single().removePrefix("TUGBOAT_HEALTH ").trim())
+        assertEquals("dormant", health.getString("lifecycle"))
+        assertFalse(health.has("activationRequestId"))
+        assertFalse(health.has("captureSessionId"))
+    }
+
+    @Test
+    fun stopCancelsAPendingHealthLineEvenAfterDeactivate() {
+        startWithLaunchExtrasActivity()
+        Tugboat.activate("h1")
+        idle()
+        Tugboat.deactivate()
+        idle()
+        Tugboat.stop()
+        idle()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LaunchCorrelation.HEALTH_DELAY_MS))
+        assertTrue(logLines("TUGBOAT_HEALTH").isEmpty())
+    }
+
+    private fun startWithLaunchExtrasActivity() {
+        Tugboat.start(application, config)
+        idle()
+        Robolectric.buildActivity(
+            Activity::class.java,
+            Intent().putExtras(Bundle().apply { putString(LaunchExtraKeys.EMIT_SCENE_INVENTORY, "1") }),
+        ).setup()
+        idle()
+    }
+
     private fun logLines(prefix: String): List<String> =
         ShadowLog.getLogsForTag(LaunchCorrelation.TAG).map { it.msg }.filter { it.startsWith(prefix) }
 

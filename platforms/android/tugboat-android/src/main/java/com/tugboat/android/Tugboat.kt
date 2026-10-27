@@ -149,8 +149,9 @@ object Tugboat {
      * Idempotent: while started (until [stop]), later calls are ignored. A
      * session refuses to start (and logs which field) when the collector's
      * required `session_start` fields are missing, for example a blank
-     * [AppInfo.version] or [AppInfo.buildNumber]; the state then returns to
-     * dormant.
+     * [AppInfo.version] or [AppInfo.buildNumber], or the engine cannot open;
+     * the state then returns to dormant and the activation request is kept,
+     * so [activate] with the same id retries.
      */
     @JvmStatic
     fun start(application: Application, config: TugboatConfig) = onMain("start") {
@@ -247,7 +248,9 @@ object Tugboat {
      * Native only, and not Flutter's `TugboatReplay.disabled`: it also
      * forgets the config and clears any activation request, so an [activate]
      * made before it never restarts a session. An [activate] after it is kept
-     * for the next [start]. Process-scoped observation stays installed.
+     * for the next [start]. It cancels a pending `TUGBOAT_HEALTH` line
+     * ([deactivate] and a replacing [activate] do not). Process-scoped
+     * observation stays installed.
      */
     @JvmStatic
     fun stop() {
@@ -262,6 +265,7 @@ object Tugboat {
             }
             onMain("stop") {
                 endSession()
+                LaunchCorrelation.cancelPendingHealth()
                 application = null
                 config = null
                 markDormant(epoch)
@@ -362,7 +366,7 @@ object Tugboat {
             config,
             sessionEpoch++,
             activationRequestId = id,
-            lifecycle = { LifecycleSnapshot(state, requestedId) },
+            lifecycle = ::healthLifecycle,
             openTransport = transport,
         )
         if (started == null) return markFailed(epoch)
@@ -377,13 +381,26 @@ object Tugboat {
         markActive(epoch)
     }
 
-    /** Main thread: fences evidence and stops the runtime (`session.end` is posted before this returns). */
+    /**
+     * Main thread: fences evidence and stops the runtime (`session.end` is
+     * posted before this returns). A pending `TUGBOAT_HEALTH` line survives;
+     * only [stop] cancels it.
+     */
     private fun endSession() {
         val ending = runtime ?: return
         synchronized(lock) { evidence = null }
         runtime = null
         runtimeActivationId = null
-        ending.stop()
+        ending.stop(cancelHealth = false)
+    }
+
+    /**
+     * Main thread, when `TUGBOAT_HEALTH` fires: the state and id at that
+     * moment; dormant when the running session's engine host has stopped.
+     */
+    private fun healthLifecycle(): LifecycleSnapshot {
+        if (runtime?.isHostRunning == false) return LifecycleSnapshot.DORMANT
+        return LifecycleSnapshot(state, requestedId)
     }
 
     // The transitions of Flutter's `TugboatLifecycleNotifier` (`markStarting`,
@@ -409,7 +426,10 @@ object Tugboat {
         }
     }
 
-    /** The session could not start (logged by [TugboatRuntime.start]); a later [activate] retries. */
+    /**
+     * The session could not start (logged by [TugboatRuntime.start]): dormant,
+     * keeping the activation request, so [activate] with the same id retries.
+     */
     private fun markFailed(epoch: Int) {
         synchronized(lock) {
             if (epoch == requestEpoch) setState(TugboatLifecycleState.DORMANT)

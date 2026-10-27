@@ -49,8 +49,9 @@ view.tugboatTag = "checkout"                  // developer alias
   `stop`. A session **refuses to start** (and logs the missing paths) when a
   field the collector requires on `session_start` is blank: app version,
   build number, app id, installation id, name; device id, screen size and
-  densities; the locale; the collector URL and key. The state then returns
-  to `DORMANT`; a later `activate` retries.
+  densities; the locale; the collector URL and key. The same applies when the
+  engine cannot open. The state then returns to `DORMANT` and the activation
+  request is kept, so `activate` with the same id retries.
 - `stop` detaches every observer, posts `session.end`, waits for the
   `session_end` post to settle (accepted, or a status the engine does not
   retry), then submits `engine.dispose` and destroys the handle. The wait is
@@ -117,7 +118,8 @@ The same contract as Flutter's `TugboatReplay` (`lifecycle.dart`):
   nothing. A different id while a session runs ends it (`session_end`) and
   starts a new one with the new id; the state goes `ACTIVE` → `STARTING` →
   `ACTIVE`, never `STOPPING`. An `activate` before `start` (or after `stop`)
-  is kept and applied by the next `start`, whatever `enabled` says. A blank
+  reports `STARTING` at once and is applied by the next `start`, whatever
+  `enabled` says. A blank
   id still activates; `session.start` then omits it (Flutter sends `""`).
 - `Tugboat.deactivate()` fences evidence at once on the calling thread
   (an event or network call recorded after it returns is dropped), then ends
@@ -161,9 +163,10 @@ the extras**:
 - Ten seconds later, `TUGBOAT_HEALTH` with `lifecycle`, the lifecycle state's
   Flutter name (`dormant`, `starting`, `active`, `stopping`; `dormant` when
   the engine host stopped running), `activationRequestId` when one is in
-  effect, and the first session's `captureSessionId` unless dormant. A
-  `Tugboat.stop()`, `deactivate()`, or replacing `activate` before the
-  ten-second mark cancels it: no HEALTH line.
+  effect, and the first session's `captureSessionId` unless dormant, all
+  read when the line prints. Only a `Tugboat.stop()` before the ten-second
+  mark cancels it; a `deactivate()` or a replacing `activate` does not (the
+  line then reports `dormant`, or the new id).
 
 The lines are printed by a session: with the default dormant config, they
 appear at the `activate` (from the resumed activity's extras) rather than

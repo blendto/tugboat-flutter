@@ -50,6 +50,10 @@ internal class TugboatRuntime private constructor(
 ) {
     private var stopped = false
 
+    /** Whether the engine host still runs (it stops on a fatal engine status). */
+    val isHostRunning: Boolean
+        get() = host.isRunning
+
     fun setUserId(userId: String?) = host.post(SessionMessages.IDENTITY_SET, SessionMessages.identity(userId), clock.now())
 
     /** [traitsInput] is a [SessionMessages.traits] input. */
@@ -58,12 +62,14 @@ internal class TugboatRuntime private constructor(
     /**
      * Detaches every observer (pending facts are posted first), ends the
      * session, waits for its `session_end` post to settle, then disposes the
-     * engine and the pixel runtime ([StopSequence]).
+     * engine and the pixel runtime ([StopSequence]). [cancelHealth] false
+     * (the facade's `deactivate` or a replacing `activate`) leaves a pending
+     * `TUGBOAT_HEALTH` line to fire; `Tugboat.stop` cancels it.
      */
-    fun stop() {
+    fun stop(cancelHealth: Boolean = true) {
         if (stopped) return
         stopped = true
-        launchCorrelation.stop()
+        if (cancelHealth) launchCorrelation.stop()
         evidence.close()
         adapter.stop()
         lifecycle.stop()
@@ -92,8 +98,12 @@ internal class TugboatRuntime private constructor(
             sessionEpoch: Int,
             /** From `Tugboat.activate`; passed on `session.start` when non-blank. */
             activationRequestId: String? = null,
-            /** The facade's lifecycle, for `TUGBOAT_HEALTH`. */
-            lifecycle: () -> LifecycleSnapshot = { LifecycleSnapshot(TugboatLifecycleState.ACTIVE, activationRequestId) },
+            /**
+             * The facade's lifecycle, read when `TUGBOAT_HEALTH` fires (maybe
+             * after this session ended). Null: active with [activationRequestId]
+             * while this engine host runs, else dormant.
+             */
+            lifecycle: (() -> LifecycleSnapshot)? = null,
             openTransport: () -> EngineTransport? = { JniEngineTransport.open() },
             stopSequence: StopSequence = StopSequence(),
         ): TugboatRuntime? {
@@ -151,8 +161,14 @@ internal class TugboatRuntime private constructor(
             val startAt = clock.now()
             val launchCorrelation = LaunchCorrelation(
                 sessionWallUs = startAt.wallUs,
-                // A host that stopped running records nothing: dormant.
-                lifecycle = { if (engineHost.value?.isRunning == true) session.lifecycle() else LifecycleSnapshot.DORMANT },
+                lifecycle = session.lifecycle ?: {
+                    // A host that stopped running records nothing: dormant.
+                    if (engineHost.value?.isRunning == true) {
+                        LifecycleSnapshot(TugboatLifecycleState.ACTIVE, session.activationRequestId)
+                    } else {
+                        LifecycleSnapshot.DORMANT
+                    }
+                },
             )
             val foreground = ForegroundWindow(
                 application,
@@ -217,7 +233,7 @@ internal class TugboatRuntime private constructor(
 private class SessionInputs(
     val sessionEpoch: Int,
     val activationRequestId: String?,
-    val lifecycle: () -> LifecycleSnapshot,
+    val lifecycle: (() -> LifecycleSnapshot)?,
 )
 
 internal fun String?.normalizedSessionId(): String? = this?.takeIf { it.isNotBlank() }

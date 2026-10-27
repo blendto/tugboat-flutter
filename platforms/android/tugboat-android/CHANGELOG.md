@@ -31,8 +31,9 @@ wiring, window capture, and the Android Views adapter.
   attaches to it at once (taps, captures, launch lines, navigation seed);
   `trackNavigation` after a dormant `start` keeps the controller's stack.
   `TUGBOAT_HEALTH` reports the state's Flutter name and
-  `activationRequestId`. The user id, traits, and event hooks feed every
-  session.
+  `activationRequestId` when it prints; only `stop()` cancels it. A session
+  that fails to start is dormant and keeps the activation request (the same
+  id retries). The user id, traits, and event hooks feed every session.
 - Config: `captureDiagnostics` (engine capability), optional
   `explorationRunId` on `session.start` when set. `activationRequestId` is
   no longer a config field: it comes from `activate`.

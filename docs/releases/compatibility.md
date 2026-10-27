@@ -36,9 +36,7 @@
 | `@tugboat/react-native` | — | not started |
 
 Native SDKs (unpublished 0.1.0) follow Flutter's activation contract:
-`TugboatConfig.enabled` defaults to `false` (dormant until `activate`), with
-`activate(activationRequestId)` / `deactivate()`; Android `tugboat-android`
-0.1.0 implements it.
+`enabled` defaults to false, `activate`/`deactivate`.
 
 Flutter `0.8.16` compiles on Flutter 3.35 and consumes Android
 `capture-runtime` `0.1.0` from Maven Central and Apple
