@@ -44,7 +44,7 @@ final class LocaleBridgeTests: XCTestCase {
     localeChanged()
     XCTAssertEqual(posts, ["{\"locale\":{\"language\":\"fr\",\"country\":\"FR\",\"tag\":\"fr-FR\"}}"])
     XCTAssertEqual(
-      jsonObject(posts[0])["locale"] as? NSDictionary,
+      jsonObject(posts.first ?? "")["locale"] as? NSDictionary,
       ["language": "fr", "country": "FR", "tag": "fr-FR"])
   }
 
