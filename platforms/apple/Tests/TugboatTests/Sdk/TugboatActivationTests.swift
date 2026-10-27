@@ -363,21 +363,34 @@ final class TugboatActivationTests: XCTestCase {
   func testAHostingControllerOnScreenBeforeActivateIsSeeded() {
     ScreenTracker.shared.reset()
     HostingControllerTracker.shared.reset()
+    defer {
+      ScreenTracker.shared.reset()
+      HostingControllerTracker.shared.reset()
+    }
     let hosting = HostedWindow(Text("Already on screen"))
     defer { hosting.close() }
     hosting.window.makeKeyAndVisible()
     hosting.settle()
+    let expected = [hosting.hosting.map(RouteKey.hostingKey) ?? "?"]
+    let diagnostics = "key window: \(hosting.window.isKeyWindow), screen seen: \(ScreenTracker.shared.hasSeenScreen)"
     Tugboat.start(config(trackHostingControllers: true))
     Tugboat.activate(activationRequestId: "act-1")
     drainMain()
-    XCTAssertTrue(eventually { !self.recorder.inputs(FactTypes.navigation).isEmpty })
-    let seed = recorder.inputs(FactTypes.navigation).first {
-      $0["kind"] as? String == "session_start" && $0["navigatorId"] as? String == HostingControllerTracker.navigatorId
+    // The tracker's seed, then what reached the engine (the adapter's batch
+    // is flushed at the latest when the session ends).
+    let trackerSeed = HostingControllerTracker.shared.sessionStartFact(at: HostTime(monoUs: 1, wallUs: 1))?.decodedInput
+    XCTAssertEqual(
+      ((trackerSeed?["routes"] as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }, expected, diagnostics)
+    Tugboat.deactivate()
+    drainMain()
+    let seed: () -> [String: Any]? = {
+      self.recorder.inputs(FactTypes.navigation).first {
+        $0["kind"] as? String == "session_start" && $0["navigatorId"] as? String == HostingControllerTracker.navigatorId
+      }
     }
-    let routes = (seed?["routes"] as? [[String: Any]]) ?? []
-    XCTAssertEqual(routes.compactMap { $0["name"] as? String }, [hosting.hosting.map(RouteKey.hostingKey) ?? "?"])
-    ScreenTracker.shared.reset()
-    HostingControllerTracker.shared.reset()
+    XCTAssertTrue(eventually { seed() != nil }, diagnostics)
+    let routes = (seed()?["routes"] as? [[String: Any]]) ?? []
+    XCTAssertEqual(routes.compactMap { $0["name"] as? String }, expected, diagnostics)
   }
 
   /// Item 12's walk on its own, on a fresh tracker: the root, a child that
