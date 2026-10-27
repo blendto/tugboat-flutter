@@ -35,7 +35,7 @@
 | Apple `TugboatCaptureRuntime` | 0.1.0 | CocoaPods trunk / SwiftPM git tag; iOS 15 live Flutter-layer CPU path |
 | `@tugboat/react-native` | — | not started |
 
-Native SDKs (unpublished 0.1.0) follow Flutter's activation contract
+Apple `Tugboat` (unpublished 0.1.0) follows Flutter's activation contract
 (`enabled` default false, `activate`/`deactivate`).
 
 Flutter `0.8.16` compiles on Flutter 3.35 and consumes Android

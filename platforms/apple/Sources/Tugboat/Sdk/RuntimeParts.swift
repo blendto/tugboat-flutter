@@ -14,14 +14,10 @@ extension TugboatRuntime {
     let watcher: SessionEndWatcher
     let session: SessionFlag
     let clock: HostClock
-    let launchCorrelation: LaunchCorrelation
     let locale: LocaleBridge
     let sessionStartAt: HostTime
 
-    static func assemble(
-      config: TugboatConfig, transport: EngineTransport, initialLocale: LocaleSnapshot,
-      lifecycle: @escaping LaunchCorrelation.Lifecycle
-    ) -> Parts {
+    static func assemble(config: TugboatConfig, transport: EngineTransport, initialLocale: LocaleSnapshot) -> Parts {
       let clock = SystemHostClock()
       let frames = FrameHandleTable()
       let hostConfig = HostConfig(
@@ -60,7 +56,6 @@ extension TugboatRuntime {
         accessibilityIdentity: config.swiftUIAccessibilityIdentity)
       let session = SessionFlag()
       let startAt = clock.now()
-      let launchCorrelation = LaunchCorrelation(sessionWallUs: startAt.wallUs, lifecycle: lifecycle)
       let locale = LocaleBridge(initial: initialLocale) { input in
         ref.host?.post(type: SessionMessages.localeSet, inputJSON: input, at: clock.now())
       }
@@ -71,8 +66,8 @@ extension TugboatRuntime {
       }
       return Parts(
         host: host, adapter: adapter, lifecycle: lifecycle, surfaces: SurfaceObserver(reporter: reporter),
-        captures: captures, watcher: watcher, session: session, clock: clock, launchCorrelation: launchCorrelation,
-        locale: locale, sessionStartAt: startAt)
+        captures: captures, watcher: watcher, session: session, clock: clock, locale: locale,
+        sessionStartAt: startAt)
     }
 
     /// One capture's mask supplier: the adapter's mask walk, the current

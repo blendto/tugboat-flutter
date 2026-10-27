@@ -84,7 +84,7 @@ final class SwiftUIAdapter {
     // Bound at start, not init: a second adapter must not take the running one's frames.
     hostingControllers.bind(screens: screens, clock: hostClock) { [weak self] in self?.batcher.requestFrame() }
     if trackHostingControllers {
-      hostingControllers.installAppearanceObserverIfNeeded()
+      hostingControllers.installAppearanceObserverIfNeeded(adopting: SwiftUIAdapter.keyWindows())
     }
     screens.beginSession()
     seedSessionStartNavigation()

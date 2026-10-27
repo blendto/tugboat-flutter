@@ -1,24 +1,31 @@
 #if canImport(UIKit)
 import Foundation
 
-/// Device Farm launch / health lines for human and future log scraping.
-/// Emits at most once per process: LAUNCH at the first session start (a
-/// dormant launch prints it when `activate` starts the session), HEALTH ten
-/// seconds later with the lifecycle state at that moment (`lifecycle`, plus
-/// `activationRequestId` when set; no `captureSessionId` while dormant).
-/// HEALTH outlives the session that armed it (`deactivate` or a new
-/// activation id does not cancel it); `Tugboat.stop()` before the ten-second
-/// mark does (`stop()`).
+/// Device Farm launch / health lines for human and future log scraping, as
+/// the Flutter host prints them at configuration time. When the launch
+/// inputs request capture, the first accepted `Tugboat.start` logs
+/// `TUGBOAT_LAUNCH` at once, whatever the lifecycle, and `TUGBOAT_HEALTH`
+/// ten seconds later; at most one of each per process. Both read the
+/// lifecycle when they print: `captureSessionId` is the running session's
+/// id (left out when no session runs), and HEALTH's `lifecycle` and
+/// `activationRequestId` are the state and request at that moment. Only
+/// `Tugboat.stop()` before the ten-second mark cancels HEALTH (`stop()`).
 final class LaunchCorrelation {
-  /// The lifecycle as HEALTH reports it.
-  typealias Lifecycle = () -> (state: TugboatLifecycleState, activationRequestId: String?)
+  /// What the lines report, read when each prints.
+  struct Reading {
+    let state: TugboatLifecycleState
+    let activationRequestId: String?
+    /// The running session's start (`session.start` wall clock); nil when
+    /// no session runs.
+    let sessionWallUs: Int64?
+  }
+
+  typealias Lifecycle = () -> Reading
 
   private static var processLaunchLogged = false
-  private static var firstSessionWallUs: Int64 = 0
   /// Main queue only.
   private static var pendingHealth: (work: DispatchWorkItem, cancel: (DispatchWorkItem) -> Void)?
 
-  private let sessionWallUs: Int64
   private let lifecycle: Lifecycle
   private let schedule: (_ delay: TimeInterval, _ block: @escaping () -> Void) -> DispatchWorkItem
   private let cancel: (_ work: DispatchWorkItem) -> Void
@@ -27,30 +34,23 @@ final class LaunchCorrelation {
   private let queue = DispatchQueue.main
 
   init(
-    sessionWallUs: Int64,
     lifecycle: @escaping Lifecycle,
     schedule: @escaping (_ delay: TimeInterval, _ block: @escaping () -> Void) -> DispatchWorkItem = LaunchCorrelation.defaultSchedule,
     cancel: @escaping (_ work: DispatchWorkItem) -> Void = { $0.cancel() },
     emit: @escaping (String) -> Void = { HostLog.launch($0) }
   ) {
-    self.sessionWallUs = sessionWallUs
     self.lifecycle = lifecycle
     self.schedule = schedule
     self.cancel = cancel
     self.emit = emit
   }
 
-  func startIfNeeded() {
-    startIfNeeded(parsed: LaunchOptions.fromProcessInfo())
-  }
-
   func startIfNeeded(parsed options: LaunchOptions?) {
     queue.async {
       guard !Self.processLaunchLogged, let options = options else { return }
       Self.processLaunchLogged = true
-      Self.firstSessionWallUs = self.sessionWallUs
-      self.emit(options.launchLine(sessionWallUs: self.sessionWallUs))
-      // Holds what HEALTH needs, not this object: the session may be gone.
+      self.emit(options.launchLine(sessionWallUs: self.lifecycle().sessionWallUs))
+      // Holds what HEALTH needs, not this object.
       let lifecycle = self.lifecycle
       let emit = self.emit
       var fired = false
@@ -62,7 +62,7 @@ final class LaunchCorrelation {
         emit(
           LaunchOptions.healthLine(
             lifecycle: reading.state.rawValue, activationRequestId: reading.activationRequestId,
-            sessionWallUs: Self.firstSessionWallUs))
+            sessionWallUs: reading.sessionWallUs))
       }
       if !fired {
         Self.pendingHealth = (work, self.cancel)
@@ -86,7 +86,6 @@ final class LaunchCorrelation {
 
   static func resetForTests() {
     processLaunchLogged = false
-    firstSessionWallUs = 0
     pendingHealth = nil
   }
 

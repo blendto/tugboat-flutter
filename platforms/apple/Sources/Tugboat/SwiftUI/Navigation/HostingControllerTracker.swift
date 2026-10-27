@@ -42,21 +42,61 @@ final class HostingControllerTracker {
     self.requestFrame = requestFrame
   }
 
-  private static var appearanceInstalled = false
+  private static var observerSet = false
+  /// Bounds the hierarchy walk in `adoptControllersOnScreen`.
+  static let maxAdoptedControllers = 256
 
   /// Installs the process-wide `UIViewController` appearance exchange the
   /// first time an adapter that tracks hosting controllers starts (the
   /// first session start, never while dormant); an app that opts out
   /// (`trackHostingControllers: false`) is never swizzled. It stays
   /// installed after `deactivate()` and `stop()` and records nothing while
-  /// no adapter is recording.
-  func installAppearanceObserverIfNeeded() {
-    guard !HostingControllerTracker.appearanceInstalled else { return }
-    HostingControllerTracker.appearanceInstalled = true
-    ViewControllerAppearance.observer = { controller, appeared in
-      HostingControllerTracker.shared.controller(controller, appeared: appeared)
+  /// no adapter is recording. When this call installs it, the hosting
+  /// controllers already on screen in `windows` are adopted
+  /// (`adoptControllersOnScreen`), so the session-start seed names them.
+  func installAppearanceObserverIfNeeded(adopting windows: [UIWindow]) {
+    // Both happen at the first session start; apart only when a test
+    // installed the exchange on its own first.
+    var startsObserving = false
+    if !HostingControllerTracker.observerSet {
+      HostingControllerTracker.observerSet = true
+      ViewControllerAppearance.observer = { controller, appeared in
+        HostingControllerTracker.shared.controller(controller, appeared: appeared)
+      }
+      startsObserving = true
     }
-    ViewControllerAppearance.install()
+    if ViewControllerAppearance.install() {
+      startsObserving = true
+    }
+    if startsObserving {
+      adoptControllersOnScreen(in: windows)
+    }
+  }
+
+  /// Pushes the controllers on screen in `windows` through the `appeared`
+  /// path (which keeps hosting controllers covering at least half their
+  /// window): each root, then its children (a navigation controller's top,
+  /// a tab's selected controller: covered ones are off the window and
+  /// skipped), then what it presented, so the last one shown is on top. At
+  /// most `maxAdoptedControllers` are visited.
+  func adoptControllersOnScreen(in windows: [UIWindow]) {
+    var budget = HostingControllerTracker.maxAdoptedControllers
+    func visit(_ controller: UIViewController) {
+      guard budget > 0 else { return }
+      budget -= 1
+      self.controller(controller, appeared: true)
+      controller.children.forEach(visit)
+      // `presentedViewController` also answers for an ancestor's
+      // presentation; visit it once, from the controller that presented it.
+      if let presented = controller.presentedViewController, presented.presentingViewController === controller {
+        visit(presented)
+      }
+    }
+    for window in windows {
+      if let root = window.rootViewController {
+        visit(root)
+      }
+    }
   }
 
   /// A disappearing controller is matched by identity: its view has usually

@@ -216,10 +216,14 @@ final class ActivationDriver<Session: AnyObject> {
     }
     session = started
     sessionEpoch = epoch
-    // A `deactivate` or `stop` on another thread since the snapshot wins:
-    // the session stays closed and their queued reconcile ends it.
+    // A request made on another thread since the snapshot (`deactivate`,
+    // `stop`, a new id) wins: the session is never opened, and it is ended
+    // (or replaced) now, in this main-thread turn, rather than by that
+    // request's queued reconcile.
     if state.openIfCurrent(epoch, { open(started) }) {
       state.markActive(epoch)
+    } else {
+      reconcile()
     }
   }
 

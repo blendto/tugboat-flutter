@@ -192,7 +192,15 @@ Native activation follows Flutter's `TugboatReplay` (`enabled`, `activate`,
   `deactivate` or `stop` it stays installed and inert: the exchanged
   `viewDidAppear` / `viewDidDisappear` call the originals and record nothing.
   It is never exchanged back, because another SDK may have exchanged the same
-  methods since and undoing ours would break its chain.
+  methods since and undoing ours would break its chain. When it is installed,
+  the hosting controllers already on the key window (root, children and
+  navigation tops, then presented controllers) are adopted, so the session's
+  `session_start` seed names a hosting controller that was on screen before
+  `activate`.
+- While no session records, `.tugboatScreen` callbacks keep only each
+  navigator's current stack (settled on the main queue's next turn, at once
+  past 64 pending), so a dormant app holds no history and the next session's
+  seed names the visible screen.
 
 ## Device Farm / exploration correlation
 
@@ -203,13 +211,18 @@ and so on) mirror the Flutter plugin. Environment wins when both are set.
 When either scene-inventory or action-context is enabled (`1` / `true` /
 `yes`, case-insensitive), the SDK logs `TUGBOAT_LAUNCH` once per process and
 `TUGBOAT_HEALTH` ten seconds later through `os_log` (subsystem
-`com.gettugboat.sdk`, category `launch`). Payloads match the Android lines;
-`captureSessionId` comes from the first `session.start` clock reading.
-`TUGBOAT_LAUNCH` is logged at the first session start, so a dormant launch
-logs it when `activate` starts the session. `TUGBOAT_HEALTH` follows ten
-seconds later with `lifecycle` set to the `TugboatLifecycleState` name at that
-moment, `activationRequestId` when one is set, and `captureSessionId` unless
-dormant. A `deactivate` or a new activation id does not cancel it; a
+`com.gettugboat.sdk`, category `launch`). As the Flutter host prints them at
+configuration time, `TUGBOAT_LAUNCH` is logged at the first accepted
+`Tugboat.start`, whatever the lifecycle (a dormant launch logs it too), and
+`TUGBOAT_HEALTH` ten seconds later. Each line reads the SDK when it prints:
+`captureSessionId` is the running session's id (`session-<session.start wall
+clock>`) and is left out when no session runs; HEALTH's `lifecycle` is the
+`TugboatLifecycleState` name and `activationRequestId` the current request,
+when one is set. The launch fields (`captureRequested`, `emitSceneInventory`,
+`acceptActionContext`, `automationRunId`) are the Android line's; the
+lifecycle states other than `active` / `dormant` and `activationRequestId`
+are Apple's until Android follows the same activation contract. A
+`deactivate` or a new activation id does not cancel HEALTH; a
 `Tugboat.stop()` before the ten-second mark does. Lines never include collector URL or API material.
 `TUGBOAT_COLLECTOR_BASE_URL` is not applied in v1 (collector override is out
 of scope here). A later `stop` and `start` does not emit new lines. Device

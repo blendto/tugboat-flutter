@@ -143,7 +143,7 @@ final class TugboatActivationTests: XCTestCase {
   }
 
   func testTheDefaultConfigurationIsDormant() {
-    let exchangeInstalled = ViewControllerAppearance.isInstalled
+    let installAttempts = ViewControllerAppearance.installAttempts
     Tugboat.start(config(trackHostingControllers: true))
     drainMain()
     XCTAssertEqual(recorder.opened, 0, "no engine")
@@ -157,7 +157,10 @@ final class TugboatActivationTests: XCTestCase {
     XCTAssertFalse(ScreenTracker.shared.isRecording)
     XCTAssertFalse(HostingControllerTracker.shared.isRecording)
     XCTAssertEqual(
-      ViewControllerAppearance.isInstalled, exchangeInstalled, "a dormant start installs no method exchange")
+      ViewControllerAppearance.installAttempts, installAttempts, "a dormant start does not even try to install the exchange")
+    Tugboat.activate(activationRequestId: "act-1")
+    drainMain()
+    XCTAssertGreaterThan(ViewControllerAppearance.installAttempts, installAttempts, "the seam counts a session start")
   }
 
   func testActivateFromDormantPutsTheIdOnSessionStart() {
@@ -339,9 +342,126 @@ final class TugboatActivationTests: XCTestCase {
     XCTAssertTrue(window.wait { probe.appeared })
     XCTAssertTrue(hosting.wait { forwarded >= 2 }, "the exchanged methods still run")
     XCTAssertTrue(HostingControllerTracker.shared.takeFacts().isEmpty, "and record nothing")
-    let batchesBefore = recorder.messages.count
+    let hostingFacts = { self.recorder.inputs(FactTypes.navigation).filter { $0["navigatorId"] as? String == HostingControllerTracker.navigatorId } }
+    let before = hostingFacts().count
     RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-    XCTAssertEqual(recorder.messages.count, batchesBefore)
+    // Only navigation facts count: the stopped engine still drains (timers, HTTP results).
+    XCTAssertEqual(hostingFacts().count, before)
+  }
+
+  /// Item 12: a hosting controller already on screen when the first session
+  /// starts is in that session's `session_start` seed.
+  func testAHostingControllerOnScreenBeforeActivateIsSeeded() {
+    ScreenTracker.shared.reset()
+    HostingControllerTracker.shared.reset()
+    let hosting = HostedWindow(Text("Already on screen"))
+    defer { hosting.close() }
+    hosting.window.makeKeyAndVisible()
+    hosting.settle()
+    Tugboat.start(config(trackHostingControllers: true))
+    Tugboat.activate(activationRequestId: "act-1")
+    drainMain()
+    XCTAssertTrue(eventually { !self.recorder.inputs(FactTypes.navigation).isEmpty })
+    let seed = recorder.inputs(FactTypes.navigation).first {
+      $0["kind"] as? String == "session_start" && $0["navigatorId"] as? String == HostingControllerTracker.navigatorId
+    }
+    let routes = (seed?["routes"] as? [[String: Any]]) ?? []
+    XCTAssertEqual(routes.compactMap { $0["name"] as? String }, [hosting.hosting.map(RouteKey.hostingKey) ?? "?"])
+    ScreenTracker.shared.reset()
+    HostingControllerTracker.shared.reset()
+  }
+
+  /// Item 12's walk on its own, on a fresh tracker: the root, a child that
+  /// covers the window, and not a small embedded host.
+  func testAdoptingControllersOnScreenWalksTheHierarchy() {
+    let tracker = HostingControllerTracker(screens: ScreenTracker())
+    let container = UIViewController()
+    let window = HostedWindow(controller: container)
+    defer { window.close() }
+    let full = UIHostingController(rootView: Text("Full"))
+    let small = UIHostingController(rootView: AnyView(Text("Badge")))
+    for (child, frame) in [(full as UIViewController, window.window.bounds), (small, CGRect(x: 0, y: 0, width: 40, height: 40))] {
+      container.addChild(child)
+      child.view.frame = frame
+      container.view.addSubview(child.view)
+      child.didMove(toParent: container)
+    }
+    window.settle()
+    tracker.adoptControllersOnScreen(in: [window.window])
+    let seed = tracker.sessionStartFact(at: HostTime(monoUs: 1, wallUs: 1))?.decodedInput
+    let routes = (seed?["routes"] as? [[String: Any]]) ?? []
+    XCTAssertEqual(routes.compactMap { $0["name"] as? String }, [RouteKey.hostingKey(full)])
+  }
+
+  /// m1: HEALTH reads the running session when it prints.
+  func testTheLaunchReadingFollowsTheRunningSession() {
+    Tugboat.start(config())
+    XCTAssertNil(Tugboat.launchReading().sessionWallUs)
+    Tugboat.activate(activationRequestId: "act-1")
+    drainMain()
+    let first = Tugboat.runtime?.sessionWallUs
+    Tugboat.activate(activationRequestId: "act-2")
+    drainMain()
+    let reading = Tugboat.launchReading()
+    XCTAssertEqual(reading.activationRequestId, "act-2")
+    XCTAssertEqual(reading.state, .active)
+    XCTAssertNotNil(reading.sessionWallUs)
+    XCTAssertEqual(reading.sessionWallUs, Tugboat.runtime?.sessionWallUs)
+    XCTAssertNotEqual(reading.sessionWallUs, first)
+    Tugboat.deactivate()
+    drainMain()
+    let dormant = Tugboat.launchReading()
+    XCTAssertEqual(dormant.state, .dormant)
+    XCTAssertNil(dormant.sessionWallUs)
+    XCTAssertNil(dormant.activationRequestId)
+  }
+
+  /// m2: with launch inputs, a dormant `start` logs LAUNCH at once and a
+  /// dormant HEALTH later.
+  func testADormantStartLogsLaunchAndHealth() {
+    let previousCorrelation = Tugboat.launchCorrelation
+    let previousOptions = Tugboat.launchOptions
+    defer {
+      Tugboat.launchCorrelation = previousCorrelation
+      Tugboat.launchOptions = previousOptions
+      LaunchCorrelation.resetForTests()
+    }
+    LaunchCorrelation.resetForTests()
+    var lines: [String] = []
+    var health: (() -> Void)?
+    Tugboat.launchCorrelation = LaunchCorrelation(
+      lifecycle: Tugboat.launchReading,
+      schedule: { _, block in
+        health = block
+        return DispatchWorkItem {}
+      },
+      emit: { lines.append($0) })
+    Tugboat.launchOptions = { LaunchOptions(emitSceneInventory: true, acceptActionContext: false, automationRunId: nil) }
+    Tugboat.start(config())
+    drainMain()
+    XCTAssertEqual(lines.count, 1)
+    XCTAssertTrue(lines.first?.hasPrefix("TUGBOAT_LAUNCH {") ?? false)
+    XCTAssertFalse(lines.first?.contains("captureSessionId") ?? true)
+    health?()
+    XCTAssertEqual(lines.last, "TUGBOAT_HEALTH {\"lifecycle\":\"dormant\"}")
+  }
+
+  /// An `activate` before a `start` whose configuration is refused: dormant,
+  /// the request kept, never stuck at `starting`.
+  func testARefusedStartAfterActivateIsDormantWithTheRequestKept() {
+    Tugboat.activate(activationRequestId: "early")
+    var refused = config()
+    refused.app.version = " "
+    Tugboat.start(refused)
+    drainMain()
+    XCTAssertEqual(Tugboat.lifecycleState, .dormant)
+    XCTAssertEqual(Tugboat.activationRequestId, "early")
+    XCTAssertEqual(recorder.opened, 0)
+    Tugboat.start(config())
+    Tugboat.activate(activationRequestId: "early")
+    drainMain()
+    XCTAssertEqual(Tugboat.lifecycleState, .active)
+    XCTAssertEqual(recorder.inputs(SessionMessages.sessionStart).first?["activationRequestId"] as? String, "early")
   }
 }
 

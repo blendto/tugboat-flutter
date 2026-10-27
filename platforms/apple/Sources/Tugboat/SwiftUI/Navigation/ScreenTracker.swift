@@ -20,12 +20,20 @@ import Foundation
 ///   visible chain, computed at the end of each `settle()` (identity settles
 ///   before reading it). The stacks are kept even while the adapter is not
 ///   recording; facts are only kept while it is.
+/// - While not recording (Tugboat dormant, deactivated, or stopped) nothing
+///   grows with time: callbacks are settled on the main queue's next turn
+///   (one coalesced hop, which keeps a frame's callbacks together), and at
+///   once when `maxIdleQueue` are pending; navigator ids issued while idle
+///   are released. Only the navigators' current stacks are kept, which is
+///   what the next session's `session_start` seed needs.
 ///
 /// Main thread only (SwiftUI runs view callbacks there).
 final class ScreenTracker {
   static let shared = ScreenTracker()
   static let navigatorId = NavigatorScope.rootNavigatorId
   static let routeType = "TugboatScreen"
+  /// Pending callbacks that force a settle while not recording.
+  static let maxIdleQueue = 64
   private static let instances = IdSequence()
 
   private enum Event {
@@ -39,6 +47,8 @@ final class ScreenTracker {
   private var chain: [ScreenStack] = []
   private var queued: [Event] = []
   private var facts: [AdapterFact] = []
+  private let scheduleIdleSettle: (@escaping () -> Void) -> Void
+  private var idleSettleScheduled = false
 
   /// Facts are produced only while true (the adapter is running).
   var isRecording = false
@@ -48,8 +58,19 @@ final class ScreenTracker {
   /// navigation then stays silent so routes are not reported twice.
   private(set) var hasSeenScreen = false
 
-  init(clock: HostClock = SystemHostClock()) {
+  /// `scheduleIdleSettle` runs a settle while not recording; the main
+  /// queue's next turn by default.
+  init(
+    clock: HostClock = SystemHostClock(),
+    scheduleIdleSettle: @escaping (@escaping () -> Void) -> Void = { DispatchQueue.main.async(execute: $0) }
+  ) {
     self.clock = clock
+    self.scheduleIdleSettle = scheduleIdleSettle
+  }
+
+  /// Callbacks not yet settled (tests).
+  var queuedCount: Int {
+    queued.count
   }
 
   static func newInstanceId() -> String {
@@ -89,13 +110,38 @@ final class ScreenTracker {
   func appeared(instanceId: String, name: String, overlayKind: OverlayKind = .page, scope: NavigatorScope = .root) {
     hasSeenScreen = true
     let entry = RouteEntry(instanceId: instanceId, name: name, type: ScreenTracker.routeType, overlayKind: overlayKind)
-    queued.append(.appeared(entry, scope, clock.now()))
-    onEvent?()
+    enqueue(.appeared(entry, scope, clock.now()))
   }
 
   func disappeared(instanceId: String) {
-    queued.append(.disappeared(instanceId, clock.now()))
+    enqueue(.disappeared(instanceId, clock.now()))
+  }
+
+  private func enqueue(_ event: Event) {
+    queued.append(event)
     onEvent?()
+    guard !isRecording else { return }
+    if queued.count >= ScreenTracker.maxIdleQueue {
+      settleIdle()
+      return
+    }
+    guard !idleSettleScheduled else { return }
+    idleSettleScheduled = true
+    scheduleIdleSettle { [weak self] in
+      guard let self = self else { return }
+      self.idleSettleScheduled = false
+      if !self.isRecording {
+        self.settleIdle()
+      }
+    }
+  }
+
+  /// A settle while no session records: nothing is recorded, and the
+  /// navigator ids issued meanwhile are released (the next session's
+  /// `beginSession` would release them anyway).
+  private func settleIdle() {
+    settle()
+    tree.resetIncarnations()
   }
 
   /// Applies queued callbacks and returns the facts recorded so far.

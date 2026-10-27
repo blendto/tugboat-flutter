@@ -18,6 +18,9 @@ final class TugboatRuntime {
   private let locale: LocaleBridge
   private var stopped = false
 
+  /// The `session.start` wall clock: the session id is `session-<this>`.
+  let sessionWallUs: Int64
+
   /// The engine handle each session opens; tests wrap it to record what the
   /// SDK submits. Main thread only.
   static var openTransport: () -> EngineTransport? = { EngineBridge.open() }
@@ -32,6 +35,7 @@ final class TugboatRuntime {
     session = parts.session
     clock = parts.clock
     locale = parts.locale
+    sessionWallUs = parts.sessionStartAt.wallUs
   }
 
   /// Tests: whether the locale observer is installed.
@@ -57,8 +61,7 @@ final class TugboatRuntime {
   /// session, waits off the main thread for its `session_end` post to
   /// settle (only when one will be posted), then disposes the engine and the
   /// pixel runtime (`StopSequence`). `session.end` is posted before this
-  /// returns. A pending `TUGBOAT_HEALTH` line is not cancelled here: only
-  /// `Tugboat.stop()` cancels it.
+  /// returns.
   func stop(sequence: StopSequence = StopSequence()) {
     guard !stopped else { return }
     stopped = true
@@ -85,12 +88,8 @@ final class TugboatRuntime {
   /// Configures a new engine and starts a session; nil (logged) when a
   /// `session_start` field is missing or the engine refuses a handle.
   /// `activationRequestId` (from `Tugboat.activate`) and the configuration's
-  /// `explorationRunId` go on `session.start` when non-blank. `lifecycle`
-  /// is what `TUGBOAT_HEALTH` reports.
-  static func start(
-    config: TugboatConfig, sessionEpoch: Int, activationRequestId: String?,
-    lifecycle: @escaping LaunchCorrelation.Lifecycle
-  ) -> TugboatRuntime? {
+  /// `explorationRunId` go on `session.start` when non-blank.
+  static func start(config: TugboatConfig, sessionEpoch: Int, activationRequestId: String?) -> TugboatRuntime? {
     let device = DeviceSnapshot.read()
     let metadata = HostMetadata(app: config.app, device: device)
     let missing = problems(config: config, metadata: metadata)
@@ -102,8 +101,7 @@ final class TugboatRuntime {
       HostLog.error("Tugboat not started: the session engine is unavailable")
       return nil
     }
-    let parts = Parts.assemble(
-      config: config, transport: transport, initialLocale: device.locale, lifecycle: lifecycle)
+    let parts = Parts.assemble(config: config, transport: transport, initialLocale: device.locale)
     parts.host.postUntimed(
       type: SessionMessages.engineConfigure,
       inputJSON: EngineConfiguration.build(config: config, host: metadata, gesture: parts.adapter.gesture).json)
@@ -117,7 +115,6 @@ final class TugboatRuntime {
     parts.locale.start()
     parts.surfaces.start()
     parts.adapter.start()
-    parts.launchCorrelation.startIfNeeded()
     return TugboatRuntime(parts: parts)
   }
 

@@ -240,7 +240,7 @@ final class ActivationTests: XCTestCase {
   }
 
   /// A `deactivate` on another thread while main is starting the session:
-  /// the session is never opened, and the deactivate's reconcile ends it.
+  /// the session is never opened, and it ends in the same main turn.
   func testADeactivateDuringBeginKeepsTheSessionClosed() {
     _ = driver.configure(config())
     duringBegin = { [unowned self] in
@@ -250,10 +250,44 @@ final class ActivationTests: XCTestCase {
     activate("run-1")
     XCTAssertEqual(begun.count, 1)
     XCTAssertEqual(at(0)?.opened, false)
-    XCTAssertEqual(state.current.state, .stopping)
-    driver.reconcile()
-    XCTAssertEqual(at(0)?.ended, true)
+    XCTAssertEqual(at(0)?.ended, true, "ended before the deactivate's own reconcile runs")
+    XCTAssertNil(driver.session)
     XCTAssertEqual(state.current.state, .dormant)
+    driver.reconcile()
+    XCTAssertEqual(begun.count, 1)
+  }
+
+  /// A new id on another thread while main is starting the session: the
+  /// overtaken session is ended and the new one started in the same turn.
+  func testANewIdDuringBeginIsAppliedInTheSameTurn() {
+    _ = driver.configure(config())
+    duringBegin = { [unowned self] in
+      self.duringBegin = nil
+      XCTAssertTrue(self.state.activate("run-2"))
+    }
+    activate("run-1")
+    XCTAssertEqual(begun.map { $0.activationRequestId }, ["run-1", "run-2"])
+    XCTAssertEqual(at(0)?.opened, false)
+    XCTAssertEqual(at(0)?.ended, true)
+    XCTAssertEqual(at(1)?.opened, true)
+    XCTAssertEqual(state.current.state, .active)
+    XCTAssertEqual(state.current.activationRequestId, "run-2")
+  }
+
+  /// `Tugboat.start` refusing its configuration after an `activate`: the
+  /// request is kept, the state is `dormant` (not stuck at `starting`), and
+  /// the same `activate` is accepted again.
+  func testARefusedStartAfterActivateIsDormantWithTheRequestKept() {
+    XCTAssertTrue(state.activate("early"))
+    XCTAssertEqual(state.current.state, .starting)
+    state.markFailed(state.current.requestEpoch)  // what the refused `start` does
+    XCTAssertEqual(state.current.state, .dormant)
+    XCTAssertEqual(state.current.activationRequestId, "early")
+    XCTAssertFalse(state.current.isActivated)
+    XCTAssertTrue(state.activate("early"), "the same activate retries")
+    _ = driver.configure(config())
+    XCTAssertEqual(begun.map { $0.activationRequestId }, ["early"])
+    XCTAssertEqual(state.current.state, .active)
   }
 
   func testAFailedStartIsDormantAndTheSameActivateRetries() {

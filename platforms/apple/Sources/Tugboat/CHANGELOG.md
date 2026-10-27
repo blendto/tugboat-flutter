@@ -29,16 +29,22 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   network calls on the calling thread, ends the session (`session_end`), and
   keeps an `enabled: true` configuration down until the next `activate`.
   `stop()` also forgets the activation request and that override; it is not
-  Flutter's `disabled`. `TUGBOAT_HEALTH` reports the lifecycle state name and
-  `activationRequestId`, and is cancelled only by `stop()`. User id, traits,
-  and event hooks are kept across dormant periods. The hosting-controller
-  method exchange is installed at the first session start, never while
-  dormant, and stays installed (inert) after `deactivate` or `stop`.
+  Flutter's `disabled`. With launch inputs, `TUGBOAT_LAUNCH` is logged at
+  `start` whatever the lifecycle and `TUGBOAT_HEALTH` ten seconds later, each
+  with the running session's `captureSessionId` (none while no session runs);
+  HEALTH reports the lifecycle state name and `activationRequestId` and is
+  cancelled only by `stop()`. User id, traits, and event hooks are kept
+  across dormant periods. The hosting-controller method exchange is
+  installed at the first session start, never while dormant, adopts the
+  hosting controllers already on screen for the `session_start` seed, and
+  stays installed (inert) after `deactivate` or `stop`. While no session
+  records, `.tugboatScreen` callbacks keep only the current navigator stacks
+  (no unbounded queue).
 - `locale.set` on `NSLocale.currentLocaleDidChangeNotification` (same object
   as `session.start.locale`, deduped, observed only while a session runs);
   `TugboatConfig.captureDiagnostics` (engine capability
   `captureDiagnostics`, default off); `TugboatConfig.explorationRunId` on
-  `session.start` when non-blank.
+  `session.start` when non-blank (Flutter sends a blank one verbatim).
 - `.tugboatSensitive()`: the view's frame is masked in every mask mode,
   including the verified layer-allowlist path where plain colour fills stay
   visible. The mask walk masks the marker's host by kind

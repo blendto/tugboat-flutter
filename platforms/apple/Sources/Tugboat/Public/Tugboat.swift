@@ -55,6 +55,19 @@ public enum Tugboat {
       runtime.stop()
     })
 
+  /// `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH` (tests replace it); main thread.
+  static var launchCorrelation = LaunchCorrelation(lifecycle: launchReading)
+  /// The Device Farm launch inputs (tests replace it); main thread.
+  static var launchOptions: () -> LaunchOptions? = { LaunchOptions.fromProcessInfo() }
+
+  /// What the launch lines report now: the lifecycle, the request, and the
+  /// running session's start; main thread.
+  static func launchReading() -> LaunchCorrelation.Reading {
+    let current = activation.current
+    return LaunchCorrelation.Reading(
+      state: current.state, activationRequestId: current.activationRequestId, sessionWallUs: driver.session?.sessionWallUs)
+  }
+
   /// The running session's runtime; main thread.
   static var runtime: TugboatRuntime? {
     driver.session
@@ -66,20 +79,26 @@ public enum Tugboat {
   }
 
   /// Where the capture lifecycle is; any thread. `starting` also after an
-  /// `activate` made before `start`.
+  /// `activate` made before `start`, until `start` runs it. A session that
+  /// could not start (a configuration `start` refused, or the engine
+  /// unavailable) leaves `dormant` with the request kept: the same
+  /// `activate` tries again.
   public static var lifecycleState: TugboatLifecycleState {
     activation.current.state
   }
 
-  /// True while a session requested by `activate` is starting, active, or
-  /// stopping (Flutter's `isActivated`); false for a session started by
-  /// `TugboatConfig.enabled` alone. Any thread.
+  /// True while a session requested by `activate` is starting or active
+  /// (Flutter's `isActivated`: an activation id is set and the state is not
+  /// `dormant`); false for a session started by `TugboatConfig.enabled`
+  /// alone. Any thread.
   public static var isActivated: Bool {
     activation.current.isActivated
   }
 
   /// The id of the last `activate` until `deactivate` or `stop`, as given
-  /// (a blank id is kept here but left off `session.start`); any thread.
+  /// (a blank id is kept here but left off `session.start`); any thread. It
+  /// stays set while `dormant` after a session failed to start, so the same
+  /// `activate` retries.
   public static var activationRequestId: String? {
     activation.current.activationRequestId
   }
@@ -102,9 +121,13 @@ public enum Tugboat {
       let missing = TugboatRuntime.missingFields(config)
       guard missing.isEmpty else {
         HostLog.error("Tugboat not started: required session_start fields are missing: \(missing)")
+        // An `activate` made before this `start` is kept, as for a failed
+        // session start, but is not left `starting`.
+        activation.markFailed(activation.current.requestEpoch)
         return
       }
       _ = driver.configure(config)
+      launchCorrelation.startIfNeeded(parsed: launchOptions())
     }
   }
 
@@ -118,6 +141,11 @@ public enum Tugboat {
   ///   one, with a new `sessionEpoch`, starts for the new id.
   /// - Before `start` (or after `stop`): remembered and applied by the next
   ///   `start`, even when that configuration has `enabled` false.
+  ///
+  /// Each new id starts a new engine. The previous session's engine
+  /// delivers its last events and `session_end` in the background and is
+  /// disposed within about 25 s (sooner when the collector answers), so
+  /// changing ids many times a second keeps that many engines draining.
   public static func activate(activationRequestId: String) {
     guard activation.activate(activationRequestId) else { return }
     onMain { driver.reconcile() }
@@ -220,13 +248,9 @@ public enum Tugboat {
   /// Main thread: a new engine and `session.start`, then the kept user id
   /// and traits.
   private static func beginSession(config: TugboatConfig, activationRequestId: String?) -> TugboatRuntime? {
-    let lifecycle: LaunchCorrelation.Lifecycle = {
-      let current = activation.current
-      return (current.state, current.activationRequestId)
-    }
     guard
       let started = TugboatRuntime.start(
-        config: config, sessionEpoch: sessionEpoch, activationRequestId: activationRequestId, lifecycle: lifecycle)
+        config: config, sessionEpoch: sessionEpoch, activationRequestId: activationRequestId)
     else { return nil }
     sessionEpoch += 1
     // A new engine starts without a user id, so only a set one is sent.

@@ -62,7 +62,8 @@ struct LaunchOptions {
     return options.captureRequested ? options : nil
   }
 
-  func launchLine(sessionWallUs: Int64) -> String {
+  /// `captureSessionId` only when a session runs (`sessionWallUs`).
+  func launchLine(sessionWallUs: Int64?) -> String {
     var parts = [
       "\"captureRequested\":true",
       "\"emitSceneInventory\":\(emitSceneInventory)",
@@ -71,18 +72,21 @@ struct LaunchOptions {
     if let automationRunId {
       parts.append("\"automationRunId\":\(JSONText.quoted(automationRunId))")
     }
-    parts.append("\"captureSessionId\":\"session-\(sessionWallUs)\"")
+    if let sessionWallUs = sessionWallUs {
+      parts.append("\"captureSessionId\":\"session-\(sessionWallUs)\"")
+    }
     return "TUGBOAT_LAUNCH {" + parts.joined(separator: ",") + "}"
   }
 
   /// `lifecycle` is a `TugboatLifecycleState` name. `activationRequestId`
-  /// is added when non-nil; `captureSessionId` is left out while dormant.
-  static func healthLine(lifecycle: String, activationRequestId: String?, sessionWallUs: Int64) -> String {
+  /// is added when non-nil, `captureSessionId` when a session runs
+  /// (`sessionWallUs`, the running session's start).
+  static func healthLine(lifecycle: String, activationRequestId: String?, sessionWallUs: Int64?) -> String {
     var parts = ["\"lifecycle\":\(JSONText.quoted(lifecycle))"]
     if let activationRequestId = activationRequestId {
       parts.append("\"activationRequestId\":\(JSONText.quoted(activationRequestId))")
     }
-    if lifecycle != TugboatLifecycleState.dormant.rawValue {
+    if let sessionWallUs = sessionWallUs {
       parts.append("\"captureSessionId\":\"session-\(sessionWallUs)\"")
     }
     return "TUGBOAT_HEALTH {" + parts.joined(separator: ",") + "}"
