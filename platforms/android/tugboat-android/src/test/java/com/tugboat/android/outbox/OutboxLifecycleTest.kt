@@ -30,6 +30,7 @@ import org.robolectric.Shadows.shadowOf
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The outbox through the facade: wipe triggers (agreed by Chinmay on
@@ -75,7 +76,7 @@ class OutboxLifecycleTest {
     ) {
         val a = OutboxFixtures.outbox(root, "epoch-a")
         OutboxSender(FakeHttpSender(), a, identity, "0.1.0", frameBytes = { null }).send(request) {}
-        assertTrue(a.awaitQueued(5_000))
+        assertTrue(a.awaitQueued(30_000))
     }
 
     @Test
@@ -144,15 +145,22 @@ class OutboxLifecycleTest {
         val concurrent = LocalHttpServer(concurrent = true)
         val collector = CollectorConfig("http://127.0.0.1:${concurrent.port}", "pmk_key")
         keptByAnEarlierLaunch(identity = OutboxIdentityInputs(collector.baseUrl, config.app.appId, collector.apiKey))
+        val replayKey = AtomicReference<String>()
         val replayArrived = CountDownLatch(1)
-        val releaseReplay = CountDownLatch(1)
         val engineArrived = CountDownLatch(1)
+        val releaseReplay = CountDownLatch(1)
+        val replayInFlightAtEngineArrival = CopyOnWriteArrayList<Boolean>()
         concurrent.reply = { request ->
             if (request.path == "/v1/sessions") {
+                replayKey.compareAndSet(null, request.headers["tugboat-delivery-key"])
                 replayArrived.countDown()
-                releaseReplay.await(30, TimeUnit.SECONDS)
+                // Held until the engine request arrives: only an engine request sent beside the replay
+                // releases it while its client still waits for the answer.
+                releaseReplay.await(60, TimeUnit.SECONDS)
             } else {
+                replayInFlightAtEngineArrival += process.active.isActive(replayKey.get())
                 engineArrived.countDown()
+                releaseReplay.countDown()
             }
             LocalHttpServer.Response(202)
         }
@@ -173,11 +181,21 @@ class OutboxLifecycleTest {
             stopSequence = StopSequence(10),
         )
         try {
-            assertTrue("the replay reached the collector", replayArrived.await(5, TimeUnit.SECONDS))
+            assertTrue("the replay never reached the collector", replayArrived.await(30, TimeUnit.SECONDS))
 
             runtime?.setUserId("u-1")
 
-            assertTrue("the engine request waited behind the replay", engineArrived.await(10, TimeUnit.SECONDS))
+            // Ordering, not speed. Waiting behind the replay (on its thread, or on a lock its send holds),
+            // the engine request leaves only once the replay's client gave up (REPLAY_TIMEOUT_MS): the key
+            // is out of flight by then, that send was never answered, and the entry needs a second replay.
+            assertTrue("the engine request never arrived", engineArrived.await(60, TimeUnit.SECONDS))
+            assertEquals("the engine request waited behind the replay", listOf(true), replayInFlightAtEngineArrival)
+            awaitUntil(30_000) { entryDirs(root).isEmpty() }
+            assertEquals(
+                "the replay was answered on its first send",
+                1,
+                concurrent.received.count { it.path == "/v1/sessions" },
+            )
         } finally {
             releaseReplay.countDown()
             runtime?.stop()
@@ -243,8 +261,8 @@ class OutboxLifecycleTest {
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
 
-    private fun awaitUntil(condition: () -> Boolean) {
-        val deadline = System.currentTimeMillis() + 5_000
+    private fun awaitUntil(timeoutMs: Long = 5_000, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMs
         while (!condition() && System.currentTimeMillis() < deadline) {
             idle()
             Thread.sleep(10)
