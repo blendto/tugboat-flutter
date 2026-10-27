@@ -55,11 +55,14 @@ final class TugboatOutboxTests: XCTestCase {
   private func drainMain() {
     let drained = expectation(description: "main drained")
     DispatchQueue.main.async { drained.fulfill() }
-    wait(for: [drained], timeout: 2)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [drained], timeout: 30)
   }
 
+  /// A progress wait, not a speed bound: a loaded CI runner has stalled the
+  /// whole test process for 5 s and more (run 40564943387).
   @discardableResult
-  private func eventually(timeout: TimeInterval = 5, _ condition: () -> Bool) -> Bool {
+  private func eventually(timeout: TimeInterval = 30, _ condition: () -> Bool) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() {
       if Date() > deadline { return false }
@@ -138,7 +141,10 @@ final class TugboatOutboxTests: XCTestCase {
     Tugboat.start(config(enabled: true, durableOutbox: false))
     XCTAssertTrue(eventually { self.recorder.inputs(SessionMessages.sessionStart).count == 2 })
     NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
-    XCTAssertTrue(eventually { self.recorder.inputs(SessionMessages.appLifecycle).count >= 2 })
+    // A sentinel posted after `paused` on the same engine queue: once it is
+    // recorded, a flush that `paused` posted would be recorded too.
+    Tugboat.setUserId("after-paused")
+    XCTAssertTrue(eventually { !self.recorder.inputs(SessionMessages.identitySet, engine: self.recorder.opened).isEmpty })
     XCTAssertEqual(recorder.messages.filter { $0.type == HostMessages.transportFlush }.count, flushes)
   }
 }
