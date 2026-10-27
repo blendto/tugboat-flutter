@@ -31,11 +31,12 @@ display cutout, as targetSdk 35 requires on API 35+):
 
 `SampleApplication` starts Tugboat with `enabled = true` (the SDK default is
 dormant until `Tugboat.activate`; `-Ptugboat.enabled=false` builds a
-dormant sample), focus, system-input capture, and scene inventory on, installs the Compose adapter
+dormant sample), focus, system-input capture, and scene inventory on,
+installs the Compose adapter
 (`TugboatCompose.install(composeMasking = ComposeMasking.WholeHost)`), and
-sets traits `{sample: true}`. Masking is
-process-wide, so `ComposeSemanticsActivity` installs `SemanticsBestEffort`
-in `onResume` and restores `WholeHost` in `onPause`.
+sets traits `{sample: true}`. Masking is process-wide, so
+`ComposeSemanticsActivity` installs `SemanticsBestEffort` in `onResume` and
+restores `WholeHost` in `onPause`.
 `Tugboat.trackNavigation(navController)` makes its destinations route keys
 and `route_change`s.
 Coded events and network calls: "Tap me" records the coded event

@@ -47,11 +47,12 @@ view.tugboatSensitive()                       // always mask it and its subtree;
   (tag `Tugboat`) and capture stops.
 - Call `start` once per process, from `Application.onCreate`. It stores the
   application and config, whatever `enabled` says, and is idempotent until
-  `stop`. A session **refuses to start** (and logs the missing paths) when a
-  field the collector requires on `session_start` is blank: app version,
-  build number, app id, installation id, name; device id, screen size and
-  densities; the locale; the collector URL and key. The same applies when the
-  engine cannot open. The state then returns to `DORMANT` and the activation
+  `stop`. It **refuses** (logs the missing paths, and does not store the
+  config, so a corrected `start` works) when a field the collector requires
+  on `session_start` is blank: app version, build number, app id,
+  installation id, name; device id, screen size and densities; the locale;
+  the collector URL and key. A session is refused when the engine cannot
+  open. Either way the state returns to `DORMANT` and the activation
   request is kept, so `activate` with the same id retries.
 - `stop` detaches every observer, posts `session.end`, waits for the
   `session_end` post to settle (accepted, or a status the engine does not
@@ -59,7 +60,7 @@ view.tugboatSensitive()                       // always mask it and its subtree;
   bounded at 25 s (`endDrainTimeoutMs` + one `jsonTimeoutMs` + slack); it
   never blocks the app. `deactivate` and a session replaced by `activate`
   end the same way. Each new session has a new engine, session id, and
-  `sessionEpoch`.
+  `sessionEpoch` (which advances only when a session starts).
 - `setUserId` / `setTraits` survive dormant periods, `stop`, and `start`,
   and are sent to every new session (each new engine gets `identity.set`
   and `traits.set` again; Flutter instead carries the collector `traitsId`
@@ -122,12 +123,12 @@ The same contract as Flutter's `TugboatReplay` (`lifecycle.dart`):
   reports `STARTING` at once and is applied by the next `start`, whatever
   `enabled` says. A blank
   id still activates; `session.start` then omits it (Flutter sends `""`).
-- `Tugboat.deactivate()` fences evidence at once on the calling thread
-  (an event or network call recorded after it returns is dropped), then ends
-  the session on the main thread. The state is `STOPPING` until
-  `session.end` is posted, then `DORMANT`. An `enabled = true` config does
-  not start a session again until the next `activate`. No-op while dormant
-  with no activation request.
+- `Tugboat.deactivate()` fences evidence at once on the calling thread: an
+  event or network call recorded after it returns is dropped, even a call
+  begun before it. It then ends the session on the main thread. The state
+  is `STOPPING` until `session.end` is posted, then `DORMANT`. An
+  `enabled = true` config does not start a session again until the next
+  `activate`. No-op while dormant with no activation request.
 - `Tugboat.stop()` is native only and is **not** Flutter's
   `TugboatReplay.disabled`: it ends the session, forgets the config, and
   clears any activation request, so an `activate` made before it never
@@ -142,10 +143,24 @@ The same contract as Flutter's `TugboatReplay` (`lifecycle.dart`):
 - A session that starts after its activities (an `activate` while one is
   resumed, or a `start` after `stop`) attaches at once to every activity
   created since the first `start` and adopts the resumed one, as its resume
-  would have (taps, captures, and the `session_start` navigation seed). Activities created before the first `start` are observed
-  from their next resume. `trackNavigation` after a dormant `start` keeps the
+  would have (taps, captures, focus, and the `session_start` navigation
+  seed). Activities created before the first `start` are observed from their
+  next resume. `trackNavigation` after a dormant `start` keeps the
   controller's stack, which seeds each session; a controller tracked before
   the first `start` is not seeded (its first change after it is a push).
+- Any request that is not the same request ends the running session and
+  starts a fresh one, as Flutter's gate remounts on a new request epoch:
+  `deactivate(); activate("a")` while `"a"` is active gives `session_end`
+  and a new `session_start` with `"a"`.
+- `stop()` racing `activate()` on other threads: a `stop()` forgets its
+  config at once, so no session starts on it. Activate then stop ends
+  `DORMANT`; stop then activate ends `STARTING`, applied by the next
+  `start`. A `start` made after a pending `stop` survives it.
+- Known limits: an activity paused but visible at `activate` (a
+  runtime-permission dialog, the unfocused pane in multi-window) is not the
+  foreground window until its next resume, so captures wait for it (taps
+  still attach). Two `activate` calls with different ids in one main-thread
+  turn give a short first session; Flutter coalesces them per frame.
 
 ## Device Farm / exploration correlation
 

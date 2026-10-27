@@ -35,9 +35,12 @@ wiring, window capture, and the Android Views adapter.
   the state (as the Flutter host prints at config time); `TUGBOAT_HEALTH`
   reports the state's Flutter name, `activationRequestId`, and the running
   session's `captureSessionId` as they are when it prints; only `stop()`
-  cancels it. A session
-  that fails to start is dormant and keeps the activation request (the same
-  id retries). The user id, traits, and event hooks feed every session.
+  cancels it. `start` refuses (and does not store) a config missing a
+  required `session_start` field. A session that fails to start is dormant
+  and keeps the activation request (the same id retries). Any new request
+  (a `deactivate` then `activate` of the same id included) ends the session
+  and starts a fresh one; the fence closes in-flight network calls. The
+  user id, traits, and event hooks feed every session.
 - `View.tugboatSensitive()` (Java `TugboatViews.tugboatSensitive(view)`):
   the view and every view below it are always masked, each view drawn
   outside the marked bounds at its own bounds; one rect per view. Mask-only:
