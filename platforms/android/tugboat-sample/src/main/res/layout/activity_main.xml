@@ -96,6 +96,13 @@
             android:text="@string/open_fragments" />
 
         <Button
+            android:id="@+id/open_dialogs"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/open_dialogs" />
+
+        <Button
             android:id="@+id/stop_tugboat"
             android:layout_width="0dp"
             android:layout_height="wrap_content"

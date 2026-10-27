@@ -115,6 +115,7 @@ class DialogFragmentFactsTest {
         fragment.show(activity.supportFragmentManager, "confirm")
         idleMain()
         val window = fragment.requireDialog().window!!
+        assertEquals(1, adapter.dialogSessionCount(activity))
 
         fragment.dismissNow()
         idleMain()

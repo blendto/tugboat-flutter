@@ -468,7 +468,7 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
 
 | Fact | Source | Piece |
 | --- | --- | --- |
-| `input.pointer` | `Window.Callback.dispatchTouchEvent`, observed before the app | `callback/`, `input/PointerFactProducer` |
+| `input.pointer` | `Window.Callback.dispatchTouchEvent`, observed before the app (activity and dialog windows) | `callback/`, `input/PointerFactProducer`, `dialog/` |
 | tap evidence | hit-test at the down point on an `up` within `touchSlop` | `identity/AnchorResolver` |
 | `scroll` | `OnScrollChangedListener` + offset diff; `RecyclerView.OnScrollListener` | `scroll/` |
 | `navigation` | activity lifecycle; androidx fragment lifecycle (recursive) | `navigation/` |
@@ -543,16 +543,52 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
   starting window) and focusable sub-windows (`Spinner`, `PopupMenu`).
   Non-focusable popups (text-selection handles, tooltips) are not flagged,
   and neither are windows another activity left up. In multi-window mode on
-  API 29+ only `WindowInspector` counts.
+  API 29+ only `WindowInspector` counts. The frame's pixels stay the
+  activity window's: a dialog tap's anchor names a target this frame does
+  not show (see "Dialog windows").
+- **Dialog windows.** A dialog window of the activity gets its own session
+  (`views/dialog/`): `input.pointer` with tap evidence, `systemInput`
+  (BACK on a dialog included), and `focus` facts, from the same producers
+  as the activity window; no scroll facts and no pixels. The `Window` is
+  found through public API only: the dialog decor's
+  `findViewTreeLifecycleOwner()` is the dialog for every `ComponentDialog`
+  (AppCompat and Material dialogs, Compose `Dialog`, material3
+  `ModalBottomSheet` 1.3+) and the fragment for a `DialogFragment`.
+  Sessions start when the activity window loses focus while resumed (API
+  29+: owned `WindowInspector` roots in the application window range), when
+  a `DialogFragment` starts (every API level, nested managers included), or
+  at session start for dialogs already up; they end when the dialog window
+  detaches, its fragment stops, or the activity session detaches. No
+  per-frame scans. Positions are reported in the activity decor's space
+  (the dialog decor's `getLocationOnScreen` offset from the activity's,
+  then dp; outside the activity's bounds the engine drops them); taps are
+  hit-tested in the dialog's own window. Identity is unchanged: targets sit
+  under the activity's route (a `DialogFragment` with a view: its tag),
+  paths are rooted at the dialog's content, and `relativePosition` is
+  relative to the dialog decor. The before-frame is the activity window
+  with `overlayWindow`. Focus is app-wide: the dialog window is the active
+  one while it has window focus, and the activity's again when it regains
+  it.
 - **Failures.** Every adapter callback is guarded; the first failure per site
   is logged and nothing reaches the app.
 
 Activities the system destroys without finishing (configuration change,
 back-stack reclaim) keep their route identity when recreated.
 
-Known gaps: dialogs, sheets and menus are not captured or tapped; frames taken
-while one is shown carry `overlayWindow`. Non-focusable popups (text-selection
-handles, tooltips) are neither captured nor flagged. Below API 29 only the
+Known gaps: dialogs, sheets and menus are not captured; frames taken while one
+is shown carry `overlayWindow`. A framework `android.app.Dialog` (or
+`android.app.AlertDialog`) shown without a `DialogFragment` has no public way
+back to its `Window`, so its taps, keys and focus are not recorded (no
+reflection). Below API 29 only `DialogFragment` dialogs are recorded (no
+public window list). On API 29+ a dialog that is not a `DialogFragment`'s is
+found only when the activity window loses focus to it, so one shown before
+that window first gains focus, or over another dialog, is recorded from the
+next session start. Popups and menus (sub-windows) are not tapped, and
+dialog windows report no scroll facts. A dialog fragment stopped and
+restarted while another SDK's callback wrapper sits above Tugboat's is
+silent after the restart (Tugboat's inert wrapper stays in the chain).
+Non-focusable popups (text-selection handles, tooltips) are neither captured
+nor flagged. Below API 29 only the
 focus signal exists: a dialog shown before the activity window first gains
 focus (for example from `onCreate`) is not flagged, and in multi-window mode
 focus taken by another app's window flags frames. Predictive back is not

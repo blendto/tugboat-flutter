@@ -16,8 +16,9 @@ import com.tugboat.android.tugboatTag
 
 /**
  * The Views screen of the device-test script (README): a tagged button, a
- * swipe area, a text field, a list, a dialog, and the ways to the second
- * screen, the two Compose screens, and the fragment screen.
+ * swipe area, a text field, a list, a framework dialog (no facts: the
+ * documented gap), and the ways to the second screen, the two Compose
+ * screens, the fragment screen, and the dialogs screen.
  */
 class MainActivity : Activity() {
     private var taps = 0
@@ -54,6 +55,9 @@ class MainActivity : Activity() {
         }
         findViewById<Button>(R.id.open_fragments).setOnClickListener {
             startActivity(Intent(this, FragmentsActivity::class.java))
+        }
+        findViewById<Button>(R.id.open_dialogs).setOnClickListener {
+            startActivity(Intent(this, DialogsActivity::class.java))
         }
         findViewById<Button>(R.id.stop_tugboat).setOnClickListener {
             Tugboat.stop()
