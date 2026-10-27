@@ -83,6 +83,7 @@ class OutboxDrainerTest {
         assertEquals("pmk_key", replayed.headers["x-tugboat-api-key"])
         assertEquals((lifecycle().body as com.tugboat.android.host.HttpBody.Json).text, replayed.body.toString(Charsets.UTF_8))
         assertEquals(2, report(0).getInt("replayed"))
+        assertEquals(0L, report(0).getLong("bytesOnDisk"))
         assertTrue(entryDirs(root).isEmpty())
 
         // Another restart: nothing is left to send.
@@ -190,6 +191,7 @@ class OutboxDrainerTest {
 
         assertEquals(1, server.received.size)
         assertEquals(listOf(0L, 120_000L), scheduler.delays)
+        assertTrue("the entry is still on disk", report(0).getLong("bytesOnDisk") > 0)
         assertEquals(2, JSONObject(File(entryDirs(root).single(), "entry.json").readText()).getInt("attempts"))
     }
 

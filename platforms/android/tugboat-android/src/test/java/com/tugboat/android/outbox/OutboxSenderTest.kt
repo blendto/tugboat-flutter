@@ -155,6 +155,7 @@ class OutboxSenderTest {
 
         assertEquals(1, http.requests.size)
         assertEquals(1, broken.writeFailures.get())
+        assertEquals("the request is sent unchanged but for its key", lifecycle().body, http.requests.single().body)
         http.complete(0, TransportOutcome.Http(202, "{}"))
         assertEquals(1, answers.size)
     }

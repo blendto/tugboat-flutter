@@ -82,15 +82,15 @@ internal class OutboxDrainer(
         if (identity != null) {
             for (entry in scan.entries.sortedWith(compareBy<StoredEntry> { it.createdAtWallMs }.thenBy { it.key })) {
                 if (stopped) break
-                if (!outbox.isOrphan(entry) || outbox.active.isActive(entry.key)) {
-                    report.bytesOnDisk += entry.bytes
-                    continue
-                }
+                if (!outbox.isOrphan(entry) || outbox.active.isActive(entry.key)) continue
                 retryInMs = replay(entry, identity, report)
                 if (retryInMs != null) break
             }
         }
         report.evicted = outbox.evicted.getAndSet(0)
+        report.writeFailures = outbox.writeFailures.getAndSet(0)
+        report.unkeyed = outbox.unkeyed.getAndSet(0)
+        report.bytesOnDisk = scan.entries.sumOf { it.bytes } - report.freedBytes
         log(report.line())
         retryInMs?.let(::request)
     }
@@ -98,8 +98,8 @@ internal class OutboxDrainer(
     /** Sends [entry] once; null to go on with the pass, else the delay before the next one. */
     private fun replay(entry: StoredEntry, identity: String, report: PassReport): Long? {
         when {
-            entry.appIdentity != identity -> report.identityMismatch += deleted(entry)
-            entry.attempts >= outbox.settings.maxAttempts -> report.expired += deleted(entry)
+            entry.appIdentity != identity -> report.identityMismatch += report.deleted(entry)
+            entry.attempts >= outbox.settings.maxAttempts -> report.expired += report.deleted(entry)
             else -> return send(entry, report)
         }
         return null
@@ -107,7 +107,7 @@ internal class OutboxDrainer(
 
     private fun send(entry: StoredEntry, report: PassReport): Long? {
         val request = requestFor(entry) ?: run {
-            report.corrupt += deleted(entry)
+            report.corrupt += report.deleted(entry)
             return null
         }
         val attempt = outbox.active.begin(entry.key)
@@ -119,16 +119,19 @@ internal class OutboxDrainer(
             outbox.active.end(entry.key, attempt)
         }
         if (!SessionEndWatcher.isFinal(outcome)) {
-            report.bytesOnDisk += entry.bytes
             val retryAfter = (outcome as? TransportOutcome.Http)?.retryAfter
             return OutboxBackoff.delayMs(entry.attempts + 1, retryAfter, outbox.wallMs())
         }
-        if (!outbox.active.hasNewer(entry.key, attempt)) outbox.store.delete(entry.dirName)
+        if (!outbox.active.hasNewer(entry.key, attempt) && outbox.store.delete(entry.dirName)) report.freedBytes += entry.bytes
         if ((outcome as? TransportOutcome.Http)?.status == ACCEPTED) report.replayed++ else report.dropped++
         return null
     }
 
-    private fun deleted(entry: StoredEntry): Int = if (outbox.store.delete(entry.dirName)) 1 else 0
+    private fun PassReport.deleted(entry: StoredEntry): Int {
+        if (!outbox.store.delete(entry.dirName)) return 0
+        freedBytes += entry.bytes
+        return 1
+    }
 
     private fun requestFor(entry: StoredEntry): HttpRequest? {
         val body = when (entry.lane) {
@@ -156,7 +159,10 @@ internal class OutboxDrainer(
         var dropped = 0
         var evicted = 0
         var identityMismatch = 0
+        var writeFailures = 0
+        var unkeyed = 0
         var bytesOnDisk = 0L
+        var freedBytes = 0L
 
         fun line(): String = "outbox drain " + JSONObject()
             .put("replayed", replayed)
@@ -165,6 +171,8 @@ internal class OutboxDrainer(
             .put("evicted", evicted)
             .put("corrupt", corrupt)
             .put("identityMismatch", identityMismatch)
+            .put("writeFailures", writeFailures)
+            .put("unkeyed", unkeyed)
             .put("bytesOnDisk", bytesOnDisk)
             .toString()
     }
