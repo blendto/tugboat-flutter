@@ -174,6 +174,20 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
     response body of at most 64 KiB cut at a UTF-8 boundary, and statuses
     outside 100–599 reported as `error`);
   - `frame.release` (frame handle table).
+- Durable outbox, opt-in (`TugboatConfig.durableOutbox`, default `false`;
+  `outboxMaxBytes`, `outboxMaxEntries`, `outboxMaxAgeMs`,
+  `outboxMaxAttempts`): requests the collector has not accepted are kept in
+  `Application Support/Tugboat/outbox/v1/` (excluded from backup,
+  `completeUntilFirstUserAuthentication`) under keys derived from their
+  bodies, written alongside the send, deleted on a 202 or a non-retried
+  status (a late answer for an earlier attempt never deletes), and
+  replayed one at a time, oldest first, with backoff and `Retry-After`,
+  only while a later session runs. Keyed requests carry
+  `Tugboat-Delivery-Key`. Entries hold no API key (a salted HMAC of base
+  URL, app id and key; a mismatch deletes unsent). New
+  `Tugboat.clearPendingData()`; a `start` with `durableOutbox` false also
+  wipes, a dormant start keeps. With the outbox on, `paused` also posts
+  `transport.flush`. Contract change: delivery (sink behaviour).
 - `HTTPExecutor` forwards a trimmed `Retry-After` on `transport.result` (at most
   128 bytes); a longer value is dropped so the engine never rejects an
   otherwise valid answer.

@@ -202,6 +202,47 @@ Native activation follows Flutter's `TugboatReplay` (`enabled`, `activate`,
   past 64 pending), so a dormant app holds no history and the next session's
   seed names the visible screen.
 
+## Durable outbox (opt-in)
+
+`TugboatConfig.durableOutbox` (default `false`) keeps collector requests the
+collector has not accepted on disk, and sends them again after the process
+restarts, while a later session runs. Without it, a kill mid-retry loses
+everything the engine held in memory.
+
+- What is kept: every request the engine sent at least once, written
+  alongside the send (never delaying it), under a key derived from the
+  body: `<sessionId>/l/<eventType>/<triggeredAt>` for lifecycle posts,
+  `<sessionId>/e/<digest of the event ids>` for event batches, and one entry
+  per frame (`<sessionId>/f/<frameNo>`). A 202, or a status the engine does
+  not retry, deletes the entry. Every keyed request carries
+  `Tugboat-Delivery-Key` (comma-separated per frame in a chunk).
+- What it holds: only what is already on the wire (masked JPEGs and the same
+  JSON bodies), in `Application Support/Tugboat/outbox/v1/`, excluded from
+  backup, with file protection `completeUntilFirstUserAuthentication`. No API
+  key: each entry carries a salted HMAC of the base URL, app id and API key,
+  and an entry whose identity no longer matches is deleted unsent.
+- Replay: one request at a time, oldest first, on its own `URLSession`, and
+  only while a session runs (never while dormant, never after `deactivate`
+  or `stop`). It sends entries from earlier launches and earlier sessions;
+  the running session's own entries are the engine's. A retried replay
+  waits 2 s, doubling per attempt to 5 min, and at least the collector's
+  `Retry-After`.
+- Bounds: `outboxMaxBytes` (20 MiB) and `outboxMaxEntries` (1000) evict
+  entries from earlier sessions first, oldest first, frames before events;
+  lifecycle posts go only by `outboxMaxAgeMs` (72 h). `outboxMaxAttempts`
+  (8, across launches) deletes an entry unsent. Unreadable entries are
+  deleted. One `outbox` log line per drain pass: `replayed`, `expired`,
+  `evicted`, `corrupt`, `identityMismatch`, `bytesOnDisk`.
+- Erasure: `Tugboat.clearPendingData()` deletes every pending entry, and so
+  does a `start` whose configuration has `durableOutbox` false. A dormant
+  `start` (`enabled` false) keeps them.
+- With the outbox on, entering the background also posts `transport.flush`
+  at once, so what the engine holds is sent (and written) before the app can
+  be suspended.
+- Not covered: a session whose `session_start` was never accepted (the
+  engine sends no events or frames before it), events and frames never sent
+  yet, and lifecycle posts queued behind a failing one.
+
 ## Device Farm / exploration correlation
 
 Process environment `TUGBOAT_EMIT_SCENE_INVENTORY` /
@@ -487,6 +528,7 @@ changes. Turn this on only to learn about untagged screens, and sample it.
 | Effects | `Host/Effect`, `EffectParser`, `EffectDispatcher`, `CaptureRequestEffect` | Each response is decoded once (`JSONSerialization`) into typed effects, run in order. `capture.request` goes to the `CaptureRequestSink` (the capture coordinator). Types the host does not execute are logged once per type. |
 | Timers | `Host/TimerExecutor` | One `DispatchSourceTimer` per id on the engine queue, armed for the time left until `atMonoUs` (saturating, so any `atMonoUs` is safe). Rescheduling replaces. A fire is stamped no earlier than its `atMonoUs`, or the engine would ignore it as stale. |
 | Frames | `Host/FrameHandleTable` | Thread-safe store of JPEG bytes behind never-reused opaque handles. |
+| Outbox | `Outbox/` | `OutboxSender` wraps the executor when `durableOutbox` is on: it keys each request (`OutboxCapture`), records it on the engine queue at dispatch, and starts the request at once; `Outbox` (one per process, serial `tugboat.outbox` queue) writes, deletes, bounds and replays entries (`OutboxStore` on disk). `OutboxPolicy.wipeAtStart` is the one wipe decision. |
 | HTTP | `HTTP/HTTPExecutor`, `HTTPSessionDelegate`, `CollectorResponse`, `MultipartBody` | Ephemeral `URLSession` with its delegate queue on `tugboat.io`. Same collector headers and multipart bytes as the Android host and the Flutter `CollectorHttpSink`. `jsonBody` is sent byte for byte. `timeoutMs` is a total deadline (watchdog), redirects are reported and not followed. Every answer is one the engine accepts: the body is cut to at most 64 KiB at a UTF-8 boundary, and a status outside 100–599 becomes `error`. |
 
 ## SwiftUI adapter (`SwiftUI/`)

@@ -52,6 +52,7 @@ public enum Tugboat
   public static func setUserId(_ id: String?)
   public static func setTraits(_ traits: [String: Any])
   public static func stop()
+  public static func clearPendingData()
   public static func eventHook( source: String? = nil, parameterPolicy: TugboatParameterPolicy = .allowAll ) -> TugboatEventHook
   public static func beginNetworkCall(method: String, route: String?) -> TugboatNetworkCall
 
@@ -66,7 +67,12 @@ public struct TugboatConfig
   public var trackHostingControllers: Bool
   public var swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity
   public var explorationRunId: String?
-  public init( collector: Collector, app: App, enabled: Bool = false, maskLevel: MaskLevel = .allTextAndMedia, captureFocusChanges: Bool = false, captureDiagnostics: Bool = false, trackHostingControllers: Bool = true, swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off, explorationRunId: String? = nil )
+  public var durableOutbox: Bool
+  public var outboxMaxBytes: Int
+  public var outboxMaxEntries: Int
+  public var outboxMaxAgeMs: Int
+  public var outboxMaxAttempts: Int
+  public init( collector: Collector, app: App, enabled: Bool = false, maskLevel: MaskLevel = .allTextAndMedia, captureFocusChanges: Bool = false, captureDiagnostics: Bool = false, trackHostingControllers: Bool = true, swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off, explorationRunId: String? = nil, durableOutbox: Bool = false, outboxMaxBytes: Int = 20 * 1024 * 1024, outboxMaxEntries: Int = 1000, outboxMaxAgeMs: Int = 72 * 60 * 60 * 1000, outboxMaxAttempts: Int = 8 )
   public struct Collector: CustomStringConvertible
     public var baseURL: URL
     public var apiKey: String
