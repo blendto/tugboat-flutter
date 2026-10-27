@@ -120,9 +120,10 @@ final class TugboatActivationTests: XCTestCase {
     wait(for: [drained], timeout: 2)
   }
 
-  /// Spins the main run loop until `condition` holds (engine submits are async).
+  /// Spins the main run loop until `condition` holds (engine submits are
+  /// async; CI runners have taken more than 3 s with older engines draining).
   @discardableResult
-  private func eventually(timeout: TimeInterval = 3, _ condition: () -> Bool) -> Bool {
+  private func eventually(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() {
       if Date() > deadline { return false }
