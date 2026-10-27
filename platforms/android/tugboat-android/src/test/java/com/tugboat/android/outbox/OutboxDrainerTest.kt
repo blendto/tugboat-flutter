@@ -365,6 +365,33 @@ class OutboxDrainerTest {
         }
     }
 
+    @Test
+    fun aReplayStillOutWhenStopRunsKeepsItsKeyUntilItsAnswer() {
+        leftByADeadProcess(lifecycle())
+        val arrived = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        server.reply = {
+            arrived.countDown()
+            release.await(30, TimeUnit.SECONDS)
+            Response(202)
+        }
+        val b = OutboxFixtures.outbox(root, "epoch-b")
+        val key = "s-1/l/session_start/2026-10-27T10:00:00.000Z"
+        val first = drainer(b)
+        first.start()
+        assertTrue(arrived.await(5, TimeUnit.SECONDS))
+
+        first.stop()
+        passes(1)
+
+        // A replacing session's drainer must skip the key while the first request is still out.
+        assertTrue("released before its answer", b.active.isActive(key))
+        release.countDown()
+        awaitUntil { !b.active.isActive(key) }
+        // The late 202 still deletes the entry.
+        awaitUntil { entryDirs(root).isEmpty() }
+    }
+
     /** Records each pass's delay, running them as usual. */
     private class RecordingScheduler : ScheduledThreadPoolExecutor(1) {
         val delays = CopyOnWriteArrayList<Long>()

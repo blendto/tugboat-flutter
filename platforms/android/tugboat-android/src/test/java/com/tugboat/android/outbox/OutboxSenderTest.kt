@@ -192,15 +192,19 @@ class OutboxSenderTest {
     fun anEngineRequestStartsAtOnceWhileTheDiskIsBusy() {
         val release = CountDownLatch(1)
         val busyIo = java.util.concurrent.Executors.newSingleThreadExecutor()
-        busyIo.execute { release.await(10, TimeUnit.SECONDS) }
+        busyIo.execute { release.await(30, TimeUnit.SECONDS) }
         val busy = Outbox(root = { root }, processEpoch = "epoch-a", io = busyIo)
         val busySender = OutboxSender(http, busy, inputs, "0.1.0", frameBytes::get)
         try {
-            busySender.send(lifecycle()) {}
+            val returned = CountDownLatch(1)
+            Thread {
+                busySender.send(lifecycle()) {}
+                returned.countDown()
+            }.start()
 
-            // The disk is still held: had the send waited for it, it would only return after the release.
+            // The disk stays held for 30 s: a send that waited for it would not return in time.
+            assertTrue("the send waited for the disk", returned.await(2, TimeUnit.SECONDS))
             assertEquals(1, http.requests.size)
-            assertEquals("the send returned while the disk was busy", 1L, release.count)
             assertTrue("the write is still queued", entryDirs(root).isEmpty())
         } finally {
             release.countDown()

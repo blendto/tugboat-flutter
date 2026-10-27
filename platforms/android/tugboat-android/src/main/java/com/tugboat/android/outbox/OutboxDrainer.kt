@@ -11,6 +11,7 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -134,14 +135,23 @@ internal class OutboxDrainer(
             }
         }
         val attempt = outbox.active.begin(entry.key)
+        // Set when stop() abandoned the wait: the request's own answer then releases the key.
+        var handedOff = false
         val outcome = try {
             // Counted before the send: a crash mid-send still uses up a replay.
             val counted = outbox.store.recordReplay(entry, outbox.wallMs()) ?: return null
-            val answered = sendFenced(request) ?: run {
+            val sent = sendFenced(request) { late -> settle(entry, attempt, late) } ?: run {
                 // stop() ran first and nothing was sent: the replay does not count, or start/stop
                 // races would expire an entry that was never sent.
                 outbox.store.unrecordReplay(counted)
                 return null
+            }
+            val answered = when (sent) {
+                is Sent.Answered -> sent.outcome
+                Sent.Abandoned -> {
+                    handedOff = true
+                    return null
+                }
             }
             if (!SessionEndWatcher.isFinal(answered)) {
                 val retryAfter = (answered as? TransportOutcome.Http)?.retryAfter
@@ -150,7 +160,7 @@ internal class OutboxDrainer(
             }
             answered
         } finally {
-            outbox.active.end(entry.key, attempt)
+            if (!handedOff) outbox.active.end(entry.key, attempt)
         }
         if (!outbox.active.hasNewer(entry.key, attempt) && outbox.store.delete(entry.dirName)) report.freedBytes += entry.bytes
         // Every settled replay, accepted or dropped, as the Apple host counts it.
@@ -158,25 +168,47 @@ internal class OutboxDrainer(
         return null
     }
 
-    /** The answer to [request], or null when [stop] ran first (then nothing was sent). */
-    private fun sendFenced(request: HttpRequest): TransportOutcome? {
+    private sealed class Sent {
+        class Answered(val outcome: TransportOutcome) : Sent()
+
+        /** [stop] interrupted the wait while the request was still out; its answer goes to `onLateAnswer`. */
+        object Abandoned : Sent()
+    }
+
+    /**
+     * The answer to [request], or null when [stop] ran first (then nothing was sent). When [stop]
+     * interrupts the wait, the request keeps its own deadline and its answer goes to [onLateAnswer],
+     * so its key stays in flight until then (as the Apple host keeps it).
+     */
+    private fun sendFenced(request: HttpRequest, onLateAnswer: (TransportOutcome) -> Unit): Sent? {
         beforeSendForTesting?.invoke()
         val answer = AtomicReference<TransportOutcome>()
         val answered = CountDownLatch(1)
+        val abandoned = AtomicBoolean(false)
+        // Whoever claims it first applies the answer: this thread, or the late callback.
+        val claimed = AtomicBoolean(false)
         synchronized(fence) {
             if (stopped) return null
             send(request) { outcome ->
                 answer.set(outcome)
                 answered.countDown()
+                if (abandoned.get() && claimed.compareAndSet(false, true)) onLateAnswer(outcome)
             }
         }
         return try {
-            if (answered.await(ANSWER_WAIT_MS, TimeUnit.MILLISECONDS)) answer.get() else TransportOutcome.Timeout
+            Sent.Answered(if (answered.await(ANSWER_WAIT_MS, TimeUnit.MILLISECONDS)) answer.get() else TransportOutcome.Timeout)
         } catch (_: InterruptedException) {
-            // stop() interrupted the wait; the request keeps its own deadline.
             Thread.currentThread().interrupt()
-            TransportOutcome.Timeout
+            abandoned.set(true)
+            // Answered just before the interrupt: apply it here after all.
+            if (answered.count == 0L && claimed.compareAndSet(false, true)) Sent.Answered(answer.get()) else Sent.Abandoned
         }
+    }
+
+    /** The late answer of a replay [stop] abandoned: releases its key and deletes on a final answer. */
+    private fun settle(entry: StoredEntry, attempt: Long, outcome: TransportOutcome) = Outbox.guarded("late replay answer") {
+        outbox.active.end(entry.key, attempt)
+        if (SessionEndWatcher.isFinal(outcome) && !outbox.active.hasNewer(entry.key, attempt)) outbox.store.delete(entry.dirName)
     }
 
     private fun PassReport.deleted(entry: StoredEntry): Int {
