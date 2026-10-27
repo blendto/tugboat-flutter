@@ -56,6 +56,8 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     // FragmentsActivity: fragments without Jetpack Navigation (route keys from fragment tags).
     implementation("androidx.fragment:fragment:1.7.1")
+    // DialogsActivity: an AppCompat AlertDialog (a ComponentDialog) for the dialog-window device pass.
+    implementation("androidx.appcompat:appcompat:1.7.0")
     // ViewCompat window insets: edge-to-edge is enforced for targetSdk 35 on API 35+.
     implementation("androidx.core:core:1.13.1")
     // Compose UI 1.8.3: inside tugboat-compose's tested range (1.7.0 to 1.9.0).

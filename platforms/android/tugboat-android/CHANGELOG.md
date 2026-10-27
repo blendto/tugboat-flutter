@@ -10,6 +10,16 @@ wiring, window capture, and the Android Views adapter.
   `maskCoverage.reasons`, and add an overlay token to the structure
   signature, so they are never coalesced with overlay-free frames. Detected
   by focus loss while resumed and, on API 29+, owned `WindowInspector` roots.
+- Dialog windows: `input.pointer` (with tap evidence), `systemInput`, and
+  `focus` facts from the activity's dialog windows, found through public API
+  only (`findViewTreeLifecycleOwner()`: every `ComponentDialog`, including
+  AppCompat and Compose dialogs and material3 `ModalBottomSheet`, and every
+  `DialogFragment`). API 29+: found when the activity window loses focus
+  (`WindowInspector` roots); every API level: `DialogFragment` lifecycle.
+  Positions are in the activity's space; anchors stay under the activity's
+  route (evidence semantics: a tap's anchor may name a target its
+  `overlayWindow` before-frame does not show). Framework `android.app.Dialog`
+  without a fragment is a known gap. No message-shape change.
 - Public API (`com.tugboat.android`): `Tugboat.start(application,
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`,
