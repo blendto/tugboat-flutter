@@ -520,6 +520,23 @@ class TugboatActivationTest {
         assertTrue(Tugboat.isAcceptingEvidence)
     }
 
+    /** The same config instance again: the stop forgets the earlier start, not this one (review 2, MINOR-1). */
+    @Test
+    fun aStartWithTheSameConfigWhileAnOffMainStopIsPendingSurvivesIt() {
+        val enabled = config.copy(enabled = true)
+        Tugboat.start(application, enabled)
+        idle()
+        awaitSessionStart(0)
+        Thread { Tugboat.stop() }.apply { start() }.join()
+        // On main, before the stop's main-thread work runs.
+        Tugboat.start(application, enabled)
+        idle()
+
+        awaitSessionStart(1)
+        assertEquals(ACTIVE, Tugboat.lifecycleState)
+        assertTrue(Tugboat.isAcceptingEvidence)
+    }
+
     @Test
     fun anOffMainStopThenActivateStartsNothingUntilTheNextStart() {
         Tugboat.start(application, config)

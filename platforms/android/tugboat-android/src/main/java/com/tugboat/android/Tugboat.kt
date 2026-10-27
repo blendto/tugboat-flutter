@@ -55,9 +55,14 @@ object Tugboat {
 
     // Main thread only.
     private var application: Application? = null
-    /** Written on the main thread; volatile so [stop] can note which config it forgets. */
-    @Volatile
     private var config: TugboatConfig? = null
+    /**
+     * Bumped by every [start] that stores a config. Written on the main
+     * thread; volatile so [stop] can note which start it forgets: a later
+     * start survives it even with the same config instance.
+     */
+    @Volatile
+    private var configGeneration = 0
     private var runtime: TugboatRuntime? = null
     /** The [requestEpoch] the running [runtime] was started for. */
     private var runtimeEpoch = 0
@@ -176,6 +181,7 @@ object Tugboat {
         }
         this.application = application
         this.config = config
+        configGeneration++
         NavigationObservation.ensureInstalled(application)
         NavigationObservation.onResumed = launch::onActivityResumed
         reconcile()
@@ -281,14 +287,14 @@ object Tugboat {
                 requestedId = null
                 captureOverride = null
                 if (state != TugboatLifecycleState.DORMANT) setState(TugboatLifecycleState.STOPPING)
-                config
+                configGeneration
             }
             afterStopLockForTesting?.invoke()
             onMain("stop") {
                 synchronized(lock) { pendingStops-- }
                 LaunchCorrelation.cancelPendingHealth()
                 // A start() made after this stop stored its own config: keep it.
-                if (config === forget) {
+                if (configGeneration == forget) {
                     NavigationObservation.onResumed = null
                     application = null
                     config = null
