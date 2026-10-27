@@ -4,19 +4,21 @@ import android.app.Activity
 import android.app.Application
 import android.content.Intent
 import android.os.Bundle
+import android.os.Looper
 import com.tugboat.android.AppInfo
 import com.tugboat.android.CollectorConfig
+import com.tugboat.android.Tugboat
 import com.tugboat.android.TugboatConfig
 import com.tugboat.android.host.FakeEngineTransport
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLog
 
@@ -38,18 +40,16 @@ class LaunchCorrelationRuntimeTest {
     @Test
     fun launchCaptureSessionIdMatchesSessionStartAt() {
         val transport = FakeEngineTransport()
-        val runtime = TugboatRuntime.start(
-            application,
-            config,
-            sessionEpoch = 0,
-            openTransport = { transport },
-            stopSequence = StopSequence(maxDrainMs = 10),
-        )
-        assertNotNull(runtime)
+        Tugboat.resetForTests()
+        Tugboat.openTransportForTesting = { transport }
+        Tugboat.start(application, config.copy(enabled = true))
+        shadowOf(Looper.getMainLooper()).idle()
         try {
             assertLaunchIdMatchesSessionStart(transport)
         } finally {
-            runtime?.stop()
+            Tugboat.stop()
+            shadowOf(Looper.getMainLooper()).idle()
+            Tugboat.resetForTests()
         }
     }
 
@@ -59,6 +59,8 @@ class LaunchCorrelationRuntimeTest {
             Intent().putExtras(Bundle().apply { putString(LaunchExtraKeys.EMIT_SCENE_INVENTORY, "1") }),
         ).create().start().resume()
 
+        val deadline = System.currentTimeMillis() + 5_000
+        while ("session.start" !in types(transport) && System.currentTimeMillis() < deadline) Thread.sleep(10)
         val sessionStart = transport.submitted
             .map { JSONObject(it) }
             .first { it.getString("type") == "session.start" }

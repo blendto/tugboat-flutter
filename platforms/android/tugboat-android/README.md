@@ -23,15 +23,17 @@ which `tugboat-okhttp` uses, are public but not app API; everything else is
 Tugboat.start(application, TugboatConfig(
     collector = CollectorConfig(baseUrl, apiKey),
     app = AppInfo(name, version, buildNumber, appId, installationId),
-    enabled = true,                          // false: install nothing (kill switch)
+    enabled = false,                         // default: dormant until activate
     maskLevel = MaskLevel.AllTextAndMedia,   // default, the only level
     captureFocusChanges = false,             // engine capability focusChanges
     captureSystemInput = false,              // engine capability systemInput
     captureDiagnostics = false,              // engine capability captureDiagnostics
-    activationRequestId = null,              // optional session.start field
     explorationRunId = null,                 // optional session.start field
     emitSceneInventory = false,              // engine capability nativeSceneInventory
 ))
+Tugboat.activate(activationRequestId)        // start a session (or enabled = true above)
+Tugboat.deactivate()                         // back to dormant
+Tugboat.lifecycleState; Tugboat.isActivated; Tugboat.activationRequestId
 Tugboat.setUserId(id); Tugboat.setTraits(map); Tugboat.stop()
 Tugboat.trackNavigation(navController)       // Jetpack Navigation, optional
 Tugboat.eventHook(source, parameterPolicy).record(name, parameters)
@@ -43,29 +45,28 @@ view.tugboatSensitive()                       // always mask it and its subtree;
 - Every method can be called from any thread; the work runs on the main
   thread in call order. Nothing throws into the app: failures are logged
   (tag `Tugboat`) and capture stops.
-- `TugboatConfig.enabled` (default `true`): when `false`, Tugboat itself
-  registers nothing (no engine, lifecycle observers, window callbacks, or
-  threads) and records nothing; the host app is unchanged. `setUserId`,
-  `setTraits`, and event hooks keep their state for a later enabled `start`.
-  Call `start` before `trackNavigation`: a controller tracked before any
-  `start` cannot know the config. The `androidx.lifecycle:lifecycle-process`
-  dependency (one of this SDK's own) runs AndroidX App Startup's
-  `ProcessLifecycleInitializer` at process launch, whatever `enabled` says;
-  it registers AndroidX's callbacks, not Tugboat's. Tugboat needs it when
-  enabled (`app.lifecycle` and the background flush), so do not remove it.
-- Call `start` once per process, from `Application.onCreate`. It is
-  idempotent while started. It **refuses to start** (and logs the missing
-  paths) when a field the collector requires on `session_start` is blank:
-  app version, build number, app id, installation id, name; device id, screen
-  size and densities; the locale; the collector URL and key. After `stop`, a
-  new `start` observes each activity from its next resume.
+- Call `start` once per process, from `Application.onCreate`. It stores the
+  application and config, whatever `enabled` says, and is idempotent until
+  `stop`. It **refuses** (logs the missing paths, and does not store the
+  config, so a corrected `start` works) when a field the collector requires
+  on `session_start` is blank: app version, build number, app id,
+  installation id, name; device id, screen size and densities; the locale;
+  the collector URL and key. A session is refused when the engine cannot
+  open. Either way the state returns to `DORMANT` and the activation
+  request is kept, so `activate` with the same id retries.
 - `stop` detaches every observer, posts `session.end`, waits for the
   `session_end` post to settle (accepted, or a status the engine does not
   retry), then submits `engine.dispose` and destroys the handle. The wait is
   bounded at 25 s (`endDrainTimeoutMs` + one `jsonTimeoutMs` + slack); it
-  never blocks the app. A later `start` creates a new engine and session.
-- `setUserId` / `setTraits` survive `stop` and `start`. Traits JSON cannot
-  carry (NaN, infinities) are ignored and logged.
+  never blocks the app. `deactivate` and a session replaced by `activate`
+  end the same way. Each new session has a new engine, session id, and
+  `sessionEpoch` (which advances only when a session starts).
+- `setUserId` / `setTraits` survive dormant periods, `stop`, and `start`,
+  and are sent to every new session (each new engine gets `identity.set`
+  and `traits.set` again; Flutter instead carries the collector `traitsId`
+  to the next sink). Traits JSON cannot carry (NaN, infinities) are ignored
+  and logged.
+
 - When the app's primary locale changes (`Application.onConfigurationChanged`),
   the SDK posts `locale.set` with the same locale JSON shape as `session.start`
   (deduped; unregistered on `stop`). Locale is evidence, not identity.
@@ -99,6 +100,68 @@ view.tugboatSensitive()                       // always mask it and its subtree;
   `android:id` therefore serves both. Tugboat installs no
   `AccessibilityDelegate`, so an app's own delegate is never replaced.
 
+## Lifecycle (activation)
+
+The same contract as Flutter's `TugboatReplay` (`lifecycle.dart`):
+
+- `TugboatConfig.enabled` (default `false`, as Flutter's
+  `TugboatReplayConfig.enabled`). `true`: `start` starts a session at once,
+  with no activation request id. `false`: the SDK is **dormant** until
+  `activate`: no engine, window callbacks or wrapping, threads, or network,
+  and nothing recorded. A dormant `start` registers only process-scoped
+  activity lifecycle callbacks (navigation stacks and the live activities;
+  they hold state and emit nothing). The `androidx.lifecycle:lifecycle-process`
+  dependency (one of this SDK's own) runs AndroidX App Startup's
+  `ProcessLifecycleInitializer` at process launch, whatever `enabled` says;
+  it registers AndroidX's callbacks, not Tugboat's. Tugboat needs it for a
+  session (`app.lifecycle` and the background flush), so do not remove it.
+- `Tugboat.activate(activationRequestId)` starts a session whose
+  `session.start` carries the id. The same id while starting or active does
+  nothing. A different id while a session runs ends it (`session_end`) and
+  starts a new one with the new id; the state goes `ACTIVE` → `STARTING` →
+  `ACTIVE`, never `STOPPING`. An `activate` before `start` (or after `stop`)
+  reports `STARTING` at once and is applied by the next `start`, whatever
+  `enabled` says. A blank
+  id still activates; `session.start` then omits it (Flutter sends `""`).
+- `Tugboat.deactivate()` fences evidence at once on the calling thread: an
+  event or network call recorded after it returns is dropped, even a call
+  begun before it. It then ends the session on the main thread. The state
+  is `STOPPING` until `session.end` is posted, then `DORMANT`. An
+  `enabled = true` config does not start a session again until the next
+  `activate`. No-op while dormant with no activation request.
+- `Tugboat.stop()` is native only and is **not** Flutter's
+  `TugboatReplay.disabled`: it ends the session, forgets the config, and
+  clears any activation request, so an `activate` made before it never
+  restarts a session; an `activate` after it is kept for the next `start`.
+  There is no native `disabled`.
+- Read-only, from any thread: `Tugboat.lifecycleState`
+  (`TugboatLifecycleState` `DORMANT`, `STARTING`, `ACTIVE`, `STOPPING`),
+  `Tugboat.activationRequestId` (the last `activate`'s id while in effect;
+  null for a session `enabled` started), and `Tugboat.isActivated` (an id is
+  set and the state is starting, active, or stopping). They change at once
+  on the calling thread; the session follows on the main thread.
+- A session that starts after its activities (an `activate` while one is
+  resumed, or a `start` after `stop`) attaches at once to every activity
+  created since the first `start` and adopts the resumed one, as its resume
+  would have (taps, captures, focus, and the `session_start` navigation
+  seed). Activities created before the first `start` are observed from their
+  next resume. `trackNavigation` after a dormant `start` keeps the
+  controller's stack, which seeds each session; a controller tracked before
+  the first `start` is not seeded (its first change after it is a push).
+- Any request that is not the same request ends the running session and
+  starts a fresh one, as Flutter's gate remounts on a new request epoch:
+  `deactivate(); activate("a")` while `"a"` is active gives `session_end`
+  and a new `session_start` with `"a"`.
+- `stop()` racing `activate()` on other threads: a `stop()` forgets its
+  config at once, so no session starts on it. Activate then stop ends
+  `DORMANT`; stop then activate ends `STARTING`, applied by the next
+  `start`. A `start` made after a pending `stop` survives it.
+- Known limits: an activity paused but visible at `activate` (a
+  runtime-permission dialog, the unfocused pane in multi-window) is not the
+  foreground window until its next resume, so captures wait for it (taps
+  still attach). Two `activate` calls with different ids in one main-thread
+  turn give a short first session; Flutter coalesces them per frame.
+
 ## Device Farm / exploration correlation
 
 Automation can pass the same intent extras as the Flutter plugin (for example
@@ -107,15 +170,22 @@ tugboat_accept_action_context true --es tugboat_automation_run_id <id>`).
 Values `1`, `true`, and `yes` (case-insensitive) enable a flag; anything else
 is off. When `emitSceneInventory` or `acceptActionContext` is enabled, the SDK
 logs once per process from the **first resumed activity whose intent carries
-the extras**:
+the extras**, whatever the lifecycle state (after `start`, the dormant
+resumed-activity tracker sees it; the Flutter host likewise prints at config
+time):
 
 - `TUGBOAT_LAUNCH` with `captureRequested`, the flags, optional
-  `automationRunId`, and `captureSessionId` (`session-<wallUs>` from
-  `session.start`).
-- Ten seconds later, `TUGBOAT_HEALTH` with `lifecycle` `active` when the
-  engine host is still running, otherwise `dormant` (no `captureSessionId` when
-  dormant). Uses the first session's `captureSessionId` when active. A
-  `Tugboat.stop()` before the ten-second mark cancels it: no HEALTH line.
+  `automationRunId`, and `captureSessionId` (`session-<wallUs>` from the
+  running session's `session.start`; omitted when no session runs, for
+  example while dormant).
+- Ten seconds later, `TUGBOAT_HEALTH` with `lifecycle`, the lifecycle state's
+  Flutter name (`dormant`, `starting`, `active`, `stopping`; `dormant` when
+  the engine host stopped running), `activationRequestId` when one is in
+  effect, and the running session's `captureSessionId` (omitted when none
+  runs). All are read when the line prints, never from the session that ran
+  when the timer started: after a replacing `activate` it carries the new
+  session and id, after a `deactivate` it is `dormant` with no ids. Only a
+  `Tugboat.stop()` before the ten-second mark cancels it.
 
 Both lines use `Log.i` with tag `Tugboat`. They never include the collector
 base URL, API key, or auth headers. Intent extra `tugboat_collector_base_url` is
@@ -184,10 +254,10 @@ call.fail(NetworkFailure.NETWORK_ERROR)      // or CANCELLED; fail(failure, stat
 - **One finish.** A call's first `complete` or `fail` wins (atomically); a
   later one of either kind is ignored. An encoding failure (for example a
   map changed by another thread while it is read) drops that evidence.
-- **No-ops, never throws.** While Tugboat is not started, stopped, or
-  disabled, `record` does nothing and `beginNetworkCall` returns a call that
+- **No-ops, never throws.** While no session records (dormant, deactivated,
+  or stopped), `record` does nothing and `beginNetworkCall` returns a call that
   records nothing. A call begun before `stop` records nothing when it
-  finishes after it. A hook made before `start` works once started.
+  finishes after it. A hook made before `start` works in every later session.
   Nothing throws into the app.
 - Both are on `stream: evidence` and never take an action context or UI
   anchor.
@@ -208,7 +278,7 @@ call.fail(NetworkFailure.NETWORK_ERROR)      // or CANCELLED; fail(failure, stat
 
 | Views adapter | `views/` | Turns activity windows into engine facts and computes masks (below). |
 | Evidence | `evidence/` | `EvidenceRecorder` (calling-thread timestamps, the transform, no-op and one-finish rules), `EvidenceEncoder` (typed values to the engine's input encoding), `evidence.externalEvent` / `evidence.networkCall`. |
-| Facade | `Tugboat`, `TugboatConfig`, `TugboatTag` | The public API above; thin over `sdk/TugboatRuntime`. |
+| Facade | `Tugboat`, `TugboatConfig`, `TugboatLifecycleState`, `TugboatTag` | The public API above: the activation lifecycle (Flutter's notifier and gate), over one `sdk/TugboatRuntime` per session. |
 | Engine wiring | `sdk/` | `TugboatRuntime` (composition root: one engine, one session), `HostMetadata` + `DeviceSnapshot` (`engine.configure.host`, refused when incomplete), `EngineConfiguration`, `SessionMessages`, `AppLifecycleBridge` (`ProcessLifecycleOwner` to `app.lifecycle`), `LocaleBridge` (`locale.set` on locale change), `SessionEndWatcher` + `StopSequence` (stop order), `NavigationTracking`. |
 | Capture | `capture/` | `CaptureCoordinator` answers `capture.request`; `FrameMasks` (the copy-time mask supplier); `RuntimeOutcomes` maps `capture-runtime` results; `CaptureResultJson`; `ForegroundWindow` + `SurfaceReporter` (`surface` facts); `CaptureGeometry`. |
 

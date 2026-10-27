@@ -16,15 +16,38 @@ wiring, window capture, and the Android Views adapter.
   `View.tugboatSensitive()`; `TugboatConfig`, `CollectorConfig`, `AppInfo`,
   `MaskLevel`, `emitSceneInventory` (default false). Idempotent start;
   nothing throws into the app.
-  `TugboatConfig.enabled` (default `true`): when `false`, `start` installs
-  nothing and nothing is recorded; the user id, traits, and event hooks are
-  kept for a later enabled `start`.
+- Activation lifecycle matches Flutter (contract change):
+  `TugboatConfig.enabled` defaults to `false` and means dormant until
+  `Tugboat.activate(activationRequestId)` (no engine, window callbacks,
+  threads, or network; only process-scoped activity lifecycle callbacks);
+  `true` starts a session at `start` with no activation request id.
+  `activate` with a new id ends the session and starts one carrying the id
+  (new session id and `sessionEpoch`); the same id is a no-op; an `activate`
+  before `start` applies at `start`. `Tugboat.deactivate()` fences evidence
+  on the calling thread, ends the session, and keeps an `enabled = true`
+  config dormant until the next `activate`. `stop()` (not Flutter's
+  `disabled`) also clears any activation request. Read-only
+  `Tugboat.lifecycleState` (`TugboatLifecycleState`), `isActivated`, and
+  `activationRequestId`. A session that starts while an activity is resumed
+  attaches to it at once (taps, captures, navigation seed);
+  `trackNavigation` after a dormant `start` keeps the controller's stack.
+  `TUGBOAT_LAUNCH` prints at the first resume with launch extras whatever
+  the state (as the Flutter host prints at config time); `TUGBOAT_HEALTH`
+  reports the state's Flutter name, `activationRequestId`, and the running
+  session's `captureSessionId` as they are when it prints; only `stop()`
+  cancels it. `start` refuses (and does not store) a config missing a
+  required `session_start` field. A session that fails to start is dormant
+  and keeps the activation request (the same id retries). Any new request
+  (a `deactivate` then `activate` of the same id included) ends the session
+  and starts a fresh one; the fence closes in-flight network calls. The
+  user id, traits, and event hooks feed every session.
 - `View.tugboatSensitive()` (Java `TugboatViews.tugboatSensitive(view)`):
   the view and every view below it are always masked, each view drawn
   outside the marked bounds at its own bounds; one rect per view. Mask-only:
   taps, paths, and fingerprints are unchanged. No un-mark (fails safe).
 - Config: `captureDiagnostics` (engine capability), optional
-  `activationRequestId` / `explorationRunId` on `session.start` when set.
+  `explorationRunId` on `session.start` when set. `activationRequestId` is
+  no longer a config field: it comes from `activate`.
 - Locale: `locale.set` on primary locale change (`onConfigurationChanged`),
   deduped, unregistered on `stop`.
 - Native scene inventory: when `emitSceneInventory` is true, the Views

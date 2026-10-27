@@ -24,6 +24,7 @@ import com.tugboat.android.host.SystemHostClock
 import com.tugboat.android.views.ViewsAdapter
 import com.tugboat.android.views.facts.FactSink
 import com.tugboat.android.views.input.GestureConfig
+import com.tugboat.android.views.navigation.NavigationObservation
 
 /**
  * One running SDK: the engine host, the Views adapter, the capture
@@ -42,11 +43,16 @@ internal class TugboatRuntime private constructor(
     private val watcher: SessionEndWatcher,
     private val clock: HostClock,
     private val stopSequence: StopSequence,
-    private val launchCorrelation: LaunchCorrelation,
+    /** `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH`'s `captureSessionId`: `session-<wallUs>` of `session.start`. */
+    val captureSessionId: String,
     /** Coded events and network calls; any thread. */
     val evidence: EvidenceRecorder,
 ) {
     private var stopped = false
+
+    /** Whether the engine host still runs (it stops on a fatal engine status). */
+    val isHostRunning: Boolean
+        get() = host.isRunning
 
     fun setUserId(userId: String?) = host.post(SessionMessages.IDENTITY_SET, SessionMessages.identity(userId), clock.now())
 
@@ -61,7 +67,6 @@ internal class TugboatRuntime private constructor(
     fun stop() {
         if (stopped) return
         stopped = true
-        launchCorrelation.stop()
         evidence.close()
         adapter.stop()
         lifecycle.stop()
@@ -88,6 +93,8 @@ internal class TugboatRuntime private constructor(
             application: Application,
             config: TugboatConfig,
             sessionEpoch: Int,
+            /** From `Tugboat.activate`; passed on `session.start` when non-blank. */
+            activationRequestId: String? = null,
             openTransport: () -> EngineTransport? = { JniEngineTransport.open() },
             stopSequence: StopSequence = StopSequence(),
         ): TugboatRuntime? {
@@ -102,7 +109,21 @@ internal class TugboatRuntime private constructor(
                 Log.e(TAG, "Tugboat not started: the session engine is unavailable")
                 return null
             }
-            return assemble(application, config, transport, device, metadata, sessionEpoch, stopSequence)
+            val session = SessionInputs(sessionEpoch, activationRequestId)
+            return assemble(application, config, transport, device, metadata, session, stopSequence)
+        }
+
+        /**
+         * The required `session_start` fields [config] leaves blank (with the
+         * device's), as paths; empty when a session can start. Logs them.
+         */
+        fun refusal(application: Application, config: TugboatConfig): List<String> {
+            val missing = HostMetadata(config.app, DeviceSnapshot.read(application)).missingFields() +
+                collectorProblems(config)
+            if (missing.isNotEmpty()) {
+                Log.e(TAG, "Tugboat not started: required session_start fields are missing: $missing")
+            }
+            return missing
         }
 
         private fun collectorProblems(config: TugboatConfig): List<String> = buildList {
@@ -116,7 +137,7 @@ internal class TugboatRuntime private constructor(
             transport: EngineTransport,
             device: DeviceSnapshot,
             metadata: HostMetadata,
-            sessionEpoch: Int,
+            session: SessionInputs,
             stopSequence: StopSequence,
         ): TugboatRuntime {
             val clock = SystemHostClock
@@ -142,13 +163,9 @@ internal class TugboatRuntime private constructor(
                 engineHost.withHost { it.post(SurfaceReporter.FACT_TYPE, input, clock.now()) }
             }
             val startAt = clock.now()
-            val launchCorrelation = LaunchCorrelation(
-                sessionWallUs = startAt.wallUs,
-                isHostRunning = { engineHost.value?.isRunning == true },
-            )
             val foreground = ForegroundWindow(
                 application,
-                onResumed = launchCorrelation::onActivityResumed,
+                resumedActivity = NavigationObservation::resumedActivity,
                 onBoundary = surfaces::observe,
             )
             val main = Handler(Looper.getMainLooper())
@@ -177,8 +194,8 @@ internal class TugboatRuntime private constructor(
                 SessionMessages.sessionStart(
                     device,
                     metadata,
-                    sessionEpoch,
-                    config.activationRequestId,
+                    session.sessionEpoch,
+                    session.activationRequestId,
                     config.explorationRunId,
                 ),
                 startAt,
@@ -198,11 +215,17 @@ internal class TugboatRuntime private constructor(
             localeBridge.start()
             return TugboatRuntime(
                 host, adapter, lifecycle, localeBridge, foreground, captures, watcher, clock, stopSequence,
-                launchCorrelation, evidence,
+                LaunchCorrelation.captureSessionId(startAt.wallUs), evidence,
             )
         }
     }
 }
+
+/** What differs between sessions of one config. */
+private class SessionInputs(
+    val sessionEpoch: Int,
+    val activationRequestId: String?,
+)
 
 internal fun String?.normalizedSessionId(): String? = this?.takeIf { it.isNotBlank() }
 

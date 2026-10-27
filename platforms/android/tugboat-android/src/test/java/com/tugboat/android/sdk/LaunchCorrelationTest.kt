@@ -3,6 +3,7 @@ package com.tugboat.android.sdk
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import com.tugboat.android.TugboatLifecycleState
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -28,11 +29,11 @@ class LaunchCorrelationTest {
     }
 
     private fun correlation(
-        sessionWallUs: Long = 1_781_827_200_000_000L,
-        hostRunning: Boolean = true,
+        sessionWallUs: Long? = 1_781_827_200_000_000L,
+        lifecycle: LifecycleSnapshot = LifecycleSnapshot(TugboatLifecycleState.ACTIVE, null),
     ) = LaunchCorrelation(
-        sessionWallUs = sessionWallUs,
-        isHostRunning = { hostRunning },
+        captureSessionId = { sessionWallUs?.let(LaunchCorrelation::captureSessionId) },
+        lifecycle = { lifecycle },
         emit = lines::add,
     )
 
@@ -133,16 +134,63 @@ class LaunchCorrelationTest {
     }
 
     @Test
-    fun healthIsDormantWithoutSessionIdWhenHostStopped() {
+    fun healthIsDormantWithoutSessionIdWhenDormant() {
         val activity = activityWithExtras(
             Bundle().apply { putString(LaunchExtraKeys.EMIT_SCENE_INVENTORY, "1") },
         )
-        val correlation = correlation(hostRunning = false)
+        val correlation = correlation(sessionWallUs = null, lifecycle = LifecycleSnapshot.DORMANT)
         correlation.onActivityResumed(activity)
+        assertFalse(JSONObject(lines[0].removePrefix("TUGBOAT_LAUNCH ")).has("captureSessionId"))
         ShadowLooper.shadowMainLooper().idleFor(10, TimeUnit.SECONDS)
         val json = JSONObject(lines[1].removePrefix("TUGBOAT_HEALTH "))
         assertEquals("dormant", json.getString("lifecycle"))
         assertFalse(json.has("captureSessionId"))
+        assertFalse(json.has("activationRequestId"))
+    }
+
+    @Test
+    fun healthCarriesTheActivationRequestIdWhileActivated() {
+        val activity = activityWithExtras(
+            Bundle().apply { putString(LaunchExtraKeys.EMIT_SCENE_INVENTORY, "1") },
+        )
+        val correlation = correlation(lifecycle = LifecycleSnapshot(TugboatLifecycleState.ACTIVE, "act-7"))
+        correlation.onActivityResumed(activity)
+        ShadowLooper.shadowMainLooper().idleFor(10, TimeUnit.SECONDS)
+        val json = JSONObject(lines[1].removePrefix("TUGBOAT_HEALTH "))
+        assertEquals("active", json.getString("lifecycle"))
+        assertEquals("act-7", json.getString("activationRequestId"))
+        assertEquals("session-1781827200000000", json.getString("captureSessionId"))
+    }
+
+    @Test
+    fun healthReadsTheSessionAndStateWhenItPrintsNotWhenTheTimerStarted() {
+        val activity = activityWithExtras(
+            Bundle().apply { putString(LaunchExtraKeys.EMIT_SCENE_INVENTORY, "1") },
+        )
+        var sessionId: String? = "session-1"
+        var lifecycle = LifecycleSnapshot(TugboatLifecycleState.ACTIVE, "first")
+        val correlation = LaunchCorrelation(
+            captureSessionId = { sessionId },
+            lifecycle = { lifecycle },
+            emit = lines::add,
+        )
+        correlation.onActivityResumed(activity)
+        sessionId = "session-2"
+        lifecycle = LifecycleSnapshot(TugboatLifecycleState.ACTIVE, "second")
+        ShadowLooper.shadowMainLooper().idleFor(10, TimeUnit.SECONDS)
+        val json = JSONObject(lines[1].removePrefix("TUGBOAT_HEALTH "))
+        assertEquals("session-2", json.getString("captureSessionId"))
+        assertEquals("second", json.getString("activationRequestId"))
+    }
+
+    @Test
+    fun healthUsesFlutterLifecycleNames() {
+        val names = TugboatLifecycleState.values().map {
+            JSONObject(LaunchOptions.healthJson(LifecycleSnapshot(it, null), "session-1")).getString("lifecycle")
+        }
+        assertEquals(listOf("dormant", "starting", "active", "stopping"), names)
+        val stopping = JSONObject(LaunchOptions.healthJson(LifecycleSnapshot(TugboatLifecycleState.STOPPING, null), "session-1"))
+        assertEquals("session-1", stopping.getString("captureSessionId"))
     }
 
     @Test
