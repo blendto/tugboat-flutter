@@ -2,6 +2,8 @@ package com.tugboat.android.outbox
 
 import com.tugboat.android.host.FakeHttpSender
 import com.tugboat.android.host.HttpExecutor
+import com.tugboat.android.host.HttpRequest
+import com.tugboat.android.host.HttpSender
 import com.tugboat.android.host.LocalHttpServer
 import com.tugboat.android.host.LocalHttpServer.Response
 import com.tugboat.android.host.MultipartParts
@@ -330,39 +332,40 @@ class OutboxDrainerTest {
     @Test
     fun anEngineRequestStartsAtOnceWhileAReplayIsInFlight() {
         leftByADeadProcess(lifecycle())
-        val replayArrived = CountDownLatch(1)
-        val releaseReplay = CountDownLatch(1)
-        server.reply = {
-            replayArrived.countDown()
-            releaseReplay.await(30, TimeUnit.SECONDS)
-            Response(202)
+        val b = OutboxFixtures.outbox(root, "epoch-b")
+        val replayKey = "s-1/l/session_start/2026-10-27T10:00:00.000Z"
+        // The replay goes to a sender that never answers it here: it stays in flight for the whole test.
+        val replays = FakeHttpSender()
+        val replayStarted = CountDownLatch(1)
+        val send: (HttpRequest, (TransportOutcome) -> Unit) -> Unit = { request, onResult ->
+            replays.send(request, onResult)
+            replayStarted.countDown()
         }
-        val engineServer = LocalHttpServer()
-        val engineArrived = CountDownLatch(1)
-        // Ordering, not wall-clock: the engine request must reach the server
-        // while the replay is still held there. Behind the replay it would
-        // only arrive after the release.
-        val replayHeldOnArrival = CopyOnWriteArrayList<Boolean>()
-        engineServer.reply = {
-            replayHeldOnArrival += releaseReplay.count == 1L
-            engineArrived.countDown()
-            Response(202)
-        }
-        val drainerScheduler = OutboxDrainer.newScheduler() as ScheduledThreadPoolExecutor
-        val engineHttp = HttpExecutor(hostConfig("http://127.0.0.1:${engineServer.port}"), { null })
-        try {
-            drainer(OutboxFixtures.outbox(root, "epoch-b"), scheduler = drainerScheduler).start()
-            assertTrue(replayArrived.await(5, TimeUnit.SECONDS))
+        OutboxDrainer(b, inputs, send, RecordingScheduler()) { logs += it }.also { drainers += it }.start()
+        assertTrue("the replay never started", replayStarted.await(30, TimeUnit.SECONDS))
 
-            engineHttp.send(lifecycle("s-2")) {}
+        // The engine path over the same outbox, while that replay is in flight.
+        val engine = FakeHttpSender()
+        val replayInFlightAtEngineSend = CopyOnWriteArrayList<Boolean>()
+        val engineSender = object : HttpSender {
+            override fun send(request: HttpRequest, onResult: (TransportOutcome) -> Unit) {
+                replayInFlightAtEngineSend += b.active.isActive(replayKey)
+                engine.send(request, onResult)
+            }
 
-            assertTrue("the engine request waited behind the replay", engineArrived.await(10, TimeUnit.SECONDS))
-            assertEquals(listOf(true), replayHeldOnArrival)
-        } finally {
-            releaseReplay.countDown()
-            engineHttp.close()
-            engineServer.close()
+            override fun close() = engine.close()
         }
+        val returned = CountDownLatch(1)
+        Thread {
+            OutboxSender(engineSender, b, inputs, "0.1.0", frameBytes = { null }).send(lifecycle("s-2")) {}
+            returned.countDown()
+        }.start()
+
+        // Ordering, no speed bound: the replay is never answered, so it leaves flight only when the drainer gives
+        // up on it; a send that waited behind it would reach its sender only then.
+        assertTrue("the engine send never returned", returned.await(60, TimeUnit.SECONDS))
+        assertEquals("the engine request waited behind the replay", listOf(true), replayInFlightAtEngineSend)
+        assertEquals(listOf("/v1/sessions"), engine.requests.map { it.path })
     }
 
     @Test

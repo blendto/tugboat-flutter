@@ -80,6 +80,8 @@ android {
             test.inputs.dir(identityFixtures)
             test.systemProperty("tugboat.evidenceFixtures", evidenceFixtures.path)
             test.inputs.dir(evidenceFixtures)
+            // Full stack traces in the CI log: the short form names only the test class's topmost frame.
+            test.testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
         }
     }
 
