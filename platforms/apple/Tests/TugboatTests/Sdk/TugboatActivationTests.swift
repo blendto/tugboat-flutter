@@ -454,6 +454,40 @@ final class TugboatActivationTests: XCTestCase {
     XCTAssertEqual(lines.last, "TUGBOAT_HEALTH {\"lifecycle\":\"dormant\"}")
   }
 
+  /// `stop()` and `activate` from another thread, both orders, before main
+  /// runs: never `active` without a session.
+  func testStopAndActivateFromAnotherThreadInBothOrders() {
+    Tugboat.start(config(enabled: true))
+    drainMain()
+    XCTAssertTrue(Tugboat.isRunning)
+    onBackground {
+      Tugboat.activate(activationRequestId: "act-1")
+      Tugboat.stop()
+    }
+    drainMain()
+    XCTAssertFalse(Tugboat.isRunning)
+    XCTAssertEqual(Tugboat.lifecycleState, .dormant)
+    XCTAssertNil(Tugboat.activationRequestId)
+
+    Tugboat.start(config(enabled: true))
+    drainMain()
+    XCTAssertTrue(Tugboat.isRunning)
+    onBackground {
+      Tugboat.stop()
+      Tugboat.activate(activationRequestId: "act-2")
+    }
+    drainMain()
+    XCTAssertFalse(Tugboat.isRunning, "stop forgot the configuration; the activate waits for the next start")
+    XCTAssertEqual(Tugboat.lifecycleState, .starting)
+    XCTAssertEqual(Tugboat.activationRequestId, "act-2")
+    Tugboat.start(config())
+    drainMain()
+    XCTAssertEqual(Tugboat.lifecycleState, .active)
+    XCTAssertTrue(eventually {
+      self.recorder.inputs(SessionMessages.sessionStart).last?["activationRequestId"] as? String == "act-2"
+    })
+  }
+
   /// An `activate` before a `start` whose configuration is refused: dormant,
   /// the request kept, never stuck at `starting`.
   func testARefusedStartAfterActivateIsDormantWithTheRequestKept() {

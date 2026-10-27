@@ -23,20 +23,24 @@ final class ActivationTests: XCTestCase {
   private var states: [TugboatLifecycleState] = []
   private var failNextBegin = false
   private var duringBegin: (() -> Void)?
-  private lazy var driver = ActivationDriver<FakeSession>(
-    state: state,
-    begin: { [unowned self] _, id in
-      self.duringBegin?()
-      if self.failNextBegin {
-        self.failNextBegin = false
-        return nil
-      }
-      let session = FakeSession(activationRequestId: id)
-      self.begun.append(session)
-      return session
-    },
-    open: { $0.opened = true },
-    end: { $0.ended = true })
+  private lazy var driver = makeDriver()
+
+  private func makeDriver() -> ActivationDriver<FakeSession> {
+    ActivationDriver<FakeSession>(
+      state: state,
+      begin: { [unowned self] _, id in
+        self.duringBegin?()
+        if self.failNextBegin {
+          self.failNextBegin = false
+          return nil
+        }
+        let session = FakeSession(activationRequestId: id)
+        self.begun.append(session)
+        return session
+      },
+      open: { $0.opened = true },
+      end: { $0.ended = true })
+  }
 
   /// The `index`th session begun, nil (not a crash) when there are fewer.
   private func at(_ index: Int) -> FakeSession? {
@@ -195,7 +199,7 @@ final class ActivationTests: XCTestCase {
     XCTAssertEqual(fenced, 1)
     XCTAssertEqual(state.current.state, .stopping)
     XCTAssertNil(state.current.activationRequestId)
-    driver.stop()
+    driver.stop(through: state.current.stops)
     XCTAssertEqual(at(0)?.ended, true)
     XCTAssertNil(driver.config)
     XCTAssertEqual(state.current.state, .dormant)
@@ -205,13 +209,13 @@ final class ActivationTests: XCTestCase {
 
     // A deactivate override is cleared too.
     state.reset(fence: {})
-    driver.stop()
+    driver.stop(through: state.current.stops)
     _ = driver.configure(config(enabled: true))
     XCTAssertEqual(begun.count, 2)
     deactivate()
     XCTAssertEqual(at(1)?.ended, true)
     state.reset(fence: {})
-    driver.stop()
+    driver.stop(through: state.current.stops)
     _ = driver.configure(config(enabled: true))
     XCTAssertEqual(begun.count, 3, "enabled applies again after stop")
     XCTAssertEqual(at(2).map { $0.activationRequestId }, .some(nil))
@@ -224,12 +228,95 @@ final class ActivationTests: XCTestCase {
     activate("run-1")
     state.reset(fence: {})
     XCTAssertTrue(state.activate("run-2"))
-    driver.stop()
+    driver.stop(through: state.current.stops)
     driver.reconcile()
     XCTAssertEqual(state.current.state, .starting, "the later activate wins over stop's dormant mark")
     XCTAssertEqual(begun.count, 1)
     _ = driver.configure(config())
     XCTAssertEqual(begun.map { $0.activationRequestId }, ["run-1", "run-2"])
+    XCTAssertEqual(state.current.state, .active)
+  }
+
+  /// `activate` and `stop` on two threads before main runs either, with
+  /// main running their work in either order: no session, `dormant`.
+  func testActivateThenStopFromOtherThreadsEndsDormant() {
+    for mainOrder in ["activate first", "stop first"] {
+      state = ActivationState()
+      begun.removeAll()
+      driver = makeDriver()
+      _ = driver.configure(config(enabled: true))
+      XCTAssertEqual(begun.count, 1, mainOrder)
+      XCTAssertTrue(state.activate("run-1"))  // thread A
+      state.reset(fence: {})  // thread B, under the same lock
+      if mainOrder == "activate first" {
+        driver.reconcile()
+        driver.stop(through: state.current.stops)
+      } else {
+        driver.stop(through: state.current.stops)
+        driver.reconcile()
+      }
+      XCTAssertNil(driver.session, mainOrder)
+      XCTAssertTrue(begun.allSatisfy { $0.ended }, mainOrder)
+      XCTAssertEqual(state.current.state, .dormant, mainOrder)
+      XCTAssertNil(state.current.activationRequestId, mainOrder)
+    }
+  }
+
+  /// `stop` then `activate` from other threads: the activate is remembered
+  /// for the next `start` (`starting`, no session), never `active` without
+  /// a session.
+  func testStopThenActivateFromOtherThreadsIsRememberedWithoutASession() {
+    for mainOrder in ["stop first", "activate first"] {
+      state = ActivationState()
+      begun.removeAll()
+      driver = makeDriver()
+      _ = driver.configure(config())
+      state.reset(fence: {})  // thread B
+      XCTAssertTrue(state.activate("run-1"))  // thread A
+      if mainOrder == "stop first" {
+        driver.stop(through: state.current.stops)
+        driver.reconcile()
+      } else {
+        driver.reconcile()
+        driver.stop(through: state.current.stops)
+      }
+      XCTAssertNil(driver.session, mainOrder)
+      XCTAssertTrue(begun.allSatisfy { $0.ended }, mainOrder)
+      XCTAssertEqual(state.current.state, .starting, mainOrder)
+      XCTAssertEqual(state.current.activationRequestId, "run-1", mainOrder)
+      _ = driver.configure(config())
+      XCTAssertEqual(driver.session?.activationRequestId, "run-1", mainOrder)
+      XCTAssertEqual(state.current.state, .active, mainOrder)
+    }
+  }
+
+  /// `stop` on another thread while main is starting an `activate`'s
+  /// session: never opened, ended, `dormant`.
+  func testAStopDuringBeginEndsDormant() {
+    _ = driver.configure(config())
+    duringBegin = { [unowned self] in
+      self.duringBegin = nil
+      self.state.reset(fence: {})
+    }
+    activate("run-1")
+    driver.stop(through: state.current.stops)
+    XCTAssertEqual(at(0)?.opened, false)
+    XCTAssertEqual(at(0)?.ended, true)
+    XCTAssertNil(driver.session)
+    XCTAssertEqual(state.current.state, .dormant)
+  }
+
+  /// `stop()` then `start` on other threads, with the start's main work
+  /// first: the new configuration is accepted and the late `stop` keeps it.
+  func testAStartAfterAPendingStopIsKept() {
+    _ = driver.configure(config())
+    let stops = state.reset(fence: {})
+    XCTAssertNil(driver.config, "the pending stop already forgot it")
+    XCTAssertTrue(driver.configure(config(enabled: true)))
+    driver.stop(through: stops)
+    XCTAssertNotNil(driver.config)
+    XCTAssertEqual(begun.count, 1)
+    XCTAssertEqual(at(0)?.ended, false)
     XCTAssertEqual(state.current.state, .active)
   }
 

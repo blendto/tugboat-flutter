@@ -204,9 +204,9 @@ public enum Tugboat {
   /// hosting-controller method exchange, once installed, stays installed
   /// and records nothing.
   public static func stop() {
-    activation.reset(fence: { EvidenceChannel.shared.close() })
+    let stops = activation.reset(fence: { EvidenceChannel.shared.close() })
     LaunchCorrelation.cancelHealth()
-    onMain { driver.stop() }
+    onMain { driver.stop(through: stops) }
   }
 
   /// A hook that records the app's own coded events (for example analytics

@@ -17,6 +17,9 @@ final class ActivationState: @unchecked Sendable {
     /// `TugboatConfig.enabled` decide. Cleared by `stop`.
     var captureOverride: Bool?
     var requestEpoch = 0
+    /// Counts `stop()` calls: a configuration stored before the latest
+    /// one is already forgotten, even before main has run that `stop`.
+    var stops = 0
 
     /// Flutter's `isActivated`.
     var isActivated: Bool {
@@ -69,11 +72,16 @@ final class ActivationState: @unchecked Sendable {
     }
   }
 
-  /// `Tugboat.stop`: forgets the request and the override. `stopping`
-  /// unless already dormant; the driver marks it dormant once the session
-  /// ended.
-  func reset(fence: () -> Void) {
+  /// `Tugboat.stop`: forgets the request and the override, and (through
+  /// `stops`) the stored configuration. `stopping` unless already dormant;
+  /// the driver marks it dormant once the session ended. Returns the new
+  /// `stops`, for the driver's `stop(through:)`.
+  @discardableResult
+  func reset(fence: () -> Void) -> Int {
+    var stops = 0
     update { snapshot in
+      snapshot.stops += 1
+      stops = snapshot.stops
       snapshot.requestEpoch += 1
       snapshot.activationRequestId = nil
       snapshot.captureOverride = nil
@@ -83,6 +91,7 @@ final class ActivationState: @unchecked Sendable {
       fence()
       return true
     }
+    return stops
   }
 
   /// A session for `epoch` is being set up (configuration-enabled start).
@@ -104,13 +113,13 @@ final class ActivationState: @unchecked Sendable {
   }
 
   /// No session runs for `epoch`. A request that still wants one (an
-  /// `activate` not yet applied) keeps `starting`, as Flutter's
-  /// `markDormant`.
+  /// `activate` not yet applied, for example after `stop`) is `starting`,
+  /// as Flutter's `markDormant`; never `active` without a session.
   func markDormant(_ epoch: Int) {
     update { snapshot in
       guard epoch == snapshot.requestEpoch else { return false }
       if snapshot.captureOverride == true {
-        guard snapshot.state == .stopping else { return false }
+        guard snapshot.state == .stopping || snapshot.state == .active else { return false }
         snapshot.state = .starting
         return true
       }
@@ -169,9 +178,17 @@ final class ActivationDriver<Session: AnyObject> {
   private let open: (Session) -> Void
   private let end: (Session) -> Void
 
-  private(set) var config: TugboatConfig?
+  private var storedConfig: TugboatConfig?
+  /// `stops` when `storedConfig` was stored.
+  private var configuredAtStops = 0
   private(set) var session: Session?
   private var sessionEpoch: Int?
+
+  /// The stored configuration, or nil when none is or a `stop()` made
+  /// since (on any thread) forgot it.
+  var config: TugboatConfig? {
+    configuredAtStops == state.current.stops ? storedConfig : nil
+  }
 
   /// `begin` configures an engine and posts `session.start` (nil when it
   /// cannot); `open` lets the session take evidence; `end` ends it.
@@ -188,20 +205,26 @@ final class ActivationDriver<Session: AnyObject> {
   /// Stores `config` and applies it; false when one is already stored.
   func configure(_ config: TugboatConfig) -> Bool {
     guard self.config == nil else { return false }
-    self.config = config
+    storedConfig = config
+    configuredAtStops = state.current.stops
     reconcile()
     return true
   }
 
-  /// Ends the session and forgets the configuration (`Tugboat.stop`).
-  func stop() {
-    config = nil
+  /// Ends the session and forgets the configuration (`Tugboat.stop`;
+  /// `stops` is what its `reset` returned). A configuration stored by a
+  /// later `start` is kept.
+  func stop(through stops: Int) {
+    if configuredAtStops < stops {
+      storedConfig = nil
+    }
     reconcile()
   }
 
   func reconcile() {
     let snapshot = state.current
     let epoch = snapshot.requestEpoch
+    let config = configuredAtStops == snapshot.stops ? storedConfig : nil
     guard let config = config, snapshot.shouldCapture(configEnabled: config.enabled) else {
       endSession()
       state.markDormant(epoch)
