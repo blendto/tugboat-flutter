@@ -441,10 +441,11 @@ final class Outbox {
     endPass(replay)
     replay.backingOff = true
     schedule(delay) { [weak self] in
-      self?.queue.async {
+      guard let outbox = self else { return }
+      outbox.queue.async {
         replay.backingOff = false
-        if self?.replay === replay {
-          self?.drainPass()
+        if outbox.replay === replay {
+          outbox.drainPass()
         }
       }
     }
