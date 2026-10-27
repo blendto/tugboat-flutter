@@ -55,6 +55,8 @@ object Tugboat {
 
     // Main thread only.
     private var application: Application? = null
+    /** Written on the main thread; volatile so [stop] can note which config it forgets. */
+    @Volatile
     private var config: TugboatConfig? = null
     private var runtime: TugboatRuntime? = null
     /** The [requestEpoch] the running [runtime] was started for. */
@@ -72,6 +74,8 @@ object Tugboat {
      */
     private val lock = Any()
     private var requestEpoch = 0
+    /** [stop] calls whose main-thread work has not run: no session starts on the config they forget. */
+    private var pendingStops = 0
     /** `true` after [activate], `false` after [deactivate], null to follow [TugboatConfig.enabled]. */
     private var captureOverride: Boolean? = null
     @Volatile
@@ -89,6 +93,7 @@ object Tugboat {
     internal fun resetForTests() {
         synchronized(lock) {
             requestEpoch++
+            pendingStops = 0
             captureOverride = null
             requestedId = null
             state = TugboatLifecycleState.DORMANT
@@ -159,7 +164,9 @@ object Tugboat {
      */
     @JvmStatic
     fun start(application: Application, config: TugboatConfig) = onMain("start") {
-        if (this.config != null) {
+        // A config a pending stop() is about to forget does not count: this
+        // start replaces it and survives that stop.
+        if (this.config != null && synchronized(lock) { pendingStops } == 0) {
             Log.i(TAG, "Tugboat is already started")
             return@onMain
         }
@@ -266,23 +273,29 @@ object Tugboat {
     @JvmStatic
     fun stop() {
         guarded("stop") {
-            synchronized(lock) {
+            val forget = synchronized(lock) {
                 requestEpoch++
+                pendingStops++
                 evidence?.close()
                 evidence = null
                 requestedId = null
                 captureOverride = null
                 if (state != TugboatLifecycleState.DORMANT) setState(TugboatLifecycleState.STOPPING)
+                config
             }
             afterStopLockForTesting?.invoke()
             onMain("stop") {
+                synchronized(lock) { pendingStops-- }
                 LaunchCorrelation.cancelPendingHealth()
-                NavigationObservation.onResumed = null
-                application = null
-                config = null
-                // Ends any session (one an `activate` racing this stop may have
-                // started from the old config) and settles the state: dormant,
-                // or starting for an `activate` made after this stop.
+                // A start() made after this stop stored its own config: keep it.
+                if (config === forget) {
+                    NavigationObservation.onResumed = null
+                    application = null
+                    config = null
+                }
+                // Ends the session and settles the state: dormant, or starting
+                // for an `activate` made after this stop (applied by the next
+                // start), or the session of a start made after it.
                 reconcile()
             }
         }
@@ -360,16 +373,20 @@ object Tugboat {
      * activation gate). Ends a session that is no longer wanted, was started
      * for an older request (any [activate] or [deactivate] since, as
      * Flutter's gate remounts on a new epoch), or has no config (a [stop]
-     * since), then starts one when wanted and [start] has stored a config.
+     * since, pending or done), then starts one when wanted and [start] has
+     * stored a config that no pending [stop] forgets.
      * Wanted without a config (an [activate] before [start]) is starting.
      */
     private fun reconcile() {
+        // While a stop() is pending its config is as good as forgotten.
+        val configured = config != null && synchronized(lock) { pendingStops } == 0
         val (epoch, wanted, id) = synchronized(lock) {
-            Triple(requestEpoch, captureOverride ?: (config?.enabled == true), requestedId)
+            Triple(requestEpoch, captureOverride ?: (configured && config?.enabled == true), requestedId)
         }
-        if (runtime != null && (!wanted || runtimeEpoch != epoch || config == null)) endSession()
+        if (runtime != null && (!wanted || runtimeEpoch != epoch || !configured)) endSession()
         if (!wanted) return markDormant(epoch)
         if (runtime != null) return markActive(epoch)
+        if (!configured) return markPending(epoch)
         val app = application ?: return markPending(epoch)
         val cfg = config ?: return markPending(epoch)
         markStarting(epoch)

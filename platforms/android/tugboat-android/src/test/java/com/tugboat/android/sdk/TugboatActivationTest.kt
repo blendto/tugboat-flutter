@@ -487,7 +487,7 @@ class TugboatActivationTest {
     }
 
     @Test
-    fun anActivateOvertakingAnOffMainStopEndsTheStaleSessionAndWaitsForStart() {
+    fun anActivateOvertakingAnOffMainStopStartsNothingOnTheForgottenConfig() {
         Tugboat.start(application, config)
         idle()
         // stop() takes the lock first, but the activate's reconcile reaches main first.
@@ -496,14 +496,28 @@ class TugboatActivationTest {
         Tugboat.afterStopLockForTesting = null
         idle()
 
-        awaitUntil { transports.isNotEmpty() && "session.end" in types(transports[0]) }
+        assertTrue(transports.isEmpty())
         assertEquals(STARTING, Tugboat.lifecycleState)
         assertEquals("x", Tugboat.activationRequestId)
         assertFalse(Tugboat.isAcceptingEvidence)
         // The activate came after the stop: the next start applies it.
         Tugboat.start(application, config)
         idle()
-        assertEquals("x", awaitSessionStart(1).getJSONObject("input").getString("activationRequestId"))
+        assertEquals("x", awaitSessionStart(0).getJSONObject("input").getString("activationRequestId"))
+    }
+
+    @Test
+    fun aStartMadeWhileAnOffMainStopIsPendingSurvivesIt() {
+        Tugboat.start(application, config)
+        idle()
+        Thread { Tugboat.stop() }.apply { start() }.join()
+        // On main, before the stop's main-thread work runs.
+        Tugboat.start(application, config.copy(enabled = true))
+        idle()
+
+        awaitSessionStart(0)
+        assertEquals(ACTIVE, Tugboat.lifecycleState)
+        assertTrue(Tugboat.isAcceptingEvidence)
     }
 
     @Test
