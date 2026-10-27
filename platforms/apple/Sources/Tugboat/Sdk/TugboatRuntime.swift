@@ -73,7 +73,7 @@ final class TugboatRuntime {
     guard !stopped else { return }
     stopped = true
     // No replay once the session ends: nothing is sent while dormant.
-    _ = outbox  // RED-CHECK
+    outbox?.outbox.stopReplay()
     adapter.stop()
     lifecycle.stop()
     locale.stop()
