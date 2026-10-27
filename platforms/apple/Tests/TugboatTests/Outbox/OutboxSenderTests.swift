@@ -161,11 +161,13 @@ final class OutboxSenderTests: XCTestCase {
     XCTAssertEqual(drainer.requests.count, 1)
     let gate = DispatchSemaphore(value: 0)
     outbox.queue.async { gate.wait() }
+    // A sender that waited for the disk would wait for this.
+    DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { gate.signal() }
     let started = Date()
     send(OutboxRequests.events(["a"]))
     XCTAssertEqual(delegate.requests.count, 1)
     XCTAssertLessThan(Date().timeIntervalSince(started), 0.05)
-    gate.signal()
+    XCTAssertEqual(drainer.requests.count, 1, "the replay is still in flight")
   }
 
   private func jsonBody(_ request: HTTPRequest) -> String {
