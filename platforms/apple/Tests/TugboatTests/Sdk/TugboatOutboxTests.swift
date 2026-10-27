@@ -142,9 +142,13 @@ final class TugboatOutboxTests: XCTestCase {
     XCTAssertTrue(eventually { self.recorder.inputs(SessionMessages.sessionStart).count == 2 })
     NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
     // A sentinel posted after `paused` on the same engine queue: once it is
-    // recorded, a flush that `paused` posted would be recorded too.
+    // recorded, a flush that `paused` posted would be recorded too. Its own
+    // value: every session start also sends the stored user id.
     Tugboat.setUserId("after-paused")
-    XCTAssertTrue(eventually { !self.recorder.inputs(SessionMessages.identitySet, engine: self.recorder.opened).isEmpty })
+    XCTAssertTrue(eventually {
+      self.recorder.inputs(SessionMessages.identitySet, engine: self.recorder.opened)
+        .contains { $0["userId"] as? String == "after-paused" }
+    })
     XCTAssertEqual(recorder.messages.filter { $0.type == HostMessages.transportFlush }.count, flushes)
   }
 }
