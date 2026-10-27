@@ -3,6 +3,8 @@ package com.tugboat.android.sdk
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import com.tugboat.android.TugboatLifecycleState
+import com.tugboat.android.wireName
 import org.json.JSONObject
 
 /** Device Farm intent extras; spellings match the Flutter plugin. */
@@ -40,12 +42,18 @@ internal data class LaunchOptions(
     }
 
     companion object {
-        fun healthJson(lifecycle: String, sessionWallUs: Long): String =
-            if (lifecycle == "dormant") {
-                "{\"lifecycle\":${JSONObject.quote(lifecycle)}}"
-            } else {
-                "{\"lifecycle\":${JSONObject.quote(lifecycle)},\"captureSessionId\":\"session-$sessionWallUs\"}"
+        /**
+         * `lifecycle` is the state's Flutter name; `activationRequestId` when
+         * set; `captureSessionId` unless dormant.
+         */
+        fun healthJson(lifecycle: LifecycleSnapshot, sessionWallUs: Long): String {
+            val json = JSONObject().put("lifecycle", lifecycle.state.wireName)
+            lifecycle.activationRequestId?.let { json.put("activationRequestId", it) }
+            if (lifecycle.state != TugboatLifecycleState.DORMANT) {
+                json.put("captureSessionId", "session-$sessionWallUs")
             }
+            return json.toString()
+        }
 
         fun fromActivity(activity: Activity): LaunchOptions? {
             val intent = activity.intent ?: return null

@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.tugboat.android.TugboatConfig
+import com.tugboat.android.TugboatLifecycleState
 import com.tugboat.android.capture.CaptureAnswer
 import com.tugboat.android.capture.CaptureCoordinator
 import com.tugboat.android.capture.ForegroundWindow
@@ -24,6 +25,7 @@ import com.tugboat.android.host.SystemHostClock
 import com.tugboat.android.views.ViewsAdapter
 import com.tugboat.android.views.facts.FactSink
 import com.tugboat.android.views.input.GestureConfig
+import com.tugboat.android.views.navigation.NavigationObservation
 
 /**
  * One running SDK: the engine host, the Views adapter, the capture
@@ -88,6 +90,10 @@ internal class TugboatRuntime private constructor(
             application: Application,
             config: TugboatConfig,
             sessionEpoch: Int,
+            /** From `Tugboat.activate`; passed on `session.start` when non-blank. */
+            activationRequestId: String? = null,
+            /** The facade's lifecycle, for `TUGBOAT_HEALTH`. */
+            lifecycle: () -> LifecycleSnapshot = { LifecycleSnapshot(TugboatLifecycleState.ACTIVE, activationRequestId) },
             openTransport: () -> EngineTransport? = { JniEngineTransport.open() },
             stopSequence: StopSequence = StopSequence(),
         ): TugboatRuntime? {
@@ -102,7 +108,8 @@ internal class TugboatRuntime private constructor(
                 Log.e(TAG, "Tugboat not started: the session engine is unavailable")
                 return null
             }
-            return assemble(application, config, transport, device, metadata, sessionEpoch, stopSequence)
+            val session = SessionInputs(sessionEpoch, activationRequestId, lifecycle)
+            return assemble(application, config, transport, device, metadata, session, stopSequence)
         }
 
         private fun collectorProblems(config: TugboatConfig): List<String> = buildList {
@@ -116,7 +123,7 @@ internal class TugboatRuntime private constructor(
             transport: EngineTransport,
             device: DeviceSnapshot,
             metadata: HostMetadata,
-            sessionEpoch: Int,
+            session: SessionInputs,
             stopSequence: StopSequence,
         ): TugboatRuntime {
             val clock = SystemHostClock
@@ -144,10 +151,12 @@ internal class TugboatRuntime private constructor(
             val startAt = clock.now()
             val launchCorrelation = LaunchCorrelation(
                 sessionWallUs = startAt.wallUs,
-                isHostRunning = { engineHost.value?.isRunning == true },
+                // A host that stopped running records nothing: dormant.
+                lifecycle = { if (engineHost.value?.isRunning == true) session.lifecycle() else LifecycleSnapshot.DORMANT },
             )
             val foreground = ForegroundWindow(
                 application,
+                resumedActivity = NavigationObservation::resumedActivity,
                 onResumed = launchCorrelation::onActivityResumed,
                 onBoundary = surfaces::observe,
             )
@@ -177,8 +186,8 @@ internal class TugboatRuntime private constructor(
                 SessionMessages.sessionStart(
                     device,
                     metadata,
-                    sessionEpoch,
-                    config.activationRequestId,
+                    session.sessionEpoch,
+                    session.activationRequestId,
                     config.explorationRunId,
                 ),
                 startAt,
@@ -203,6 +212,13 @@ internal class TugboatRuntime private constructor(
         }
     }
 }
+
+/** What differs between sessions of one config. */
+private class SessionInputs(
+    val sessionEpoch: Int,
+    val activationRequestId: String?,
+    val lifecycle: () -> LifecycleSnapshot,
+)
 
 internal fun String?.normalizedSessionId(): String? = this?.takeIf { it.isNotBlank() }
 

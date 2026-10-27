@@ -15,11 +15,16 @@ import java.lang.ref.WeakReference
  * watches that window's decor view for size changes and reports each new
  * boundary through [onBoundary] (the `surface` fact).
  *
+ * [start] adopts the activity [resumedActivity] reports (one already resumed
+ * when a session starts) as if it had just resumed.
+ *
  * Dialog and popup windows are separate windows and are not in the copy
  * (known gap, native SDK note section 5). Main thread only.
  */
 internal class ForegroundWindow(
     private val application: Application,
+    /** The activity resumed now, if known (process-scoped observation); read once by [start]. */
+    private val resumedActivity: () -> Activity? = { null },
     private val onResumed: (Activity) -> Unit = {},
     private val onBoundary: (BoundaryRect) -> Unit,
 ) : Application.ActivityLifecycleCallbacks {
@@ -56,6 +61,8 @@ internal class ForegroundWindow(
         if (started) return@run
         started = true
         application.registerActivityLifecycleCallbacks(this)
+        // The same path as a resume, launch correlation included.
+        resumedActivity()?.let(::onActivityResumed)
     }
 
     fun stop() = AdapterGuard.run("foreground window stop") {

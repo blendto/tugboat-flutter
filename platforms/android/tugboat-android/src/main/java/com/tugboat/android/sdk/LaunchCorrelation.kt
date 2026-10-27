@@ -4,6 +4,7 @@ import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.tugboat.android.TugboatLifecycleState
 import com.tugboat.android.views.AdapterGuard
 
 /**
@@ -13,7 +14,8 @@ import com.tugboat.android.views.AdapterGuard
  */
 internal class LaunchCorrelation(
     private val sessionWallUs: Long,
-    private val isHostRunning: () -> Boolean,
+    /** Read when HEALTH fires. */
+    private val lifecycle: () -> LifecycleSnapshot,
     private val handler: Handler = Handler(Looper.getMainLooper()),
     private val emit: (String) -> Unit = { line -> Log.i(TAG, line) },
 ) {
@@ -40,9 +42,8 @@ internal class LaunchCorrelation(
     private fun logHealth() {
         healthTask = null
         if (!LaunchCorrelationLatch.launchLogged) return
-        val lifecycle = if (isHostRunning()) "active" else "dormant"
         val wallUs = LaunchCorrelationLatch.firstSessionWallUs
-        emit("TUGBOAT_HEALTH ${LaunchOptions.healthJson(lifecycle, wallUs)}")
+        emit("TUGBOAT_HEALTH ${LaunchOptions.healthJson(lifecycle(), wallUs)}")
     }
 
     companion object {
@@ -53,6 +54,13 @@ internal class LaunchCorrelation(
             LaunchCorrelationLatch.launchLogged = false
             LaunchCorrelationLatch.firstSessionWallUs = 0L
         }
+    }
+}
+
+/** What `TUGBOAT_HEALTH` reports: `Tugboat.lifecycleState` and `Tugboat.activationRequestId`. */
+internal data class LifecycleSnapshot(val state: TugboatLifecycleState, val activationRequestId: String?) {
+    companion object {
+        val DORMANT = LifecycleSnapshot(TugboatLifecycleState.DORMANT, null)
     }
 }
 

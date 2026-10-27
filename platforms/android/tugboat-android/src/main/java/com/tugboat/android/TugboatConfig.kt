@@ -2,18 +2,23 @@ package com.tugboat.android
 
 /**
  * What [Tugboat.start] needs. Everything not here comes from the session
- * engine's defaults (stateful-engine.md section 6).
+ * engine's defaults (stateful-engine.md section 6). The activation request
+ * id is not here: it comes from [Tugboat.activate], as in Flutter.
  */
 data class TugboatConfig @JvmOverloads constructor(
     val collector: CollectorConfig,
     val app: AppInfo,
     /**
-     * When `false`, [com.tugboat.android.Tugboat.start] installs nothing: no
-     * engine, observers, or threads. Nothing is recorded and the host app is
-     * unchanged; the user id, traits, and event hooks keep their state for a
-     * later enabled start.
+     * Flutter's `TugboatReplayConfig.enabled`. When `true`,
+     * [Tugboat.start] starts a session at once, with no activation request
+     * id. When `false` (the default) the SDK is dormant until
+     * [Tugboat.activate]: no engine, window callbacks, threads, or network,
+     * and nothing recorded; only process-scoped activity lifecycle callbacks
+     * keep navigation state. The user id, traits, and event hooks keep their
+     * state for the next session. After [Tugboat.deactivate], a `true` here
+     * does not start a session again until the next [Tugboat.activate].
      */
-    val enabled: Boolean = true,
+    val enabled: Boolean = false,
     /** Only [MaskLevel.AllTextAndMedia] exists in this release. */
     val maskLevel: MaskLevel = MaskLevel.AllTextAndMedia,
     /** Records `focus_changed` for text-input focus transitions (engine capability `focusChanges`). */
@@ -22,11 +27,6 @@ data class TugboatConfig @JvmOverloads constructor(
     val captureSystemInput: Boolean = false,
     /** Records bounded `capture_diagnostic` events (engine capability `captureDiagnostics`). */
     val captureDiagnostics: Boolean = false,
-    /**
-     * Passed on `session.start` when non-blank; omitted when null or blank
-     * (blank is normalised to omitted, not sent as `""`).
-     */
-    val activationRequestId: String? = null,
     /**
      * Passed on `session.start` when non-blank; omitted when null or blank
      * (blank is normalised to omitted, not sent as `""`).
