@@ -113,6 +113,19 @@ internal class TugboatRuntime private constructor(
             return assemble(application, config, transport, device, metadata, session, stopSequence)
         }
 
+        /**
+         * The required `session_start` fields [config] leaves blank (with the
+         * device's), as paths; empty when a session can start. Logs them.
+         */
+        fun refusal(application: Application, config: TugboatConfig): List<String> {
+            val missing = HostMetadata(config.app, DeviceSnapshot.read(application)).missingFields() +
+                collectorProblems(config)
+            if (missing.isNotEmpty()) {
+                Log.e(TAG, "Tugboat not started: required session_start fields are missing: $missing")
+            }
+            return missing
+        }
+
         private fun collectorProblems(config: TugboatConfig): List<String> = buildList {
             if (config.collector.baseUrl.isBlank()) add("collector.baseUrl")
             if (config.collector.apiKey.isBlank()) add("collector.apiKey")

@@ -57,8 +57,8 @@ object Tugboat {
     private var application: Application? = null
     private var config: TugboatConfig? = null
     private var runtime: TugboatRuntime? = null
-    /** The activation request id the running [runtime] sent on `session.start`. */
-    private var runtimeActivationId: String? = null
+    /** The [requestEpoch] the running [runtime] was started for. */
+    private var runtimeEpoch = 0
     private var sessionEpoch = 0
     private var userId: String? = null
     private var traitsInput: String? = null
@@ -79,6 +79,9 @@ object Tugboat {
     @Volatile
     private var requestedId: String? = null
 
+    /** JVM tests only: runs inside [stop] on the calling thread, after its lock and before its main-thread post. */
+    internal var afterStopLockForTesting: (() -> Unit)? = null
+
     /** JVM tests only: told every lifecycle state written, on the writing thread. */
     internal var lifecycleObserverForTesting: ((TugboatLifecycleState) -> Unit)? = null
 
@@ -93,13 +96,13 @@ object Tugboat {
         }
         runtime?.stop()
         runtime = null
-        runtimeActivationId = null
         application = null
         config = null
         userId = null
         traitsInput = null
         openTransportForTesting = null
         lifecycleObserverForTesting = null
+        afterStopLockForTesting = null
         LaunchCorrelation.resetForTests()
         NavigationObservation.resetForTests()
     }
@@ -146,17 +149,22 @@ object Tugboat {
      * dormant (no engine, window callbacks, threads, or network) until
      * [activate]. An [activate] made before this applies here.
      *
-     * Idempotent: while started (until [stop]), later calls are ignored. A
-     * session refuses to start (and logs which field) when the collector's
-     * required `session_start` fields are missing, for example a blank
-     * [AppInfo.version] or [AppInfo.buildNumber], or the engine cannot open;
-     * the state then returns to dormant and the activation request is kept,
-     * so [activate] with the same id retries.
+     * Idempotent: while started (until [stop]), later calls are ignored.
+     * Refused (logged, and not stored, so a corrected call works) when the
+     * collector's required `session_start` fields are missing, for example a
+     * blank [AppInfo.version] or [AppInfo.buildNumber]. When the engine cannot
+     * open, the session is refused. Either way the state returns to dormant
+     * and an activation request is kept, so [activate] with the same id
+     * retries.
      */
     @JvmStatic
     fun start(application: Application, config: TugboatConfig) = onMain("start") {
         if (this.config != null) {
             Log.i(TAG, "Tugboat is already started")
+            return@onMain
+        }
+        if (TugboatRuntime.refusal(application, config).isNotEmpty()) {
+            markFailed(synchronized(lock) { requestEpoch })
             return@onMain
         }
         this.application = application
@@ -210,6 +218,8 @@ object Tugboat {
             synchronized(lock) {
                 if (state == TugboatLifecycleState.DORMANT && requestedId == null) return@guarded
                 requestEpoch++
+                // Closed, not only unlinked: a call begun before finishes into nothing.
+                evidence?.close()
                 evidence = null
                 requestedId = null
                 captureOverride = false
@@ -256,21 +266,24 @@ object Tugboat {
     @JvmStatic
     fun stop() {
         guarded("stop") {
-            val epoch = synchronized(lock) {
+            synchronized(lock) {
                 requestEpoch++
+                evidence?.close()
                 evidence = null
                 requestedId = null
                 captureOverride = null
                 if (state != TugboatLifecycleState.DORMANT) setState(TugboatLifecycleState.STOPPING)
-                requestEpoch
             }
+            afterStopLockForTesting?.invoke()
             onMain("stop") {
-                endSession()
                 LaunchCorrelation.cancelPendingHealth()
                 NavigationObservation.onResumed = null
                 application = null
                 config = null
-                markDormant(epoch)
+                // Ends any session (one an `activate` racing this stop may have
+                // started from the old config) and settles the state: dormant,
+                // or starting for an `activate` made after this stop.
+                reconcile()
             }
         }
     }
@@ -344,19 +357,21 @@ object Tugboat {
 
     /**
      * Main thread: moves the runtime toward the lifecycle request (Flutter's
-     * activation gate). Ends a session that is no longer wanted or carries
-     * another activation request id, then starts one when wanted and
-     * [start] has stored a config.
+     * activation gate). Ends a session that is no longer wanted, was started
+     * for an older request (any [activate] or [deactivate] since, as
+     * Flutter's gate remounts on a new epoch), or has no config (a [stop]
+     * since), then starts one when wanted and [start] has stored a config.
+     * Wanted without a config (an [activate] before [start]) is starting.
      */
     private fun reconcile() {
         val (epoch, wanted, id) = synchronized(lock) {
             Triple(requestEpoch, captureOverride ?: (config?.enabled == true), requestedId)
         }
-        if (runtime != null && (!wanted || runtimeActivationId != id)) endSession()
+        if (runtime != null && (!wanted || runtimeEpoch != epoch || config == null)) endSession()
         if (!wanted) return markDormant(epoch)
         if (runtime != null) return markActive(epoch)
-        val app = application ?: return
-        val cfg = config ?: return
+        val app = application ?: return markPending(epoch)
+        val cfg = config ?: return markPending(epoch)
         markStarting(epoch)
         startSession(app, cfg, epoch, id)
     }
@@ -366,13 +381,14 @@ object Tugboat {
         val started = TugboatRuntime.start(
             application,
             config,
-            sessionEpoch++,
+            sessionEpoch,
             activationRequestId = id,
             openTransport = transport,
         )
         if (started == null) return markFailed(epoch)
+        sessionEpoch++
         runtime = started
-        runtimeActivationId = id
+        runtimeEpoch = epoch
         // A deactivate or stop since [epoch] fenced evidence: keep it fenced
         // (its own reconcile ends this session next).
         synchronized(lock) { if (requestEpoch == epoch) evidence = started.evidence }
@@ -391,7 +407,6 @@ object Tugboat {
         val ending = runtime ?: return
         synchronized(lock) { evidence = null }
         runtime = null
-        runtimeActivationId = null
         ending.stop()
     }
 
@@ -429,6 +444,13 @@ object Tugboat {
         synchronized(lock) {
             val starting = state == TugboatLifecycleState.STARTING || state == TugboatLifecycleState.ACTIVE
             if (epoch == requestEpoch && starting) setState(TugboatLifecycleState.ACTIVE)
+        }
+    }
+
+    /** Wanted, but [start] has not stored a config: starting until it does. */
+    private fun markPending(epoch: Int) {
+        synchronized(lock) {
+            if (epoch == requestEpoch && state != TugboatLifecycleState.STARTING) setState(TugboatLifecycleState.STARTING)
         }
     }
 

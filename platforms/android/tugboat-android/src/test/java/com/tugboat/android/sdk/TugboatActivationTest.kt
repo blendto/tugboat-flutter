@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Looper
 import android.view.MotionEvent
+import android.widget.EditText
 import com.tugboat.android.AppInfo
 import com.tugboat.android.CollectorConfig
 import com.tugboat.android.Tugboat
@@ -352,6 +353,180 @@ class TugboatActivationTest {
         idle()
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LaunchCorrelation.HEALTH_DELAY_MS))
         assertTrue(logLines("TUGBOAT_HEALTH").isEmpty())
+    }
+
+    @Test
+    fun deactivateThenActivateTheSameIdOffMainStartsAFreshSessionThatTakesEvidence() {
+        Tugboat.start(application, config)
+        Tugboat.activate("a")
+        idle()
+        awaitSessionStart(0)
+
+        Thread {
+            Tugboat.deactivate()
+            Tugboat.activate("a")
+        }.apply { start() }.join()
+        idle()
+
+        awaitUntil { "session.end" in types(transports[0]) }
+        assertEquals("a", awaitSessionStart(1).getJSONObject("input").getString("activationRequestId"))
+        assertEquals(ACTIVE, Tugboat.lifecycleState)
+        assertTrue(Tugboat.isAcceptingEvidence)
+    }
+
+    @Test
+    fun aCallBegunBeforeDeactivateFinishesIntoNothing() {
+        Tugboat.start(application, config)
+        Tugboat.activate("a")
+        idle()
+        awaitSessionStart(0)
+        val call = Tugboat.beginNetworkCall("GET", "/inflight-deactivate")
+
+        Thread {
+            Tugboat.deactivate()
+            call.complete(statusCode = 200)
+        }.apply { start() }.join()
+        idle()
+
+        awaitUntil { "session.end" in types(transports[0]) }
+        assertTrue(transports[0].submitted.none { it.contains("/inflight-deactivate") })
+    }
+
+    @Test
+    fun aCallBegunBeforeAnOffMainStopFinishesIntoNothing() {
+        Tugboat.start(application, config)
+        Tugboat.activate("a")
+        idle()
+        awaitSessionStart(0)
+        val call = Tugboat.beginNetworkCall("GET", "/inflight-stop")
+
+        Thread {
+            Tugboat.stop()
+            call.complete(statusCode = 200)
+        }.apply { start() }.join()
+        idle()
+
+        awaitUntil { "session.end" in types(transports[0]) }
+        assertTrue(transports[0].submitted.none { it.contains("/inflight-stop") })
+    }
+
+    @Test
+    fun aDeactivateDuringAnInFlightStartLeavesEvidenceFencedAndEndsTheSession() {
+        Tugboat.openTransportForTesting = {
+            // Lands while `TugboatRuntime.start` runs on main.
+            Thread { Tugboat.deactivate() }.apply { start() }.join()
+            FakeEngineTransport().also(transports::add)
+        }
+        Tugboat.start(application, config)
+        Tugboat.activate("a")
+        // The start has returned; the deactivate's reconcile is still queued.
+        assertFalse(Tugboat.isAcceptingEvidence)
+        Tugboat.beginNetworkCall("GET", "/during-start").complete(statusCode = 200)
+        idle()
+
+        awaitUntil { "session.end" in types(transports[0]) }
+        assertEquals(DORMANT, Tugboat.lifecycleState)
+        assertFalse(Tugboat.isAcceptingEvidence)
+        assertTrue(transports[0].submitted.none { it.contains("/during-start") })
+    }
+
+    @Test
+    fun anActivityAlreadyResumedAtActivateBecomesTheActiveFocusWindow() {
+        Tugboat.start(application, config.copy(captureFocusChanges = true))
+        idle()
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val field = EditText(activity)
+        activity.setContentView(field)
+        field.requestFocus()
+        idle()
+        assertTrue(field.isFocused)
+
+        Tugboat.activate("a")
+        idle()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
+
+        awaitUntil {
+            messages(transports[0]).any {
+                it.getString("type") == "focus" && it.getJSONObject("input").getString("kind") == "text_input"
+            }
+        }
+    }
+
+    @Test
+    fun aRefusedConfigIsNotStoredSoACorrectedStartWorks() {
+        Tugboat.activate("a")
+        Tugboat.start(application, config.copy(app = config.app.copy(version = "")))
+        idle()
+        assertEquals(DORMANT, Tugboat.lifecycleState)
+        assertEquals("a", Tugboat.activationRequestId)
+        assertTrue(transports.isEmpty())
+
+        Tugboat.start(application, config)
+        idle()
+        assertEquals("a", awaitSessionStart(0).getJSONObject("input").getString("activationRequestId"))
+        assertEquals(ACTIVE, Tugboat.lifecycleState)
+    }
+
+    @Test
+    fun aRefusedSessionDoesNotConsumeASessionEpoch() {
+        var opens = 0
+        Tugboat.openTransportForTesting = {
+            opens++
+            if (opens == 2) null else FakeEngineTransport().also(transports::add)
+        }
+        Tugboat.start(application, config)
+        Tugboat.activate("first")
+        idle()
+        val first = awaitSessionStart(0).getJSONObject("input").getInt("sessionEpoch")
+        Tugboat.activate("refused")
+        idle()
+        assertEquals(DORMANT, Tugboat.lifecycleState)
+        Tugboat.activate("second")
+        idle()
+        assertEquals(first + 1, awaitSessionStart(1).getJSONObject("input").getInt("sessionEpoch"))
+    }
+
+    @Test
+    fun anActivateOvertakingAnOffMainStopEndsTheStaleSessionAndWaitsForStart() {
+        Tugboat.start(application, config)
+        idle()
+        // stop() takes the lock first, but the activate's reconcile reaches main first.
+        Tugboat.afterStopLockForTesting = { Thread { Tugboat.activate("x") }.apply { start() }.join() }
+        Thread { Tugboat.stop() }.apply { start() }.join()
+        Tugboat.afterStopLockForTesting = null
+        idle()
+
+        awaitUntil { transports.isNotEmpty() && "session.end" in types(transports[0]) }
+        assertEquals(STARTING, Tugboat.lifecycleState)
+        assertEquals("x", Tugboat.activationRequestId)
+        assertFalse(Tugboat.isAcceptingEvidence)
+        // The activate came after the stop: the next start applies it.
+        Tugboat.start(application, config)
+        idle()
+        assertEquals("x", awaitSessionStart(1).getJSONObject("input").getString("activationRequestId"))
+    }
+
+    @Test
+    fun anOffMainStopThenActivateStartsNothingUntilTheNextStart() {
+        Tugboat.start(application, config)
+        idle()
+        Thread { Tugboat.stop() }.apply { start() }.join()
+        Thread { Tugboat.activate("x") }.apply { start() }.join()
+        idle()
+        assertTrue(transports.isEmpty())
+        assertEquals(STARTING, Tugboat.lifecycleState)
+    }
+
+    @Test
+    fun anOffMainActivateThenStopEndsDormant() {
+        Tugboat.start(application, config)
+        idle()
+        Thread { Tugboat.activate("x") }.apply { start() }.join()
+        Thread { Tugboat.stop() }.apply { start() }.join()
+        idle()
+        assertTrue(transports.isEmpty())
+        assertEquals(DORMANT, Tugboat.lifecycleState)
+        assertNull(Tugboat.activationRequestId)
     }
 
     private fun startWithLaunchExtrasActivity() {
