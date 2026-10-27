@@ -9,6 +9,10 @@ plugins {
 // local collector on the emulator's host loopback.
 val collectorUrl = providers.gradleProperty("tugboat.collectorUrl").orElse("http://10.0.2.2:3000").get()
 val collectorKey = providers.gradleProperty("tugboat.collectorKey").orElse("pmk_blend-app-dev-secret").get()
+// `TugboatConfig.enabled`. The SDK defaults to dormant; the sample starts a
+// session at launch so the device-test script records from the first screen.
+// `-Ptugboat.enabled=false` builds a dormant sample for activation scripts.
+val tugboatEnabled = providers.gradleProperty("tugboat.enabled").orElse("true").get().toBoolean()
 
 android {
     namespace = "com.tugboat.sample"
@@ -22,6 +26,7 @@ android {
         versionName = "0.1.0"
         buildConfigField("String", "COLLECTOR_URL", "\"$collectorUrl\"")
         buildConfigField("String", "COLLECTOR_KEY", "\"$collectorKey\"")
+        buildConfigField("boolean", "TUGBOAT_ENABLED", "$tugboatEnabled")
     }
 
     buildFeatures {

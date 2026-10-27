@@ -29,8 +29,9 @@ display cutout, as targetSdk 35 requires on API 35+):
   fragment (`compose_home`) is a `ComposeView` with a tagged button
   (`compose_fragment_action`).
 
-`SampleApplication` starts Tugboat with focus, system-input capture, and
-scene inventory on, installs the Compose adapter
+`SampleApplication` starts Tugboat with `enabled = true` (the SDK default is
+dormant until `Tugboat.activate`; `-Ptugboat.enabled=false` builds a
+dormant sample), focus, system-input capture, and scene inventory on, installs the Compose adapter
 (`TugboatCompose.install(composeMasking = ComposeMasking.WholeHost)`), and
 sets traits `{sample: true}`. Masking is
 process-wide, so `ComposeSemanticsActivity` installs `SemanticsBestEffort`
@@ -104,6 +105,23 @@ Fresh install, collector running, logcat open:
     fragment", tap "Compose fragment action", then press the system back
     key. Wait 2 s.
 13. **Stop**: tap "Stop Tugboat". Wait 10 s before checking the collector.
+
+## Activation script (debug builds)
+
+`TugboatDebugReceiver` (debug manifest only) drives the activation lifecycle:
+
+```sh
+./gradlew :tugboat-sample:installDebug -Ptugboat.enabled=false
+adb shell am start -n com.tugboat.sample/.MainActivity      # dormant: no rows
+adb shell am broadcast -n com.tugboat.sample/.TugboatDebugReceiver \
+  -a com.tugboat.sample.ACTIVATE --es id run-1               # session_start {activationRequestId: run-1}
+adb shell am broadcast -n com.tugboat.sample/.TugboatDebugReceiver \
+  -a com.tugboat.sample.DEACTIVATE                           # session_end
+```
+
+An `ACTIVATE` while `MainActivity` is resumed records its taps at once (no
+new resume needed); an `ACTIVATE` with another id ends the session and
+starts one with the new id.
 
 ## Expected collector rows
 

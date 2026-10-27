@@ -15,11 +15,27 @@ wiring, window capture, and the Android Views adapter.
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
   `CollectorConfig`, `AppInfo`, `MaskLevel`, `emitSceneInventory` (default
   false). Idempotent start; nothing throws into the app.
-  `TugboatConfig.enabled` (default `true`): when `false`, `start` installs
-  nothing and nothing is recorded; the user id, traits, and event hooks are
-  kept for a later enabled `start`.
+- Activation lifecycle matches Flutter (contract change):
+  `TugboatConfig.enabled` defaults to `false` and means dormant until
+  `Tugboat.activate(activationRequestId)` (no engine, window callbacks,
+  threads, or network; only process-scoped activity lifecycle callbacks);
+  `true` starts a session at `start` with no activation request id.
+  `activate` with a new id ends the session and starts one carrying the id
+  (new session id and `sessionEpoch`); the same id is a no-op; an `activate`
+  before `start` applies at `start`. `Tugboat.deactivate()` fences evidence
+  on the calling thread, ends the session, and keeps an `enabled = true`
+  config dormant until the next `activate`. `stop()` (not Flutter's
+  `disabled`) also clears any activation request. Read-only
+  `Tugboat.lifecycleState` (`TugboatLifecycleState`), `isActivated`, and
+  `activationRequestId`. A session that starts while an activity is resumed
+  attaches to it at once (taps, captures, launch lines, navigation seed);
+  `trackNavigation` after a dormant `start` keeps the controller's stack.
+  `TUGBOAT_HEALTH` reports the state's Flutter name and
+  `activationRequestId`. The user id, traits, and event hooks feed every
+  session.
 - Config: `captureDiagnostics` (engine capability), optional
-  `activationRequestId` / `explorationRunId` on `session.start` when set.
+  `explorationRunId` on `session.start` when set. `activationRequestId` is
+  no longer a config field: it comes from `activate`.
 - Locale: `locale.set` on primary locale change (`onConfigurationChanged`),
   deduped, unregistered on `stop`.
 - Native scene inventory: when `emitSceneInventory` is true, the Views
