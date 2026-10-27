@@ -76,6 +76,16 @@ final class HTTPExecutorTests: XCTestCase {
     }
   }
 
+  /// The durable outbox's key goes on `Tugboat-Delivery-Key`; a request
+  /// without one sends no such header.
+  func testTheDeliveryKeyIsSentAsTheTugboatDeliveryKeyHeader() {
+    var keyed = json("{}")
+    keyed.deliveryKey = "s1/f/4,s1/f/5"
+    XCTAssertEqual(perform(keyed), .http(status: 202, body: "{\"sessionId\":\"s-1\"}"))
+    XCTAssertEqual(perform(json("{}")), .http(status: 202, body: "{\"sessionId\":\"s-1\"}"))
+    XCTAssertEqual(StubURLProtocol.received.map { $0.header("Tugboat-Delivery-Key") }, ["s1/f/4,s1/f/5", nil])
+  }
+
   func testRetryAfterHeaderIsForwardedOnTransportResult() {
     StubURLProtocol.reset { _ in
       .response(status: 429, headers: ["Retry-After": " 12 "], body: Data("{}".utf8))

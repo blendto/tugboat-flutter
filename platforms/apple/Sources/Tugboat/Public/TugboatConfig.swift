@@ -74,6 +74,28 @@ public struct TugboatConfig {
   /// blank), as Flutter's `TugboatReplayConfig.explorationRunId`. The
   /// activation id is not configuration: it comes from `Tugboat.activate`.
   public var explorationRunId: String?
+  /// Keeps collector requests the collector has not yet accepted on disk
+  /// (`Application Support/Tugboat/outbox/v1/`, excluded from backup, file
+  /// protection `completeUntilFirstUserAuthentication`) and sends them again
+  /// after the process restarts, while a later session runs. Off by default.
+  /// Entries hold only what is already on the wire: masked JPEGs and the
+  /// same JSON bodies, never the API key. A `start` with this false deletes
+  /// any pending entries; `Tugboat.clearPendingData()` deletes them at any
+  /// time. `enabled` false (dormant) keeps them, and nothing is sent while
+  /// dormant.
+  public var durableOutbox: Bool
+  /// Upper bound on the outbox's size on disk, in bytes (default 20 MiB).
+  /// Over it, entries from earlier sessions go first, oldest first, frames
+  /// before events; lifecycle posts are removed only by age.
+  public var outboxMaxBytes: Int
+  /// Upper bound on the number of outbox entries (each frame counts one);
+  /// default 1000. Evicts as `outboxMaxBytes` does.
+  public var outboxMaxEntries: Int
+  /// Entries older than this are deleted unsent (default 72 hours).
+  public var outboxMaxAgeMs: Int
+  /// Sends of one entry, counted across launches, after which it is deleted
+  /// unsent (default 8).
+  public var outboxMaxAttempts: Int
 
   public init(
     collector: Collector,
@@ -84,7 +106,12 @@ public struct TugboatConfig {
     captureDiagnostics: Bool = false,
     trackHostingControllers: Bool = true,
     swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off,
-    explorationRunId: String? = nil
+    explorationRunId: String? = nil,
+    durableOutbox: Bool = false,
+    outboxMaxBytes: Int = 20 * 1024 * 1024,
+    outboxMaxEntries: Int = 1000,
+    outboxMaxAgeMs: Int = 72 * 60 * 60 * 1000,
+    outboxMaxAttempts: Int = 8
   ) {
     self.collector = collector
     self.app = app
@@ -95,6 +122,11 @@ public struct TugboatConfig {
     self.trackHostingControllers = trackHostingControllers
     self.swiftUIAccessibilityIdentity = swiftUIAccessibilityIdentity
     self.explorationRunId = explorationRunId
+    self.durableOutbox = durableOutbox
+    self.outboxMaxBytes = outboxMaxBytes
+    self.outboxMaxEntries = outboxMaxEntries
+    self.outboxMaxAgeMs = outboxMaxAgeMs
+    self.outboxMaxAttempts = outboxMaxAttempts
   }
 
   /// The collector the SDK delivers to.

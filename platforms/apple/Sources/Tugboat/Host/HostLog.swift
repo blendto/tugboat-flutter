@@ -6,9 +6,15 @@ import os.log
 enum HostLog {
   private static let log = OSLog(subsystem: "com.gettugboat.sdk", category: "engine")
   private static let launchLog = OSLog(subsystem: "com.gettugboat.sdk", category: "launch")
+  private static let outboxLog = OSLog(subsystem: "com.gettugboat.sdk", category: "outbox")
 
   static func launch(_ message: String) {
     os_log("%{public}@", log: launchLog, type: .default, message as NSString)
+  }
+
+  /// The durable outbox: one line per drain pass, and write failures.
+  static func outbox(_ message: String) {
+    os_log("%{public}@", log: outboxLog, type: .default, message as NSString)
   }
 
   static func warning(_ message: String) {

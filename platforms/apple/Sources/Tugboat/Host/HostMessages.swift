@@ -7,6 +7,8 @@ enum HostMessages {
   static let engineDispose = "engine.dispose"
   /// The answer to a `capture.request` effect.
   static let captureResult = "capture.result"
+  /// Asks the engine to deliver what it holds now; its input is empty.
+  static let transportFlush = "transport.flush"
 
   static func timerFiredInput(timerId: String) -> String {
     "{\"timerId\":" + JSONText.quoted(timerId) + "}"
