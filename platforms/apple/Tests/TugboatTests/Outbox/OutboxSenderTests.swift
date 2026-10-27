@@ -134,10 +134,10 @@ final class OutboxSenderTests: XCTestCase {
     outbox.queue.async { gate.wait() }
     send(OutboxRequests.lifecycle())
     let closed = expectation(description: "closed")
-    var onDiskAtClose: [String] = []
+    let onDiskAtClose = Locked([String]())
     DispatchQueue.global().async {
       self.sender.close()
-      onDiskAtClose = self.harness.directories
+      onDiskAtClose.withLock { $0 = self.harness.directories }
       closed.fulfill()
     }
     Thread.sleep(forTimeInterval: 0.1)
@@ -145,7 +145,7 @@ final class OutboxSenderTests: XCTestCase {
     gate.signal()
     wait(for: [closed], timeout: 5)
     XCTAssertTrue(delegate.closed)
-    XCTAssertEqual(onDiskAtClose.count, 1)
+    XCTAssertEqual(onDiskAtClose.current.count, 1)
   }
 
   /// Edge case 14: neither a slow disk nor a drainer request in flight

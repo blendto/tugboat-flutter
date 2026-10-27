@@ -6,7 +6,8 @@ import Tugboat
 /// the `UserDefaults` argument domain), defaulting to the local collector on
 /// the simulator's loopback with the dev key. `-TugboatEnabled NO` starts
 /// dormant (default `YES`); `-TugboatCaptureDiagnostics YES` turns on
-/// `captureDiagnostics`. App fields come from the bundle; the installation
+/// `captureDiagnostics`; `-TugboatDurableOutbox YES` turns on
+/// `durableOutbox` (a launch without it wipes pending entries). App fields come from the bundle; the installation
 /// id is kept in user defaults.
 enum SampleConfiguration {
   static let defaultCollectorURL = "http://127.0.0.1:3000"
@@ -33,7 +34,8 @@ enum SampleConfiguration {
       captureFocusChanges: true,
       captureDiagnostics: defaults.bool(forKey: "TugboatCaptureDiagnostics"),
       // The sample relies on `.tugboatScreen` alone (native SDK note 5).
-      trackHostingControllers: false
+      trackHostingControllers: false,
+      durableOutbox: defaults.bool(forKey: "TugboatDurableOutbox")
     )
   }
 
@@ -42,8 +44,9 @@ enum SampleConfiguration {
     defaults.string(forKey: "TugboatActivationRequestId")
   }
 
-  /// `tugboat-sample://activate?id=<id>` and `tugboat-sample://deactivate`
-  /// (`xcrun simctl openurl booted …`) drive activation for device scripts.
+  /// `tugboat-sample://activate?id=<id>`, `tugboat-sample://deactivate` and
+  /// `tugboat-sample://clear-pending` (`xcrun simctl openurl booted …`) drive
+  /// activation and `clearPendingData` for device scripts.
   static func handle(_ url: URL) {
     guard url.scheme == "tugboat-sample" else { return }
     switch url.host {
@@ -53,6 +56,8 @@ enum SampleConfiguration {
       Tugboat.activate(activationRequestId: id)
     case "deactivate":
       Tugboat.deactivate()
+    case "clear-pending":
+      Tugboat.clearPendingData()
     default:
       break
     }
