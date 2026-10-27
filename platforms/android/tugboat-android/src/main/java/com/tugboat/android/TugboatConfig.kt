@@ -65,8 +65,10 @@ data class AppInfo(
 enum class MaskLevel {
     /**
      * Text (every `TextView`, `EditText`, button), media (`ImageView`,
-     * `VideoView`), and fail-closed bounds for content the SDK cannot see
-     * into (`WebView`, `SurfaceView`, `TextureView`, Compose hosts).
+     * `VideoView`), fail-closed bounds for content the SDK cannot see
+     * into (`WebView`, `SurfaceView`, `TextureView`, Compose hosts), and
+     * every view marked with `View.tugboatSensitive()` (with its subtree)
+     * or Compose `Modifier.tugboatSensitive()`.
      */
     AllTextAndMedia,
 }

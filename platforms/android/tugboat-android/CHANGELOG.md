@@ -12,9 +12,10 @@ wiring, window capture, and the Android Views adapter.
   by focus loss while resumed and, on API 29+, owned `WindowInspector` roots.
 - Public API (`com.tugboat.android`): `Tugboat.start(application,
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
-  (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
-  `CollectorConfig`, `AppInfo`, `MaskLevel`, `emitSceneInventory` (default
-  false). Idempotent start; nothing throws into the app.
+  (Jetpack Navigation, `compileOnly`), `View.tugboatTag`,
+  `View.tugboatSensitive()`; `TugboatConfig`, `CollectorConfig`, `AppInfo`,
+  `MaskLevel`, `emitSceneInventory` (default false). Idempotent start;
+  nothing throws into the app.
 - Activation lifecycle matches Flutter (contract change):
   `TugboatConfig.enabled` defaults to `false` and means dormant until
   `Tugboat.activate(activationRequestId)` (no engine, window callbacks,
@@ -37,6 +38,10 @@ wiring, window capture, and the Android Views adapter.
   cancels it. A session
   that fails to start is dormant and keeps the activation request (the same
   id retries). The user id, traits, and event hooks feed every session.
+- `View.tugboatSensitive()` (Java `TugboatViews.tugboatSensitive(view)`):
+  the view and every view below it are always masked, each view drawn
+  outside the marked bounds at its own bounds; one rect per view. Mask-only:
+  taps, paths, and fingerprints are unchanged. No un-mark (fails safe).
 - Config: `captureDiagnostics` (engine capability), optional
   `explorationRunId` on `session.start` when set. `activationRequestId` is
   no longer a config field: it comes from `activate`.

@@ -1,6 +1,7 @@
 package com.tugboat.android.compose.semantics
 
 import android.graphics.RectF
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.semantics.SemanticsNode
 
@@ -25,10 +26,13 @@ internal object NodeBounds {
     fun maskBounds(node: SemanticsNode): RectF {
         val bounds = bounds(node)
         val coordinates = node.layoutInfo.coordinates
-        if (coordinates.isAttached) {
-            val box = coordinates.findRootCoordinates().localBoundingBoxOf(coordinates, clipBounds = false)
-            bounds.union(box.left, box.top, box.right, box.bottom)
-        }
+        if (coordinates.isAttached) bounds.union(unclipped(coordinates))
         return bounds
+    }
+
+    /** The unclipped root bounding box of attached [coordinates], through every `graphicsLayer` transform. */
+    fun unclipped(coordinates: LayoutCoordinates): RectF {
+        val box = coordinates.findRootCoordinates().localBoundingBoxOf(coordinates, clipBounds = false)
+        return RectF(box.left, box.top, box.right, box.bottom)
     }
 }
