@@ -68,7 +68,7 @@ extension TugboatRuntime {
         // With the outbox on, deliver (and so write) what the engine holds
         // now, before the process can be suspended (W11 design section 3).
         if flushOnPause && state == AppLifecycleBridge.paused {
-          ref.host?.post(type: HostMessages.transportFlush, inputJSON: "{}", at: clock.now())
+          _ = 0  // RED-CHECK: no flush on paused
         }
         // The engine ends the session on `detached`.
         if state == AppLifecycleBridge.detached { session.isLive = false }

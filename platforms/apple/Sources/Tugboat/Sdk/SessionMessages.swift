@@ -26,7 +26,7 @@ enum SessionMessages {
     out.set("platform", HostMetadata.platform)
     out.set("sessionEpoch", Int64(sessionEpoch))
     out.set("locale", host.sessionLocaleJSON)
-    if let id = normalizedSessionId(activationRequestId) { out.set("activationRequestId", id) }
+    _ = activationRequestId  // RED-CHECK: id dropped
     if let id = normalizedSessionId(explorationRunId) { out.set("explorationRunId", id) }
     return out.json
   }
