@@ -472,8 +472,8 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
 | tap evidence | hit-test at the down point on an `up` within `touchSlop` | `identity/AnchorResolver` |
 | `scroll` | `OnScrollChangedListener` + offset diff; `RecyclerView.OnScrollListener` | `scroll/` |
 | `navigation` | activity lifecycle; androidx fragment lifecycle (recursive) | `navigation/` |
-| `focus` | `OnGlobalFocusChangeListener` | `input/FocusFactProducer` |
-| `systemInput` | allowlisted key-downs in `dispatchKeyEvent` | `input/SystemInputProducer` |
+| `focus` | `OnGlobalFocusChangeListener` (activity and dialog windows) | `input/FocusFactProducer`, `dialog/` |
+| `systemInput` | allowlisted key-downs in `dispatchKeyEvent` (activity and dialog windows) | `input/SystemInputProducer`, `dialog/` |
 
 - **Units.** Coordinates and scroll offsets are logical pixels (dp). The
   host must send `GestureConfig.toEngineJson()` (from `ViewConfiguration`) as
@@ -586,7 +586,13 @@ that window first gains focus, or over another dialog, is recorded from the
 next session start. Popups and menus (sub-windows) are not tapped, and
 dialog windows report no scroll facts. A dialog fragment stopped and
 restarted while another SDK's callback wrapper sits above Tugboat's is
-silent after the restart (Tugboat's inert wrapper stays in the chain).
+silent after the restart (Tugboat's inert wrapper stays in the chain): no
+pointer or key facts, and no focus facts either, because the dialog's window
+focus is read through that callback. On API 29+, when one dialog is
+dismissed and another shown in the same turn (a confirm chain), window focus
+can move from the first to the second without the activity window regaining
+and losing it, so the second is found only at the next activity focus
+change or session start.
 Non-focusable popups (text-selection handles, tooltips) are neither captured
 nor flagged. Below API 29 only the
 focus signal exists: a dialog shown before the activity window first gains
