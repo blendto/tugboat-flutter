@@ -170,6 +170,21 @@ final class OutboxSenderTests: XCTestCase {
     XCTAssertEqual(drainer.requests.count, 1, "the replay is still in flight")
   }
 
+  /// m3: after `stop` then `clearPendingData`, the stopped session's engine
+  /// (still delivering) sends but writes nothing; a new sender writes again.
+  func testASenderFromBeforeAWipeWritesNothingMore() {
+    send(OutboxRequests.events(["a"]))
+    outbox.wipe()
+    send(OutboxRequests.lifecycle("session_end"))
+    XCTAssertEqual(delegate.requests.count, 2)
+    XCTAssertNil(delegate.requests[1].deliveryKey)
+    XCTAssertEqual(outbox.snapshot().entries.count, 0)
+    XCTAssertEqual(harness.directories, [])
+    OutboxSender(delegate: delegate, outbox: outbox, context: OutboxRequests.context, frameBytes: OutboxRequests.jpeg)
+      .send(OutboxRequests.lifecycle(session: "s2")) { _ in }
+    XCTAssertEqual(outbox.snapshot().entries.count, 1)
+  }
+
   private func jsonBody(_ request: HTTPRequest) -> String {
     if case let .json(text) = request.body { return text }
     return ""

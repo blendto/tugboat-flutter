@@ -128,6 +128,9 @@ public enum Tugboat {
       }
       if OutboxPolicy.wipeAtStart(config) {
         outbox?.wipe()
+      } else {
+        // Dormant or not: the age and size bounds hold on disk (no network).
+        outbox?.sweepAtStart(bounds: OutboxPolicy.bounds(config))
       }
       _ = driver.configure(config)
       launchCorrelation.startIfNeeded(parsed: launchOptions())
@@ -215,10 +218,12 @@ public enum Tugboat {
   /// Deletes every collector request kept on disk by
   /// `TugboatConfig.durableOutbox` and not yet delivered (masked frames and
   /// event, lifecycle bodies), from this and earlier launches. Requests
-  /// already sent are not recalled; ones the running session sends later
-  /// are kept again. Any thread; the deletion runs in the background, after
-  /// writes already queued. A `start` whose configuration has
-  /// `durableOutbox` false does the same.
+  /// already sent are not recalled. Sessions started before the call keep
+  /// nothing more on disk (an engine still delivering after `stop` cannot
+  /// write evidence back); the next session keeps its own again. Any
+  /// thread; the deletion runs in the background, after writes already
+  /// queued. A `start` whose configuration has `durableOutbox` false does
+  /// the same. The per-install salt is not evidence and stays.
   public static func clearPendingData() {
     outbox?.wipe()
   }

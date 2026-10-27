@@ -182,11 +182,15 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   bodies, written alongside the send, deleted on a 202 or a non-retried
   status (a late answer for an earlier attempt never deletes), and
   replayed one at a time, oldest first, with backoff and `Retry-After`,
-  only while a later session runs. Keyed requests carry
+  only while a later session runs; `outboxMaxAttempts` counts replays, not
+  engine retries. Every `start` with the outbox on (dormant included) runs
+  a disk-only sweep for the age and size bounds. Unreadable files are
+  skipped, never deleted. Keyed requests carry
   `Tugboat-Delivery-Key`. Entries hold no API key (a salted HMAC of base
   URL, app id and key; a mismatch deletes unsent). New
   `Tugboat.clearPendingData()`; a `start` with `durableOutbox` false also
-  wipes, a dormant start keeps. With the outbox on, `paused` also posts
+  wipes, a dormant start keeps; sessions started before a wipe write
+  nothing more. With the outbox on, `paused` also posts
   `transport.flush`. Contract change: delivery (sink behaviour).
 - `HTTPExecutor` forwards a trimmed `Retry-After` on `transport.result` (at most
   128 bytes); a longer value is dropped so the engine never rejects an

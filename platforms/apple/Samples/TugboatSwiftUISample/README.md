@@ -50,6 +50,8 @@ so the scripts below see a session from launch):
 | `-TugboatCaptureDiagnostics YES` | `TugboatConfig.captureDiagnostics` (`capture_diagnostic` rows) |
 | `xcrun simctl openurl booted 'tugboat-sample://activate?id=<id>'` | `Tugboat.activate(activationRequestId: <id>)` while running |
 | `xcrun simctl openurl booted tugboat-sample://deactivate` | `Tugboat.deactivate()` |
+| `-TugboatDurableOutbox YES` | `TugboatConfig.durableOutbox`: unaccepted requests are kept on disk and replayed after a relaunch (a launch without it wipes them) |
+| `xcrun simctl openurl booted tugboat-sample://clear-pending` | `Tugboat.clearPendingData()` |
 
 `NSAppTransportSecurity` sets only `NSAllowsLocalNetworking`, so cleartext
 HTTP is allowed to loopback and `.local` hosts and nothing else.

@@ -68,8 +68,8 @@ final class TugboatOutboxTests: XCTestCase {
     return true
   }
 
-  private var attempts: [Int] {
-    outbox.snapshot().entries.filter { $0.entry.processEpoch == "dead" }.map { $0.entry.attempts }
+  private var replays: [Int] {
+    outbox.snapshot().entries.filter { $0.entry.processEpoch == "dead" }.map { $0.entry.replays }
   }
 
   func testAStartWithTheOutboxOffWipesPendingEntries() {
@@ -86,18 +86,38 @@ final class TugboatOutboxTests: XCTestCase {
     Tugboat.start(config(enabled: false, durableOutbox: true))
     drainMain()
     RunLoop.main.run(until: Date().addingTimeInterval(0.5))
-    XCTAssertEqual(attempts, [1])
+    XCTAssertEqual(replays, [0])
     XCTAssertEqual(outbox.snapshot().replayPasses, 0)
   }
 
+  /// The age bound holds while dormant: a dormant start deletes an entry
+  /// past `outboxMaxAgeMs`, and sends nothing.
+  func testADormantStartDeletesEntriesPastTheMaxAge() {
+    pendingEntry()
+    harness.advance(ms: 2_000)
+    var dormant = config(enabled: false, durableOutbox: true)
+    dormant.outboxMaxAgeMs = 1_000
+    Tugboat.start(dormant)
+    drainMain()
+    XCTAssertEqual(outbox.snapshot().entries.count, 0)
+    XCTAssertEqual(harness.directories, [])
+    XCTAssertEqual(outbox.snapshot().replayPasses, 0)
+  }
+
+  /// Replay runs while the session runs and stops at `deactivate`: the
+  /// backoff that fires afterwards sends nothing.
   func testASessionReplaysPendingEntriesAndDeactivateStopsIt() {
     pendingEntry()
     Tugboat.start(config(enabled: false, durableOutbox: true))
     Tugboat.activate(activationRequestId: "act-1")
-    XCTAssertTrue(eventually { self.attempts == [2] }, "replayed once, refused, kept for later")
+    XCTAssertTrue(
+      eventually { self.harness.scheduled.current.count == 1 }, "replayed once, refused, backing off")
+    XCTAssertEqual(replays, [1])
     Tugboat.deactivate()
     drainMain()
-    XCTAssertEqual(attempts, [2])
+    harness.scheduled.current.forEach { $0.work() }
+    RunLoop.main.run(until: Date().addingTimeInterval(1))
+    XCTAssertEqual(replays, [1], "no replay after deactivate")
   }
 
   func testClearPendingDataDeletesPendingEntries() {

@@ -225,17 +225,29 @@ everything the engine held in memory.
   only while a session runs (never while dormant, never after `deactivate`
   or `stop`). It sends entries from earlier launches and earlier sessions;
   the running session's own entries are the engine's. A retried replay
-  waits 2 s, doubling per attempt to 5 min, and at least the collector's
-  `Retry-After`.
+  waits 2 s, doubling per replay to 5 min, and at least the collector's
+  `Retry-After`. Entries that cannot be read yet (protected files before the
+  first unlock after a reboot) are skipped, not deleted; a salt that exists
+  but cannot be read turns the outbox off for that process (no writes, no
+  replay) and is never replaced.
 - Bounds: `outboxMaxBytes` (20 MiB) and `outboxMaxEntries` (1000) evict
   entries from earlier sessions first, oldest first, frames before events;
   lifecycle posts go only by `outboxMaxAgeMs` (72 h). `outboxMaxAttempts`
-  (8, across launches) deletes an entry unsent. Unreadable entries are
-  deleted. One `outbox` log line per drain pass: `replayed`, `expired`,
-  `evicted`, `corrupt`, `identityMismatch`, `bytesOnDisk`.
+  (8, across launches) counts the drainer's replays only (engine retries
+  while offline never use it up) and then deletes the entry unsent. Entries
+  that do not decode, have an unknown version or out-of-range numbers, or
+  lack their payload are deleted. Every `start` with the outbox on, dormant
+  included, runs a disk-only sweep (no network): entries past the max age
+  and corrupt ones are deleted and the size and count bounds are enforced,
+  so the bounds hold while dormant. One `outbox` log line per drain pass
+  (`outbox sweep` for the start sweep): `replayed`, `expired`, `evicted`,
+  `corrupt`, `identityMismatch`, `bytesOnDisk`.
 - Erasure: `Tugboat.clearPendingData()` deletes every pending entry, and so
-  does a `start` whose configuration has `durableOutbox` false. A dormant
-  `start` (`enabled` false) keeps them.
+  does a `start` whose configuration has `durableOutbox` false. Sessions
+  started before the wipe keep nothing more on disk (an engine still
+  delivering after `stop` cannot write evidence back); the next session
+  keeps its own again. The per-install salt (not evidence) stays. A dormant
+  `start` (`enabled` false) keeps the entries, within the bounds above.
 - With the outbox on, entering the background also posts `transport.flush`
   at once, so what the engine holds is sent (and written) before the app can
   be suspended.

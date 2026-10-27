@@ -13,10 +13,71 @@ struct OutboxEntry: Codable, Equatable {
   var sessionId: String
   var createdAtWallMs: Int64
   var lastAttemptWallMs: Int64
+  /// Every send under this key, by the engine and the drainer (diagnostic).
   var attempts: Int
   var processEpoch: String
   var appIdentity: String
   var sdkVersion: String
+  /// Drainer replays only; `maxAttempts` applies to this, so engine retries
+  /// (one per flush pass while offline) never use it up. Missing reads as 0.
+  var replays: Int = 0
+
+  /// Largest wall time or count accepted from disk; anything outside
+  /// `0...limit` makes the entry corrupt, so arithmetic on it cannot trap.
+  static let limit: Int64 = 1 << 52
+
+  /// Every number is in range.
+  var isValid: Bool {
+    let range = 0...OutboxEntry.limit
+    return range.contains(createdAtWallMs) && range.contains(lastAttemptWallMs)
+      && range.contains(Int64(attempts)) && range.contains(Int64(replays))
+  }
+}
+
+extension OutboxEntry {
+  private enum CodingKeys: String, CodingKey {
+    case v, key, lane, path, sessionId, createdAtWallMs, lastAttemptWallMs, attempts, processEpoch, appIdentity
+    case sdkVersion, replays
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    v = try container.decode(Int.self, forKey: .v)
+    key = try container.decode(String.self, forKey: .key)
+    lane = try container.decode(String.self, forKey: .lane)
+    path = try container.decode(String.self, forKey: .path)
+    sessionId = try container.decode(String.self, forKey: .sessionId)
+    createdAtWallMs = try container.decode(Int64.self, forKey: .createdAtWallMs)
+    lastAttemptWallMs = try container.decode(Int64.self, forKey: .lastAttemptWallMs)
+    attempts = try container.decode(Int.self, forKey: .attempts)
+    processEpoch = try container.decode(String.self, forKey: .processEpoch)
+    appIdentity = try container.decode(String.self, forKey: .appIdentity)
+    sdkVersion = try container.decode(String.self, forKey: .sdkVersion)
+    replays = try container.decodeIfPresent(Int.self, forKey: .replays) ?? 0
+  }
+}
+
+/// A count bumped from disk data, saturating instead of trapping.
+func saturatingIncrement(_ value: Int) -> Int {
+  value < Int.max ? value + 1 : value
+}
+
+/// What reading a stored payload came to.
+enum OutboxPayloadRead: Equatable {
+  case payload(OutboxPayload)
+  /// A file is there but cannot be read now (for example protected before
+  /// the first unlock): skipped, never deleted.
+  case unreadable
+  /// Missing or undecodable: deleted.
+  case corrupt
+}
+
+/// The per-install salt.
+enum OutboxSalt: Equatable {
+  case salt(Data)
+  /// The file exists but cannot be read, or is not a salt: the outbox is
+  /// off for this process and the file is never overwritten.
+  case unavailable
 }
 
 /// One stored entry: its directory name, metadata, and size on disk.
@@ -30,13 +91,15 @@ struct StoredEntry: Equatable {
 /// (`…/outbox/v1`), holding `entry.json` and either `body` (JSON lanes) or
 /// `fields.json` plus `frame.jpg` (one frame). Every file is written to a
 /// temporary file, synced, then renamed over the target; `entry.json` is
-/// written last, so a directory without a readable one is incomplete and
-/// deleted as corrupt. On iOS, files and directories get the
+/// written last, so a directory without one is incomplete and deleted as
+/// corrupt. A file that exists but cannot be read (Data Protection before
+/// the first unlock) is skipped, never deleted. On iOS, files and directories get the
 /// `completeUntilFirstUserAuthentication` protection class and the outbox
 /// is excluded from backup.
 ///
-/// Nothing here throws or traps: a failed write returns false, a failed
-/// read is reported as corrupt. Called from the outbox queue only.
+/// Nothing here throws or traps: a failed write returns false; only a
+/// missing or undecodable file, an unknown `v`, or out-of-range numbers make
+/// an entry corrupt. Called from the outbox queue only.
 final class OutboxStore {
   static let entryFile = "entry.json"
   static let bodyFile = "body"
@@ -121,54 +184,70 @@ final class OutboxStore {
 
   // MARK: - Reading
 
-  /// Every readable entry, and the number of unreadable directories, which
-  /// are deleted: no `entry.json`, an unknown `v`, or one that does not
-  /// decode.
-  func scan() -> (entries: [StoredEntry], corrupt: Int) {
-    guard let names = try? fileManager.contentsOfDirectory(atPath: root.path) else { return ([], 0) }
+  /// What one scan found: readable entries, the corrupt directories it
+  /// deleted (no `entry.json`, no payload, an undecodable file, an unknown
+  /// `v`, numbers out of range), and how many it skipped as unreadable.
+  struct Scan {
     var entries: [StoredEntry] = []
     var corrupt = 0
-    for name in names.sorted() where !name.hasPrefix(".") {
-      let directory = root.appendingPathComponent(name, isDirectory: true)
-      guard let entry = readEntry(directory), entry.v == OutboxEntry.version, hasPayload(directory, lane: entry.lane)
-      else {
-        corrupt += 1
-        delete(dir: name)
-        continue
-      }
-      entries.append(StoredEntry(dir: name, entry: entry, bytes: size(of: directory)))
-    }
-    return (entries, corrupt)
+    var unreadable = 0
   }
 
-  /// The stored payload, or nil when it is unreadable.
-  func payload(dir: String, lane: String) -> OutboxPayload? {
+  func scan() -> Scan {
+    var result = Scan()
+    guard let names = try? fileManager.contentsOfDirectory(atPath: root.path) else { return result }
+    for name in names.sorted() where !name.hasPrefix(".") {
+      let directory = root.appendingPathComponent(name, isDirectory: true)
+      switch readEntry(directory) {
+      case .unreadable:
+        result.unreadable += 1
+      case let .entry(entry) where entry.v == OutboxEntry.version && entry.isValid && hasPayload(directory, lane: entry.lane):
+        result.entries.append(StoredEntry(dir: name, entry: entry, bytes: size(of: directory)))
+      default:
+        result.corrupt += 1
+        delete(dir: name)
+      }
+    }
+    return result
+  }
+
+  /// The stored payload.
+  func payload(dir: String, lane: String) -> OutboxPayloadRead {
     let directory = root.appendingPathComponent(dir, isDirectory: true)
     if lane == "frames" {
-      guard let fieldsData = try? Data(contentsOf: directory.appendingPathComponent(OutboxStore.fieldsFile)),
-        let stored = try? JSONDecoder().decode(StoredFrame.self, from: fieldsData),
-        let jpeg = try? Data(contentsOf: directory.appendingPathComponent(OutboxStore.frameFile))
-      else { return nil }
-      return .frame(fields: stored.fields.map { FormField(name: $0.name, value: $0.value) }, filename: stored.filename, jpeg: jpeg)
+      guard case let .data(fieldsData) = read(directory.appendingPathComponent(OutboxStore.fieldsFile)),
+        case let .data(jpeg) = read(directory.appendingPathComponent(OutboxStore.frameFile))
+      else {
+        return readFailure(directory, [OutboxStore.fieldsFile, OutboxStore.frameFile])
+      }
+      guard let stored = try? JSONDecoder().decode(StoredFrame.self, from: fieldsData) else { return .corrupt }
+      return .payload(
+        .frame(fields: stored.fields.map { FormField(name: $0.name, value: $0.value) }, filename: stored.filename, jpeg: jpeg))
     }
-    guard let body = try? Data(contentsOf: directory.appendingPathComponent(OutboxStore.bodyFile)),
-      let text = String(data: body, encoding: .utf8)
-    else { return nil }
-    return .json(text)
+    guard case let .data(body) = read(directory.appendingPathComponent(OutboxStore.bodyFile)) else {
+      return readFailure(directory, [OutboxStore.bodyFile])
+    }
+    guard let text = String(data: body, encoding: .utf8) else { return .corrupt }
+    return .payload(.json(text))
   }
 
   /// The per-install HMAC salt next to the outbox, created on first use;
   /// nil when it can be neither read nor written.
-  func salt() -> Data? {
+  func salt() -> OutboxSalt {
     let url = outboxDirectory.appendingPathComponent(OutboxStore.saltFile)
-    if let existing = try? Data(contentsOf: url), existing.count == 32 {
-      return existing
+    switch read(url) {
+    case let .data(existing):
+      return existing.count == 32 ? .salt(existing) : .unavailable
+    case .unreadable:
+      return .unavailable
+    case .missing:
+      break
     }
     var generator = SystemRandomNumberGenerator()
     let fresh = Data((0..<32).map { _ in UInt8.random(in: 0...255, using: &generator) })
-    guard makeDirectory(outboxDirectory), writeAtomically(fresh, to: url) else { return nil }
+    guard makeDirectory(outboxDirectory), writeAtomically(fresh, to: url) else { return .unavailable }
     excludeFromBackup(outboxDirectory)
-    return fresh
+    return .salt(fresh)
   }
 
   // MARK: - Files
@@ -188,9 +267,45 @@ final class OutboxStore {
     }
   }
 
-  private func readEntry(_ directory: URL) -> OutboxEntry? {
-    guard let data = try? Data(contentsOf: directory.appendingPathComponent(OutboxStore.entryFile)) else { return nil }
-    return try? JSONDecoder().decode(OutboxEntry.self, from: data)
+  private enum FileRead {
+    case data(Data)
+    case missing
+    case unreadable
+  }
+
+  private enum EntryRead {
+    case entry(OutboxEntry)
+    case corrupt
+    case unreadable
+  }
+
+  /// A missing file is told apart from one that exists but cannot be read.
+  private func read(_ url: URL) -> FileRead {
+    guard fileManager.fileExists(atPath: url.path) else { return .missing }
+    guard let data = try? Data(contentsOf: url) else { return .unreadable }
+    return .data(data)
+  }
+
+  private func readEntry(_ directory: URL) -> EntryRead {
+    switch read(directory.appendingPathComponent(OutboxStore.entryFile)) {
+    case let .data(data):
+      guard let entry = try? JSONDecoder().decode(OutboxEntry.self, from: data) else { return .corrupt }
+      return .entry(entry)
+    case .missing:
+      return .corrupt
+    case .unreadable:
+      return .unreadable
+    }
+  }
+
+  /// `.unreadable` when one of `names` exists but cannot be read, else
+  /// `.corrupt` (one is missing).
+  private func readFailure(_ directory: URL, _ names: [String]) -> OutboxPayloadRead {
+    let unreadable = names.contains { name in
+      if case .unreadable = read(directory.appendingPathComponent(name)) { return true }
+      return false
+    }
+    return unreadable ? .unreadable : .corrupt
   }
 
   private func hasPayload(_ directory: URL, lane: String) -> Bool {

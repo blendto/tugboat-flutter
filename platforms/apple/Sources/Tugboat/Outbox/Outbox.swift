@@ -38,6 +38,8 @@ final class Outbox {
     var currentSessionSender = 0
     var lastSender = 0
     var unkeyed = 0
+    /// Bumped by `wipe`; a sender registered before it records nothing more.
+    var generation = 0
   }
 
   private let tracking = Locked(Tracking())
@@ -54,6 +56,11 @@ final class Outbox {
   private var replay: Replay?
   private var counts = OutboxPassCounts()
   private var writeFailures = 0
+  /// The salt exists but cannot be read: no writes and no replay for the
+  /// rest of the process (the salt is never overwritten).
+  private var disabled = false
+  /// Entries the last scan could not read; the next pass scans again.
+  private var unreadableAtScan = 0
 
   private final class Replay {
     let token: Int
@@ -62,6 +69,8 @@ final class Outbox {
     var inFlight = false
     var backingOff = false
     var passes = 0
+    /// Payloads this pass could not read; retried next pass.
+    var skipped = Set<String>()
 
     init(token: Int, sender: HTTPSender, context: OutboxContext) {
       self.token = token
@@ -94,11 +103,18 @@ final class Outbox {
     return (0..<8).map { _ in String(format: "%02x", UInt8.random(in: 0...255, using: &generator)) }.joined()
   }
 
-  /// A new sender id; the newest sender's sends set the current session.
-  func registerSender() -> Int {
-    tracking.withLock { (state: inout Tracking) -> Int in
+  /// A sender's id, and the wipe generation it records for.
+  struct SenderRegistration {
+    let id: Int
+    let generation: Int
+  }
+
+  /// A new sender; the newest sender's sends set the current session, and
+  /// a sender records only until the next `wipe`.
+  func registerSender() -> SenderRegistration {
+    tracking.withLock { (state: inout Tracking) -> SenderRegistration in
       state.lastSender += 1
-      return state.lastSender
+      return SenderRegistration(id: state.lastSender, generation: state.generation)
     }
   }
 
@@ -106,17 +122,20 @@ final class Outbox {
 
   /// Captures `request` for the outbox, on the engine queue at dispatch
   /// (frame bytes are read now, before the engine can release them), and
-  /// queues its write; nil when it cannot be keyed (then sent without an
-  /// entry). Never waits for the disk.
+  /// queues its write; nil when it cannot be keyed, or the sender was
+  /// registered before the last `wipe` (then sent without an entry). Never
+  /// waits for the disk.
   func record(
-    _ request: HTTPRequest, sender: Int, context: OutboxContext, frameBytes: (_ handle: String) -> Data?
+    _ request: HTTPRequest, sender: SenderRegistration, context: OutboxContext, frameBytes: (_ handle: String) -> Data?
   ) -> OutboxAttempt? {
+    guard tracking.current.generation == sender.generation else { return nil }
     guard let units = OutboxCapture.units(request, frameBytes: frameBytes) else {
       tracking.withLock { $0.unkeyed += 1 }
       return nil
     }
     let now = wallMs()
-    let (attempt, sessionChanged) = tracking.withLock { (state: inout Tracking) -> (OutboxAttempt, Bool) in
+    let recorded = tracking.withLock { (state: inout Tracking) -> (OutboxAttempt, Bool)? in
+      guard state.generation == sender.generation else { return nil }
       var numbered: [OutboxAttempt.Unit] = []
       for unit in units {
         let number = (state.latest[unit.key] ?? 0) + 1
@@ -125,13 +144,16 @@ final class Outbox {
         numbered.append(OutboxAttempt.Unit(key: unit.key, number: number))
       }
       var changed = false
-      if sender >= state.currentSessionSender, let sessionId = units.first?.sessionId, state.currentSession != sessionId {
+      if sender.id >= state.currentSessionSender, let sessionId = units.first?.sessionId,
+        state.currentSession != sessionId
+      {
         state.currentSession = sessionId
-        state.currentSessionSender = sender
+        state.currentSessionSender = sender.id
         changed = true
       }
       return (OutboxAttempt(units: numbered), changed)
     }
+    guard let (attempt, sessionChanged) = recorded else { return nil }
     queue.async {
       self.write(units, context: context, now: now)
       if sessionChanged {
@@ -167,10 +189,28 @@ final class Outbox {
 
   /// Deletes every pending entry, after the writes queued before it
   /// (`TugboatConfig.durableOutbox` false at `start`, `clearPendingData`).
+  /// Senders registered before it record nothing more, so an engine still
+  /// draining (after `stop`) cannot write evidence back.
   func wipe() {
+    tracking.withLock { $0.generation += 1 }
     queue.async {
       self.store.wipe()
-      self.index = [:]
+      // Rescanned on next use, so entries a failed wipe left stay visible.
+      self.index = nil
+    }
+  }
+
+  /// At every `start` with the outbox on, dormant or not: deletes corrupt
+  /// entries and those past the max age, and enforces the size and count
+  /// bounds. Disk only; it sends nothing.
+  func sweepAtStart(bounds: OutboxBounds) {
+    queue.async {
+      self.bounds = bounds
+      self.index = nil
+      self.expireByAge()
+      self.enforceBounds()
+      self.log(self.counts.line(bytesOnDisk: self.bytesOnDisk()).replacingOccurrences(of: "outbox pass", with: "outbox sweep"))
+      self.counts = OutboxPassCounts()
     }
   }
 
@@ -243,13 +283,13 @@ final class Outbox {
     var entries = loadedIndex()
     bounds = context.bounds
     guard let identity = identity(context) else {
-      fail(units.count, "outbox: no identity salt; \(units.count) entries not written")
+      fail(units.count, "outbox: no readable salt; \(units.count) entries not written")
       return
     }
     for unit in units {
       let dir = dirName(key: unit.key, epoch: processEpoch)
       if var stored = entries[dir] {
-        stored.entry.attempts += 1
+        stored.entry.attempts = saturatingIncrement(stored.entry.attempts)
         stored.entry.lastAttemptWallMs = now
         var body: String?
         if case let .json(text) = unit.payload { body = text }
@@ -281,9 +321,16 @@ final class Outbox {
     log(message)
   }
 
+  /// nil, and the outbox off for this process, when the salt exists but
+  /// cannot be read.
   private func identity(_ context: OutboxContext) -> String? {
+    if disabled { return nil }
     if let known = identities[context.identityInput] { return known }
-    guard let salt = store.salt() else { return nil }
+    guard case let .salt(salt) = store.salt() else {
+      disabled = true
+      log("outbox: the salt cannot be read; the outbox is off for this process")
+      return nil
+    }
     let identity = OutboxDigest.hmacSHA256Hex(key: salt, message: context.identityInput)
     identities[context.identityInput] = identity
     return identity
@@ -293,6 +340,7 @@ final class Outbox {
     if let index = index { return index }
     let scanned = store.scan()
     counts.corrupt += scanned.corrupt
+    unreadableAtScan = scanned.unreadable
     let loaded = Dictionary(scanned.entries.map { ($0.dir, $0) }, uniquingKeysWith: { first, _ in first })
     index = loaded
     return loaded
@@ -344,35 +392,46 @@ final class Outbox {
   /// its answer continues the pass. Logs one line when a pass ends.
   private func drainPass() {
     guard let replay = replay, !replay.inFlight, !replay.backingOff else { return }
-    sweep(replay)
-    let state = tracking.current
-    let candidates = loadedIndex().values.filter { isOrphan($0, state) && state.active[$0.entry.key] == nil }
-    guard let next = candidates.min(by: replayOrder) else {
-      endPass(replay)
-      return
+    // Fails closed: without the identity nothing is checked, so nothing is sent.
+    guard let identity = identity(replay.context) else { return }
+    if unreadableAtScan > 0 {
+      // Entries the last scan could not read are tried again.
+      index = nil
     }
-    guard let payload = store.payload(dir: next.dir, lane: next.entry.lane) else {
-      remove(dir: next.dir)
-      counts.corrupt += 1
-      drainPass()
-      return
+    sweep(identity: identity)
+    while true {
+      let state = tracking.current
+      let candidates = loadedIndex().values.filter {
+        isOrphan($0, state) && state.active[$0.entry.key] == nil && !replay.skipped.contains($0.dir)
+      }
+      guard let next = candidates.min(by: replayOrder) else {
+        endPass(replay)
+        return
+      }
+      switch store.payload(dir: next.dir, lane: next.entry.lane) {
+      case let .payload(payload):
+        send(next, payload: payload, replay: replay)
+        return
+      case .unreadable:
+        replay.skipped.insert(next.dir)
+      case .corrupt:
+        remove(dir: next.dir)
+        counts.corrupt += 1
+      }
     }
-    send(next, payload: payload, replay: replay)
   }
 
-  private func sweep(_ replay: Replay) {
-    let entries = loadedIndex()
+  /// Deletes, without sending, entries past the max age, of another app
+  /// identity, or orphans whose replays reached `maxAttempts`. Never a key
+  /// with a request in flight.
+  private func sweep(identity: String) {
+    expireByAge()
     let state = tracking.current
-    let now = wallMs()
-    let identity = self.identity(replay.context)
-    for stored in entries.values where state.active[stored.entry.key] == nil {
-      if now - stored.entry.createdAtWallMs > Int64(bounds.maxAgeMs) {
-        remove(dir: stored.dir)
-        counts.expired += 1
-      } else if let identity = identity, stored.entry.appIdentity != identity {
+    for stored in loadedIndex().values where state.active[stored.entry.key] == nil {
+      if stored.entry.appIdentity != identity {
         remove(dir: stored.dir)
         counts.identityMismatch += 1
-      } else if isOrphan(stored, state) && stored.entry.attempts >= bounds.maxAttempts {
+      } else if isOrphan(stored, state) && stored.entry.replays >= bounds.maxAttempts {
         remove(dir: stored.dir)
         counts.expired += 1
       }
@@ -380,14 +439,39 @@ final class Outbox {
     enforceBounds()
   }
 
-  private func send(_ stored: StoredEntry, payload: OutboxPayload, replay: Replay) {
+  private func expireByAge() {
+    let state = tracking.current
+    let now = wallMs()
+    for stored in loadedIndex().values where state.active[stored.entry.key] == nil {
+      let (age, overflow) = now.subtractingReportingOverflow(stored.entry.createdAtWallMs)
+      if overflow || age > Int64(bounds.maxAgeMs) {
+        remove(dir: stored.dir)
+        counts.expired += 1
+      }
+    }
+  }
+
+  private func bytesOnDisk() -> Int {
+    loadedIndex().values.reduce(0) { $0 + $1.bytes }
+  }
+
+  /// Counts the replay on disk first, then sends it unless `stopReplay` ran
+  /// since (that replay stays counted: at most one per stop).
+  private func send(_ entry: StoredEntry, payload: OutboxPayload, replay: Replay) {
+    var stored = entry
+    stored.entry.replays = saturatingIncrement(stored.entry.replays)
+    stored.entry.attempts = saturatingIncrement(stored.entry.attempts)
+    stored.entry.lastAttemptWallMs = wallMs()
+    stored.bytes = store.update(dir: stored.dir, entry: stored.entry, body: nil) ?? stored.bytes
+    index?[stored.dir] = stored
+    let dir = stored.dir
     let key = stored.entry.key
     let body: HTTPBody
     switch payload {
     case let .json(text):
       body = .json(text)
     case let .frame(fields, filename, jpeg):
-      replayFrames.withLock { $0 = [stored.dir: jpeg] }
+      replayFrames.withLock { $0 = [dir: jpeg] }
       body = .multipart(fields: fields, frames: [FramePart(handle: stored.dir, filename: filename)])
     }
     var request = HTTPRequest(
@@ -399,7 +483,7 @@ final class Outbox {
     let started = replayToken.withLock { (token: inout Int) -> Bool in
       guard token == replay.token else { return false }
       replay.sender.send(request) { outcome in
-        self.queue.async { self.replayAnswered(stored.dir, key: key, outcome: outcome, replay: replay) }
+        self.queue.async { self.replayAnswered(dir, key: key, outcome: outcome, replay: replay) }
       }
       return true
     }
@@ -416,16 +500,12 @@ final class Outbox {
     if SessionEndWatcher.isFinal(outcome) {
       remove(dir: dir)
       counts.replayed += 1
-    } else if var stored = index?[dir] {
-      stored.entry.attempts += 1
-      stored.entry.lastAttemptWallMs = wallMs()
-      if stored.entry.attempts >= bounds.maxAttempts {
+    } else if let stored = index?[dir] {
+      if stored.entry.replays >= bounds.maxAttempts {
         remove(dir: dir)
         counts.expired += 1
       } else {
-        stored.bytes = store.update(dir: dir, entry: stored.entry, body: nil) ?? stored.bytes
-        index?[dir] = stored
-        backOff(replay, attempts: stored.entry.attempts, outcome: outcome)
+        backOff(replay, replays: stored.entry.replays, outcome: outcome)
         return
       }
     }
@@ -434,10 +514,10 @@ final class Outbox {
     }
   }
 
-  private func backOff(_ replay: Replay, attempts: Int, outcome: TransportOutcome) {
+  private func backOff(_ replay: Replay, replays: Int, outcome: TransportOutcome) {
     var retryAfter: String?
     if case let .http(_, _, value) = outcome { retryAfter = value }
-    let delay = OutboxBackoff.delayMs(attempts: attempts, retryAfter: retryAfter, nowWallMs: wallMs())
+    let delay = OutboxBackoff.delayMs(attempts: replays, retryAfter: retryAfter, nowWallMs: wallMs())
     endPass(replay)
     replay.backingOff = true
     schedule(delay) { [weak self] in
@@ -453,8 +533,8 @@ final class Outbox {
 
   private func endPass(_ replay: Replay) {
     replay.passes += 1
-    let bytes = loadedIndex().values.reduce(0) { $0 + $1.bytes }
-    log(counts.line(bytesOnDisk: bytes))
+    replay.skipped.removeAll()
+    log(counts.line(bytesOnDisk: bytesOnDisk()))
     counts = OutboxPassCounts()
   }
 }

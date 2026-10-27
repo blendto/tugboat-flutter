@@ -10,7 +10,7 @@ final class OutboxSender: HTTPSender {
   private let outbox: Outbox
   private let context: OutboxContext
   private let frameBytes: (_ handle: String) -> Data?
-  private let id: Int
+  private let registration: Outbox.SenderRegistration
 
   /// `frameBytes` reads the JPEG for a frame handle (`FrameHandleTable.get`)
   /// on the engine queue, at dispatch.
@@ -19,11 +19,11 @@ final class OutboxSender: HTTPSender {
     self.outbox = outbox
     self.context = context
     self.frameBytes = frameBytes
-    self.id = outbox.registerSender()
+    self.registration = outbox.registerSender()
   }
 
   func send(_ request: HTTPRequest, onResult: @escaping (TransportOutcome) -> Void) {
-    let attempt = outbox.record(request, sender: id, context: context, frameBytes: frameBytes)
+    let attempt = outbox.record(request, sender: registration, context: context, frameBytes: frameBytes)
     var sent = request
     sent.deliveryKey = attempt?.headerValue
     let outbox = self.outbox

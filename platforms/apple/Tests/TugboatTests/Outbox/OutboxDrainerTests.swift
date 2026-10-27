@@ -148,12 +148,13 @@ final class OutboxDrainerTests: XCTestCase {
 
   func testARetriedReplayBacksOffHonoursRetryAfterAndExpiresAfterMaxAttempts() {
     var bounds = OutboxBounds.default
-    bounds.maxAttempts = 3
+    bounds.maxAttempts = 2
     let context = OutboxContext(identityInput: OutboxRequests.context.identityInput, bounds: bounds, sdkVersion: "0.1.0")
     killedProcess([OutboxRequests.lifecycle()], context: context)
     let (outbox, drainer) = replaying(context)
     drainer.complete(0, .http(status: 503, body: "", retryAfter: "45"))
     XCTAssertEqual(outbox.snapshot().entries.map { $0.entry.attempts }, [2])
+    XCTAssertEqual(outbox.snapshot().entries.map { $0.entry.replays }, [1])
     XCTAssertEqual(harness.scheduled.current.map { $0.delayMs }, [45_000])
     XCTAssertEqual(drainer.requests.count, 1)
     harness.scheduled.current[0].work()
@@ -165,14 +166,116 @@ final class OutboxDrainerTests: XCTestCase {
     XCTAssertTrue(harness.lines.current.last?.contains("expired=1") ?? false)
   }
 
-  func testAnEntryWithMaxAttemptsFromEarlierLaunchesExpires() {
-    var bounds = OutboxBounds.default
-    bounds.maxAttempts = 2
-    let context = OutboxContext(identityInput: OutboxRequests.context.identityInput, bounds: bounds, sdkVersion: "0.1.0")
-    killedProcess([OutboxRequests.lifecycle(), OutboxRequests.lifecycle(id: "again")], context: context)
-    let (outbox, drainer) = replaying(context)
+  /// M1: `maxAttempts` counts drainer replays only. An entry the engine
+  /// retried 40 times (minutes offline) is still replayed; one replayed
+  /// `maxAttempts` times expires unsent. A missing `replays` reads as 0.
+  func testEngineRetriesNeverUseUpMaxAttemptsButReplaysDo() throws {
+    killedProcess([OutboxRequests.lifecycle(session: "retried"), OutboxRequests.lifecycle(session: "replayed")])
+    for dir in harness.directories {
+      try harness.rewrite(dir) { entry in
+        if entry["sessionId"] as? String == "retried" {
+          entry["attempts"] = 40
+          entry.removeValue(forKey: "replays")
+        } else {
+          entry["replays"] = OutboxBounds.default.maxAttempts
+        }
+      }
+    }
+    let (outbox, drainer) = replaying()
+    XCTAssertEqual(drainer.requests.map { $0.deliveryKey?.hasPrefix("retried/") }, [true])
+    XCTAssertEqual(outbox.snapshot().entries.map { $0.entry.replays }, [1])
+    XCTAssertTrue(harness.lines.current.isEmpty, "the pass is still running")
+    drainer.complete(0, .http(status: 202, body: ""))
+    _ = outbox.snapshot()
+    XCTAssertEqual(harness.directories, [])
+    XCTAssertTrue(harness.lines.current.last?.contains("replayed=1 expired=1") ?? false)
+  }
+
+  /// M1, the review's repro: an outage of 8 flush passes (engine retries)
+  /// before the kill; the next process still replays the batch.
+  func testABatchTheEngineRetriedThroughAnOutageIsReplayedAfterAKill() {
+    let dead = harness.outbox(epoch: "dead")
+    let engine = OutboxRecordingSender()
+    let sender = OutboxSender(delegate: engine, outbox: dead, context: OutboxRequests.context, frameBytes: OutboxRequests.jpeg)
+    for i in 0..<8 {
+      sender.send(OutboxRequests.events(["a", "b"], id: "http-\(i)")) { _ in }
+      engine.complete(i, .error)
+      harness.advance(ms: 3_000)
+    }
+    XCTAssertEqual(dead.snapshot().entries.map { $0.entry.attempts }, [8])
+    let (_, drainer) = replaying()
+    XCTAssertEqual(drainer.requests.count, 1)
+  }
+
+  /// M3: the token guard. A pass queued before `stopReplay` returned sends
+  /// nothing once it runs.
+  func testNoReplayStartsAfterStopReplayReturns() {
+    killedProcess([OutboxRequests.lifecycle()])
+    let outbox = harness.outbox(epoch: "live")
+    let drainer = OutboxRecordingSender()
+    let gate = DispatchSemaphore(value: 0)
+    outbox.queue.async { gate.wait() }
+    outbox.startReplay(sender: drainer, context: OutboxRequests.context)
+    outbox.stopReplay()
+    gate.signal()
+    _ = outbox.snapshot()
     XCTAssertEqual(drainer.requests.count, 0)
-    XCTAssertEqual(outbox.snapshot().entries.count, 0)
+  }
+
+  /// m4: oldest first by creation time, not by key.
+  func testReplaysGoOldestFirstEvenWhenTheKeysSortTheOtherWay() {
+    killedProcess([OutboxRequests.lifecycle(session: "s9")])
+    harness.advance(ms: 10)
+    killedProcess([OutboxRequests.lifecycle(session: "s1")])
+    let (_, drainer) = replaying()
+    XCTAssertEqual(drainer.requests.map { $0.deliveryKey?.hasPrefix("s9/") }, [true])
+  }
+
+  /// m4: a session change during a backoff does not replay early.
+  func testABackoffHoldsWhenTheSessionChanges() {
+    killedProcess([OutboxRequests.lifecycle()])
+    let (outbox, drainer) = replaying()
+    drainer.complete(0, .http(status: 503, body: "", retryAfter: "60"))
+    _ = outbox.snapshot()
+    OutboxSender(delegate: OutboxRecordingSender(), outbox: outbox, context: OutboxRequests.context, frameBytes: OutboxRequests.jpeg)
+      .send(OutboxRequests.lifecycle(session: "s5")) { _ in }
+    XCTAssertEqual(outbox.snapshot().currentSession, "s5")
+    XCTAssertEqual(drainer.requests.count, 1)
+    harness.scheduled.current[0].work()
+    _ = outbox.snapshot()
+    XCTAssertEqual(drainer.requests.count, 2)
+  }
+
+  /// m4: a key with a request in flight is never expired by age.
+  func testAKeyInFlightIsNeverExpired() {
+    let outbox = harness.outbox(epoch: "live")
+    OutboxSender(delegate: OutboxRecordingSender(), outbox: outbox, context: OutboxRequests.context, frameBytes: OutboxRequests.jpeg)
+      .send(OutboxRequests.events(["a"])) { _ in }
+    harness.advance(ms: Int64(OutboxBounds.default.maxAgeMs) + 1)
+    outbox.startReplay(sender: OutboxRecordingSender(), context: OutboxRequests.context)
+    XCTAssertEqual(outbox.snapshot().entries.count, 1)
+    outbox.sweepAtStart(bounds: .default)
+    XCTAssertEqual(outbox.snapshot().entries.count, 1)
+  }
+
+  /// m4: over a bound, an earlier session's entry goes before the current
+  /// session's, even an event before a frame.
+  func testOverTheBoundsOrphansGoBeforeTheCurrentSessionsEntries() {
+    killedProcess([OutboxRequests.events(["a"])])
+    var bounds = OutboxBounds.default
+    bounds.maxEntries = 2
+    let context = OutboxContext(identityInput: OutboxRequests.context.identityInput, bounds: bounds, sdkVersion: "0.1.0")
+    let outbox = harness.outbox(epoch: "live")
+    let engine = OutboxRecordingSender()
+    let sender = OutboxSender(delegate: engine, outbox: outbox, context: context, frameBytes: OutboxRequests.jpeg)
+    sender.send(OutboxRequests.frames([1], session: "s2")) { _ in }
+    engine.complete(0, .error)
+    XCTAssertEqual(outbox.snapshot().entries.count, 2)
+    sender.send(OutboxRequests.lifecycle(session: "s2")) { _ in }
+    let keys = outbox.snapshot().entries.map { $0.entry.key }
+    XCTAssertEqual(keys.count, 2)
+    XCTAssertTrue(keys.contains("s2/f/1"))
+    XCTAssertFalse(keys.contains { $0.hasPrefix("s1/e/") })
   }
 
   /// Never any network while dormant: nothing before `startReplay`, and

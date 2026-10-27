@@ -79,6 +79,14 @@ final class OutboxHarness {
     return object
   }
 
+  /// Rewrites `entry.json` of `dir` through `change`.
+  func rewrite(_ dir: String, _ change: (inout [String: Any]) -> Void) throws {
+    var object = entry(dir)
+    change(&object)
+    try JSONSerialization.data(withJSONObject: object)
+      .write(to: root.appendingPathComponent(dir).appendingPathComponent("entry.json"))
+  }
+
   func file(_ dir: String, _ name: String) -> Data? {
     try? Data(contentsOf: root.appendingPathComponent(dir).appendingPathComponent(name))
   }
