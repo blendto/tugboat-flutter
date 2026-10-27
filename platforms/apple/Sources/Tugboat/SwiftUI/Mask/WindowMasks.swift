@@ -12,7 +12,10 @@ import UIKit
 /// - boxes, never looked inside: `WKWebView`, opaque renderers, app
 ///   representables and app-defined views inside hosting views, and any
 ///   SwiftUI platform view not verified for this iOS major;
-/// - inside hosting views, the SwiftUI layers `LayerWalk` classifies.
+/// - inside hosting views, the SwiftUI layers `LayerWalk` classifies;
+/// - `.tugboatSensitive` frames: the marker's host, met in this same walk,
+///   is masked by kind before any layer-allowlist decision, so a plain
+///   colour fill the allowlist leaves visible is masked when marked.
 ///
 /// The whole frame is masked (`MaskResult.fallback`) when the window has no
 /// size, when it contains a hosting view and the iOS major has no verified
@@ -56,6 +59,10 @@ enum WindowMasks {
   private static func maskOrWalk(_ node: ViewNode, allowlist: LayerAllowlist?, iOSMajor: Int, into acc: inout MaskAccumulator) -> Bool {
     let view = node.view
     switch node.kind {
+    case .sensitiveMarker:
+      acc.stats.sensitiveViews += 1
+      acc.add(view: view)
+      return false
     case .webView, .representable, .renderer:
       return box(view, node.kind, into: &acc)
     case .textInput, .label:

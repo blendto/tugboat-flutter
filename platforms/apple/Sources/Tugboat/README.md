@@ -24,6 +24,7 @@ Tugboat.setTraits(["plan": "pro"])      // JSON values; kept across stop/start
 Tugboat.stop()
 someView.tugboatTag("checkout")         // developer alias for a target
 someView.tugboatTag("checkout", accessibility: true) // also its accessibilityIdentifier
+someView.tugboatSensitive()             // always mask its frame; identity unchanged
 someView.tugboatScreen("Checkout")      // route identity for a screen
 sheetRoot.tugboatScreen("Filters", presentation: .sheet) // .page (default .automatic), .sheet, .dialog, .popup
 stack.tugboatNavigator("cart")          // nested navigator swiftui-screens/cart (per tab, or a sheet's own stack)

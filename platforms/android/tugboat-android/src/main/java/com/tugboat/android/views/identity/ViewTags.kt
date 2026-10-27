@@ -16,4 +16,9 @@ internal object ViewTags {
     fun isSdkOwned(view: View): Boolean = view.getTag(R.id.tugboat_sdk_owned) == true
 
     fun markSdkOwned(view: View) = view.setTag(R.id.tugboat_sdk_owned, true)
+
+    fun isSensitive(view: View): Boolean = view.getTag(R.id.tugboat_sensitive) == true
+
+    /** `tugboatSensitive`: masks only, never identity. There is no un-mark. */
+    fun markSensitive(view: View) = view.setTag(R.id.tugboat_sensitive, true)
 }
