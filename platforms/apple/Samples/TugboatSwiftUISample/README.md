@@ -40,6 +40,17 @@ The collector URL and key come from launch arguments, read through the
 | `-TugboatCollectorURL <url>` | `http://127.0.0.1:3000` (the local collector, reachable from the simulator) |
 | `-TugboatCollectorKey <key>` | `pmk_blend-app-dev-secret` (rows are filed under app id `blend_app`) |
 
+Activation (Tugboat is dormant by default; the sample passes `enabled: true`
+so the scripts below see a session from launch):
+
+| Argument or URL | Effect |
+| --- | --- |
+| `-TugboatEnabled NO` | start dormant: no session, nothing recorded, until an activation |
+| `-TugboatActivationRequestId <id>` | `Tugboat.activate(activationRequestId:)` at launch, right after `start` |
+| `-TugboatCaptureDiagnostics YES` | `TugboatConfig.captureDiagnostics` (`capture_diagnostic` rows) |
+| `xcrun simctl openurl booted 'tugboat-sample://activate?id=<id>'` | `Tugboat.activate(activationRequestId: <id>)` while running |
+| `xcrun simctl openurl booted tugboat-sample://deactivate` | `Tugboat.deactivate()` |
+
 `NSAppTransportSecurity` sets only `NSAllowsLocalNetworking`, so cleartext
 HTTP is allowed to loopback and `.local` hosts and nothing else.
 `NSLocalNetworkUsageDescription` is set, so on a device pointed at a LAN

@@ -8,12 +8,36 @@ entry here must match it.
 Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
 the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISample`).
 
-- Public API: `Tugboat.start(TugboatConfig)`, `setUserId`, `setTraits`,
-  `stop`; `TugboatConfig` (`Collector`, `App`, `MaskLevel`,
-  `captureFocusChanges`, `trackHostingControllers`,
-  `swiftUIAccessibilityIdentity`);
+- Public API: `Tugboat.start(TugboatConfig)`, `activate(activationRequestId:)`,
+  `deactivate()`, `setUserId`, `setTraits`, `stop`; `lifecycleState`,
+  `isActivated`, `activationRequestId`; `TugboatConfig` (`Collector`, `App`,
+  `enabled`, `MaskLevel`, `captureFocusChanges`, `captureDiagnostics`,
+  `trackHostingControllers`, `swiftUIAccessibilityIdentity`,
+  `explorationRunId`); `TugboatLifecycleState`;
   the `.tugboatTag(_:accessibility:)` and `.tugboatScreen(_:)` view
   modifiers. Idempotent start; nothing throws or traps into the app.
+- Activation matches Flutter's `TugboatReplay` (contract change, D1):
+  `TugboatConfig.enabled` defaults to `false`, so `start` stores the
+  configuration and stays dormant (no engine, observers, method exchange,
+  threads, or network) until `activate(activationRequestId:)`; `enabled: true`
+  starts a session at `start` with no activation id. `activate` puts the id
+  on `session.start` (blank is omitted; Flutter sends `""`), is a no-op for
+  the same id, and for a new id ends the session and starts another with a
+  new `sessionEpoch` (`active → starting`, never `stopping`); one made before
+  `start` is applied by `start`. `deactivate()` fences coded events and
+  network calls on the calling thread, ends the session (`session_end`), and
+  keeps an `enabled: true` configuration down until the next `activate`.
+  `stop()` also forgets the activation request and that override; it is not
+  Flutter's `disabled`. `TUGBOAT_HEALTH` reports the lifecycle state name and
+  `activationRequestId`, and is cancelled only by `stop()`. User id, traits,
+  and event hooks are kept across dormant periods. The hosting-controller
+  method exchange is installed at the first session start, never while
+  dormant, and stays installed (inert) after `deactivate` or `stop`.
+- `locale.set` on `NSLocale.currentLocaleDidChangeNotification` (same object
+  as `session.start.locale`, deduped, observed only while a session runs);
+  `TugboatConfig.captureDiagnostics` (engine capability
+  `captureDiagnostics`, default off); `TugboatConfig.explorationRunId` on
+  `session.start` when non-blank.
 - Coded events and network calls, the Flutter evidence API:
   `Tugboat.eventHook(source:parameterPolicy:)` → `TugboatEventHook.record(_:parameters:)`
   (`external_event`), with `TugboatParameterPolicy` `.allowAll` (default),
@@ -67,7 +91,7 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
 - Engine wiring: `engine.configure` with every `session_start` field the
   collector requires (start is refused and logged when one is missing),
   `limits`, the SwiftUI `gesture`, `capture.answerTimeoutMs` 5000,
-  `collector.enabled`, `focusChanges`; `session.start`;
+  `collector.enabled`, `focusChanges`, `captureDiagnostics`; `session.start`;
   application notifications to `app.lifecycle`; `identity.set` /
   `traits.set`; adapter facts (navigation included) as per-frame batches.
 - `stop()`: `session.end`, then `engine.dispose` and handle destruction once

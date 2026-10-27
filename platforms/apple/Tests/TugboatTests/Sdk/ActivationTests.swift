@@ -38,6 +38,11 @@ final class ActivationTests: XCTestCase {
     open: { $0.opened = true },
     end: { $0.ended = true })
 
+  /// The `index`th session begun, nil (not a crash) when there are fewer.
+  private func at(_ index: Int) -> FakeSession? {
+    index < begun.count ? begun[index] : nil
+  }
+
   override func setUp() {
     super.setUp()
     state.onChange = { [unowned self] in self.states.append($0.state) }
@@ -63,8 +68,11 @@ final class ActivationTests: XCTestCase {
   }
 
   func testTheDefaultConfigurationIsDormant() {
-    XCTAssertFalse(config().enabled)
-    XCTAssertTrue(driver.configure(config()))
+    let defaults = TugboatConfig(
+      collector: .init(baseURL: URL(fileURLWithPath: "/"), apiKey: "k"),
+      app: .init(name: "n", version: "1", buildNumber: "1", appId: "a", installationId: "i"))
+    XCTAssertFalse(defaults.enabled)
+    XCTAssertTrue(driver.configure(defaults))
     XCTAssertTrue(begun.isEmpty, "no session, so no engine or observers")
     XCTAssertNil(driver.session)
     XCTAssertEqual(state.current.state, .dormant)
@@ -75,8 +83,8 @@ final class ActivationTests: XCTestCase {
   func testAnEnabledConfigurationStartsASessionWithoutAnId() {
     _ = driver.configure(config(enabled: true))
     XCTAssertEqual(begun.count, 1)
-    XCTAssertNil(begun[0].activationRequestId)
-    XCTAssertTrue(begun[0].opened)
+    XCTAssertEqual(at(0).map { $0.activationRequestId }, .some(nil))
+    XCTAssertEqual(at(0)?.opened, true)
     XCTAssertEqual(state.current.state, .active)
     XCTAssertFalse(state.current.isActivated, "Flutter: no activation id, not activated")
     XCTAssertEqual(states, [.starting, .active])
@@ -86,7 +94,7 @@ final class ActivationTests: XCTestCase {
     _ = driver.configure(config())
     activate("run-1")
     XCTAssertEqual(begun.map { $0.activationRequestId }, ["run-1"])
-    XCTAssertTrue(begun[0].opened)
+    XCTAssertEqual(at(0)?.opened, true)
     XCTAssertEqual(state.current.state, .active)
     XCTAssertEqual(state.current.activationRequestId, "run-1")
     XCTAssertTrue(state.current.isActivated)
@@ -100,7 +108,7 @@ final class ActivationTests: XCTestCase {
     XCTAssertFalse(state.activate("run-1"))
     activate("run-1")
     XCTAssertEqual(begun.count, 1)
-    XCTAssertFalse(begun[0].ended)
+    XCTAssertEqual(at(0)?.ended, false)
     XCTAssertEqual(state.current.requestEpoch, epoch)
   }
 
@@ -119,9 +127,9 @@ final class ActivationTests: XCTestCase {
     XCTAssertEqual(state.current.activationRequestId, "run-2")
     driver.reconcile()
     XCTAssertEqual(begun.map { $0.activationRequestId }, ["run-1", "run-2"])
-    XCTAssertTrue(begun[0].ended, "the old session ends through the stop path")
-    XCTAssertFalse(begun[1].ended)
-    XCTAssertTrue(begun[1].opened)
+    XCTAssertEqual(at(0)?.ended, true, "the old session ends through the stop path")
+    XCTAssertEqual(at(1)?.ended, false)
+    XCTAssertEqual(at(1)?.opened, true)
     XCTAssertEqual(states, [.starting, .active])
     XCTAssertFalse(states.contains(.stopping))
   }
@@ -130,7 +138,7 @@ final class ActivationTests: XCTestCase {
     _ = driver.configure(config(enabled: true))
     activate("run-1")
     XCTAssertEqual(begun.map { $0.activationRequestId }, [nil, "run-1"])
-    XCTAssertTrue(begun[0].ended)
+    XCTAssertEqual(at(0)?.ended, true)
     XCTAssertEqual(state.current.state, .active)
   }
 
@@ -142,9 +150,9 @@ final class ActivationTests: XCTestCase {
     XCTAssertEqual(fenced, 1, "the fence runs inside deactivate, before main")
     XCTAssertEqual(state.current.state, .stopping)
     XCTAssertNil(state.current.activationRequestId)
-    XCTAssertFalse(begun[0].ended, "the session ends on main")
+    XCTAssertEqual(at(0)?.ended, false, "the session ends on main")
     driver.reconcile()
-    XCTAssertTrue(begun[0].ended)
+    XCTAssertEqual(at(0)?.ended, true)
     XCTAssertNil(driver.session)
     XCTAssertEqual(state.current.state, .dormant)
     XCTAssertEqual(states, [.stopping, .dormant])
@@ -161,7 +169,7 @@ final class ActivationTests: XCTestCase {
     _ = driver.configure(config(enabled: true))
     deactivate()
     XCTAssertEqual(begun.count, 1)
-    XCTAssertTrue(begun[0].ended)
+    XCTAssertEqual(at(0)?.ended, true)
     driver.reconcile()
     XCTAssertEqual(begun.count, 1, "the override keeps it down")
     XCTAssertEqual(state.current.state, .dormant)
@@ -188,7 +196,7 @@ final class ActivationTests: XCTestCase {
     XCTAssertEqual(state.current.state, .stopping)
     XCTAssertNil(state.current.activationRequestId)
     driver.stop()
-    XCTAssertTrue(begun[0].ended)
+    XCTAssertEqual(at(0)?.ended, true)
     XCTAssertNil(driver.config)
     XCTAssertEqual(state.current.state, .dormant)
     _ = driver.configure(config())
@@ -201,12 +209,12 @@ final class ActivationTests: XCTestCase {
     _ = driver.configure(config(enabled: true))
     XCTAssertEqual(begun.count, 2)
     deactivate()
-    XCTAssertTrue(begun[1].ended)
+    XCTAssertEqual(at(1)?.ended, true)
     state.reset(fence: {})
     driver.stop()
     _ = driver.configure(config(enabled: true))
     XCTAssertEqual(begun.count, 3, "enabled applies again after stop")
-    XCTAssertNil(begun[2].activationRequestId)
+    XCTAssertEqual(at(2).map { $0.activationRequestId }, .some(nil))
     XCTAssertEqual(state.current.state, .active)
   }
 
@@ -241,10 +249,10 @@ final class ActivationTests: XCTestCase {
     }
     activate("run-1")
     XCTAssertEqual(begun.count, 1)
-    XCTAssertFalse(begun[0].opened)
+    XCTAssertEqual(at(0)?.opened, false)
     XCTAssertEqual(state.current.state, .stopping)
     driver.reconcile()
-    XCTAssertTrue(begun[0].ended)
+    XCTAssertEqual(at(0)?.ended, true)
     XCTAssertEqual(state.current.state, .dormant)
   }
 
@@ -274,6 +282,6 @@ final class ActivationTests: XCTestCase {
     driver.reconcile()
     driver.reconcile()
     XCTAssertEqual(begun.count, 1)
-    XCTAssertFalse(begun[0].ended)
+    XCTAssertEqual(at(0)?.ended, false)
   }
 }

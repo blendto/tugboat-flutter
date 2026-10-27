@@ -101,12 +101,16 @@ final class TugboatActivationTests: XCTestCase {
     super.tearDown()
   }
 
+  /// `enabled` is left at the configuration's default unless true.
   private func config(enabled: Bool = false, trackHostingControllers: Bool = false) -> TugboatConfig {
-    TugboatConfig(
+    var config = TugboatConfig(
       collector: .init(baseURL: URL(string: "http://127.0.0.1:9") ?? URL(fileURLWithPath: "/"), apiKey: "key"),
       app: .init(name: "Tests", version: "1.0", buildNumber: "1", appId: "com.tugboat.tests", installationId: "i-1"),
-      enabled: enabled,
       trackHostingControllers: trackHostingControllers)
+    if enabled {
+      config.enabled = true
+    }
+    return config
   }
 
   /// Lets queued main-thread work run.
