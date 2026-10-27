@@ -51,7 +51,12 @@ struct HostMetadata {
 
   /// `session.start.locale` (`TugboatLocaleInfo`).
   var sessionLocaleJSON: JSONObject {
-    let locale = device.locale
+    HostMetadata.localeJSON(device.locale)
+  }
+
+  /// `TugboatLocaleInfo` for `locale`: `session.start.locale` and
+  /// `locale.set.locale`.
+  static func localeJSON(_ locale: LocaleSnapshot) -> JSONObject {
     var out = JSONObject()
     out.set("language", locale.language)
     if let country = locale.country { out.set("country", country) }

@@ -17,10 +17,14 @@ version is `TugboatVersion.current` in `TugboatVersion.swift`, sent as
 Tugboat.start(TugboatConfig(
   collector: .init(baseURL: url, apiKey: key),
   app: .init(name: name, version: version, buildNumber: build, appId: bundleId, installationId: installId),
-  captureFocusChanges: true))           // optional; also trackHostingControllers,
-                                        // swiftUIAccessibilityIdentity (off)
-Tugboat.setUserId("user-1")             // nil clears; kept across stop/start
-Tugboat.setTraits(["plan": "pro"])      // JSON values; kept across stop/start
+  enabled: true,                        // record from launch; the default (false) stays dormant
+  captureFocusChanges: true))           // optional; also captureDiagnostics, trackHostingControllers,
+                                        // swiftUIAccessibilityIdentity (off), explorationRunId
+Tugboat.activate(activationRequestId: requestId) // start capture at runtime (sent on session.start)
+Tugboat.deactivate()                    // back to dormant until the next activate
+Tugboat.lifecycleState                  // .dormant / .starting / .active / .stopping
+Tugboat.setUserId("user-1")             // nil clears; kept across dormant periods and stop/start
+Tugboat.setTraits(["plan": "pro"])      // JSON values; kept across dormant periods and stop/start
 Tugboat.stop()
 someView.tugboatTag("checkout")         // developer alias for a target
 someView.tugboatTag("checkout", accessibility: true) // also its accessibilityIdentifier
@@ -129,17 +133,74 @@ for the URLSession helpers and `TugboatAlamofire`.
 - Call `start` from `application(_:didFinishLaunchingWithOptions:)` (SwiftUI
   apps use `@UIApplicationDelegateAdaptor`). Every method may be called from
   any thread; work runs on the main thread in call order.
-- `start` is idempotent. It refuses to start, and logs the field paths, when
-  a field the collector requires on `session_start` is blank or invalid
-  (`app.version`, `app.buildNumber`, device screen metrics, locale, …) or the
-  collector URL is not http(s).
+- `start` stores the configuration and is idempotent until `stop`. It refuses
+  the configuration, and logs the field paths, when a field the collector
+  requires on `session_start` is blank or invalid (`app.version`,
+  `app.buildNumber`, device screen metrics, locale, …) or the collector URL is
+  not http(s). With `enabled: false` (the default) nothing else happens until
+  `activate`; see [Lifecycle and activation](#lifecycle-and-activation).
 - Nothing throws or traps into the app; failures are logged under subsystem
   `com.gettugboat.sdk`.
 - `stop` ends the session, then disposes the engine once the `session_end`
   post settled (202 or a status the engine does not retry), or after 25 s,
   on a background `tugboat-stop` thread; at once when no `session_end` will
   be posted (the host stopped, or `willTerminate` already ended the
-  session). The main thread never waits.
+  session). The main thread never waits. `deactivate` and a new activation id
+  end the session the same way.
+
+## Lifecycle and activation
+
+Native activation follows Flutter's `TugboatReplay` (`enabled`, `activate`,
+`deactivate`), with the same states (`TugboatLifecycleState`: `dormant`,
+`starting`, `active`, `stopping`).
+
+- `TugboatConfig.enabled` defaults to `false`. A dormant SDK installs
+  nothing: no engine, notification observers, KVO, gesture recognizers,
+  `UIViewController` method exchange, threads, or network; nothing is
+  recorded and the app is unchanged. With `enabled: true` a session starts at
+  `start`, with no `activationRequestId`.
+- `Tugboat.activate(activationRequestId:)` starts a session whose
+  `session.start` carries the id (a blank id still activates and is left off
+  the wire; Flutter sends `""`). The same id while starting or active does
+  nothing. A different id while active goes `active → starting` at once: the
+  current session ends (`session_end`) and a new one starts with the new id
+  and a new `sessionEpoch`, never passing through `stopping`. An `activate`
+  before `start` is remembered and applied by `start`, even with `enabled:
+  false`.
+- `Tugboat.deactivate()` stops coded events and network calls before it
+  returns, on the calling thread, then ends the session on the main thread.
+  The state is `stopping` until `session.end` is posted, then `dormant`. An
+  `enabled: true` configuration stays down until the next `activate`.
+- `Tugboat.stop()` ends the session and forgets the configuration, the
+  activation request and the `deactivate` override; an `activate` after it
+  waits for the next `start`. `stop()` is not Flutter's
+  `TugboatReplay.disabled`: there is no native switch that makes `activate`
+  ignored.
+- `lifecycleState`, `isActivated` (an `activate` id is set and the state is
+  not `dormant`) and `activationRequestId` are readable from any thread and
+  change before `activate`, `deactivate` or `stop` returns.
+- State-keeping APIs are never gated: `setUserId`, `setTraits`, event hooks
+  and network-call helpers can be used while dormant. The user id and traits
+  are sent to every new session; hooks and calls record only while a session
+  runs.
+- `locale.set` is posted when `NSLocale.currentLocaleDidChangeNotification`
+  reports a different locale (same object as `session.start.locale`); the
+  observer exists only while a session runs. Locale is evidence, never
+  identity.
+- The hosting-controller method exchange (`trackHostingControllers`) is
+  installed at the first session start, never while dormant. After
+  `deactivate` or `stop` it stays installed and inert: the exchanged
+  `viewDidAppear` / `viewDidDisappear` call the originals and record nothing.
+  It is never exchanged back, because another SDK may have exchanged the same
+  methods since and undoing ours would break its chain. At each session
+  start the hosting controllers already on the key window (root, children
+  and navigation tops, then presented controllers) are adopted, so the session's
+  `session_start` seed names a hosting controller that was on screen before
+  `activate`.
+- While no session records, `.tugboatScreen` callbacks keep only each
+  navigator's current stack (settled on the main queue's next turn, at once
+  past 64 pending), so a dormant app holds no history and the next session's
+  seed names the visible screen.
 
 ## Device Farm / exploration correlation
 
@@ -150,12 +211,19 @@ and so on) mirror the Flutter plugin. Environment wins when both are set.
 When either scene-inventory or action-context is enabled (`1` / `true` /
 `yes`, case-insensitive), the SDK logs `TUGBOAT_LAUNCH` once per process and
 `TUGBOAT_HEALTH` ten seconds later through `os_log` (subsystem
-`com.gettugboat.sdk`, category `launch`). Payloads match the Android lines;
-`captureSessionId` comes from the first `session.start` clock reading.
-`TUGBOAT_HEALTH` uses `lifecycle` `active` when the engine host and session
-are still live at the ten-second mark, otherwise `dormant` without
-`captureSessionId`. A `Tugboat.stop()` before the ten-second mark cancels the
-HEALTH line. Lines never include collector URL or API material.
+`com.gettugboat.sdk`, category `launch`). As the Flutter host prints them at
+configuration time, `TUGBOAT_LAUNCH` is logged at the first accepted
+`Tugboat.start`, whatever the lifecycle (a dormant launch logs it too), and
+`TUGBOAT_HEALTH` ten seconds later. Each line reads the SDK when it prints:
+`captureSessionId` is the running session's id (`session-<session.start wall
+clock>`) and is left out when no session runs; HEALTH's `lifecycle` is the
+`TugboatLifecycleState` name and `activationRequestId` the current request,
+when one is set. The launch fields (`captureRequested`, `emitSceneInventory`,
+`acceptActionContext`, `automationRunId`) and the HEALTH fields (every
+lifecycle state, `activationRequestId`, `dormant` with no ids once the
+session's engine host stopped) match the Android lines. A
+`deactivate` or a new activation id does not cancel HEALTH; a
+`Tugboat.stop()` before the ten-second mark does. Lines never include collector URL or API material.
 `TUGBOAT_COLLECTOR_BASE_URL` is not applied in v1 (collector override is out
 of scope here). A later `stop` and `start` does not emit new lines. Device
 Farm exploration tooling does not read iOS device logs today; hosted iOS runs
@@ -197,8 +265,8 @@ call.complete(statusCode: 422, errorResponseBody: ["error": "invalid_order"])
   too) as JSON. `Data` gives no body. The duration runs from `beginNetworkCall` to
   `complete` or `fail` on the monotonic host clock.
 - Only the first `complete` or `fail` of a token counts. A nil or empty
-  route, or a call while Tugboat is not started, stopped, or disabled,
-  gives a token that records nothing; so does finishing a call after its
+  route, or a call while no session runs (dormant, not started, deactivated,
+  or stopped), gives a token that records nothing; so does finishing a call after its
   session ended.
 - Every method may be called from any thread. The time is taken, a
   `transform` runs, and the values are read on the calling thread, before
@@ -394,12 +462,14 @@ changes. Turn this on only to learn about untagged screens, and sample it.
 
 | Piece | Where | Role |
 | --- | --- | --- |
-| Facade | `Public/Tugboat`, `TugboatConfig` | Thin: main-thread hop, idempotency, user id and traits kept across sessions. |
+| Facade | `Public/Tugboat`, `TugboatConfig`, `TugboatLifecycleState` | Thin: main-thread hop, idempotency, user id and traits kept across sessions. |
+| Activation | `Sdk/Activation` | `ActivationState` (Flutter's `TugboatLifecycleNotifier`: state, activation id, `deactivate` override, request epoch; changed on the calling thread under a lock) and `ActivationDriver` (Flutter's activation gate, main thread: starts a session when one is wanted and none runs for the current request, ends it through the runtime's `stop` otherwise). The `deactivate` evidence fence runs under the same lock as the driver's channel open, so a session started for an older request never takes evidence. |
 | Evidence | `Evidence/` | `TugboatEventHook`, `TugboatNetworkCall` and `TugboatParameterPolicy`; `EvidenceChannel` admits them into the open session (opened by `start`, closed by `stop`), stamps the time on the calling thread, and hops to the main thread; `EvidenceMessages` builds `evidence.externalEvent` / `evidence.networkCall`; `HostParameters` runs a `transform`; `EvidenceEncoder` and `ValueKind` write the values in the engine's value encoding. |
 | Network | `Network/`, `Evidence/HTTPErrorBody`, `Evidence/TugboatAdapters`, `Public/Tugboat+URLSession` | `Tugboat.instrumentedSession` and `Tugboat.data(for:...)`; `DelegateForwarder` (the Objective-C forwarding proxy), `InstrumentedSessionDelegate`, `NetworkTaskRecorder` (one event per task, timing from metrics, per-task state on the task); `HTTPErrorBody` (the byte-reading error-body rule, `JSONTextBody`); `TugboatAdapters` (SPI for `TugboatAlamofire`, and an evidence tap for its tests). |
 | Composition root | `Sdk/TugboatRuntime`, `RuntimeParts` | Builds and owns one engine host, the SwiftUI adapter, the capture coordinator, the surface observer, and the lifecycle bridge. Closures reach the host weakly. |
-| Configuration | `Sdk/HostMetadata`, `DeviceSnapshot`, `EngineConfiguration`, `SessionMessages` | `engine.configure`: `host` with every `session_start` field the collector requires (device id `identifierForVendor`, `platform: ios`, screen size in points, `scale` as both densities, dpi `scale × 160`, `ipInfo.ip` placeholder `127.0.0.1` as Flutter on iOS, configured locale with timezone), the Dart `limits`, `gesture` = `GestureConfig.uiKitDefault`, `capture.answerTimeoutMs` 5000, `collector.enabled`, `focusChanges` (no `systemInput`: iOS has no system input facts yet). `session.start` with the key window's viewport and the active locale. |
+| Configuration | `Sdk/HostMetadata`, `DeviceSnapshot`, `EngineConfiguration`, `SessionMessages` | `engine.configure`: `host` with every `session_start` field the collector requires (device id `identifierForVendor`, `platform: ios`, screen size in points, `scale` as both densities, dpi `scale × 160`, `ipInfo.ip` placeholder `127.0.0.1` as Flutter on iOS, configured locale with timezone), the Dart `limits`, `gesture` = `GestureConfig.uiKitDefault`, `capture.answerTimeoutMs` 5000, `collector.enabled`, `focusChanges` and `captureDiagnostics` (no `systemInput`: iOS has no system input facts yet). `session.start` with the key window's viewport, the active locale, and `activationRequestId` / `explorationRunId` when non-blank. |
 | Lifecycle | `Sdk/AppLifecycleBridge` | Application notifications to `app.lifecycle`: active `resumed`, resign `inactive`, background `paused`, will-enter-foreground `inactive`, terminate `detached`. |
+| Locale | `Sdk/LocaleBridge` | `NSLocale.currentLocaleDidChangeNotification` to `locale.set` (the `session.start.locale` object), skipping a locale equal to the last one sent; added at session start, removed at session end. |
 | Stop | `Sdk/StopSequence`, `SessionEndWatcher` | `session.end` → wait for the `session_end` post (one `tugboat-stop` thread, latch with a 25 s deadline, as on Android; skipped when none will be posted) → `engine.dispose` → destroy. The watcher's callback holds only the latch and is dropped after the wait or on `close`, so a post that never settles keeps nothing alive. The watcher repeats the engine's retry rule; a test pins it to `transport.cpp` and the `delivery-status-classification` fixture. |
 | Captures | `Capture/CaptureCoordinator`, `RuntimeOutcomes`, `FrameMasks`, `WindowCapturer` | `capture.request` → main thread → the key window (waits up to 3 s for one; nothing about its size is read here) → `TugboatCaptureRuntime` (`viewHierarchy`, the whole `UIWindow`, so sheets and alerts are in the frame). The mask supplier runs inside the runtime's main-thread draw turn, after layout and immediately before each draw. That one reading of the window gives the masks (`WindowMasks`), the structure signature, the boundary (posted as `surface` when it changed, before the result), and the pixel size (`pixelsPerPoint` = 0.75 × the engine `scale`, Flutter's `capturePixelRatio`). Each draw is recorded under its snapshot id, so the result reports the coverage and boundary of the draw the frame came from. JPEG bytes go to `FrameHandleTable`. Every request is answered exactly once by id, in any order (C16); every runtime status maps explicitly. |
 | Structure | `Capture/StructureSignature`, `StructureProbe` | FNV-1a over the drawn size, the mask rectangles, visible control state (`UIControl` selected / highlighted / enabled, `UISwitch` on, the accessibility `selected` trait), and the current `.tugboatScreen` name; never text. |

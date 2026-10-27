@@ -11,12 +11,22 @@ final class TugboatFacadeTests: XCTestCase {
     TugboatConfig(
       collector: .init(baseURL: URL(string: baseURL) ?? URL(fileURLWithPath: "/"), apiKey: "key"),
       app: .init(name: "Tests", version: version, buildNumber: "1", appId: "com.tugboat.tests", installationId: "i-1"),
+      enabled: true,
       trackHostingControllers: false)
   }
 
   override func tearDown() {
     Tugboat.stop()
+    drainMain()
     super.tearDown()
+  }
+
+  /// Runs what `stop` queued on the main thread, so the next test starts
+  /// with no stored configuration.
+  private func drainMain() {
+    let drained = expectation(description: "main drained")
+    DispatchQueue.main.async { drained.fulfill() }
+    wait(for: [drained], timeout: 2)
   }
 
   func testStartRefusesWithoutARequiredField() {

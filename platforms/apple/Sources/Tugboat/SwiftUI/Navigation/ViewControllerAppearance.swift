@@ -8,16 +8,20 @@ import UIKit
 /// tell `observer`. Only public Objective-C runtime functions are used
 /// (`class_getInstanceMethod`, `method_exchangeImplementations`).
 ///
-/// Installing cannot be undone (another SDK may have exchanged the same
-/// methods since), so after `stop()` the exchange stays and records nothing
-/// while no adapter is recording. It is installed the first time an adapter
-/// that tracks hosting controllers starts (never when the configuration opts
-/// out), so a hosting controller already on screen at that first `start()`
-/// is not seen; `.tugboatScreen` alone is enough for route keys.
+/// It is installed the first time a session starts with
+/// `trackHostingControllers` (never while Tugboat is dormant, never when the
+/// configuration opts out). A hosting controller already on screen then
+/// never gets a `viewDidAppear` it sees, so `HostingControllerTracker`
+/// adopts the key window's controllers at each session start. It is never
+/// exchanged back, not even by `Tugboat.deactivate()` or `Tugboat.stop()`:
+/// another SDK may have exchanged the same methods since, and undoing ours
+/// would break its chain. While no session records, the exchanged methods
+/// call the originals and record nothing.
 ///
 /// Main thread only.
 enum ViewControllerAppearance {
   private static let installed = Locked(false)
+  private static let attempts = Locked(0)
 
   /// Called after every view controller's `viewDidAppear` (true) or
   /// `viewDidDisappear` (false).
@@ -27,14 +31,25 @@ enum ViewControllerAppearance {
     installed.current
   }
 
-  static func install() {
+  /// Tests: how many times `install()` was called, whether or not it
+  /// installed anything.
+  static var installAttempts: Int {
+    attempts.current
+  }
+
+  /// Exchanges the methods once per process; true only for the call that
+  /// installed them.
+  @discardableResult
+  static func install() -> Bool {
+    attempts.withLock { $0 += 1 }
     let first = installed.withLock { (done: inout Bool) -> Bool in
       defer { done = true }
       return !done
     }
-    guard first else { return }
+    guard first else { return false }
     exchange(#selector(UIViewController.viewDidAppear(_:)), with: #selector(UIViewController.tugboat_viewDidAppear(_:)))
     exchange(#selector(UIViewController.viewDidDisappear(_:)), with: #selector(UIViewController.tugboat_viewDidDisappear(_:)))
+    return true
   }
 
   fileprivate static func notify(_ controller: UIViewController, appeared: Bool) {
