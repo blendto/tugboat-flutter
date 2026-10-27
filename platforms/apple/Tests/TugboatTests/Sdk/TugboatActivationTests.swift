@@ -320,6 +320,14 @@ final class TugboatActivationTests: XCTestCase {
   /// The appearance exchange stays installed after `deactivate`, still
   /// forwards to the original implementation, and records nothing.
   func testTheAppearanceExchangeStaysInertAfterDeactivate() {
+    // Fresh trackers: a `.tugboatScreen` seen by an earlier test would
+    // silence hosting-controller tracking and hide a recording bug.
+    ScreenTracker.shared.reset()
+    HostingControllerTracker.shared.reset()
+    defer {
+      ScreenTracker.shared.reset()
+      HostingControllerTracker.shared.reset()
+    }
     Tugboat.start(config(enabled: true, trackHostingControllers: true))
     drainMain()
     XCTAssertTrue(ViewControllerAppearance.isInstalled)
