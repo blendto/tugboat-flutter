@@ -38,6 +38,11 @@ final class TugboatRuntime {
     sessionWallUs = parts.sessionStartAt.wallUs
   }
 
+  /// False once the engine host closed or disabled itself; any thread.
+  var isHostRunning: Bool {
+    host.isRunning
+  }
+
   /// Tests: whether the locale observer is installed.
   var observesLocale: Bool {
     locale.isObserving

@@ -61,11 +61,11 @@ public enum Tugboat {
   static var launchOptions: () -> LaunchOptions? = { LaunchOptions.fromProcessInfo() }
 
   /// What the launch lines report now: the lifecycle, the request, and the
-  /// running session's start; main thread.
+  /// running session's start (`dormant` once its engine host stopped);
+  /// main thread.
   static func launchReading() -> LaunchCorrelation.Reading {
-    let current = activation.current
-    return LaunchCorrelation.Reading(
-      state: current.state, activationRequestId: current.activationRequestId, sessionWallUs: driver.session?.sessionWallUs)
+    LaunchCorrelation.Reading.of(
+      activation.current, session: driver.session.map { ($0.sessionWallUs, $0.isHostRunning) })
   }
 
   /// The running session's runtime; main thread.

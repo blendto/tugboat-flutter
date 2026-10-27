@@ -18,6 +18,20 @@ final class LaunchCorrelation {
     /// The running session's start (`session.start` wall clock); nil when
     /// no session runs.
     let sessionWallUs: Int64?
+
+    /// The reading for `lifecycle` and the running session (`session`, nil
+    /// when none runs). As on Android, a session whose engine host stopped
+    /// (it disabled itself, or the engine ended the session on `detached`)
+    /// reads `dormant`, with no ids.
+    static func of(
+      _ lifecycle: ActivationState.Snapshot, session: (wallUs: Int64, hostRunning: Bool)?
+    ) -> Reading {
+      if let session = session, !session.hostRunning {
+        return Reading(state: .dormant, activationRequestId: nil, sessionWallUs: nil)
+      }
+      return Reading(
+        state: lifecycle.state, activationRequestId: lifecycle.activationRequestId, sessionWallUs: session?.wallUs)
+    }
   }
 
   typealias Lifecycle = () -> Reading

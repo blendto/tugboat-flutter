@@ -219,9 +219,9 @@ configuration time, `TUGBOAT_LAUNCH` is logged at the first accepted
 clock>`) and is left out when no session runs; HEALTH's `lifecycle` is the
 `TugboatLifecycleState` name and `activationRequestId` the current request,
 when one is set. The launch fields (`captureRequested`, `emitSceneInventory`,
-`acceptActionContext`, `automationRunId`) are the Android line's; the
-lifecycle states other than `active` / `dormant` and `activationRequestId`
-are Apple's until Android follows the same activation contract. A
+`acceptActionContext`, `automationRunId`) and the HEALTH fields (every
+lifecycle state, `activationRequestId`, `dormant` with no ids once the
+session's engine host stopped) match the Android lines. A
 `deactivate` or a new activation id does not cancel HEALTH; a
 `Tugboat.stop()` before the ten-second mark does. Lines never include collector URL or API material.
 `TUGBOAT_COLLECTOR_BASE_URL` is not applied in v1 (collector override is out

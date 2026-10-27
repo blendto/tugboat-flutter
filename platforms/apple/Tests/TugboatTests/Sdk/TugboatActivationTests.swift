@@ -121,9 +121,9 @@ final class TugboatActivationTests: XCTestCase {
   }
 
   /// Spins the main run loop until `condition` holds (engine submits are
-  /// async; CI runners have taken more than 3 s with older engines draining).
+  /// async).
   @discardableResult
-  private func eventually(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
+  private func eventually(timeout: TimeInterval = 5, _ condition: () -> Bool) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() {
       if Date() > deadline { return false }
@@ -473,9 +473,11 @@ final class TugboatActivationTests: XCTestCase {
     XCTAssertEqual(lines.last, "TUGBOAT_HEALTH {\"lifecycle\":\"dormant\"}")
   }
 
-  /// `stop()` and `activate` from another thread, both orders, before main
-  /// runs: never `active` without a session.
-  func testStopAndActivateFromAnotherThreadInBothOrders() {
+  /// Smoke test: `stop()` and `activate` from one background thread, in
+  /// each call order, before main runs: never `active` without a session.
+  /// One thread cannot make main run the work in the reverse order (the
+  /// actual race); the Linux `ActivationTests` race tests cover that.
+  func testStopAndActivateCalledFromOneBackgroundThread() {
     Tugboat.start(config(enabled: true))
     drainMain()
     XCTAssertTrue(Tugboat.isRunning)

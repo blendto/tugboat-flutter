@@ -175,6 +175,30 @@ final class LaunchCorrelationTests: XCTestCase {
     XCTAssertEqual(lines.last, "TUGBOAT_HEALTH {\"lifecycle\":\"dormant\"}")
   }
 
+  /// As on Android: a running session whose engine host stopped reads
+  /// `dormant` with no ids; a live one reads the lifecycle and its id.
+  func testAStoppedHostReadsDormant() {
+    var lifecycle = ActivationState.Snapshot()
+    lifecycle.state = .active
+    lifecycle.activationRequestId = "a"
+    let stopped = LaunchCorrelation.Reading.of(lifecycle, session: (wallUs: 7, hostRunning: false))
+    XCTAssertEqual(stopped.state, .dormant)
+    XCTAssertNil(stopped.activationRequestId)
+    XCTAssertNil(stopped.sessionWallUs)
+    XCTAssertEqual(
+      LaunchOptions.healthLine(
+        lifecycle: stopped.state.rawValue, activationRequestId: stopped.activationRequestId,
+        sessionWallUs: stopped.sessionWallUs),
+      "TUGBOAT_HEALTH {\"lifecycle\":\"dormant\"}")
+    let live = LaunchCorrelation.Reading.of(lifecycle, session: (wallUs: 7, hostRunning: true))
+    XCTAssertEqual(live.state, .active)
+    XCTAssertEqual(live.activationRequestId, "a")
+    XCTAssertEqual(live.sessionWallUs, 7)
+    let none = LaunchCorrelation.Reading.of(lifecycle, session: nil)
+    XCTAssertEqual(none.state, .active)
+    XCTAssertNil(none.sessionWallUs)
+  }
+
   /// m2: a dormant start logs LAUNCH (no session id) and a dormant HEALTH.
   func testADormantStartLogsLaunchAndHealth() {
     let held = Clock10s()
