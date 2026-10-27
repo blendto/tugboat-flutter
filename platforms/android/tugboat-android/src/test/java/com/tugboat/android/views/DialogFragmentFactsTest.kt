@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.EditText
 import android.widget.FrameLayout
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
@@ -138,6 +139,70 @@ class DialogFragmentFactsTest {
         assertEquals(1, harness.pointerUps().size)
     }
 
+    @Test
+    fun aNestedDialogFragmentUpAtSessionStartIsAdopted() {
+        val activity = host().get()
+        val parent = Fragment()
+        activity.supportFragmentManager.beginTransaction().add(android.R.id.content, parent, "parent").commitNow()
+        val fragment = ButtonDialogFragment()
+        fragment.show(parent.childFragmentManager, "nested")
+        idleMain()
+        adapter.stop()
+
+        adapter.start()
+
+        assertEquals(1, adapter.dialogSessionCount(activity))
+        harness.drainFacts()
+        tapThrough(fragment.requireDialog().window!!, fragment.button)
+        assertEquals(1, harness.pointerUps().size)
+    }
+
+    /** A restarted session (a runtime `activate`) and then Home and back: only the new session's watcher reattaches. */
+    @Test
+    fun afterASessionRestartAFragmentStopAndStartStillReports() {
+        val controller = host()
+        val activity = controller.get()
+        val fragment = ButtonDialogFragment()
+        fragment.show(activity.supportFragmentManager, "confirm")
+        idleMain()
+        adapter.stop()
+        adapter.start()
+
+        controller.pause().stop()
+        idleMain()
+        controller.restart().start().resume()
+        idleMain()
+
+        assertEquals(1, adapter.dialogSessionCount(activity))
+        harness.drainFacts()
+        tapThrough(fragment.requireDialog().window!!, fragment.button)
+        assertEquals(1, harness.pointerUps().size)
+    }
+
+    /**
+     * On API 29+ adoption finds a dialog fragment's window twice (the root
+     * scan and the fragment walk): it must get one session, the one that
+     * holds the wrapper and is ticked each frame, so its focus reports.
+     */
+    @Test
+    @Config(sdk = [29])
+    fun aDialogFragmentFoundByBothPathsIsOneSession() {
+        val activity = host().get()
+        val fragment = FieldDialogFragment()
+        fragment.show(activity.supportFragmentManager, "note")
+        idleMain()
+        adapter.stop()
+        adapter.start()
+        assertEquals(1, adapter.dialogSessionCount(activity))
+        harness.drainFacts()
+
+        fragment.requireDialog().window!!.callback.onWindowFocusChanged(true)
+        fragment.field.requestFocus()
+
+        val kinds = harness.drainFacts().filter { it.first == "focus" }.map { it.second.getString("kind") }
+        assertEquals(listOf("text_input"), kinds)
+    }
+
     private fun host(): ActivityController<FragmentActivity> =
         Robolectric.buildActivity(FragmentActivity::class.java).setup().also { idleMain() }
 
@@ -148,6 +213,16 @@ class DialogFragmentFactsTest {
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
             button = Button(inflater.context).apply { id = android.R.id.button3 }
             return FrameLayout(inflater.context).apply { addView(button, FrameLayout.LayoutParams(300, 200)) }
+        }
+    }
+
+    /** A dialog fragment whose view is a text field. */
+    class FieldDialogFragment : DialogFragment() {
+        lateinit var field: EditText
+
+        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+            field = EditText(inflater.context)
+            return FrameLayout(inflater.context).apply { addView(field, FrameLayout.LayoutParams(300, 200)) }
         }
     }
 

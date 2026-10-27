@@ -2,6 +2,8 @@ package com.tugboat.android.views
 
 import android.content.DialogInterface
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.MotionEvent
 import android.view.View
 import android.view.Window
 import android.view.inspector.WindowInspector
@@ -23,6 +25,9 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowDialog
+import org.robolectric.shadows.ShadowViewRootImpl
 import java.lang.reflect.Proxy
 
 /**
@@ -190,16 +195,117 @@ class DialogWindowFactsTest {
     }
 
     @Test
-    fun aDismissedDialogSessionIsNotRetained() {
+    fun movesAndCancelsAreReportedInActivitySpaceToo() {
         val activity = host()
-        appCompatDialog(activity).also { activity.windowFocus(false) }.dismiss()
+        val dialog = appCompatDialog(activity)
+        harness.locations[dialog.window!!.decorView] = 60 to 700
+        activity.windowFocus(false)
+        harness.drainFacts()
+
+        val now = SystemClock.uptimeMillis()
+        for ((action, x) in listOf(MotionEvent.ACTION_DOWN to 10f, MotionEvent.ACTION_MOVE to 50f, MotionEvent.ACTION_CANCEL to 90f)) {
+            val event = MotionEvent.obtain(now, now, action, x, 20f, 0)
+            dialog.window!!.callback.dispatchTouchEvent(event)
+            event.recycle()
+        }
+
+        val pointers = harness.drainFacts().filter { it.first == "input.pointer" }.map { it.second }
+        assertEquals(listOf("down" to 35.0, "move" to 55.0, "cancel" to 75.0), pointers.map { it.getString("phase") to it.getDouble("x") })
+        assertEquals(listOf(360.0, 360.0, 360.0), pointers.map { it.getDouble("y") })
+    }
+
+    /**
+     * A dialog shown and dismissed before its first traversal never attaches,
+     * so no window-detach callback reaches its session: the activity
+     * regaining focus sweeps it.
+     */
+    @Test
+    fun aDialogGoneWithoutADetachCallbackEndsWhenTheActivityRegainsFocus() {
+        val activity = host()
+        val dialog = AlertDialog.Builder(activity).setMessage("Delete?").setPositiveButton("OK", null).show()
+        activity.window.callback.onWindowFocusChanged(false)
+        assertEquals(1, adapter.dialogSessionCount(activity))
+        dialog.dismiss()
+        assertEquals("no detach callback for a never-attached window", 1, adapter.dialogSessionCount(activity))
+
+        activity.window.callback.onWindowFocusChanged(true)
+
+        assertEquals(0, adapter.dialogSessionCount(activity))
+        assertEquals(0, CallbackChain.countTugboat(dialog.window!!.callback))
+    }
+
+    /**
+     * The same missed detach, and nothing regains focus: the session map
+     * holds the dialog's decor weakly, so once the app drops the dialog the
+     * session goes with it.
+     */
+    @Test
+    fun aDialogGoneWithoutADetachCallbackIsNotRetained() {
+        val activity = host()
+        showAndDismissBeforeFirstFrame(activity)
+        assertEquals(1, adapter.dialogSessionCount(activity))
+        ShadowDialog.reset()
         idleMain()
-        repeat(GC_ROUNDS) {
-            if (adapter.dialogSessionCount(activity) == 0) return@repeat
+
+        // A progress wait, not a timing: collect until the entry is gone, generously bounded.
+        var rounds = 0
+        while (adapter.dialogSessionCount(activity) != 0 && rounds++ < GC_ROUNDS) {
             System.gc()
             System.runFinalization()
         }
         assertEquals(0, adapter.dialogSessionCount(activity))
+    }
+
+    @Test
+    fun aDismissedDialogLeavesNoActiveFocusWindowBehind() {
+        val activity = host()
+        val dialog = appCompatDialog(activity)
+        activity.windowFocus(false)
+        dialog.window!!.callback.onWindowFocusChanged(true)
+        assertTrue(adapter.focusState.hasActiveWindow)
+
+        dialog.dismiss()
+        idleMain()
+
+        assertFalse("the dismissed dialog is not the active window", adapter.focusState.hasActiveWindow)
+    }
+
+    @Test
+    fun aDialogThatHadWindowFocusBeforeItWasFoundIsTheActiveWindow() {
+        val activity = host()
+        val field = EditText(activity)
+        val dialog = AlertDialog.Builder(activity).setView(field).setPositiveButton("OK", null).show()
+        idleMain()
+        // Focus reaches the dialog before Tugboat wraps its callback.
+        Shadow.extract<ShadowViewRootImpl>(dialog.window!!.decorView.parent).callWindowFocusChanged(true)
+        idleMain()
+        field.requestFocus()
+        harness.drainFacts()
+
+        activity.windowFocus(false)
+
+        assertEquals("the dialog is active from attach", listOf("text_input"), focusKinds())
+    }
+
+    @Test
+    @Config(sdk = [26])
+    fun belowApi29AComponentDialogGetsNoSessionAndStillFlagsTheFrame() {
+        val activity = host()
+        val dialog = appCompatDialog(activity)
+        activity.windowFocus(false)
+        harness.drainFacts()
+
+        assertEquals(0, adapter.dialogSessionCount(activity))
+        tapThrough(dialog.window!!, dialog.getButton(DialogInterface.BUTTON_POSITIVE))
+        assertTrue(harness.drainFacts().none { it.first == "input.pointer" })
+        assertTrue(MaskCoverageReason.OverlayWindow in adapter.masks(activity.window).coverage.reasons)
+    }
+
+    /** In its own frame, so no local of the test keeps the dialog reachable. */
+    private fun showAndDismissBeforeFirstFrame(activity: Host) {
+        val dialog = AlertDialog.Builder(activity).setMessage("Delete?").setPositiveButton("OK", null).show()
+        activity.window.callback.onWindowFocusChanged(false)
+        dialog.dismiss()
     }
 
     private fun focusKinds(): List<String> =
@@ -234,6 +340,6 @@ class DialogWindowFactsTest {
     }
 
     private companion object {
-        const val GC_ROUNDS = 20
+        const val GC_ROUNDS = 50
     }
 }
