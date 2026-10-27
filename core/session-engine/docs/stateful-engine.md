@@ -437,7 +437,9 @@ that the capture seam accepts as `frame-N`. Delivery observes every accepted
 frame through a frame acceptance hook in the module registry and queues it;
 `capture.result` rejects a frame whose `requestedBackend` or
 `resolvedBackend` is outside the collector's closed vocabulary
-(`flutterRepaintBoundary`, `nativeCpuExperimental`).
+(`flutterRepaintBoundary` and `nativeCpuExperimental` from Flutter and older
+native hosts; `androidPixelCopy` and `iosViewHierarchy` from the native
+SDKs).
 
 The upload is one multipart `http.send` with:
 

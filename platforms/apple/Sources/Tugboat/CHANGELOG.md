@@ -8,6 +8,11 @@ entry here must match it.
 Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
 the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISample`).
 
+- Frame backend name (contract change: `frameMetadata` values):
+  `requestedBackend` and `resolvedBackend` are `iosViewHierarchy`, no
+  longer `nativeCpuExperimental`. Needs a collector that accepts the native
+  backend names (pmkit-collector#38); an older one rejects every frame
+  upload with 400.
 - Public API: `Tugboat.start(TugboatConfig)`, `activate(activationRequestId:)`,
   `deactivate()`, `setUserId`, `setTraits`, `stop`; `lifecycleState`,
   `isActivated`, `activationRequestId`; `TugboatConfig` (`Collector`, `App`,
@@ -145,7 +150,7 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   `surface`, and pixel size come from one reading in the same main-thread
   turn as each draw; every request answered once by id, in any order
   (C16); every runtime status mapped explicitly; `frameMetadata` backends
-  `nativeCpuExperimental`; `frame.maskCoverage` on every captured frame;
+  `iosViewHierarchy`; `frame.maskCoverage` on every captured frame;
   `surface` on window size changes (key-value observation).
 
 - SwiftUI adapter (internal): `input.pointer` (window points, unique contact

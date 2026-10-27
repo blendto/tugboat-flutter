@@ -526,7 +526,7 @@ changes. Turn this on only to learn about untagged screens, and sample it.
 | Stop | `Sdk/StopSequence`, `SessionEndWatcher` | `session.end` → wait for the `session_end` post (one `tugboat-stop` thread, latch with a 25 s deadline, as on Android; skipped when none will be posted) → `engine.dispose` → destroy. The watcher's callback holds only the latch and is dropped after the wait or on `close`, so a post that never settles keeps nothing alive. The watcher repeats the engine's retry rule; a test pins it to `transport.cpp` and the `delivery-status-classification` fixture. |
 | Captures | `Capture/CaptureCoordinator`, `RuntimeOutcomes`, `FrameMasks`, `WindowCapturer` | `capture.request` → main thread → the key window (waits up to 3 s for one; nothing about its size is read here) → `TugboatCaptureRuntime` (`viewHierarchy`, the whole `UIWindow`, so sheets and alerts are in the frame). The mask supplier runs inside the runtime's main-thread draw turn, after layout and immediately before each draw. That one reading of the window gives the masks (`WindowMasks`), the structure signature, the boundary (posted as `surface` when it changed, before the result), and the pixel size (`pixelsPerPoint` = 0.75 × the engine `scale`, Flutter's `capturePixelRatio`). Each draw is recorded under its snapshot id, so the result reports the coverage and boundary of the draw the frame came from. JPEG bytes go to `FrameHandleTable`. Every request is answered exactly once by id, in any order (C16); every runtime status maps explicitly. |
 | Structure | `Capture/StructureSignature`, `StructureProbe` | FNV-1a over the drawn size, the mask rectangles, visible control state (`UIControl` selected / highlighted / enabled, `UISwitch` on, the accessibility `selected` trait), and the current `.tugboatScreen` name; never text. |
-| Wire | `Capture/CaptureAnswer`, `CaptureResultJSON` | `capture.result` with `requestedBackend` / `resolvedBackend` `nativeCpuExperimental`, the drawn boundary, timings, and `frame.maskCoverage {mode, reasons}` on every captured frame (the adapter's `MaskCoverage`, each reason under its own name). |
+| Wire | `Capture/CaptureAnswer`, `CaptureResultJSON` | `capture.result` with `requestedBackend` / `resolvedBackend` `iosViewHierarchy`, the drawn boundary, timings, and `frame.maskCoverage {mode, reasons}` on every captured frame (the adapter's `MaskCoverage`, each reason under its own name). |
 | Surface | `Capture/SurfaceReporter`, `SurfaceObserver`, `CaptureGeometry` | `surface {boundaryRect, generation}` in window points. Between captures: key-value observation of the key window's `frame` and `bounds` (split view, Stage Manager, rotation) plus key-window, activation and orientation checks; at every capture: the drawn size. |
 
 ## Engine host (`Engine/`, `Host/`, `HTTP/`)
@@ -600,7 +600,7 @@ xcodebuild test -scheme TugboatCaptureRuntime-Package \
 `TugboatTests` runs the collector contract test (`Sdk/CollectorContractTests`:
 the real engine through the host with the SDK's own `engine.configure`,
 `session.start` and `capture.result`, pinning the `session_start` body and
-`frameMetadata` backends `nativeCpuExperimental`), the capture coordinator
+`frameMetadata` backends `iosViewHierarchy`), the capture coordinator
 with overlapping requests answered out of order, the bridge against the real
 engine (the `fingerprint.labelHash` conformance fixture), the host with a
 fake engine and transport, real timers, the multipart golden bytes shared with the Android

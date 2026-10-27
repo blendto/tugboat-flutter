@@ -159,7 +159,7 @@ With the local collector running on port 3000:
     `app_foregrounded` (step 9);
   - no `stateAnchor` on any v2 interaction.
 - `pmkit.frame_captures` and S3 `pmkit-frames/<sessionId>/<frameNo>.jpg`:
-  frames with `requestedBackend` / `resolvedBackend` `nativeCpuExperimental`.
+  frames with `requestedBackend` / `resolvedBackend` `iosViewHierarchy`.
   On iOS 26 text and images inside the `NavigationStack` are masked per
   layer (dark `#1a1a1a` boxes over text, images and SF Symbols; the rest of
   the screen is visible) and `capture_masking` says `precise`; on iOS 15–25

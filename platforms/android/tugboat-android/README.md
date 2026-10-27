@@ -404,8 +404,8 @@ explorationRunId?}`.
    boundary are all taken for the frame being copied. It fills the masks
    before encoding.
 3. The JPEG goes into the handle table and `capture.result` is posted with
-   `requestedBackend` = `resolvedBackend` = `nativeCpuExperimental` (the
-   collector's closed enum), the copy-time boundary rect in dp, the
+   `requestedBackend` = `resolvedBackend` = `androidPixelCopy` (one of the
+   collector's closed backend names), the copy-time boundary rect in dp, the
    structure signature, and timings.
 
 - **Every request is answered exactly once, by id (C16).** Requests can
@@ -638,7 +638,7 @@ Instrumented tests load the real library:
   builders and a recording transport, and pins the `session_start` body
   (app version and build number, device with screen size and densities,
   `ipInfo.ip`, locale) and `frameMetadata[].requestedBackend` /
-  `resolvedBackend` = `nativeCpuExperimental`.
+  `resolvedBackend` = `androidPixelCopy`.
 
 - `evidence/EvidenceFixturesDeviceTest` rebuilds every
   `conformance/evidence` fixture (packaged as test assets) as the Kotlin

@@ -39,7 +39,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * `capture.result` builders, must produce collector bodies the collector
  * accepts. Pins the `session_start` body (every required field),
  * `frameMetadata[].requestedBackend` / `resolvedBackend` =
- * `nativeCpuExperimental` with no mask coverage in it, and the frame's
+ * `androidPixelCopy` with no mask coverage in it, and the frame's
  * `maskCoverage` arriving as a `capture_masking` `capture_diagnostic` on
  * `/v1/events/batch`. Only the transport is fake: it records each
  * `http.send` and answers 202.
@@ -98,8 +98,8 @@ class CollectorContractTest {
         assertTrue(entries.length() > 0)
         for (i in 0 until entries.length()) {
             val entry = entries.getJSONObject(i)
-            assertEquals("nativeCpuExperimental", entry.getString("requestedBackend"))
-            assertEquals("nativeCpuExperimental", entry.getString("resolvedBackend"))
+            assertEquals("androidPixelCopy", entry.getString("requestedBackend"))
+            assertEquals("androidPixelCopy", entry.getString("resolvedBackend"))
             assertFalse("mask coverage never reaches frameMetadata", entry.has("maskCoverage"))
             assertFalse("mask coverage never reaches frameMetadata", "capture_masking" in entry.toString())
         }

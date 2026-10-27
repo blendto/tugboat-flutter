@@ -5,6 +5,11 @@
 Unpublished. The native Android SDK for Views apps: public facade, engine
 wiring, window capture, and the Android Views adapter.
 
+- Frame backend name (contract change: `frameMetadata` values):
+  `requestedBackend` and `resolvedBackend` are `androidPixelCopy`, no
+  longer `nativeCpuExperimental`. Needs a collector that accepts the native
+  backend names (pmkit-collector#38); an older one rejects every frame
+  upload with 400.
 - Overlay windows: frames captured while a dialog, sheet, or focusable menu
   of the activity is showing keep activity masks, add `overlayWindow` to
   `maskCoverage.reasons`, and add an overlay token to the structure
@@ -135,7 +140,7 @@ wiring, window capture, and the Android Views adapter.
   (`capture-runtime` 0.3.0 is now a dependency). Masks, the motion check,
   the structure signature, and the boundary are taken on the main thread
   immediately before `PixelCopy.request` (`WindowMaskSupplier`), filled
-  before encoding; `nativeCpuExperimental` for both backend fields; every
+  before encoding; `androidPixelCopy` for both backend fields; every
   overlapping request answered by id; the `initial` capture waits up to 3 s
   for a foreground window; `surface` facts from the foreground decor view.
   Masks fail closed (whole frame) while a legacy view animation or
