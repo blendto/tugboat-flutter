@@ -185,9 +185,10 @@ class OutboxLifecycleTest {
 
             runtime?.setUserId("u-1")
 
-            // Ordering, not speed. Waiting behind the replay (on its thread, or on a lock its send holds),
-            // the engine request leaves only once the replay's client gave up (REPLAY_TIMEOUT_MS): the key
-            // is out of flight by then, that send was never answered, and the entry needs a second replay.
+            // Ordering, not speed. An engine request that waits behind the replay (on its thread, or on a
+            // lock its send holds) leaves only after the replay's client gave up (REPLAY_TIMEOUT_MS). By then
+            // the key is out of flight, and that send went unanswered, so the entry needs a second replay.
+            // The second check holds even when the key's release races the engine request (same thread).
             assertTrue("the engine request never arrived", engineArrived.await(60, TimeUnit.SECONDS))
             assertEquals("the engine request waited behind the replay", listOf(true), replayInFlightAtEngineArrival)
             awaitUntil(30_000) { entryDirs(root).isEmpty() }
