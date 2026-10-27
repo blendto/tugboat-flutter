@@ -91,11 +91,26 @@ internal object OverlayWindowRoots {
     fun hasOverlayRoot(roots: List<View>, ownerTokens: List<IBinder>): Boolean = roots.any { isOverlayRoot(it, ownerTokens) }
 
     fun isOverlayRoot(root: View, ownerTokens: List<IBinder>): Boolean {
-        if (!root.isShown) return false
-        val params = root.layoutParams as? WindowManager.LayoutParams ?: return false
-        val token = params.token ?: return false
-        if (token !in ownerTokens) return false
+        val params = ownedParams(root, ownerTokens) ?: return false
         return isApplicationOverlay(params.type) || isFocusableSubWindow(params)
+    }
+
+    /**
+     * Whether [root] is a shown dialog of this activity: an owned
+     * application window above the activity's own. Sub-windows (popups)
+     * never count; dialog-window facts do not cover them.
+     */
+    fun isOwnedDialogRoot(root: View, ownerTokens: List<IBinder>): Boolean {
+        val params = ownedParams(root, ownerTokens) ?: return false
+        return isApplicationOverlay(params.type)
+    }
+
+    /** [root]'s window parameters when it is shown and carries one of [ownerTokens]. */
+    private fun ownedParams(root: View, ownerTokens: List<IBinder>): WindowManager.LayoutParams? {
+        if (!root.isShown) return null
+        val params = root.layoutParams as? WindowManager.LayoutParams ?: return null
+        val token = params.token ?: return null
+        return params.takeIf { token in ownerTokens }
     }
 
     /**

@@ -3,8 +3,19 @@ package com.tugboat.android.views.input
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.hypot
 
-/** One finger (or stylus, or mouse button) from its down to its up or cancel. */
-internal class Contact(val contactId: Long, val downX: Double, val downY: Double) {
+/**
+ * One finger (or stylus, or mouse button) from its down to its up or cancel.
+ * [downX], [downY] are dp in the adapter's surface space (what the facts
+ * report); [windowDownXPx], [windowDownYPx] are the same point in physical
+ * pixels of the window that received it (where its tap is hit-tested).
+ */
+internal class Contact(
+    val contactId: Long,
+    val downX: Double,
+    val downY: Double,
+    val windowDownXPx: Float,
+    val windowDownYPx: Float,
+) {
     /** Largest distance from the down point so far, in dp. */
     var maxTravel = 0.0
         private set
@@ -31,8 +42,8 @@ internal class Contact(val contactId: Long, val downX: Double, val downY: Double
 internal class PointerContacts {
     private val active = HashMap<Int, Contact>()
 
-    fun begin(androidId: Int, x: Double, y: Double): Contact {
-        val contact = Contact(nextContactId.getAndIncrement(), x, y)
+    fun begin(androidId: Int, x: Double, y: Double, windowXPx: Float, windowYPx: Float): Contact {
+        val contact = Contact(nextContactId.getAndIncrement(), x, y, windowXPx, windowYPx)
         active[androidId] = contact
         return contact
     }

@@ -7,6 +7,8 @@ import android.view.View
 import android.view.Window
 import com.tugboat.android.views.callback.WindowCallbackInstaller
 import com.tugboat.android.views.callback.WindowEventObserver
+import com.tugboat.android.views.dialog.DialogSessionContext
+import com.tugboat.android.views.dialog.DialogSessions
 import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.ViewsFact
 import com.tugboat.android.views.identity.AnchorResolver
@@ -25,10 +27,11 @@ import com.tugboat.android.views.scroll.RegionScrollTracker
 /**
  * Everything the adapter attaches to one activity window: the window
  * callback (pointer and key facts), the decor view's focus, scroll, and
- * layout listeners, and the frame-driven scroll and focus reads of toolkit
- * region hosts (Compose). Main thread only. After [detach] it emits
- * nothing, even if its window callback has to stay in a foreign wrapper's
- * chain.
+ * layout listeners, the frame-driven scroll and focus reads of toolkit
+ * region hosts (Compose), and the activity's dialog windows
+ * ([DialogSessions]: pointer, key, and focus facts). Main thread only.
+ * After [detach] it emits nothing, even if its window callback has to stay
+ * in a foreign wrapper's chain.
  */
 internal class WindowSession(
     private val activity: Activity,
@@ -38,8 +41,11 @@ internal class WindowSession(
     private val emit: (ViewsFact) -> Unit,
     private val requestFrame: () -> Unit,
     focusState: FocusState,
+    /** `View::getLocationOnScreen`; a seam for tests of dialog-window positions. */
+    locateOnScreen: (View, IntArray) -> Unit = View::getLocationOnScreen,
 ) : WindowEventObserver {
     private var attached = true
+    private var resumed = false
     private var decor: View? = null
     private val pointers = PointerFactProducer(clock, gesture, ::density, ::resolveTap, ::emitIfAttached)
     private val keys = SystemInputProducer(clock, ::emitIfAttached)
@@ -49,10 +55,29 @@ internal class WindowSession(
     private var scrolls: OffsetScrollTracker? = null
     private var regionScrolls: RegionScrollTracker? = null
     private val overlays = OverlayDetector(activity)
+    private val dialogs = DialogSessions(
+        activity,
+        DialogSessionContext(
+            clock = clock,
+            gesture = gesture,
+            anchors = anchors,
+            focusState = focusState,
+            surface = { activity.window?.peekDecorView() },
+            density = ::density,
+            emit = ::emitIfAttached,
+            requestFrame = requestFrame,
+            locateOnScreen = locateOnScreen,
+        ),
+    )
+
+    /** Live dialog-window sessions; for tests. */
+    val dialogSessionCount: Int
+        get() = dialogs.size
 
     /** Wraps the window callback if needed and hooks the decor view once it exists. */
     fun ensureAttached() {
         if (!attached) return
+        dialogs.start()
         val window = activity.window ?: return
         WindowCallbackInstaller.ensureInstalled(window, this)
         val view = window.peekDecorView() ?: return
@@ -80,12 +105,19 @@ internal class WindowSession(
     /** This window became the active one (its activity resumed): report its focus on the next frame. */
     fun onWindowActive() {
         if (!attached) return
+        resumed = true
         overlays.onResumed()
         focus.activate()
     }
 
     fun onActivityPaused() {
+        resumed = false
         overlays.onPaused()
+    }
+
+    /** A session starting with this activity already live attaches to its dialogs already up. */
+    fun adoptDialogs() {
+        if (attached) dialogs.adopt()
     }
 
     /** Whether another window of this activity covers it as [window] is copied ([OverlayDetector]). */
@@ -96,11 +128,13 @@ internal class WindowSession(
         scrolls?.onFrame()
         regionScrolls?.onFrame()
         if (focus.onFrame(decor?.findFocus())) requestFrame()
+        dialogs.onFrame()
     }
 
     fun detach() {
         if (!attached) return
         attached = false
+        dialogs.detachAll()
         focus.deactivate()
         unhookDecor()
         recyclers?.detachAll()
@@ -120,8 +154,22 @@ internal class WindowSession(
         inputHappened()
     }
 
+    /**
+     * Focus lost while resumed: a dialog (or popup, or system panel) took
+     * it, so look for this activity's dialog windows. Focus regained: the
+     * dialogs that are gone end, and this window is the active one again.
+     */
     override fun onWindowFocusChanged(hasFocus: Boolean) {
-        if (attached) overlays.onWindowFocusChanged(hasFocus)
+        if (!attached) return
+        overlays.onWindowFocusChanged(hasFocus)
+        AdapterGuard.run("dialog windows") {
+            if (!hasFocus) {
+                if (resumed) dialogs.scanRoots()
+            } else {
+                dialogs.sweepDetached()
+                if (resumed) focus.activate()
+            }
+        }
     }
 
     private fun unhookDecor() {

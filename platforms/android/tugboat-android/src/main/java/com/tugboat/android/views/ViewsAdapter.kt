@@ -3,6 +3,7 @@ package com.tugboat.android.views
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import android.view.View
 import android.view.Window
 import com.tugboat.android.host.HostClock
 import com.tugboat.android.host.SystemHostClock
@@ -55,6 +56,8 @@ internal class ViewsAdapter(
     private val emitSceneInventory: Boolean = false,
     /** Told at the start of each scene inventory walk; a seam for tests. */
     onInventoryWalk: () -> Unit = {},
+    /** `View::getLocationOnScreen` for dialog-window offsets; a seam for tests. */
+    private val locateOnScreen: (View, IntArray) -> Unit = View::getLocationOnScreen,
 ) : Application.ActivityLifecycleCallbacks {
     init {
         NavigationObservation.ensureInstalled(application)
@@ -104,8 +107,11 @@ internal class ViewsAdapter(
      * and resume callbacks would have.
      */
     private fun attachLiveActivities() {
-        NavigationObservation.liveActivities().forEach { session(it).ensureAttached() }
+        val live = NavigationObservation.liveActivities()
+        live.forEach { session(it).ensureAttached() }
         NavigationObservation.resumedActivity()?.let { onActivityResumed(it) }
+        // Dialogs already up (after the resume, so a focused dialog stays the active window).
+        live.forEach { activity -> AdapterGuard.run("adopt dialogs") { sessions[activity]?.adoptDialogs() } }
     }
 
     /**
@@ -195,8 +201,11 @@ internal class ViewsAdapter(
 
     private fun session(activity: Activity): WindowSession =
         sessions.getOrPut(activity) {
-            WindowSession(activity, clock, gesture, anchors, ::emit, batcher::requestFrame, focusState)
+            WindowSession(activity, clock, gesture, anchors, ::emit, batcher::requestFrame, focusState, locateOnScreen)
         }
+
+    /** Live dialog-window sessions of [activity]; for tests. */
+    fun dialogSessionCount(activity: Activity): Int = sessions[activity]?.dialogSessionCount ?: 0
 
     private fun emit(fact: ViewsFact) {
         if (started) batcher.add(fact)
