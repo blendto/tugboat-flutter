@@ -62,7 +62,7 @@ extension TugboatRuntime {
       let locale = LocaleBridge(initial: initialLocale) { input in
         ref.host?.post(type: SessionMessages.localeSet, inputJSON: input, at: clock.now())
       }
-      let flushOnPause = outbox != nil
+      let flushOnPause = true  // RED-CHECK: flush even with the outbox off
       let lifecycle = AppLifecycleBridge { state in
         ref.host?.post(type: SessionMessages.appLifecycle, inputJSON: SessionMessages.appLifecycleInput(state), at: clock.now())
         // With the outbox on, deliver (and so write) what the engine holds
