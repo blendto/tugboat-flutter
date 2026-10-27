@@ -360,7 +360,7 @@ final class TugboatActivationTests: XCTestCase {
 
   /// Item 12: a hosting controller already on screen when the first session
   /// starts is in that session's `session_start` seed.
-  func testAHostingControllerOnScreenBeforeActivateIsSeeded() {
+  func testAHostingControllerOnScreenBeforeActivateIsSeeded() throws {
     ScreenTracker.shared.reset()
     HostingControllerTracker.shared.reset()
     defer {
@@ -369,6 +369,12 @@ final class TugboatActivationTests: XCTestCase {
     }
     let hosting = HostedWindow(Text("Already on screen"))
     defer { hosting.close() }
+    // The SDK takes the key window of a connected scene (as for touches and
+    // captures); a test host without one cannot run this path.
+    // `testAdoptingControllersOnScreenWalksTheHierarchy` covers the walk.
+    guard hosting.window.windowScene != nil else {
+      throw XCTSkip("the test host has no window scene")
+    }
     hosting.window.makeKeyAndVisible()
     hosting.settle()
     let expected = [hosting.hosting.map(RouteKey.hostingKey) ?? "?"]
