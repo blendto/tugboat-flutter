@@ -141,8 +141,7 @@ The same contract as Flutter's `TugboatReplay` (`lifecycle.dart`):
 - A session that starts after its activities (an `activate` while one is
   resumed, or a `start` after `stop`) attaches at once to every activity
   created since the first `start` and adopts the resumed one, as its resume
-  would have (taps, captures, launch correlation, and the `session_start`
-  navigation seed). Activities created before the first `start` are observed
+  would have (taps, captures, and the `session_start` navigation seed). Activities created before the first `start` are observed
   from their next resume. `trackNavigation` after a dormant `start` keeps the
   controller's stack, which seeds each session; a controller tracked before
   the first `start` is not seeded (its first change after it is a push).
@@ -155,22 +154,22 @@ tugboat_accept_action_context true --es tugboat_automation_run_id <id>`).
 Values `1`, `true`, and `yes` (case-insensitive) enable a flag; anything else
 is off. When `emitSceneInventory` or `acceptActionContext` is enabled, the SDK
 logs once per process from the **first resumed activity whose intent carries
-the extras**:
+the extras**, whatever the lifecycle state (after `start`, the dormant
+resumed-activity tracker sees it; the Flutter host likewise prints at config
+time):
 
 - `TUGBOAT_LAUNCH` with `captureRequested`, the flags, optional
-  `automationRunId`, and `captureSessionId` (`session-<wallUs>` from
-  `session.start`).
+  `automationRunId`, and `captureSessionId` (`session-<wallUs>` from the
+  running session's `session.start`; omitted when no session runs, for
+  example while dormant).
 - Ten seconds later, `TUGBOAT_HEALTH` with `lifecycle`, the lifecycle state's
   Flutter name (`dormant`, `starting`, `active`, `stopping`; `dormant` when
   the engine host stopped running), `activationRequestId` when one is in
-  effect, and the first session's `captureSessionId` unless dormant, all
-  read when the line prints. Only a `Tugboat.stop()` before the ten-second
-  mark cancels it; a `deactivate()` or a replacing `activate` does not (the
-  line then reports `dormant`, or the new id).
-
-The lines are printed by a session: with the default dormant config, they
-appear at the `activate` (from the resumed activity's extras) rather than
-at launch.
+  effect, and the running session's `captureSessionId` (omitted when none
+  runs). All are read when the line prints, never from the session that ran
+  when the timer started: after a replacing `activate` it carries the new
+  session and id, after a `deactivate` it is `dormant` with no ids. Only a
+  `Tugboat.stop()` before the ten-second mark cancels it.
 
 Both lines use `Log.i` with tag `Tugboat`. They never include the collector
 base URL, API key, or auth headers. Intent extra `tugboat_collector_base_url` is

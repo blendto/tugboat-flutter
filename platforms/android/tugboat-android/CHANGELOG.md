@@ -28,10 +28,13 @@ wiring, window capture, and the Android Views adapter.
   `disabled`) also clears any activation request. Read-only
   `Tugboat.lifecycleState` (`TugboatLifecycleState`), `isActivated`, and
   `activationRequestId`. A session that starts while an activity is resumed
-  attaches to it at once (taps, captures, launch lines, navigation seed);
+  attaches to it at once (taps, captures, navigation seed);
   `trackNavigation` after a dormant `start` keeps the controller's stack.
-  `TUGBOAT_HEALTH` reports the state's Flutter name and
-  `activationRequestId` when it prints; only `stop()` cancels it. A session
+  `TUGBOAT_LAUNCH` prints at the first resume with launch extras whatever
+  the state (as the Flutter host prints at config time); `TUGBOAT_HEALTH`
+  reports the state's Flutter name, `activationRequestId`, and the running
+  session's `captureSessionId` as they are when it prints; only `stop()`
+  cancels it. A session
   that fails to start is dormant and keeps the activation request (the same
   id retries). The user id, traits, and event hooks feed every session.
 - Config: `captureDiagnostics` (engine capability), optional
