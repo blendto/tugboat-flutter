@@ -78,6 +78,10 @@ public struct TugboatConfig
 extension View
   public func tugboatScreen(_ name: String) -> some View
 
+## SwiftUI/Modifiers/TugboatSensitive.swift
+extension View
+  public func tugboatSensitive() -> some View
+
 ## SwiftUI/Modifiers/TugboatTag.swift
 extension View
   public func tugboatTag(_ tag: String, accessibility: Bool = false) -> some View

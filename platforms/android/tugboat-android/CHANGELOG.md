@@ -12,12 +12,17 @@ wiring, window capture, and the Android Views adapter.
   by focus loss while resumed and, on API 29+, owned `WindowInspector` roots.
 - Public API (`com.tugboat.android`): `Tugboat.start(application,
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
-  (Jetpack Navigation, `compileOnly`), `View.tugboatTag`; `TugboatConfig`,
-  `CollectorConfig`, `AppInfo`, `MaskLevel`, `emitSceneInventory` (default
-  false). Idempotent start; nothing throws into the app.
+  (Jetpack Navigation, `compileOnly`), `View.tugboatTag`,
+  `View.tugboatSensitive()`; `TugboatConfig`, `CollectorConfig`, `AppInfo`,
+  `MaskLevel`, `emitSceneInventory` (default false). Idempotent start;
+  nothing throws into the app.
   `TugboatConfig.enabled` (default `true`): when `false`, `start` installs
   nothing and nothing is recorded; the user id, traits, and event hooks are
   kept for a later enabled `start`.
+- `View.tugboatSensitive()` (Java `TugboatViews.tugboatSensitive(view)`):
+  the view and every view below it are always masked, each view drawn
+  outside the marked bounds at its own bounds; one rect per view. Mask-only:
+  taps, paths, and fingerprints are unchanged. No un-mark (fails safe).
 - Config: `captureDiagnostics` (engine capability), optional
   `activationRequestId` / `explorationRunId` on `session.start` when set.
 - Locale: `locale.set` on primary locale change (`onConfigurationChanged`),

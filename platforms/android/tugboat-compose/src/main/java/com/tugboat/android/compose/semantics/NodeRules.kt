@@ -16,6 +16,10 @@ import com.tugboat.android.compose.TugboatTagKey
  *   Everything else collapses.
  * - **Maskable**: `Text` or `EditableText`, `Role.Image`, or a
  *   `ContentDescription` (image-like). Text never enters identity.
+ *
+ * `Modifier.tugboatSensitive()` is not a rule here and adds no semantics
+ * node: it is a mask-only input read by `ComposeMasks`, so it never changes
+ * which nodes exist or are kept, their paths, or tap targets.
  */
 internal object NodeRules {
     fun isExcluded(node: SemanticsNode): Boolean =
