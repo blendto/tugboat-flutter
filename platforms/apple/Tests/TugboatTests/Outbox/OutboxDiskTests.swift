@@ -112,6 +112,21 @@ final class OutboxDiskTests: XCTestCase {
     XCTAssertEqual(try Data(contentsOf: salt), before)
   }
 
+  /// Re-review n1: a readable salt of the wrong size is corrupt, not
+  /// unreadable: it is replaced, so the outbox works again.
+  func testAWrongSizeSaltIsReplaced() throws {
+    let salt = harness.root.deletingLastPathComponent().appendingPathComponent("salt")
+    try FileManager.default.createDirectory(at: salt.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data([1, 2, 3]).write(to: salt)
+    let outbox = harness.outbox(epoch: "live")
+    OutboxSender(delegate: OutboxRecordingSender(), outbox: outbox, context: OutboxRequests.context, frameBytes: OutboxRequests.jpeg)
+      .send(OutboxRequests.lifecycle()) { _ in }
+    let snapshot = outbox.snapshot()
+    XCTAssertEqual(snapshot.writeFailures, 0)
+    XCTAssertEqual(snapshot.entries.count, 1)
+    XCTAssertEqual(try Data(contentsOf: salt).count, 32)
+  }
+
   /// m2: numbers out of range make an entry corrupt; nothing traps.
   func testOutOfRangeNumbersMakeAnEntryCorrupt() throws {
     killedProcess([OutboxRequests.lifecycle(), OutboxRequests.events(["a"])])

@@ -75,8 +75,8 @@ enum OutboxPayloadRead: Equatable {
 /// The per-install salt.
 enum OutboxSalt: Equatable {
   case salt(Data)
-  /// The file exists but cannot be read, or is not a salt: the outbox is
-  /// off for this process and the file is never overwritten.
+  /// The file exists but cannot be read (or a new one cannot be written):
+  /// the outbox is off for this process and the file is never overwritten.
   case unavailable
 }
 
@@ -236,11 +236,12 @@ final class OutboxStore {
   func salt() -> OutboxSalt {
     let url = outboxDirectory.appendingPathComponent(OutboxStore.saltFile)
     switch read(url) {
-    case let .data(existing):
-      return existing.count == 32 ? .salt(existing) : .unavailable
+    case let .data(existing) where existing.count == 32:
+      return .salt(existing)
     case .unreadable:
       return .unavailable
-    case .missing:
+    case .data, .missing:
+      // Missing, or readable but not a salt (corrupt): a fresh one.
       break
     }
     var generator = SystemRandomNumberGenerator()

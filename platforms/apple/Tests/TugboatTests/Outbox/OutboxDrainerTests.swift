@@ -222,6 +222,43 @@ final class OutboxDrainerTests: XCTestCase {
     XCTAssertEqual(drainer.requests.count, 0)
   }
 
+  /// Re-review r2-m1: replays that a quick `stopReplay` kept from starting
+  /// are rolled back, so start/stop races never expire an unsent entry.
+  func testRapidStartStopNeverUsesUpReplays() {
+    killedProcess([OutboxRequests.lifecycle()])
+    let outbox = harness.outbox(epoch: "live")
+    let drainers = (0..<9).map { _ in OutboxRecordingSender() }
+    let gate = DispatchSemaphore(value: 0)
+    outbox.queue.async { gate.wait() }
+    for drainer in drainers.prefix(8) {
+      outbox.startReplay(sender: drainer, context: OutboxRequests.context)
+      outbox.stopReplay()
+    }
+    gate.signal()
+    XCTAssertEqual(outbox.snapshot().entries.map { $0.entry.replays }, [0])
+    outbox.startReplay(sender: drainers[8], context: OutboxRequests.context)
+    _ = outbox.snapshot()
+    XCTAssertEqual(drainers.map { $0.requests.count }, [0, 0, 0, 0, 0, 0, 0, 0, 1])
+  }
+
+  /// Re-review r2-m3: the backoff follows `replays`, not the engine's
+  /// `attempts`: an entry retried 40 times offline waits 2 s after one
+  /// refused replay, not 5 min.
+  func testARefusedReplayBacksOffByReplaysNotEngineAttempts() {
+    let dead = harness.outbox(epoch: "dead")
+    let engine = OutboxRecordingSender()
+    let sender = OutboxSender(delegate: engine, outbox: dead, context: OutboxRequests.context, frameBytes: OutboxRequests.jpeg)
+    for i in 0..<40 {
+      sender.send(OutboxRequests.events(["a"], id: "http-\(i)")) { _ in }
+      engine.complete(i, .error)
+    }
+    _ = dead.snapshot()
+    let (outbox, drainer) = replaying()
+    drainer.complete(0, .error)
+    XCTAssertEqual(outbox.snapshot().entries.map { $0.entry.replays }, [1])
+    XCTAssertEqual(harness.scheduled.current.map { $0.delayMs }, [2_000])
+  }
+
   /// m4: oldest first by creation time, not by key.
   func testReplaysGoOldestFirstEvenWhenTheKeysSortTheOtherWay() {
     killedProcess([OutboxRequests.lifecycle(session: "s9")])

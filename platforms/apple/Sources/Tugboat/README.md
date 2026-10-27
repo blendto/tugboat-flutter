@@ -238,8 +238,8 @@ everything the engine held in memory.
   that do not decode, have an unknown version or out-of-range numbers, or
   lack their payload are deleted. Every `start` with the outbox on, dormant
   included, runs a disk-only sweep (no network): entries past the max age
-  and corrupt ones are deleted and the size and count bounds are enforced,
-  so the bounds hold while dormant. One `outbox` log line per drain pass
+  and corrupt ones are deleted and the size and count bounds are enforced
+  at every start; a process that stays dormant for days is not swept again. One `outbox` log line per drain pass
   (`outbox sweep` for the start sweep): `replayed`, `expired`, `evicted`,
   `corrupt`, `identityMismatch`, `bytesOnDisk`.
 - Erasure: `Tugboat.clearPendingData()` deletes every pending entry, and so

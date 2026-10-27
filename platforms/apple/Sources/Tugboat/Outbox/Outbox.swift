@@ -128,13 +128,16 @@ final class Outbox {
   func record(
     _ request: HTTPRequest, sender: SenderRegistration, context: OutboxContext, frameBytes: (_ handle: String) -> Data?
   ) -> OutboxAttempt? {
-    guard tracking.current.generation == sender.generation else { return nil }
+    guard tracking.withLock({ $0.generation }) == sender.generation else { return nil }
     guard let units = OutboxCapture.units(request, frameBytes: frameBytes) else {
       tracking.withLock { $0.unkeyed += 1 }
       return nil
     }
     let now = wallMs()
-    let recorded = tracking.withLock { (state: inout Tracking) -> (OutboxAttempt, Bool)? in
+    // The write is queued under the lock, as `wipe` queues its delete: a
+    // write that passed the generation check is always queued before the
+    // wipe that ends its generation, so it never lands after it.
+    return tracking.withLock { (state: inout Tracking) -> OutboxAttempt? in
       guard state.generation == sender.generation else { return nil }
       var numbered: [OutboxAttempt.Unit] = []
       for unit in units {
@@ -151,16 +154,15 @@ final class Outbox {
         state.currentSessionSender = sender.id
         changed = true
       }
-      return (OutboxAttempt(units: numbered), changed)
-    }
-    guard let (attempt, sessionChanged) = recorded else { return nil }
-    queue.async {
-      self.write(units, context: context, now: now)
-      if sessionChanged {
-        self.drainPass()
+      let sessionChanged = changed
+      queue.async {
+        self.write(units, context: context, now: now)
+        if sessionChanged {
+          self.drainPass()
+        }
       }
+      return OutboxAttempt(units: numbered)
     }
-    return attempt
   }
 
   /// The answer to an engine request recorded as `attempt`: an accepted or
@@ -192,11 +194,13 @@ final class Outbox {
   /// Senders registered before it record nothing more, so an engine still
   /// draining (after `stop`) cannot write evidence back.
   func wipe() {
-    tracking.withLock { $0.generation += 1 }
-    queue.async {
-      self.store.wipe()
-      // Rescanned on next use, so entries a failed wipe left stay visible.
-      self.index = nil
+    tracking.withLock { (state: inout Tracking) in
+      state.generation += 1
+      queue.async {
+        self.store.wipe()
+        // Rescanned on next use, so entries a failed wipe left stay visible.
+        self.index = nil
+      }
     }
   }
 
@@ -456,7 +460,8 @@ final class Outbox {
   }
 
   /// Counts the replay on disk first, then sends it unless `stopReplay` ran
-  /// since (that replay stays counted: at most one per stop).
+  /// since; a replay that never started is rolled back, so start/stop races
+  /// cannot expire an entry that was never sent.
   private func send(_ entry: StoredEntry, payload: OutboxPayload, replay: Replay) {
     var stored = entry
     stored.entry.replays = saturatingIncrement(stored.entry.replays)
@@ -490,6 +495,10 @@ final class Outbox {
     if !started {
       replay.inFlight = false
       tracking.withLock { Outbox.release(key, in: &$0) }
+      replayFrames.withLock { $0.removeValue(forKey: dir) }
+      var restored = entry
+      restored.bytes = store.update(dir: dir, entry: entry.entry, body: nil) ?? entry.bytes
+      index?[dir] = restored
     }
   }
 
