@@ -30,11 +30,13 @@ Tugboat.start(application, TugboatConfig(
     captureDiagnostics = false,              // engine capability captureDiagnostics
     explorationRunId = null,                 // optional session.start field
     emitSceneInventory = false,              // engine capability nativeSceneInventory
+    durableOutbox = false,                   // keep unconfirmed requests on disk; see Durable outbox
 ))
 Tugboat.activate(activationRequestId)        // start a session (or enabled = true above)
 Tugboat.deactivate()                         // back to dormant
 Tugboat.lifecycleState; Tugboat.isActivated; Tugboat.activationRequestId
 Tugboat.setUserId(id); Tugboat.setTraits(map); Tugboat.stop()
+Tugboat.clearPendingData()                   // delete what the durable outbox keeps
 Tugboat.trackNavigation(navController)       // Jetpack Navigation, optional
 Tugboat.eventHook(source, parameterPolicy).record(name, parameters)
 Tugboat.beginNetworkCall(method, route).complete(statusCode)  // or fail(NetworkFailure)
@@ -161,6 +163,63 @@ The same contract as Flutter's `TugboatReplay` (`lifecycle.dart`):
   foreground window until its next resume, so captures wait for it (taps
   still attach). Two `activate` calls with different ids in one main-thread
   turn give a short first session; Flutter coalesces them per frame.
+
+## Durable outbox
+
+Off by default (`TugboatConfig.durableOutbox = false`). When on, the host
+keeps every collector request the collector has not confirmed on disk and
+sends it again in a later session, after a process restart included
+(design: W11, ADR 0009 phase 3e). The engine is unchanged.
+
+- **What is kept.** Each `http.send` is written, at dispatch and in parallel
+  with the request, to `noBackupFilesDir/tugboat/outbox/v1/`: one entry per
+  lifecycle post, per event batch, and per frame (a frame is written once;
+  later chunks only count the attempt). Entries hold only what is already on
+  the wire (masked JPEGs, the same bodies) plus an HMAC-SHA-256 of the
+  collector URL, app id, and API key under a random per-install salt, never
+  the key. OS encryption only (file-based encryption). An accepted (202) or
+  dropped answer (any status the engine does not retry) deletes the entry; a
+  late answer never deletes while a later attempt at the same key is in
+  flight. A disk failure is logged and counted; the request is sent anyway.
+- **Keys.** `<sessionId>/l/<eventType>/<triggeredAt>` (lifecycle),
+  `<sessionId>/e/<sha256 of the sorted event ids, 16 hex>` (events),
+  `<sessionId>/f/<frameNo>` (frames). Every request with an entry carries
+  `Tugboat-Delivery-Key` (comma-separated for a frame chunk). A request
+  whose key cannot be derived is sent as before, without an entry.
+- **Replay.** Only while a session runs (after `start` with
+  `enabled = true`, or `activate`), never while dormant, and it stops with
+  `deactivate` and `stop`. It runs on its own thread with its own
+  connection, one request at a time beside the engine's, at session start
+  and whenever the current session (that of the latest `http.send`)
+  changes. It sends entries of other launches and of earlier sessions,
+  oldest first, skipping any key with a request in flight, with the current
+  config's headers. On a retried answer the pass stops and waits
+  2 s × 2^(attempts − 1), at most 5 min, or `Retry-After` when longer (at
+  most 1 h). An entry is deleted unsent after `outboxMaxAttempts` sends
+  (default 8, across launches), past `outboxMaxAgeMs` (default 72 h), or
+  when its identity differs from the running config's (a new key, app id,
+  or collector URL). Each pass logs one line (tag `TugboatOutbox`):
+  `outbox drain {"replayed","dropped","expired","evicted","corrupt","identityMismatch","writeFailures","unkeyed","bytesOnDisk"}`.
+- **Bounds.** `outboxMaxBytes` (20 MB) and `outboxMaxEntries` (1000): past
+  either, entries of other sessions go first, frames before events, oldest
+  first; lifecycle entries leave only by age, and a key in flight never.
+  Corrupt entries and an unknown `v` are deleted and counted.
+- **Erasure.** `start` with `durableOutbox = false` deletes whatever an
+  earlier launch kept. A dormant `start` (`enabled = false`) does not:
+  dormant is not opt-out, and the first session replays the entries.
+  `Tugboat.clearPendingData()` deletes them at any time (before the first
+  `start`, at that start).
+- **Background flush.** With the outbox on, `app.lifecycle` `paused`
+  is followed at once by `transport.flush`, so events and frames waiting for
+  the flush timer are sent, and kept, before the app may be killed.
+- **`stop`.** Entry writes queued by the engine's last requests land before
+  the IO executor closes (bounded at 5 s).
+- **Still lost (v1).** A session whose `session_start` was never accepted
+  (offline launch): the engine sends no events or frames before the
+  collector session exists, so only the `session_start` entry is kept.
+  Lifecycle posts queued behind a failing head, and events and frames never
+  sent. A replayed lifecycle post that the collector had accepted can add a
+  second `raw_events` row until the collector derives that id (W11d).
 
 ## Device Farm / exploration correlation
 

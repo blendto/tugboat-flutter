@@ -41,6 +41,20 @@ wiring, window capture, and the Android Views adapter.
   (a `deactivate` then `activate` of the same id included) ends the session
   and starts a fresh one; the fence closes in-flight network calls. The
   user id, traits, and event hooks feed every session.
+- Durable outbox (W11, ADR 0009 phase 3e; host only, no engine change):
+  `TugboatConfig.durableOutbox` (default `false`) keeps every collector
+  request not yet confirmed in `noBackupFilesDir/tugboat/outbox/v1/` (one
+  entry per lifecycle post, event batch, and frame; masked JPEGs and the
+  same bodies, a salted HMAC of URL, app id, and key, never the key) and
+  replays it in a later session, after a restart included, with a
+  `Tugboat-Delivery-Key` header. Replay runs only while a session runs, on
+  its own thread beside the engine's request, oldest first; backoff
+  2 s × 2^(n − 1) up to 5 min or `Retry-After`. Bounds `outboxMaxBytes`
+  (20 MB), `outboxMaxEntries` (1000), `outboxMaxAgeMs` (72 h),
+  `outboxMaxAttempts` (8). `start` with the outbox off wipes it (a dormant
+  start does not); new `Tugboat.clearPendingData()` wipes it any time. With
+  the outbox on, `paused` also posts `transport.flush`. One `TugboatOutbox`
+  log line per replay pass.
 - `View.tugboatSensitive()` (Java `TugboatViews.tugboatSensitive(view)`):
   the view and every view below it are always masked, each view drawn
   outside the marked bounds at its own bounds; one rect per view. Mask-only:
