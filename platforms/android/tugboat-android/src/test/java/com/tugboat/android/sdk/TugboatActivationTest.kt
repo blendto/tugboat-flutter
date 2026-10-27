@@ -245,11 +245,14 @@ class TugboatActivationTest {
         idle()
 
         awaitSessionStart(0)
-        val navSeed = messages(transports[0]).single {
+        val isNavSeed = { it: JSONObject ->
             it.getString("type") == "navigation" &&
                 it.getJSONObject("input").getString("kind") == "session_start" &&
                 it.getJSONObject("input").getString("navigatorId").endsWith("/nav")
-        }.getJSONObject("input")
+        }
+        // The seed can reach the transport in a later submission than `session.start`.
+        awaitUntil { messages(transports[0]).any(isNavSeed) }
+        val navSeed = messages(transports[0]).single(isNavSeed).getJSONObject("input")
         val names = navSeed.getJSONArray("routes").let { routes -> (0 until routes.length()).map { routes.getJSONObject(it).getString("name") } }
         assertEquals(listOf("rows", "row", "row"), names)
     }

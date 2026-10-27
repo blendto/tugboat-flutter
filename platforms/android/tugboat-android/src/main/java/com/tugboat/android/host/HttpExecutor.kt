@@ -116,6 +116,7 @@ internal class HttpExecutor(
             connectTimeout = timeoutMs
             readTimeout = timeoutMs
             for ((name, value) in config.collectorHeaders()) setRequestProperty(name, value)
+            for ((name, value) in request.headers) setRequestProperty(name, value)
         }
     }
 

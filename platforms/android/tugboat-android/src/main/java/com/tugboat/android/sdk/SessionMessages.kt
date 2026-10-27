@@ -12,6 +12,9 @@ internal object SessionMessages {
     const val TRAITS_SET = "traits.set"
     const val LOCALE_SET = "locale.set"
 
+    /** Asks the engine for a delivery pass now; its input is empty. */
+    const val TRANSPORT_FLUSH = "transport.flush"
+
     fun sessionStart(
         device: DeviceSnapshot,
         host: HostMetadata,

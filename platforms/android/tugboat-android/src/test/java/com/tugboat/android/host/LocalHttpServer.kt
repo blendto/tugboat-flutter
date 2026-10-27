@@ -15,7 +15,10 @@ import java.util.concurrent.CopyOnWriteArrayList
  * (`com.sun.net.httpserver` is not on the Android unit-test classpath).
  * Header names are lowercased.
  */
-internal class LocalHttpServer : AutoCloseable {
+internal class LocalHttpServer(
+    /** Serves each connection on its own thread, so one slow reply does not hold the next request. */
+    private val concurrent: Boolean = false,
+) : AutoCloseable {
     class Request(val method: String, val path: String, val headers: Map<String, String>, val body: ByteArray)
 
     class Response(val status: Int, val body: String = "", val headers: Map<String, String> = emptyMap())
@@ -44,11 +47,19 @@ internal class LocalHttpServer : AutoCloseable {
             } catch (closed: SocketException) {
                 return
             }
-            try {
-                client.use(::exchange)
-            } catch (clientGone: IOException) {
-                // The client timed out or hung up; serve the next one.
+            if (concurrent) {
+                Thread({ serveQuietly(client) }, "local-http-exchange").apply { isDaemon = true }.start()
+            } else {
+                serveQuietly(client)
             }
+        }
+    }
+
+    private fun serveQuietly(client: Socket) {
+        try {
+            client.use(::exchange)
+        } catch (clientGone: IOException) {
+            // The client timed out or hung up; serve the next one.
         }
     }
 

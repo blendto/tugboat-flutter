@@ -8,6 +8,9 @@ import androidx.navigation.NavController
 import com.tugboat.android.engine.EngineTransport
 import com.tugboat.android.engine.JniEngineTransport
 import com.tugboat.android.evidence.EvidenceRecorder
+import com.tugboat.android.outbox.OutboxPolicy
+import com.tugboat.android.outbox.OutboxSettings
+import com.tugboat.android.outbox.Outboxes
 import com.tugboat.android.sdk.LaunchCorrelation
 import com.tugboat.android.sdk.LifecycleSnapshot
 import com.tugboat.android.sdk.NavigationTracking
@@ -115,6 +118,7 @@ object Tugboat {
         afterStopLockForTesting = null
         LaunchCorrelation.resetForTests()
         NavigationObservation.resetForTests()
+        Outboxes.resetForTests()
     }
 
     /** JVM tests only: replaces [JniEngineTransport.open] for [start]. */
@@ -166,6 +170,13 @@ object Tugboat {
      * open, the session is refused. Either way the state returns to dormant
      * and an activation request is kept, so [activate] with the same id
      * retries.
+     *
+     * With [TugboatConfig.durableOutbox] off, deletes the requests an
+     * earlier launch kept on disk (in the background). With it on, dormant
+     * included, deletes (in the background, sending nothing) the corrupt
+     * entries and those past [TugboatConfig.outboxMaxAgeMs], and evicts down
+     * to the bounds; the rest wait for the first session, which replays
+     * them.
      */
     @JvmStatic
     fun start(application: Application, config: TugboatConfig) = onMain("start") {
@@ -182,6 +193,11 @@ object Tugboat {
         this.application = application
         this.config = config
         configGeneration++
+        val outbox = Outboxes.at(application)
+        val clearRequested = Outboxes.takePendingClear()
+        if (OutboxPolicy.wipeAtStart(config) || clearRequested) outbox.wipe()
+        // Dormant included: age, corrupt entries, and the bounds hold without a session (disk only, no network).
+        if (config.durableOutbox) outbox.sweepAtStart(OutboxSettings.of(config))
         NavigationObservation.ensureInstalled(application)
         NavigationObservation.onResumed = launch::onActivityResumed
         reconcile()
@@ -240,6 +256,18 @@ object Tugboat {
             }
             onMain("deactivate", ::reconcile)
         }
+    }
+
+    /**
+     * Deletes every collector request the durable outbox keeps on disk
+     * ([TugboatConfig.durableOutbox]), in the background: requests not yet
+     * delivered are lost. A request in flight still completes. Before the
+     * first [start] the delete waits for it. Works whatever the state, and
+     * does not change it.
+     */
+    @JvmStatic
+    fun clearPendingData() {
+        guarded("clearPendingData") { Outboxes.clear() }
     }
 
     /** The runtime user id stamped on later events; null clears it. Kept across [stop] and [start]. */

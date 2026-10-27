@@ -20,6 +20,13 @@ import com.tugboat.android.host.HostClock
 import com.tugboat.android.host.HostConfig
 import com.tugboat.android.host.HostMessages
 import com.tugboat.android.host.HttpExecutor
+import com.tugboat.android.host.HttpSender
+import com.tugboat.android.outbox.Outbox
+import com.tugboat.android.outbox.OutboxDrainer
+import com.tugboat.android.outbox.OutboxIdentityInputs
+import com.tugboat.android.outbox.OutboxSender
+import com.tugboat.android.outbox.OutboxSettings
+import com.tugboat.android.outbox.Outboxes
 import com.tugboat.android.host.SystemHostClock
 import com.tugboat.android.views.ViewsAdapter
 import com.tugboat.android.views.facts.FactSink
@@ -43,6 +50,8 @@ internal class TugboatRuntime private constructor(
     private val watcher: SessionEndWatcher,
     private val clock: HostClock,
     private val stopSequence: StopSequence,
+    /** Replays the durable outbox while this session runs; null when [TugboatConfig.durableOutbox] is off. */
+    private val drainer: OutboxDrainer?,
     /** `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH`'s `captureSessionId`: `session-<wallUs>` of `session.start`. */
     val captureSessionId: String,
     /** Coded events and network calls; any thread. */
@@ -68,6 +77,7 @@ internal class TugboatRuntime private constructor(
         if (stopped) return
         stopped = true
         evidence.close()
+        drainer?.stop()
         adapter.stop()
         lifecycle.stop()
         locale.stop()
@@ -84,6 +94,15 @@ internal class TugboatRuntime private constructor(
 
     companion object {
         private const val TAG = "Tugboat"
+
+        /** `app.lifecycle` states after which the outbox flushes at once (W11 design 3, H1 mitigation). */
+        private val BACKGROUND_STATES = setOf("paused", "hidden")
+
+        /** The outbox drainer, on its own thread and its own [HttpExecutor] (never the engine's IO thread). */
+        private fun replayDrainer(outbox: Outbox, hostConfig: HostConfig, identity: OutboxIdentityInputs): OutboxDrainer {
+            val replay = HttpExecutor(hostConfig, outbox.store::readFrame)
+            return OutboxDrainer(outbox, identity, replay::send, onStop = replay::close)
+        }
 
         /**
          * Configures a new engine and starts a session; null (logged) when a
@@ -149,7 +168,14 @@ internal class TugboatRuntime private constructor(
                 appBuild = config.app.buildNumber,
                 appId = config.app.appId,
             )
-            val watcher = SessionEndWatcher(HttpExecutor(hostConfig, frames::get))
+            val outbox = if (config.durableOutbox) Outboxes.at(application) else null
+            outbox?.settings = OutboxSettings.of(config)
+            val outboxIdentity = OutboxIdentityInputs(config.collector.baseUrl, config.app.appId, config.collector.apiKey)
+            val delivery = HttpExecutor(hostConfig, frames::get)
+            val sender: HttpSender = outbox?.let {
+                OutboxSender(delivery, it, outboxIdentity, hostConfig.sdkVersion, frames::get)
+            } ?: delivery
+            val watcher = SessionEndWatcher(sender)
             val gesture = GestureConfig.from(application)
             val engineHost = EngineHostSlot()
             val adapter = ViewsAdapter(
@@ -200,8 +226,13 @@ internal class TugboatRuntime private constructor(
                 ),
                 startAt,
             )
+            val drainer = outbox?.let { replayDrainer(it, hostConfig, outboxIdentity) }
             val lifecycle = AppLifecycleBridge(post = { state ->
                 host.post(SessionMessages.APP_LIFECYCLE, SessionMessages.appLifecycle(state), clock.now())
+                // With the outbox on, what waits for the flush timer is sent (and kept) before the app may die.
+                if (outbox != null && state in BACKGROUND_STATES) {
+                    host.post(SessionMessages.TRANSPORT_FLUSH, "{}", clock.now())
+                }
             })
             val localeBridge = LocaleBridge(
                 application = application,
@@ -213,8 +244,10 @@ internal class TugboatRuntime private constructor(
             foreground.start()
             lifecycle.start()
             localeBridge.start()
+            // Last: if an earlier step throws, no drainer outlives the failed start.
+            drainer?.start()
             return TugboatRuntime(
-                host, adapter, lifecycle, localeBridge, foreground, captures, watcher, clock, stopSequence,
+                host, adapter, lifecycle, localeBridge, foreground, captures, watcher, clock, stopSequence, drainer,
                 LaunchCorrelation.captureSessionId(startAt.wallUs), evidence,
             )
         }

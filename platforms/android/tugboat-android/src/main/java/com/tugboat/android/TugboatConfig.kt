@@ -34,6 +34,24 @@ data class TugboatConfig @JvmOverloads constructor(
     val explorationRunId: String? = null,
     /** Emits native `scene.inventory` facts after captured frames (engine capability `nativeSceneInventory`). */
     val emitSceneInventory: Boolean = false,
+    /**
+     * Keeps collector requests the collector has not confirmed on disk (the
+     * app's no-backup files directory, OS encryption only) and sends them
+     * again in a later session, after a process restart included. Entries
+     * hold only what is already sent: masked JPEGs and the same bodies, never
+     * the API key. Replays run only while a session runs, never while
+     * dormant. When `false` (the default), [Tugboat.start] deletes whatever
+     * an earlier launch kept; [Tugboat.clearPendingData] deletes it any time.
+     */
+    val durableOutbox: Boolean = false,
+    /** Disk bound of the outbox; past it, entries of ended sessions go first, frames before events. */
+    val outboxMaxBytes: Long = 20L * 1024 * 1024,
+    /** Entry bound of the outbox (one per frame, per event batch, per lifecycle post). */
+    val outboxMaxEntries: Int = 1000,
+    /** An entry older than this is deleted unsent. */
+    val outboxMaxAgeMs: Long = 72L * 60 * 60 * 1000,
+    /** Sends of one entry, across launches, before it is deleted unsent. */
+    val outboxMaxAttempts: Int = 8,
 )
 
 /** The collector the SDK delivers to. */
