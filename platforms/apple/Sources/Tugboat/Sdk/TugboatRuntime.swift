@@ -120,7 +120,7 @@ final class TugboatRuntime {
         viewport: KeyWindow.viewport(fallback: device), host: metadata, sessionEpoch: sessionEpoch,
         activationRequestId: activationRequestId, explorationRunId: config.explorationRunId),
       at: parts.sessionStartAt)
-    parts.outbox?.startReplay()
+    _ = parts.outbox  // RED-CHECK
     parts.lifecycle.start()
     parts.locale.start()
     parts.surfaces.start()
