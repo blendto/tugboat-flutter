@@ -178,7 +178,11 @@ final class SwiftUIAdapter {
     scroll.onFrame()
   }
 
-  private static func keyWindows() -> [UIWindow] {
+  /// The key windows of the connected scenes; tests replace it (a test host
+  /// may not list its windows in a scene). Main thread only.
+  static var keyWindows: () -> [UIWindow] = SwiftUIAdapter.sceneKeyWindows
+
+  private static func sceneKeyWindows() -> [UIWindow] {
     UIApplication.shared.connectedScenes
       .compactMap { $0 as? UIWindowScene }
       .flatMap { $0.windows }

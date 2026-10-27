@@ -360,7 +360,7 @@ final class TugboatActivationTests: XCTestCase {
 
   /// Item 12: a hosting controller already on screen when the first session
   /// starts is in that session's `session_start` seed.
-  func testAHostingControllerOnScreenBeforeActivateIsSeeded() throws {
+  func testAHostingControllerOnScreenBeforeActivateIsSeeded() {
     ScreenTracker.shared.reset()
     HostingControllerTracker.shared.reset()
     defer {
@@ -369,14 +369,13 @@ final class TugboatActivationTests: XCTestCase {
     }
     let hosting = HostedWindow(Text("Already on screen"))
     defer { hosting.close() }
-    // The SDK takes the key window of a connected scene (as for touches and
-    // captures); a test host without one cannot run this path.
-    // `testAdoptingControllersOnScreenWalksTheHierarchy` covers the walk.
-    guard hosting.window.windowScene != nil else {
-      throw XCTSkip("the test host has no window scene")
-    }
     hosting.window.makeKeyAndVisible()
     hosting.settle()
+    // The SDK takes the key windows of the connected scenes; the CI test
+    // host does not list its windows there, so the test names its window.
+    let previousKeyWindows = SwiftUIAdapter.keyWindows
+    SwiftUIAdapter.keyWindows = { [hosting.window] }
+    defer { SwiftUIAdapter.keyWindows = previousKeyWindows }
     let expected = [hosting.hosting.map(RouteKey.hostingKey) ?? "?"]
     let diagnostics = "key window: \(hosting.window.isKeyWindow), screen seen: \(ScreenTracker.shared.hasSeenScreen)"
     Tugboat.start(config(trackHostingControllers: true))
@@ -385,15 +384,8 @@ final class TugboatActivationTests: XCTestCase {
     // The tracker's seed, then what reached the engine (the adapter's batch
     // is flushed at the latest when the session ends).
     let trackerSeed = HostingControllerTracker.shared.sessionStartFact(at: HostTime(monoUs: 1, wallUs: 1))?.decodedInput
-    let root = hosting.window.rootViewController
-    let after = "running: \(Tugboat.isRunning), state: \(Tugboat.lifecycleState), screen seen now: "
-      + "\(ScreenTracker.shared.hasSeenScreen), recording: \(HostingControllerTracker.shared.isRecording), "
-      + "root: \(root.map { String(describing: type(of: $0)) } ?? "nil"), root in window: \(root?.viewIfLoaded?.window === hosting.window), "
-      + "key windows: \(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }.filter { $0.isKeyWindow }.count), "
-      + "ours key: \(hosting.window.isKeyWindow), installs: \(ViewControllerAppearance.installAttempts)"
     XCTAssertEqual(
-      ((trackerSeed?["routes"] as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }, expected,
-      diagnostics + "; " + after)
+      ((trackerSeed?["routes"] as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }, expected, diagnostics)
     Tugboat.deactivate()
     drainMain()
     let seed: () -> [String: Any]? = {
