@@ -6,6 +6,7 @@ import android.view.View
 import android.view.Window
 import android.view.inspector.WindowInspector
 import androidx.annotation.RequiresApi
+import androidx.annotation.VisibleForTesting
 import com.tugboat.android.views.OptionalAndroidx
 import com.tugboat.android.views.overlay.OverlayWindowRoots
 import java.util.WeakHashMap
@@ -39,6 +40,7 @@ internal class DialogSessions(
         }
 
     /** Live dialog sessions; for tests. */
+    @get:VisibleForTesting
     val size: Int
         get() = sessions.size
 

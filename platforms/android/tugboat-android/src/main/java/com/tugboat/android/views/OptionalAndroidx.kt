@@ -24,13 +24,6 @@ internal object OptionalAndroidx {
 
     val fragment: Boolean = present("androidx.fragment.app.FragmentActivity")
 
-    /**
-     * `View.findViewTreeLifecycleOwner()` (androidx.lifecycle): how a dialog
-     * window's root leads back to its `Dialog` or `DialogFragment`
-     * ([com.tugboat.android.views.dialog.DialogWindowLookup]).
-     */
-    val lifecycleViews: Boolean = present("androidx.lifecycle.ViewTreeLifecycleOwner")
-
     val hasRecyclerView: Boolean
         get() = recycler !== NoRecyclerOps
 

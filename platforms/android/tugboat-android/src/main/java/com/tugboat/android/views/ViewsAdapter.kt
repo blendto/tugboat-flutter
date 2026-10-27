@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Bundle
 import android.view.View
 import android.view.Window
+import androidx.annotation.VisibleForTesting
 import com.tugboat.android.host.HostClock
 import com.tugboat.android.host.SystemHostClock
 import com.tugboat.android.views.facts.ChoreographerFrames
@@ -79,7 +80,8 @@ internal class ViewsAdapter(
     private val sessions = HashMap<Activity, WindowSession>()
 
     /** Focus is app-wide: every window reports against the same last kind. */
-    private val focusState = FocusState()
+    @VisibleForTesting
+    internal val focusState = FocusState()
     private var started = false
     private var windowCallbacksRegistered = false
 
@@ -205,6 +207,7 @@ internal class ViewsAdapter(
         }
 
     /** Live dialog-window sessions of [activity]; for tests. */
+    @VisibleForTesting
     fun dialogSessionCount(activity: Activity): Int = sessions[activity]?.dialogSessionCount ?: 0
 
     private fun emit(fact: ViewsFact) {

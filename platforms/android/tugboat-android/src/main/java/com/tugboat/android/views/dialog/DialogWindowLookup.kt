@@ -21,10 +21,13 @@ import com.tugboat.android.views.OptionalAndroidx
  * no window here (a documented gap; its frames still carry `overlayWindow`).
  * The window found must have [root] as its decor, so an owner set on some
  * other root never adopts a window that is not this one.
+ *
+ * `androidx.lifecycle` (`ViewTreeLifecycleOwner`) is not optional: the SDK
+ * depends on `lifecycle-process`, which brings `lifecycle-runtime`, so it is
+ * called directly (no probe, no keep rule).
  */
 internal object DialogWindowLookup {
     fun windowOf(root: View): Window? {
-        if (!OptionalAndroidx.lifecycleViews) return null
         val owner = root.findViewTreeLifecycleOwner() ?: return null
         val window =
             when {

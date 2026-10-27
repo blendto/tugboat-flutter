@@ -34,7 +34,9 @@ import com.tugboat.android.views.mask.WindowMaskResult
  * capture.
  */
 internal class OverlayDetector(private val activity: Activity) {
-    private var resumed = false
+    /** Between the activity's resume and pause; the window session reads it too. */
+    var resumed = false
+        private set
     private var focusLost = false
 
     fun onResumed() {

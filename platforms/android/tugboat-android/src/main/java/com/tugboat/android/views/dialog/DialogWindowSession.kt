@@ -57,7 +57,10 @@ internal class DialogSessionContext(
  *   activity session detached) removes both, unwrapping only when
  *   Tugboat's wrapper is on top. Detached, it emits nothing, even if its
  *   wrapper has to stay below a foreign one. It holds the window and decor
- *   weakly, so a missed detach never keeps a dialog alive.
+ *   weakly, so a missed detach never keeps a dialog alive. A wrapper left
+ *   below a foreign one keeps this session, and through [context]'s
+ *   closures its activity's window session, reachable from the `Dialog`
+ *   (which already holds the activity, so no new leak class).
  *
  * Main thread only.
  */

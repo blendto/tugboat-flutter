@@ -5,6 +5,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.Window
+import androidx.annotation.VisibleForTesting
 import com.tugboat.android.views.callback.WindowCallbackInstaller
 import com.tugboat.android.views.callback.WindowEventObserver
 import com.tugboat.android.views.dialog.DialogSessionContext
@@ -45,7 +46,6 @@ internal class WindowSession(
     locateOnScreen: (View, IntArray) -> Unit = View::getLocationOnScreen,
 ) : WindowEventObserver {
     private var attached = true
-    private var resumed = false
     private var decor: View? = null
     private val pointers = PointerFactProducer(clock, gesture, ::density, ::resolveTap, ::emitIfAttached)
     private val keys = SystemInputProducer(clock, ::emitIfAttached)
@@ -71,6 +71,7 @@ internal class WindowSession(
     )
 
     /** Live dialog-window sessions; for tests. */
+    @get:VisibleForTesting
     val dialogSessionCount: Int
         get() = dialogs.size
 
@@ -105,13 +106,11 @@ internal class WindowSession(
     /** This window became the active one (its activity resumed): report its focus on the next frame. */
     fun onWindowActive() {
         if (!attached) return
-        resumed = true
         overlays.onResumed()
         focus.activate()
     }
 
     fun onActivityPaused() {
-        resumed = false
         overlays.onPaused()
     }
 
@@ -164,10 +163,10 @@ internal class WindowSession(
         overlays.onWindowFocusChanged(hasFocus)
         AdapterGuard.run("dialog windows") {
             if (!hasFocus) {
-                if (resumed) dialogs.scanRoots()
+                if (overlays.resumed) dialogs.scanRoots()
             } else {
                 dialogs.sweepDetached()
-                if (resumed) focus.activate()
+                if (overlays.resumed) focus.activate()
             }
         }
     }
