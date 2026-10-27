@@ -8,6 +8,10 @@ import XCTest
 final class StopTests: XCTestCase {
   /// Positive waits are progress waits, not speed bounds: CI runners stall for seconds.
   private static let progress: TimeInterval = 30
+  /// A drain deadline far past every progress wait, for the tests whose
+  /// property is "finishes before the deadline": a run that only finishes
+  /// at this deadline fails them.
+  private static let farDeadline: TimeInterval = 300
   private let http = FakeHTTPSender()
   private lazy var watcher = SessionEndWatcher(delegate: http)
 
@@ -65,7 +69,7 @@ final class StopTests: XCTestCase {
   func testFinishWaitsForTheSessionEndPost() {
     let finishes = Locked(0)
     var ended = false
-    StopSequence(maxDrain: 30).run(
+    StopSequence(maxDrain: Self.farDeadline).run(
       watcher: watcher,
       awaitDrain: true,
       endSession: { ended = true },
@@ -103,14 +107,14 @@ final class StopTests: XCTestCase {
     watcher.send(lifecycle("session_end")) { _ in }
     http.complete(0, .http(status: 202, body: ""))
     let finished = expectation(description: "finish")
-    StopSequence(maxDrain: 30).run(watcher: watcher, awaitDrain: true, endSession: {}, finish: { finished.fulfill() })
+    StopSequence(maxDrain: Self.farDeadline).run(watcher: watcher, awaitDrain: true, endSession: {}, finish: { finished.fulfill() })
     wait(for: [finished], timeout: Self.progress)
   }
 
   func testWithoutADrainToAwaitItFinishesAtOnce() {
     let finished = expectation(description: "finish")
     var ended = false
-    StopSequence(maxDrain: 30).run(
+    StopSequence(maxDrain: Self.farDeadline).run(
       watcher: watcher, awaitDrain: false, endSession: { ended = true }, finish: { finished.fulfill() })
     wait(for: [finished], timeout: Self.progress)
     XCTAssertTrue(ended)
