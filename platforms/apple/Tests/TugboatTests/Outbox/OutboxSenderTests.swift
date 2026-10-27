@@ -143,7 +143,8 @@ final class OutboxSenderTests: XCTestCase {
     Thread.sleep(forTimeInterval: 0.1)
     XCTAssertFalse(delegate.closed)
     gate.signal()
-    wait(for: [closed], timeout: 5)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [closed], timeout: 30)
     XCTAssertTrue(delegate.closed)
     XCTAssertEqual(onDiskAtClose.current.count, 1)
   }

@@ -9,8 +9,9 @@ Screens (all edge-to-edge safe: content is padded by the system bars and
 display cutout, as targetSdk 35 requires on API 35+):
 
 - `MainActivity` (Views): a tagged button (`tugboatTag = "primary_action"`),
-  a swipe area, a text field, a `RecyclerView` list of 50 rows, a dialog,
-  buttons to the other screens, and a **Stop Tugboat** button.
+  a swipe area, a text field, a `RecyclerView` list of 50 rows, a framework
+  dialog (its taps are not recorded: the documented gap), buttons to the
+  other screens, and a **Stop Tugboat** button.
 - `DetailActivity` (Views): text, an image, a tagged back button.
 - `ComposeWholeHostActivity` (Compose, default `ComposeMasking.WholeHost`):
   a tagged button (`Modifier.tugboatTag("compose_primary")`), a text field,
@@ -28,6 +29,13 @@ display cutout, as targetSdk 35 requires on API 35+):
   root, a text, and a tagged button (`fragment_action`); the Compose
   fragment (`compose_home`) is a `ComposeView` with a tagged button
   (`compose_fragment_action`).
+- `DialogsActivity` (AppCompat theme, Compose content; for the dialog-window
+  device pass): buttons open an AppCompat `AlertDialog`, a `DialogFragment`
+  (tag `sample_dialog`, tagged button `dialog_fragment_ok`), a Compose
+  `Dialog` with a text field (`compose_dialog_note`, `compose_dialog_ok`),
+  and a material3 `ModalBottomSheet` (`bottom_sheet_ok`). Taps, BACK, and
+  focus in each are recorded (the `DialogFragment` on every API level, the
+  others on API 29+); none is in the frames.
 
 `SampleApplication` starts Tugboat with `enabled = true` (the SDK default is
 dormant until `Tugboat.activate`; `-Ptugboat.enabled=false` builds a
@@ -219,6 +227,8 @@ the Navigation route keys `rows` and `row` (arguments stripped).
   on slow emulators.
 - No 400s in the collector log for SDK uploads. The sample's own `GET /sample/orders/42` (steps 5 and 6) is answered 404, as expected.
 
-Known gaps: the dialog is a separate window, so it is not in frames and its
-taps are not recorded; predictive back is not observed; Compose scroll
+Known gaps: dialogs are separate windows, so they are not in frames (frames
+taken while one is up carry `overlayWindow`); the framework dialog on
+`MainActivity` has no recorded taps, and below API 29 only the
+`DialogFragment` does; predictive back is not observed; Compose scroll
 offsets are approximate (per-frame samples).

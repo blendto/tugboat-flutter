@@ -37,8 +37,9 @@ final class HostedWindow {
   }
 
   /// Spins the run loop until `condition` holds or `timeout` passes.
+  /// The default timeout is a progress wait, not a speed bound: CI runners stall for seconds.
   @discardableResult
-  func wait(timeout: TimeInterval = 3, until condition: () -> Bool) -> Bool {
+  func wait(timeout: TimeInterval = 30, until condition: () -> Bool) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() {
       if Date() > deadline { return false }

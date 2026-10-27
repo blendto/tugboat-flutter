@@ -10,7 +10,7 @@
     <string name="stop_tugboat">Stop Tugboat</string>
     <string name="tugboat_stopped">Tugboat stopped</string>
     <string name="dialog_title">A dialog</string>
-    <string name="dialog_message">Dialogs are separate windows: not in the captured frame (known gap).</string>
+    <string name="dialog_message">A framework dialog: not in the captured frame, and its taps are not recorded (known gap).</string>
     <string name="ok">OK</string>
     <string name="details_title">Details</string>
     <string name="details_body">The second screen. Press back to return.</string>
@@ -28,4 +28,13 @@
     <string name="fragment_title">A fragment screen</string>
     <string name="fragment_action">Fragment action</string>
     <string name="compose_fragment_action">Compose fragment action</string>
+    <string name="open_dialogs">Dialogs</string>
+    <string name="open_appcompat_dialog">AppCompat dialog</string>
+    <string name="open_dialog_fragment">DialogFragment</string>
+    <string name="open_compose_dialog">Compose dialog</string>
+    <string name="open_bottom_sheet">Bottom sheet</string>
+    <string name="appcompat_dialog_title">An AppCompat dialog</string>
+    <string name="appcompat_dialog_message">A ComponentDialog: its taps are recorded on API 29+.</string>
+    <string name="dialog_fragment_title">A dialog fragment</string>
+    <string name="dialog_fragment_message">Its taps are recorded on every API level.</string>
 </resources>

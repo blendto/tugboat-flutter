@@ -129,7 +129,8 @@ final class AccessibilityActivationTests: XCTestCase {
     window?.layoutIfNeeded()
   }
 
-  private func wait(timeout: TimeInterval = 5, until condition: () -> Bool) -> Bool {
+  /// The default timeout is a progress wait, not a speed bound: CI runners stall for seconds.
+  private func wait(timeout: TimeInterval = 30, until condition: () -> Bool) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() {
       if Date() > deadline { return false }

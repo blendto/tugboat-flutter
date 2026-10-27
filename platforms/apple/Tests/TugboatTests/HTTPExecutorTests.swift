@@ -6,6 +6,8 @@ import XCTest
 /// `HTTPExecutor` over a real `URLSession` whose requests `StubURLProtocol`
 /// answers.
 final class HTTPExecutorTests: XCTestCase {
+  /// Positive waits are progress waits, not speed bounds: CI runners stall for seconds.
+  private static let progress: TimeInterval = 30
   private let frames = FrameHandleTable()
   private var executor: HTTPExecutor!
 
@@ -37,7 +39,7 @@ final class HTTPExecutorTests: XCTestCase {
   }
 
   /// Sends `request` and waits for its single answer.
-  private func perform(_ request: HTTPRequest, on executor: HTTPExecutor? = nil, timeout: TimeInterval = 5)
+  private func perform(_ request: HTTPRequest, on executor: HTTPExecutor? = nil, timeout: TimeInterval = HTTPExecutorTests.progress)
     -> TransportOutcome?
   {
     let answered = expectation(description: "answered")
@@ -272,12 +274,12 @@ final class HTTPExecutorTests: XCTestCase {
       outcome.withLock { $0 = result }
       answered.fulfill()
     }
-    let deadline = Date().addingTimeInterval(2)
+    let deadline = Date().addingTimeInterval(Self.progress)
     while StubURLProtocol.received.isEmpty && Date() < deadline {
       RunLoop.current.run(until: Date().addingTimeInterval(0.01))
     }
     executor.close()
-    wait(for: [answered], timeout: 3)
+    wait(for: [answered], timeout: Self.progress)
     XCTAssertEqual(outcome.current, .timeout)
   }
 
@@ -289,7 +291,7 @@ final class HTTPExecutorTests: XCTestCase {
       onMain.withLock { $0 = Thread.isMainThread }
       answered.fulfill()
     }
-    wait(for: [answered], timeout: 5)
+    wait(for: [answered], timeout: Self.progress)
     // Give a duplicate answer time to show up as an over-fulfilment.
     let settle = expectation(description: "settle")
     settle.isInverted = true

@@ -2,6 +2,7 @@ package com.tugboat.android.views.input
 
 import android.view.View
 import androidx.annotation.MainThread
+import androidx.annotation.VisibleForTesting
 import android.view.ViewTreeObserver
 import com.tugboat.android.host.HostTime
 import com.tugboat.android.toolkit.RegionFocus
@@ -138,4 +139,9 @@ internal class FocusState {
     }
 
     fun isActive(window: Any): Boolean = active === window
+
+    /** Whether any window is the active one; for tests. */
+    @get:VisibleForTesting
+    val hasActiveWindow: Boolean
+        get() = active != null
 }

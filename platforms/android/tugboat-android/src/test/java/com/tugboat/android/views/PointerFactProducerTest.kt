@@ -6,6 +6,7 @@ import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.identity.TapEvidence
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.input.PointerFactProducer
+import com.tugboat.android.views.input.SurfaceOffset
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -113,6 +114,40 @@ class PointerFactProducerTest {
         producer.onTouch(event(MotionEvent.ACTION_UP, 0, 1, pointer(0, 1f, 1f, MotionEvent.TOOL_TYPE_STYLUS)))
         producer.onTouch(event(MotionEvent.ACTION_DOWN, 0, 2, pointer(0, 1f, 1f, MotionEvent.TOOL_TYPE_MOUSE)))
         assertEquals(listOf("stylus", "stylus", "mouse"), recorded.facts.map { it.input.getString("device") })
+    }
+
+    @Test
+    fun aDialogWindowReportsSurfacePositionsAndResolvesTapsInItsOwnSpace() {
+        val offset = SurfaceOffset(40f, 600f)
+        val dialog = PointerFactProducer(
+            clock = FactClock(clock),
+            gesture = GestureConfig(touchSlop = 8.0, panSlop = 16.0, scaleSlop = 16.0),
+            density = { DENSITY },
+            resolveTap = { x, y ->
+                taps += x to y
+                TapEvidence.failed(TapEvidence.NO_TARGET_AT_POINT)
+            },
+            emit = recorded::emit,
+            surfaceOffset = { offset },
+        )
+
+        dialog.onTouch(event(MotionEvent.ACTION_DOWN, 0, 0, pointer(0, 100f, 200f)))
+        dialog.onTouch(event(MotionEvent.ACTION_UP, 0, 10, pointer(0, 102f, 201f)))
+
+        val (down, up) = recorded.facts.map { it.input }
+        assertEquals(70.0, down.getDouble("x"), 0.0)
+        assertEquals(400.0, down.getDouble("y"), 0.0)
+        assertEquals(71.0, up.getDouble("x"), 0.0)
+        assertEquals(400.5, up.getDouble("y"), 0.0)
+        assertTrue(up.has("tap"))
+        assertEquals("hit-tested in the dialog window, without the offset", listOf(100f to 200f), taps)
+    }
+
+    @Test
+    fun surfaceOffsetIsTheDifferenceOfOnScreenLocations() {
+        assertEquals(SurfaceOffset(60f, 652f), SurfaceOffset.between(60, 700, 0, 48))
+        assertEquals(SurfaceOffset(-1080f, 0f), SurfaceOffset.between(0, 0, 1080, 0))
+        assertEquals(SurfaceOffset.ZERO, SurfaceOffset.between(12, 34, 12, 34))
     }
 
     private fun tapWithTravel(px: Float) {

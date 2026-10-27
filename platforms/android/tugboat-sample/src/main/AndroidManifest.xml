@@ -29,5 +29,11 @@
         <activity
             android:name=".FragmentsActivity"
             android:exported="false" />
+        <!-- AppCompat dialogs need an AppCompat theme. -->
+        <activity
+            android:name=".DialogsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:windowSoftInputMode="stateAlwaysHidden" />
     </application>
 </manifest>
