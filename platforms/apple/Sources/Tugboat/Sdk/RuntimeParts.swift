@@ -82,7 +82,7 @@ extension TugboatRuntime {
         compute: { WindowMasks.compute($0) },
         screen: {
           ScreenTracker.shared.settle()
-          return ScreenTracker.shared.top?.name
+          return ScreenTracker.shared.visibleTop?.name
         },
         onGeometry: { reporter.observe($0.boundaryRect) }
       )

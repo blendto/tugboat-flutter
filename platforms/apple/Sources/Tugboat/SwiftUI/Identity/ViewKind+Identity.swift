@@ -14,8 +14,15 @@ extension ViewKind {
     case .scrollView: return "Scrollable"
     case .control: return "Control"
     case .representable, .webView, .renderer: return CanonicalPath.boxToken
-    case .internalPlatformView, .label, .image, .sdkOwned, .other: return nil
+    case .internalPlatformView, .label, .image, .sdkOwned, .sensitiveMarker, .other: return nil
     }
+  }
+
+  /// A view a Tugboat modifier added (`.tugboatTag`, `.tugboatSensitive`
+  /// markers and their hosts): never part of identity. Masks still meet a
+  /// sensitive marker (`WindowMasks.maskOrWalk`).
+  var isTugboatMarker: Bool {
+    self == .sdkOwned || self == .sensitiveMarker
   }
 
   /// Kinds an untagged tap can resolve to. A nested hosting view is a path

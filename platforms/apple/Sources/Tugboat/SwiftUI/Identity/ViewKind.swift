@@ -35,6 +35,9 @@ enum ViewKind: Equatable {
   case control
   /// A view the SDK itself added (`.tugboatTag` markers and their hosts).
   case sdkOwned
+  /// A `.tugboatSensitive` marker or its host: masked at its frame, in
+  /// every mode, and skipped by identity like `sdkOwned`.
+  case sensitiveMarker
   case other
 
   private static let cache = Locked([ObjectIdentifier: ViewKind]())
@@ -47,12 +50,21 @@ enum ViewKind: Equatable {
     let kind = classKind(cls)
     switch kind {
     case .representable, .internalPlatformView:
-      return view.subviews.contains { $0 is TagMarkerView } ? .sdkOwned : kind
+      return markerHostKind(view) ?? kind
     case .other:
       return insideHosting && isAppDefined(cls) ? .representable : .other
     default:
       return kind
     }
+  }
+
+  /// The kind of a SwiftUI host whose subview is a Tugboat marker, or nil.
+  private static func markerHostKind(_ view: UIView) -> ViewKind? {
+    for subview in view.subviews {
+      if subview is SensitiveMarkerView { return .sensitiveMarker }
+      if subview is TagMarkerView { return .sdkOwned }
+    }
+    return nil
   }
 
   private static func classKind(_ cls: UIView.Type) -> ViewKind {
@@ -66,6 +78,7 @@ enum ViewKind: Equatable {
   }
 
   private static func computeKind(_ cls: UIView.Type) -> ViewKind {
+    if cls.isSubclass(of: SensitiveMarkerView.self) { return .sensitiveMarker }
     if cls.isSubclass(of: TagMarkerView.self) { return .sdkOwned }
     if let web = webViewClass, cls.isSubclass(of: web) { return .webView }
     if cls.isSubclass(of: UITextField.self) || cls.isSubclass(of: UITextView.self) { return .textInput }

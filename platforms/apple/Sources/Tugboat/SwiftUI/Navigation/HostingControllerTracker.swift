@@ -7,7 +7,8 @@ import UIKit
 /// - Only hosting controllers whose view covers at least half the window
 ///   count as screens (not bar items or small embedded hosts).
 /// - Each controller is one route on navigator `swiftui-hosting`, named by
-///   its hashed type (`host:<16 hex>`, the same route key identity uses).
+///   its hashed type (`host:<16 hex>`, the same route key identity uses),
+///   with `overlayKind` `page` (presentation is not read from UIKit).
 /// - Once any `.tugboatScreen` has appeared in the process it stays silent,
 ///   so a route is never reported by both sources.
 /// - The stack survives adapter stop/start; `session_start` is emitted only
@@ -68,7 +69,8 @@ final class HostingControllerTracker {
       let entry = RouteEntry(
         instanceId: ids.id(of: controller),
         name: RouteKey.hostingKey(controller),
-        type: HostingControllerTracker.routeType
+        type: HostingControllerTracker.routeType,
+        overlayKind: .page
       )
       change = stack.appeared(entry)
     } else {

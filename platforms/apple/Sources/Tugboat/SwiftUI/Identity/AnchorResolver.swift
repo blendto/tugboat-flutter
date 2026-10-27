@@ -109,7 +109,7 @@ final class AnchorResolver {
   private func anchor(for view: UIView, in window: UIWindow, leaf: Leaf?) -> TargetAnchor? {
     guard view === window || view.isDescendant(of: window) else { return nil }
     screens.settle()
-    let route = RouteKey.resolve(for: view, in: window, screen: screens.top)
+    let route = RouteKey.resolve(for: view, in: window, screen: screens.visibleTop)
     guard let base = CanonicalPathBuilder.build(root: route.root, target: view) else { return nil }
     let path = leaf.map { base.appending($0.segment) } ?? base
     let tag = leaf?.tag

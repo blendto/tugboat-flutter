@@ -385,12 +385,25 @@ plus, only when the app opts in, the accessibility tree (ADR 0010).
 - **Lists.** A `List` cell (`UICollectionView` on iOS 16+, `UITableView` on
   iOS 15) adds `[item:<section>.<row>]` from its index path; a tapped cell
   ends with `Cell#0`.
-- **Route key.** The name of the `.tugboatScreen` on top of the screen
-  stack, else `host:<16 hex>`, the identity hash of the nearest hosting
-  controller's Swift type name (`medium`; `low` when the type contains
-  `AnyView`, since type-erased roots share one key), else `swiftui:window`
-  (`low`).
-  Paths start below that hosting controller's view.
+- **Route key.** The name of the `.tugboatScreen` on top of the visible
+  chain of navigators, else `host:<16 hex>`, the identity hash of the
+  nearest hosting controller's Swift type name (`medium`; `low` when the
+  type contains `AnyView`, since type-erased roots share one key), else
+  `swiftui:window` (`low`).
+  Paths start below that hosting controller's view. Screens belong to the
+  root navigator `swiftui-screens` unless a `.tugboatNavigator(name)`
+  encloses them (`swiftui-screens/<name>`, nested in the enclosing
+  navigator and hosted by the `.tugboatScreen` around it). The visible
+  chain runs from the root through the child navigator, hosted by the top
+  screen or by no screen, whose top screen is on screen (between
+  `onAppear` and `onDisappear`), the most recently appeared where several
+  are (a child with no host only when its appearance is newer than its
+  parent's own); its deepest top screen is the key, the route the last
+  `session_start` seed ends on. A tab switch changes the key to the shown
+  tab's top without a navigation fact. A sheet's screen keys the targets
+  inside the sheet, whether it is a route on the presenting navigator or
+  the root of the sheet's own navigator. `presentation:` sets the route's
+  `overlayKind`, never the route key.
 - **Confidence.** The floor of the route's and the path's. The path is
   `high` with a tag, `medium` inside a list cell, and `low` otherwise.
   Accessibility-tree segments never raise it.
