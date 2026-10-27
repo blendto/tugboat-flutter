@@ -111,7 +111,8 @@ final class EventHookTests: XCTestCase {
       }
       done.fulfill()
     }
-    wait(for: [done], timeout: 5)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [done], timeout: 30)
     fixture.drain()
 
     XCTAssertEqual(fixture.sink.posts.compactMap { $0.input["name"] as? String }, (0..<50).map { "e\($0)" })
@@ -130,7 +131,8 @@ final class EventHookTests: XCTestCase {
       XCTAssertEqual(threads.current.count, 2, "ran before record returned")
       done.fulfill()
     }
-    wait(for: [done], timeout: 5)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [done], timeout: 30)
     XCTAssertEqual(threads.current, [false, false])
   }
 }

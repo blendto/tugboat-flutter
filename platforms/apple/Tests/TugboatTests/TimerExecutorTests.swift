@@ -45,8 +45,8 @@ final class TimerExecutorTests: XCTestCase {
   /// Waits until `count` timers fired, then a little longer, and checks no
   /// extra timer fired. Past deadlines can fire before this is called, so the
   /// count check and the callback install run together on `queue`, where every
-  /// fire is recorded.
-  private func waitForFires(_ count: Int, timeout: TimeInterval = 2, settle: TimeInterval = 0.15) {
+  /// fire is recorded. `timeout` is a progress wait, not a speed bound: CI runners stall for seconds.
+  private func waitForFires(_ count: Int, timeout: TimeInterval = 30, settle: TimeInterval = 0.15) {
     if count > 0 {
       let done = expectation(description: "\(count) timers fired")
       done.assertForOverFulfill = false

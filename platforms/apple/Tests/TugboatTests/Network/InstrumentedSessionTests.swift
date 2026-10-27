@@ -66,7 +66,8 @@ final class InstrumentedSessionTests: XCTestCase {
   /// The posts once `count` arrived, after a short wait for any extra one.
   private func posts(_ count: Int, fixture: EvidenceFixture? = nil) -> [RecordingEvidenceSink.Post] {
     let fixture = fixture ?? self.fixture!
-    let deadline = Date().addingTimeInterval(5)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    let deadline = Date().addingTimeInterval(30)
     while fixture.sink.posts.count < count && Date() < deadline {
       fixture.drain()
       Thread.sleep(forTimeInterval: 0.01)

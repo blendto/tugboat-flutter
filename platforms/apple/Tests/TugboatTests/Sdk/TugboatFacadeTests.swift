@@ -26,7 +26,8 @@ final class TugboatFacadeTests: XCTestCase {
   private func drainMain() {
     let drained = expectation(description: "main drained")
     DispatchQueue.main.async { drained.fulfill() }
-    wait(for: [drained], timeout: 2)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [drained], timeout: 30)
   }
 
   func testStartRefusesWithoutARequiredField() {
@@ -70,7 +71,8 @@ final class TugboatFacadeTests: XCTestCase {
       Tugboat.start(self.config())
       DispatchQueue.main.async { done.fulfill() }
     }
-    wait(for: [done], timeout: 2)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [done], timeout: 30)
     XCTAssertTrue(Tugboat.isRunning)
   }
 

@@ -40,7 +40,8 @@ final class TugboatScreenTests: XCTestCase {
   }
 
   /// Spins the run loop until `condition` holds or `timeout` passes.
-  private static func wait(timeout: TimeInterval = 3, until condition: () -> Bool) -> Bool {
+  /// The default timeout is a progress wait, not a speed bound: CI runners stall for seconds.
+  private static func wait(timeout: TimeInterval = 30, until condition: () -> Bool) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() {
       if Date() > deadline { return false }
@@ -229,7 +230,8 @@ final class TugboatScreenTests: XCTestCase {
       tracker.settle()
       return tracker.navigatorIds.first { id in tracker.entries(of: id)?.contains { $0.name == "Sheet" } ?? false }
     }
-    let presented = TugboatScreenTests.wait(timeout: 5) { sheetNavigator() != nil }
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    let presented = TugboatScreenTests.wait(timeout: 30) { sheetNavigator() != nil }
     XCTAssertTrue(presented, "the sheet was not presented: no Sheet route on any navigator")
     guard presented else { return }
 

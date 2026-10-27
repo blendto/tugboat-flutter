@@ -152,7 +152,8 @@ final class EngineHostTests: XCTestCase {
     }
 
     post("session.start")
-    wait(for: [fired], timeout: 3)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [fired], timeout: 30)
     wait(for: [firedAgain], timeout: 0.5)
 
     XCTAssertGreaterThanOrEqual(firedAtMonoUs.current, flushAt, "never fires early")
@@ -181,7 +182,8 @@ final class EngineHostTests: XCTestCase {
       http.complete(0, .http(status: 202, body: "{\"sessionId\":\"s\"}"))
       done.fulfill()
     }
-    wait(for: [done], timeout: 2)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [done], timeout: 30)
     XCTAssertEqual(transport.submitted.count, 1, "not submitted from the IO thread")
     queue.resume()
     drain()

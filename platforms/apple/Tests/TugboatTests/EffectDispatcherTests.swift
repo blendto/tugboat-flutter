@@ -77,7 +77,8 @@ final class EffectDispatcherTests: XCTestCase {
       dispatcher.dispatch(.timerSchedule(timerId: "keep", atMonoUs: soon))
       dispatcher.dispatch(.timerCancel(timerId: "drop"))
     }
-    wait(for: [fired], timeout: 2)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [fired], timeout: 30)
     queue.sync {}
   }
 }

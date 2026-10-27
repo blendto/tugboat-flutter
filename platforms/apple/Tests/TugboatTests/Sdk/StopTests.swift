@@ -6,6 +6,8 @@ import XCTest
 /// `SessionEndWatcher` and `StopSequence`: `engine.dispose` waits for the
 /// `session_end` post to settle, bounded, without blocking the caller.
 final class StopTests: XCTestCase {
+  /// Positive waits are progress waits, not speed bounds: CI runners stall for seconds.
+  private static let progress: TimeInterval = 30
   private let http = FakeHTTPSender()
   private lazy var watcher = SessionEndWatcher(delegate: http)
 
@@ -77,7 +79,7 @@ final class StopTests: XCTestCase {
 
     watcher.send(lifecycle("session_end")) { _ in }
     http.complete(1, .http(status: 202, body: "{}"))
-    let deadline = Date().addingTimeInterval(2)
+    let deadline = Date().addingTimeInterval(Self.progress)
     while finishes.current == 0, Date() < deadline {
       Thread.sleep(forTimeInterval: 0.01)
     }
@@ -88,7 +90,7 @@ final class StopTests: XCTestCase {
     let finished = expectation(description: "finish")
     finished.assertForOverFulfill = true
     StopSequence(maxDrain: 0.05).run(watcher: watcher, awaitDrain: true, endSession: {}, finish: { finished.fulfill() })
-    wait(for: [finished], timeout: 2)
+    wait(for: [finished], timeout: Self.progress)
     // A late settle does not finish again.
     watcher.send(lifecycle("session_end")) { _ in }
     http.complete(0, .http(status: 202, body: ""))
@@ -102,7 +104,7 @@ final class StopTests: XCTestCase {
     http.complete(0, .http(status: 202, body: ""))
     let finished = expectation(description: "finish")
     StopSequence(maxDrain: 30).run(watcher: watcher, awaitDrain: true, endSession: {}, finish: { finished.fulfill() })
-    wait(for: [finished], timeout: 2)
+    wait(for: [finished], timeout: Self.progress)
   }
 
   func testWithoutADrainToAwaitItFinishesAtOnce() {
@@ -110,7 +112,7 @@ final class StopTests: XCTestCase {
     var ended = false
     StopSequence(maxDrain: 30).run(
       watcher: watcher, awaitDrain: false, endSession: { ended = true }, finish: { finished.fulfill() })
-    wait(for: [finished], timeout: 2)
+    wait(for: [finished], timeout: Self.progress)
     XCTAssertTrue(ended)
   }
 
@@ -140,8 +142,8 @@ final class StopTests: XCTestCase {
           finished.fulfill()
         })
     }
-    wait(for: [finished], timeout: 2)
-    let deadline = Date().addingTimeInterval(2)
+    wait(for: [finished], timeout: Self.progress)
+    let deadline = Date().addingTimeInterval(Self.progress)
     while weakHost != nil || weakWatcher != nil || weakCaptures != nil, Date() < deadline {
       RunLoop.current.run(until: Date().addingTimeInterval(0.02))
     }

@@ -48,7 +48,8 @@ final class SurfaceAndStructureTests: XCTestCase {
     XCTAssertEqual(selected, hiddenChanged, "hidden controls do not")
   }
 
-  private func spin(until condition: () -> Bool, timeout: TimeInterval = 2) {
+  /// The default timeout is a progress wait, not a speed bound: CI runners stall for seconds.
+  private func spin(until condition: () -> Bool, timeout: TimeInterval = 30) {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition(), Date() < deadline {
       RunLoop.main.run(until: Date().addingTimeInterval(0.02))

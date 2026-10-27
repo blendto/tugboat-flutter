@@ -159,7 +159,8 @@ final class MaskSupplierTests: XCTestCase {
       captured = result
       completed.fulfill()
     }
-    wait(for: [completed], timeout: 3)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [completed], timeout: 30)
     return try XCTUnwrap(captured)
   }
 

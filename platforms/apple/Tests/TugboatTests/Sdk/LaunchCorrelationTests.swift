@@ -233,7 +233,8 @@ final class LaunchCorrelationTests: XCTestCase {
   private func drainMain() {
     let drained = expectation(description: "main queue drained")
     DispatchQueue.main.async { drained.fulfill() }
-    wait(for: [drained], timeout: 2)
+    // A progress wait, not a speed bound: CI runners stall for seconds.
+    wait(for: [drained], timeout: 30)
   }
 }
 #endif
