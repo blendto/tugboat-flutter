@@ -281,13 +281,24 @@ final class ActivationTests: XCTestCase {
         driver.stop(through: state.current.stops)
       }
       XCTAssertNil(driver.session, mainOrder)
-      XCTAssertTrue(begun.allSatisfy { $0.ended }, mainOrder)
+      XCTAssertTrue(begun.isEmpty, "\(mainOrder): no session on the configuration stop forgot")
       XCTAssertEqual(state.current.state, .starting, mainOrder)
       XCTAssertEqual(state.current.activationRequestId, "run-1", mainOrder)
       _ = driver.configure(config())
       XCTAssertEqual(driver.session?.activationRequestId, "run-1", mainOrder)
       XCTAssertEqual(state.current.state, .active, mainOrder)
     }
+  }
+
+  /// `markDormant` is called only when no session runs: a request that
+  /// still wants one is `starting`, never `active`.
+  func testMarkDormantNeverLeavesActive() {
+    XCTAssertTrue(state.activate("run-1"))
+    let epoch = state.current.requestEpoch
+    state.markActive(epoch)
+    XCTAssertEqual(state.current.state, .active)
+    state.markDormant(epoch)
+    XCTAssertEqual(state.current.state, .starting)
   }
 
   /// `stop` on another thread while main is starting an `activate`'s
