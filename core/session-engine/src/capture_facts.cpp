@@ -29,16 +29,20 @@ bool decode_rect(const Value& json, const std::string& path,
          r.req_double("height", &out->height);
 }
 
-// TugboatScreenshotCaptureBackend: a closed vocabulary on the collector
-// wire (`frameMetadata[].requestedBackend` / `resolvedBackend`).
+// A closed vocabulary on the collector wire
+// (`frameMetadata[].requestedBackend` / `resolvedBackend`): Flutter's
+// TugboatScreenshotCaptureBackend names, which Flutter and older native
+// hosts send, and the native SDKs' own backends.
 bool check_backend(const ObjectReader& r, const char* key,
                    const OptString& value) {
   if (!value || *value == "flutterRepaintBoundary" ||
-      *value == "nativeCpuExperimental") {
+      *value == "nativeCpuExperimental" || *value == "androidPixelCopy" ||
+      *value == "iosViewHierarchy") {
     return true;
   }
   return r.reject(key,
-                  "expected flutterRepaintBoundary or nativeCpuExperimental");
+                  "expected flutterRepaintBoundary, nativeCpuExperimental, "
+                  "androidPixelCopy, or iosViewHierarchy");
 }
 
 // `maskCoverage.reasons`: at most kMaxMaskReasons distinct names from the

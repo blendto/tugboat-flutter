@@ -5,14 +5,16 @@ import org.json.JSONObject
 /**
  * Encodes [CaptureAnswer]s as `capture.result` inputs.
  *
- * Both backend fields are always [NATIVE_BACKEND]: the collector's
- * `frameMetadata[].requestedBackend` / `resolvedBackend` are a closed enum
- * (`flutterRepaintBoundary` | `nativeCpuExperimental`), and the native SDKs
- * capture through the native CPU pixel runtime. A new backend name would 400
- * every frame upload (decisions log).
+ * Both backend fields are always [NATIVE_BACKEND]: every frame is a
+ * `capture-runtime` window capture through `PixelCopy`.
+ * `androidPixelCopy` is one of the collector's closed
+ * `frameMetadata[].requestedBackend` / `resolvedBackend` names
+ * (`flutterRepaintBoundary` | `nativeCpuExperimental` | `androidPixelCopy` |
+ * `iosViewHierarchy`); any other name would 400 every frame upload
+ * (decisions log).
  */
 internal object CaptureResultJson {
-    const val NATIVE_BACKEND = "nativeCpuExperimental"
+    const val NATIVE_BACKEND = "androidPixelCopy"
 
     /** One day, the engine's bound on every duration. */
     private const val MAX_MICROS = 86_400_000_000L

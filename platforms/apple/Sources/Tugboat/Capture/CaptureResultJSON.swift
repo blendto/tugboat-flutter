@@ -1,12 +1,14 @@
 /// Encodes `CaptureAnswer`s as `capture.result` inputs.
 ///
-/// Both backend fields are always `nativeBackend`: the collector's
-/// `frameMetadata[].requestedBackend` / `resolvedBackend` are a closed enum
-/// (`flutterRepaintBoundary` | `nativeCpuExperimental`), and the native SDKs
-/// capture through the native CPU pixel runtime. A new backend name would
-/// 400 every frame upload (decisions log).
+/// Both backend fields are always `nativeBackend`: every frame is a
+/// `TugboatCaptureRuntime` `viewHierarchy` draw of the key window.
+/// `iosViewHierarchy` is one of the collector's closed
+/// `frameMetadata[].requestedBackend` / `resolvedBackend` names
+/// (`flutterRepaintBoundary` | `nativeCpuExperimental` | `androidPixelCopy` |
+/// `iosViewHierarchy`); any other name would 400 every frame upload
+/// (decisions log).
 enum CaptureResultJSON {
-  static let nativeBackend = "nativeCpuExperimental"
+  static let nativeBackend = "iosViewHierarchy"
 
   /// One day, the engine's bound on every duration.
   private static let maxMicros: Int64 = 86_400_000_000

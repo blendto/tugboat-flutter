@@ -214,7 +214,7 @@ the Navigation route keys `rows` and `row` (arguments stripped).
   the whole Compose area is one filled rectangle. `ComposeSemanticsActivity`:
   texts, the text field, and the described image are masked individually;
   button and row backgrounds stay visible. Frames taken mid-transition are
-  fully masked. `frameMetadata` backends are `nativeCpuExperimental`.
+  fully masked. `frameMetadata` backends are `androidPixelCopy`.
   Each captured frame's mask coverage is a `capture_diagnostic` row in
   `pmkit.raw_events` with `component: capture_masking`, the `frameId`,
   `mode` (`precise` on Views screens and `ComposeSemanticsActivity`,

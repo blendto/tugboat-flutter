@@ -34,8 +34,8 @@ class CaptureResultJsonTest {
 
         assertEquals("captured", json.getString("outcome"))
         val frame = json.getJSONObject("frame")
-        assertEquals("nativeCpuExperimental", frame.getString("requestedBackend"))
-        assertEquals("nativeCpuExperimental", frame.getString("resolvedBackend"))
+        assertEquals("androidPixelCopy", frame.getString("requestedBackend"))
+        assertEquals("androidPixelCopy", frame.getString("resolvedBackend"))
         assertEquals(
             setOf(
                 "handle", "width", "height", "contentHash", "masked", "byteLength", "captureMicros",

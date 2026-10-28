@@ -8,7 +8,7 @@ import XCTest
 /// and `capture.result` builders, must produce collector bodies the
 /// collector accepts. Pins the `session_start` body (every required field)
 /// and `frameMetadata[].requestedBackend` / `resolvedBackend` =
-/// `nativeCpuExperimental`. Only the HTTP transport is fake: it records each
+/// `iosViewHierarchy`. Only the HTTP transport is fake: it records each
 /// `http.send` and answers 202.
 final class CollectorContractTests: XCTestCase {
   private let app = TugboatConfig.App(
@@ -73,8 +73,8 @@ final class CollectorContractTests: XCTestCase {
     let entries = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(metadataField.utf8)) as? [[String: Any]])
     XCTAssertFalse(entries.isEmpty)
     for entry in entries {
-      XCTAssertEqual(entry["requestedBackend"] as? String, "nativeCpuExperimental")
-      XCTAssertEqual(entry["resolvedBackend"] as? String, "nativeCpuExperimental")
+      XCTAssertEqual(entry["requestedBackend"] as? String, "iosViewHierarchy")
+      XCTAssertEqual(entry["resolvedBackend"] as? String, "iosViewHierarchy")
     }
 
     host.post(type: SessionMessages.sessionEnd, inputJSON: SessionMessages.sessionEndInput(), at: SystemHostClock().now())

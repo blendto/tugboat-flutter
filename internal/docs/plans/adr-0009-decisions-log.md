@@ -141,6 +141,7 @@ its Dart path unchanged. No publishing and no merges to `main`.
 | 2026-10-27 | Outbox `maxAttempts` counts drainer replays only (fix round 1, review MJ1, both platforms): `entry.json` gains `replays` (missing reads as 0; `v` stays 1), bumped on disk before each replay and rolled back when `stop` prevented the send; engine re-sends still bump `attempts` (diagnostic, latest-attempt bookkeeping). The cut and the backoff use `replays`. PR #128. | Counting engine re-sends deleted unsent the entries of an outage of about 25 s followed by a kill, the outbox's main case |
 | 2026-10-27 | Android outbox fix round 1, as Apple's (#127): every `start` with the outbox on, dormant included, runs a disk-only sweep (age, corrupt, bounds; sends nothing); a wipe (`clearPendingData`, opt-out start) bumps a generation, and senders registered before it write nothing more (checked at send and again in the write task); a file that exists but cannot be read is skipped, never deleted, and an unreadable salt turns the outbox off for the process without replacing it; numbers read from disk outside 0..2^52 make an entry corrupt; only the newest sender moves the current session. PR #128. | Bounds and age hold while dormant; no evidence written back after an erase; no data loss on a transient permission or IO error |
 | 2026-10-27 | Android dialog-window facts (W6b-1, host Kotlin only, PR #132): a dialog window of the activity emits `input.pointer` (with tap evidence), `systemInput`, and `focus` facts, with no message-shape change. Evidence semantics change: **a tap's anchor may name a target the before-frame does not show when that frame carries `overlayWindow`** (dialog pixels are W6b-2). `x`/`y` are in the activity decor's space (dialog `getLocationOnScreen` offset, then dp); identity is unchanged (targets under the activity route, a `DialogFragment` with a view under its tag, paths rooted at the dialog content, no anchor window marker, which would be a contract change); `relativePosition` is relative to the dialog decor. Public API only, no reflection: windows are found through the decor's `findViewTreeLifecycleOwner()` (every `ComponentDialog`, every `DialogFragment`); API 29+ also scans owned `WindowInspector` roots (application window range only, not sub-windows) when the activity window loses focus; below 29 only `DialogFragment` dialogs. A framework `android.app.Dialog` shown without a fragment gets no facts (documented gap; W6a's `overlayWindow` still applies). | W6b design (`w6b-design.md`) decisions 1–5, accepted by the orchestrator; a dialog tap today produces no fact, so the dismissal that follows has no cause in Context Graph |
+| 2026-10-27 | Native frames report their own backend: `requestedBackend` / `resolvedBackend` = `androidPixelCopy` (Android) and `iosViewHierarchy` (Apple). The engine's closed vocabulary is `flutterRepaintBoundary`, `nativeCpuExperimental`, `androidPixelCopy`, `iosViewHierarchy`; the two older names stay accepted for Flutter and older native hosts, and any other name is still `invalid_message`. Contract change: frame metadata values on the collector wire. Supersedes the 2026-10-12 "Native frames report … `nativeCpuExperimental`" row. PR TBD. | pmkit-collector#38 (merged and deployed to production 2026-10-27) accepts both new names alongside the two old ones; `nativeCpuExperimental` named Flutter's opt-in backend, not what native SDKs capture with |
 
 ## Gates before merging to main
 
@@ -191,10 +192,12 @@ its Dart path unchanged. No publishing and no merges to `main`.
 - **Q2: wire idempotency.** Batches, frames and lifecycle posts need an
   idempotency key the collector deduplicates on before a durable outbox or
   retry backoff (C4) can ship.
-- **Native backend names.** `frameMetadata` backend is a closed enum
-  (`flutterRepaintBoundary` | `nativeCpuExperimental`) on the collector.
-  Native SDKs reuse `nativeCpuExperimental` until the collector adds native
-  backend names.
+- **Native backend names.** Resolved 2026-10-27: pmkit-collector#38
+  (merged and deployed to production) adds `androidPixelCopy` and
+  `iosViewHierarchy` to the closed `frameMetadata` backend enum next to
+  `flutterRepaintBoundary` and `nativeCpuExperimental`, and the native SDKs
+  send them (see the 2026-10-27 backend row). A collector without #38
+  rejects native frame uploads with 400.
 - **Collector `frame_captures.triggeredAt` is 1970.** pmkit-collector's
   `src/domain/frame-captures.ts` reads `frameMetadata.atMs` as epoch
   milliseconds, but it is session-relative (as Flutter's `TugboatFrame.atMs`).

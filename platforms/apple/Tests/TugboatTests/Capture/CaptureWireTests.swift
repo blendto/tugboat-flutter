@@ -19,7 +19,7 @@ final class CaptureWireTests: XCTestCase {
       CaptureResultJSON.encode(answer),
       "{\"requestId\":\"capture-3\",\"outcome\":\"captured\",\"frame\":{\"handle\":\"frame-1\",\"width\":293,"
         + "\"height\":633,\"contentHash\":\"abc\",\"masked\":true,\"byteLength\":1200,\"captureMicros\":4500,"
-        + "\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"nativeCpuExperimental\","
+        + "\"requestedBackend\":\"iosViewHierarchy\",\"resolvedBackend\":\"iosViewHierarchy\","
         + "\"dHash\":\"0f0f\",\"structureSignature\":\"s1\","
         + "\"maskCoverage\":{\"mode\":\"precise\",\"reasons\":[\"webView\",\"renderer\"]}},"
         + "\"boundaryRect\":{\"x\":0,\"y\":0,\"width\":390,\"height\":844},\"timings\":{\"frameWaitMicros\":10,"
