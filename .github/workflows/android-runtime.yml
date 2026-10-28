@@ -6,7 +6,14 @@ on:
     paths:
       - "platforms/android/**"
       - "core/image-processing/**"
+      - "core/session-engine/**"
+      - "conformance/host/**"
+      - "conformance/evidence/**"
       - "tool/ci/build-android-runtime.sh"
+      - "tool/ci/verify-flutter-plugin-runtime.sh"
+      - "tool/ci/capture-runtime-override.init.gradle"
+      - "sdks/flutter/packages/tugboat/android/**"
+      - "sdks/flutter/packages/tugboat/example/android/**"
       - "tool/ci/dump-android-runtime-api.py"
       - "tool/ci/verify-android-runtime-api.sh"
       - "tool/ci/android-runtime-version.sh"
@@ -30,10 +37,23 @@ jobs:
           java-version: "17"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The default also installs the legacy `tools` package, which current
+          # cmdline-tools no longer ship ("Failed to find package 'tools'").
+          packages: platform-tools
       - name: Install NDK and CMake
         run: |
           yes | sdkmanager --install "ndk;28.2.13676358" "cmake;3.22.1" "platforms;android-36" "build-tools;35.0.0"
-      - name: Build runtime, tests, local Maven, sample
+      - name: Build runtime, native host, tests, local Maven, sample
         run: bash tool/ci/build-android-runtime.sh
       - name: Verify public API dump
         run: bash tool/ci/verify-android-runtime-api.sh
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      # The plugin pins a published runtime; this proves it also compiles
+      # against the repository's current runtime, so the automatic pin PR
+      # opened after a runtime release builds.
+      - name: Flutter plugin compiles against pinned and local runtime
+        run: bash tool/ci/verify-flutter-plugin-runtime.sh

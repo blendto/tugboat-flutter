@@ -7,9 +7,12 @@ import 'package:http_parser/http_parser.dart';
 
 import 'capture_sink.dart';
 import 'collector_config.dart';
+import 'collector_lane_delays.dart';
 import 'collector_mapper.dart';
 import 'models.dart';
 import 'sdk_version.dart';
+
+part 'collector_frame_uploads.dart';
 
 const _httpProofEnabled =
     kDebugMode && bool.fromEnvironment('TUGBOAT_HTTP_PROOF');
@@ -59,7 +62,15 @@ class CollectorHttpSink implements TugboatCaptureSink {
     String? initialTraitsId,
     String? initialUserId,
     @visibleForTesting Duration? identityDebounceDuration,
+    @visibleForTesting DateTime Function()? debugNow,
+    @visibleForTesting Duration Function()? debugElapsed,
+    @visibleForTesting CollectorLaneTimerSchedule? debugScheduleLaneTimer,
   }) : _config = config,
+       _maxRetryAfterMs = clampCollectorRetryAfterCapMs(config.retryAfterCap),
+       _maxEndingRetryAfterMs = clampCollectorRetryAfterCapMs(
+         config.endingRetryAfterCap,
+       ),
+       _now = debugNow ?? DateTime.now,
        _userId = initialUserId ?? config.userId,
        _traits = initialTraits == null
            ? null
@@ -74,10 +85,25 @@ class CollectorHttpSink implements TugboatCaptureSink {
          buildNumber: config.appInfo.buildNumber,
          versionName: config.appInfo.version,
          appId: config.appInfo.appId,
-       );
+       ) {
+    _laneDelays = CollectorLaneDelays(
+      _onLaneReady,
+      elapsed: debugElapsed,
+      scheduleTimer: debugScheduleLaneTimer,
+    );
+  }
 
   final TugboatCollectorConfig _config;
   final _CollectorHttpClient _client;
+
+  /// [TugboatCollectorConfig.retryAfterCap] and
+  /// [TugboatCollectorConfig.endingRetryAfterCap], clamped once here.
+  final int _maxRetryAfterMs;
+  final int _maxEndingRetryAfterMs;
+
+  /// Wall clock for lifecycle `triggeredAt` and diagnostic `atMs`.
+  /// [DateTime.now] unless a test injects one.
+  final DateTime Function() _now;
 
   bool _disposed = false;
   TugboatSession? _session;
@@ -95,6 +121,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
   final List<_PendingFrameUpload> _pendingFrames = [];
   final List<List<Map<String, Object?>>> _retryBatches = [];
   final List<_PendingSessionLifecycle> _pendingLifecycle = [];
+  late final CollectorLaneDelays _laneDelays;
+  bool _sessionEnding = false;
+
+  /// `endSession` queued `session_end` for the current session.
+  bool _sessionEndQueued = false;
 
   /// Runtime user id (may change via [setUserId]).
   String? _userId;
@@ -157,6 +188,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _traitsDirty = false;
     _userTriggeredAt = null;
     _traitsTriggeredAt = null;
+    _sessionEnding = false;
+    _sessionEndQueued = false;
+    _laneDelays.clear();
     _scheduleFlushTimer();
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionStart.wireValue,
@@ -240,18 +274,52 @@ class CollectorHttpSink implements TugboatCaptureSink {
       if (identical(_flushInFlight, operation)) {
         _flushInFlight = null;
       }
+      _stopFlushTimerOnceSessionEndSettled();
     });
     _flushInFlight = operation;
     return operation;
   }
 
-  /// Wait for any in-flight flush, then run another so newly enqueued work is sent.
-  Future<void> _kickFlush() async {
+  /// The post-pass stop rule (the engine's `on_pass_finished`): once the
+  /// queued `session_end` has left the lifecycle lane (accepted, or dropped
+  /// for good, as the native `SessionEndWatcher.isFinal` settles it), the
+  /// periodic flush stops. A `session_end` with a retry outcome stays queued
+  /// and is re-posted on the periodic flush. Unlike the engine, there is no
+  /// events or frames drain after `session_end`.
+  void _stopFlushTimerOnceSessionEndSettled() {
+    if (!_sessionEndQueued) return;
+    if (_pendingLifecycle.any((p) => _isSessionEnd(p.eventType))) return;
+    _cancelFlushTimer();
+  }
+
+  /// Runs [then] once any in-flight flush is done, unless disposed.
+  Future<void> _afterInFlight(Future<void> Function() then) async {
     final active = _flushInFlight;
     if (active != null) await active;
     if (_disposed) return;
-    await flush();
+    await then();
   }
+
+  /// Wait for any in-flight flush, then run another so newly enqueued work is sent.
+  Future<void> _kickFlush() => _afterInFlight(flush);
+
+  /// A lane's `Retry-After` wait is over. Like the identity debounce, the
+  /// lifecycle lane drains every queued post, so a `session_end` queued
+  /// behind the waiting head goes out too.
+  void _onLaneReady(CollectorDeliveryLane lane) {
+    if (_disposed) return;
+    if (lane == CollectorDeliveryLane.lifecycle) {
+      unawaited(_afterInFlight(_drainLifecyclePosts));
+    } else {
+      unawaited(_kickFlush());
+    }
+  }
+
+  /// While the session ends, lifecycle waits use the shorter ending cap.
+  int _retryAfterCapMs(CollectorDeliveryLane lane) =>
+      lane == CollectorDeliveryLane.lifecycle && _sessionEnding
+      ? _maxEndingRetryAfterMs
+      : _maxRetryAfterMs;
 
   /// Registers a full traits snapshot with the collector.
   ///
@@ -267,7 +335,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_session == null) return;
     if (_isSessionStartPending()) return;
     _traitsDirty = true;
-    _traitsTriggeredAt = DateTime.now();
+    _traitsTriggeredAt = _now();
     _scheduleIdentityDebounce();
   }
 
@@ -284,7 +352,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_session == null) return;
     if (_isSessionStartPending()) return;
     _userDirty = true;
-    _userTriggeredAt = DateTime.now();
+    _userTriggeredAt = _now();
     _scheduleIdentityDebounce();
   }
 
@@ -318,8 +386,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   DateTime _coalescedIdentityTriggeredAt() {
     if (_userDirty && _traitsDirty) return _latestIdentityTrigger();
-    if (_userDirty) return _userTriggeredAt ?? DateTime.now();
-    return _traitsTriggeredAt ?? DateTime.now();
+    if (_userDirty) return _userTriggeredAt ?? _now();
+    return _traitsTriggeredAt ?? _now();
   }
 
   DateTime _latestIdentityTrigger() {
@@ -328,7 +396,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (userAt != null && traitsAt != null) {
       return userAt.isAfter(traitsAt) ? userAt : traitsAt;
     }
-    return userAt ?? traitsAt ?? DateTime.now();
+    return userAt ?? traitsAt ?? _now();
   }
 
   void _enqueueCoalescedIdentityUpdate() {
@@ -352,14 +420,23 @@ class CollectorHttpSink implements TugboatCaptureSink {
   @override
   Future<void> endSession() async {
     if (_disposed || _session == null) return;
+    // Captured before the first await: a session started meanwhile is not
+    // the one ending.
+    final epoch = _sessionEpoch;
     await _flushIdentityDebounce();
+    if (!_isCurrentEpoch(epoch)) return;
+    _sessionEnding = true;
+    _laneDelays.clampLifecycleEnding(_maxEndingRetryAfterMs);
     await flush();
+    if (!_isCurrentEpoch(epoch)) return;
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionEnd.wireValue,
-      DateTime.now(),
+      _now(),
     );
+    _sessionEndQueued = true;
+    // The periodic flush keeps running until `session_end` settles
+    // ([_stopFlushTimerOnceSessionEndSettled]).
     await _drainLifecyclePosts();
-    _cancelFlushTimer();
   }
 
   @override
@@ -376,6 +453,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingFrames.clear();
     _retryBatches.clear();
     _pendingLifecycle.clear();
+    _laneDelays.clear();
+    _sessionEnding = false;
+    _sessionEndQueued = false;
     _flushInFlight = null;
     _session = null;
     _collectorSessionId = null;
@@ -422,66 +502,63 @@ class CollectorHttpSink implements TugboatCaptureSink {
     }
   }
 
+  /// Sends the lifecycle head once. The caller checks the lifecycle lane is
+  /// not waiting.
   Future<void> _flushLifecyclePosts() async {
     if (_pendingLifecycle.isEmpty || _disposed) return;
     final pending = _pendingLifecycle.first;
     final epoch = _sessionEpoch;
 
-    final result = await _sendSessionLifecycle(
-      pending.eventType,
-      pending.triggeredAt,
-      pending.activeLocale,
-      epoch,
-    );
+    final result = await _sendSessionLifecycle(pending, epoch);
     if (!_isCurrentEpoch(epoch)) return;
-    if (result == _SendResult.accepted) {
-      _pendingLifecycle.removeAt(0);
-    }
+    // A dropped `session_end` is settled. Once `session_end` is queued, any
+    // dropped head is settled too, so a post rejected for good (a 401'd
+    // `session_start`) cannot hold `session_end` back and keep the periodic
+    // flush re-posting after the session ended. Before that, dropped posts
+    // stay queued, as in the engine.
+    final settled =
+        result == _SendResult.accepted ||
+        (result == _SendResult.drop &&
+            (_isSessionEnd(pending.eventType) || _sessionEndQueued));
+    if (settled) _pendingLifecycle.removeAt(0);
   }
 
   Future<_SendResult> _sendSessionLifecycle(
-    String eventType,
-    DateTime triggeredAt,
-    TugboatLocaleInfo? activeLocale,
+    _PendingSessionLifecycle pending,
     int epoch,
   ) async {
-    if (!_isCurrentEpoch(epoch)) return _SendResult.drop;
     final session = _session;
     if (session == null) return _SendResult.accepted;
 
-    final sessionId = _sessionIdForLifecycle(eventType, session.id);
+    final eventType = pending.eventType;
     final traits = _traits;
-
     final body = mapTugboatSessionLifecycleToCollectorSession(
       eventType: eventType,
-      sessionId: sessionId,
+      sessionId: _sessionIdForLifecycle(eventType, session.id),
       sessionStartedAt: session.startedAt,
-      triggeredAt: triggeredAt,
+      triggeredAt: pending.triggeredAt,
       config: _config,
       userId: _userId,
       traits: traits,
       traitsId: traits == null ? _traitsId : null,
-      activeLocale: activeLocale,
+      activeLocale: pending.activeLocale,
     );
 
-    try {
-      final response = await _tracedResponse(
-        '/v1/sessions',
-        () => _client.post(
-          _baseUri.resolve('/v1/sessions'),
-          headers: _CollectorHttpClient._jsonHeaders,
-          body: jsonEncode(body),
-        ),
-      );
-
-      final result = _classifyResponse(response.statusCode);
-      if (result == _SendResult.accepted && _isCurrentEpoch(epoch)) {
-        _applyLifecycleResponse(eventType, response.body, session.id);
-      }
-      return result;
-    } catch (_) {
-      return _SendResult.retry;
+    final sent = await _collectorPost(
+      CollectorDeliveryLane.lifecycle,
+      '/v1/sessions',
+      (url) => _client.post(
+        url,
+        headers: _CollectorHttpClient._jsonHeaders,
+        body: jsonEncode(body),
+      ),
+      epoch,
+    );
+    final response = sent.response;
+    if (sent.result == _SendResult.accepted && response != null) {
+      _applyLifecycleResponse(eventType, response.body, session.id);
     }
+    return sent.result;
   }
 
   String _sessionIdForLifecycle(String eventType, String localSessionId) =>
@@ -491,6 +568,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   bool _isSessionStart(String eventType) =>
       eventType == TugboatCollectorSessionEventType.sessionStart.wireValue;
+
+  bool _isSessionEnd(String eventType) =>
+      eventType == TugboatCollectorSessionEventType.sessionEnd.wireValue;
 
   void _applyLifecycleResponse(
     String eventType,
@@ -534,30 +614,37 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_isSessionStart(eventType)) _collectorSessionId ??= localSessionId;
   }
 
-  Future<void> _flushEventBatch() async {
-    if (_pendingEvents.isEmpty) return;
-    final epoch = _sessionEpoch;
+  /// The events lane: the retry head once, then fresh batches, stopping as
+  /// soon as a response makes the lane wait. Unsent fresh events stay in
+  /// the fresh queue (the engine's `flush_pass.cpp` does the same).
+  Future<void> _flushEvents(int epoch) async {
+    while (_retryBatches.isNotEmpty && !_eventsLaneWaiting) {
+      final result = await _sendEventBatch(_retryBatches.first, epoch);
+      if (!_isCurrentEpoch(epoch)) return;
+      // Head-of-line: the retry head stays; fresh events still go out.
+      if (result == _SendResult.retry) break;
+      _retryBatches.removeAt(0);
+    }
+    while (_pendingEvents.isNotEmpty && !_eventsLaneWaiting) {
+      await _flushEventBatch(epoch);
+      if (!_isCurrentEpoch(epoch)) return;
+    }
+  }
 
+  bool get _eventsLaneWaiting =>
+      _laneDelays.isBlocked(CollectorDeliveryLane.events);
+
+  Future<void> _flushEventBatch(int epoch) async {
     final count = _pendingEvents.length < _config.eventBatchSize
         ? _pendingEvents.length
         : _config.eventBatchSize;
     final batch = _pendingEvents.sublist(0, count);
     _pendingEvents.removeRange(0, count);
 
-    final result = await _sendEventBatch(batch, epoch: epoch);
+    final result = await _sendEventBatch(batch, epoch);
     if (!_isCurrentEpoch(epoch)) return;
     if (result == _SendResult.retry) {
       _enqueueRetryBatch(batch);
-    }
-  }
-
-  Future<void> _flushRetryBatches() async {
-    final epoch = _sessionEpoch;
-    while (_retryBatches.isNotEmpty) {
-      final result = await _sendEventBatch(_retryBatches.first, epoch: epoch);
-      if (!_isCurrentEpoch(epoch)) return;
-      if (result == _SendResult.retry) return;
-      _retryBatches.removeAt(0);
     }
   }
 
@@ -569,14 +656,12 @@ class CollectorHttpSink implements TugboatCaptureSink {
   }
 
   Future<_SendResult> _sendEventBatch(
-    List<Map<String, Object?>> events, {
-    required int epoch,
-  }) async {
-    if (events.isEmpty) return _SendResult.accepted;
-    if (!_isCurrentEpoch(epoch)) return _SendResult.drop;
-
+    List<Map<String, Object?>> events,
+    int epoch,
+  ) async {
     final sessionId = _collectorSessionId;
     if (sessionId == null || sessionId.isEmpty) return _SendResult.retry;
+
     final traitsId = _traitsId;
     for (final event in events) {
       event['sessionId'] = sessionId;
@@ -585,217 +670,74 @@ class CollectorHttpSink implements TugboatCaptureSink {
       }
     }
 
-    try {
-      final response = await _tracedResponse(
-        '/v1/events/batch',
-        () => _client.post(
-          _baseUri.resolve('/v1/events/batch'),
-          headers: _CollectorHttpClient._jsonHeaders,
-          body: jsonEncode({'events': events}),
-        ),
-      );
-
-      return _classifyResponse(response.statusCode);
-    } catch (_) {
-      return _SendResult.retry;
-    }
+    final sent = await _collectorPost(
+      CollectorDeliveryLane.events,
+      '/v1/events/batch',
+      (url) => _client.post(
+        url,
+        headers: _CollectorHttpClient._jsonHeaders,
+        body: jsonEncode({'events': events}),
+      ),
+      epoch,
+    );
+    return sent.result;
   }
 
+  /// One pass over the lanes in the engine's order. Each lane's
+  /// `Retry-After` wait is checked once, where its stage starts; a waiting
+  /// lane is skipped and the others still send.
   Future<void> _flushOnce() async {
     final epoch = _sessionEpoch;
-    await _flushLifecyclePosts();
-    if (!_isCurrentEpoch(epoch)) return;
-    // Never upload events or frames until the collector session id is known.
-    if (!_hasCollectorSessionId) {
-      return;
+    if (!_laneDelays.isBlocked(CollectorDeliveryLane.lifecycle)) {
+      await _flushLifecyclePosts();
+      if (!_isCurrentEpoch(epoch)) return;
     }
+    // Never upload events or frames until the collector session id is known.
+    if (!_hasCollectorSessionId) return;
     // Upload visual evidence before publishing events that reference frame IDs.
     // Session completion may trigger inspection as soon as those events arrive.
-    await _flushFrames();
-    if (_retryBatches.isNotEmpty) {
-      // Try the retry head once, but keep draining fresh events below.
-      await _flushRetryBatches();
-    }
-    while (_pendingEvents.isNotEmpty) {
-      await _flushEventBatch();
-    }
-  }
-
-  Future<void> _flushFrames() async {
-    if (_pendingFrames.isEmpty) return;
-    final epoch = _sessionEpoch;
-    final sessionId = _collectorSessionId;
-    // Confirm the current collector session before draining so frames queued
-    // for a newer session cannot be cleared by a stale in-flight flush.
-    if (sessionId == null || sessionId.isEmpty || !_isCurrentEpoch(epoch)) {
-      return;
-    }
-
-    final uploads = List<_PendingFrameUpload>.from(_pendingFrames)
-      ..sort((a, b) => a.frameNo.compareTo(b.frameNo));
-    _pendingFrames.clear();
-
-    // Drop extracted uploads when the session was reset mid-flush rather than
-    // sending them under a stale collector id.
-    if (!_isCurrentEpoch(epoch)) {
-      return;
-    }
-    const batchSize = 20;
-    var droppedBatch = false;
-    for (var start = 0; start < uploads.length; start += batchSize) {
+    if (!_laneDelays.isBlocked(CollectorDeliveryLane.frames)) {
+      await _flushFrames();
       if (!_isCurrentEpoch(epoch)) return;
-      final end = start + batchSize < uploads.length
-          ? start + batchSize
-          : uploads.length;
-      final batch = uploads.sublist(start, end);
-      final result = await _processFrameBatch(sessionId, batch, epoch);
-      if (!_isCurrentEpoch(epoch)) return;
-      if (result.retry) {
-        _framesNeedRetry = true;
-        _requeueFailedUploads(uploads.sublist(start + result.retryOffset));
-        return;
-      }
-      droppedBatch = droppedBatch || result.dropped;
     }
-    _framesNeedRetry = false;
-    if (_frameUploadFailureReported && !droppedBatch) {
-      _recordUploadDiagnostic('recovered', null, 0);
-      _frameUploadFailureReported = false;
-    }
+    await _flushEvents(epoch);
   }
 
-  Future<({bool retry, bool dropped, int retryOffset})> _processFrameBatch(
-    String sessionId,
-    List<_PendingFrameUpload> batch,
-    int epoch,
-  ) async {
-    final result = await _sendFrameBatch(sessionId, batch);
-    if (!_isCurrentEpoch(epoch)) {
-      return (retry: false, dropped: false, retryOffset: 0);
-    }
-    if (result.result == _SendResult.retry) {
-      _reportFrameUploadFailure(result.statusCode, batch.length);
-      return (retry: true, dropped: false, retryOffset: 0);
-    }
-    if (result.result == _SendResult.drop &&
-        result.statusCode == 400 &&
-        batch.length > 1) {
-      _reportFrameUploadFailure(result.statusCode, batch.length);
-      return _isolateRejectedFrames(sessionId, batch, epoch);
-    }
-    if (result.result == _SendResult.drop) {
-      _reportFrameUploadFailure(result.statusCode, batch.length);
-      return (retry: false, dropped: true, retryOffset: 0);
-    }
-    return (retry: false, dropped: false, retryOffset: 0);
-  }
-
-  Future<({bool retry, bool dropped, int retryOffset})> _isolateRejectedFrames(
-    String sessionId,
-    List<_PendingFrameUpload> batch,
-    int epoch,
-  ) async {
-    var dropped = false;
-    // A single invalid capture must not discard its valid neighbors.
-    for (var index = 0; index < batch.length; index++) {
-      final result = await _sendFrameBatch(sessionId, [batch[index]]);
-      if (!_isCurrentEpoch(epoch)) break;
-      if (result.result == _SendResult.retry) {
-        _reportFrameUploadFailure(result.statusCode, 1);
-        return (retry: true, dropped: dropped, retryOffset: index);
-      }
-      if (result.result == _SendResult.drop) {
-        dropped = true;
-        _reportFrameUploadFailure(result.statusCode, 1);
-      }
-    }
-    return (retry: false, dropped: dropped, retryOffset: 0);
-  }
-
-  Future<({_SendResult result, int? statusCode})> _sendFrameBatch(
-    String sessionId,
-    List<_PendingFrameUpload> uploads,
-  ) async {
+  /// One collector request to [path] on [lane]. Owns, for every lane, the
+  /// send (to [path] resolved against the base URL), the session-epoch
+  /// re-check after the response, and arming the lane's `Retry-After` wait.
+  /// A response for an older session arms nothing and returns no response;
+  /// callers re-check the epoch and drop it. Never throws: a failed send is
+  /// a retry.
+  Future<({_SendResult result, http.Response? response})> _collectorPost(
+    CollectorDeliveryLane lane,
+    String path,
+    Future<http.Response> Function(Uri url) send,
+    int epoch, {
+    Duration? timeout,
+  }) async {
     try {
-      final request = _frameUploadRequest(sessionId, uploads);
-      final response = await _tracedResponse(
-        '/v1/frames',
-        () async => http.Response.fromStream(await _client.send(request)),
-      ).timeout(const Duration(seconds: 15));
+      final traced = _tracedResponse(path, () => send(_baseUri.resolve(path)));
+      final response = await (timeout == null
+          ? traced
+          : traced.timeout(timeout));
+      if (!_isCurrentEpoch(epoch)) {
+        return (result: _SendResult.retry, response: null);
+      }
+      _laneDelays.armFromResponse(
+        lane,
+        response.statusCode,
+        response.headers,
+        _now(),
+        capMs: _retryAfterCapMs(lane),
+      );
       return (
         result: _classifyResponse(response.statusCode),
-        statusCode: response.statusCode,
+        response: response,
       );
     } catch (_) {
-      return (result: _SendResult.retry, statusCode: null);
+      return (result: _SendResult.retry, response: null);
     }
-  }
-
-  http.MultipartRequest _frameUploadRequest(
-    String sessionId,
-    List<_PendingFrameUpload> uploads,
-  ) {
-    final request = http.MultipartRequest(
-      'POST',
-      _baseUri.resolve('/v1/frames'),
-    );
-    request.fields['sessionId'] = sessionId;
-    request.fields['frameNos'] = uploads
-        .map((upload) => upload.frameNo.toString())
-        .join(',');
-    for (final upload in uploads) {
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'files',
-          upload.bytes,
-          filename: '${upload.frameNo}.jpg',
-          contentType: MediaType('image', 'jpeg'),
-        ),
-      );
-    }
-    request.fields['frameMetadata'] = jsonEncode(
-      uploads.map((upload) => upload.metadata).toList(),
-    );
-    return request;
-  }
-
-  void _reportFrameUploadFailure(int? statusCode, int frameCount) {
-    if (_frameUploadFailureReported) return;
-    _frameUploadFailureReported = true;
-    _recordUploadDiagnostic('failed', statusCode, frameCount);
-  }
-
-  void _recordUploadDiagnostic(String result, int? statusCode, int frameCount) {
-    final session = _session;
-    if (session == null) return;
-    final event = TugboatEvent(
-      id: 'collector-frame-upload-${_frameUploadDiagnosticSequence++}',
-      atMs: DateTime.now().difference(session.startedAt).inMilliseconds,
-      type: 'capture_diagnostic',
-      data: {
-        'component': 'collector_frame_upload',
-        'result': result,
-        if (statusCode != null) 'statusCode': statusCode,
-        'frameCount': frameCount,
-        'droppedFrameCount': _droppedFrameCount,
-      },
-    );
-    _pendingEvents.add(
-      mapTugboatEventToCollectorEvent(
-        event: event,
-        sessionStartedAt: session.startedAt,
-        collectorConfig: _config,
-        userId: _userId,
-      ),
-    );
-    _trimPendingEvents();
-  }
-
-  void _requeueFailedUploads(List<_PendingFrameUpload> uploads) {
-    // Keep failed uploads within the configured memory bound. Diagnostics
-    // record any evictions so downstream consumers can see the evidence gap.
-    _pendingFrames.insertAll(0, uploads);
-    _trimPendingFrames();
   }
 
   void _trimPendingEvents() {
@@ -804,20 +746,6 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingEvents.removeRange(0, dropped);
     debugPrint(
       '[tugboat] collector dropped $dropped pending event(s) due to backpressure',
-    );
-  }
-
-  void _trimPendingFrames() {
-    if (_pendingFrames.length <= _config.maxPendingFrames) return;
-    final dropped = _pendingFrames.length - _config.maxPendingFrames;
-    _pendingFrames.removeRange(0, dropped);
-    _droppedFrameCount += dropped;
-    if (_droppedFrameCount == 1 ||
-        (_droppedFrameCount & (_droppedFrameCount - 1)) == 0) {
-      _recordUploadDiagnostic('dropped', null, _droppedFrameCount);
-    }
-    debugPrint(
-      '[tugboat] collector dropped $dropped pending frame(s) due to backpressure',
     );
   }
 
@@ -921,16 +849,4 @@ class _PendingSessionLifecycle {
   final String eventType;
   final DateTime triggeredAt;
   final TugboatLocaleInfo? activeLocale;
-}
-
-class _PendingFrameUpload {
-  const _PendingFrameUpload({
-    required this.frameNo,
-    required this.bytes,
-    required this.metadata,
-  });
-
-  final int frameNo;
-  final Uint8List bytes;
-  final Map<String, Object?> metadata;
 }

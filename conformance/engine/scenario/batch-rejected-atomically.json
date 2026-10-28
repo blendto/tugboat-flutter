@@ -1,0 +1,282 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "batch-rejected-atomically",
+  "description": "A batch is validated as a whole before anything is applied: an invalid message, an unknown type, a stateless or query message, a nested batch, or a non-object element rejects the batch with the element's path, and none of its messages apply (no session is started).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "batch",
+          "messages": [
+            {
+              "type": "session.start",
+              "at": {
+                "monoUs": 5000000,
+                "wallUs": 1781827200000000
+              },
+              "input": {
+                "viewport": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "platform": "android",
+                "sessionEpoch": 0
+              }
+            },
+            {
+              "type": "event.record",
+              "at": {
+                "monoUs": 5010000
+              },
+              "input": {
+                "eventType": "external_event",
+                "stream": "evidence",
+                "data": {
+                  "n": 1
+                },
+                "attachActionContext": false
+              }
+            },
+            {
+              "type": "event.record",
+              "at": {
+                "monoUs": 5020000
+              },
+              "input": {
+                "eventType": "external_event",
+                "stream": "nope",
+                "attachActionContext": false
+              }
+            }
+          ]
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.messages[2].input.stream"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "batch",
+          "messages": [
+            {
+              "type": "session.start",
+              "at": {
+                "monoUs": 5000000,
+                "wallUs": 1781827200000000
+              },
+              "input": {
+                "viewport": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "platform": "android",
+                "sessionEpoch": 0
+              }
+            },
+            {
+              "type": "session.pointerDown",
+              "at": {
+                "monoUs": 5010000
+              },
+              "input": {}
+            }
+          ]
+        },
+        "expect": {
+          "error": {
+            "status": "unsupported_message",
+            "path": "$.messages[1].type"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "batch",
+          "messages": [
+            {
+              "type": "session.start",
+              "at": {
+                "monoUs": 5000000,
+                "wallUs": 1781827200000000
+              },
+              "input": {
+                "viewport": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "platform": "android",
+                "sessionEpoch": 0
+              }
+            },
+            {
+              "type": "fingerprint.labelHash",
+              "input": {
+                "value": "a"
+              }
+            }
+          ]
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.messages[1].type"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "batch",
+          "messages": [
+            {
+              "type": "session.start",
+              "at": {
+                "monoUs": 5000000,
+                "wallUs": 1781827200000000
+              },
+              "input": {
+                "viewport": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "platform": "android",
+                "sessionEpoch": 0
+              }
+            },
+            {
+              "type": "session.snapshot",
+              "input": {}
+            }
+          ]
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.messages[1].type"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "batch",
+          "messages": [
+            {
+              "type": "session.start",
+              "at": {
+                "monoUs": 5000000,
+                "wallUs": 1781827200000000
+              },
+              "input": {
+                "viewport": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "platform": "android",
+                "sessionEpoch": 0
+              }
+            },
+            {
+              "type": "batch",
+              "messages": []
+            }
+          ]
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.messages[1].type"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "batch",
+          "messages": [
+            {
+              "type": "session.start",
+              "at": {
+                "monoUs": 5000000,
+                "wallUs": 1781827200000000
+              },
+              "input": {
+                "viewport": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "platform": "android",
+                "sessionEpoch": 0
+              }
+            },
+            7
+          ]
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.messages[1]"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "batch",
+          "messages": [],
+          "at": {
+            "monoUs": 5000000
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at"
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": null
+  }
+}

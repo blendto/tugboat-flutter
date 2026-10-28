@@ -21,3 +21,7 @@ platforms/android/local.properties
 crash-*
 leak-*
 timeout-*
+**/.kotlin/
+
+# The optional TugboatAlamofire library package resolves Alamofire per consumer.
+platforms/apple/TugboatAlamofire/Package.resolved

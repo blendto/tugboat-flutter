@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "network-error",
+  "description": "A transport failure: outcome network_error, no statusCode. attemptCount 0 is omitted.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "network_error",
+    "attemptCount": 0
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "outcome": "network_error",
+      "durationMs": 150
+    }
+  }
+}

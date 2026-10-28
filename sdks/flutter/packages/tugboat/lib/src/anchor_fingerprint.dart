@@ -186,6 +186,14 @@ String tugboatLabelHash(String value) {
   return sha256.convert(utf8.encode(value)).toString().substring(0, 16);
 }
 
+/// Scene inventory hash: [tugboatLabelHash] of the sorted element
+/// fingerprints joined by `|`. The engine computes the same value
+/// (`inventory_hash_from_fingerprints`).
+String tugboatInventoryHash(List<String> elementFingerprints) {
+  final sorted = [...elementFingerprints]..sort();
+  return tugboatLabelHash(sorted.join('|'));
+}
+
 String tugboatIconHash(IconData icon) =>
     tugboatLabelHash('${icon.codePoint}:${icon.fontFamily ?? ''}');
 

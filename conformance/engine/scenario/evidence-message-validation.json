@@ -1,0 +1,889 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "evidence-message-validation",
+  "description": "Invalid evidence.externalEvent / evidence.networkCall inputs are invalid_message with a JSON path and change nothing: an unknown policy mode, allowedKeys outside allow_list or missing with it, a bare double, a bad double tag, an unknown tag, drop outside a top-level transform value, a ref above its value's root, duplicate map keys, omitted on the parameters map before 64 entries, a bad run or omitted count, a non-string entry key, a tag with extra keys, parameters that are not a map, a missing name, an unknown outcome, a missing or negative startMonoUs, both or a non-string body form, a double statusCode, an invalid body below status 400 (validated whatever the status), and an unknown key. The next valid event gets the next id.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5010000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "everything"
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.policy.mode"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5011000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all",
+              "allowedKeys": [
+                "a"
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.policy.allowedKeys"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5012000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_list"
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.policy.allowedKeys"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5013000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  1.5
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0][1]"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5014000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  {
+                    "double": "nan"
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0][1].double"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5015000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  {
+                    "bytes": "AA=="
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0][1]"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5016000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  {
+                    "drop": true
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0][1].drop"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5017000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "transform"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  [
+                    {
+                      "drop": true
+                    }
+                  ]
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0][1][0].drop"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5018000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  {
+                    "ref": 1
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0][1].ref"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5019000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  [
+                    [
+                      {
+                        "ref": 3
+                      }
+                    ]
+                  ]
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0][1][0][0].ref"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5020000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  1
+                ],
+                [
+                  "a",
+                  2
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5021000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  1
+                ]
+              ],
+              "omitted": 3
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.omitted"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5022000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                {
+                  "nonStringKeys": 0
+                }
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0]"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5023000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  1,
+                  2
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0]"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5024000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  {
+                    "list": [],
+                    "omitted": 0
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0][1].omitted"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5025000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "map": [
+                [
+                  "a",
+                  {
+                    "unsupported": true,
+                    "x": 1
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters.map[0][1]"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5026000
+          },
+          "input": {
+            "name": "e",
+            "policy": {
+              "mode": "allow_all"
+            },
+            "parameters": {
+              "list": []
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.parameters"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5027000
+          },
+          "input": {
+            "policy": {
+              "mode": "allow_all"
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.name"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 5028000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 5100000,
+            "outcome": "timeout"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.outcome"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 5029000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "outcome": "response"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.startMonoUs"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 5030000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": -1,
+            "outcome": "response"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.startMonoUs"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 5031000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 5100000,
+            "outcome": "response",
+            "errorResponseBody": {
+              "value": "a",
+              "jsonText": "b"
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.errorResponseBody"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 5032000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 5100000,
+            "outcome": "response",
+            "errorResponseBody": {
+              "jsonText": 1
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.errorResponseBody.jsonText"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 5033000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 5100000,
+            "outcome": "response",
+            "errorResponseBody": {
+              "value": {
+                "drop": true
+              }
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.errorResponseBody.value.drop"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 5034000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 5100000,
+            "outcome": "response",
+            "statusCode": 500.0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.statusCode"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 5035000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 5100000,
+            "outcome": "response",
+            "statusCode": 200,
+            "errorResponseBody": {
+              "value": {
+                "bytes": "AA=="
+              }
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.errorResponseBody.value"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 5036000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 5100000,
+            "outcome": "response",
+            "headers": {}
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.headers"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.externalEvent",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "name": "after",
+            "policy": {
+              "mode": "allow_all"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 100,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "after",
+                  "parameterKeys": [],
+                  "capture": {
+                    "values": "allow_all",
+                    "truncated": false,
+                    "droppedCount": 0
+                  }
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-2",
+          "atMs": 100,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "after",
+            "parameterKeys": [],
+            "capture": {
+              "values": "allow_all",
+              "truncated": false,
+              "droppedCount": 0
+            }
+          }
+        }
+      ]
+    }
+  }
+}

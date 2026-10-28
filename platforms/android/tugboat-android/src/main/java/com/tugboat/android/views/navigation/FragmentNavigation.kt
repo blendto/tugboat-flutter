@@ -1,0 +1,226 @@
+package com.tugboat.android.views.navigation
+
+import android.app.Activity
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.Lifecycle
+import com.tugboat.android.views.AdapterGuard
+import com.tugboat.android.views.OptionalAndroidx
+import com.tugboat.android.views.identity.Confidence
+import java.lang.ref.WeakReference
+import java.util.WeakHashMap
+
+/**
+ * Navigation facts for androidx fragments, through
+ * `registerFragmentLifecycleCallbacks(recursive = true)` on each
+ * `FragmentActivity`. Created only when [OptionalAndroidx.fragment] is true.
+ *
+ * Each `FragmentManager` is a navigator, `<host instance id>/fragments`,
+ * whose parent is the host's navigator (the activity's task, or the parent
+ * fragment's). Only fragments with a view count; headless ones are ignored.
+ *
+ * - Resume goes through [NavigatorStack.onShown]: a new fragment covering
+ *   one that is being removed is a `replace` unless the back stack grew
+ *   (then a `push`); a resume below the top whose covering fragments are
+ *   all being removed is a `pop`.
+ * - A fragment destroyed while removed is settled at the end of the frame
+ *   ([flush]): a `pop` to the one below when it was the top, else `remove`;
+ *   a `replace` in the same frame absorbs it.
+ * - A fragment destroyed without being removed (its activity is going away
+ *   or being recreated) is parked; the recreated fragment (same navigator,
+ *   class, tag, and container) takes over its instance id.
+ * - A child fragment resumes before its parent's callback runs, so the
+ *   parent is shown first and the parent's navigator change comes first.
+ * - Navigators hosted by a route are dropped with it ([forget], or when the
+ *   hosting fragment is removed), including nested child navigators.
+ *
+ * It also knows each shown fragment's root view, for route keys
+ * ([routeRootedAt]) and the visible route ([visibleRouteRoot]). Known gap: `hide`/`show` transactions do not resume
+ * fragments and are not reported. Main thread only.
+ */
+internal class FragmentNavigation(
+    private val activities: ActivityNavigation,
+    private val destinations: DestinationTracker,
+    private val report: (NavigationChange) -> Unit,
+    private val requestFrame: () -> Unit,
+) {
+    private val entries = WeakHashMap<Fragment, RouteEntry>()
+    private val roots = WeakHashMap<View, RouteEntry>()
+    private val navigatorsByHost = HashMap<String, MutableSet<String>>()
+    private val backStackSizes = HashMap<String, Int>()
+    private val parked = HashMap<String, RouteEntry>()
+    private val destroyed = ArrayList<Pair<NavigatorStack, RouteEntry>>()
+    private val registrations = WeakHashMap<FragmentActivity, Callbacks>()
+
+    /** Navigator ids currently tracked; for tests. */
+    val navigatorIds: Set<String>
+        get() = navigatorsByHost.values.flatten().toSet()
+
+    fun register(activity: Activity) {
+        if (activity !is FragmentActivity || registrations.containsKey(activity)) return
+        val callbacks = Callbacks()
+        registrations[activity] = callbacks
+        activity.supportFragmentManager.registerFragmentLifecycleCallbacks(callbacks, true)
+    }
+
+    fun unregister(activity: Activity) {
+        val callbacks = registrations.remove(activity) ?: return
+        (activity as FragmentActivity).supportFragmentManager.unregisterFragmentLifecycleCallbacks(callbacks)
+    }
+
+    fun unregisterAll() = registrations.keys.toList().forEach(::unregister)
+
+    /** The shown fragment route whose root view is [view], if any. */
+    fun routeRootedAt(view: View): RouteEntry? = roots[view]
+
+    /**
+     * The root view of [activity]'s topmost, deepest shown fragment below
+     * `android.R.id.content`: walking down, last drawn visible child first,
+     * through each shown fragment root into the fragments it hosts (a
+     * `NavHostFragment`'s destination, a parent's child fragment); a root
+     * being removed, or paused (capped at `STARTED`, such as an off-screen
+     * `ViewPager2` page), is skipped with its subtree. Null when the content
+     * shows no fragment.
+     */
+    fun visibleRouteRoot(activity: Activity): View? {
+        val content = activity.findViewById<View>(android.R.id.content) as? ViewGroup ?: return null
+        return topmostRoot(content)
+    }
+
+    private fun topmostRoot(group: ViewGroup): View? {
+        for (i in group.childCount - 1 downTo 0) {
+            val child = group.getChildAt(i)
+            if (child.visibility != View.VISIBLE) continue
+            val entry = roots[child]
+            if (entry != null) {
+                // A shown root can host child fragments (NavHostFragment, a tab host): the deepest one wins.
+                // A paused root (an off-screen ViewPager2 page) is skipped like a leaving one.
+                if (!entry.isLeaving() && entry.isResumed()) return (child as? ViewGroup)?.let(::topmostRoot) ?: child
+                continue
+            }
+            if (child is ViewGroup) topmostRoot(child)?.let { return it }
+        }
+        return null
+    }
+
+    /** Reports fragments destroyed this frame that nothing replaced. */
+    fun flush() {
+        val pending = destroyed.toList()
+        destroyed.clear()
+        pending.forEach { (stack, entry) -> stack.remove(entry)?.let(report) }
+    }
+
+    /** Drops every navigator a finishing activity hosts, nested ones included. */
+    fun forget(activity: Activity) {
+        activities.entryOf(activity)?.let { dropNavigatorsHostedBy(it.instanceId) }
+    }
+
+    private inner class Callbacks : FragmentManager.FragmentLifecycleCallbacks() {
+        override fun onFragmentResumed(fm: FragmentManager, f: Fragment) =
+            AdapterGuard.run("fragment resumed") { onResumed(fm, f) }
+
+        override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) =
+            AdapterGuard.run("fragment destroyed") { onDestroyed(f) }
+    }
+
+    private fun onResumed(fm: FragmentManager, fragment: Fragment) {
+        val view = fragment.view ?: return
+        // Children resume before their parent's callback: show the parent first.
+        fragment.parentFragment?.let { parent -> onResumed(parent.parentFragmentManager, parent) }
+        val stack = stackFor(fragment) ?: return
+        val entry = entries[fragment] ?: bind(fragment, parked.remove(parkingKey(stack, fragment)) ?: newEntry(fragment))
+        val grew = fm.backStackEntryCount > (backStackSizes[stack.navigatorId] ?: 0)
+        val change = stack.onShown(entry, keepLeavingTop = grew)
+        if (change?.kind == NavigationKind.Replace) destroyed.removeAll { it.second === change.departing }
+        roots[view] = entry
+        backStackSizes[stack.navigatorId] = fm.backStackEntryCount
+        change?.let(report)
+    }
+
+    private fun onDestroyed(fragment: Fragment) {
+        val entry = entries.remove(fragment) ?: return
+        fragment.view?.let(roots::remove)
+        val stack = stackFor(fragment) ?: return
+        if (!fragment.isRemoving) {
+            entry.isLeaving = { false }
+            parked[parkingKey(stack, fragment)] = entry
+            return
+        }
+        // A removed fragment is reset after its destroy (`isRemoving` reads false again).
+        entry.isLeaving = { true }
+        dropNavigatorsHostedBy(entry.instanceId)
+        destroyed += stack to entry
+        requestFrame()
+    }
+
+    private fun bind(fragment: Fragment, entry: RouteEntry): RouteEntry {
+        entries[fragment] = entry
+        val owner = WeakReference(fragment)
+        entry.isLeaving = { owner.get()?.isRemoving ?: true }
+        entry.isResumed = { owner.get()?.let(::countsAsResumed) ?: false }
+        return entry
+    }
+
+    /**
+     * A fragment counts as paused only while its host (parent fragment, else
+     * the activity) is resumed. A paused but visible activity (split screen,
+     * picture-in-picture, a capture racing `onPause`) pauses every fragment,
+     * and the visible one must still be the inventory route.
+     */
+    private fun countsAsResumed(fragment: Fragment): Boolean {
+        if (fragment.isResumed) return true
+        val parent = fragment.parentFragment
+        val hostResumed = parent?.isResumed
+            ?: (fragment.activity?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.RESUMED) == true)
+        return !hostResumed
+    }
+
+    private fun newEntry(fragment: Fragment): RouteEntry {
+        val destination = fragment.activity?.let(destinations::current)
+        val tag = fragment.tag?.takeIf { it.isNotEmpty() }
+        val dialog = fragment is DialogFragment
+        return RouteEntry(
+            instanceId = RouteEntry.newInstanceId("fragment"),
+            routeKey = destination ?: tag ?: fragment.javaClass.name,
+            confidence = if (destination != null || tag != null) Confidence.High else Confidence.Low,
+            type = if (dialog) "DialogFragment" else "Fragment",
+            overlayKind = if (dialog) OverlayKind.Dialog else OverlayKind.Page,
+        )
+    }
+
+    /** [fragment]'s navigator: its host's instance id plus `/fragments`. Null before the host is shown. */
+    private fun stackFor(fragment: Fragment): NavigatorStack? {
+        val parent = fragment.parentFragment
+        val hostId: String
+        val parentNavigatorId: String
+        if (parent != null) {
+            hostId = entries[parent]?.instanceId ?: return null
+            parentNavigatorId = stackFor(parent)?.navigatorId ?: return null
+        } else {
+            val activity = fragment.activity ?: return null
+            hostId = activities.entryOf(activity)?.instanceId ?: return null
+            parentNavigatorId = activities.navigatorIdOf(activity)
+        }
+        val navigatorId = "$hostId/fragments"
+        navigatorsByHost.getOrPut(hostId) { HashSet() } += navigatorId
+        return NavigationProcessState.fragmentStack(navigatorId, parentNavigatorId, hostId)
+    }
+
+    private fun dropNavigatorsHostedBy(hostId: String) {
+        val navigators = navigatorsByHost.remove(hostId) ?: return
+        for (navigatorId in navigators) {
+            val stack = NavigationProcessState.stackFor(navigatorId)
+            NavigationProcessState.forgetFragmentNavigator(navigatorId)
+            backStackSizes.remove(navigatorId)
+            parked.keys.removeAll { it.startsWith("$navigatorId|") }
+            stack?.all()?.forEach { dropNavigatorsHostedBy(it.instanceId) }
+        }
+    }
+
+    private fun parkingKey(stack: NavigatorStack, fragment: Fragment) =
+        "${stack.navigatorId}|${fragment.javaClass.name}|${fragment.tag}|${fragment.id}"
+}

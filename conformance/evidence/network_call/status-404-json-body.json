@@ -1,0 +1,77 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "status-404-json-body",
+  "description": "A 404 with a decoded JSON body keeps it as json/native, in host order. attemptCount > 0 is recorded.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 404,
+    "attemptCount": 2,
+    "errorResponseBody": {
+      "value": {
+        "map": [
+          [
+            "error",
+            "not_found"
+          ],
+          [
+            "code",
+            4041
+          ],
+          [
+            "retry",
+            {
+              "double": 1.5
+            }
+          ],
+          [
+            "details",
+            [
+              {
+                "map": [
+                  [
+                    "field",
+                    "id"
+                  ]
+                ]
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 404,
+      "outcome": "response",
+      "durationMs": 150,
+      "attemptCount": 2,
+      "errorResponseBody": {
+        "error": "not_found",
+        "code": 4041,
+        "retry": 1.5,
+        "details": [
+          {
+            "field": "id"
+          }
+        ]
+      },
+      "errorResponseBodyCapture": {
+        "format": "json",
+        "representation": "native",
+        "truncated": false
+      }
+    }
+  }
+}

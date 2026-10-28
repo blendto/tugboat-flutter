@@ -1,0 +1,16 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.labelHash",
+  "name": "ascii",
+  "description": "First 16 lowercase hex chars of SHA-256 over the UTF-8 bytes.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "value": "Go"
+  },
+  "expected": {
+    "hash": "6cc8519b91584e8b"
+  }
+}

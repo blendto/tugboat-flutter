@@ -34,20 +34,27 @@ public final class CaptureRuntime {
   }
 
   public func capture(view: UIView, request: CaptureRequest, onComplete: @escaping (CaptureResult) -> Void) {
-    if isDisposed {
-      onComplete(reply(request, .disposed))
-      return
-    }
-    queue.async { [weak self] in
-      guard let self else {
-        onComplete(CaptureResult(requestId: request.requestId, status: .disposed))
-        return
-      }
-      self.setInFlight(request.requestId)
-      let outcome = self.captureSync(view: view, request: request)
-      self.clearInFlight(request.requestId)
-      onComplete(outcome)
-    }
+    start(view: view, request: request, maskSupplier: nil, onComplete: onComplete)
+  }
+
+  /// Captures `view` with masks computed at draw time.
+  ///
+  /// `maskSupplier` runs **on the main thread, in the same main-thread turn
+  /// as the draw**: after `layoutIfNeeded` and immediately before each
+  /// `drawHierarchy` / `render(in:)` attempt, so the masks describe the
+  /// layout that is drawn, not an earlier one (a list that scrolled or a
+  /// keyboard that moved the content in between). It returns masks
+  /// normalized to `view.bounds`; `request.masks` is ignored. The frame is
+  /// masked whole when the snapshot says `wholeFrame`, and when no snapshot
+  /// was taken for the drawn frame. `CaptureResult.maskSnapshot` carries the
+  /// snapshot the frame was masked with. The supplier must not block.
+  public func capture(
+    view: UIView,
+    request: CaptureRequest,
+    maskSupplier: @escaping (UIView) -> MaskSnapshot,
+    onComplete: @escaping (CaptureResult) -> Void
+  ) {
+    start(view: view, request: request, maskSupplier: maskSupplier, onComplete: onComplete)
   }
 
   public func cancel(requestId: Int64) {
@@ -58,23 +65,45 @@ public final class CaptureRuntime {
     withSession { $0.disposed = true }
   }
 
-  private func captureSync(view: UIView, request: CaptureRequest) -> CaptureResult {
+  private func start(
+    view: UIView,
+    request: CaptureRequest,
+    maskSupplier: ((UIView) -> MaskSnapshot)?,
+    onComplete: @escaping (CaptureResult) -> Void
+  ) {
+    if isDisposed {
+      onComplete(reply(request, .disposed))
+      return
+    }
+    queue.async { [weak self] in
+      guard let self else {
+        onComplete(CaptureResult(requestId: request.requestId, status: .disposed))
+        return
+      }
+      self.setInFlight(request.requestId)
+      let outcome = self.captureSync(view: view, request: request, maskSupplier: maskSupplier)
+      self.clearInFlight(request.requestId)
+      onComplete(outcome)
+    }
+  }
+
+  private func captureSync(
+    view: UIView,
+    request: CaptureRequest,
+    maskSupplier: ((UIView) -> MaskSnapshot)?
+  ) -> CaptureResult {
     if isDisposed { return reply(request, .disposed) }
     if isCancelled(request.requestId) { return reply(request, .cancelled) }
     if ProcessInfo.processInfo.operatingSystemVersion.majorVersion < CaptureRuntime.minNativeApi {
       return reply(request, .unsupportedApi)
     }
-    if request.pixelWidth <= 0 || request.pixelHeight <= 0 {
-      return reply(request, .processingFailed)
-    }
-    if request.pixelWidth > Self.maxEdge || request.pixelHeight > Self.maxEdge
-      || request.pixelWidth > Self.maxPixels / request.pixelHeight
-    {
+    let sizing = PixelSizing(request)
+    if !sizing.followsBounds && PixelSizing.valid(request.pixelWidth, request.pixelHeight) == nil {
       return reply(request, .processingFailed)
     }
 
     let started = DispatchTime.now()
-    let drawOutcome = drawOnMain(view: view, request: request)
+    let drawOutcome = drawOnMain(view: view, sizing: sizing, maskSupplier: maskSupplier)
     let copyTimings = CaptureTimings(surfaceCopyMicros: elapsedMicros(from: started))
     if let early = haltIfNeeded(request, started, copyTimings) {
       return early
@@ -84,11 +113,13 @@ public final class CaptureRuntime {
       return reply(request, status, timings: copyTimings)
     }
 
-    let processed = process(bitmap: bitmap, request: request)
+    let applied = AppliedMasks.of(request: request, bitmap: bitmap, supplied: maskSupplier != nil)
+    let processed = process(bitmap: bitmap, request: request, applied: applied)
     let coreTimings = CaptureTimings(
       surfaceCopyMicros: copyTimings.surfaceCopyMicros,
       maskFillMicros: processed.maskFillMicros,
-      dHashMicros: processed.dHashMicros
+      dHashMicros: processed.dHashMicros,
+      maskComputeMicros: bitmap.maskComputeMicros
     )
     if let early = haltIfNeeded(request, started, coreTimings) {
       return early
@@ -106,7 +137,8 @@ public final class CaptureRuntime {
         height: bitmap.height,
         dHash: processed.dHash,
         timings: coreTimings,
-        incomplete: bitmap.incomplete
+        incomplete: bitmap.incomplete,
+        maskSnapshot: applied.snapshot
       )
     }
 
@@ -122,7 +154,8 @@ public final class CaptureRuntime {
       maskFillMicros: coreTimings.maskFillMicros,
       dHashMicros: coreTimings.dHashMicros,
       jpegMicros: jpegMicros,
-      sha256Micros: elapsedMicros(from: shaStart)
+      sha256Micros: elapsedMicros(from: shaStart),
+      maskComputeMicros: coreTimings.maskComputeMicros
     )
     if let early = haltIfNeeded(request, started, encodedTimings) {
       return early
@@ -137,25 +170,30 @@ public final class CaptureRuntime {
       dHash: processed.dHash,
       contentHash: digest,
       timings: encodedTimings,
-      incomplete: bitmap.incomplete
+      incomplete: bitmap.incomplete,
+      maskSnapshot: applied.snapshot
     )
   }
 
   private func drawOnMain(
     view: UIView,
-    request: CaptureRequest
+    sizing: PixelSizing,
+    maskSupplier: ((UIView) -> MaskSnapshot)?
   ) -> (bitmap: NativeBitmap?, hasSurface: Bool) {
     var bitmap: NativeBitmap?
     var hasSurface = false
+    let masksBeforeDraw: AppleViewCapture.MasksBeforeDraw? = maskSupplier.map { supplier in
+      { supplier(view) }
+    }
     let draw = {
       view.layoutIfNeeded()
       hasSurface = view.bounds.width > 0 && view.bounds.height > 0
       guard hasSurface else { return }
       bitmap = AppleViewCapture.capture(
         view: view,
-        pixelWidth: request.pixelWidth,
-        pixelHeight: request.pixelHeight,
-        coverage: self.coverage
+        sizing: sizing,
+        coverage: self.coverage,
+        masksBeforeDraw: masksBeforeDraw
       )
     }
     if Thread.isMainThread {
@@ -180,9 +218,13 @@ public final class CaptureRuntime {
     return nil
   }
 
-  private func process(bitmap: NativeBitmap, request: CaptureRequest) -> TBImageProcessResult {
+  private func process(
+    bitmap: NativeBitmap,
+    request: CaptureRequest,
+    applied: AppliedMasks
+  ) -> TBImageProcessResult {
     let masks = MaskMapper.toPixelRects(
-      masks: request.masks,
+      masks: applied.masks,
       width: bitmap.width,
       height: bitmap.height
     )
@@ -195,7 +237,7 @@ public final class CaptureRuntime {
         format: TBImageCorePixelFormatBGRA8888,
         masksPacked: pointer.baseAddress,
         maskIntCount: Int32(masks.count),
-        lastDHash: request.lastDHash,
+        lastDHash: applied.lastDHash,
         force: request.force
       )
     }
@@ -211,7 +253,8 @@ public final class CaptureRuntime {
     dHash: String = "",
     contentHash: String = "",
     timings: CaptureTimings = CaptureTimings(),
-    incomplete: Bool = false
+    incomplete: Bool = false,
+    maskSnapshot: MaskSnapshot? = nil
   ) -> CaptureResult {
     CaptureResult(
       requestId: request.requestId,
@@ -223,7 +266,8 @@ public final class CaptureRuntime {
       dHash: dHash,
       contentHash: contentHash,
       timings: timings,
-      incomplete: incomplete
+      incomplete: incomplete,
+      maskSnapshot: maskSnapshot
     )
   }
 
@@ -283,6 +327,4 @@ public final class CaptureRuntime {
     var cancelledId: Int64 = CaptureRuntime.noRequest
   }
 
-  private static let maxEdge = 8192
-  private static let maxPixels = 16_777_216
 }

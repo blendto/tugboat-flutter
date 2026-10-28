@@ -1,0 +1,699 @@
+# tugboat-android
+
+Native Android host for the session engine
+([ADR 0009](../../../docs/decisions/0009-shared-session-engine.md)).
+Maven coordinates `com.gettugboat.sdk:tugboat-android:0.1.0`, namespace
+`com.tugboat.android`, minSdk 24. Versioned on its own (ADR 0008, see
+[CHANGELOG](CHANGELOG.md)) and unpublished: the only repository is the
+untracked `.local-maven`.
+
+Status: the native Android SDK for Views apps, end to end: public facade,
+engine wiring, window capture with masks, and a sample app
+([`tugboat-sample`](../tugboat-sample/README.md)). The app API is the
+`com.tugboat.android` package below. The opt-in toolkit-region seam
+(`com.tugboat.android.toolkit`, below), which `tugboat-compose` implements,
+and the opt-in HTTP-adapter seam (`com.tugboat.android.adapter`, below),
+which `tugboat-okhttp` uses, are public but not app API; everything else is
+`internal`.
+
+## Public API
+
+```kotlin
+// Application.onCreate
+Tugboat.start(application, TugboatConfig(
+    collector = CollectorConfig(baseUrl, apiKey),
+    app = AppInfo(name, version, buildNumber, appId, installationId),
+    enabled = false,                         // default: dormant until activate
+    maskLevel = MaskLevel.AllTextAndMedia,   // default, the only level
+    captureFocusChanges = false,             // engine capability focusChanges
+    captureSystemInput = false,              // engine capability systemInput
+    captureDiagnostics = false,              // engine capability captureDiagnostics
+    explorationRunId = null,                 // optional session.start field
+    emitSceneInventory = false,              // engine capability nativeSceneInventory
+    durableOutbox = false,                   // keep unconfirmed requests on disk; see Durable outbox
+))
+Tugboat.activate(activationRequestId)        // start a session (or enabled = true above)
+Tugboat.deactivate()                         // back to dormant
+Tugboat.lifecycleState; Tugboat.isActivated; Tugboat.activationRequestId
+Tugboat.setUserId(id); Tugboat.setTraits(map); Tugboat.stop()
+Tugboat.clearPendingData()                   // delete what the durable outbox keeps
+Tugboat.trackNavigation(navController)       // Jetpack Navigation, optional
+Tugboat.eventHook(source, parameterPolicy).record(name, parameters)
+Tugboat.beginNetworkCall(method, route).complete(statusCode)  // or fail(NetworkFailure)
+view.tugboatTag = "checkout"                  // developer alias
+view.tugboatSensitive()                       // always mask it and its subtree; no un-mark
+```
+
+- Every method can be called from any thread; the work runs on the main
+  thread in call order. Nothing throws into the app: failures are logged
+  (tag `Tugboat`) and capture stops.
+- Call `start` once per process, from `Application.onCreate`. It stores the
+  application and config, whatever `enabled` says, and is idempotent until
+  `stop`. It **refuses** (logs the missing paths, and does not store the
+  config, so a corrected `start` works) when a field the collector requires
+  on `session_start` is blank: app version, build number, app id,
+  installation id, name; device id, screen size and densities; the locale;
+  the collector URL and key. A session is refused when the engine cannot
+  open. Either way the state returns to `DORMANT` and the activation
+  request is kept, so `activate` with the same id retries.
+- `stop` detaches every observer, posts `session.end`, waits for the
+  `session_end` post to settle (accepted, or a status the engine does not
+  retry), then submits `engine.dispose` and destroys the handle. The wait is
+  bounded at 25 s (`endDrainTimeoutMs` + one `jsonTimeoutMs` + slack); it
+  never blocks the app. `deactivate` and a session replaced by `activate`
+  end the same way. Each new session has a new engine, session id, and
+  `sessionEpoch` (which advances only when a session starts).
+- `setUserId` / `setTraits` survive dormant periods, `stop`, and `start`,
+  and are sent to every new session (each new engine gets `identity.set`
+  and `traits.set` again; Flutter instead carries the collector `traitsId`
+  to the next sink). Traits JSON cannot carry (NaN, infinities) are ignored
+  and logged.
+
+- When the app's primary locale changes (`Application.onConfigurationChanged`),
+  the SDK posts `locale.set` with the same locale JSON shape as `session.start`
+  (deduped; unregistered on `stop`). Locale is evidence, not identity.
+- Scene inventory (`emitSceneInventory`) covers the route of the visible
+  content: the deepest shown, resumed fragment (a `NavHostFragment`'s
+  destination, a parent's child fragment, the current `ViewPager2` page),
+  else the activity. A fragment paused at `STARTED` (an off-screen page) is
+  skipped with its subtree while its host is resumed; when the activity
+  itself is paused but visible (split screen), fragments are not skipped.
+  Legacy `ViewPager` with `BEHAVIOR_SET_USER_VISIBLE_HINT` keeps every page
+  resumed, so the last-drawn page can win. Activity-level chrome outside
+  that fragment (`Toolbar`, `BottomNavigationView`) has the activity route
+  and is not in it, so taps on chrome have no preceding inventory.
+- There is no on-device health snapshot API: the engine has no health surface.
+  With `captureDiagnostics` enabled, bounded `capture_diagnostic` events match
+  Flutter's counters; without it, only host-failure and first secure-window
+  diagnostics are recorded, so counting events understates capture problems.
+- `trackNavigation` needs `androidx.navigation` in the app (`compileOnly`
+  here). Destination route patterns without arguments (else the id's entry
+  name) become route keys for the controller's activity, and each
+  destination change is a `navigation` fact on the controller's own
+  navigator (`<activity route instanceId>/nav`, parent: the activity
+  navigator; instance ids are `NavBackStackEntry.id`; `push`, `pop`, or
+  `replace` from the current and previous back-stack entries;
+  `views/navigation/ControllerNavigation`).
+- `View.tugboatTag` has no accessibility option (Compose's
+  `Modifier.tugboatTag` has one). UI test tools (Maestro, Appium,
+  UiAutomator) read a view's resource-id from its `android:id`, and Tugboat
+  already uses that id's entry name as the alias when the view has no
+  `tugboatTag` and the id is unique under the route root. One
+  `android:id` therefore serves both. Tugboat installs no
+  `AccessibilityDelegate`, so an app's own delegate is never replaced.
+
+## Lifecycle (activation)
+
+The same contract as Flutter's `TugboatReplay` (`lifecycle.dart`):
+
+- `TugboatConfig.enabled` (default `false`, as Flutter's
+  `TugboatReplayConfig.enabled`). `true`: `start` starts a session at once,
+  with no activation request id. `false`: the SDK is **dormant** until
+  `activate`: no engine, window callbacks or wrapping, threads, or network,
+  and nothing recorded. A dormant `start` registers only process-scoped
+  activity lifecycle callbacks (navigation stacks and the live activities;
+  they hold state and emit nothing). The `androidx.lifecycle:lifecycle-process`
+  dependency (one of this SDK's own) runs AndroidX App Startup's
+  `ProcessLifecycleInitializer` at process launch, whatever `enabled` says;
+  it registers AndroidX's callbacks, not Tugboat's. Tugboat needs it for a
+  session (`app.lifecycle` and the background flush), so do not remove it.
+- `Tugboat.activate(activationRequestId)` starts a session whose
+  `session.start` carries the id. The same id while starting or active does
+  nothing. A different id while a session runs ends it (`session_end`) and
+  starts a new one with the new id; the state goes `ACTIVE` → `STARTING` →
+  `ACTIVE`, never `STOPPING`. An `activate` before `start` (or after `stop`)
+  reports `STARTING` at once and is applied by the next `start`, whatever
+  `enabled` says. A blank
+  id still activates; `session.start` then omits it (Flutter sends `""`).
+- `Tugboat.deactivate()` fences evidence at once on the calling thread: an
+  event or network call recorded after it returns is dropped, even a call
+  begun before it. It then ends the session on the main thread. The state
+  is `STOPPING` until `session.end` is posted, then `DORMANT`. An
+  `enabled = true` config does not start a session again until the next
+  `activate`. No-op while dormant with no activation request.
+- `Tugboat.stop()` is native only and is **not** Flutter's
+  `TugboatReplay.disabled`: it ends the session, forgets the config, and
+  clears any activation request, so an `activate` made before it never
+  restarts a session; an `activate` after it is kept for the next `start`.
+  There is no native `disabled`.
+- Read-only, from any thread: `Tugboat.lifecycleState`
+  (`TugboatLifecycleState` `DORMANT`, `STARTING`, `ACTIVE`, `STOPPING`),
+  `Tugboat.activationRequestId` (the last `activate`'s id while in effect;
+  null for a session `enabled` started), and `Tugboat.isActivated` (an id is
+  set and the state is starting, active, or stopping). They change at once
+  on the calling thread; the session follows on the main thread.
+- A session that starts after its activities (an `activate` while one is
+  resumed, or a `start` after `stop`) attaches at once to every activity
+  created since the first `start` and adopts the resumed one, as its resume
+  would have (taps, captures, focus, and the `session_start` navigation
+  seed). Activities created before the first `start` are observed from their
+  next resume. `trackNavigation` after a dormant `start` keeps the
+  controller's stack, which seeds each session; a controller tracked before
+  the first `start` is not seeded (its first change after it is a push).
+- Any request that is not the same request ends the running session and
+  starts a fresh one, as Flutter's gate remounts on a new request epoch:
+  `deactivate(); activate("a")` while `"a"` is active gives `session_end`
+  and a new `session_start` with `"a"`.
+- `stop()` racing `activate()` on other threads: a `stop()` forgets its
+  config at once, so no session starts on it. Activate then stop ends
+  `DORMANT`; stop then activate ends `STARTING`, applied by the next
+  `start`. A `start` made after a pending `stop` survives it.
+- Known limits: an activity paused but visible at `activate` (a
+  runtime-permission dialog, the unfocused pane in multi-window) is not the
+  foreground window until its next resume, so captures wait for it (taps
+  still attach). Two `activate` calls with different ids in one main-thread
+  turn give a short first session; Flutter coalesces them per frame.
+
+## Durable outbox
+
+Off by default (`TugboatConfig.durableOutbox = false`). When on, the host
+keeps every collector request the collector has not confirmed on disk, and
+sends it again in a later session, including after a process restart (ADR
+0009). The engine is unchanged.
+
+- **What is kept.** Each `http.send` is written to
+  `noBackupFilesDir/tugboat/outbox/v1/` at dispatch, in parallel with the
+  request; the request never waits for the disk.
+  - There is one entry per lifecycle post, per event batch, and per frame. A
+    frame is written once; later chunks only count the attempt.
+  - Entries hold only what is already on the wire (masked JPEGs, the same
+    bodies), plus an HMAC-SHA-256 of the collector URL, app id, and API key
+    under a random per-install salt. Never the key itself. Encryption is the
+    OS's only (file-based encryption).
+  - An accepted (202) or dropped answer (any status the engine does not
+    retry) deletes the entry. A late answer never deletes while a later
+    attempt at the same key is in flight.
+  - A disk failure is logged and counted, and the request is sent anyway.
+    So is a write that would push the queue of pending writes past
+    `outboxMaxBytes`.
+- **Keys.**
+  - Lifecycle: `<sessionId>/l/<eventType>/<triggeredAt>`.
+  - Events: `<sessionId>/e/<sha256 of the sorted event ids, 16 hex>`.
+  - Frames: `<sessionId>/f/<frameNo>`.
+
+  Every request with an entry carries `Tugboat-Delivery-Key`
+  (comma-separated for a frame chunk). A request whose key cannot be derived
+  is sent as before, without an entry.
+- **Replay.**
+  - When: only while a session runs (after `start` with `enabled = true`, or
+    after `activate`). Never while dormant. No replay request starts after
+    `deactivate` or `stop` returns.
+  - Where: on its own thread with its own connection, one request at a time
+    beside the engine's.
+  - Trigger: at session start, and whenever the current session changes (the
+    session of the newest session's latest `http.send`; a replaced session's
+    late sends never move it back).
+  - What: entries of other launches and of earlier sessions, oldest first,
+    skipping any key with a request in flight, sent with the current
+    config's headers.
+- **Retries and deletion.**
+  - On a retried answer the pass stops and waits 2 s × 2^(replays − 1), at
+    most 5 min, or `Retry-After` when that is longer (also capped at 5 min).
+  - An entry is deleted unsent after `outboxMaxAttempts` replays (default 8,
+    counted across launches). The engine's own re-sends during an outage do
+    not count. A replay that `stop` prevented from starting does not count
+    either.
+  - An entry is also deleted unsent past `outboxMaxAgeMs` (default 72 h), or
+    when its identity differs from the running config's (a new key, app id,
+    or collector URL).
+  - Each pass logs one line (tag `TugboatOutbox`):
+    `outbox pass replayed=N expired=N evicted=N corrupt=N identityMismatch=N bytesOnDisk=N`.
+    `replayed` counts every settled replay.
+- **Bounds.** `outboxMaxBytes` (20 MB) and `outboxMaxEntries` (1000).
+  - Past either, entries of other sessions go first, then frames before
+    events, then oldest first.
+  - Lifecycle entries leave only by age; a key in flight never leaves.
+  - Corrupt entries (a missing file, unparseable JSON, an unknown `v`, a
+    number outside 0..2^52) are deleted and counted.
+  - A file that exists but cannot be read is skipped and kept.
+  - A salt that exists but cannot be read turns the outbox off for the
+    process: nothing is written or replayed, and the salt is never replaced.
+- **While dormant.** Every `start` with the outbox on, dormant included,
+  runs one disk-only sweep in the background. It deletes corrupt entries and
+  entries past `outboxMaxAgeMs`, evicts down to the bounds, sends nothing,
+  and logs `outbox sweep …`. Everything else waits for the first session.
+- **Erasure.**
+  - `start` with `durableOutbox = false` deletes whatever an earlier launch
+    kept.
+  - A dormant `start` (`enabled = false`) does not delete anything: dormant
+    is not opt-out.
+  - `Tugboat.clearPendingData()` deletes the entries at any time. Called
+    before the first `start`, it takes effect at that start.
+  - After either wipe, the senders of sessions that existed before it (an
+    engine still draining after `stop`) write nothing more.
+  - The salt stays.
+- **Background flush.** With the outbox on, `app.lifecycle` `paused` is
+  followed at once by `transport.flush`. Events and frames waiting for the
+  flush timer are then sent, and kept, before the app may be killed.
+- **`stop`.** Entry writes queued by the engine's last requests land before
+  the IO executor closes (bounded at 5 s).
+- **Still lost.**
+  - A session whose `session_start` was never accepted (offline launch): the
+    engine sends no events or frames before the collector session exists,
+    so only the `session_start` entry is kept.
+  - Lifecycle posts queued behind a failing head.
+  - Events and frames never sent.
+
+  A replayed lifecycle post that the collector had already accepted can add
+  a second `raw_events` row until the collector derives that row's id.
+
+## Device Farm / exploration correlation
+
+Automation can pass the same intent extras as the Flutter plugin (for example
+`adb shell am start … --ez tugboat_emit_scene_inventory true --ez
+tugboat_accept_action_context true --es tugboat_automation_run_id <id>`).
+Values `1`, `true`, and `yes` (case-insensitive) enable a flag; anything else
+is off. When `emitSceneInventory` or `acceptActionContext` is enabled, the SDK
+logs once per process from the **first resumed activity whose intent carries
+the extras**, whatever the lifecycle state (after `start`, the dormant
+resumed-activity tracker sees it; the Flutter host likewise prints at config
+time):
+
+- `TUGBOAT_LAUNCH` with `captureRequested`, the flags, optional
+  `automationRunId`, and `captureSessionId` (`session-<wallUs>` from the
+  running session's `session.start`; omitted when no session runs, for
+  example while dormant).
+- Ten seconds later, `TUGBOAT_HEALTH` with `lifecycle`, the lifecycle state's
+  Flutter name (`dormant`, `starting`, `active`, `stopping`; `dormant` when
+  the engine host stopped running), `activationRequestId` when one is in
+  effect, and the running session's `captureSessionId` (omitted when none
+  runs). All are read when the line prints, never from the session that ran
+  when the timer started: after a replacing `activate` it carries the new
+  session and id, after a `deactivate` it is `dormant` with no ids. Only a
+  `Tugboat.stop()` before the ten-second mark cancels it.
+
+Both lines use `Log.i` with tag `Tugboat`. They never include the collector
+base URL, API key, or auth headers. Intent extra `tugboat_collector_base_url` is
+**ignored** in v1 (`session.start` is posted before any activity intent exists;
+a runtime URL override would need deferred session start, tracked separately).
+`tugboat_automation_run_id` alone does not enable logging (same as Dart
+`captureRequested`). Scene-inventory and action-context flags gate logging
+only; native features for those capabilities ship in later milestones. A later
+`stop` and `start` does not emit new lines. Context Graph Device Farm
+exploration tooling still filters `flutter:I` only until a follow-up adds
+`Tugboat:I`.
+
+## Coded events and network calls
+
+Your app's own events and its HTTP calls, as `external_event` and
+`network_call` evidence (the same records as Flutter's
+`TugboatReplay.eventHook` and `beginNetworkCall`):
+
+```kotlin
+val events = Tugboat.eventHook(source = "analytics", parameterPolicy = ParameterPolicy.allowList(setOf("method")))
+events.record("USER_LOGIN", mapOf("method" to "email"))
+
+val call = Tugboat.beginNetworkCall(method = "GET", route = "/orders/123")
+call.complete(statusCode = 200)              // complete(statusCode, attemptCount, errorResponseBody)
+call.fail(NetworkFailure.NETWORK_ERROR)      // or CANCELLED; fail(failure, statusCode, attemptCount, errorResponseBody)
+```
+
+- **Policies** (`ParameterPolicy`, as Flutter's `TugboatParameterPolicy`):
+  `allowAll` (the default: every JSON value, within limits; this can keep
+  search terms, feedback, ids, and other user content), `namesOnly` (keys,
+  no values), `allowList(keys)`, and `transform { key, value -> … }`, which
+  returns the value to keep or `ParameterPolicy.DROP`. The transform runs on
+  the calling thread before `record` returns, exactly once for each entry
+  among the first 64 whose key is a string of 1 to 128 characters, in map
+  order; one that throws drops that key's value.
+- **Values.** `null`, `Boolean`, `String`, `Byte` / `Short` / `Int` /
+  `Long`, `Float` / `Double`, `List`, `Array<*>`, other `Iterable`s (sets),
+  and `Map`s in their own iteration order (use a `LinkedHashMap` for a
+  stable order: the limits cut by it). Anything else (`Char`, `BigInteger`,
+  `BigDecimal`, primitive arrays, a nested `DROP`), non-finite numbers,
+  non-string keys, and cycles are dropped and counted, never sent by their
+  `toString`.
+- **The engine bounds everything** (`core/session-engine/docs/evidence-messages.md`).
+  Kotlin runs the transform and writes the values in the engine's value
+  encoding (`evidence/EngineEvidenceEncoder`); the session engine applies the
+  policy, the limits (Flutter's `TugboatParameterLimits` and
+  `TugboatNetworkLimits`), name, source, method, and route rules, the
+  error-body rule, and `durationMs`, so every platform records the same
+  bytes for the same input. Kotlin leaves out only what the engine would
+  never read: entries past the first 64 (counted), values `namesOnly` or the
+  allow list do not keep, and items past the limits.
+- **Routes** are paths you choose: an absolute path, which may hold dynamic
+  ids, never a URL or query. A null or blank route gives a call that
+  records nothing. The engine records nothing for a route with a scheme,
+  query, fragment, percent-encoding, backslash, or whitespace, nor for an
+  empty or overlong method; the call still looks live to the app. Route
+  paths can contain user or tenant ids: apply your own privacy policy.
+- **Error bodies** are read and kept only for status 400 or more, bounded
+  to 4 KiB: a `String` is text, a `Map` or `List` is JSON, a `ByteArray` is
+  not kept. The SDK never reads URLs, query strings, headers, request
+  bodies, or transport error text.
+- **Threads and time.** Every call works from any thread. The time is taken
+  on the calling thread (the host clock, the engine's `at`): `record`'s and
+  `beginNetworkCall`'s at the call, the end time at `complete` or `fail`.
+  The message then goes on the engine host's submission path.
+- **One finish.** A call's first `complete` or `fail` wins (atomically); a
+  later one of either kind is ignored. An encoding failure (for example a
+  map changed by another thread while it is read) drops that evidence.
+- **No-ops, never throws.** While no session records (dormant, deactivated,
+  or stopped), `record` does nothing and `beginNetworkCall` returns a call that
+  records nothing. A call begun before `stop` records nothing when it
+  finishes after it. A hook made before `start` works in every later session.
+  Nothing throws into the app.
+- Both are on `stream: evidence` and never take an action context or UI
+  anchor.
+- **OkHttp.** [`tugboat-okhttp`](../tugboat-okhttp/README.md)'s
+  `TugboatOkHttpInterceptor` records each OkHttp call this way, as
+  `tugboat_dio` does for Dio.
+
+## What it contains
+
+| Piece | Where | Role |
+| --- | --- | --- |
+| Engine library | `src/main/cpp` | CMake builds `core/session-engine` (target `tugboat_session_engine`) into `libtugboat_engine.so` with `c++_static`, plus a JNI bridge: `create`, `submit`, `destroy`. Only the JNI symbols are exported. |
+| Bridge | `engine/NativeEngine`, `JniEngineTransport` | `submit` copies the engine-owned response into a Java `byte[]` before returning. No exception crosses JNI; `EngineStatus` mirrors `tb_session_status`. |
+| Host | `host/EngineHost` | Owns one handle and one `HandlerThread("tugboat-engine")`. See the threading notes below. |
+| Clock | `host/HostClock` | `monoUs` in the `SystemClock.uptimeMillis` timebase (`uptimeNanos` on API 35+), `wallUs` from `currentTimeMillis`. |
+| Effects | `host/Effect`, `EffectDispatcher` | `timer.schedule` / `timer.cancel` go to `TimerExecutor` (`Handler.postAtTime`). `http.send` goes to `HttpExecutor`. `frame.release` goes to `FrameHandleTable`. Unknown types are logged once. |
+| HTTP | `host/HttpExecutor`, `RequestDeadline`, `CollectorResponse`, `MultipartBody` | `HttpURLConnection` on one `tugboat-io` thread, with the Flutter collector headers and multipart layout. `jsonBody` is sent byte for byte. `timeoutMs` is a total deadline: a watchdog disconnects at it. Every answer is one the engine accepts: the body is cut to at most 64 KiB at a UTF-8 boundary, and a status outside 100–599 becomes `error`. The multipart bytes are pinned by `conformance/host/multipart-request.golden`, shared with the Apple host. |
+
+| Views adapter | `views/` | Turns activity windows into engine facts and computes masks (below). |
+| Evidence | `evidence/` | `EvidenceRecorder` (calling-thread timestamps, the transform, no-op and one-finish rules), `EvidenceEncoder` (typed values to the engine's input encoding), `evidence.externalEvent` / `evidence.networkCall`. |
+| Facade | `Tugboat`, `TugboatConfig`, `TugboatLifecycleState`, `TugboatTag` | The public API above: the activation lifecycle (Flutter's notifier and gate), over one `sdk/TugboatRuntime` per session. |
+| Engine wiring | `sdk/` | `TugboatRuntime` (composition root: one engine, one session), `HostMetadata` + `DeviceSnapshot` (`engine.configure.host`, refused when incomplete), `EngineConfiguration`, `SessionMessages`, `AppLifecycleBridge` (`ProcessLifecycleOwner` to `app.lifecycle`), `LocaleBridge` (`locale.set` on locale change), `SessionEndWatcher` + `StopSequence` (stop order), `NavigationTracking`. |
+| Capture | `capture/` | `CaptureCoordinator` answers `capture.request`; `FrameMasks` (the copy-time mask supplier); `RuntimeOutcomes` maps `capture-runtime` results; `CaptureResultJson`; `ForegroundWindow` + `SurfaceReporter` (`surface` facts); `CaptureGeometry`. |
+
+`engine.configure` (`sdk/EngineConfiguration`): `host` with every
+`session_start` field (`ipInfo.ip` is the placeholder `10.0.2.2`, as
+Flutter's Android host sends); `limits` at the Dart defaults; `gesture` from
+the adapter's `GestureConfig.toEngineJson()`; `capture.answerTimeoutMs` 5000;
+`collector.enabled`; `capabilities.focusChanges` / `systemInput` /
+`captureDiagnostics` from the config. Then `session.start {viewport (dp),
+platform: android, sessionEpoch, locale, activationRequestId?,
+explorationRunId?}`.
+
+## Capture
+
+`capture.request` effects (stateful-engine.md 8.2) go to
+`capture/CaptureCoordinator`:
+
+1. The request hops from the engine thread to the main thread. There the
+   foreground activity's window (`ForegroundWindow`) and its decor size (for
+   the JPEG size: 0.75 pixels per dp, Flutter's `capturePixelRatio`, times
+   the request's `scale`) are read. With no foreground window yet (the
+   session's `initial` capture), it waits up to 3 s for one.
+2. `capture-runtime`'s `capture(window, request, masks, …)` waits for a
+   committed frame, re-checks `FLAG_SECURE`, and then, in the same
+   main-thread task and immediately before `PixelCopy.request`, calls
+   `FrameMasks`: the Views masks (`ViewsAdapter.masks`, fail-closed), the
+   motion check, the structure signature, the mask coverage, and the
+   boundary are all taken for the frame being copied. It fills the masks
+   before encoding.
+3. The JPEG goes into the handle table and `capture.result` is posted with
+   `requestedBackend` = `resolvedBackend` = `androidPixelCopy` (one of the
+   collector's closed backend names), the copy-time boundary rect in dp, the
+   structure signature, and timings.
+
+- **Every request is answered exactly once, by id (C16).** Requests can
+  overlap; each has its own runtime id and is answered when its result
+  arrives, in any order. A late answer is ignored by the engine after its C18
+  deadline.
+- **dHash baseline.** Passed to the runtime with its structure for a request
+  that is not forced; the runtime offers it to the dHash skip only when the
+  copy-time structure signature equals it. The signature is hashed in the
+  mask walk (`views/mask/StructureHasher`): decor size, each visited view's
+  class, id, visibility, and checked / selected / activated state, and the
+  mask rectangles; never text. A runtime skip is answered `captured` with
+  the baseline's dHash, so the engine coalesces it. Forced requests always
+  get a fresh frame; `paintUnchanged` is never sent.
+- **Mask coverage.** Every frame records `{mode: precise | wholeHost |
+  wholeFrame, reasons}` from the Views walk (`noDecor`, `noWindowSize`,
+  `walkExhausted`, `animating` for whole frames; `composeDefault` for a
+  Compose host masked whole; `webView`, `surfaceLayer` noted; region
+  reasons such as `interop`). Every reason name is in the engine's closed
+  set. `coverage.toJson()` goes on `capture.result.frame.maskCoverage` of
+  every captured frame; the engine records it as a `capture_masking`
+  `capture_diagnostic` and keeps it out of the frame record and
+  `frameMetadata`.
+- **Status mapping** (`RuntimeOutcomes`): `Ok` to `captured`;
+  `SecureWindow` to `failed secureWindow` (the engine records a throttled
+  `capture_diagnostic`); `PixelCopyFailed` to `failed readbackFailed`;
+  `UnsupportedApi`, `SurfaceUnavailable`, `UnsupportedRenderMode` to `failed
+  boundaryUnavailable`; `Timeout` to `failed paintTimedOut`;
+  `ProcessingFailed` to `failed encodingFailed`; `Cancelled` and `Disposed` to
+  `cancelled`. No foreground window is `boundaryUnavailable`, a decor view not
+  laid out yet is retried once after its first traversal, then
+  `layoutUnavailable`; a failure before the copy `maskFailed`. A mask
+  supplier that throws masks the whole frame.
+- **`surface` facts.** The foreground decor view's size in dp, reported on
+  resume and on every layout change that alters it; the generation advances
+  with each change (rotation), starting at 0 so the session's initial capture
+  stays current.
+
+`EngineHost` threading and failure rules:
+
+- `post(type, inputJson, at, frameHandles)` and `postBatch` can be called from
+  any thread. Callers pass the time the fact happened. `postUntimed` is for
+  `engine.configure`, queries, and stateless messages.
+- Submits run serialized on the engine thread.
+- A non-`ok` status is logged. The message is dropped and its frame handles
+  are released.
+- Three `internal_error`s in a row shut the host down.
+- Shutting down (`close`, or the `internal_error` limit) first submits
+  `engine.dispose` so the engine can report undelivered work. From its
+  response only `frame.release` runs; no IO, timer, or capture starts. Then
+  the handle is destroyed.
+- Nothing thrown on the engine or IO thread escapes.
+
+## Views adapter
+
+`views/ViewsAdapter` registers `ActivityLifecycleCallbacks` and produces the
+facts of the stateful engine (`core/session-engine/docs/stateful-engine.md`
+8.1 and 9.1). Facts are timestamped when they happen and posted once per
+frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
+
+| Fact | Source | Piece |
+| --- | --- | --- |
+| `input.pointer` | `Window.Callback.dispatchTouchEvent`, observed before the app (activity and dialog windows) | `callback/`, `input/PointerFactProducer`, `dialog/` |
+| tap evidence | hit-test at the down point on an `up` within `touchSlop` | `identity/AnchorResolver` |
+| `scroll` | `OnScrollChangedListener` + offset diff; `RecyclerView.OnScrollListener` | `scroll/` |
+| `navigation` | activity lifecycle; androidx fragment lifecycle (recursive) | `navigation/` |
+| `focus` | `OnGlobalFocusChangeListener` (activity and dialog windows) | `input/FocusFactProducer`, `dialog/` |
+| `systemInput` | allowlisted key-downs in `dispatchKeyEvent` (activity and dialog windows) | `input/SystemInputProducer`, `dialog/` |
+
+- **Units.** Coordinates and scroll offsets are logical pixels (dp). The
+  host must send `GestureConfig.toEngineJson()` (from `ViewConfiguration`) as
+  `engine.configure.gesture`, so the engine and the adapter's tap check use
+  the same slop.
+- **Pointer ids.** Android recycles pointer ids; each contact gets a new,
+  process-wide increasing `pointerId`.
+- **Identity.** `docs/design/capture-and-fingerprint.md`, "Android Views
+  canonicalization". The fingerprint is hashed in Kotlin and tested against
+  every `conformance/fingerprint/identity_parts` vector.
+- **Masks.** `WindowMasks.compute(window)` returns rectangles normalized to
+  the decor view (the `capture-runtime` window rule): `TextView`,
+  `ImageView`, `VideoView`, toolkit region masks, and fail-closed
+  `WebView` / `SurfaceView` / `TextureView` bounds. A Compose host
+  (`AndroidComposeView`, matched by class name) that no region reads is
+  fail-closed too (coverage `wholeHost`, `composeDefault`). It masks the
+  whole frame when the tree cannot be read, when a region asks for it, or
+  when views are in motion (checked first, before any region is asked), and
+  reports the coverage that applied.
+- **Optional androidx.** `core`, `fragment`, and `recyclerview` are
+  `compileOnly`; each is probed once with `Class.forName` and its
+  implementation used only when the app ships it. `consumer-rules.pro`
+  silences R8 for apps without them and keeps the probed names.
+- **`Window.Callback`.** The wrapper is Java (`ObservingWindowCallback.java`)
+  so platform `null`s never meet Kotlin null checks; every method is
+  forwarded to the replaced callback exactly once. On create and every
+  resume it wraps only when no Tugboat wrapper is reachable in the chain:
+  `CallbackChain` follows Tugboat's delegate, public `getWrapped()` /
+  `getDelegate()` accessors, and `Window.Callback` fields of non-platform
+  wrapper classes, up to 16 links. A per-thread dispatch depth keeps facts
+  single if two wrappers still end up in one chain.
+- **Stop.** After `stop()` nothing is emitted: window callbacks detach and
+  every fact path is gated. Navigation lifecycle stays registered in
+  process scope so stacks keep updating while stopped (no facts until the
+  next `start()`). Process scope begins when observation installs, at the
+  first `start()`: activity, fragment, and `trackNavigation` stacks are
+  kept from then on. `trackNavigation` destinations reported before then are
+  discarded at installation, since no activity resume or destroy was seen
+  for their hosts.
+- **Navigation gate.** `ViewsAdapter(postNavigationFacts = false)` (the
+  default) tracks navigation for route keys but posts no `navigation` facts;
+  the SDK (`TugboatRuntime`) turns it on now that the engine has phase 3d.
+- **Session start route seed.** On each `start()` (including after `stop()`),
+  the adapter posts one `navigation` `session_start` per navigator with a
+  non-empty stack (`routes` bottom to top), snapshotting process-scoped
+  stacks. Seeds are walked from the activity tasks; a navigator whose host
+  route is in no stack is not seeded. Navigators first seen after that
+  record ordinary `push`/`pop` facts (including a new activity or nested
+  navigator mid-session).
+- **Motion fails closed.** A running legacy `Animation` (activity and
+  fragment transitions) or `LayoutTransition` on a visible view draws away
+  from layout bounds, so `WindowMasks` masks the whole frame (reason
+  `animating`); the frame is still captured, fully masked. Masks are taken at
+  copy time, so `ViewPropertyAnimator` motion, scrolling, and IME resizes are
+  in the bounds and need no fallback.
+- **Overlay windows.** The copy holds the activity window only, so a frame
+  taken while another window of the activity covers it keeps its activity
+  masks and mode, adds `overlayWindow` to `maskCoverage.reasons`, and adds
+  an overlay token to its structure signature. The token keeps the dHash
+  skip and engine coalescing from merging overlay and overlay-free frames;
+  the engine does not reuse a frame with other mask coverage for the same
+  pixels either (change C21). Detection is public API only: focus lost
+  while the activity is resumed (cleared only when focus returns, read only
+  while resumed), and on API 29+ `WindowInspector.getGlobalWindowViews()`
+  roots that are shown and carry this activity's token (its app token or
+  its decor's window token): dialogs (application windows other than the
+  starting window) and focusable sub-windows (`Spinner`, `PopupMenu`).
+  Non-focusable popups (text-selection handles, tooltips) are not flagged,
+  and neither are windows another activity left up. In multi-window mode on
+  API 29+ only `WindowInspector` counts. The frame's pixels stay the
+  activity window's: a dialog tap's anchor names a target this frame does
+  not show (see "Dialog windows").
+- **Dialog windows.** A dialog window of the activity gets its own session
+  (`views/dialog/`): `input.pointer` with tap evidence, `systemInput`
+  (BACK on a dialog included), and `focus` facts, from the same producers
+  as the activity window; no scroll facts and no pixels. The `Window` is
+  found through public API only: the dialog decor's
+  `findViewTreeLifecycleOwner()` is the dialog for every `ComponentDialog`
+  (AppCompat and Material dialogs, Compose `Dialog`, material3
+  `ModalBottomSheet` 1.3+) and the fragment for a `DialogFragment`.
+  Sessions start when the activity window loses focus while resumed (API
+  29+: owned `WindowInspector` roots in the application window range), when
+  a `DialogFragment` starts (every API level, nested managers included), or
+  at session start for dialogs already up; they end when the dialog window
+  detaches, its fragment stops, or the activity session detaches. No
+  per-frame scans. Positions are reported in the activity decor's space
+  (the dialog decor's `getLocationOnScreen` offset from the activity's,
+  then dp; outside the activity's bounds the engine drops them); taps are
+  hit-tested in the dialog's own window. Identity is unchanged: targets sit
+  under the activity's route (a `DialogFragment` with a view: its tag),
+  paths are rooted at the dialog's content, and `relativePosition` is
+  relative to the dialog decor. The before-frame is the activity window
+  with `overlayWindow`. Focus is app-wide: the dialog window is the active
+  one while it has window focus, and the activity's again when it regains
+  it.
+- **Failures.** Every adapter callback is guarded; the first failure per site
+  is logged and nothing reaches the app.
+
+Activities the system destroys without finishing (configuration change,
+back-stack reclaim) keep their route identity when recreated.
+
+Known gaps: dialogs, sheets and menus are not captured; frames taken while one
+is shown carry `overlayWindow`. A framework `android.app.Dialog` (or
+`android.app.AlertDialog`) shown without a `DialogFragment` has no public way
+back to its `Window`, so its taps, keys and focus are not recorded (no
+reflection). Below API 29 only `DialogFragment` dialogs are recorded (no
+public window list). On API 29+ a dialog that is not a `DialogFragment`'s is
+found only when the activity window loses focus to it, so one shown before
+that window first gains focus, or over another dialog, is recorded from the
+next session start. Popups and menus (sub-windows) are not tapped, and
+dialog windows report no scroll facts. A dialog fragment stopped and
+restarted while another SDK's callback wrapper sits above Tugboat's is
+silent after the restart (Tugboat's inert wrapper stays in the chain): no
+pointer or key facts, and no focus facts either, because the dialog's window
+focus is read through that callback. On API 29+, when one dialog is
+dismissed and another shown in the same turn (a confirm chain), window focus
+can move from the first to the second without the activity window regaining
+and losing it, so the second is found only at the next activity focus
+change or session start.
+Non-focusable popups (text-selection handles, tooltips) are neither captured
+nor flagged. Below API 29 only the
+focus signal exists: a dialog shown before the activity window first gains
+focus (for example from `onCreate`) is not flagged, and in multi-window mode
+focus taken by another app's window flags frames. Predictive back is not
+observed; overscroll is reported for `RecyclerView` only;
+fragment `hide`/`show` is not reported; `transitionMs` is 0; window-manager
+activity transitions (not view animations) are not detected for the motion
+fallback.
+
+## Toolkit-region seam
+
+Some toolkits draw their whole UI inside one View (Compose's
+`AndroidComposeView`). A toolkit module reads that content for the Views
+adapter by registering a `ToolkitRegion` with `ToolkitRegions.register`.
+The types live in `com.tugboat.android.toolkit` and need
+`@OptIn(TugboatToolkitApi::class)`: they are public only because Kotlin
+`internal` does not cross modules, and are not app API. No toolkit type
+crosses the seam; everything is Views, `RectF`, and plain values.
+
+```kotlin
+interface ToolkitRegion {
+    val toolkit: String                       // anchor toolkit, e.g. "compose"
+    val hostToken: String                     // path token of the host view, e.g. "Compose"
+    fun hosts(view: View): Boolean
+    fun targetAt(host: View, x: Float, y: Float): RegionHit                  // Target | Unreadable | Miss
+    fun scrollablesAt(host: View, x: Float, y: Float): List<RegionScrollable> // live offset readers
+    fun masks(host: View): RegionMasks        // Rects(rects, reasons) | WholeHost(reason) | WholeFrame(reason)
+    fun focus(host: View): RegionFocus?       // TextInput | Other
+    fun inventory(host: View, limit: Int): RegionInventory  // scene inventory: at most limit entries (target + tier), and a total; default empty
+}
+```
+
+Route keys are not part of the seam: a region host takes its Views route.
+
+How the Views adapter uses it (`views/region/RegionHost` guards every call;
+a throw counts as "cannot read"):
+
+| Concern | Rule |
+| --- | --- |
+| Taps | The hit view's nearest region host answers first. `Target`: an anchor whose path is the host's Views path plus the region's segments, hashed with the host's Views route, with the region's `toolkit`. `Unreadable`: the host view itself, with the region's `toolkit` and `hostToken`. `Miss`: the Views rules continue from the hit view. |
+| Identity | A region host is a kept view whose token is `hostToken`, so sibling hosts get ordinals and paths stay unique. |
+| Masks | Each view is classified once per walk (`mask/MaskWalk`); a region host answers for itself and is not walked: `Rects` (precise), `WholeHost` (its bounds), or `WholeFrame`. Off the main thread, or on a throw, a region's masks are the whole frame. An `AndroidComposeView` no region reads is fail-closed by class name. |
+| Coverage | `WindowMaskResult.coverage` is `MaskCoverage {mode: precise | wholeHost | wholeFrame, reasons}` (closed `MaskCoverageReason` wire names), for the host to forward on `capture.result`. |
+| Scroll | `scroll/RegionScrollTracker`: a gesture's first `down` resolves the scrollables under the touch once; their live readers are diffed every frame while a pointer is down and for 1 s after (flings); 150 ms idle ends a scroll. Ids are `<toolkit>-scroll-<n>`. Nothing runs when no region is registered. |
+| Focus | When a region host has View focus, its region reports the kind; it is re-read for four frames after each touch-up or key event (only when a region is registered), because region focus moves without a View focus change. |
+| Navigation | `onDestinationChanged(activity, route, id)`: `DestinationTracker` strips route arguments (`navigation/RoutePattern`), once, for every toolkit and for navigation facts. |
+
+## HTTP-adapter seam
+
+An HTTP-client adapter ([`tugboat-okhttp`](../tugboat-okhttp/README.md))
+records calls through the public `Tugboat.beginNetworkCall` API and needs
+three more things, in `com.tugboat.android.adapter`. They need
+`@OptIn(TugboatAdapterApi::class)`: public only because Kotlin `internal`
+does not cross modules, and not app API.
+
+| Type | Use |
+| --- | --- |
+| `HttpErrorBody.jsonText(body)` / `HttpErrorBody.text(text)` | An error body read as bytes (section 4.5 of `evidence-messages.md`, "a byte-reading adapter"), passed as `errorResponseBody`. The encoder sends `{"jsonText": body}` (whole, for the engine to parse) or `{"value": text}` (cut to 4097 units, as a `String` body). Read only for status 400 or more, like every body. |
+| `TugboatAdapters.isAcceptingEvidence` | Whether a call begun now would be recorded, so the adapter runs the app's route resolver only then (as `tugboat_dio`). |
+| `TugboatAdapters.tapEvidenceForTesting(sink)` | Tests only: the evidence path's engine inputs go to `sink` until closed (the real recorder and encoder). |
+
+## Build and test
+
+From `platforms/android`:
+
+```sh
+./gradlew :tugboat-android:test                 # JVM + Robolectric unit tests
+./gradlew :tugboat-android:assembleAndroidTest  # instrumented APK (real JNI)
+./gradlew :tugboat-android:connectedAndroidTest # needs a device or emulator
+```
+
+`bash tool/ci/build-android-runtime.sh` from the repository root runs the first
+two, builds the release AAR, and assembles the sample's debug APK.
+`android-runtime-device.yml` runs the instrumented tests on API 26 and 34
+emulators.
+
+Instrumented tests load the real library:
+
+- `NativeEngineTest` checks the `fingerprint.labelHash` conformance fixture
+  through JNI.
+- `sdk/CollectorContractTest` is the collector contract test (native SDK
+  note section 8): it drives the real engine through `EngineHost` with the
+  SDK's own `engine.configure`, `session.start`, and `capture.result`
+  builders and a recording transport, and pins the `session_start` body
+  (app version and build number, device with screen size and densities,
+  `ipInfo.ip`, locale) and `frameMetadata[].requestedBackend` /
+  `resolvedBackend` = `androidPixelCopy`.
+
+- `evidence/EvidenceFixturesDeviceTest` rebuilds every
+  `conformance/evidence` fixture (packaged as test assets) as the Kotlin
+  values a host passes, encodes them, and checks that the real engine records
+  the fixture's `expected.data`. `sdk/EvidenceContractTest` delivers an
+  `external_event` and a `network_call` to the collector through
+  `EngineHost`.
+
+JVM tests pin the host's side of the same contract (`HostMetadataTest`,
+`CaptureResultJsonTest`). `evidence/EvidenceConformanceTest` checks that the
+same rebuilt values encode to each fixture's engine input, except for a listed
+set where the encoder uses an exact elision (section 4.5 of
+`core/session-engine/docs/evidence-messages.md`); the device test covers those.
+The fixture reader (`src/testShared`) is shared by both source sets.
+`jsonText` fixtures (undecoded HTTP bodies) are rebuilt as
+`HttpErrorBody.jsonText`, the adapter body path below, and run in both.

@@ -174,6 +174,8 @@ class TugboatCollectorConfig {
     this.maxPendingBatches = 20,
     this.maxPendingEvents = 60,
     this.maxPendingFrames = 20,
+    this.retryAfterCap = const Duration(seconds: 60),
+    this.endingRetryAfterCap = const Duration(seconds: 10),
   });
 
   final String baseUrl;
@@ -189,6 +191,19 @@ class TugboatCollectorConfig {
   final int maxPendingEvents;
   final int maxPendingFrames;
 
+  /// Longest wait honoured from a collector `Retry-After` header. On HTTP 429
+  /// or 503 with that header, the sink holds back that delivery lane
+  /// (lifecycle, events or frames) until the hinted delay, cut to this cap,
+  /// has passed; the other lanes keep sending. Clamped to zero through
+  /// 24 hours (never throws); [Duration.zero] honours no hint.
+  final Duration retryAfterCap;
+
+  /// [retryAfterCap] for the lifecycle lane once the session is ending, so
+  /// `session_end` is not held past host shutdown. It also shortens a
+  /// lifecycle wait already running when the session ends. Clamped like
+  /// [retryAfterCap].
+  final Duration endingRetryAfterCap;
+
   TugboatCollectorConfig withUserId(String? userId) {
     return TugboatCollectorConfig(
       baseUrl: baseUrl,
@@ -203,6 +218,8 @@ class TugboatCollectorConfig {
       maxPendingBatches: maxPendingBatches,
       maxPendingEvents: maxPendingEvents,
       maxPendingFrames: maxPendingFrames,
+      retryAfterCap: retryAfterCap,
+      endingRetryAfterCap: endingRetryAfterCap,
     );
   }
 
@@ -221,6 +238,8 @@ class TugboatCollectorConfig {
       maxPendingBatches: maxPendingBatches,
       maxPendingEvents: maxPendingEvents,
       maxPendingFrames: maxPendingFrames,
+      retryAfterCap: retryAfterCap,
+      endingRetryAfterCap: endingRetryAfterCap,
     );
   }
 }

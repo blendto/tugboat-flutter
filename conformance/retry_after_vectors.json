@@ -1,0 +1,125 @@
+{
+  "fixtureFormat": 1,
+  "kind": "retry_after.vectors",
+  "description": "Shared Retry-After parser vectors for C++ engine and Dart CollectorHttpSink.",
+  "capMs": 60000,
+  "nowWallUs": 1781827200000000,
+  "vectors": [
+    {
+      "raw": "5",
+      "expectedMs": 5000
+    },
+    {
+      "raw": "  5  ",
+      "expectedMs": 5000
+    },
+    {
+      "raw": "+5",
+      "expectedMs": null
+    },
+    {
+      "raw": "120",
+      "expectedMs": 60000
+    },
+    {
+      "raw": "not-a-date",
+      "expectedMs": null
+    },
+    {
+      "raw": "10000000000000000",
+      "expectedMs": 60000
+    },
+    {
+      "raw": "18446744073709552",
+      "expectedMs": 60000
+    },
+    {
+      "raw": "Sun, 06 Nov 1994 08:49:37 GMT",
+      "expectedMs": 0
+    },
+    {
+      "raw": "Foo, 06 Nov 1994 08:49:37 GMT",
+      "expectedMs": null
+    },
+    {
+      "raw": "Sun, 06 Nov 1994 08:49:37 GM",
+      "expectedMs": null
+    },
+    {
+      "raw": "Sun, 06 Nov 1994 08:49:37 GMT!",
+      "expectedMs": null
+    },
+    {
+      "raw": "Sun, 30 Feb 1994 08:49:37 GMT",
+      "expectedMs": null
+    },
+    {
+      "raw": "Tue, 29 Feb 2027 00:00:00 GMT",
+      "expectedMs": null
+    },
+    {
+      "raw": "Tue, 29 Feb 1900 00:00:00 GMT",
+      "expectedMs": null
+    },
+    {
+      "raw": "Tue, 29 Feb 2000 00:00:00 GMT",
+      "expectedMs": 0
+    },
+    {
+      "raw": "Tue, 29 Feb 2028 00:00:00 GMT",
+      "expectedMs": 60000
+    },
+    {
+      "raw": "Sun, 06 Nov 1994 99:49:37 GMT",
+      "expectedMs": null
+    },
+    {
+      "raw": "Sun, 06 Nov 1994 08:60:37 GMT",
+      "expectedMs": null
+    },
+    {
+      "raw": "Sun, 06 Nov 1994 08:49:61 GMT",
+      "expectedMs": null
+    },
+    {
+      "raw": "Sun, 06 Nov 1994 08:49:60 GMT",
+      "expectedMs": 0
+    },
+    {
+      "raw": "Sun, 06 Nov 19ab 08:49:37 GMT",
+      "expectedMs": null
+    },
+    {
+      "raw": "Sun, 06 Nov 19   08:49:37 GMT",
+      "expectedMs": null
+    },
+    {
+      "raw": "Fri, 19 Jun 2026 00:00:10 GMT",
+      "expectedMs": 10000
+    },
+    {
+      "raw": "99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+      "expectedMs": 60000
+    },
+    {
+      "raw": "999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+      "expectedMs": null
+    },
+    {
+      "raw": "\t5\r\n",
+      "expectedMs": 5000
+    },
+    {
+      "raw": "\u00a05",
+      "expectedMs": null
+    },
+    {
+      "raw": "5\u00a0",
+      "expectedMs": null
+    },
+    {
+      "raw": "\u20035",
+      "expectedMs": null
+    }
+  ]
+}

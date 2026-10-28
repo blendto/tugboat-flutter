@@ -1,3 +1,100 @@
+## 0.10.11-dev.6
+
+Prerelease.
+
+### Changed
+
+- Scene inventory hashes are computed by one internal helper, which the
+  shared engine conformance fixtures also use. The hash is unchanged.
+
+## 0.10.11-dev.5
+
+Prerelease.
+
+### Added
+
+- `TugboatCollectorConfig.retryAfterCap` and
+  `TugboatCollectorConfig.endingRetryAfterCap` (`Duration`): the longest
+  collector `Retry-After` wait honoured, and the shorter cap for lifecycle
+  posts once `endSession` is called. Both are clamped to between zero and
+  24 hours; `Duration.zero` honours no hint. See the defaults table in
+  `docs/integration/collector.md`.
+
+### Changed
+
+- `CollectorHttpSink` honours collector `Retry-After` on HTTP 429 and 503 per
+  delivery lane (lifecycle, events, frames): a waiting lane skips sends until
+  its timer fires, at most `retryAfterCap` later (`endingRetryAfterCap` for
+  lifecycle while the session ends); the other lanes keep sending. When the
+  lifecycle lane resumes it sends every queued post, including a
+  `session_end` queued behind the waiting one. Fresh events not yet sent stay
+  queued while the events lane waits. Delta-seconds and IMF-fixdate forms are
+  accepted (ASCII whitespace trimmed); unparseable or oversize values are
+  ignored. Waits use a monotonic clock.
+- After `endSession`, a `session_end` with a retry outcome (transport error,
+  408, 429, 5xx) is re-posted on the periodic flush (`eventFlushInterval`)
+  until it is accepted or dropped. A dropped one (any other non-202 status)
+  is settled and never re-posted; either way the periodic flush then stops.
+  Once `session_end` is queued, an earlier post the collector dropped (for
+  example a rejected `session_start`) is settled too, so it cannot hold
+  `session_end` back.
+
+## 0.10.11-dev.4
+
+Prerelease.
+
+### Added
+
+- `TugboatMarkers` extension on `Widget` with modifier-style markers:
+  `.tugboatTag(id)`, `.tugboatSensitive()`, and `.tugboatSubView(label)`.
+  Each returns the matching `TugboatTag`, `TugboatSensitive`, or
+  `TugboatSubView` wrapper, so runtime behaviour, identity, fingerprints, and
+  masking are unchanged. The wrappers remain supported.
+- `TugboatTag` and `.tugboatTag` take `accessibility` (default `false`). When
+  true, the id is also published as the platform accessibility identifier
+  (Android resource-id, iOS `accessibilityIdentifier`). Enable it on a single
+  control, not a container. On Material buttons the identifier lands on a
+  label-less parent node rather than the button node, so it is not on the
+  button itself. Identity and masking are unchanged either way.
+
+## 0.10.11-dev.3
+
+Prerelease. No change to shipped behaviour.
+
+### Internal
+
+- `CollectorHttpSink` takes a test-only `debugNow` wall clock for lifecycle
+  `triggeredAt` and upload diagnostic `atMs` (`DateTime.now` by default).
+  The shared session-engine delivery scenarios use it to drive the real
+  collector sink deterministically.
+
+## 0.10.11-dev.2
+
+Prerelease. No change to shipped behaviour.
+
+### Internal
+
+- The Android plugin maps capture-runtime statuses and coverage values
+  newer than its pinned runtime without failing to compile: a future
+  status becomes `cancelled` (no Dart fallback, no publish) and
+  `windowComposite` coverage maps to the existing Pigeon value. The
+  plugin never requests window capture, so neither branch runs today.
+
+## 0.10.11-dev.1
+
+Prerelease. No change to shipped behaviour.
+
+### Internal
+
+- `TugboatReplayController` takes a test-only `debugClock` (the elapsed
+  clock behind event `atMs`, a `Stopwatch` by default) and builds the
+  session id and `startedAt` from its existing `debugNow` wall clock
+  (`DateTime.now` by default).
+- A test-only `debugRecordEvent` records a toolkit event through the
+  evidence recorder's admission and append path. The shared
+  session-engine conformance scenarios use these to run deterministically
+  against the Dart controller.
+
 ## 0.10.10
 
 ### Fixed
@@ -363,7 +460,8 @@ This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.6`.
 ### Fixed
 
 - Default `TugboatReplay.eventHook` parameter policy now retains bounded
-  JSON-safe external-event values (`allowAllInProduction`). Parameter keys
+  JSON-safe external-event values (`allowAllInProduction`; removed in 0.9.0,
+  where `allowAll` became mode-free). Parameter keys
   were already captured; values were omitted unless the host opted in. Hosts
   that must not retain values can still pass `namesOnly`, an allow-list, or a
   transform. Existing JSON and size bounds still apply.
@@ -485,8 +583,10 @@ This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
 ### Added
 
 - **Explicit production parameter opt-in** —
-  `TugboatParameterPolicy.allowAllInProduction` retains JSON-safe external-event
-  parameter values in production capture profiles. `namesOnly` remains the
+  `TugboatParameterPolicy.allowAllInProduction` (removed in 0.9.0, where
+  `allowAll` became mode-free)
+  retains JSON-safe external-event parameter values in production capture
+  profiles. `namesOnly` remains the
   default. `allowAll` remains an exploration-only escape hatch and still
   downgrades to names-only outside exploration. The existing JSON and size
   bounds still apply. This policy can retain feedback, search terms, URLs, IDs,

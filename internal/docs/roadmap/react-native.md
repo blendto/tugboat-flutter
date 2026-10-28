@@ -13,3 +13,9 @@ compatibility-table entry.
 
 There is no npm workspace in this repository yet. The placeholder is
 `sdks/react-native/README.md`.
+
+Superseding direction (ADR 0009, proposed): the adapter is a full SDK, not
+only a pixel consumer. JavaScript computes target identity from the React
+tree and forwards identity parts and masks; the native platform host runs
+the shared session engine, transport, and pixels. See
+[native-capabilities.md](native-capabilities.md).
