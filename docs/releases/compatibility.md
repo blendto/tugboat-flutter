@@ -2,6 +2,7 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
+| Flutter `tugboat` | 0.10.11 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; a tap whose handler navigates keeps its `targetAnchor` (resolved from the pointer-down hit path when the pointer-up hit test is absorbed). |
 | Flutter `tugboat` | 0.10.10 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; seeds the visible navigator route at session start via one `route_change` with `navigation: session_start` before the initial capture. |
 | Flutter `tugboat` | 0.10.9 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; isolates rejected frame batches and reports bounded collector upload diagnostics. |
 | Flutter `tugboat` | 0.10.8 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; dHash coalescing respects visible-structure changes and keeps its baseline; opt-in `focus_changed` / `system_input` evidence. |

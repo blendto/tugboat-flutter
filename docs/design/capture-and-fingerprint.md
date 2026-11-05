@@ -335,6 +335,15 @@ the old interaction without a stale after-frame. Tap-only target, inventory,
 and viewport-semantic resolution runs at pointer-up. This keeps tap evidence
 while removing that work from the scroll input path.
 
+Pointer-down also keeps one plain hit test of the pressed point (no token-map
+walk). With global pointer capture the SDK reads pointer-up after the app's tap
+recognizer, and a recognizer that already won its arena runs `onTap` first. When
+that handler pushes or pops a route, the Navigator absorbs pointers at once, so
+a fresh hit test can no longer reach the old screen. When the pointer-up hit test
+finds no actionable target with a canonical path, the target is resolved from
+the kept pointer-down hit path instead. A tap that already resolves is unchanged,
+and fingerprints are the same element's fingerprints either way.
+
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA
 bytes are packed into [TransferableTypedData] for the worker: packing still

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart' show HitTestTarget;
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
@@ -364,6 +365,11 @@ class InteractionTransaction {
   /// Resolved only after this gesture remains a tap. Pointer-down stores only
   /// origin facts so possible scrolls do not pay tap inventory costs.
   TugboatTargetAnchor? targetAnchor;
+
+  /// The render objects under the finger at pointer-down: one plain hit test,
+  /// kept until the tap resolves. It lets a tap whose own handler navigates
+  /// still resolve its control (BLE-459); cleared once used.
+  List<HitTestTarget>? pressedHitPath;
 
   Completer<void>? _successorSignal;
 
