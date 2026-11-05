@@ -627,7 +627,10 @@ class AnchorResolver {
   ///
   /// [pressedHitPath] is the hit path taken at pointer-down ([hitPathAt]). It
   /// is used only when the hit test now finds no actionable target with a
-  /// path, so a tap that resolves today resolves exactly as before.
+  /// path, so a tap that resolves today resolves exactly as before. It is
+  /// resolved under [pressedRoute], the route the pointer went down on: a
+  /// navigating `onTap` has already moved the current route to the
+  /// destination, and the route key is part of the fingerprint.
   ({
     TugboatSceneInventory? inventory,
     TugboatTargetAnchor? target,
@@ -640,6 +643,7 @@ class AnchorResolver {
     required bool modalOpen,
     required bool detectDismissibleBarrier,
     List<HitTestTarget>? pressedHitPath,
+    String? pressedRoute,
   }) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
@@ -661,7 +665,7 @@ class AnchorResolver {
     if (pressedHitPath != null && !_isActionableWithPath(target)) {
       final pressed = _targetFromHitPath(
         pressedHitPath,
-        route: route,
+        route: pressedRoute ?? route,
         tokenMap: tokenMap,
         rootRender: rootRender,
       );

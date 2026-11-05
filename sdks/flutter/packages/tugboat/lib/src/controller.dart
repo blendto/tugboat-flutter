@@ -3381,6 +3381,7 @@ class TugboatReplayController extends ChangeNotifier {
         modalOpen: _isModalOpen(),
         detectDismissibleBarrier: false,
         pressedHitPath: tx.pressedHitPath,
+        pressedRoute: tx.origin.route,
       );
       tx.pressedHitPath = null;
       tx.targetAnchor = tapContext.target;

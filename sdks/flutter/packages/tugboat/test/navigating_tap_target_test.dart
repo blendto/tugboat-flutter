@@ -15,25 +15,29 @@ const _config = TugboatReplayConfig(
   capturePixelRatio: 1.0,
 );
 
-Future<TugboatEvent?> _tapInteraction(WidgetTester tester) async {
-  for (var attempt = 0; attempt < 20; attempt++) {
-    final events = TugboatReplay.controller?.session?.events ?? const [];
-    for (final event in events) {
-      if (event.type == 'interaction' && event.data['gesture'] == 'tap') {
-        return event;
-      }
-    }
+List<TugboatEvent> _taps() => [
+  for (final event
+      in TugboatReplay.controller?.session?.events ?? const <TugboatEvent>[])
+    if (event.type == 'interaction' && event.data['gesture'] == 'tap') event,
+];
+
+Future<List<TugboatEvent>> _waitForTaps(WidgetTester tester, int count) async {
+  for (var attempt = 0; attempt < 20 && _taps().length < count; attempt++) {
     await tester.pump();
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
     await tester.pump();
   }
-  return null;
+  return _taps();
 }
 
-Widget _app({required void Function(BuildContext) onTap}) {
+Widget _app({
+  required void Function(BuildContext) onTap,
+  Map<String, WidgetBuilder> routes = const {},
+}) {
   return MaterialApp(
+    routes: routes,
     navigatorObservers: [TugboatReplay.navigatorObserver],
     builder: (context, child) =>
         TugboatReplay.wrapApp(config: _config, child: child!),
@@ -56,27 +60,38 @@ void main() {
   testWidgets(
     'a tap whose handler opens another screen keeps its target (BLE-459)',
     (tester) async {
+      // The same button is tapped twice: first it stays on the screen, then it
+      // opens another one. Both taps must record the same control, with the
+      // fingerprint of the screen the button is on.
+      var navigate = false;
       await tester.pumpWidget(
         _app(
-          onTap: (context) => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              settings: const RouteSettings(name: '/next'),
-              builder: (_) => const Scaffold(body: Text('Next screen')),
-            ),
-          ),
+          onTap: (context) {
+            if (!navigate) return;
+            Navigator.of(context).pushNamed('/next');
+          },
+          routes: {'/next': (_) => const Scaffold(body: Text('Next screen'))},
         ),
       );
       await waitForTugboatCaptureWork(tester);
 
       await tester.tap(find.text('Continue'));
-      await tester.pumpAndSettle();
-      final tap = await _tapInteraction(tester);
+      await tester.pump();
+      await _waitForTaps(tester, 1);
+      await waitForTugboatCaptureWork(tester);
 
-      expect(tap, isNotNull);
-      final anchor = tap!.targetAnchor;
-      expect(anchor?.fingerprint, isNotNull);
-      expect(anchor?.role, isNotNull);
-      expect(anchor?.canonicalPath, contains('FilledButton#0'));
+      navigate = true;
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      final taps = await _waitForTaps(tester, 2);
+
+      expect(taps, hasLength(2));
+      final stayed = taps[0].targetAnchor;
+      final navigated = taps[1].targetAnchor;
+      expect(stayed?.fingerprint, isNotNull);
+      expect(navigated?.role, isNotNull);
+      expect(navigated?.canonicalPath, contains('FilledButton#0'));
+      expect(navigated?.fingerprint, stayed?.fingerprint);
       await waitForTugboatCaptureWork(tester);
     },
   );
@@ -89,10 +104,10 @@ void main() {
 
       await tester.tap(find.text('Continue'));
       await tester.pump();
-      final tap = await _tapInteraction(tester);
+      final taps = await _waitForTaps(tester, 1);
 
-      expect(tap, isNotNull);
-      final anchor = tap!.targetAnchor;
+      expect(taps, hasLength(1));
+      final anchor = taps.single.targetAnchor;
       expect(anchor?.fingerprint, isNotNull);
       expect(anchor?.role, isNotNull);
       expect(anchor?.canonicalPath, contains('FilledButton#0'));
