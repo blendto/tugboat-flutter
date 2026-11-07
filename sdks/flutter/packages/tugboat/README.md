@@ -234,7 +234,7 @@ Install from pub.dev; a GitHub checkout is not required.
 ```yaml
 dependencies:
   tugboat: ^0.10.11
-  tugboat_dio: ^0.10.10
+  tugboat_dio: ^0.10.11
 ```
 
 See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.

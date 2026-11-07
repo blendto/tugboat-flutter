@@ -1,3 +1,10 @@
+## 0.10.11
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.11 (a tap whose handler navigates
+  keeps its target). The Dio adapter has no runtime behavior change.
+
 ## 0.10.10
 
 ### Changed
