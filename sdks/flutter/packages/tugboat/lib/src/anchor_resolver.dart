@@ -620,8 +620,12 @@ class AnchorResolver {
       result,
       position: rootRender.globalToLocal(globalPosition),
     );
-    return [for (final entry in result.path) entry.target];
+    return _hitTargets(result);
   }
+
+  static List<HitTestTarget> _hitTargets(BoxHitTestResult result) => [
+    for (final entry in result.path) entry.target,
+  ];
 
   /// Builds inventory and resolves a tap target from one token-map walk.
   ///
@@ -669,7 +673,7 @@ class AnchorResolver {
         tokenMap: tokenMap,
         rootRender: rootRender,
       );
-      target = _preferPressedTarget(target, pressed);
+      target = _preferPressedIfUsable(target, pressed);
     }
     var inventory = _buildSceneInventoryFromTokenMap(
       tokenMap: tokenMap,
@@ -783,7 +787,7 @@ class AnchorResolver {
     final localPosition = rootRender.globalToLocal(globalPosition);
     rootRender.hitTest(result, position: localPosition);
     return _targetFromHitPath(
-      [for (final entry in result.path) entry.target],
+      _hitTargets(result),
       route: route,
       tokenMap: tokenMap,
       rootRender: rootRender,
@@ -797,7 +801,7 @@ class AnchorResolver {
   /// least has a path and [fresh] has none. A control built under
   /// `ExcludeSemantics` has no role in the token map, but its path still
   /// identifies it; an empty anchor identifies nothing.
-  static TugboatTargetAnchor? _preferPressedTarget(
+  static TugboatTargetAnchor? _preferPressedIfUsable(
     TugboatTargetAnchor? fresh,
     TugboatTargetAnchor? pressed,
   ) {

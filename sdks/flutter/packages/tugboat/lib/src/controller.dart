@@ -3065,7 +3065,7 @@ class TugboatReplayController extends ChangeNotifier {
     _interactions.register(tx);
     if (config.sceneInventoryEmissionEnabled && isPrimaryPointer) {
       _captureExplorationPreTapEvidence(tx);
-    } else {
+    } else if (!config.sceneInventoryEmissionEnabled) {
       tx.pressedHitPath = _pressedHitPathAt(position);
     }
     if (!_disposed) notifyListeners();
@@ -3374,16 +3374,17 @@ class TugboatReplayController extends ChangeNotifier {
     }
     TugboatSceneInventory? tapInventory;
     if (resolver != null) {
+      final pressedHitPath = tx.pressedHitPath;
+      tx.pressedHitPath = null;
       final tapContext = resolver.buildTapContext(
         tapPosition: position,
         route: _currentRoute,
         keyboardOpen: _isKeyboardOpen(),
         modalOpen: _isModalOpen(),
         detectDismissibleBarrier: false,
-        pressedHitPath: tx.pressedHitPath,
+        pressedHitPath: pressedHitPath,
         pressedRoute: tx.origin.route,
       );
-      tx.pressedHitPath = null;
       tx.targetAnchor = tapContext.target;
       tapInventory = tapContext.inventory;
       if (tapInventory != null) {
