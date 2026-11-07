@@ -7,7 +7,9 @@
   and the Navigator then absorbed the hit test, so the interaction was sent
   with an empty `targetAnchor`. Pointer-down now keeps a plain hit test of the
   pressed point, and pointer-up falls back to it when its own hit test finds no
-  actionable target. Taps that resolved before resolve exactly as before.
+  actionable target. The kept path also wins when the fresh hit test has no
+  canonical path and the kept one has a path but no role, as for a button under
+  `ExcludeSemantics`. Taps that resolved before resolve exactly as before.
 
 ## 0.10.10
 

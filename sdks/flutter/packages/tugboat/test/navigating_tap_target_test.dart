@@ -34,6 +34,7 @@ Future<List<TugboatEvent>> _waitForTaps(WidgetTester tester, int count) async {
 
 Widget _app({
   required void Function(BuildContext) onTap,
+  bool excludeSemantics = false,
   Map<String, WidgetBuilder> routes = const {},
 }) {
   return MaterialApp(
@@ -44,9 +45,12 @@ Widget _app({
     home: Builder(
       builder: (context) => Scaffold(
         body: Center(
-          child: FilledButton(
-            onPressed: () => onTap(context),
-            child: const Text('Continue'),
+          child: ExcludeSemantics(
+            excluding: excludeSemantics,
+            child: FilledButton(
+              onPressed: () => onTap(context),
+              child: const Text('Continue'),
+            ),
           ),
         ),
       ),
@@ -111,6 +115,32 @@ void main() {
       expect(anchor?.fingerprint, isNotNull);
       expect(anchor?.role, isNotNull);
       expect(anchor?.canonicalPath, contains('FilledButton#0'));
+      await waitForTugboatCaptureWork(tester);
+    },
+  );
+
+  testWidgets(
+    'a navigating tap on a control under ExcludeSemantics keeps its path',
+    (tester) async {
+      // The button's role is hidden from the token map, so the pressed target
+      // has a path but no role. It must still beat an empty anchor.
+      await tester.pumpWidget(
+        _app(
+          excludeSemantics: true,
+          onTap: (context) => Navigator.of(context).popAndPushNamed('/next'),
+          routes: {'/next': (_) => const Scaffold(body: Text('Next screen'))},
+        ),
+      );
+      await waitForTugboatCaptureWork(tester);
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      final taps = await _waitForTaps(tester, 1);
+
+      expect(taps, hasLength(1));
+      final anchor = taps.single.targetAnchor;
+      expect(anchor?.fingerprint, isNotNull);
+      expect(anchor?.canonicalPath, isNotEmpty);
       await waitForTugboatCaptureWork(tester);
     },
   );

@@ -341,8 +341,10 @@ recognizer, and a recognizer that already won its arena runs `onTap` first. When
 that handler pushes or pops a route, the Navigator absorbs pointers at once, so
 a fresh hit test can no longer reach the old screen. When the pointer-up hit test
 finds no actionable target with a canonical path, the target is resolved from
-the kept pointer-down hit path instead. A tap that already resolves is unchanged,
-and fingerprints are the same element's fingerprints either way.
+the kept pointer-down hit path instead. That path also wins when the fresh hit test
+has no canonical path and the kept one has a path but no role, as for a control
+whose button sits under `ExcludeSemantics`. A tap that already resolves is
+unchanged, and fingerprints are the same element's fingerprints either way.
 
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA

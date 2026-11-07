@@ -669,7 +669,7 @@ class AnchorResolver {
         tokenMap: tokenMap,
         rootRender: rootRender,
       );
-      if (_isActionableWithPath(pressed)) target = pressed;
+      target = _preferPressedTarget(target, pressed);
     }
     var inventory = _buildSceneInventoryFromTokenMap(
       tokenMap: tokenMap,
@@ -788,6 +788,22 @@ class AnchorResolver {
       tokenMap: tokenMap,
       rootRender: rootRender,
     );
+  }
+
+  static bool _hasPath(TugboatTargetAnchor? anchor) =>
+      anchor?.canonicalPath?.isNotEmpty ?? false;
+
+  /// The pressed target replaces [fresh] when it is actionable, or when it at
+  /// least has a path and [fresh] has none. A control built under
+  /// `ExcludeSemantics` has no role in the token map, but its path still
+  /// identifies it; an empty anchor identifies nothing.
+  static TugboatTargetAnchor? _preferPressedTarget(
+    TugboatTargetAnchor? fresh,
+    TugboatTargetAnchor? pressed,
+  ) {
+    if (_isActionableWithPath(pressed)) return pressed;
+    if (!_hasPath(fresh) && _hasPath(pressed)) return pressed;
+    return fresh;
   }
 
   static bool _isActionableWithPath(TugboatTargetAnchor? anchor) =>
