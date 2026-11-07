@@ -9,29 +9,82 @@ The current package version is `0.10.11`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
 
-## 0.10.x
+## 0.10.11
 
-Release-by-release detail is in [`CHANGELOG.md`](CHANGELOG.md). The changes
-since `0.9.0` that affect integration:
+A tap whose own `onTap` pushes or pops a route keeps its target with global
+pointer capture. The pressed point's hit path is kept at pointer-down and used
+at pointer-up when the fresh hit test finds nothing usable, including a control
+built under `ExcludeSemantics` that has a path but no role. Taps that already
+resolved are unchanged.
 
-- **Launch inputs (0.10.0, 0.10.3, 0.10.5):** the SDK reads Device Farm launch
-  values itself; see "Device Farm launch inputs" below. Hosts need no native
-  code.
-- **Opt-in evidence (0.10.8):** `captureFocusChanges` and `captureSystemInput`
-  are off by default. Turn them on only after the collector accepts the
-  `focus_changed` and `system_input` event types.
-- **Collector payloads (0.10.1 to 0.10.7):** session posts carry `atMs`,
-  frame uploads carry a `frameMetadata` array, API `network_call` errors carry
-  a bounded `errorResponseBody`, and interactions carry the resolved
-  `targetAnchor`.
-- **Delivery (0.10.9):** a rejected frame in an upload batch no longer drops its
-  neighbors, upload failures emit bounded `capture_diagnostic` events, and
-  frame requests time out after 15 seconds.
-- **Route seed (0.10.10):** session start emits one `route_change` with
-  `navigation: session_start` for the visible route.
-- **Taps that navigate (0.10.11):** with global pointer capture a tap whose own
-  `onTap` pushes or pops a route keeps its target. Identity and capture cadence
-  are otherwise unchanged.
+## 0.10.10
+
+Session start seeds the navigator's visible route and emits one `route_change`
+with `navigation: session_start`, including nested navigators with their own
+observers.
+
+## 0.10.9
+
+A rejected frame in a collector upload batch no longer drops its neighbors; the
+batch is retried one frame at a time. Frame upload failures, memory-cap
+evictions and recovery emit bounded `capture_diagnostic` events. Frame requests
+time out after 15 seconds.
+
+## 0.10.8
+
+Perceptual frame coalescing no longer hides real UI changes: a capture whose
+visible structure changed since the referenced frame is always encoded, and the
+coalescing baseline stays on the frame that is actually referenced. New opt-in
+`captureFocusChanges` (`focus_changed`) and `captureSystemInput`
+(`system_input`), both off by default until the collector accepts the new event
+types.
+
+## 0.10.7
+
+API error `network_call` events (4xx/5xx `outcome: response`) carry a bounded
+`errorResponseBody` on collector payloads, capped at 4 KiB. Successes,
+transport failures and cancellations never carry one.
+
+## 0.10.6
+
+Frame uploads to `POST /v1/frames` include a `frameMetadata` JSON array aligned
+with each JPEG (`requestedBackend`, `resolvedBackend`, `captureMicros`,
+dimensions).
+
+## 0.10.5
+
+iOS launch inputs are also read from launch arguments (for example
+`--tugboat-emit-scene-inventory`), for automation hosts that cannot set the
+environment. The environment wins when both are present.
+
+## 0.10.4
+
+Canonical `interaction` events attach the resolved `targetAnchor`, including
+`canonicalPath`, on the session record and on collector payloads.
+
+## 0.10.3
+
+Non-secret automation run id on the launch inputs (`tugboat_automation_run_id`,
+`TUGBOAT_AUTOMATION_RUN_ID`), echoed only when set. It must never carry
+credentials.
+
+## 0.10.2
+
+`network_call` events map onto the collector payload allowlist, including
+4xx/5xx responses. Opt-in redacted collector HTTP proof logging for Device Farm
+diagnostics (`--dart-define=TUGBOAT_HTTP_PROOF=true`, debug builds).
+
+## 0.10.1
+
+`POST /v1/sessions` payloads include the session-relative `atMs`, matching event
+batches.
+
+## 0.10.0
+
+The SDK owns the Device Farm launch inputs (`TugboatLaunchOptions`,
+`TugboatReplayConfig.withDeviceFarmOverrides()`); see "Device Farm launch
+inputs" below. The back-to-back `hidden` and `paused` lifecycle callbacks
+collapse into one `app_backgrounded` event.
 
 ## 0.9.0
 
