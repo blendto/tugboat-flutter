@@ -5,9 +5,33 @@ checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
 can be sent to the local exploration WebSocket, the HTTP collector, or both.
 
-The current package version is `0.9.0`. Session JSON writers and readers use
+The current package version is `0.10.11`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `6`.
+
+## 0.10.x
+
+Release-by-release detail is in [`CHANGELOG.md`](CHANGELOG.md). The changes
+since `0.9.0` that affect integration:
+
+- **Launch inputs (0.10.0, 0.10.3, 0.10.5):** the SDK reads Device Farm launch
+  values itself; see "Device Farm launch inputs" below. Hosts need no native
+  code.
+- **Opt-in evidence (0.10.8):** `captureFocusChanges` and `captureSystemInput`
+  are off by default. Turn them on only after the collector accepts the
+  `focus_changed` and `system_input` event types.
+- **Collector payloads (0.10.1 to 0.10.7):** session posts carry `atMs`,
+  frame uploads carry a `frameMetadata` array, API `network_call` errors carry
+  a bounded `errorResponseBody`, and interactions carry the resolved
+  `targetAnchor`.
+- **Delivery (0.10.9):** a rejected frame in an upload batch no longer drops its
+  neighbors, upload failures emit bounded `capture_diagnostic` events, and
+  frame requests time out after 15 seconds.
+- **Route seed (0.10.10):** session start emits one `route_change` with
+  `navigation: session_start` for the visible route.
+- **Taps that navigate (0.10.11):** with global pointer capture a tap whose own
+  `onTap` pushes or pops a route keeps its target. Identity and capture cadence
+  are otherwise unchanged.
 
 ## 0.9.0
 
@@ -140,7 +164,7 @@ events.
 
 ```yaml
 dependencies:
-  tugboat: ^0.9.0
+  tugboat: ^0.10.11
 ```
 
 Then import the public barrel:
@@ -156,8 +180,8 @@ Install from pub.dev; a GitHub checkout is not required.
 
 ```yaml
 dependencies:
-  tugboat: ^0.9.0
-  tugboat_dio: ^0.9.0
+  tugboat: ^0.10.11
+  tugboat_dio: ^0.10.10
 ```
 
 See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.
@@ -334,6 +358,28 @@ Optional evidence is additive. `emitSceneInventory`,
 `emitViewportSemanticMap`, `emitCaptureDiagnostics`, `acceptActionContext`,
 `captureFocusChanges`, and `captureSystemInput` are false by default. Enabling one capability does not
 change masking, limits, transport, or lifecycle behavior.
+
+### Device Farm launch inputs
+
+`TugboatLaunchOptions.fromPlatform()` reads capture inputs from the launch, so
+automation can enable evidence without a rebuild. Android uses Intent extras,
+and iOS uses process environment values or launch arguments:
+
+| Android extra | iOS environment | iOS launch argument |
+| --- | --- | --- |
+| `tugboat_emit_scene_inventory` | `TUGBOAT_EMIT_SCENE_INVENTORY` | `--tugboat-emit-scene-inventory[=value]` |
+| `tugboat_accept_action_context` | `TUGBOAT_ACCEPT_ACTION_CONTEXT` | `--tugboat-accept-action-context[=value]` |
+| `tugboat_collector_base_url` | `TUGBOAT_COLLECTOR_BASE_URL` | `--tugboat-collector-base-url=<url>` |
+| `tugboat_automation_run_id` | `TUGBOAT_AUTOMATION_RUN_ID` | `--tugboat-automation-run-id=<id>` |
+
+A bare flag means true, and the environment wins when both are present.
+`TugboatReplayConfig.withDeviceFarmOverrides()` merges the launch capabilities
+into a config. The collector URL override is local-only and release-guarded
+(`resolveTugboatCollectorBaseUrl`): a release build always uses its own
+collector. The run id is a non-secret correlation id for logs and must never
+carry credentials. In debug builds,
+`--dart-define=TUGBOAT_HTTP_PROOF=true` enables redacted collector HTTP proof
+logging.
 
 The global kill switch is fully inert:
 
