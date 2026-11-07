@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show HitTestTarget;
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
@@ -3064,8 +3065,21 @@ class TugboatReplayController extends ChangeNotifier {
     _interactions.register(tx);
     if (config.sceneInventoryEmissionEnabled && isPrimaryPointer) {
       _captureExplorationPreTapEvidence(tx);
+    } else if (!config.sceneInventoryEmissionEnabled) {
+      tx.pressedHitPath = _pressedHitPathAt(position);
     }
     if (!_disposed) notifyListeners();
+  }
+
+  /// The hit path under a new pointer. Capture must never interrupt the host
+  /// app, so a failure here only means the tap resolves as it did before.
+  List<HitTestTarget>? _pressedHitPathAt(Offset position) {
+    try {
+      return _anchorResolver?.hitPathAt(position);
+    } catch (error) {
+      debugPrint('[tugboat] pressed hit path failed: $error');
+      return null;
+    }
   }
 
   void _captureExplorationPreTapEvidence(InteractionTransaction tx) {
@@ -3360,12 +3374,16 @@ class TugboatReplayController extends ChangeNotifier {
     }
     TugboatSceneInventory? tapInventory;
     if (resolver != null) {
+      final pressedHitPath = tx.pressedHitPath;
+      tx.pressedHitPath = null;
       final tapContext = resolver.buildTapContext(
         tapPosition: position,
         route: _currentRoute,
         keyboardOpen: _isKeyboardOpen(),
         modalOpen: _isModalOpen(),
         detectDismissibleBarrier: false,
+        pressedHitPath: pressedHitPath,
+        pressedRoute: tx.origin.route,
       );
       tx.targetAnchor = tapContext.target;
       tapInventory = tapContext.inventory;

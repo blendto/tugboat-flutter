@@ -1,3 +1,16 @@
+## 0.10.11
+
+### Fixed
+
+- A tap whose own handler opens or closes a route now keeps its target. With
+  global pointer capture the SDK read the tap after the app's `onTap` had run,
+  and the Navigator then absorbed the hit test, so the interaction was sent
+  with an empty `targetAnchor`. Pointer-down now keeps a plain hit test of the
+  pressed point, and pointer-up falls back to it when its own hit test finds no
+  actionable target. The kept path also wins when the fresh hit test has no
+  canonical path and the kept one has a path but no role, as for a button under
+  `ExcludeSemantics`. Taps that resolved before resolve exactly as before.
+
 ## 0.10.10
 
 ### Fixed

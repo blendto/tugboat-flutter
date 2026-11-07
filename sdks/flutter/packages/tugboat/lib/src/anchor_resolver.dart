@@ -604,7 +604,37 @@ class AnchorResolver {
     );
   }
 
+  /// The render objects under [globalPosition], deepest first: one plain hit
+  /// test, no token-map walk.
+  ///
+  /// Taken at pointer-down so [buildTapContext] can still resolve the pressed
+  /// control when the tap's own handler navigates. A push or pop makes the
+  /// Navigator absorb pointers at once, and the SDK reads the tap after the
+  /// app's recognizer has run, so a fresh hit test at pointer-up can no longer
+  /// reach the old screen.
+  List<HitTestTarget> hitPathAt(Offset globalPosition) {
+    final rootRender = rootKey.currentContext?.findRenderObject();
+    if (rootRender is! RenderBox || !rootRender.attached) return const [];
+    final result = BoxHitTestResult();
+    rootRender.hitTest(
+      result,
+      position: rootRender.globalToLocal(globalPosition),
+    );
+    return _hitTargets(result);
+  }
+
+  static List<HitTestTarget> _hitTargets(BoxHitTestResult result) => [
+    for (final entry in result.path) entry.target,
+  ];
+
   /// Builds inventory and resolves a tap target from one token-map walk.
+  ///
+  /// [pressedHitPath] is the hit path taken at pointer-down ([hitPathAt]). It
+  /// is used only when the hit test now finds no actionable target with a
+  /// path, so a tap that resolves today resolves exactly as before. It is
+  /// resolved under [pressedRoute], the route the pointer went down on: a
+  /// navigating `onTap` has already moved the current route to the
+  /// destination, and the route key is part of the fingerprint.
   ({
     TugboatSceneInventory? inventory,
     TugboatTargetAnchor? target,
@@ -616,6 +646,8 @@ class AnchorResolver {
     required bool keyboardOpen,
     required bool modalOpen,
     required bool detectDismissibleBarrier,
+    List<HitTestTarget>? pressedHitPath,
+    String? pressedRoute,
   }) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
@@ -634,6 +666,15 @@ class AnchorResolver {
       tokenMap: tokenMap,
       rootRender: rootRender,
     );
+    if (pressedHitPath != null && !_isActionableWithPath(target)) {
+      final pressed = _targetFromHitPath(
+        pressedHitPath,
+        route: pressedRoute ?? route,
+        tokenMap: tokenMap,
+        rootRender: rootRender,
+      );
+      target = _preferPressedIfUsable(target, pressed);
+    }
     var inventory = _buildSceneInventoryFromTokenMap(
       tokenMap: tokenMap,
       rootRender: rootRender,
@@ -742,16 +783,50 @@ class AnchorResolver {
     required _TokenMap tokenMap,
     required RenderBox rootRender,
   }) {
-    final viewport = rootRender.size;
     final result = BoxHitTestResult();
     final localPosition = rootRender.globalToLocal(globalPosition);
     rootRender.hitTest(result, position: localPosition);
+    return _targetFromHitPath(
+      _hitTargets(result),
+      route: route,
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+    );
+  }
 
+  static bool _hasPath(TugboatTargetAnchor? anchor) =>
+      anchor?.canonicalPath?.isNotEmpty ?? false;
+
+  /// The pressed target replaces [fresh] when it is actionable, or when it at
+  /// least has a path and [fresh] has none. A control built under
+  /// `ExcludeSemantics` has no role in the token map, but its path still
+  /// identifies it; an empty anchor identifies nothing.
+  static TugboatTargetAnchor? _preferPressedIfUsable(
+    TugboatTargetAnchor? fresh,
+    TugboatTargetAnchor? pressed,
+  ) {
+    if (_isActionableWithPath(pressed)) return pressed;
+    if (!_hasPath(fresh) && _hasPath(pressed)) return pressed;
+    return fresh;
+  }
+
+  static bool _isActionableWithPath(TugboatTargetAnchor? anchor) =>
+      anchor != null &&
+      anchor.role != null &&
+      (anchor.canonicalPath?.isNotEmpty ?? false);
+
+  TugboatTargetAnchor? _targetFromHitPath(
+    List<HitTestTarget> hitPath, {
+    required String? route,
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
+  }) {
+    final viewport = rootRender.size;
     TugboatTargetAnchor? roleOnly;
     TugboatTargetAnchor? fallback;
-    for (final entry in result.path) {
-      if (entry.target is! RenderObject) continue;
-      final element = tokenMap.renderElements[entry.target as RenderObject];
+    for (final target in hitPath) {
+      if (target is! RenderObject || !target.attached) continue;
+      final element = tokenMap.renderElements[target];
       if (element == null || tugboatIsCaptureChrome(element.widget)) continue;
 
       final anchor = _anchorForElement(
