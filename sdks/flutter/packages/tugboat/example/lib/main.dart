@@ -24,8 +24,6 @@ class ReplayDemoApp extends StatelessWidget {
       navigatorObservers: [TugboatReplay.navigatorObserver],
       builder: (context, child) => TugboatReplay.wrapApp(
         config: TugboatReplayConfig(
-          // Local CLI exploration collector over adb reverse.
-          explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
           appInfo: const TugboatCollectorAppInfo(
             name: 'Tugboat Replay Demo',
             version: '1.0.0',

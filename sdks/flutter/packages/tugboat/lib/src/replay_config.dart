@@ -90,7 +90,6 @@ class TugboatReplayConfig {
     this.acceptActionContext = false,
     this.captureFocusChanges = false,
     this.captureSystemInput = false,
-    this.explorationCollectorUrl,
     this.explorationRunId,
     this.userId,
     this.appInfo,
@@ -169,7 +168,6 @@ class TugboatReplayConfig {
   /// collector must accept the event type.
   final bool captureSystemInput;
 
-  final String? explorationCollectorUrl;
   final String? explorationRunId;
   final String? userId;
   final TugboatCollectorAppInfo? appInfo;
@@ -224,7 +222,6 @@ class TugboatReplayConfig {
     bool? acceptActionContext,
     bool? captureFocusChanges,
     bool? captureSystemInput,
-    String? explorationCollectorUrl,
     String? explorationRunId,
     String? userId,
     TugboatCollectorAppInfo? appInfo,
@@ -290,10 +287,6 @@ class TugboatReplayConfig {
       acceptActionContext: _or(acceptActionContext, this.acceptActionContext),
       captureFocusChanges: _or(captureFocusChanges, this.captureFocusChanges),
       captureSystemInput: _or(captureSystemInput, this.captureSystemInput),
-      explorationCollectorUrl: _or(
-        explorationCollectorUrl,
-        this.explorationCollectorUrl,
-      ),
       explorationRunId: _or(explorationRunId, this.explorationRunId),
       userId: _or(userId, this.userId),
       appInfo: _or(appInfo, this.appInfo),

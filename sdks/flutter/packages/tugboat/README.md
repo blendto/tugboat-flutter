@@ -3,7 +3,8 @@
 Screenshot-based session evidence for Tugboat. The SDK records masked visual
 checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
-can be sent to the local exploration WebSocket, the HTTP collector, or both.
+is sent to the HTTP collector; exploration runs point it at a local HTTP
+collector.
 
 The current package version is `0.10.11`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
@@ -348,7 +349,6 @@ MaterialApp(
       emitSceneInventory: true,
       emitViewportSemanticMap: true,
       acceptActionContext: true,
-      explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
       viewportSemanticMode: TugboatViewportSemanticMode.full,
     ),
   ),
@@ -529,10 +529,9 @@ but it does not persist events or frames across process restarts.
 | `acceptActionContext` | `false` | allow external action context on captured evidence |
 | `captureFocusChanges` | `false` | emit `focus_changed` when primary focus enters, leaves, or moves between text fields, with one observation after `settleDelay` as `afterFrame` |
 | `captureSystemInput` | `false` | emit `system_input` for system back and allowlisted hardware keys (volume, power, media), with one observation after `settleDelay` as `afterFrame`; never consumes the input |
-| `explorationCollectorUrl` | null | local exploration WebSocket endpoint |
 | `explorationRunId` | null | optional run correlation ID |
 | `userId` | null | optional HTTP event user ID |
-| `appInfo` | null | app metadata used by exploration and as a fallback |
+| `appInfo` | null | session app metadata; falls back to `collector.appInfo` |
 | `collector` | null | HTTP collector configuration |
 | `screenshotMaskLevel` | `allTextAndMedia` | explicit screenshot redaction policy |
 | `widgetNames` | empty | `Type` to stable-name overrides for canonical paths |
@@ -687,12 +686,6 @@ frozen origin. Route ownership remains separate. `afterFrame` is only a later
 visual observation and can come from an unclaimed route successor. It does not
 assign a result or destination to the interaction.
 
-During local WebSocket exploration, connecting without an HTTP collector
-suppresses only non-interaction Flutter screenshot capture for UI-thread
-performance. Every completed interaction still requests a post-interaction
-visual observation. A route capture can satisfy it. Events, anchors, inventories,
-and semantic evidence continue to stream; the CLI's ADB before/after screenshots
-remain the primary gesture-level visual evidence.
 
 ## Structural identity
 
@@ -717,7 +710,7 @@ Locale is evidence, not identity. When `wrapApp` is installed in
 `MaterialApp.builder` or `CupertinoApp.builder`, the SDK observes the active
 `Localizations` locale. Session metadata and every event carry the current
 locale. A change emits a `locale_changed` evidence event with the previous and
-current locale. Exploration WebSocket sessions carry the same locale metadata.
+current locale. Collector sessions carry the same locale metadata.
 
 Apps that mount Tugboat above `Localizations`, or own a separate locale state,
 can report it explicitly:
@@ -781,11 +774,10 @@ The supported import exports `TugboatReplay` (including `setTraits` /
 `setUserId`), `TugboatNavigatorObserver`, `TugboatReplayConfig`,
 capture/semantic/masking enums and policies, collector configuration and host
 helpers, markers (`TugboatSensitive`, `TugboatTag`, `TugboatSubView`,
-`TugboatInternal`), anchor and session models, the controller, and
-`TugboatExplorationTransport`.
+`TugboatInternal`), anchor and session models, and the controller.
 
 `TugboatCaptureSink` and the built-in sink implementations are internal today;
-config supports only the WebSocket and HTTP destinations above. A stable custom
+config supports only the HTTP destination above. A stable custom
 sink registration API has not been published.
 
 ## Current limits

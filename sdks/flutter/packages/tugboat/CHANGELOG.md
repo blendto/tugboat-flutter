@@ -52,6 +52,22 @@
 - A tap re-anchored to a different inventory control (an inventory snap or the
   semantic fallback) no longer carries the original hit's `tagFingerprint`.
 
+### Removed
+
+- The local exploration WebSocket. `TugboatReplayConfig.explorationCollectorUrl`
+  and the exported `TugboatExplorationTransport` are gone, along with the
+  internal `ExplorationCaptureSink`. Nothing receives that socket any more;
+  point `collector` at a local HTTP collector instead.
+- The WebSocket control messages `set_action_window`, `clear_action_window`,
+  `pause_capture` and `resume_capture`, and `handleExplorationControl` on the
+  controller. `TugboatReplayController.setActionContext`, `clearActionContext`
+  and `setCapturePaused` are unchanged and remain the in-process way to open
+  and close an action window and to pause capture.
+- The socket-triggered frame suppression. Connecting the socket without an HTTP
+  collector used to suppress non-interaction screenshots; with no socket that
+  never happened in a real run, so capture scheduling is unchanged.
+- The example app's `tools/sdk-event-collector.js` WebSocket server.
+
 ## 0.10.11
 
 ### Fixed
