@@ -253,8 +253,10 @@ Malformed frame IDs and frames belonging to a stale SDK session are dropped.
 Queued frames are uploaded as-is: events reference exact `beforeFrame` /
 `afterFrame` IDs, and the multipart protocol has no hash alias, so intermediate
 scroll or duplicate-content captures cannot be dropped without breaking those
-refs. Backpressure may still drop the oldest pending frames when
-`maxPendingFrames` is exceeded.
+refs. Backpressure may still drop pending frames when `maxPendingFrames` or
+`maxPendingFrameBytes` is exceeded. Eviction drops the oldest frame that no
+recorded event references (`beforeFrame` / `afterFrame`) first, keeps the
+newest frame, and drops a referenced frame only when nothing else is left.
 
 ### Batching, retry, and backpressure
 
@@ -266,7 +268,8 @@ refs. Backpressure may still drop the oldest pending frames when
 | `eventFlushInterval` | `3 seconds` |
 | `maxPendingBatches` | `20` |
 | `maxPendingEvents` | `60` |
-| `maxPendingFrames` | `20` |
+| `maxPendingFrames` | `400` |
+| `maxPendingFrameBytes` | `8 MiB` |
 
 A full batch triggers a flush; the periodic timer sends partial batches.
 Lifecycle backgrounding also asks the sink hub to flush, and session end drains
@@ -275,7 +278,11 @@ events before posting the final lifecycle message.
 The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
 `429`, and `5xx`; other response codes are dropped. Retry batches, unsent
 events, and frames are bounded in memory. When a bound is exceeded the oldest
-items are discarded and a debug message is printed.
+items are discarded (frames by the eviction order above) and a debug message is
+printed. Frame evictions emit a `collector_frame_upload` diagnostic with
+`result: dropped` when the running count reaches a power of two, and once more
+with the final count before `session_end`. Each carries `droppedFrameCount`
+and `droppedReferencedFrameCount`.
 
 Collector delivery is best-effort. Bounded in-memory queues retry
 temporary failures while the process remains alive. The SDK does not persist

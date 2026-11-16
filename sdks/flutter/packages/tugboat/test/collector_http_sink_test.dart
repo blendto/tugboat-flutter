@@ -185,6 +185,7 @@ void main() {
     int maxPendingBatches = 20,
     int maxPendingEvents = 200,
     int maxPendingFrames = 50,
+    int maxPendingFrameBytes = 8 * 1024 * 1024,
   }) {
     return TugboatCollectorConfig(
       baseUrl: baseUri.toString(),
@@ -194,6 +195,7 @@ void main() {
       maxPendingBatches: maxPendingBatches,
       maxPendingEvents: maxPendingEvents,
       maxPendingFrames: maxPendingFrames,
+      maxPendingFrameBytes: maxPendingFrameBytes,
       appInfo: collectorConfig.appInfo,
       deviceInfo: collectorConfig.deviceInfo,
       ipInfo: collectorConfig.ipInfo,
@@ -1443,6 +1445,130 @@ void main() {
 
     expect(framePosts, hasLength(1));
     expect(framePosts.single['frameNos'], ['2', '3', '4']);
+    sink.dispose();
+  });
+
+  test('frame eviction keeps frames that events reference', () async {
+    sessionStatus = 503;
+    final sink = CollectorHttpSink(
+      config: configForServer(maxPendingFrames: 3),
+    );
+    final session = createSession();
+    sink.startSession(session);
+    for (var i = 0; i < 6; i++) {
+      recordTestFrame(sink, session, i);
+      if (i < 2) {
+        sink.recordEvent(
+          TugboatEvent(
+            id: 'tap-$i',
+            atMs: i,
+            type: 'interaction',
+            afterFrame: 'frame-$i',
+          ),
+        );
+      }
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+
+    sessionStatus = 202;
+    await sink.flush();
+
+    expect(framePosts.expand((post) => post['frameNos'] as List), [
+      '0',
+      '1',
+      '5',
+    ]);
+    sink.dispose();
+  });
+
+  test('pending frames are bounded by encoded bytes', () async {
+    sessionStatus = 503;
+    final sink = CollectorHttpSink(
+      config: configForServer(maxPendingFrameBytes: 10),
+    );
+    final session = createSession();
+    sink.startSession(session);
+    for (var i = 0; i < 4; i++) {
+      recordTestFrame(sink, session, i, byteLength: 4);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+
+    sessionStatus = 202;
+    await sink.flush();
+
+    expect(framePosts.expand((post) => post['frameNos'] as List), ['2', '3']);
+    sink.dispose();
+  });
+
+  test(
+    'default limits keep every referenced frame through a stall of 200 frames',
+    () async {
+      frameStatus = 503;
+      final sink = CollectorHttpSink(
+        config: TugboatCollectorConfig(
+          baseUrl: baseUri.toString(),
+          apiKey: collectorConfig.apiKey,
+          eventFlushInterval: collectorConfig.eventFlushInterval,
+          appInfo: collectorConfig.appInfo,
+          deviceInfo: collectorConfig.deviceInfo,
+          ipInfo: collectorConfig.ipInfo,
+          locale: collectorConfig.locale,
+        ),
+      );
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final referenced = <String>[];
+      for (var i = 0; i < 200; i++) {
+        recordTestFrame(sink, session, i, byteLength: 15 * 1024);
+        if (i % 4 == 0) {
+          referenced.add('$i');
+          sink.recordEvent(
+            TugboatEvent(
+              id: 'tap-$i',
+              atMs: i,
+              type: 'interaction',
+              afterFrame: 'frame-$i',
+            ),
+          );
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      frameStatus = 202;
+      await sink.flush();
+      await sink.flush();
+
+      final uploaded = framePosts
+          .where((post) => post['status'] == 202)
+          .expand((post) => (post['frameNos'] as List).cast<String>())
+          .toSet();
+      expect(uploaded, containsAll(referenced));
+      sink.dispose();
+    },
+  );
+
+  test('session end reports the final dropped frame count', () async {
+    frameStatus = 503;
+    final sink = CollectorHttpSink(
+      config: configForServer(maxPendingFrames: 3),
+    );
+    final session = createSession();
+    sink.startSession(session);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    for (var i = 0; i < 8; i++) {
+      recordTestFrame(sink, session, i);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    await sink.endSession();
+
+    final dropped = diagnosticsFor(
+      'collector_frame_upload',
+    ).where((payload) => payload['result'] == 'dropped').toList();
+    expect(dropped, isNotEmpty);
+    expect(dropped.last['droppedFrameCount'], 5);
+    expect(sessionPosts.last['eventType'], 'session_end');
     sink.dispose();
   });
 

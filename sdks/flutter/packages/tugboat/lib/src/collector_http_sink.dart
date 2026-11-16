@@ -106,6 +106,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
   bool _frameUploadFailureReported = false;
   int _frameUploadDiagnosticSequence = 0;
   int _droppedFrameCount = 0;
+  int _droppedReferencedFrameCount = 0;
+  int _reportedDroppedFrameCount = 0;
+  int _nextDropReportAt = 1;
+
+  /// Frame numbers that a recorded event points at (`beforeFrame` /
+  /// `afterFrame`). Eviction keeps these over unreferenced captures.
+  final Set<int> _referencedFrameNos = {};
   final List<Map<String, Object?>> _pendingEvents = [];
   final List<_PendingFrameUpload> _pendingFrames = [];
   final List<List<Map<String, Object?>>> _retryBatches = [];
@@ -166,7 +173,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _framesNeedRetry = false;
     _frameUploadFailureReported = false;
     _frameUploadDiagnosticSequence = 0;
-    _droppedFrameCount = 0;
+    _resetDropTracking();
     _cancelIdentityDebounce();
     _userDirty = false;
     _traitsDirty = false;
@@ -188,6 +195,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
       return;
     }
 
+    _markReferencedFrame(event.beforeFrame);
+    _markReferencedFrame(event.afterFrame);
     final session = _session!;
     // sessionId / traitsId are stamped at send time once known.
     _pendingEvents.add(
@@ -203,6 +212,20 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_pendingEvents.length >= _config.eventBatchSize) {
       unawaited(flush());
     }
+  }
+
+  void _markReferencedFrame(String? frameId) {
+    if (frameId == null) return;
+    final frameNo = frameNumberFromId(frameId);
+    if (frameNo != null) _referencedFrameNos.add(frameNo);
+  }
+
+  void _resetDropTracking() {
+    _droppedFrameCount = 0;
+    _droppedReferencedFrameCount = 0;
+    _reportedDroppedFrameCount = 0;
+    _nextDropReportAt = 1;
+    _referencedFrameNos.clear();
   }
 
   @override
@@ -378,6 +401,12 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_disposed || _session == null) return;
     await _flushIdentityDebounce();
     await flush();
+    // Drop diagnostics are sampled at powers of two; send the final count so
+    // the session's true gap is visible.
+    if (_droppedFrameCount > _reportedDroppedFrameCount) {
+      _recordDropDiagnostic();
+      await flush();
+    }
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionEnd.wireValue,
       DateTime.now(),
@@ -400,6 +429,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingFrames.clear();
     _retryBatches.clear();
     _pendingLifecycle.clear();
+    _referencedFrameNos.clear();
     _flushInFlight = null;
     _followUpFlush = null;
     _session = null;
@@ -825,6 +855,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       if (statusCode != null) 'statusCode': statusCode,
       'frameCount': frameCount,
       'droppedFrameCount': _droppedFrameCount,
+      'droppedReferencedFrameCount': _droppedReferencedFrameCount,
     });
   }
 
@@ -867,17 +898,48 @@ class CollectorHttpSink implements TugboatCaptureSink {
   }
 
   void _trimPendingFrames() {
-    if (_pendingFrames.length <= _config.maxPendingFrames) return;
-    final dropped = _pendingFrames.length - _config.maxPendingFrames;
-    _pendingFrames.removeRange(0, dropped);
+    var bytes = 0;
+    for (final frame in _pendingFrames) {
+      bytes += frame.bytes.length;
+    }
+    var dropped = 0;
+    while (_pendingFrames.isNotEmpty &&
+        (_pendingFrames.length > _config.maxPendingFrames ||
+            bytes > _config.maxPendingFrameBytes)) {
+      final evicted = _pendingFrames.removeAt(_frameEvictionIndex());
+      bytes -= evicted.bytes.length;
+      dropped += 1;
+      if (_referencedFrameNos.contains(evicted.frameNo)) {
+        _droppedReferencedFrameCount += 1;
+      }
+    }
+    if (dropped == 0) return;
     _droppedFrameCount += dropped;
-    if (_droppedFrameCount == 1 ||
-        (_droppedFrameCount & (_droppedFrameCount - 1)) == 0) {
-      _recordUploadDiagnostic('dropped', null, _droppedFrameCount);
+    if (_droppedFrameCount >= _nextDropReportAt) {
+      while (_nextDropReportAt <= _droppedFrameCount) {
+        _nextDropReportAt *= 2;
+      }
+      _recordDropDiagnostic();
     }
     debugPrint(
       '[tugboat] collector dropped $dropped pending frame(s) due to backpressure',
     );
+  }
+
+  /// Oldest frame no event references, else the oldest frame. The newest
+  /// frame is kept: the event that points at it usually arrives just after.
+  int _frameEvictionIndex() {
+    for (var index = 0; index < _pendingFrames.length - 1; index++) {
+      if (!_referencedFrameNos.contains(_pendingFrames[index].frameNo)) {
+        return index;
+      }
+    }
+    return 0;
+  }
+
+  void _recordDropDiagnostic() {
+    _reportedDroppedFrameCount = _droppedFrameCount;
+    _recordUploadDiagnostic('dropped', null, _droppedFrameCount);
   }
 
   _SendResult _classifyResponse(int statusCode) {
