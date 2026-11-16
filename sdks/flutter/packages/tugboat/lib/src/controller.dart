@@ -2209,9 +2209,14 @@ class TugboatReplayController extends ChangeNotifier {
     );
     final freshness = _captureFreshnessFor(trigger, force);
     if (_requestCaptureIsSuppressed) {
+      // During a route transition the current route is already the
+      // destination while the tree still shows the departing route (or the
+      // pushed route is not built yet). The route capture emits the
+      // destination's inventory once the transition settles.
       return _completeRejectedCaptureRequest(
         waiter,
         _cancelledCaptureExecution(_captureSuppressionReason()),
+        emitSceneInventory: !_skipCapture,
       );
     }
 

@@ -38,7 +38,11 @@
   carry the surface of their inventory. `kind` comes from the current route's
   type; `widgetClass` is the first app-level widget class below a sheet,
   dialog or popup's overlay host, as in the canonical paths, and is omitted
-  when it cannot be told (private or inline builders, pages, menus, shells). Two
+  when it cannot be told (private or inline builders, pages, menus, shells). It
+  is found when the app wraps the `Navigator` in a widget of its own in the
+  `MaterialApp` builder (a provider or overlay host). A `Dialog` around one app
+  class (`Dialog.fullscreen(child: CouponDialog())`) names that class, and a
+  custom popup route's own `Scaffold` is looked through to its body. Two
   anonymous sheets with the same type argument share a `routeKey` but differ in
   `surface.widgetClass`. Production taps do not carry `surface`. It is not
   part of any fingerprint, `routeKey` or `inventoryHash`.
@@ -70,7 +74,8 @@
   dropped, so a sheet stacked on its own copy keeps its fingerprints); every
   control on an anonymous sheet or dialog with a nameable class, now keyed
   `sheet:<WidgetClass>` or `dialog:<WidgetClass>` instead of
-  `ModalBottomSheetRoute<T>` or `struct:<hash>`; every control on a route
+  `ModalBottomSheetRoute<T>` or `struct:<hash>` (a dialog whose builder
+  returns a `Dialog` around one app class included); every control on a route
   whose `struct:` key moved (an anonymous dialog with no nameable class, or
   an anonymous route with a disabled control or a new low-level control);
   controls under a `ListTileTheme` (including inside `Drawer` and
@@ -117,6 +122,12 @@
   inside the capture tag as before, and fingerprints do not change.
 - A tap re-anchored to a different inventory control (an inventory snap or the
   semantic fallback) no longer carries the original hit's `tagFingerprint`.
+- An inventory taken while a route transition was running (an input
+  observation after system back, or a focus change as a dialog opened) listed
+  the departing or covered route's controls under the destination's route key.
+  A capture request that a running transition suppresses no longer emits an
+  inventory; the route capture emits the destination's once the transition
+  settles. The same happened on 0.10.11.
 
 ### Removed
 

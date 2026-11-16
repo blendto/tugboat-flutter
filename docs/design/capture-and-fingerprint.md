@@ -302,8 +302,11 @@ de-duplication key, and it does not change `route`.
   framework's private popup-menu and dropdown routes are `menu` (matched on the
   type name); any other `PopupRoute` is `popup`; everything else is `page`.
   A `RouteSettings.name` does not change the kind. It is separate from
-  `route_change.overlayKind`, which keeps its own closed set. A build that
-  obfuscates type names loses the sheet, dialog and menu matches.
+  `route_change.overlayKind`, which keeps its own closed set and matches type
+  names more loosely: a custom `PopupRoute` whose type name contains
+  `BottomSheet` or `Dialog` (`_PaywallBottomSheetRoute`) is `overlayKind:
+  sheet` or `dialog` but `surface.kind: popup`. A build that obfuscates type
+  names loses the sheet, dialog and menu matches.
 - `widgetClass`: for sheets, dialogs and popups, the first app-level widget
   class below the route's overlay host, named as in the elements' canonical
   paths (`DisplayFeatureSubScreen#0/BottomSheet#0/RawGestureDetector#0/MySheet#0/...`
@@ -316,7 +319,23 @@ de-duplication key, and it does not change `route`.
   `menu`. A private widget class never reaches the canonical path, so a sheet
   built by `_MySheet` has no `widgetClass`; so does an inline builder that
   returns framework widgets, and a sheet over a shell (for example a bottom bar
-  outside a nested navigator), where the shell is a second retained root.
+  outside a nested navigator), where the shell is a second retained root in
+  another overlay.
+  - A root is a retained widget with no retained parent left once the modal
+    barrier has hidden what is under it. An app widget between the SDK's root
+    and the `Navigator` (a provider or overlay host in the `MaterialApp`
+    builder) is such a hidden parent and does not stop the surface from being
+    named.
+  - Two framework containers are looked through when their one retained child
+    is the next link: a `Dialog` (`Dialog.fullscreen(child: CouponDialog())`
+    gives `CouponDialog`), and, for a `popup` only, the `Scaffold` a custom
+    popup route builds around its builder when that child is the body
+    (`Scaffold(body: builder(context))`). A sheet or dialog whose builder
+    returns a `Scaffold` is not looked through, and a `Dialog` with more than
+    one retained child names nothing.
+  - A host-named route keeps its name as `routeKey` and still reports
+    `widgetClass`, so one named popup route reused for two paywall classes has
+    one route key and two `widgetClass` values.
 
 Two anonymous sheets with the same type argument share a `routeKey` such as
 `ModalBottomSheetRoute<bool>`, so `surface.widgetClass` is what tells them
@@ -703,10 +722,12 @@ fingerprint, and so does its production tap.
   name, so a sheet's own button still resolves to its sheet key after a
   navigating tap, and production and exploration taps compute the same key.
   The class is still found while transient overlay entries show above the
-  route (a text selection toolbar and handles), so the key does not flip. A
+  route (a text selection toolbar and handles), and when the app wraps the
+  `Navigator` in its own widgets, so the key does not flip. A
   host-named route (`RouteSettings(name: ...)`) keeps its name, and an inline
   builder with no nameable class keeps the runtime type (sheet) or `struct:`
-  key (dialog).
+  key (dialog). A dialog whose builder returns a `Dialog` around one app class
+  is keyed by that class (`dialog:CouponDialog`).
 - **Known limits.** Two sheets or dialogs with no nameable class and the same
   structure still collide; name the class or pass `RouteSettings(name: ...)`. A
   custom `PopupRoute` cannot be told from its type name, so it keeps its
