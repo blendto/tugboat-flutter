@@ -56,25 +56,35 @@
 
 ### Changed
 
-- The fingerprint schema is now 7 (`tugboatFingerprintSchemaVersion`). Control
-  identity now covers interactive coverage (#141): `Semantics` tap and
-  long-press actions, a `Listener` with `onPointerUp`, and a
-  `RawGestureDetector` tap or long-press recognizer are roles; a disabled
-  control is listed with `enabled: false` and keeps the identity it has when
-  enabled; the route key of an anonymous route covers every control, enabled
-  or not. Consumers see new route keys for anonymous routes, new fingerprints
-  for controls whose gesture plumbing is now a role (a `TextField`, a
-  `Switch`, a passive `Listener`), and disabled entries in inventories. Each
-  entry's `aliases` carry its schema 6 fingerprints for one release.
-  Canonicalisation (#139): an overlay host's ordinal (`DisplayFeatureSubScreen#1`,
-  a modal barrier) is no longer part of a path, so a sheet opened on top of
-  another keeps the fingerprints of the same control; component theme wrappers
-  (`ListTileTheme`, `SwitchTheme`, ...) are transparent. Expect new fingerprints
-  for controls under a sheet or a theme wrapper.
-  An anonymous sheet or dialog route is keyed `sheet:<WidgetClass>` or
-  `dialog:<WidgetClass>` when its widget class is known (#137), instead of
-  `ModalBottomSheetRoute<bool>` or `struct:<hash>`. Host-named routes and
-  inline builders are unchanged. Custom popup routes keep their key.
+- The fingerprint schema is now 7 (`tugboatFingerprintSchemaVersion`), one
+  bump for #137, #139 and #141. Fingerprints that move: controls under a sheet
+  or dialog's `DisplayFeatureSubScreen` or modal barrier (the ordinal is
+  dropped, so a sheet stacked on its own copy keeps its fingerprints); every
+  control on an anonymous sheet or dialog with a nameable class, now keyed
+  `sheet:<WidgetClass>` or `dialog:<WidgetClass>` instead of
+  `ModalBottomSheetRoute<T>` or `struct:<hash>`; every control on a route
+  whose `struct:` key moved (an anonymous dialog with no nameable class, or
+  an anonymous route with a disabled control or a new low-level control);
+  controls under a `ListTileTheme` (including inside `Drawer` and
+  `ExpansionTile`) or `SwitchTheme`, which are now transparent, and later
+  same-type siblings of such a control, which are renumbered; controls inside
+  an `InkWell` without `onTap` (a `Switch` trailing a `ListTile` with no
+  callbacks); and a disabled `TextField`, which takes its enabled twin's
+  fingerprint. Nothing else moves: an enabled control on a named route with
+  none of these above it keeps its fingerprint, in inventories and production
+  taps. For one release each exploration inventory entry lists its schema 6
+  fingerprints in `aliases`, except one that already names another entry in
+  the same inventory. Consumers keyed on schema 6 fingerprints should map
+  them through `aliases` during that release.
+- Interactive coverage (#141): `Semantics` with a tap or long-press action, a
+  `Listener` with `onPointerUp` and a `RawGestureDetector` with a tap or
+  long-press recognizer are reported when they are a control of their own
+  (outside every control and around none). Disabled controls are listed with
+  `enabled: false` and keep their enabled twin's fingerprint; toggling a
+  callback changes no fingerprint or route key. Production taps on a disabled
+  control carry that fingerprint. A custom `PopupRoute` keeps its key, and two
+  sheets or dialogs with no nameable class and the same structure still share
+  one.
 
 ### Fixed
 

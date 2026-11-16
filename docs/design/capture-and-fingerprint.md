@@ -550,76 +550,107 @@ telemetry and avoid putting user data in them.
 
 ### Schema 7: interactive coverage (#141)
 
-Schema 7 changes which widgets are controls, how a control's identity is
-chosen, and what the scene inventory reports. Every fingerprint and route key
-of a control that schema 6 reported may change, so each inventory entry lists
-the schema 6 fingerprints of the same control in `aliases` for one release.
+Schema 7 is one bump for #137, #139 and #141. A fingerprint is still the hash
+of `path` and `routeKey`. What moves, exhaustively:
+
+- **Overlay paths (#139).** A control under `DisplayFeatureSubScreen`, a
+  `ModalBarrier` or an `AnimatedModalBarrier` (sheets and dialogs) loses that
+  segment's ordinal. Popup menus, dropdowns and custom `PopupRoute`s whose
+  paths have no such segment do not move.
+- **Route keys (#137, #141).** An anonymous sheet or dialog with a nameable
+  class is keyed `sheet:<WidgetClass>` or `dialog:<WidgetClass>`. A `struct:`
+  key is hashed over ordinal-free paths that include disabled controls and
+  low-level controls of their own, so it moves for an anonymous dialog (its
+  paths had `DisplayFeatureSubScreen#N`) and for an anonymous route with a
+  disabled or low-level control. Every fingerprint on a route whose key moved moves. An
+  anonymous page with only enabled schema 6 controls keeps its key.
+- **Theme wrappers (#139).** Controls under a `ListTileTheme` or `SwitchTheme`
+  move, including the `ListTileTheme` that `Drawer` and `ExpansionTile`
+  insert. A later same-type sibling of a wrapped control is renumbered
+  (`ListTile#0` becomes `ListTile#1`), and the wrapped control can take that
+  sibling's schema 6 fingerprint.
+- **Disabled controls (#141).** An `InkWell` without `onTap` keeps its path
+  segment, so a control inside one (a `Switch` trailing a `ListTile` with no
+  callbacks) moves. A disabled control takes its enabled twin's fingerprint, so
+  a disabled `TextField` (schema 6: `.../TextField#0`) moves to its enabled
+  path, and a production tap on a disabled control carries that fingerprint.
+
+Nothing else moves: an enabled control on a named route, with no overlay host,
+theme wrapper or bare `InkWell` above it, keeps its schema 6 fingerprint, and
+so does its production tap.
 
 - **Roles.** `Semantics` with `onTap` or `onLongPress`, a `Listener` with
   `onPointerUp`, and a `RawGestureDetector` with a `TapGestureRecognizer` or
-  `LongPressGestureRecognizer` are `button` roles. A `Listener` without
-  `onPointerUp` is unchanged. Two framework widgets are not roles: the
-  `Listener` that `Navigator` builds, and the dismiss `Semantics` of a
-  `ModalBarrier`. A `MouseRegion` is never a role on its own.
-- **Disabled controls** are listed with `enabled: false` and no tap action, and
-  they are never tap targets (`enabled != false` already gates tap selection and
-  the pathless snap). A disabled control has the same identity as its enabled
-  twin: the same canonical path, fingerprint and route key. Toggling a
-  callback to or from `null` changes only `enabled` and `actions`.
-- **Identity element.** The identity of a hit is the innermost control that is
-  not a scrollable. Failing that, the innermost low-level role inside the
-  capture root, and failing that, the innermost scrollable. A low-level role is
-  a control only when no control encloses it. Two parts are plumbing, not
-  controls: an `InkWell` or `InkResponse` with no `onTap` (a ripple, for example
-  inside a `ListTile` that has no callbacks), and the `EditableText` inside a
-  `TextField`, whose field is the control. A `GestureDetector` without callbacks
-  inside a control stands in for its enabled twin so the disabled control keeps
-  its path.
-- **Route keys of anonymous routes** are `struct:<hash>` over the identity
-  paths of every control, enabled or not. Enabling a control does not change the
-  key.
+  `LongPressGestureRecognizer` are low-level `button` roles. Such a widget is a
+  control of its own only outside every control and around no schema 6 role:
+  inside a control it is the control's plumbing, and around one (a pointer-up
+  `Listener` around a button) it is a layer of that control, so neither adds an
+  entry or a path segment. The `Listener` that `Navigator` builds and the
+  dismiss `Semantics` of a `ModalBarrier` are never controls. A `MouseRegion`
+  is never a role. Framework widgets that build a low-level role around no
+  control are reported: a bottom sheet's drag handle, a `SelectionArea` around
+  plain text.
+- **Disabled controls** are listed with `enabled: false` and no tap action. They
+  are never tap targets (`enabled != false` gates tap selection and the
+  pathless snap), and exploration taps on them stay unresolved as before.
+  Toggling a callback to or from `null` changes only `enabled` and `actions`:
+  not the control's fingerprint, the fingerprints below it, or the route key.
+- **Identity element.** As in schema 6, the identity of a hit is the innermost
+  role on its path, scrollables included (a `TextField`'s inner scrollable).
+  Schema 7 adds low-level controls of their own, and a `GestureDetector`
+  without a tap inside a disabled control, which stands in for its enabled
+  twin's tap detector. An `InkWell` or `InkResponse` without `onTap` is not an
+  identity. When the hit cannot reach inside a disabled control (a disabled
+  `TextField` ignores pointers), its identity is the innermost control below
+  it if those form one chain of disabled controls and scrollables.
 - **Tag.** An inventory entry carries `tag` when an explicit `TugboatTag` sits
   at or above its element. It is the developer's id, not a `ValueKey`, and it is
   never hash input.
 - **Not reported.** `hitTestBounds` is not reported, so inventory boxes are paint
-  bounds. A `ListTile` with no callbacks has no role. A pan-only
-  `GestureDetector`, a `Listener` with only pointer-down, and a `Semantics` with
-  a label but no tap action are not controls. A `MouseRegion` alone is not a
-  control; a `MouseRegion` around a button adds nothing to the button's entry.
-- **Aliases.** An exploration inventory entry lists, in `aliases`, the schema 6
-  fingerprint of the same control whenever schema 6 reported that control, and
-  the fingerprints of its own layers (its structural path). Both are computed
-  from a second, schema 6 walk of the same tree, kept only to produce aliases.
-  A control that schema 6 did not report has no schema 6 alias. Aliases are the
-  only place schema 6 values appear, and they are removed one release later.
-- **Overlay hosts (#139).** `DisplayFeatureSubScreen`, `ModalBarrier` and
-  `AnimatedModalBarrier` carry no ordinal in a canonical path. A sheet opened on
-  top of another has the fingerprints of the same control as the sheet opened
-  alone (schema 6 gave `DisplayFeatureSubScreen#0` and `#1`). Two identical
-  overlay hosts under one parent share a segment; the controls below them keep
-  their own paths.
-- **Theme wrappers (#139).** The component `*Theme` widgets in
-  `_canonicalWrapperDenylist` are transparent: each is an `InheritedTheme` or an
-  `InheritedWidget` that styles the controls below it and has no render object
-  of its own. `ListTileTheme` and `SwitchTheme` are the reproduced cases; a
-  `ListTile` wrapped in a `ListTileTheme` had a different schema 6 fingerprint
-  from the same tile unwrapped. Behaviour-bearing wrappers (`Focus`, `Actions`,
-  `Semantics`, `Listener`) are not on the list.
+  bounds. A `ListTile` with no callbacks is not listed: Flutter treats it as not
+  interactive, not as disabled (`ListTile.enabled` is the disabled state). A
+  pan-only `GestureDetector`, a `Listener` with only pointer-down, and a
+  `Semantics` with a label but no tap action are not controls.
+- **Aliases.** For one release an exploration inventory entry lists, in
+  `aliases`, the schema 6 fingerprints of the same control, computed from a
+  second, schema 6 walk of the same tree, whenever schema 6 reported that
+  control. A schema 6 fingerprint is left out when it already names something
+  else in the same inventory (an entry's fingerprint or layer alias) or when two
+  entries claim it: a wrong alias is worse than none, and an alias must never
+  redirect a tap to another control. `aliases` also lists the entry's layers
+  (schema 7 structural paths), as before. Inventories are emitted again when
+  only their aliases changed, so a sheet stacked on its own copy delivers its
+  `DisplayFeatureSubScreen#1` fingerprints. Production taps neither carry nor
+  use schema 6 aliases.
+- **Overlay hosts (#139).** A sheet opened on top of another has the
+  fingerprints of the same control as the sheet opened alone (schema 6 gave
+  `DisplayFeatureSubScreen#0` and `#1`). Different sheet classes stay apart
+  through their class segment and route key.
+- **Theme wrappers (#139).** Only `ListTileTheme` and `SwitchTheme` are
+  transparent (`_canonicalWrapperDenylist`): wrappers an app puts around its
+  own controls, with no render object, reproduced as splitting one control
+  into two schema 6 fingerprints. Themes the framework inserts itself
+  (`IconButtonTheme` in an `AppBar` toolbar, a `ListTile` trailing slot or a
+  popup menu) are always present, so they never split a fingerprint and stay
+  in the path.
 - **List positions (#139).** An entry whose canonical path has an `[item:N]`
   segment carries `positional: true`. The fingerprint names a position in a
   list, so another item at the same index, in another tab or state, shares it.
   No key value enters a path: `ValueKey` and `ObjectKey` values are never hash
   input.
-- **Sheet and dialog route keys (#137).** An anonymous sheet or dialog route
-  is keyed `sheet:<WidgetClass>` or `dialog:<WidgetClass>` when its
-  `surface.widgetClass` is known, instead of its runtime type string
-  (`ModalBottomSheetRoute<bool>`) or a structural hash. The kind comes from the
-  route's type name, so a sheet's own button still resolves to its sheet key
-  after a navigating tap. A host-named route (`RouteSettings(name: ...)`) keeps
-  its name, and an inline builder with no nameable class keeps the runtime type.
-  Known gap: a custom `PopupRoute` cannot be told from its type name, so it
-  keeps its key. Two inline-builder sheets with the same structure still
-  collide; name the sheet's class or pass `RouteSettings(name: ...)`.
+- **Sheet and dialog route keys (#137).** The kind comes from the route's type
+  name, so a sheet's own button still resolves to its sheet key after a
+  navigating tap, and production and exploration taps compute the same key. A
+  host-named route (`RouteSettings(name: ...)`) keeps its name, and an inline
+  builder with no nameable class keeps the runtime type (sheet) or `struct:`
+  key (dialog).
+- **Known limits.** Two sheets or dialogs with no nameable class and the same
+  structure still collide; name the class or pass `RouteSettings(name: ...)`. A
+  custom `PopupRoute` cannot be told from its type name, so it keeps its
+  `struct:` key. A disabled control whose inner controls fork (a disabled
+  `TextField` with a suffix button) keeps its own path, so enabling it changes
+  its fingerprint. A low-level control toggled to `null` drops its path
+  segment, so content below it moves.
 - **Golden.** `test/fingerprint_golden_test.dart` pins fingerprints, route keys,
   aliases and the schema version for a fixture tree. Any change to them fails
   that test: bump `tugboatFingerprintSchemaVersion` and update the golden in
