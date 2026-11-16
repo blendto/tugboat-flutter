@@ -660,6 +660,7 @@ class AnchorResolver {
     List<HitTestTarget>? pressedHitPath,
     String? pressedRoute,
     bool routeChangedSincePress = false,
+    String? surfaceKind,
   }) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
@@ -678,6 +679,7 @@ class AnchorResolver {
       pressedHitPath: pressedHitPath,
       pressedRoute: pressedRoute,
       routeChangedSincePress: routeChangedSincePress,
+      surface: _surfaceFor(tokenMap, kind: surfaceKind),
     );
     return (
       inventory: resolved.inventory,
@@ -727,6 +729,7 @@ class AnchorResolver {
     required List<HitTestTarget>? pressedHitPath,
     required String? pressedRoute,
     required bool routeChangedSincePress,
+    required TugboatSurface surface,
   }) {
     final hit = _hitTapTarget(
       tapPosition,
@@ -741,6 +744,7 @@ class AnchorResolver {
       tokenMap: tokenMap,
       rootRender: rootRender,
       route: route,
+      surface: surface,
     );
     final snapped = _snapPathlessTargetToInventory(
       target: hit.target,
@@ -757,6 +761,7 @@ class AnchorResolver {
       target: normalized,
       tapPosition: tapPosition,
       route: route,
+      surface: surface,
       tokenMap: tokenMap,
       rootRender: rootRender,
     );

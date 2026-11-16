@@ -15,4 +15,5 @@ part 'anchor_models.dart';
 part 'widget_roles.dart';
 part 'anchor_resolver.dart';
 part 'anchor_scene_inventory.dart';
+part 'anchor_surface.dart';
 part 'anchor_viewport_semantics.dart';

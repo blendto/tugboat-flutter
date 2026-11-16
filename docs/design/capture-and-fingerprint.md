@@ -283,6 +283,62 @@ the lean envelope (`route` and `targetFingerprint`) and do not carry them:
   route captured at pointer-down. A consumer joins a tap to an inventory on
   `(routeKey, targetFingerprint)`; `route` alone does not join for dialogs,
   unnamed pages and anonymous sheets, whose route keys are not the raw route.
+- `surface`: `{ "kind": ..., "widgetClass": ... }`, the same object the tap's
+  inventory carries (see below).
+
+### Surface
+
+Every scene inventory carries `surface`, and exploration `tap` interactions
+carry the surface of the inventory they resolved against. Production taps do
+not. It is text-free evidence and not part of identity: it is not an input to
+any fingerprint, `canonicalPath`, `routeKey`, `inventoryHash` or the inventory
+de-duplication key, and it does not change `route`.
+
+- `kind`: `page`, `sheet`, `dialog`, `popup` or `menu`, from the runtime type of
+  the route that is current when the inventory is built. `ModalBottomSheetRoute`,
+  `CupertinoModalPopupRoute` and `CupertinoSheetRoute` are `sheet`;
+  `DialogRoute`, `RawDialogRoute` and `CupertinoDialogRoute` are `dialog`; the
+  framework's private popup-menu and dropdown routes are `menu` (matched on the
+  type name); any other `PopupRoute` is `popup`; everything else is `page`.
+  A `RouteSettings.name` does not change the kind. It is separate from
+  `route_change.overlayKind`, which keeps its own closed set. A build that
+  obfuscates type names loses the sheet, dialog and menu matches.
+- `widgetClass`: for sheets, dialogs and popups, the first app-level widget
+  class below the route's overlay host, named as in the elements' canonical
+  paths (`DisplayFeatureSubScreen#0/BottomSheet#0/RawGestureDetector#0/MySheet#0/...`
+  gives `MySheet`, and honors `widgetNames`). It is read from the retained
+  token tree and omitted rather than guessed: when the retained tree has more
+  than one root besides the modal barrier or forks above the candidate, when
+  the first widget after the host plumbing is a control, a list item, a
+  non-composite widget or a known framework content widget (`AlertDialog`,
+  `ListTile`, `DraggableScrollableSheet`, ...), and always for `page` and
+  `menu`. A private widget class never reaches the canonical path, so a sheet
+  built by `_MySheet` has no `widgetClass`; so does an inline builder that
+  returns framework widgets, and a sheet over a shell (for example a bottom bar
+  outside a nested navigator), where the shell is a second retained root.
+
+Two anonymous sheets with the same type argument share a `routeKey` such as
+`ModalBottomSheetRoute<bool>`, so `surface.widgetClass` is what tells them
+apart. A host can also give the route a stable, readable key today by naming it:
+
+```dart
+showModalBottomSheet<bool>(
+  context: context,
+  routeSettings: const RouteSettings(name: '/checkout/payment-method'),
+  builder: (_) => const PaymentMethodSheet(),
+);
+
+showDialog<void>(
+  context: context,
+  routeSettings: const RouteSettings(name: '/checkout/confirm'),
+  builder: (_) => const ConfirmDialog(),
+);
+```
+
+The name becomes `route` and `routeKey`, unless it starts with `_` or contains
+`PageRoute`, `ModalRoute`, `CupertinoPageRoute`, `MaterialPageRoute`,
+`DialogRoute` or `PopupRoute` (those still fall back to a structural key). Names
+are developer-authored identity strings and must not carry user or tenant data.
 
 ### What is and is not retained
 

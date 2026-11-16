@@ -463,6 +463,7 @@ class _RouteTransition {
     required this.identity,
     required this.transitionDuration,
     this.overlayKind = TugboatOverlayKind.page,
+    this.surfaceKind = TugboatSurfaceKind.page,
   });
 
   final _RouteNavigationKind kind;
@@ -470,6 +471,9 @@ class _RouteTransition {
   final TugboatRouteIdentity identity;
   final Duration transitionDuration;
   final String overlayKind;
+
+  /// [TugboatSurfaceKind] of the route; scene-inventory evidence only.
+  final String surfaceKind;
 }
 
 class _RouteSurfaceRecord {
@@ -532,6 +536,7 @@ class _VisibleRouteChange {
     this.fromRouteInstanceId,
     this.stackRevision = 0,
     this.overlayKind = TugboatOverlayKind.page,
+    this.surfaceKind = TugboatSurfaceKind.page,
     this.visualObservationGeneration = 0,
     this.navigationOrigin = 'automatic_or_unknown',
     this.causeEventId,
@@ -563,6 +568,9 @@ class _VisibleRouteChange {
   final String? fromRouteInstanceId;
   final int stackRevision;
   final String overlayKind;
+
+  /// Not part of [ownershipData]: it labels scene inventories, not events.
+  final String surfaceKind;
   final int visualObservationGeneration;
   final String navigationOrigin;
   final String? causeEventId;
@@ -597,6 +605,7 @@ class _VisibleRouteChange {
     fromRouteInstanceId: fromRouteInstanceId,
     stackRevision: stackRevision,
     overlayKind: overlayKind,
+    surfaceKind: surfaceKind,
     visualObservationGeneration: visualObservationGeneration,
     navigationOrigin: navigationOrigin,
     presentedOverRoute: presentedOverRoute,
@@ -1097,6 +1106,10 @@ class TugboatReplayController extends ChangeNotifier {
   TugboatRouteIdentity? _currentRouteIdentity;
   String? _currentNavigatorId;
   String? _currentRouteInstanceId;
+
+  /// [TugboatSurfaceKind] of the route behind [_currentRoute]; null until a
+  /// route is observed.
+  String? _currentSurfaceKind;
   int _visualObservationGeneration = 0;
   int _boundaryTransformGeneration = 0;
   Rect? _lastObservedBoundaryRect;
@@ -1187,6 +1200,14 @@ class TugboatReplayController extends ChangeNotifier {
   bool get capturePaused => _capturePaused;
   int get atMs => _clock.elapsedMilliseconds;
   String? get currentRoute => _currentRoute;
+
+  /// `surface.kind` for the current route. Falls back to the raw route string
+  /// (which names the type only for an unnamed route) before any route object
+  /// was observed.
+  String get _surfaceKind =>
+      _currentSurfaceKind ??
+      tugboatSurfaceKindForRouteType(_currentRoute) ??
+      TugboatSurfaceKind.page;
   String? get latestFrameId => _latestFrameId;
 
   bool get _viewportSemanticMapDebugLogsEnabled => _viewportSemantics.debugLogs;
@@ -1199,6 +1220,7 @@ class TugboatReplayController extends ChangeNotifier {
   @visibleForTesting
   void debugSetCurrentRoute(String? route) {
     _currentRoute = route;
+    _currentSurfaceKind = null;
   }
 
   @visibleForTesting
@@ -1720,6 +1742,7 @@ class TugboatReplayController extends ChangeNotifier {
     _currentRoute = null;
     _currentNavigatorId = null;
     _currentRouteInstanceId = null;
+    _currentSurfaceKind = null;
     _visualObservationGeneration = 0;
     _frameCompletionSequence = 0;
     _boundaryTransformGeneration = 0;
@@ -3114,6 +3137,7 @@ class TugboatReplayController extends ChangeNotifier {
             keyboardOpen: _isKeyboardOpen(),
             modalOpen: _isModalOpen(),
             detectDismissibleBarrier: true,
+            surfaceKind: _surfaceKind,
           );
           final rawTarget = tapContext.target;
           inventory = _sanitizeExplorationInventory(
@@ -3310,6 +3334,7 @@ class TugboatReplayController extends ChangeNotifier {
       inventoryHash: tugboatLabelHash(fingerprints.join('|')),
       routeKey: inventory.routeKey,
       elements: elements,
+      surface: inventory.surface,
     );
   }
 
@@ -3431,6 +3456,7 @@ class TugboatReplayController extends ChangeNotifier {
         pressedHitPath: pressedHitPath,
         pressedRoute: tx.origin.route,
         routeChangedSincePress: tx.origin.routeEpoch != _routeEpoch,
+        surfaceKind: _surfaceKind,
       );
       tx.targetAnchor = tapContext.target;
       tx.targetResolutionSource = tapContext.targetSource;
@@ -4897,6 +4923,7 @@ class TugboatReplayController extends ChangeNotifier {
     );
     _currentNavigatorId = change.navigatorId;
     _currentRouteInstanceId = change.routeInstanceId;
+    _currentSurfaceKind = change.surfaceKind;
   }
 
   void _replacePriorRouteCapture(String key, _RouteCaptureWork? prior) {
@@ -5526,6 +5553,7 @@ class TugboatReplayController extends ChangeNotifier {
           ? route.transitionDuration
           : Duration.zero,
       overlayKind: tugboatOverlayKindFor(route),
+      surfaceKind: tugboatSurfaceKindFor(route),
     );
   }
 
@@ -5623,6 +5651,7 @@ class TugboatReplayController extends ChangeNotifier {
       fromRouteInstanceId: surface.fromRouteInstanceId,
       stackRevision: surface.stackRevision,
       overlayKind: transition.overlayKind,
+      surfaceKind: transition.surfaceKind,
       visualObservationGeneration: _visualObservationGeneration,
       navigationOrigin: claimed == null
           ? 'automatic_or_unknown'
@@ -5925,6 +5954,7 @@ class TugboatReplayController extends ChangeNotifier {
       route: _currentRoute,
       keyboardOpen: _isKeyboardOpen(),
       modalOpen: _isModalOpen(),
+      surfaceKind: _surfaceKind,
     );
     if (inventory == null) return;
 

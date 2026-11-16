@@ -86,10 +86,11 @@ void main() {
 
     expect(data['targetFingerprint'], isNotNull);
     expect(data['route'], '/home');
-    // Confidence, source and routeKey are exploration-only evidence.
+    // Confidence, source, routeKey and surface are exploration-only evidence.
     expect(data.containsKey('fingerprintConfidence'), isFalse);
     expect(data.containsKey('fingerprintSource'), isFalse);
     expect(data.containsKey('routeKey'), isFalse);
+    expect(data.containsKey('surface'), isFalse);
   });
 
   testWidgets('an exploration tap carries confidence, source and routeKey', (
@@ -101,6 +102,7 @@ void main() {
     expect(data['fingerprintConfidence'], isIn(['low', 'medium', 'high']));
     expect(data['fingerprintSource'], 'pointerDown');
     expect(data['routeKey'], '/home');
+    expect(data['surface'], {'kind': 'page'});
     // The raw route is unchanged for existing consumers.
     expect(data['route'], '/home');
   });

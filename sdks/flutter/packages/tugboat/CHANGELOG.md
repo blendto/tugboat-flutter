@@ -10,6 +10,17 @@
   under the tap) or `inventory`. `routeKey` is the resolved route key the
   fingerprint was hashed under, so a tap on a dialog or an unnamed page joins
   its inventory exactly. `route` is unchanged and still the raw route.
+- Every scene inventory carries `surface`: `{ "kind": "page" | "sheet" |
+  "dialog" | "popup" | "menu", "widgetClass": "..." }`, and exploration taps
+  carry the surface of their inventory. `kind` comes from the current route's
+  type; `widgetClass` is the first app-level widget class below a sheet,
+  dialog or popup's overlay host, as in the canonical paths, and is omitted
+  when it cannot be told (private or inline builders, pages, menus, shells). Two
+  anonymous sheets with the same type argument share a `routeKey` but differ in
+  `surface.widgetClass`. Production taps do not carry `surface`. It is not
+  part of any fingerprint, `routeKey` or `inventoryHash`.
+- Documented that `RouteSettings(name: ...)` on `showModalBottomSheet` and
+  `showDialog` gives a sheet or dialog a stable, readable route key today.
 
 ### Fixed
 

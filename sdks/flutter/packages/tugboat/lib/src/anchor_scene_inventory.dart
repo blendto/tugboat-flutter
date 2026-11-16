@@ -8,10 +8,14 @@ extension TugboatSceneInventoryApi on AnchorResolver {
   /// Enumerates tokenized actionable elements, [Image] widgets, and large
   /// [Text] blocks on the current screen. Fingerprints match [targetAt] for the
   /// same element.
+  ///
+  /// [surfaceKind] is the [TugboatSurfaceKind] of the current route; it only
+  /// labels the inventory's `surface` and never reaches a hash.
   TugboatSceneInventory? buildSceneInventory({
     required String? route,
     required bool keyboardOpen,
     required bool modalOpen,
+    String? surfaceKind,
   }) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
@@ -24,6 +28,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       tokenMap: tokenMap,
       rootRender: rootRender,
       route: route,
+      surface: _surfaceFor(tokenMap, kind: surfaceKind),
     );
   }
 
@@ -31,6 +36,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required _TokenMap tokenMap,
     required RenderBox rootRender,
     required String? route,
+    required TugboatSurface surface,
   }) {
     final routeKey = _resolveRouteKey(route, tokenMap);
     final viewport = rootRender.size;
@@ -57,7 +63,11 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     final elements = [...interactiveByFingerprint.values, ...contentEntries];
     if (elements.isEmpty) return null;
 
-    return _inventoryFromElements(routeKey: routeKey, elements: elements);
+    return _inventoryFromElements(
+      routeKey: routeKey,
+      elements: elements,
+      surface: surface,
+    );
   }
 
   void _addInventoryElement({
@@ -161,6 +171,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
   TugboatSceneInventory _inventoryFromElements({
     required String routeKey,
     required List<TugboatSceneInventoryEntry> elements,
+    required TugboatSurface surface,
   }) {
     final fingerprints = elements.map((entry) => entry.fingerprint).toList()
       ..sort();
@@ -170,6 +181,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       inventoryHash: inventoryHash,
       routeKey: routeKey,
       elements: elements,
+      surface: surface,
     );
   }
 
@@ -401,6 +413,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required TugboatTargetAnchor? target,
     required Offset tapPosition,
     required String? route,
+    required TugboatSurface surface,
     required _TokenMap tokenMap,
     required RenderBox rootRender,
   }) {
@@ -430,6 +443,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     return _inventoryFromElements(
       routeKey: inventory?.routeKey ?? routeKey,
       elements: elements,
+      surface: inventory?.surface ?? surface,
     );
   }
 

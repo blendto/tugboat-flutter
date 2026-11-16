@@ -382,6 +382,22 @@ the same-navigator stack can resolve them. Nested navigators need their own
 observer wiring, and native/system overlays are outside the Flutter
 Navigator/repaint-boundary contract.
 
+An unnamed sheet's route key is its runtime type (`ModalBottomSheetRoute<bool>`
+for every `showModalBottomSheet<bool>`), and an unnamed dialog's is a
+structural hash. To get a stable, readable key today, name the route:
+
+```dart
+showModalBottomSheet<bool>(
+  context: context,
+  routeSettings: const RouteSettings(name: '/checkout/payment-method'),
+  builder: (_) => const PaymentMethodSheet(),
+);
+```
+
+Scene inventories and exploration taps also carry `surface`
+(`{kind, widgetClass}`) so a consumer can tell sheets and dialogs apart without
+parsing canonical paths; see `docs/design/capture-and-fingerprint.md`.
+
 Each visible route change creates a route epoch and waits for the transition
 plus the configured settle delay before taking the destination capture. A newer
 visible route supersedes an older pending capture. Consequently, a route event

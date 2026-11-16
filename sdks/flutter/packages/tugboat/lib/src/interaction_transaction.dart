@@ -252,9 +252,10 @@ void _writeTapResolutionPayload(
   }
 }
 
-/// Confidence, source and resolved route key for an exploration tap that
-/// carries a fingerprint. `routeKey` is the key the
-/// fingerprint was hashed under; `route` stays the raw origin route.
+/// Confidence, source, resolved route key and surface for an exploration tap
+/// that carries a fingerprint. `routeKey` is the key the fingerprint was
+/// hashed under; `route` stays the raw origin route. `surface` is the one the
+/// tap's own inventory carries (same route, same pointer-down walk).
 void _writeFingerprintEvidence(
   Map<String, Object?> envelope,
   InteractionTransaction tx,
@@ -266,8 +267,17 @@ void _writeFingerprintEvidence(
   }
   final source = tx.targetResolutionSource;
   if (source != null) envelope['fingerprintSource'] = source.wireName;
+  _writeRouteEvidence(envelope, tx);
+}
+
+void _writeRouteEvidence(
+  Map<String, Object?> envelope,
+  InteractionTransaction tx,
+) {
   final routeKey = tx.targetRouteKey;
   if (routeKey != null && routeKey.isNotEmpty) envelope['routeKey'] = routeKey;
+  final surface = tx.preTapEvidence?.inventory?.surface;
+  if (surface != null) envelope['surface'] = surface.toJson();
 }
 
 Map<String, Object?> _buildGesturePayload(InteractionTransaction tx) {

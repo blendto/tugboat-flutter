@@ -193,21 +193,55 @@ class TugboatSceneInventoryEntry {
   }
 }
 
+/// Closed set of `surface.kind` values on scene inventories and exploration
+/// taps. Separate from `TugboatOverlayKind` (the `route_change.overlayKind`
+/// wire contract): it has `menu` and never `unknown`.
+abstract final class TugboatSurfaceKind {
+  static const page = 'page';
+  static const sheet = 'sheet';
+  static const dialog = 'dialog';
+  static const popup = 'popup';
+  static const menu = 'menu';
+}
+
+/// What kind of surface an inventory describes and, when it can be told, the
+/// app widget class that built it. Text-free evidence, never hash input.
+class TugboatSurface {
+  const TugboatSurface({required this.kind, this.widgetClass});
+
+  /// A [TugboatSurfaceKind] value.
+  final String kind;
+
+  /// First app-level widget class beneath the route's overlay host, named as
+  /// in the elements' canonical paths. Omitted when it cannot be told.
+  final String? widgetClass;
+
+  Map<String, Object?> toJson() => {
+    'kind': kind,
+    if (widgetClass != null) 'widgetClass': widgetClass,
+  };
+}
+
 /// Structural inventory of salient elements on a settled screen state.
 class TugboatSceneInventory {
   const TugboatSceneInventory({
     required this.inventoryHash,
     required this.routeKey,
     required this.elements,
+    this.surface = const TugboatSurface(kind: TugboatSurfaceKind.page),
   });
 
   final String inventoryHash;
   final String routeKey;
   final List<TugboatSceneInventoryEntry> elements;
 
+  /// Not part of [inventoryHash] or the emission de-duplication key.
+  final TugboatSurface surface;
+
   Map<String, Object?> toJson() => {
     'inventoryHash': inventoryHash,
     'routeKey': routeKey,
+    'surface': surface.toJson(),
     'elements': elements.map((entry) => entry.toJson()).toList(),
   };
 }
