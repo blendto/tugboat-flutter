@@ -1,9 +1,10 @@
-## 0.10.12
+## 0.11.0
 
 ### Changed
 
-- Compatibility release for `tugboat` 0.10.12 (tap confidence, source and
-  route key on every tap). The Dio adapter has no runtime behavior change.
+- Compatibility release for `tugboat` 0.11.0 (fingerprint schema 7, exploration
+  inventory metadata, exploration WebSocket removed). Requires `tugboat`
+  `^0.11.0`. The Dio adapter has no runtime behavior change.
 
 ## 0.10.11
 

@@ -6,9 +6,29 @@ transitions, scrolling evidence, and optional viewport semantic maps. Capture
 is sent to the HTTP collector; exploration runs point it at a local HTTP
 collector.
 
-The current package version is `0.10.11`. Session JSON writers and readers use
+The current package version is `0.11.0`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
-version `6`.
+version `7`.
+
+## 0.11.0
+
+Fingerprint schema 7. Sheet and dialog host ordinals no longer enter paths,
+anonymous sheets and dialogs with a nameable widget class are keyed
+`sheet:<Class>` or `dialog:<Class>`, `ListTileTheme` and `SwitchTheme` add no
+path segment, and disabled controls are listed with `enabled: false`. For one
+release every moved inventory entry lists its schema 6 fingerprint in
+`aliases`. Treat schema 6 and schema 7 fingerprints as separate namespaces.
+
+Exploration inventories (`emitSceneInventory`) carry `surface`, `viewport`,
+`visibleFraction`, `scroll`, `loading`, `trigger`, `positional` and `tag`, and
+are re-sampled when a page settles (`resampleSettledInventory`, on by default).
+Exploration taps carry `fingerprintSource`, `routeKey` and `surface`.
+Production taps keep their envelope. A tap on a control that stays mounted
+while the app navigates keeps the fingerprint of the route it happened on.
+
+Removed: the exploration WebSocket (`explorationCollectorUrl`,
+`TugboatExplorationTransport`) and its control messages. The HTTP collector is
+the only transport.
 
 ## 0.10.11
 
@@ -218,7 +238,7 @@ events.
 
 ```yaml
 dependencies:
-  tugboat: ^0.10.11
+  tugboat: ^0.11.0
 ```
 
 Then import the public barrel:
@@ -234,8 +254,8 @@ Install from pub.dev; a GitHub checkout is not required.
 
 ```yaml
 dependencies:
-  tugboat: ^0.10.11
-  tugboat_dio: ^0.10.11
+  tugboat: ^0.11.0
+  tugboat_dio: ^0.11.0
 ```
 
 See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.
