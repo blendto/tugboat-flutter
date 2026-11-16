@@ -131,6 +131,14 @@
   button's role, actions and paint box, and exploration taps join that entry.
   Production taps are unchanged, and no fingerprint or route key moves. The
   same happened on 0.10.11.
+- A production tap on a control whose `onTap` animates the scrollable it sits
+  in (a grid tile that calls `PageController.nextPage`) was fingerprinted as
+  the scrollable, while exploration taps named the tile: the animated scroll
+  makes the scrollable ignore pointers before the SDK reads pointer-up. When
+  the pointer-up target is a scrollable and the pointer-down hit path names a
+  control inside it, that control now wins, so both modes give the tile's
+  fingerprint. Taps on a scrollable outside any control are unchanged. The
+  same happened on 0.10.11.
 - An inventory taken while a route transition was running (an input
   observation after system back, or a focus change as a dialog opened) listed
   the departing or covered route's controls under the destination's route key.

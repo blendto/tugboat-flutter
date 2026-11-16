@@ -836,6 +836,17 @@ a usable pointer-down hit path therefore wins over the fresh hit test, and the
 fingerprint belongs to the route the tap happened on. Exploration
 mode resolves at pointer-down and has no such window.
 
+A tap whose `onTap` starts an animated scroll (`PageController.nextPage` on a
+page of grid tiles) makes that scrollable ignore pointers at once, so the
+pointer-up hit test stops at the scrollable. When the fresh target is a
+scrollable and the pointer-down hit path resolves to a control inside it (its
+canonical path extends the scrollable's), the pressed control wins and is not
+re-anchored to the inventory built at pointer-up, which sees the scrollable
+over it. A tap on the scrollable itself, outside any control, keeps the
+scrollable. This makes production taps agree with exploration ones, which
+resolve at pointer-down; it reuses the kept hit path and the existing token
+map, so production taps do no extra tree walk.
+
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA
 bytes are packed into [TransferableTypedData] for the worker: packing still

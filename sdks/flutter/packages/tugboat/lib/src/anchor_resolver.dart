@@ -887,10 +887,12 @@ class AnchorResolver {
       tapPosition: tapPosition,
       rootRender: rootRender,
     );
-    final normalized = _normalizeTargetToInventory(
-      target: snapped,
-      inventory: inventory,
-    );
+    // A control the pointer went down on inside a scrollable that stopped
+    // taking pointers is not re-anchored: the inventory built now sees the
+    // scrollable over it and lists the control as one of its aliases.
+    final normalized = hit.pressedInsideScrollable
+        ? snapped
+        : _normalizeTargetToInventory(target: snapped, inventory: inventory);
     inventory = _injectTapTargetIntoInventory(
       inventory: inventory,
       target: normalized,
@@ -929,11 +931,13 @@ class AnchorResolver {
 
   /// The tap's hit-test target: fresh at pointer-up, or the kept pressed path
   /// when it is the better evidence. [route] in the result is the route the
-  /// winning target was hashed under.
+  /// winning target was hashed under. `pressedInsideScrollable` says the
+  /// pressed control won over a fresh scrollable it sits in.
   ({
     TugboatTargetAnchor? target,
     TugboatTargetResolutionSource source,
     String? route,
+    bool pressedInsideScrollable,
   })
   _hitTapTarget(
     Offset tapPosition, {
@@ -952,29 +956,60 @@ class AnchorResolver {
     );
     final consultPressed =
         pressedHitPath != null &&
-        (routeChangedSincePress || !_isActionableWithPath(fresh));
+        (routeChangedSincePress ||
+            !_isActionableWithPath(fresh) ||
+            fresh?.role == _scrollableRole);
     if (!consultPressed) {
       return (
         target: fresh,
         source: TugboatTargetResolutionSource.pointerUp,
         route: route,
+        pressedInsideScrollable: false,
       );
     }
-    final pressedKeyRoute = pressedRoute ?? route;
-    final pressed = _targetFromHitPath(
-      pressedHitPath,
-      route: pressedKeyRoute,
-      tokenMap: tokenMap,
-      rootRender: rootRender,
+    return _pressedOrFreshTarget(
+      fresh,
+      _targetFromHitPath(
+        pressedHitPath,
+        route: pressedRoute ?? route,
+        tokenMap: tokenMap,
+        rootRender: rootRender,
+      ),
+      route: route,
+      pressedRoute: pressedRoute ?? route,
+      routeChangedSincePress: routeChangedSincePress,
     );
-    final chosen = _preferPressedIfUsable(fresh, pressed);
+  }
+
+  /// Chooses between the fresh pointer-up target and the [pressed] one. When
+  /// the route did not change and [fresh] is actionable, it is a scrollable
+  /// and only a control inside it replaces it.
+  ({
+    TugboatTargetAnchor? target,
+    TugboatTargetResolutionSource source,
+    String? route,
+    bool pressedInsideScrollable,
+  })
+  _pressedOrFreshTarget(
+    TugboatTargetAnchor? fresh,
+    TugboatTargetAnchor? pressed, {
+    required String? route,
+    required String? pressedRoute,
+    required bool routeChangedSincePress,
+  }) {
+    final byScrollable =
+        !routeChangedSincePress && _isActionableWithPath(fresh);
+    final chosen = byScrollable
+        ? _preferPressedInside(fresh, pressed)
+        : _preferPressedIfUsable(fresh, pressed);
     final usedPressed = pressed != null && identical(chosen, pressed);
     return (
       target: chosen,
       source: usedPressed
           ? TugboatTargetResolutionSource.pointerDown
           : TugboatTargetResolutionSource.pointerUp,
-      route: usedPressed ? pressedKeyRoute : route,
+      route: usedPressed ? pressedRoute : route,
+      pressedInsideScrollable: byScrollable && usedPressed,
     );
   }
 
@@ -1077,6 +1112,25 @@ class AnchorResolver {
     if (_isActionableWithPath(pressed)) return pressed;
     if (!_hasPath(fresh) && _hasPath(pressed)) return pressed;
     return fresh;
+  }
+
+  static const _scrollableRole = 'scrollable';
+
+  /// [fresh] is a scrollable. The pressed target replaces it only when it is
+  /// a control inside that scrollable: the tap's own `onTap` started an
+  /// animated scroll (`PageController.nextPage`), which makes the scrollable
+  /// ignore pointers at once, so the pointer-up hit test stops at the
+  /// scrollable. A tap on the scrollable itself keeps it.
+  static TugboatTargetAnchor? _preferPressedInside(
+    TugboatTargetAnchor? fresh,
+    TugboatTargetAnchor? pressed,
+  ) {
+    final outer = fresh?.canonicalPath;
+    final inner = pressed?.canonicalPath;
+    if (outer == null || inner == null || !_isActionableWithPath(pressed)) {
+      return fresh;
+    }
+    return inner.startsWith('$outer/') ? pressed : fresh;
   }
 
   static bool _isActionableWithPath(TugboatTargetAnchor? anchor) =>
