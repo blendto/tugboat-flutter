@@ -254,13 +254,19 @@ void main() {
     }
   }
 
-  List<Map<String, dynamic>> diagnosticsFor(String component) => [
-    for (final batch in batchPosts)
-      for (final event in batch)
-        if (event['payload'] is Map &&
-            (event['payload'] as Map)['component'] == component)
-          Map<String, dynamic>.from(event['payload'] as Map),
-  ];
+  /// Diagnostic payloads for [component], once per event id (a retried
+  /// batch is posted more than once).
+  List<Map<String, dynamic>> diagnosticsFor(String component) {
+    final seen = <Object?>{};
+    return [
+      for (final batch in batchPosts)
+        for (final event in batch)
+          if (event['payload'] is Map &&
+              (event['payload'] as Map)['component'] == component &&
+              seen.add(event['id']))
+            Map<String, dynamic>.from(event['payload'] as Map),
+    ];
+  }
 
   test('HTTP proof lines redact secrets and unknown paths', () {
     expect(
@@ -535,7 +541,10 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 80));
 
     expect(batchPosts, isNotEmpty);
-    expect(batchPosts.first.single['sessionId'], 'sess_server');
+    expect(
+      batchPosts.first.where((event) => event['id'] == 'event-0').single,
+      containsPair('sessionId', 'sess_server'),
+    );
     sink.dispose();
   });
 
@@ -1383,10 +1392,13 @@ void main() {
     expect(batchPosts.first.map((event) => event['id']), [
       for (var i = 0; i < 10; i++) 'event-$i',
     ]);
-    expect(batchPosts.last.map((event) => event['id']), [
-      'event-10',
-      'event-11',
-    ]);
+    // The outage's collector_request diagnostics ride along with them.
+    expect(
+      batchPosts.last
+          .map((event) => event['id'] as String)
+          .where((id) => !id.startsWith('collector-request-')),
+      ['event-10', 'event-11'],
+    );
     sink.dispose();
   });
 
@@ -1569,6 +1581,78 @@ void main() {
     expect(dropped, isNotEmpty);
     expect(dropped.last['droppedFrameCount'], 5);
     expect(sessionPosts.last['eventType'], 'session_end');
+    sink.dispose();
+  });
+
+  test(
+    'session and event post failures report once per outage and recovery',
+    () async {
+      sessionFailuresRemaining = 2;
+      eventStatus = 502;
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession());
+      await sink.flush();
+      await sink.flush();
+      await sink.flush();
+
+      for (var i = 0; i < 20; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      await sink.flush();
+      eventStatus = 202;
+      await sink.flush();
+      await sink.flush();
+
+      final diagnostics = diagnosticsFor('collector_request');
+      expect(
+        diagnostics.map(
+          (payload) =>
+              (payload['path'], payload['result'], payload['statusCode']),
+        ),
+        [
+          ('/v1/sessions', 'failed', 503),
+          ('/v1/sessions', 'recovered', null),
+          ('/v1/events/batch', 'failed', 502),
+          ('/v1/events/batch', 'recovered', null),
+        ],
+      );
+      sink.dispose();
+    },
+  );
+
+  test('a timed-out session post is reported as a timeout', () async {
+    var sessionPosts = 0;
+    final events = <Map<String, dynamic>>[];
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      requestTimeout: const Duration(milliseconds: 50),
+      client: MockClient((request) async {
+        if (request.url.path == '/v1/sessions') {
+          sessionPosts += 1;
+          if (sessionPosts == 1) return Completer<http.Response>().future;
+          return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+        }
+        final body = jsonDecode(request.body) as Map;
+        events.addAll([
+          for (final event in body['events'] as List)
+            Map<String, dynamic>.from(event as Map),
+        ]);
+        return http.Response('{}', 202);
+      }),
+    );
+    sink.startSession(createSession());
+    await waitFor(() => sessionPosts >= 2);
+    await sink.flush();
+
+    final failed = events
+        .map((event) => event['payload'])
+        .whereType<Map>()
+        .where((payload) => payload['component'] == 'collector_request')
+        .first;
+    expect(failed['path'], '/v1/sessions');
+    expect(failed['result'], 'failed');
+    expect(failed['error'], 'timeout');
+    expect(failed.containsKey('statusCode'), isFalse);
     sink.dispose();
   });
 

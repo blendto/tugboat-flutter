@@ -113,6 +113,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
   /// Frame numbers that a recorded event points at (`beforeFrame` /
   /// `afterFrame`). Eviction keeps these over unreferenced captures.
   final Set<int> _referencedFrameNos = {};
+
+  /// Session and event paths whose current outage was already reported.
+  final Set<String> _failingRequestPaths = {};
   final List<Map<String, Object?>> _pendingEvents = [];
   final List<_PendingFrameUpload> _pendingFrames = [];
   final List<List<Map<String, Object?>>> _retryBatches = [];
@@ -226,6 +229,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _reportedDroppedFrameCount = 0;
     _nextDropReportAt = 1;
     _referencedFrameNos.clear();
+    _failingRequestPaths.clear();
   }
 
   @override
@@ -530,11 +534,14 @@ class CollectorHttpSink implements TugboatCaptureSink {
       ).timeout(_requestTimeout);
 
       final result = _classifyResponse(response.statusCode);
-      if (result == _SendResult.accepted && _isCurrentEpoch(epoch)) {
+      if (!_isCurrentEpoch(epoch)) return result;
+      if (result == _SendResult.accepted) {
         _applyLifecycleResponse(eventType, response.body, session.id);
       }
+      _noteRequestOutcome('/v1/sessions', result, response.statusCode);
       return result;
-    } catch (_) {
+    } catch (error) {
+      if (_isCurrentEpoch(epoch)) _noteRequestError('/v1/sessions', error);
       return _SendResult.retry;
     }
   }
@@ -652,10 +659,46 @@ class CollectorHttpSink implements TugboatCaptureSink {
         ),
       ).timeout(_requestTimeout);
 
-      return _classifyResponse(response.statusCode);
-    } catch (_) {
+      final result = _classifyResponse(response.statusCode);
+      if (_isCurrentEpoch(epoch)) {
+        _noteRequestOutcome('/v1/events/batch', result, response.statusCode);
+      }
+      return result;
+    } catch (error) {
+      if (_isCurrentEpoch(epoch)) _noteRequestError('/v1/events/batch', error);
       return _SendResult.retry;
     }
+  }
+
+  /// Records the first failure of a session or event post per outage, and
+  /// its recovery. Frame uploads report through `collector_frame_upload`.
+  void _noteRequestOutcome(String path, _SendResult result, int statusCode) {
+    if (result == _SendResult.accepted) {
+      if (!_failingRequestPaths.remove(path)) return;
+      _recordDiagnostic('collector-request', {
+        'component': 'collector_request',
+        'path': path,
+        'result': 'recovered',
+      });
+      return;
+    }
+    _reportRequestFailure(path, {'statusCode': statusCode});
+  }
+
+  void _noteRequestError(String path, Object error) {
+    _reportRequestFailure(path, {
+      'error': error is TimeoutException ? 'timeout' : 'transport',
+    });
+  }
+
+  void _reportRequestFailure(String path, Map<String, Object?> detail) {
+    if (!_failingRequestPaths.add(path)) return;
+    _recordDiagnostic('collector-request', {
+      'component': 'collector_request',
+      'path': path,
+      'result': 'failed',
+      ...detail,
+    });
   }
 
   Future<void> _flushOnce() async {
