@@ -4755,7 +4755,12 @@ class TugboatReplayController extends ChangeNotifier {
     return !betweenFrames || scheduler.hasScheduledFrame;
   }
 
+  /// While a route transition runs the current route is already the
+  /// destination but the tree still shows the departing route, so a scroll
+  /// (a marquee on the page below) emits no inventory; the route capture emits
+  /// the destination's once the transition settles.
   void _emitScrollInventory(TugboatViewportSemanticScrollContext context) {
+    if (_skipCapture) return;
     try {
       _maybeEmitSceneInventory(trigger: 'scroll', scrollContext: context);
     } catch (error, stackTrace) {

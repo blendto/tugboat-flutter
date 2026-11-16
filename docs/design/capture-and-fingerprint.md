@@ -188,6 +188,15 @@ supersedes stale work. This is the implemented intended invariant: a delayed
 destination capture or tap-settle operation should not attach the prior route's
 frame, and an unavailable compatible frame should remain explicitly degraded.
 
+While a transition runs, the current route is already the destination but the
+tree still shows the departing route (or the pushed route is not built yet).
+So no scene inventory is emitted in that window: a capture request the
+transition suppresses (an input observation after system back, a focus change
+as a dialog opens) and a scroll inventory (a marquee on the page below) emit
+none, and the route capture emits the destination's inventory once the
+transition settles. Before, such inventories listed the departing route's
+controls under the destination's route key.
+
 It is not yet a production-accepted guarantee. Production acceptance #13/#14
 remains open: rapid/nested modal chains and programmatic/automatic navigation
 can still be absent or degraded. Treat those observations as SDK capture gaps,

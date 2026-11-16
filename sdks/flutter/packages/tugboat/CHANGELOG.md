@@ -155,9 +155,10 @@
 - An inventory taken while a route transition was running (an input
   observation after system back, or a focus change as a dialog opened) listed
   the departing or covered route's controls under the destination's route key.
-  A capture request that a running transition suppresses no longer emits an
-  inventory; the route capture emits the destination's once the transition
-  settles. The same happened on 0.10.11.
+  A capture request that a running transition suppresses, and a scroll during
+  it (a marquee on the page below), no longer emit an inventory; the route
+  capture emits the destination's once the transition settles. The same
+  happened on 0.10.11.
 
 ### Removed
 

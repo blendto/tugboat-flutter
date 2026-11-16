@@ -21,12 +21,26 @@ const _exploration = TugboatReplayConfig(
   capturePixelRatio: 1.0,
 );
 
+final _marquee = ScrollController();
+
 class ListPage extends StatelessWidget {
   const ListPage({super.key});
   @override
   Widget build(BuildContext context) => Scaffold(
     body: Column(
       children: [
+        SizedBox(
+          height: 60,
+          child: ListView(
+            controller: _marquee,
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (var i = 0; i < 20; i++)
+                SizedBox(width: 100, child: Text('Badge $i')),
+            ],
+          ),
+        ),
+
         FilledButton(
           onPressed: () => Navigator.of(context).pushNamed('/details'),
           child: const Text('Open details'),
@@ -67,7 +81,7 @@ class OfferDialog extends StatelessWidget {
 Future<void> _mount(WidgetTester tester) async {
   await tester.pumpWidget(
     MaterialApp(
-      navigatorObservers: [TugboatReplay.navigatorObserver],
+      navigatorObservers: [HeroController(), TugboatReplay.navigatorObserver],
       builder: (context, child) =>
           TugboatReplay.wrapApp(config: _exploration, child: child!),
       initialRoute: '/list',
@@ -143,6 +157,33 @@ void main() {
         _paths(inventory).where((p) => p.contains('ListPage')),
         isEmpty,
         reason: 'trigger ${inventory['trigger']} listed the page below',
+      );
+    }
+  });
+
+  testWidgets('a programmatic scroll on the page below a popping route does '
+      'not list the popping route under the page key', (tester) async {
+    await _mount(tester);
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+    await waitForTugboatCaptureWork(tester);
+    final before = _inventories().length;
+
+    await tester.binding.handlePopRoute();
+    // The page's marquee keeps moving while the details page slides out.
+    for (var i = 1; i <= 6; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+      _marquee.jumpTo(i * 30.0);
+    }
+    await tester.pumpAndSettle();
+    await waitForTugboatCaptureWork(tester);
+
+    for (final inventory in _inventories().skip(before)) {
+      expect(inventory['routeKey'], '/list');
+      expect(
+        _paths(inventory).where((p) => p.contains('DetailsPage')),
+        isEmpty,
+        reason: 'trigger ${inventory['trigger']} listed the departing page',
       );
     }
   });
