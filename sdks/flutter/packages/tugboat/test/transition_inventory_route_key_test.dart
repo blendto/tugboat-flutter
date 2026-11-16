@@ -4,7 +4,7 @@ import 'package:tugboat/tugboat.dart';
 
 import 'helpers/widget_capture_wait.dart';
 
-// A device run of the Blend app emitted `trigger: manual` inventories whose
+// A device run of a host app emitted `trigger: manual` inventories whose
 // route key was the destination of a running transition while their elements
 // were the departing route's: a system back from a chooser listed the
 // chooser's controls under the page below it, and a focus change while a

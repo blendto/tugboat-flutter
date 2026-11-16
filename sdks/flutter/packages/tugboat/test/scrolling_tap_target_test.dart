@@ -4,7 +4,7 @@ import 'package:tugboat/tugboat.dart';
 
 import 'helpers/widget_capture_wait.dart';
 
-// The Blend onboarding frequency grid: a PageView (NeverScrollableScrollPhysics)
+// A host app's onboarding frequency grid: a PageView (NeverScrollableScrollPhysics)
 // of grid pages whose GestureDetector tiles call `PageController.nextPage`.
 // The animated scroll makes the PageView's Scrollable ignore pointers at
 // once, so production, which reads the tap after the app's onTap, hit only
@@ -29,7 +29,7 @@ class FrequencyGridPage extends StatelessWidget {
     shrinkWrap: true,
     physics: const BouncingScrollPhysics(),
     itemCount: 4,
-    // As in Blend: the grid fits and its BouncingScrollPhysics adds no drag
+    // As in the host app: the grid fits and its BouncingScrollPhysics adds no drag
     // recognizer, so the tap wins its arena at pointer-down and onTap runs
     // before the SDK's global pointer route.
     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

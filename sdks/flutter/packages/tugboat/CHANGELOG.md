@@ -40,7 +40,8 @@
   dialog or popup's overlay host, as in the canonical paths, and is omitted
   when it cannot be told (private or inline builders, pages, menus, shells). It
   is found when the app wraps the `Navigator` in a widget of its own in the
-  `MaterialApp` builder (a provider or overlay host). A `Dialog` around one app
+  `MaterialApp` builder (a provider or overlay host), and while a toolbar or a
+  toast in an app overlay shows. A dialog route's `Dialog` around one app
   class (`Dialog.fullscreen(child: CouponDialog())`) names that class, and a
   custom popup route's own `Scaffold` is looked through to its body. Two
   anonymous sheets with the same type argument share a `routeKey` but differ in
@@ -132,7 +133,9 @@
   `no_target_at_point` while production taps resolved it, and the settled
   re-sample never saw it appear. Exploration inventories now list it under
   the identity a tap on it resolves to in both modes, with the hidden
-  button's role, actions and paint box, and exploration taps join that entry.
+  button's role, actions and paint box, and exploration taps join that entry
+  (not a hidden button inside a scrollable, whose taps name the scrollable in
+  both modes).
   Production taps are unchanged, and no fingerprint or route key moves. The
   same happened on 0.10.11.
 - A production tap on a control whose `onTap` animates the scrollable it sits

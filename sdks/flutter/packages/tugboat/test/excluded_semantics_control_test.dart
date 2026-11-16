@@ -4,7 +4,7 @@ import 'package:tugboat/tugboat.dart';
 
 import 'helpers/widget_capture_wait.dart';
 
-// The Blend intro screen's Continue CTA: a PillButton whose SemanticButton
+// A host app's intro screen Continue CTA: a PillButton whose SemanticButton
 // replaces the button's semantics (`Semantics(identifier, label) >
 // ExcludeSemantics > ElevatedButton`), faded in after a delay under
 // `IgnorePointer(ignoring: !showCta)` + `AnimatedOpacity`. Production taps
@@ -209,8 +209,8 @@ void main() {
     expect(_tap()['targetFingerprint'], entry['fingerprint']);
   });
 
-  testWidgets('a wrapper hiding two controls, or one that ignores pointers, '
-      'is not listed', (tester) async {
+  testWidgets('a wrapper hiding two controls (also in a list), or one that '
+      'ignores pointers, is not listed', (tester) async {
     await _mount(
       tester,
       Column(
@@ -227,6 +227,7 @@ void main() {
             ),
           ),
           const PillGroup(),
+          const HiddenList(),
           PillButton(onTap: () {}, text: 'Solo'),
         ],
       ),
@@ -235,10 +236,10 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await waitForTugboatCaptureWork(tester);
 
-    // Entries for hidden controls name a path above the button.
+    // Entries for hidden controls name a path above the control.
     final hidden = {
       for (final entry in _inventories().expand(_entries))
-        if (entry['role'] == 'button' &&
+        if ((entry['role'] == 'button' || entry['role'] == 'scrollable') &&
             !(entry['canonicalPath']! as String).contains('ElevatedButton'))
           entry['canonicalPath'],
     };
@@ -254,6 +255,24 @@ class PillGroup extends StatelessWidget {
     child: SemanticButton(
       label: 'Busy',
       child: ElevatedButton(onPressed: () {}, child: const Text('Busy')),
+    ),
+  );
+}
+
+/// A list of two buttons under one `ExcludeSemantics`: the list is not the
+/// hidden control, its two buttons are, so nothing is listed.
+class HiddenList extends StatelessWidget {
+  const HiddenList({super.key});
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 120,
+    child: ExcludeSemantics(
+      child: ListView(
+        children: [
+          ElevatedButton(onPressed: () {}, child: const Text('L1')),
+          ElevatedButton(onPressed: () {}, child: const Text('L2')),
+        ],
+      ),
     ),
   );
 }

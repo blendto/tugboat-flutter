@@ -43,10 +43,15 @@ extension TugboatExcludedSemanticsApi on AnchorResolver {
     final taken = {
       for (final entry in listed) ...[entry.fingerprint, ...entry.aliases],
     };
+    final paths = [
+      for (final entry in listed) entry.canonicalPath,
+      for (final entries in byFingerprint.values)
+        for (final entry in entries) entry.canonicalPath,
+    ];
     byFingerprint.forEach((fingerprint, entries) {
       if (entries.length != 1 || taken.contains(fingerprint)) return;
       final prefix = '${entries.single.canonicalPath}/';
-      if (listed.any((entry) => entry.canonicalPath.startsWith(prefix))) return;
+      if (paths.any((path) => path.startsWith(prefix))) return;
       interactiveByFingerprint[fingerprint] = entries.single;
     });
   }
@@ -71,12 +76,10 @@ extension TugboatExcludedSemanticsApi on AnchorResolver {
       rootRender: rootRender,
       route: route,
     );
-    final fingerprint = target?.fingerprint ?? '';
-    final path = target?.canonicalPath ?? '';
-    if (fingerprint.isEmpty || path.isEmpty) return null;
+    if (target == null || !_hasIdentity(target)) return null;
     return TugboatSceneInventoryEntry(
-      fingerprint: fingerprint,
-      canonicalPath: path,
+      fingerprint: target.fingerprint!,
+      canonicalPath: target.canonicalPath!,
       widgetType: _widgetName(control.widget),
       role: role.name,
       actions: [...role.actions]..sort(),
@@ -86,6 +89,10 @@ extension TugboatExcludedSemanticsApi on AnchorResolver {
       visibleFraction: evidence.visibleFractionFor(control, rect),
     );
   }
+
+  static bool _hasIdentity(TugboatTargetAnchor target) =>
+      (target.fingerprint?.isNotEmpty ?? false) &&
+      (target.canonicalPath?.isNotEmpty ?? false);
 
   /// Whether [excluded] sits in the visible tree (not under a route a modal
   /// barrier hides).
@@ -99,7 +106,9 @@ extension TugboatExcludedSemanticsApi on AnchorResolver {
   }
 
   /// The one outermost control in [root]'s subtree, or null when it holds
-  /// none, more than one, or more elements than the walk limit.
+  /// none, more than one, or more elements than the walk limit. A scrollable
+  /// is not the control: the walk goes on into it, so a hidden list of
+  /// buttons counts its buttons.
   Element? _soleHiddenControl(Element root) {
     final found = <Element>[];
     final pending = <Element>[root];
@@ -109,13 +118,18 @@ extension TugboatExcludedSemanticsApi on AnchorResolver {
         return null;
       }
       final element = pending.removeLast();
-      if (tugboatRoleForWidget(element.widget) != null) {
+      if (_isHiddenControl(element.widget)) {
         found.add(element);
         continue;
       }
       element.visitChildElements(pending.add);
     }
     return found.length == 1 ? found.single : null;
+  }
+
+  bool _isHiddenControl(Widget widget) {
+    final role = tugboatRoleForWidget(widget);
+    return role != null && role.name != 'scrollable';
   }
 
   /// What a tap at the centre of [control] resolves to, when that tap reaches

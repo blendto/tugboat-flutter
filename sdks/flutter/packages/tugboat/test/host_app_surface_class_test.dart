@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/tugboat.dart';
 
 import 'helpers/widget_capture_wait.dart';
 
-// Fixtures shaped like the Blend app (mobile_app): the MaterialApp builder
+// Fixtures shaped like a host app's tree: the MaterialApp builder
 // wraps the Navigator in an app widget that inserts a persistent entry into
 // the root overlay (PendingOperationsRootOverlayHost), a MediaQuery copy, and
 // a Material 2 theme. A real device run named none of its sheets or dialogs.
@@ -329,6 +330,7 @@ Future<Map<String, Object?>> _tapIn(
 
 void main() {
   tearDown(TugboatReplay.resetForTest);
+  _overlayCases();
 
   testWidgets('a named sheet under an app wrapper is named', (tester) async {
     final inventory = await _openInExploration(
@@ -493,3 +495,149 @@ void main() {
 // Observed on origin/main (0.10.11, schema 6) with this same fixture.
 const _schema6FeaturesTool0 = 'b56e0daf92657521';
 const _schema6CouponContinue = '1fd14082461a571d';
+
+/// An app overlay above the Navigator (a toast library's host), with a toast
+/// showing in its own entry.
+class ToastHost extends StatelessWidget {
+  const ToastHost({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Overlay(
+    initialEntries: [
+      OverlayEntry(builder: (_) => child),
+      OverlayEntry(
+        builder: (_) => const Positioned(
+          top: 40,
+          left: 20,
+          child: Material(child: Text('Saved')),
+        ),
+      ),
+    ],
+  );
+}
+
+class FieldSheet extends StatelessWidget {
+  const FieldSheet({super.key});
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      const SizedBox(width: 300, child: TextField()),
+      FilledButton(onPressed: () {}, child: const Text('Act')),
+    ],
+  );
+}
+
+/// The sheet's route key and its button's fingerprint, read directly.
+({String key, String? act}) _observeSheet(WidgetTester tester, GlobalKey root) {
+  const route = 'ModalBottomSheetRoute<void>';
+  final resolver = AnchorResolver(rootKey: root);
+  return (
+    key: resolver
+        .buildSceneInventory(
+          route: route,
+          keyboardOpen: false,
+          modalOpen: true,
+          surfaceKind: TugboatSurfaceKind.sheet,
+        )!
+        .routeKey,
+    act: resolver
+        .targetAt(tester.getCenter(find.text('Act')), route: route)
+        ?.fingerprint,
+  );
+}
+
+Future<void> _showToolbar(WidgetTester tester) async {
+  await tester.enterText(find.byType(TextField), 'hello world');
+  await tester.longPress(find.byType(EditableText));
+  // A blinking cursor never settles: pump a fixed time instead.
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  expect(find.byType(TextSelectionToolbar), findsOneWidget);
+}
+
+void _overlayCases() {
+  testWidgets('a sheet under an app overlay keeps its key while a toast and '
+      'a toolbar show', (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final rootKey = GlobalKey();
+    late BuildContext home;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => RepaintBoundary(
+          key: rootKey,
+          child: ToastHost(child: child!),
+        ),
+        home: Builder(
+          builder: (context) {
+            home = context;
+            return const Scaffold(body: Text('Home'));
+          },
+        ),
+      ),
+    );
+    showModalBottomSheet<void>(
+      context: home,
+      builder: (_) => const FieldSheet(),
+    );
+    await tester.pumpAndSettle();
+
+    final withToast = _observeSheet(tester, rootKey);
+    await _showToolbar(tester);
+    expect(withToast.key, 'sheet:FieldSheet');
+    expect(_observeSheet(tester, rootKey), withToast);
+  });
+
+  testWidgets('a sheet on a nested navigator with no shell keeps its key '
+      'while a toolbar shows', (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final rootKey = GlobalKey();
+    late BuildContext inner;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            RepaintBoundary(key: rootKey, child: child!),
+        home: Scaffold(
+          body: Navigator(
+            onGenerateRoute: (_) => MaterialPageRoute<void>(
+              builder: (context) {
+                inner = context;
+                return const Text('Inner');
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    showModalBottomSheet<void>(
+      context: inner,
+      builder: (_) => const FieldSheet(),
+    );
+    await tester.pumpAndSettle();
+
+    final plain = _observeSheet(tester, rootKey);
+    await _showToolbar(tester);
+    expect(plain.key, 'sheet:FieldSheet');
+    expect(_observeSheet(tester, rootKey), plain);
+  });
+
+  testWidgets('a sheet whose builder returns a Dialog is not looked through', (
+    tester,
+  ) async {
+    final inventory = await _openInExploration(
+      tester,
+      (c) => showModalBottomSheet<void>(
+        context: c,
+        builder: (_) => const Dialog(child: PlainSheetBody()),
+      ),
+    );
+
+    expect(inventory['routeKey'], 'ModalBottomSheetRoute<void>');
+    expect(_surface(inventory), {'kind': 'sheet'});
+  });
+}

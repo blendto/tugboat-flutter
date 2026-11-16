@@ -7,7 +7,7 @@ import 'helpers/widget_capture_wait.dart';
 
 // The documented conversion, `(boundaryOffset + boundsNorm * widthPx) *
 // devicePixelRatio`, must give device pixels of the Flutter view for a
-// boundary under any scale. Blend (mobile_app) scales its whole UI by 1.0549
+// boundary under any scale. A host app scales its whole UI by 1.0549
 // with a binding that sets the RenderView's ViewConfiguration ratio to
 // view.devicePixelRatio * scale (720 px / (1.75 * 1.0549) = 390 logical px).
 // The SDK reported the view's 1.75, so every box was 19-72 px off on device.
@@ -114,7 +114,7 @@ void main() {
   testWidgets('a binding that scales the render view reports its ratio', (
     tester,
   ) async {
-    // Blend: 720x1560 px at 1.75, scaled by 411.43 / 390.
+    // The host: 720x1560 px at 1.75, scaled by 411.43 / 390.
     _view(tester, physical: const Size(720, 1560), dpr: 1.75);
     const scaled = 1.75 * (720 / 1.75 / 390);
     final renderView = tester.binding.renderViews.single;

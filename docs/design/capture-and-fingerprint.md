@@ -215,7 +215,10 @@ changed meanwhile; otherwise it is built at once, as before. Building it with
 layout dirty hit-tested stale boxes and tripped `!debugNeedsLayout` in
 `RenderFractionalTranslation`. A scroll a pointer drives keeps its inventories
 at once, and a scroll inventory that fails is logged and never reaches the
-host's scroll notification. Production builds no scroll inventory and
+host's scroll notification. A scroll notification carries no pointer, so a
+programmatic scroll that starts while any finger is down counts as
+pointer-driven: its inventory is still built at once, and with layout dirty
+it can fail (logged, inventory lost) or read stale boxes in release. Production builds no scroll inventory and
 schedules nothing.
 
 ## Fingerprint schema v6
@@ -341,19 +344,22 @@ de-duplication key, and it does not change `route`.
   built by `_MySheet` has no `widgetClass`; so does an inline builder that
   returns framework widgets, and a sheet over a shell (for example a bottom bar
   outside a nested navigator), where the shell is a second retained root in
-  another overlay.
+  the same overlay entry as the sheet's host. A root in an overlay entry of
+  its own (a text selection toolbar, a toast in an app overlay above the
+  `Navigator`) is transient and does not hide the class.
   - A root is a retained widget with no retained parent left once the modal
     barrier has hidden what is under it. An app widget between the SDK's root
     and the `Navigator` (a provider or overlay host in the `MaterialApp`
     builder) is such a hidden parent and does not stop the surface from being
     named.
   - Two framework containers are looked through when their one retained child
-    is the next link: a `Dialog` (`Dialog.fullscreen(child: CouponDialog())`
-    gives `CouponDialog`), and, for a `popup` only, the `Scaffold` a custom
-    popup route builds around its builder when that child is the body
-    (`Scaffold(body: builder(context))`). A sheet or dialog whose builder
-    returns a `Scaffold` is not looked through, and a `Dialog` with more than
-    one retained child names nothing.
+    is the next link: for a `dialog` only, a `Dialog`
+    (`Dialog.fullscreen(child: CouponDialog())` gives `CouponDialog`), and,
+    for a `popup` only, the `Scaffold` a custom popup route builds around its
+    builder when that child is the body (`Scaffold(body: builder(context))`).
+    A sheet whose builder returns a `Dialog` or a `Scaffold`, and a dialog
+    whose builder returns a `Scaffold`, are not looked through, and a
+    `Dialog` with more than one retained child names nothing.
   - A host-named route keeps its name as `routeKey` and still reports
     `widgetClass`, so one named popup route reused for two paywall classes has
     one route key and two `widgetClass` values.
@@ -419,9 +425,9 @@ display pixels exactly:
   by `devicePixelRatio` to get device pixels.
 - `devicePixelRatio` is the render view's own ratio of device pixels to those
   logical pixels (its `ViewConfiguration`). It is `FlutterView.devicePixelRatio`
-  unless the host scales its UI through its binding: Blend sets the ratio to
-  `1.75 * 1.0549` on a 1.75 phone so its layout is 390 logical pixels wide, and
-  the view's own 1.75 would put every box 19 to 72 px off.
+  unless the host scales its UI through its binding: a host that sets the
+  ratio to `1.75 * 1.0549` on a 1.75 phone lays out 390 logical pixels wide,
+  and the view's own 1.75 would put every box 19 to 72 px off.
 - `widthPx` and `heightPx` are the size of the capture boundary's box in those
   logical pixels, after every transform between it and the view (a
   `Transform.scale`, a `FittedBox`): the box `boundsNorm` is a fraction of. With
@@ -726,11 +732,14 @@ fingerprint, and so does its production tap.
   hidden button's, and `boundsNorm` is the hidden button's paint box. So an
   exploration tap on it joins an inventory instead of failing with
   `no_target_at_point`, and the settled re-sample sees it appear. It is left
-  out when the excluded subtree hides no control or more than one, when a tap
-  at its centre does not reach it (it ignores pointers or is covered), when
-  that tap resolves to a control with a role, when two hidden controls or an
-  existing entry share the fingerprint, and when other entries sit under its
-  path (a page or a section, not the button). Production taps are unchanged
+  out when the excluded subtree hides no control or more than one (a
+  scrollable is not the control; the controls in it count), when a tap at its
+  centre does not reach it (it ignores pointers or is covered), when that tap
+  resolves to a control with a role, when two hidden controls or an existing
+  entry share the fingerprint, and when other entries or other hidden
+  controls sit under its path (a page or a section, not the button). A hidden
+  button inside a scrollable is therefore not listed: a tap on it resolves to
+  the scrollable in both modes. Production taps are unchanged
   and compute none of it, and no fingerprint, `routeKey` or `struct:`
   signature moves; an inventory that lists such a control has a new
   `inventoryHash`.
@@ -773,8 +782,10 @@ fingerprint, and so does its production tap.
   name, so a sheet's own button still resolves to its sheet key after a
   navigating tap, and production and exploration taps compute the same key.
   The class is still found while transient overlay entries show above the
-  route (a text selection toolbar and handles), and when the app wraps the
-  `Navigator` in its own widgets, so the key does not flip. A
+  route (a text selection toolbar and handles, also in an outer overlay or
+  for a sheet on a nested navigator), when a toast shows in an app overlay
+  above the `Navigator`, and when the app wraps the `Navigator` in its own
+  widgets, so the key does not flip. A
   host-named route (`RouteSettings(name: ...)`) keeps its name, and an inline
   builder with no nameable class keeps the runtime type (sheet) or `struct:`
   key (dialog). A dialog whose builder returns a `Dialog` around one app class

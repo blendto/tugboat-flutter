@@ -13,9 +13,10 @@ const _surfaceHostWidgets = <String>{
 /// Roots that belong to the overlay but not to the surface's own content.
 const _surfaceBarrierRoots = <String>{'ModalBarrier', 'AnimatedModalBarrier'};
 
-/// A framework `Dialog` has one `child` slot. When its one retained child is
-/// an app widget class (`Dialog.fullscreen(child: CouponDialog())`), that
-/// class is the dialog's content; anything else still fails closed.
+/// A framework `Dialog` has one `child` slot. When a dialog route's `Dialog`
+/// has one retained child that is an app widget class
+/// (`Dialog.fullscreen(child: CouponDialog())`), that class is the dialog's
+/// content; anything else still fails closed.
 const _surfaceDialogContainer = 'Dialog';
 
 /// Private framework widgets that sit between the host plumbing and the
@@ -130,7 +131,9 @@ extension TugboatSurfaceApi on AnchorResolver {
     Element? child,
   ) {
     if (child == null) return false;
-    if (name == _surfaceDialogContainer) return true;
+    if (name == _surfaceDialogContainer) {
+      return kind == TugboatSurfaceKind.dialog;
+    }
     return name == 'Scaffold' &&
         kind == TugboatSurfaceKind.popup &&
         _isScaffoldBody(child, node);
@@ -176,23 +179,28 @@ extension TugboatSurfaceApi on AnchorResolver {
   /// A root is a token with no retained parent left in the map. An app widget
   /// between the capture root and the `Navigator` (a provider host, an
   /// overlay host) is retained, then shadowed by the modal barrier, so the
-  /// surface's root still points at it. Roots in different overlays mean
-  /// shell content beside a nested navigator (a bottom bar), so the surface
-  /// is not named.
+  /// surface's root still points at it.
+  ///
+  /// Another root in an overlay entry of its own (a toolbar, a toast in an
+  /// app overlay above the `Navigator`) is transient. A root in the same
+  /// overlay entry as the host (a bottom bar beside the nested navigator the
+  /// sheet opened on) is shell content, so the surface is not named.
   Element? _soleSurfaceRoot(_TokenMap tokenMap) {
     final roots = _surfaceRoots(tokenMap);
-    if (roots.isEmpty) return null;
     if (roots.length == 1) return roots.single;
-    final overlay = _overlayOf(roots.first);
-    if (overlay == null ||
-        roots.any((root) => !identical(_overlayOf(root), overlay))) {
-      return null;
-    }
-    final hosts = roots.where(
-      (root) =>
-          _surfaceHostWidgets.contains(_tokenTypeName(tokenMap.tokens[root])),
+    final hosts = roots
+        .where(
+          (root) => _surfaceHostWidgets.contains(
+            _tokenTypeName(tokenMap.tokens[root]),
+          ),
+        )
+        .toList();
+    if (hosts.length != 1) return null;
+    final host = hosts.single;
+    final shell = roots.any(
+      (root) => !identical(root, host) && _sharesOverlayEntry(root, host),
     );
-    return hosts.length == 1 ? hosts.single : null;
+    return shell ? null : host;
   }
 
   List<Element> _surfaceRoots(_TokenMap tokenMap) => [
@@ -209,16 +217,35 @@ extension TugboatSurfaceApi on AnchorResolver {
       !tokenMap.newRoleCandidates.contains(element) &&
       (parent == null || !tokenMap.tokens.containsKey(parent));
 
-  /// The nearest `Overlay` above [element], or null outside every overlay.
-  Element? _overlayOf(Element element) {
-    Element? overlay;
-    element.visitAncestorElements((ancestor) {
-      if (ancestor is StatefulElement && ancestor.state is OverlayState) {
-        overlay = ancestor;
-      }
-      return overlay == null;
+  /// Whether [host] sits inside the overlay entry that holds [root] (the
+  /// nearest one above [root]). True also when [root] is outside every
+  /// overlay, as shell content around the whole app would be.
+  bool _sharesOverlayEntry(Element root, Element host) {
+    final entry = _overlayEntryOf(root);
+    if (entry == null) return true;
+    var inside = false;
+    host.visitAncestorElements((ancestor) {
+      inside = identical(ancestor, entry);
+      return !inside;
     });
-    return overlay;
+    return inside;
+  }
+
+  /// The element of the nearest overlay entry above [element]: the child of
+  /// the overlay's theater. Null outside every overlay.
+  Element? _overlayEntryOf(Element element) {
+    Element? entry;
+    Element? below = element;
+    Element? belowBelow;
+    var found = false;
+    element.visitAncestorElements((ancestor) {
+      found = ancestor is StatefulElement && ancestor.state is OverlayState;
+      if (found) entry = belowBelow;
+      belowBelow = below;
+      below = ancestor;
+      return !found;
+    });
+    return entry;
   }
 
   /// `PubSheet#0` -> `PubSheet`; null for list-item tokens (`[item:3]`).
