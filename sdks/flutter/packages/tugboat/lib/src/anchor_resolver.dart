@@ -310,12 +310,35 @@ class _TokenMapVisitor {
     if (retainType == null) {
       return (parent: retainedParent, emittedListItem: false);
     }
+    if (_isLeafToken(element)) {
+      return _recordLeafToken(element, retainedParent, retainType);
+    }
     final token = inList
         ? _listItemToken(retainedParent, listItemIndex)
         : _ordinalToken(element, retainedParent, retainType);
     tokens[element] = token;
     retainedParents[element] = retainedParent;
     return (parent: element, emittedListItem: inList);
+  }
+
+  /// A low-level control of its own that schema 6 did not retain (a tap
+  /// `Semantics`, a pointer-up `Listener`; a `RawGestureDetector` was always
+  /// retained) gets a path for itself but is no retained parent and takes no
+  /// list position, so the paths below it stay as in schema 6 whether or not
+  /// its callback is set.
+  bool _isLeafToken(Element element) =>
+      !legacy &&
+      newRoleCandidates.contains(element) &&
+      resolver._canonicalType(element.widget, legacy: true) == null;
+
+  ({Element? parent, bool emittedListItem}) _recordLeafToken(
+    Element element,
+    Element? retainedParent,
+    String retainType,
+  ) {
+    tokens[element] = _ordinalToken(element, retainedParent, retainType);
+    retainedParents[element] = retainedParent;
+    return (parent: retainedParent, emittedListItem: false);
   }
 
   String _listItemToken(Element? retainedParent, int? listItemIndex) {

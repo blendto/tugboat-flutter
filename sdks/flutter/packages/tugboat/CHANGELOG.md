@@ -81,8 +81,12 @@
   long-press recognizer are reported when they are a control of their own
   (outside every control and around none). Disabled controls are listed with
   `enabled: false` and keep their enabled twin's fingerprint; toggling a
-  callback changes no fingerprint or route key. Production taps on a disabled
-  control carry that fingerprint. A custom `PopupRoute` keeps its key, and two
+  control that has a disabled state (buttons, toggles, chips, sliders,
+  dropdowns, text fields, `ListTile.enabled`) changes no fingerprint or route
+  key. A `GestureDetector`, `InkWell`, `ListTile` or tap `Semantics` with a
+  `null` callback is not a control, so toggling it still changes an anonymous
+  route's `struct:` key. Production taps on a disabled control carry its
+  twin's fingerprint. A custom `PopupRoute` keeps its key, and two
   sheets or dialogs with no nameable class and the same structure still share
   one.
 

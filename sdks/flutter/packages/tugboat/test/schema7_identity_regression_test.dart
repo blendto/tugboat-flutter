@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/anchors.dart';
@@ -179,6 +181,36 @@ class StackSheet extends StatelessWidget {
   );
 }
 
+final _png = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+);
+
+/// Schema 6 content fingerprint of the image below, observed at 4f1b72e.
+const _imageSchema6 = '723e1917aaa9d6e8';
+
+Widget _imageUnderTap({required bool tappable}) => Scaffold(
+  body: Column(
+    children: [
+      Semantics(
+        onTap: tappable ? () {} : null,
+        child: Image.memory(_png, width: 40, height: 40),
+      ),
+    ],
+  ),
+);
+
+class FieldSheet extends StatelessWidget {
+  const FieldSheet({super.key});
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      const SizedBox(width: 300, child: TextField()),
+      FilledButton(onPressed: () {}, child: const Text('Act')),
+    ],
+  );
+}
+
 /// Schema 6 fingerprint of the stacked copy's `Sheet action`
 /// (`DisplayFeatureSubScreen#1/...` under `ModalBottomSheetRoute<void>`),
 /// observed at 4f1b72e.
@@ -218,6 +250,47 @@ void main() {
       expect(entries, hasLength(1), reason: label);
       expect(entries.single.widgetType, isNot(anyOf('Listener', 'Semantics')));
     }
+  });
+
+  testWidgets('a tap Semantics around content keeps the content path', (
+    tester,
+  ) async {
+    for (final tappable in [true, false]) {
+      final rootKey = await _mount(tester, _imageUnderTap(tappable: tappable));
+      final images = _inventory(
+        rootKey,
+        '/r',
+      ).elements.where((e) => e.widgetType == 'Image');
+      expect(images.map((e) => e.fingerprint), [
+        _imageSchema6,
+      ], reason: 'tappable: $tappable');
+    }
+  });
+
+  testWidgets('known limit: a widget with no disabled state changes an '
+      'anonymous route key when its callback is toggled', (tester) async {
+    // A ListTile, InkWell, GestureDetector or tap Semantics without its
+    // callback is not a control, so it leaves the struct signature. Flutter
+    // gives these no disabled state; see the schema 7 known limits.
+    Future<String> key({required bool tappable}) async {
+      final rootKey = await _mount(
+        tester,
+        Scaffold(
+          body: Column(
+            children: [
+              FilledButton(onPressed: () {}, child: const Text('Other')),
+              ListTile(
+                onTap: tappable ? () {} : null,
+                title: const Text('Row'),
+              ),
+            ],
+          ),
+        ),
+      );
+      return _inventory(rootKey, 'MaterialPageRoute<dynamic>').routeKey;
+    }
+
+    expect(await key(tappable: true), isNot(await key(tappable: false)));
   });
 
   testWidgets('a disabled TextField has its enabled twin\'s fingerprint', (
@@ -310,6 +383,55 @@ void main() {
         owner[id] = entry.fingerprint;
       }
     }
+  });
+
+  testWidgets('a class sheet keeps its route key while a text selection '
+      'toolbar shows', (tester) async {
+    _bigView(tester);
+    final rootKey = GlobalKey();
+    late BuildContext home;
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            RepaintBoundary(key: rootKey, child: child!),
+        home: Builder(
+          builder: (context) {
+            home = context;
+            return const Scaffold(body: Text('Home'));
+          },
+        ),
+      ),
+    );
+    showModalBottomSheet<void>(
+      context: home,
+      builder: (_) => const FieldSheet(),
+    );
+    await tester.pumpAndSettle();
+    const route = 'ModalBottomSheetRoute<void>';
+    ({String key, String? act}) observe() {
+      final resolver = AnchorResolver(rootKey: rootKey);
+      return (
+        key: resolver
+            .buildSceneInventory(
+              route: route,
+              keyboardOpen: false,
+              modalOpen: true,
+              surfaceKind: TugboatSurfaceKind.sheet,
+            )!
+            .routeKey,
+        act: resolver
+            .targetAt(tester.getCenter(find.text('Act')), route: route)
+            ?.fingerprint,
+      );
+    }
+
+    final plain = observe();
+    await tester.enterText(find.byType(TextField), 'hello world');
+    await tester.longPress(find.byType(EditableText));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextSelectionToolbar), findsOneWidget);
+    expect(plain.key, 'sheet:FieldSheet');
+    expect(observe(), plain);
   });
 
   testWidgets('a sheet stacked on its own copy delivers its schema 6 aliases', (

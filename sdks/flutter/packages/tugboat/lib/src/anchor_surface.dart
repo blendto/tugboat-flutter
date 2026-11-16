@@ -117,6 +117,11 @@ extension TugboatSurfaceApi on AnchorResolver {
     return children;
   }
 
+  /// The one retained root of the surface. When transient overlay entries
+  /// add roots of their own (a text selection toolbar and its handles above a
+  /// focused field), the one overlay host root among them is the surface, so
+  /// a sheet or dialog keeps its class, and its `sheet:`/`dialog:` route key,
+  /// while they show.
   Element? _soleSurfaceRoot(_TokenMap tokenMap) {
     final roots =
         [
@@ -129,7 +134,12 @@ extension TugboatSurfaceApi on AnchorResolver {
           final name = _tokenTypeName(tokenMap.tokens[root]);
           return !_surfaceBarrierRoots.contains(name);
         }).toList();
-    return roots.length == 1 ? roots.single : null;
+    if (roots.length == 1) return roots.single;
+    final hosts = roots.where(
+      (root) =>
+          _surfaceHostWidgets.contains(_tokenTypeName(tokenMap.tokens[root])),
+    );
+    return hosts.length == 1 ? hosts.single : null;
   }
 
   /// `PubSheet#0` -> `PubSheet`; null for list-item tokens (`[item:3]`).

@@ -585,7 +585,9 @@ so does its production tap.
   control of its own only outside every control and around no schema 6 role:
   inside a control it is the control's plumbing, and around one (a pointer-up
   `Listener` around a button) it is a layer of that control, so neither adds an
-  entry or a path segment. The `Listener` that `Navigator` builds and the
+  entry or a path segment. A control of its own gets a path for itself
+  (`.../Semantics#0`) but is not a parent in any other path, so the content
+  below it keeps its schema 6 path. The `Listener` that `Navigator` builds and the
   dismiss `Semantics` of a `ModalBarrier` are never controls. A `MouseRegion`
   is never a role. Framework widgets that build a low-level role around no
   control are reported: a bottom sheet's drag handle, a `SelectionArea` around
@@ -593,8 +595,10 @@ so does its production tap.
 - **Disabled controls** are listed with `enabled: false` and no tap action. They
   are never tap targets (`enabled != false` gates tap selection and the
   pathless snap), and exploration taps on them stay unresolved as before.
-  Toggling a callback to or from `null` changes only `enabled` and `actions`:
-  not the control's fingerprint, the fingerprints below it, or the route key.
+  For a control with a disabled state (Material and Cupertino buttons,
+  toggles, chips, sliders, dropdowns, text fields, `ListTile.enabled`),
+  toggling it changes only `enabled` and `actions`: not its fingerprint, the
+  fingerprints below it, or the route key.
 - **Identity element.** As in schema 6, the identity of a hit is the innermost
   role on its path, scrollables included (a `TextField`'s inner scrollable).
   Schema 7 adds low-level controls of their own, and a `GestureDetector`
@@ -640,7 +644,9 @@ so does its production tap.
   input.
 - **Sheet and dialog route keys (#137).** The kind comes from the route's type
   name, so a sheet's own button still resolves to its sheet key after a
-  navigating tap, and production and exploration taps compute the same key. A
+  navigating tap, and production and exploration taps compute the same key.
+  The class is still found while transient overlay entries show above the
+  route (a text selection toolbar and handles), so the key does not flip. A
   host-named route (`RouteSettings(name: ...)`) keeps its name, and an inline
   builder with no nameable class keeps the runtime type (sheet) or `struct:`
   key (dialog).
@@ -649,8 +655,10 @@ so does its production tap.
   custom `PopupRoute` cannot be told from its type name, so it keeps its
   `struct:` key. A disabled control whose inner controls fork (a disabled
   `TextField` with a suffix button) keeps its own path, so enabling it changes
-  its fingerprint. A low-level control toggled to `null` drops its path
-  segment, so content below it moves.
+  its fingerprint. A `GestureDetector`, `InkWell`, `ListTile` or tap
+  `Semantics` has no disabled state: with its callback `null` it is not a
+  control, so toggling the callback adds or removes its entry and changes an
+  anonymous route's `struct:` key (and every fingerprint on that route).
 - **Golden.** `test/fingerprint_golden_test.dart` pins fingerprints, route keys,
   aliases and the schema version for a fixture tree. Any change to them fails
   that test: bump `tugboatFingerprintSchemaVersion` and update the golden in

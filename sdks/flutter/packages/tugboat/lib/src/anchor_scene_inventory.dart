@@ -166,41 +166,50 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         hitCache: hitCache,
         visibleFraction: visibleFraction,
       );
-      if (result != null) {
-        if (flags?.busy == true) loading!.noteBusy(result.entry.fingerprint);
-        _accumulateInteractiveEntry(
-          interactiveByFingerprint,
-          result.entry.copyWith(
-            placeholder: placeholder,
-            tag: _explicitTagFor(element),
-          ),
-          result.structuralFingerprint,
-        );
-        (legacyAliases[result.entry.fingerprint] ??= {}).addAll(
-          _legacyInteractiveAliases(
-            legacy,
-            element,
-            _inventoryEntryCenter(bounds, viewport),
-          ),
-        );
-      }
+      if (result == null) return;
+      if (flags?.busy == true) loading!.noteBusy(result.entry.fingerprint);
+      _accumulateInteractiveEntry(
+        interactiveByFingerprint,
+        result.entry.copyWith(
+          placeholder: placeholder,
+          tag: _explicitTagFor(element),
+        ),
+        result.structuralFingerprint,
+      );
+      _recordLegacyAliases(
+        legacyAliases,
+        result.entry.fingerprint,
+        _legacyInteractiveAliases(
+          legacy,
+          element,
+          _inventoryEntryCenter(bounds, viewport),
+        ),
+      );
       return;
     }
-    final fingerprint = _addContentInventoryEntry(
-      contentEntries,
-      seenContentFingerprints,
-      widget,
-      structuralPath,
-      bounds,
-      routeKey,
-      visibleFraction,
-      placeholder: placeholder,
+    _recordLegacyAliases(
+      legacyAliases,
+      _addContentInventoryEntry(
+        contentEntries,
+        seenContentFingerprints,
+        widget,
+        structuralPath,
+        bounds,
+        routeKey,
+        visibleFraction,
+        placeholder: placeholder,
+      ),
+      _legacyContentAliases(legacy, element),
     );
-    if (fingerprint != null) {
-      (legacyAliases[fingerprint] ??= {}).addAll(
-        _legacyContentAliases(legacy, element),
-      );
-    }
+  }
+
+  void _recordLegacyAliases(
+    Map<String, Set<String>> legacyAliases,
+    String? fingerprint,
+    List<String> aliases,
+  ) {
+    if (fingerprint == null || aliases.isEmpty) return;
+    (legacyAliases[fingerprint] ??= {}).addAll(aliases);
   }
 
   /// Adds each entry's schema 6 fingerprints to its `aliases`, except one that
@@ -833,13 +842,16 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     // Hit-test once per distinct center (cached). Wrappers that resolve to the
     // same actionable descendant still run through so their structural
     // fingerprints become aliases for edge taps that land on the wrapper.
-    final resolved = ownLowLevel
-        ? null
-        : _cachedInventoryTarget(center, route, tokenMap, rootRender, hitCache);
     final resolvedEntry = ownLowLevel
         ? null
         : _resolvedInteractiveInventoryEntry(
-            resolved,
+            _cachedInventoryTarget(
+              center,
+              route,
+              tokenMap,
+              rootRender,
+              hitCache,
+            ),
             structuralPath,
             widget,
             bounds,
@@ -858,23 +870,37 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     }
 
     if (structuralFingerprint.isEmpty) return null;
-
-    final role = _inventoryRoleOf(element, tokenMap);
     return (
-      entry: TugboatSceneInventoryEntry(
-        fingerprint: structuralFingerprint,
-        canonicalPath: structuralPath,
-        widgetType: _widgetName(widget),
-        role: role?.name,
-        actions: [...(role?.actions ?? const [])]..sort(),
-        enabled: role?.enabled,
-        boundsNorm: bounds,
-        tier: 'interactive',
-        visibleFraction: visibleFraction,
+      entry: _structuralInteractiveEntry(
+        _inventoryRoleOf(element, tokenMap),
+        structuralFingerprint,
+        structuralPath,
+        widget,
+        bounds,
+        visibleFraction,
       ),
       structuralFingerprint: structuralFingerprint,
     );
   }
+
+  TugboatSceneInventoryEntry _structuralInteractiveEntry(
+    WidgetRole? role,
+    String structuralFingerprint,
+    String structuralPath,
+    Widget widget,
+    TugboatNormalizedBounds bounds,
+    double? visibleFraction,
+  ) => TugboatSceneInventoryEntry(
+    fingerprint: structuralFingerprint,
+    canonicalPath: structuralPath,
+    widgetType: _widgetName(widget),
+    role: role?.name,
+    actions: [...(role?.actions ?? const [])]..sort(),
+    enabled: role?.enabled,
+    boundsNorm: bounds,
+    tier: 'interactive',
+    visibleFraction: visibleFraction,
+  );
 
   Offset _inventoryEntryCenter(TugboatNormalizedBounds bounds, Size viewport) =>
       Offset(
