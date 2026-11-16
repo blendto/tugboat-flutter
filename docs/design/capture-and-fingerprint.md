@@ -683,6 +683,25 @@ fingerprint, and so does its production tap.
   identity. When the hit cannot reach inside a disabled control (a disabled
   `TextField` ignores pointers), its identity is the innermost control below
   it if those form one chain of disabled controls and scrollables.
+- **Controls under `ExcludeSemantics`.** An app that gives a button one
+  semantics node of its own (`Semantics(label: ..., child: ExcludeSemantics(
+  child: ElevatedButton(...)))`) hides the button's subtree from the token map
+  like any excluded subtree. A tap on it resolves, in both modes, to the
+  nearest retained widget above it with no role (the pointer-down fallback of
+  0.10.10), at `low` confidence. Exploration inventories list that identity as
+  the control's entry: its fingerprint and `canonicalPath` are what a tap at
+  the button's centre resolves to, its `role`, `actions` and `enabled` are the
+  hidden button's, and `boundsNorm` is the hidden button's paint box. So an
+  exploration tap on it joins an inventory instead of failing with
+  `no_target_at_point`, and the settled re-sample sees it appear. It is left
+  out when the excluded subtree hides no control or more than one, when a tap
+  at its centre does not reach it (it ignores pointers or is covered), when
+  that tap resolves to a control with a role, when two hidden controls or an
+  existing entry share the fingerprint, and when other entries sit under its
+  path (a page or a section, not the button). Production taps are unchanged
+  and compute none of it, and no fingerprint, `routeKey` or `struct:`
+  signature moves; an inventory that lists such a control has a new
+  `inventoryHash`.
 - **Tag.** An inventory entry carries `tag` when an explicit `TugboatTag` sits
   at or above its element. It is the developer's id, not a `ValueKey`, and it is
   never hash input.

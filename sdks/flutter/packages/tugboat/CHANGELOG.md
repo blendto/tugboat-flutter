@@ -122,6 +122,15 @@
   inside the capture tag as before, and fingerprints do not change.
 - A tap re-anchored to a different inventory control (an inventory snap or the
   semantic fallback) no longer carries the original hit's `tagFingerprint`.
+- In exploration mode a button an app wraps in `ExcludeSemantics` to give it
+  one semantics node of its own (`Semantics(label) > ExcludeSemantics >
+  ElevatedButton`) was in no inventory, so taps on it failed with
+  `no_target_at_point` while production taps resolved it, and the settled
+  re-sample never saw it appear. Exploration inventories now list it under
+  the identity a tap on it resolves to in both modes, with the hidden
+  button's role, actions and paint box, and exploration taps join that entry.
+  Production taps are unchanged, and no fingerprint or route key moves. The
+  same happened on 0.10.11.
 - An inventory taken while a route transition was running (an input
   observation after system back, or a focus change as a dialog opened) listed
   the departing or covered route's controls under the destination's route key.

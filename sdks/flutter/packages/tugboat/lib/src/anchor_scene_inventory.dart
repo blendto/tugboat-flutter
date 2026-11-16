@@ -97,6 +97,16 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       );
     }
 
+    if (evidence != null) {
+      _addExcludedSemanticsControls(
+        tokenMap: tokenMap,
+        rootRender: rootRender,
+        route: route,
+        evidence: evidence,
+        interactiveByFingerprint: interactiveByFingerprint,
+        contentEntries: contentEntries,
+      );
+    }
     final elements = _withLegacyAliases([
       ...interactiveByFingerprint.values,
       ...contentEntries,

@@ -23,6 +23,7 @@ class _TokenMap {
     required this.controlCandidates,
     required this.newRoleCandidates,
     required this.identityAncestors,
+    this.excludedSemantics = const [],
   });
 
   final Element root;
@@ -57,6 +58,11 @@ class _TokenMap {
   /// Retained ancestors of the tokenized control and low-level candidates.
   /// A candidate outside this set is a leaf identity.
   final Set<Element> identityAncestors;
+
+  /// Roots of the visible subtrees skipped only because they exclude
+  /// semantics (`Semantics(label) > ExcludeSemantics > button`). Exploration
+  /// inventories look for the one control such a subtree hides.
+  final List<Element> excludedSemantics;
 
   /// The schema 6 walk of this same tree, built on first use for aliases.
   _TokenMap? legacyMap;
@@ -141,6 +147,7 @@ class _TokenMapVisitor {
   String? subLabel;
   bool rootHasBlockingOverlay = false;
   bool hasDismissibleModalBarrier = false;
+  final List<Element> excludedSemantics = <Element>[];
 
   _VisitAcc visit(
     Element element,
@@ -158,7 +165,12 @@ class _TokenMapVisitor {
       listItemIndex,
     );
     _noteDismissibleModalBarrier(widget);
-    if (_shouldSkip(widget, renderObject)) return const _VisitAcc();
+    if (_shouldSkip(widget, renderObject)) {
+      if (_onlyExcludesSemantics(widget, renderObject)) {
+        excludedSemantics.add(element);
+      }
+      return const _VisitAcc();
+    }
     _noteElement(element, widget, renderObject, sensitive, underActionable);
     final candidate = _candidateFor(
       element,
@@ -180,6 +192,14 @@ class _TokenMapVisitor {
 
   bool _excludesSemantics(RenderObject? renderObject) =>
       renderObject is RenderExcludeSemantics && renderObject.excluding;
+
+  /// Skipped for excluding semantics alone: not hidden, offstage or SDK-owned.
+  bool _onlyExcludesSemantics(Widget widget, RenderObject? renderObject) =>
+      !legacy &&
+      _excludesSemantics(renderObject) &&
+      !tugboatHidesSubtree(widget) &&
+      widget is! TugboatInternal &&
+      !tugboatHidesRenderObject(renderObject);
 
   int? _effectiveListItemIndex(
     Widget widget,
@@ -1334,6 +1354,7 @@ class AnchorResolver {
       renderElements: renderElements,
       hasBlockingOverlay: visitor.rootHasBlockingOverlay,
       hasDismissibleModalBarrier: visitor.hasDismissibleModalBarrier,
+      excludedSemantics: visitor.excludedSemantics,
       includedElements: includedElements,
       actionableSummary: actionableSummary,
       subLabel: visitor.subLabel,
