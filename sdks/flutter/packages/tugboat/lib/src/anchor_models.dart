@@ -153,6 +153,7 @@ class TugboatSceneInventoryEntry {
     required this.tier,
     this.aliases = const [],
     this.visibleFraction,
+    this.placeholder = false,
   });
 
   final String fingerprint;
@@ -172,6 +173,11 @@ class TugboatSceneInventoryEntry {
   /// element is fully visible or the share could not be told. Never hash input.
   final double? visibleFraction;
 
+  /// True when the element sits beneath a recognised placeholder (skeleton,
+  /// shimmer, [TugboatLoading]). Omitted otherwise. Text-free evidence, never
+  /// hash input.
+  final bool placeholder;
+
   Map<String, Object?> toJson() => {
     'fingerprint': fingerprint,
     'canonicalPath': canonicalPath,
@@ -183,9 +189,13 @@ class TugboatSceneInventoryEntry {
     'tier': tier,
     if (aliases.isNotEmpty) 'aliases': aliases,
     if (visibleFraction != null) 'visibleFraction': visibleFraction,
+    if (placeholder) 'placeholder': true,
   };
 
-  TugboatSceneInventoryEntry copyWith({List<String>? aliases}) {
+  TugboatSceneInventoryEntry copyWith({
+    List<String>? aliases,
+    bool? placeholder,
+  }) {
     return TugboatSceneInventoryEntry(
       fingerprint: fingerprint,
       canonicalPath: canonicalPath,
@@ -197,8 +207,35 @@ class TugboatSceneInventoryEntry {
       tier: tier,
       aliases: aliases ?? this.aliases,
       visibleFraction: visibleFraction,
+      placeholder: placeholder ?? this.placeholder,
     );
   }
+}
+
+/// Loading summary of one exploration inventory: counts only, text-free
+/// evidence, never hash input.
+class TugboatInventoryLoading {
+  const TugboatInventoryLoading({
+    required this.progressIndicators,
+    required this.placeholders,
+    required this.busyControls,
+  });
+
+  /// Progress indicator widgets in the capture boundary's tree.
+  final int progressIndicators;
+
+  /// Inventory elements beneath a placeholder ancestor.
+  final int placeholders;
+
+  /// Interactive inventory elements beneath an absorbing or ignoring pointer
+  /// blocker.
+  final int busyControls;
+
+  Map<String, Object?> toJson() => {
+    'progressIndicators': progressIndicators,
+    'placeholders': placeholders,
+    'busyControls': busyControls,
+  };
 }
 
 /// Closed set of `surface.kind` values on scene inventories and exploration
@@ -332,6 +369,7 @@ class TugboatSceneInventory {
     this.surface = const TugboatSurface(kind: TugboatSurfaceKind.page),
     this.viewport,
     this.scroll,
+    this.loading,
   });
 
   final String inventoryHash;
@@ -349,12 +387,17 @@ class TugboatSceneInventory {
   /// [viewport].
   final TugboatInventoryScroll? scroll;
 
+  /// Loading summary. Null when the inventory was built without exploration
+  /// evidence. Same hash rules as [viewport].
+  final TugboatInventoryLoading? loading;
+
   Map<String, Object?> toJson() => {
     'inventoryHash': inventoryHash,
     'routeKey': routeKey,
     'surface': surface.toJson(),
     if (viewport != null) 'viewport': viewport!.toJson(),
     if (scroll != null) 'scroll': scroll!.toJson(),
+    if (loading != null) 'loading': loading!.toJson(),
     'elements': elements.map((entry) => entry.toJson()).toList(),
   };
 }

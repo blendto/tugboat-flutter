@@ -447,6 +447,41 @@ reports the first.
 same route and hash at different scroll offsets or insets are emitted only when
 a scroll event makes the scroll context differ.
 
+### Loading and placeholders
+
+Exploration inventories say when a surface is still loading, so a consumer can
+tell a loading frame from a loaded one. Like the bounds evidence above, this is
+structural, text-free, and never part of an identity:
+
+- **`loading`** on every inventory built in exploration mode:
+  `{ progressIndicators, placeholders, busyControls }`.
+  - `progressIndicators` counts `ProgressIndicator` widgets (Circular, Linear,
+    Refresh) and `CupertinoActivityIndicator` in the capture boundary's tree,
+    skipping hidden subtrees.
+  - `placeholders` counts inventory elements beneath a placeholder ancestor.
+  - `busyControls` counts distinct interactive entries beneath an
+    `AbsorbPointer(absorbing: true)` or `IgnorePointer(ignoring: true)`.
+- **`placeholder: true`** on an element beneath a placeholder ancestor, omitted
+  otherwise.
+
+A placeholder ancestor is a widget whose runtime type name contains
+`Shimmer`, `Skeleton`, `Placeholder` or `Redacted` (case-sensitive), or a
+`TugboatLoading` marker. Flutter's own debug `Placeholder` matches the
+`Placeholder` fragment: it is a placeholder by definition, and it only appears
+in captures where an app uses it as a stub.
+
+`TugboatLoading({required child})` is for hosts whose skeleton widgets have
+other names. It is transparent: it adds no canonical path segment and changes
+no fingerprint, `routeKey`, `surface` or `inventoryHash`, so wrapping a control
+in it leaves that control's identity unchanged. It is exported from
+`package:tugboat/tugboat.dart`.
+
+The ancestor walk is bounded at the capture root, and the progress-indicator
+walk runs only when an exploration inventory is built. Production taps compute
+none of it. An exploration tap whose target is injected into an inventory that
+had no elements gets a `loading` with only `progressIndicators` set, and its
+injected entry is never a placeholder.
+
 ### What is and is not retained
 
 The structural pipeline does not use or serialize arbitrary `Text`,

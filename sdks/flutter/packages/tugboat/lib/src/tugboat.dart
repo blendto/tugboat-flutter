@@ -20,7 +20,12 @@ export 'input_context_capture.dart' show TugboatFocusKind, TugboatSystemInput;
 export 'lifecycle.dart' show TugboatLifecycleState;
 export 'screenshot_mask_level.dart' show TugboatScreenshotMaskLevel;
 export 'markers.dart'
-    show TugboatInternal, TugboatSensitive, TugboatSubView, TugboatTag;
+    show
+        TugboatInternal,
+        TugboatLoading,
+        TugboatSensitive,
+        TugboatSubView,
+        TugboatTag;
 
 typedef TugboatControllerTestHook =
     void Function(TugboatReplayController controller);

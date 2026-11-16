@@ -34,6 +34,22 @@ class TugboatTag extends StatelessWidget {
   Widget build(BuildContext context) => child;
 }
 
+/// Marks a subtree that shows a loading or placeholder state (a custom skeleton,
+/// shimmer or spinner) so exploration inventories can report it.
+///
+/// Transparent: it adds no canonical path segment and changes no fingerprint,
+/// route key or inventory hash. Use it when the skeleton's widget type name
+/// does not contain a recognised fragment (`Shimmer`, `Skeleton`,
+/// `Placeholder`, `Redacted`).
+class TugboatLoading extends StatelessWidget {
+  const TugboatLoading({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
 /// Tags the active sub-view inside a route (tab, wizard step, etc.).
 ///
 /// When visible on stage, its [label] is included in state signatures and

@@ -2,6 +2,12 @@
 
 ### Added
 
+- In exploration mode, every scene inventory carries `loading`
+  (`progressIndicators`, `placeholders`, `busyControls`) and each element
+  beneath a skeleton, shimmer, `Redacted` or `Placeholder` ancestor, or a new
+  `TugboatLoading` marker, carries `placeholder: true`. The signal is
+  structural and text-free, and no fingerprint, route key or inventory hash
+  changes.
 - In exploration mode (scene inventory emission on), every `tap` interaction
   that carries a `targetFingerprint` now also carries `fingerprintSource` and
   `routeKey`, next to the existing `fingerprintConfidence`. Production taps keep

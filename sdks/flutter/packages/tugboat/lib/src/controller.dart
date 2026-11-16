@@ -3294,8 +3294,22 @@ class TugboatReplayController extends ChangeNotifier {
       surface: inventory.surface,
       viewport: inventory.viewport,
       scroll: inventory.scroll,
+      loading: _recountPlaceholders(inventory.loading, elements),
     );
   }
+
+  /// [loading] for the kept [elements]: the placeholder count follows the
+  /// elements that remain, the rest of the summary is unchanged.
+  TugboatInventoryLoading? _recountPlaceholders(
+    TugboatInventoryLoading? loading,
+    List<TugboatSceneInventoryEntry> elements,
+  ) => loading == null
+      ? null
+      : TugboatInventoryLoading(
+          progressIndicators: loading.progressIndicators,
+          placeholders: elements.where((entry) => entry.placeholder).length,
+          busyControls: loading.busyControls,
+        );
 
   bool _isTapInventoryEntry(TugboatSceneInventoryEntry entry) =>
       entry.tier == 'interactive' &&
