@@ -87,6 +87,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
   int _sessionEpoch = 0;
   Timer? _flushTimer;
   Future<void>? _flushInFlight;
+  Future<void>? _followUpFlush;
   bool _framesNeedRetry = false;
   bool _frameUploadFailureReported = false;
   int _frameUploadDiagnosticSequence = 0;
@@ -162,7 +163,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       TugboatCollectorSessionEventType.sessionStart.wireValue,
       session.startedAt,
     );
-    unawaited(_kickFlush());
+    unawaited(flush());
   }
 
   @override
@@ -233,7 +234,12 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<void> flush() {
     if (_disposed) return Future<void>.value();
     final active = _flushInFlight;
-    if (active != null) return active;
+    if (active != null) {
+      // The running pass has already taken its frame snapshot, so work queued
+      // now may not be part of it. Run one more pass behind it; concurrent
+      // callers share that pass and resolve only once their work had a turn.
+      return _followUpFlush ??= _flushAfter(active);
+    }
 
     late final Future<void> operation;
     operation = _flushOnce().whenComplete(() {
@@ -245,10 +251,14 @@ class CollectorHttpSink implements TugboatCaptureSink {
     return operation;
   }
 
-  /// Wait for any in-flight flush, then run another so newly enqueued work is sent.
-  Future<void> _kickFlush() async {
-    final active = _flushInFlight;
-    if (active != null) await active;
+  /// Waits for [active], then runs another pass so newly enqueued work is sent.
+  Future<void> _flushAfter(Future<void> active) async {
+    try {
+      await active;
+    } on Object {
+      // The running pass reports its own failure to its callers.
+    }
+    _followUpFlush = null;
     if (_disposed) return;
     await flush();
   }
@@ -377,6 +387,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _retryBatches.clear();
     _pendingLifecycle.clear();
     _flushInFlight = null;
+    _followUpFlush = null;
     _session = null;
     _collectorSessionId = null;
     _sessionEpoch += 1;

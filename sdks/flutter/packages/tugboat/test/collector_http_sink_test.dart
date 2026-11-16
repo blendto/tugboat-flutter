@@ -89,6 +89,7 @@ void main() {
       if (path == '/v1/sessions') {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         sessionPosts.add(Map<String, dynamic>.from(body));
+        requestOrder.add('$path:${body['eventType']}');
         final status = sessionFailuresRemaining > 0
             ? (() {
                 sessionFailuresRemaining -= 1;
@@ -994,6 +995,49 @@ void main() {
     ]);
     sink.dispose();
   });
+
+  test(
+    'a frame recorded during an in-flight flush is uploaded before session_end',
+    () async {
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // A full batch starts a flush that is busy in its event loop.
+      eventResponseDelay = const Duration(milliseconds: 150);
+      for (var i = 0; i < 10; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      while (batchPosts.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      // The session's last screenshot lands while that flush is running.
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-313',
+          atMs: 313,
+          width: 1,
+          height: 1,
+          contentHash: 'last',
+        ),
+        Uint8List.fromList([3]),
+        sessionId: session.id,
+      );
+      await sink.endSession();
+
+      expect(
+        framePosts.expand((post) => post['frameNos'] as List),
+        contains('313'),
+      );
+      expect(
+        requestOrder,
+        containsAllInOrder(['/v1/frames', '/v1/sessions:session_end']),
+      );
+      sink.dispose();
+    },
+  );
 
   test('accepts empty 202 lifecycle body without retrying', () async {
     sessionResponseBody = '';
