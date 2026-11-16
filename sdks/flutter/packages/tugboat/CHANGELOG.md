@@ -48,6 +48,22 @@
   `routeKey`, `inventoryHash` or the de-duplication key, and production taps do
   not compute it.
 
+- Scene inventory entries carry `tag` (the nearest explicit `TugboatTag` id)
+  when the element sits under one. `hitTestBounds` is not reported.
+
+### Changed
+
+- The fingerprint schema is now 7 (`tugboatFingerprintSchemaVersion`). Control
+  identity now covers interactive coverage (#141): `Semantics` tap and
+  long-press actions, a `Listener` with `onPointerUp`, and a
+  `RawGestureDetector` tap or long-press recognizer are roles; a disabled
+  control is listed with `enabled: false` and keeps the identity it has when
+  enabled; the route key of an anonymous route covers every control, enabled
+  or not. Consumers see new route keys for anonymous routes, new fingerprints
+  for controls whose gesture plumbing is now a role (a `TextField`, a
+  `Switch`, a passive `Listener`), and disabled entries in inventories. Each
+  entry's `aliases` carry its schema 6 fingerprints for one release.
+
 ### Fixed
 
 - Exploration taps now deliver `fingerprintSource`, `routeKey` and `surface` to

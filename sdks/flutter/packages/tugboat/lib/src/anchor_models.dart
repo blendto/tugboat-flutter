@@ -154,6 +154,7 @@ class TugboatSceneInventoryEntry {
     this.aliases = const [],
     this.visibleFraction,
     this.placeholder = false,
+    this.tag,
   });
 
   final String fingerprint;
@@ -178,6 +179,10 @@ class TugboatSceneInventoryEntry {
   /// hash input.
   final bool placeholder;
 
+  /// The id of the nearest explicit [TugboatTag] above this element, a name
+  /// the host chose. Omitted when there is none. Never hash input.
+  final String? tag;
+
   Map<String, Object?> toJson() => {
     'fingerprint': fingerprint,
     'canonicalPath': canonicalPath,
@@ -190,11 +195,13 @@ class TugboatSceneInventoryEntry {
     if (aliases.isNotEmpty) 'aliases': aliases,
     if (visibleFraction != null) 'visibleFraction': visibleFraction,
     if (placeholder) 'placeholder': true,
+    if (tag != null) 'tag': tag,
   };
 
   TugboatSceneInventoryEntry copyWith({
     List<String>? aliases,
     bool? placeholder,
+    String? tag,
   }) {
     return TugboatSceneInventoryEntry(
       fingerprint: fingerprint,
@@ -208,6 +215,7 @@ class TugboatSceneInventoryEntry {
       aliases: aliases ?? this.aliases,
       visibleFraction: visibleFraction,
       placeholder: placeholder ?? this.placeholder,
+      tag: tag ?? this.tag,
     );
   }
 }

@@ -2,6 +2,12 @@ part of 'anchors.dart';
 
 /// Algorithm version for canonical-tree fingerprinting (denylist, tokenization).
 ///
+/// v7: interactive coverage. Disabled controls and the identity of a control
+/// resolve to the same path whether enabled or not; `Semantics` tap actions,
+/// `Listener` pointer-up and `RawGestureDetector` tap recognizers are roles; the
+/// anonymous-route structural signature covers every control, enabled or not.
+/// Schema 6 values travel as `aliases` for one release.
+///
 /// v6: use locale-independent structural positions for list and grid items.
 /// Nested Flutter hit-target aliases normalize to the inventory primary.
 ///
@@ -15,7 +21,7 @@ part of 'anchors.dart';
 /// v3: fixed `[item]` list-collapse (single token per row), generic-aware
 /// denylist matching + expanded denylist, and the verbose structural path
 /// skeleton moved out of the serialized `*Parts` (hash-only now).
-const int tugboatFingerprintSchemaVersion = 6;
+const int tugboatFingerprintSchemaVersion = 7;
 
 const _canonicalDenylist = <String>{
   'Padding',

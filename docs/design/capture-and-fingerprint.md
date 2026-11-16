@@ -199,8 +199,10 @@ and route captures continue.
 
 ## Fingerprint schema v6
 
-`tugboatFingerprintSchemaVersion` is currently `6`. Hashes are 16-character
-SHA-256 prefixes derived from sorted identity parts.
+`tugboatFingerprintSchemaVersion` is currently `7`. Hashes are 16-character
+SHA-256 prefixes derived from sorted identity parts. Schema 7 changes are in
+[Schema 7: interactive coverage](#schema-7-interactive-coverage-141); the
+rules below are the schema 6 rules unless a section says otherwise.
 
 ### Canonical target identity
 
@@ -545,6 +547,55 @@ Developer-authored identity strings can still be emitted:
 Bounds, pointer coordinates, scroll metrics, and masked screenshot pixels are
 also capture data. Apps must treat tags, route names, and subview labels as
 telemetry and avoid putting user data in them.
+
+### Schema 7: interactive coverage (#141)
+
+Schema 7 changes which widgets are controls, how a control's identity is
+chosen, and what the scene inventory reports. Every fingerprint and route key
+of a control that schema 6 reported may change, so each inventory entry lists
+the schema 6 fingerprints of the same control in `aliases` for one release.
+
+- **Roles.** `Semantics` with `onTap` or `onLongPress`, a `Listener` with
+  `onPointerUp`, and a `RawGestureDetector` with a `TapGestureRecognizer` or
+  `LongPressGestureRecognizer` are `button` roles. A `Listener` without
+  `onPointerUp` is unchanged. Two framework widgets are not roles: the
+  `Listener` that `Navigator` builds, and the dismiss `Semantics` of a
+  `ModalBarrier`. A `MouseRegion` is never a role on its own.
+- **Disabled controls** are listed with `enabled: false` and no tap action, and
+  they are never tap targets (`enabled != false` already gates tap selection and
+  the pathless snap). A disabled control has the same identity as its enabled
+  twin: the same canonical path, fingerprint and route key. Toggling a
+  callback to or from `null` changes only `enabled` and `actions`.
+- **Identity element.** The identity of a hit is the innermost control that is
+  not a scrollable. Failing that, the innermost low-level role inside the
+  capture root, and failing that, the innermost scrollable. A low-level role is
+  a control only when no control encloses it. Two parts are plumbing, not
+  controls: an `InkWell` or `InkResponse` with no `onTap` (a ripple, for example
+  inside a `ListTile` that has no callbacks), and the `EditableText` inside a
+  `TextField`, whose field is the control. A `GestureDetector` without callbacks
+  inside a control stands in for its enabled twin so the disabled control keeps
+  its path.
+- **Route keys of anonymous routes** are `struct:<hash>` over the identity
+  paths of every control, enabled or not. Enabling a control does not change the
+  key.
+- **Tag.** An inventory entry carries `tag` when an explicit `TugboatTag` sits
+  at or above its element. It is the developer's id, not a `ValueKey`, and it is
+  never hash input.
+- **Not reported.** `hitTestBounds` is not reported, so inventory boxes are paint
+  bounds. A `ListTile` with no callbacks has no role. A pan-only
+  `GestureDetector`, a `Listener` with only pointer-down, and a `Semantics` with
+  a label but no tap action are not controls. A `MouseRegion` alone is not a
+  control; a `MouseRegion` around a button adds nothing to the button's entry.
+- **Aliases.** An exploration inventory entry lists, in `aliases`, the schema 6
+  fingerprint of the same control whenever schema 6 reported that control, and
+  the fingerprints of its own layers (its structural path). Both are computed
+  from a second, schema 6 walk of the same tree, kept only to produce aliases.
+  A control that schema 6 did not report has no schema 6 alias. Aliases are the
+  only place schema 6 values appear, and they are removed one release later.
+- **Golden.** `test/fingerprint_golden_test.dart` pins fingerprints, route keys,
+  aliases and the schema version for a fixture tree. Any change to them fails
+  that test: bump `tugboatFingerprintSchemaVersion` and update the golden in
+  the same change.
 
 ## Screenshot pipeline
 

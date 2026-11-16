@@ -102,10 +102,15 @@ extension TugboatSurfaceApi on AnchorResolver {
     return null;
   }
 
+  /// Retained children of each token. Low-level roles (a framework tap
+  /// Semantics on a sheet's drag handle) are chrome, not app content, so they
+  /// do not count towards the single-child host chain.
   Map<Element, List<Element>> _retainedChildren(_TokenMap tokenMap) {
     final children = <Element, List<Element>>{};
     tokenMap.retainedParents.forEach((element, parent) {
-      if (parent != null && tokenMap.tokens.containsKey(element)) {
+      if (parent != null &&
+          tokenMap.tokens.containsKey(element) &&
+          !tokenMap.newRoleCandidates.contains(element)) {
         (children[parent] ??= <Element>[]).add(element);
       }
     });
@@ -116,7 +121,9 @@ extension TugboatSurfaceApi on AnchorResolver {
     final roots =
         [
           for (final entry in tokenMap.retainedParents.entries)
-            if (entry.value == null && tokenMap.tokens.containsKey(entry.key))
+            if (entry.value == null &&
+                tokenMap.tokens.containsKey(entry.key) &&
+                !tokenMap.newRoleCandidates.contains(entry.key))
               entry.key,
         ].where((root) {
           final name = _tokenTypeName(tokenMap.tokens[root]);
