@@ -59,7 +59,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
     String? initialTraitsId,
     String? initialUserId,
     @visibleForTesting Duration? identityDebounceDuration,
+    @visibleForTesting Duration? requestTimeout,
+    @visibleForTesting Duration? slowFlushThreshold,
   }) : _config = config,
+       _requestTimeout = requestTimeout ?? _defaultRequestTimeout,
+       _slowFlushThreshold = slowFlushThreshold ?? _defaultSlowFlushThreshold,
        _userId = initialUserId ?? config.userId,
        _traits = initialTraits == null
            ? null
@@ -78,6 +82,16 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   final TugboatCollectorConfig _config;
   final _CollectorHttpClient _client;
+
+  /// Upper bound for one collector request. package:http has no default
+  /// timeout, and a single stuck socket would otherwise hold the
+  /// single-flight flush (and every later upload) for minutes.
+  static const _defaultRequestTimeout = Duration(seconds: 15);
+  final Duration _requestTimeout;
+
+  /// A flush pass slower than this records a `collector_flush` diagnostic.
+  static const _defaultSlowFlushThreshold = Duration(seconds: 10);
+  final Duration _slowFlushThreshold;
 
   bool _disposed = false;
   TugboatSession? _session;
@@ -483,7 +497,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
           headers: _CollectorHttpClient._jsonHeaders,
           body: jsonEncode(body),
         ),
-      );
+      ).timeout(_requestTimeout);
 
       final result = _classifyResponse(response.statusCode);
       if (result == _SendResult.accepted && _isCurrentEpoch(epoch)) {
@@ -545,8 +559,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_isSessionStart(eventType)) _collectorSessionId ??= localSessionId;
   }
 
-  Future<void> _flushEventBatch() async {
-    if (_pendingEvents.isEmpty) return;
+  /// Sends the next event batch and returns how many events it took.
+  Future<int> _flushEventBatch() async {
+    if (_pendingEvents.isEmpty) return 0;
     final epoch = _sessionEpoch;
 
     final count = _pendingEvents.length < _config.eventBatchSize
@@ -556,10 +571,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingEvents.removeRange(0, count);
 
     final result = await _sendEventBatch(batch, epoch: epoch);
-    if (!_isCurrentEpoch(epoch)) return;
+    if (!_isCurrentEpoch(epoch)) return count;
     if (result == _SendResult.retry) {
       _enqueueRetryBatch(batch);
     }
+    return count;
   }
 
   Future<void> _flushRetryBatches() async {
@@ -604,7 +620,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
           headers: _CollectorHttpClient._jsonHeaders,
           body: jsonEncode({'events': events}),
         ),
-      );
+      ).timeout(_requestTimeout);
 
       return _classifyResponse(response.statusCode);
     } catch (_) {
@@ -614,22 +630,48 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   Future<void> _flushOnce() async {
     final epoch = _sessionEpoch;
-    await _flushLifecyclePosts();
-    if (!_isCurrentEpoch(epoch)) return;
+    final timing = _FlushTiming();
+    await timing.step('sessions', _flushLifecyclePosts);
     // Never upload events or frames until the collector session id is known.
-    if (!_hasCollectorSessionId) {
-      return;
+    if (_isCurrentEpoch(epoch) && _hasCollectorSessionId) {
+      await _flushFramesAndEvents(timing, epoch);
     }
+    _reportSlowFlush(timing, epoch);
+  }
+
+  Future<void> _flushFramesAndEvents(_FlushTiming timing, int epoch) async {
     // Upload visual evidence before publishing events that reference frame IDs.
     // Session completion may trigger inspection as soon as those events arrive.
-    await _flushFrames();
+    await timing.step('frames', _flushFrames);
     if (_retryBatches.isNotEmpty) {
       // Try the retry head once, but keep draining fresh events below.
-      await _flushRetryBatches();
+      await timing.step('event_retries', _flushRetryBatches);
     }
-    while (_pendingEvents.isNotEmpty) {
-      await _flushEventBatch();
+    // Drain only the events queued when this pass reached them. Events keep
+    // arriving in a busy session; later ones go to the next pass so the loop
+    // cannot keep frames waiting indefinitely.
+    var remaining = _pendingEvents.length;
+    while (remaining > 0 &&
+        _pendingEvents.isNotEmpty &&
+        _isCurrentEpoch(epoch)) {
+      remaining -= await timing.step('events', _flushEventBatch);
+      // Frames captured while that batch was in flight go before the next
+      // batch, which may reference them. A failing frame lane waits for the
+      // next pass instead of stalling every batch behind its timeout.
+      if (!_framesNeedRetry) await timing.step('frames', _flushFrames);
     }
+  }
+
+  void _reportSlowFlush(_FlushTiming timing, int epoch) {
+    final elapsed = timing.elapsed;
+    if (elapsed < _slowFlushThreshold || !_isCurrentEpoch(epoch)) return;
+    _recordDiagnostic('collector-flush', {
+      'component': 'collector_flush',
+      'result': 'slow',
+      'durationMs': elapsed.inMilliseconds,
+      'step': timing.slowestStep,
+      'stepDurationMs': timing.slowestStepDuration.inMilliseconds,
+    });
   }
 
   Future<void> _flushFrames() async {
@@ -732,7 +774,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       final response = await _tracedResponse(
         '/v1/frames',
         () async => http.Response.fromStream(await _client.send(request)),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(_requestTimeout);
       return (
         result: _classifyResponse(response.statusCode),
         statusCode: response.statusCode,
@@ -777,19 +819,25 @@ class CollectorHttpSink implements TugboatCaptureSink {
   }
 
   void _recordUploadDiagnostic(String result, int? statusCode, int frameCount) {
+    _recordDiagnostic('collector-frame-upload', {
+      'component': 'collector_frame_upload',
+      'result': result,
+      if (statusCode != null) 'statusCode': statusCode,
+      'frameCount': frameCount,
+      'droppedFrameCount': _droppedFrameCount,
+    });
+  }
+
+  /// Queues a bounded `capture_diagnostic` event. [data] must never carry
+  /// image contents, payloads, or credentials.
+  void _recordDiagnostic(String idPrefix, Map<String, Object?> data) {
     final session = _session;
     if (session == null) return;
     final event = TugboatEvent(
-      id: 'collector-frame-upload-${_frameUploadDiagnosticSequence++}',
+      id: '$idPrefix-${_frameUploadDiagnosticSequence++}',
       atMs: DateTime.now().difference(session.startedAt).inMilliseconds,
       type: 'capture_diagnostic',
-      data: {
-        'component': 'collector_frame_upload',
-        'result': result,
-        if (statusCode != null) 'statusCode': statusCode,
-        'frameCount': frameCount,
-        'droppedFrameCount': _droppedFrameCount,
-      },
+      data: data,
     );
     _pendingEvents.add(
       mapTugboatEventToCollectorEvent(
@@ -885,6 +933,35 @@ class CollectorHttpSink implements TugboatCaptureSink {
 }
 
 enum _SendResult { accepted, retry, drop }
+
+/// Wall-clock time spent per step of one flush pass.
+class _FlushTiming {
+  final Stopwatch _total = Stopwatch()..start();
+  final Map<String, Duration> _steps = {};
+
+  Duration get elapsed => _total.elapsed;
+
+  String get slowestStep => _slowest?.key ?? 'none';
+
+  Duration get slowestStepDuration => _slowest?.value ?? Duration.zero;
+
+  MapEntry<String, Duration>? get _slowest {
+    MapEntry<String, Duration>? slowest;
+    for (final entry in _steps.entries) {
+      if (slowest == null || entry.value > slowest.value) slowest = entry;
+    }
+    return slowest;
+  }
+
+  Future<T> step<T>(String name, Future<T> Function() run) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      return await run();
+    } finally {
+      _steps[name] = (_steps[name] ?? Duration.zero) + stopwatch.elapsed;
+    }
+  }
+}
 
 class _CollectorHttpClient extends http.BaseClient {
   _CollectorHttpClient({

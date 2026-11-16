@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -221,6 +222,43 @@ void main() {
       data: {'index': index},
     );
   }
+
+  void recordTestFrame(
+    CollectorHttpSink sink,
+    TugboatSession session,
+    int frameNo, {
+    int byteLength = 1,
+  }) {
+    sink.recordFrame(
+      TugboatFrame(
+        id: 'frame-$frameNo',
+        atMs: frameNo,
+        width: 1,
+        height: 1,
+        contentHash: 'hash-$frameNo',
+      ),
+      Uint8List(byteLength),
+      sessionId: session.id,
+    );
+  }
+
+  Future<void> waitFor(
+    bool Function() condition, {
+    Duration timeout = const Duration(seconds: 1),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (!condition() && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+  }
+
+  List<Map<String, dynamic>> diagnosticsFor(String component) => [
+    for (final batch in batchPosts)
+      for (final event in batch)
+        if (event['payload'] is Map &&
+            (event['payload'] as Map)['component'] == component)
+          Map<String, dynamic>.from(event['payload'] as Map),
+  ];
 
   test('HTTP proof lines redact secrets and unknown paths', () {
     expect(
@@ -1038,6 +1076,129 @@ void main() {
       sink.dispose();
     },
   );
+
+  test('a hung event post times out without blocking frame uploads', () async {
+    final framePaths = <String>[];
+    final eventIds = <String>[];
+    var hangEvents = true;
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      requestTimeout: const Duration(milliseconds: 100),
+      client: MockClient((request) async {
+        final path = request.url.path;
+        if (path == '/v1/sessions') {
+          return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+        }
+        if (path == '/v1/frames') {
+          framePaths.add(path);
+          return http.Response('{}', 202);
+        }
+        if (hangEvents) return Completer<http.Response>().future;
+        final body = jsonDecode(request.body) as Map;
+        eventIds.addAll([
+          for (final event in body['events'] as List)
+            (event as Map)['id'] as String,
+        ]);
+        return http.Response('{}', 202);
+      }),
+    );
+    final session = createSession();
+    sink.startSession(session);
+    await sink.flush();
+
+    for (var i = 0; i < 10; i++) {
+      sink.recordEvent(createEvent(i));
+    }
+    recordTestFrame(sink, session, 1);
+    await waitFor(() => framePaths.isNotEmpty);
+    expect(framePaths, hasLength(1));
+
+    hangEvents = false;
+    await sink.flush();
+    expect(eventIds, containsAll([for (var i = 0; i < 10; i++) 'event-$i']));
+    sink.dispose();
+  });
+
+  test('a hung session_start post times out and is retried', () async {
+    var sessionPosts = 0;
+    final frameNos = <String>[];
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      requestTimeout: const Duration(milliseconds: 100),
+      client: MockClient((request) async {
+        final path = request.url.path;
+        if (path == '/v1/sessions') {
+          sessionPosts += 1;
+          if (sessionPosts == 1) return Completer<http.Response>().future;
+          return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+        }
+        if (path == '/v1/frames') {
+          frameNos.addAll(
+            RegExp(
+              r'filename="(\d+)\.jpg"',
+            ).allMatches(request.body).map((match) => match.group(1)!),
+          );
+        }
+        return http.Response('{}', 202);
+      }),
+    );
+    final session = createSession();
+    sink.startSession(session);
+    recordTestFrame(sink, session, 4);
+
+    await waitFor(() => frameNos.isNotEmpty);
+    expect(sessionPosts, 2);
+    expect(frameNos, ['4']);
+    sink.dispose();
+  });
+
+  test(
+    'frames recorded during a long event drain go out between batches',
+    () async {
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      eventResponseDelay = const Duration(milliseconds: 40);
+      for (var i = 0; i < 30; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      while (batchPosts.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      recordTestFrame(sink, session, 7);
+      await sink.flush();
+
+      final framesAt = requestOrder.indexOf('/v1/frames');
+      expect(framesAt, isNonNegative);
+      expect(framesAt, lessThan(requestOrder.lastIndexOf('/v1/events/batch')));
+      expect(batchPosts.expand((batch) => batch), hasLength(30));
+      sink.dispose();
+    },
+  );
+
+  test('a slow flush reports the step it spent the most time in', () async {
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      slowFlushThreshold: const Duration(milliseconds: 50),
+    );
+    sink.startSession(createSession());
+    await sink.flush();
+
+    eventResponseDelay = const Duration(milliseconds: 100);
+    sink.recordEvent(createEvent(0));
+    await sink.flush();
+    eventResponseDelay = Duration.zero;
+    await sink.flush();
+
+    final slow = diagnosticsFor('collector_flush');
+    expect(slow, hasLength(1));
+    expect(slow.single['result'], 'slow');
+    expect(slow.single['step'], 'events');
+    expect(slow.single['durationMs'], greaterThanOrEqualTo(100));
+    sink.dispose();
+  });
 
   test('accepts empty 202 lifecycle body without retrying', () async {
     sessionResponseBody = '';
