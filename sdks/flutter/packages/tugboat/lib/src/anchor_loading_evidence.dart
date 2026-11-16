@@ -12,8 +12,9 @@ const _placeholderTypeFragments = <String>[
   'Redacted',
 ];
 
-bool _isPlaceholderWidget(Widget widget) {
-  if (widget is TugboatLoading) return true;
+/// Whether [widget]'s runtime type name marks a placeholder. A
+/// [TugboatLoading] marker is not decided here: it carries its own `enabled`.
+bool _isPlaceholderNamed(Widget widget) {
   // Scopes carry state for a subtree; they never draw a placeholder.
   if (widget is InheritedWidget) return false;
   final name = widget.runtimeType.toString();
@@ -43,6 +44,17 @@ typedef _LoadingFlags = ({bool placeholder, bool busy});
 
 const _LoadingFlags _noLoadingFlags = (placeholder: false, busy: false);
 
+/// What one ancestor chain says so far. [marker] is the `enabled` of the
+/// nearest [TugboatLoading] (null when there is none); [named] is whether any
+/// ancestor's type name matches a placeholder fragment. The nearest marker
+/// decides the placeholder flag; names only apply when there is no marker.
+typedef _ChainState = ({bool? marker, bool named, bool busy});
+
+const _ChainState _emptyChain = (marker: null, named: false, busy: false);
+
+_LoadingFlags _flagsOf(_ChainState chain) =>
+    (placeholder: chain.marker ?? chain.named, busy: chain.busy);
+
 /// Loading evidence for one exploration inventory build: a progress-indicator
 /// count for the capture tree, plus per-element placeholder and busy flags
 /// read from ancestors. Structural only: it never reads text, labels or
@@ -66,22 +78,23 @@ class _LoadingEvidence {
   final Element _root;
   final int progressIndicators;
 
-  /// Flags of every ancestor walked so far, each including its own widget.
-  /// Rows of one list share their ancestors, so each chain is walked once.
-  final Map<Element, _LoadingFlags> _through = {};
+  /// Chain state of every ancestor walked so far, each including its own
+  /// widget. Rows of one list share their ancestors, so each chain is walked
+  /// once.
+  final Map<Element, _ChainState> _through = {};
 
   /// Placeholder and busy flags of [element], from its ancestors up to (not
   /// including) the capture root. Both false when the walk fails.
   _LoadingFlags flagsFor(Element element) {
     if (identical(element, _root)) return _noLoadingFlags;
     final pending = <Element>[];
-    var flags = _noLoadingFlags;
+    var chain = _emptyChain;
     try {
       element.visitAncestorElements((ancestor) {
         if (identical(ancestor, _root)) return false;
         final known = _through[ancestor];
         if (known != null) {
-          flags = known;
+          chain = known;
           return false;
         }
         pending.add(ancestor);
@@ -91,14 +104,16 @@ class _LoadingEvidence {
       return _noLoadingFlags;
     }
     for (final ancestor in pending.reversed) {
-      flags = _withWidget(flags, ancestor.widget);
-      _through[ancestor] = flags;
+      chain = _withWidget(chain, ancestor.widget);
+      _through[ancestor] = chain;
     }
-    return flags;
+    return _flagsOf(chain);
   }
 
-  _LoadingFlags _withWidget(_LoadingFlags above, Widget widget) => (
-    placeholder: above.placeholder || _isPlaceholderWidget(widget),
+  _ChainState _withWidget(_ChainState above, Widget widget) => (
+    // A nearer marker replaces any marker above it, enabled or not.
+    marker: widget is TugboatLoading ? widget.enabled : above.marker,
+    named: above.named || _isPlaceholderNamed(widget),
     busy: above.busy || _isBusyBlockerWidget(widget),
   );
 }

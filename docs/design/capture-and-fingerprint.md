@@ -473,25 +473,42 @@ structural, text-free, and never part of an identity:
 - **`placeholder: true`** on an element beneath a placeholder ancestor, omitted
   otherwise.
 
-A placeholder ancestor is a `TugboatLoading` marker, or a widget whose runtime
-type name, without its type arguments, contains `Shimmer`, `Skeleton`,
+A placeholder ancestor is decided by walking up from the element. The nearest
+`TugboatLoading` marker decides: `enabled: true` (the default) makes the element
+a placeholder, `enabled: false` does not, and the walk stops there. Only when no
+`TugboatLoading` is above the element does a name match apply: a widget whose
+runtime type name, without its type arguments, contains `Shimmer`, `Skeleton`,
 `Placeholder` or `Redacted` (case-sensitive). `InheritedWidget`s never count,
 and `Provider<ShimmerController>` does not match. Flutter's own debug
 `Placeholder` matches the `Placeholder` fragment on purpose: it is a stub by
-definition. The match is a name heuristic, so it has known false positives:
+definition. The match is a name heuristic, so it has a known false positive:
+an app widget whose name merely contains a fragment
+(`PlaceholderSettingsPage`) marks everything beneath it.
 
-- an app widget whose name merely contains a fragment
-  (`PlaceholderSettingsPage`) marks everything beneath it;
-- a skeleton widget that stays mounted once loaded (a `Skeletonizer` or
-  `Shimmer` with `enabled: false`) keeps marking its subtree, because the SDK
-  reads no package fields. Hosts that build skeletons this way should use
-  `TugboatLoading` only while loading, and treat `placeholder` as a hint.
+A skeleton widget that stays mounted once loaded (a `Skeletonizer` or `Shimmer`
+with `enabled: false`) would keep marking its subtree, because the SDK reads no
+package fields. `TugboatLoading(enabled: ...)` is the remedy. Mirror the
+skeleton's flag on the marker:
 
-`TugboatLoading({required child})` is for hosts whose skeleton widgets have
-other names. It is transparent: it adds no canonical path segment, can never
-be `surface.widgetClass`, and changes no fingerprint, `routeKey`, `surface` or
-`inventoryHash`, so wrapping a control in it leaves that control's identity
-unchanged. It is exported from `package:tugboat/tugboat.dart`.
+```dart
+Skeletonizer(
+  enabled: loading,
+  child: TugboatLoading(enabled: loading, child: content),
+)
+```
+
+While `loading` is true the content is marked `placeholder: true`. Once it is
+false the disabled marker is the nearest one, so the content is not a
+placeholder even though a `Skeletonizer` ancestor is still mounted. A disabled
+marker switches off name-matched detection for its whole subtree, and an
+enabled outer marker does not reach past a disabled inner one.
+
+`TugboatLoading({enabled = true, required child})` is also for hosts whose
+skeleton widgets have other names. It is transparent in both states: it adds no
+canonical path segment, can never be `surface.widgetClass`, and changes no
+fingerprint, `routeKey`, `surface` or `inventoryHash`, so wrapping a control in
+it, or toggling `enabled`, leaves that control's identity unchanged. It is
+exported from `package:tugboat/tugboat.dart`.
 
 The ancestor walk is bounded at the capture root and memoised per inventory
 (rows of a list share their ancestors), and the progress-indicator walk runs

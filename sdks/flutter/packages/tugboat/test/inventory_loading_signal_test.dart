@@ -70,6 +70,17 @@ class SkeletonTheme extends InheritedWidget {
   bool updateShouldNotify(SkeletonTheme oldWidget) => false;
 }
 
+/// A skeleton package's widget: its type name carries the `Skeleton` fragment
+/// and it stays mounted whether or not it is loading.
+class SkeletonBox extends StatelessWidget {
+  const SkeletonBox({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
 /// A dialog: an app widget class `surface.widgetClass` can name.
 class ConfirmDialog extends StatelessWidget {
   const ConfirmDialog({super.key});
@@ -213,6 +224,140 @@ void main() {
         plainEntries[i]['canonicalPath'],
       );
     }
+  });
+
+  testWidgets('TugboatLoading(enabled: false) marks nothing', (tester) async {
+    await _mount(
+      tester,
+      Center(
+        child: TugboatLoading(
+          enabled: false,
+          child: FilledButton(onPressed: () {}, child: const Text('Tile')),
+        ),
+      ),
+    );
+
+    final inventory = _last();
+    expect(_elements(inventory), isNotEmpty);
+    expect(_loading(inventory)['placeholders'], 0);
+    expect(_flagged(inventory), isEmpty);
+    for (final entry in _elements(inventory)) {
+      expect(entry.containsKey('placeholder'), isFalse);
+    }
+  });
+
+  testWidgets('toggling TugboatLoading.enabled changes only the flags', (
+    tester,
+  ) async {
+    Future<Map<String, Object?>> inventoryWith({required bool enabled}) async {
+      await tester.pumpWidget(const SizedBox());
+      TugboatReplay.resetForTest();
+      await _mount(
+        tester,
+        Center(
+          child: TugboatLoading(
+            enabled: enabled,
+            child: FilledButton(onPressed: () {}, child: const Text('Tile')),
+          ),
+        ),
+      );
+      return _last();
+    }
+
+    final on = await inventoryWith(enabled: true);
+    final off = await inventoryWith(enabled: false);
+
+    expect(_loading(on)['placeholders'], 1);
+    expect(_flagged(on), hasLength(1));
+    expect(_loading(off)['placeholders'], 0);
+    expect(_flagged(off), isEmpty);
+    expect(off['inventoryHash'], on['inventoryHash']);
+    expect(off['routeKey'], on['routeKey']);
+    expect(off['surface'], on['surface']);
+    final onEntries = _elements(on);
+    final offEntries = _elements(off);
+    expect(offEntries, hasLength(onEntries.length));
+    for (var i = 0; i < onEntries.length; i++) {
+      expect(offEntries[i]['fingerprint'], onEntries[i]['fingerprint']);
+      expect(offEntries[i]['canonicalPath'], onEntries[i]['canonicalPath']);
+    }
+  });
+
+  group('the nearest TugboatLoading decides over a skeleton ancestor', () {
+    Future<Map<String, Object?>> inventoryUnder(
+      WidgetTester tester, {
+      bool? enabled,
+    }) async {
+      final tile = FilledButton(onPressed: () {}, child: const Text('Tile'));
+      await _mount(
+        tester,
+        Center(
+          child: SkeletonBox(
+            child: enabled == null
+                ? tile
+                : TugboatLoading(enabled: enabled, child: tile),
+          ),
+        ),
+      );
+      return _last();
+    }
+
+    testWidgets('a disabled marker beneath it switches the name match off', (
+      tester,
+    ) async {
+      final inventory = await inventoryUnder(tester, enabled: false);
+
+      expect(_elements(inventory), isNotEmpty);
+      expect(_loading(inventory)['placeholders'], 0);
+      expect(_flagged(inventory), isEmpty);
+    });
+
+    testWidgets('an enabled marker beneath it is a placeholder', (
+      tester,
+    ) async {
+      final inventory = await inventoryUnder(tester, enabled: true);
+
+      expect(_loading(inventory)['placeholders'], 1);
+      expect(_flagged(inventory), hasLength(1));
+    });
+
+    testWidgets('with no marker the name match applies', (tester) async {
+      final inventory = await inventoryUnder(tester);
+
+      expect(_loading(inventory)['placeholders'], 1);
+      expect(_flagged(inventory), hasLength(1));
+    });
+  });
+
+  testWidgets('a disabled inner marker beats an enabled outer one', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      Column(
+        children: [
+          TugboatLoading(
+            child: Column(
+              children: [
+                FilledButton(onPressed: () {}, child: const Text('Outer')),
+                TugboatLoading(
+                  enabled: false,
+                  child: FilledButton(
+                    onPressed: () {},
+                    child: const Text('Inner'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final inventory = _last();
+    expect(_elements(inventory), hasLength(2));
+    expect(_loading(inventory)['placeholders'], 1);
+    expect(_flagged(inventory), hasLength(1));
   });
 
   testWidgets('controls under an absorbing pointer count as busy', (

@@ -20,7 +20,11 @@
   `TugboatLoading` marker, carries `placeholder: true`. The signal is
   structural and text-free, and no fingerprint, route key or inventory hash
   changes. Placeholder names are a heuristic; see the capture design doc for
-  its known false positives.
+  its known false positives. `TugboatLoading(enabled: false)` switches the
+  marker off: the nearest `TugboatLoading` above an element decides, so a
+  disabled one also overrides a skeleton ancestor that stays mounted after
+  loading (`Skeletonizer(enabled: loading, child: TugboatLoading(enabled:
+  loading, child: content))`). Toggling `enabled` changes no fingerprint.
 - In exploration mode (scene inventory emission on), every `tap` interaction
   that carries a `targetFingerprint` now also carries `fingerprintSource` and
   `routeKey`, next to the existing `fingerprintConfidence`. Production taps keep
