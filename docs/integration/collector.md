@@ -247,6 +247,14 @@ Event payloads contain:
 - build identity: app ID, platform, version name, build number, and fingerprint
   schema version.
 
+An `interaction` record carries `route`, `targetFingerprint`, `gesture`,
+`payload` and `targetAnchor`, plus `targetResolutionFailureReason` when no
+target resolved. Exploration taps (scene inventory emission on) also carry
+`fingerprintConfidence`, `fingerprintSource` (how the fingerprint was
+resolved), `routeKey` (the route key it was hashed under) and `surface`
+(`kind`, optional `widgetClass`). These four are exploration-only: production
+taps never carry them.
+
 The collector must accept all SDK schema-v2 gesture names: `tap`, `swipe`,
 `scroll`, `pan`, `zoom_in`, `zoom_out`, and `cancelled`. The mapper preserves
 these names. It does not rename zoom to swipe or scroll.

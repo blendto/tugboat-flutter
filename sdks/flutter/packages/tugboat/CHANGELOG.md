@@ -35,6 +35,9 @@
 
 ### Fixed
 
+- Exploration taps now deliver `fingerprintSource`, `routeKey` and `surface` to
+  the HTTP collector. The collector mapper dropped them, so they stayed in the
+  in-memory envelope only.
 - A tap on a control that stays mounted while the app navigates, such as a
   persistent bottom bar outside the `Navigator`, was fingerprinted under the
   destination route's key while its `route` showed the origin. In production
