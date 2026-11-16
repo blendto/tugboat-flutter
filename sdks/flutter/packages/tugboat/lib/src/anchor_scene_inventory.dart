@@ -11,11 +11,17 @@ extension TugboatSceneInventoryApi on AnchorResolver {
   ///
   /// [surfaceKind] is the [TugboatSurfaceKind] of the current route; it only
   /// labels the inventory's `surface` and never reaches a hash.
+  ///
+  /// [withBoundsEvidence] adds the `viewport`, `scroll` and per-element
+  /// `visibleFraction` evidence. It costs one extra ancestor walk per element,
+  /// so only inventories that will be emitted ask for it. None of it reaches a
+  /// hash.
   TugboatSceneInventory? buildSceneInventory({
     required String? route,
     required bool keyboardOpen,
     required bool modalOpen,
     String? surfaceKind,
+    bool withBoundsEvidence = false,
   }) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
@@ -29,6 +35,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       rootRender: rootRender,
       route: route,
       surface: _surfaceFor(tokenMap, kind: surfaceKind),
+      withBoundsEvidence: withBoundsEvidence,
     );
   }
 
@@ -37,6 +44,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required RenderBox rootRender,
     required String? route,
     required TugboatSurface surface,
+    required bool withBoundsEvidence,
   }) {
     final routeKey = _resolveRouteKey(route, tokenMap);
     final viewport = rootRender.size;
@@ -44,6 +52,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     final interactiveByFingerprint = <String, TugboatSceneInventoryEntry>{};
     final seenContentFingerprints = <String>{};
     final hitCache = <String, TugboatTargetAnchor?>{};
+    final evidence = withBoundsEvidence ? _BoundsEvidence(rootRender) : null;
 
     for (final element in tokenMap.includedElements) {
       _addInventoryElement(
@@ -51,6 +60,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         tokenMap: tokenMap,
         rootRender: rootRender,
         viewport: viewport,
+        evidence: evidence,
         route: route,
         routeKey: routeKey,
         hitCache: hitCache,
@@ -67,6 +77,8 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       routeKey: routeKey,
       elements: elements,
       surface: surface,
+      viewport: evidence == null ? null : _viewportFor(rootRender),
+      scroll: evidence == null ? null : _primaryScrollFor(tokenMap, rootRender),
     );
   }
 
@@ -75,6 +87,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required _TokenMap tokenMap,
     required RenderBox rootRender,
     required Size viewport,
+    required _BoundsEvidence? evidence,
     required String? route,
     required String routeKey,
     required Map<String, TugboatTargetAnchor?> hitCache,
@@ -95,8 +108,10 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       return;
     }
     final structuralPath = _pathFor(element, tokenMap);
-    final bounds = _boundsForElement(element, rootRender, viewport);
-    if (bounds == null) return;
+    final rect = _paintRectInRoot(element, rootRender);
+    if (rect == null) return;
+    final bounds = TugboatNormalizedBounds.fromRect(rect, viewport);
+    final visibleFraction = evidence?.visibleFractionFor(element, rect);
     if (actionable) {
       final result = _interactiveInventoryEntry(
         element: element,
@@ -109,6 +124,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         rootRender: rootRender,
         viewport: viewport,
         hitCache: hitCache,
+        visibleFraction: visibleFraction,
       );
       if (result != null) {
         _accumulateInteractiveEntry(
@@ -126,6 +142,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       structuralPath,
       bounds,
       routeKey,
+      visibleFraction,
     );
   }
 
@@ -148,6 +165,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     String structuralPath,
     TugboatNormalizedBounds bounds,
     String routeKey,
+    double? visibleFraction,
   ) {
     final fingerprint = _fingerprintForParts({
       'routeKey': routeKey,
@@ -164,6 +182,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         role: 'display',
         boundsNorm: bounds,
         tier: 'content',
+        visibleFraction: visibleFraction,
       ),
     );
   }
@@ -172,6 +191,8 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required String routeKey,
     required List<TugboatSceneInventoryEntry> elements,
     required TugboatSurface surface,
+    TugboatInventoryViewport? viewport,
+    TugboatInventoryScroll? scroll,
   }) {
     final fingerprints = elements.map((entry) => entry.fingerprint).toList()
       ..sort();
@@ -182,6 +203,8 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       routeKey: routeKey,
       elements: elements,
       surface: surface,
+      viewport: viewport,
+      scroll: scroll,
     );
   }
 
@@ -414,6 +437,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required Offset tapPosition,
     required String? route,
     required TugboatSurface surface,
+    required bool withBoundsEvidence,
     required _TokenMap tokenMap,
     required RenderBox rootRender,
   }) {
@@ -436,16 +460,41 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     );
     if (injectedEntry == null) return inventory;
 
-    final elements = [
-      ...(inventory?.elements ?? const <TugboatSceneInventoryEntry>[]),
-      injectedEntry,
-    ];
-    return _inventoryFromElements(
-      routeKey: inventory?.routeKey ?? routeKey,
-      elements: elements,
-      surface: inventory?.surface ?? surface,
+    return _inventoryWithEntry(
+      inventory: inventory,
+      entry: injectedEntry,
+      routeKey: routeKey,
+      surface: surface,
+      viewport: _injectedViewport(inventory, rootRender, withBoundsEvidence),
     );
   }
+
+  TugboatSceneInventory _inventoryWithEntry({
+    required TugboatSceneInventory? inventory,
+    required TugboatSceneInventoryEntry entry,
+    required String routeKey,
+    required TugboatSurface surface,
+    required TugboatInventoryViewport? viewport,
+  }) => _inventoryFromElements(
+    routeKey: inventory?.routeKey ?? routeKey,
+    elements: [
+      ...(inventory?.elements ?? const <TugboatSceneInventoryEntry>[]),
+      entry,
+    ],
+    surface: inventory?.surface ?? surface,
+    viewport: viewport,
+    scroll: inventory?.scroll,
+  );
+
+  /// The viewport an inventory with the injected tap target carries: its own,
+  /// or, when the target is the inventory's only element, the boundary's frame.
+  TugboatInventoryViewport? _injectedViewport(
+    TugboatSceneInventory? inventory,
+    RenderBox rootRender,
+    bool withBoundsEvidence,
+  ) => inventory == null && withBoundsEvidence
+      ? _viewportFor(rootRender)
+      : inventory?.viewport;
 
   TugboatSceneInventoryEntry? _entryFromTargetAnchor({
     required TugboatTargetAnchor target,
@@ -518,6 +567,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required RenderBox rootRender,
     required Size viewport,
     required Map<String, TugboatTargetAnchor?> hitCache,
+    required double? visibleFraction,
   }) {
     final structuralFingerprint = _fingerprintForParts({
       'routeKey': routeKey,
@@ -541,6 +591,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       widget,
       bounds,
       structuralFingerprint,
+      visibleFraction,
     );
     if (resolvedEntry != null) return resolvedEntry;
 
@@ -563,6 +614,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         enabled: role?.enabled,
         boundsNorm: bounds,
         tier: 'interactive',
+        visibleFraction: visibleFraction,
       ),
       structuralFingerprint: structuralFingerprint,
     );
@@ -597,6 +649,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     Widget widget,
     TugboatNormalizedBounds bounds,
     String structuralFingerprint,
+    double? visibleFraction,
   ) {
     final fingerprint = resolved?.fingerprint;
     final path = resolved?.canonicalPath;
@@ -611,6 +664,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         enabled: resolved?.enabled,
         boundsNorm: bounds,
         tier: 'interactive',
+        visibleFraction: visibleFraction,
       ),
       structuralFingerprint: structuralFingerprint,
     );

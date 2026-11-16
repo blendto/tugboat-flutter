@@ -3138,6 +3138,7 @@ class TugboatReplayController extends ChangeNotifier {
             modalOpen: _isModalOpen(),
             detectDismissibleBarrier: true,
             surfaceKind: _surfaceKind,
+            withBoundsEvidence: true,
           );
           final rawTarget = tapContext.target;
           inventory = _sanitizeExplorationInventory(
@@ -3335,6 +3336,8 @@ class TugboatReplayController extends ChangeNotifier {
       routeKey: inventory.routeKey,
       elements: elements,
       surface: inventory.surface,
+      viewport: inventory.viewport,
+      scroll: inventory.scroll,
     );
   }
 
@@ -5955,6 +5958,7 @@ class TugboatReplayController extends ChangeNotifier {
       keyboardOpen: _isKeyboardOpen(),
       modalOpen: _isModalOpen(),
       surfaceKind: _surfaceKind,
+      withBoundsEvidence: config.sceneInventoryEmissionEnabled,
     );
     if (inventory == null) return;
 

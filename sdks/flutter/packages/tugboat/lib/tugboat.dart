@@ -2,10 +2,13 @@ library;
 
 export 'src/anchors.dart'
     show
+        TugboatInventoryScroll,
+        TugboatInventoryViewport,
         TugboatNormalizedBounds,
         TugboatSurface,
         TugboatSurfaceKind,
         TugboatTargetAnchor,
+        TugboatViewportInsets,
         tugboatIconLabel,
         tugboatIconHash,
         tugboatLabelHash;

@@ -661,6 +661,7 @@ class AnchorResolver {
     String? pressedRoute,
     bool routeChangedSincePress = false,
     String? surfaceKind,
+    bool withBoundsEvidence = false,
   }) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
@@ -680,6 +681,7 @@ class AnchorResolver {
       pressedRoute: pressedRoute,
       routeChangedSincePress: routeChangedSincePress,
       surface: _surfaceFor(tokenMap, kind: surfaceKind),
+      withBoundsEvidence: withBoundsEvidence,
     );
     return (
       inventory: resolved.inventory,
@@ -730,6 +732,7 @@ class AnchorResolver {
     required String? pressedRoute,
     required bool routeChangedSincePress,
     required TugboatSurface surface,
+    required bool withBoundsEvidence,
   }) {
     final hit = _hitTapTarget(
       tapPosition,
@@ -745,6 +748,7 @@ class AnchorResolver {
       rootRender: rootRender,
       route: route,
       surface: surface,
+      withBoundsEvidence: withBoundsEvidence,
     );
     final snapped = _snapPathlessTargetToInventory(
       target: hit.target,
@@ -762,6 +766,7 @@ class AnchorResolver {
       tapPosition: tapPosition,
       route: route,
       surface: surface,
+      withBoundsEvidence: withBoundsEvidence,
       tokenMap: tokenMap,
       rootRender: rootRender,
     );
@@ -1350,14 +1355,22 @@ class AnchorResolver {
     RenderBox rootRender,
     Size viewport,
   ) {
+    final rect = _paintRectInRoot(element, rootRender);
+    return rect == null
+        ? null
+        : TugboatNormalizedBounds.fromRect(rect, viewport);
+  }
+
+  /// The element's paint bounds (not its hit-test box), unclipped, in the
+  /// capture boundary's coordinates. Null when it has no laid-out box.
+  Rect? _paintRectInRoot(Element element, RenderBox rootRender) {
     final render = element.renderObject;
     if (render is! RenderBox || !render.hasSize) return null;
     try {
-      final rect = MatrixUtils.transformRect(
+      return MatrixUtils.transformRect(
         render.getTransformTo(rootRender),
         render.paintBounds,
       );
-      return TugboatNormalizedBounds.fromRect(rect, viewport);
     } catch (_) {
       return null;
     }

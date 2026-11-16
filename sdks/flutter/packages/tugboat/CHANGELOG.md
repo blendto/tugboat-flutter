@@ -21,6 +21,17 @@
   part of any fingerprint, `routeKey` or `inventoryHash`.
 - Documented that `RouteSettings(name: ...)` on `showModalBottomSheet` and
   `showDialog` gives a sheet or dialog a stable, readable route key today.
+- In exploration mode, every scene inventory carries `viewport`
+  (`widthPx`, `heightPx`, `devicePixelRatio`, `boundaryOffset`, `insets`,
+  `keyboardInset`, `referenceFrame: "captureBoundary"`): the frame `boundsNorm`
+  is a fraction of. All sizes are in logical pixels; multiply by
+  `devicePixelRatio` for device pixels. Each element carries `visibleFraction`
+  (0 to 1) when part of its paint box is outside the capture boundary or
+  clipped by an ancestor, and an inventory with a vertical scrollable carries
+  `scroll` (`offsetPx`, `maxExtentPx`, `axis`) for the largest one. `boundsNorm`
+  stays unclipped paint bounds. None of it is part of any fingerprint,
+  `routeKey`, `inventoryHash` or the de-duplication key, and production taps do
+  not compute it.
 
 ### Fixed
 

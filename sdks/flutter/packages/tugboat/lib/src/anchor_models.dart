@@ -152,6 +152,7 @@ class TugboatSceneInventoryEntry {
     required this.boundsNorm,
     required this.tier,
     this.aliases = const [],
+    this.visibleFraction,
   });
 
   final String fingerprint;
@@ -166,6 +167,11 @@ class TugboatSceneInventoryEntry {
   /// Alternate structural fingerprints for the same control (wrapper layers).
   final List<String> aliases;
 
+  /// Share (0 to 1, three decimals) of the element's paint box that is inside
+  /// the capture boundary and not clipped by an ancestor. Null when the
+  /// element is fully visible or the share could not be told. Never hash input.
+  final double? visibleFraction;
+
   Map<String, Object?> toJson() => {
     'fingerprint': fingerprint,
     'canonicalPath': canonicalPath,
@@ -176,6 +182,7 @@ class TugboatSceneInventoryEntry {
     'boundsNorm': boundsNorm.toJson(),
     'tier': tier,
     if (aliases.isNotEmpty) 'aliases': aliases,
+    if (visibleFraction != null) 'visibleFraction': visibleFraction,
   };
 
   TugboatSceneInventoryEntry copyWith({List<String>? aliases}) {
@@ -189,6 +196,7 @@ class TugboatSceneInventoryEntry {
       boundsNorm: boundsNorm,
       tier: tier,
       aliases: aliases ?? this.aliases,
+      visibleFraction: visibleFraction,
     );
   }
 }
@@ -222,6 +230,99 @@ class TugboatSurface {
   };
 }
 
+/// System insets around the capture boundary's view, in logical pixels.
+class TugboatViewportInsets {
+  const TugboatViewportInsets({
+    required this.top,
+    required this.bottom,
+    required this.left,
+    required this.right,
+  });
+
+  final double top;
+  final double bottom;
+  final double left;
+  final double right;
+
+  Map<String, Object?> toJson() => {
+    'top': top,
+    'bottom': bottom,
+    'left': left,
+    'right': right,
+  };
+}
+
+/// The frame `boundsNorm` is measured in, so a consumer can turn a normalized
+/// box into display pixels. Text-free evidence, never hash input.
+///
+/// Every `*Px` value is in Flutter **logical pixels** (device-independent
+/// pixels), not device pixels: multiply by [devicePixelRatio] to get device
+/// pixels.
+class TugboatInventoryViewport {
+  const TugboatInventoryViewport({
+    required this.widthPx,
+    required this.heightPx,
+    required this.devicePixelRatio,
+    required this.boundaryLeft,
+    required this.boundaryTop,
+    required this.insets,
+    required this.keyboardInset,
+  });
+
+  /// The only reference frame there is: `boundsNorm` is a fraction of the
+  /// capture boundary's render box.
+  static const referenceFrame = 'captureBoundary';
+
+  /// Capture boundary size in logical pixels.
+  final double widthPx;
+  final double heightPx;
+
+  /// Device pixels per logical pixel of the boundary's view.
+  final double devicePixelRatio;
+
+  /// Top-left of the capture boundary in the Flutter view's logical
+  /// coordinates (`localToGlobal(Offset.zero)`).
+  final double boundaryLeft;
+  final double boundaryTop;
+
+  /// The view's padding (system bars, cutouts), logical pixels. It is not
+  /// reduced by the keyboard.
+  final TugboatViewportInsets insets;
+
+  /// Bottom view inset (on-screen keyboard), logical pixels; 0 when closed.
+  final double keyboardInset;
+
+  Map<String, Object?> toJson() => {
+    'widthPx': widthPx,
+    'heightPx': heightPx,
+    'devicePixelRatio': devicePixelRatio,
+    'boundaryOffset': {'left': boundaryLeft, 'top': boundaryTop},
+    'insets': insets.toJson(),
+    'keyboardInset': keyboardInset,
+    'referenceFrame': referenceFrame,
+  };
+}
+
+/// Scroll position of the inventory's primary vertical scrollable. Logical
+/// pixels, text-free evidence, never hash input.
+class TugboatInventoryScroll {
+  const TugboatInventoryScroll({required this.offsetPx, this.maxExtentPx});
+
+  /// `ScrollPosition.pixels`.
+  final double offsetPx;
+
+  /// `ScrollPosition.maxScrollExtent`; null when the extent is unbounded.
+  final double? maxExtentPx;
+
+  static const axis = 'vertical';
+
+  Map<String, Object?> toJson() => {
+    'offsetPx': offsetPx,
+    if (maxExtentPx != null) 'maxExtentPx': maxExtentPx,
+    'axis': axis,
+  };
+}
+
 /// Structural inventory of salient elements on a settled screen state.
 class TugboatSceneInventory {
   const TugboatSceneInventory({
@@ -229,6 +330,8 @@ class TugboatSceneInventory {
     required this.routeKey,
     required this.elements,
     this.surface = const TugboatSurface(kind: TugboatSurfaceKind.page),
+    this.viewport,
+    this.scroll,
   });
 
   final String inventoryHash;
@@ -238,10 +341,20 @@ class TugboatSceneInventory {
   /// Not part of [inventoryHash] or the emission de-duplication key.
   final TugboatSurface surface;
 
+  /// The frame `boundsNorm` is measured in. Null when the boundary has no
+  /// view to read. Not part of [inventoryHash] or the de-duplication key.
+  final TugboatInventoryViewport? viewport;
+
+  /// Primary vertical scrollable, when there is one. Same hash rules as
+  /// [viewport].
+  final TugboatInventoryScroll? scroll;
+
   Map<String, Object?> toJson() => {
     'inventoryHash': inventoryHash,
     'routeKey': routeKey,
     'surface': surface.toJson(),
+    if (viewport != null) 'viewport': viewport!.toJson(),
+    if (scroll != null) 'scroll': scroll!.toJson(),
     'elements': elements.map((entry) => entry.toJson()).toList(),
   };
 }

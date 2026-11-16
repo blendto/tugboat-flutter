@@ -340,6 +340,114 @@ The name becomes `route` and `routeKey`, unless it starts with `_` or contains
 `DialogRoute` or `PopupRoute` (those still fall back to a structural key). Names
 are developer-authored identity strings and must not carry user or tenant data.
 
+### Bounds, viewport and scroll
+
+Every scene inventory element carries `boundsNorm`, and every inventory built in
+exploration mode carries `viewport` and, when it has one, `scroll`. All three
+are text-free geometry evidence and not part of identity: none is an input to
+any fingerprint, `canonicalPath`, `routeKey`, `inventoryHash` or the inventory
+de-duplication key. Production taps never compute them.
+
+**`boundsNorm`** is `{ left, top, width, height }` as fractions of the capture
+boundary's render box (`TugboatCaptureBoundary`, the SDK's root). It is the
+element's **paint bounds** (`RenderBox.paintBounds`, transformed into the
+boundary) and not its hit-test box: a control that pads its tap target beyond
+its paint box, or hit-tests outside it, is not described by it. It is **not
+clipped**: a row half scrolled out of its list, or an element sticking out of
+the boundary, keeps coordinates below 0 or above 1. Elements that do not overlap
+the boundary at all are not in the inventory.
+
+**`viewport`** says what `boundsNorm` is a fraction of, so a consumer can get
+display pixels exactly:
+
+```json
+"viewport": {
+  "widthPx": 390.0, "heightPx": 770.0,
+  "devicePixelRatio": 2.0,
+  "boundaryOffset": { "left": 10.0, "top": 30.0 },
+  "insets": { "top": 48.0, "bottom": 34.0, "left": 3.0, "right": 5.0 },
+  "keyboardInset": 0.0,
+  "referenceFrame": "captureBoundary"
+}
+```
+
+- **Units: every value is in Flutter logical pixels** (device-independent
+  pixels, what `RenderBox.size` and `MediaQuery` report), not device pixels,
+  despite the `Px` in the names of `widthPx` and `heightPx` (and `offsetPx` and
+  `maxExtentPx` below). Multiply by `devicePixelRatio` to get device pixels.
+- `widthPx` and `heightPx` are the capture boundary's size, the denominator of
+  `boundsNorm`. It can be smaller than the display (system bars, insets, host
+  layout around the SDK's root).
+- `boundaryOffset` is the boundary's top-left in the Flutter view's logical
+  coordinates (`localToGlobal(Offset.zero)`).
+- `insets` is the view padding (`FlutterView.viewPadding`: status and navigation
+  bars, cutouts), top, bottom, left and right. It is not reduced by the keyboard
+  and is read from the view, so a `MediaQuery` override inside the app does not
+  change it.
+- `keyboardInset` is the bottom view inset (`FlutterView.viewInsets.bottom`), 0
+  when no keyboard is shown.
+- `referenceFrame` is always `captureBoundary`: the only frame boxes are
+  normalized in.
+- The object is left out when the boundary has no laid-out `FlutterView` to
+  read. A boundary placed under a scaling `Transform` reports its own layout
+  size, not the scaled size.
+
+To place an element on a screenshot, scale the box by the frame it is measured
+in:
+
+- Of an image of the capture boundary alone: `x = boundsNorm.left *
+  imageWidth`, and likewise for `top`, `width`, `height` with the image size.
+- Of a screenshot or accessibility dump of the whole Flutter view, in device
+  pixels:
+  `x = (boundaryOffset.left + boundsNorm.left * widthPx) * devicePixelRatio`
+  and `y = (boundaryOffset.top + boundsNorm.top * heightPx) * devicePixelRatio`;
+  `width = boundsNorm.width * widthPx * devicePixelRatio` and
+  `height = boundsNorm.height * heightPx * devicePixelRatio`. These are pixels
+  of the Flutter view. They are display pixels only when the view fills the
+  display: the view's own position on the display (split screen, multi-window,
+  an embedded view) is not reported.
+
+**`visibleFraction`** (per element) is the share, from 0 to 1 rounded to three
+decimals, of the element's paint box that is inside the capture boundary and
+not clipped by an ancestor: the box is intersected with the boundary and with
+the approximate paint clip (`describeApproximatePaintClip`) of every render
+ancestor below the boundary, such as a scrollable's viewport or a `ClipRect`,
+then divided by the full box area. It is **omitted when the element is fully
+visible** (1.0 after rounding) and absent when it cannot be told. `0.0` is a
+real value: an element a list builds in its cache extent, or one wholly
+scrolled out of a list that still lies inside the boundary, is listed with
+`visibleFraction: 0.0`. Elements are never dropped for being clipped, so the
+inventory and its hash are the same with or without the field. Its known
+limits:
+
+- It is geometric clipping only. It does not see occlusion by other widgets
+  (an app bar or bottom bar over a list, a sheet over a page), opacity, or
+  `Offstage` and `Visibility`.
+- A rounded or custom clip counts as its bounding rectangle, and a rotated clip
+  as its axis-aligned box.
+- An element that has no paint area or a clip that throws is treated as
+  unclipped.
+- An entry that the exploration tap path adds to an inventory only because the
+  tap landed on it has no `visibleFraction`.
+
+**`scroll`** is `{ "offsetPx": ..., "maxExtentPx": ..., "axis": "vertical" }`,
+the position of the inventory's **primary vertical scrollable**: among the
+vertical `Scrollable`s in the retained tree of the current surface, the one
+whose viewport shows the largest area inside the capture boundary (ties go to
+the first in tree order). `offsetPx` is `ScrollPosition.pixels` and
+`maxExtentPx` is `ScrollPosition.maxScrollExtent`, both logical pixels and equal
+to the app's `ScrollController` values; `maxExtentPx` is left out for an
+unbounded list. Horizontal scrollables and scrollables inside a text field
+(`EditableText`) never count, and `scroll` is omitted when none qualifies. A
+nested scroll view that is not the largest is not reported, reverse lists
+report the raw `pixels`, and a page with two equally large vertical lists
+reports the first.
+
+`viewport` and `scroll` are not part of the inventory de-duplication key
+(`routeKey`, `inventoryHash` and the scroll context). Two inventories of the
+same route and hash at different scroll offsets or insets are emitted only when
+a scroll event makes the scroll context differ.
+
 ### What is and is not retained
 
 The structural pipeline does not use or serialize arbitrary `Text`,
