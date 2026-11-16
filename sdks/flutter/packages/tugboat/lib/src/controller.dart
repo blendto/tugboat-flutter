@@ -3088,6 +3088,8 @@ class TugboatReplayController extends ChangeNotifier {
     TugboatTargetAnchor? target;
     TugboatViewportTapSnapshot? semanticSnapshot;
     TugboatTargetResolutionFailureReason? failureReason;
+    TugboatTargetResolutionSource? targetSource;
+    String? targetRouteKey;
 
     try {
       final resolver = _anchorResolver;
@@ -3147,6 +3149,16 @@ class TugboatReplayController extends ChangeNotifier {
                 rawTarget: rawTarget,
                 semanticResolution: capturedSemanticSnapshot.resolution,
               );
+            } else {
+              final resolution = _explorationTargetResolution(
+                target: target,
+                rawTarget: rawTarget,
+                rawSource: tapContext.targetSource,
+                rawRouteKey: tapContext.targetRouteKey,
+                inventory: inventory,
+              );
+              targetSource = resolution.source;
+              targetRouteKey = resolution.routeKey;
             }
           }
         }
@@ -3176,9 +3188,37 @@ class TugboatReplayController extends ChangeNotifier {
       frameCompletionSequence: _frameCompletionSequence,
       buildMicros: stopwatch.elapsedMicroseconds,
       failureReason: failureReason,
+      targetSource: targetSource,
+      targetRouteKey: targetRouteKey,
     );
     tx.preTapEvidence = evidence;
     _recordExplorationPreTapDiagnostic(tx, evidence);
+  }
+
+  /// How an exploration tap's [target] was resolved and the route key its
+  /// fingerprint was hashed under. The hit test ran at pointer-down, so a
+  /// `pointerUp` label from the resolver becomes `pointerDown`. A target
+  /// re-anchored to an inventory entry is hashed under the inventory's key.
+  ({TugboatTargetResolutionSource? source, String? routeKey})
+  _explorationTargetResolution({
+    required TugboatTargetAnchor target,
+    required TugboatTargetAnchor? rawTarget,
+    required TugboatTargetResolutionSource? rawSource,
+    required String? rawRouteKey,
+    required TugboatSceneInventory inventory,
+  }) {
+    if (!identical(target, rawTarget)) {
+      return (
+        source: TugboatTargetResolutionSource.inventory,
+        routeKey: inventory.routeKey,
+      );
+    }
+    return (
+      source: rawSource == TugboatTargetResolutionSource.pointerUp
+          ? TugboatTargetResolutionSource.pointerDown
+          : rawSource,
+      routeKey: rawRouteKey,
+    );
   }
 
   bool _canResolveExplorationTap(
@@ -3384,8 +3424,11 @@ class TugboatReplayController extends ChangeNotifier {
         detectDismissibleBarrier: false,
         pressedHitPath: pressedHitPath,
         pressedRoute: tx.origin.route,
+        routeChangedSincePress: tx.origin.routeEpoch != _routeEpoch,
       );
       tx.targetAnchor = tapContext.target;
+      tx.targetResolutionSource = tapContext.targetSource;
+      tx.targetRouteKey = tapContext.targetRouteKey;
       tapInventory = tapContext.inventory;
       if (tapInventory != null) {
         _emitSceneInventory(tapInventory, emitViewportSemanticMap: false);
@@ -3418,6 +3461,8 @@ class TugboatReplayController extends ChangeNotifier {
       return;
     }
     tx.targetAnchor = evidence.targetAnchor;
+    tx.targetResolutionSource = evidence.targetSource;
+    tx.targetRouteKey = evidence.targetRouteKey;
     tx.targetResolutionFailureReason = evidence.failureReason;
     _publishExplorationTapEvidence(evidence);
     _logExplorationTapResolution(position, evidence.semanticResolution);

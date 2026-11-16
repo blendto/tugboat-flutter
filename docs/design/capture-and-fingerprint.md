@@ -257,13 +257,34 @@ evidence, target anchors, and frame hashes for raw replay facts.
 
 Confidence is the floor of route and structural evidence:
 
-- `high`: explicit developer alias such as `TugboatTag`/stable value key;
+- `high`: explicit developer alias such as `TugboatTag`/stable value key, on a
+  route whose key is a name (a structural `struct:` route key caps it at
+  `medium`);
 - `medium`: usable structural path and/or structural route fallback;
 - `low`: ambiguous structure, bare collapsed item, or insufficient actionable
   evidence.
 
 Confidence is evidence quality, not a uniqueness guarantee. Consumers should
 corroborate low-confidence matches rather than treating them as ground truth.
+The SDK's own capture root key is not a developer alias and never raises
+confidence.
+
+A `tap` interaction that carries a `targetFingerprint` also carries, in
+production and exploration mode alike:
+
+- `fingerprintConfidence`, as above. An inventory snap and the semantic
+  inventory fallback are `low`.
+- `fingerprintSource`: how the fingerprint was resolved. `tag` (the control
+  carries a developer alias), `pointerDown` (the pointer-down hit test, or the
+  kept pressed hit path in production), `pointerUp` (a fresh hit test at
+  pointer-up), `snap` (a pathless hit re-anchored to the smallest interactive
+  inventory element under the tap) or `inventory` (taken from an inventory
+  entry). `tag` wins over the others.
+- `routeKey`: the resolved route key the fingerprint was hashed under, the same
+  value an inventory carries as its `routeKey`. `route` stays the raw origin
+  route captured at pointer-down. A consumer joins a tap to an inventory on
+  `(routeKey, targetFingerprint)`; `route` alone does not join for dialogs,
+  unnamed pages and anonymous sheets, whose route keys are not the raw route.
 
 ### What is and is not retained
 
@@ -345,6 +366,13 @@ the kept pointer-down hit path instead. That path also wins when the fresh hit t
 has no canonical path and the kept one has a path but no role, as for a control
 whose button sits under `ExcludeSemantics`. A tap that already resolves is
 unchanged, and fingerprints are the same element's fingerprints either way.
+
+A control that stays mounted while the app navigates (a persistent bottom bar
+outside the `Navigator`) is not absorbed, so its pointer-up hit test succeeds
+but runs under the destination route. When the route changed since pointer-down,
+a usable pointer-down hit path therefore wins over the fresh hit test, and the
+fingerprint and `routeKey` belong to the route the tap happened on. Exploration
+mode resolves at pointer-down and has no such window.
 
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent
 background isolate after a full-frame RGBA readback on the UI isolate. RGBA

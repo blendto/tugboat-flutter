@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'anchors.dart' show tugboatCaptureRootKeyPrefix;
 import 'capture_boundary.dart';
 import 'controller.dart';
 import 'external_event.dart';
@@ -517,7 +518,7 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
     }
     final lifecycle = TugboatReplay._lifecycle;
     return _TugboatReplayRoot(
-      key: ValueKey('tugboat-capture-${_mountedEpoch ?? 0}'),
+      key: ValueKey('$tugboatCaptureRootKeyPrefix${_mountedEpoch ?? 0}'),
       config: widget.config.copyWith(enabled: true),
       activationRequestId: lifecycle.activationRequestId,
       sessionEpoch: _mountedEpoch ?? lifecycle.requestEpoch,

@@ -635,9 +635,20 @@ class AnchorResolver {
   /// resolved under [pressedRoute], the route the pointer went down on: a
   /// navigating `onTap` has already moved the current route to the
   /// destination, and the route key is part of the fingerprint.
+  ///
+  /// [routeChangedSincePress] says the route changed between pointer-down and
+  /// now. The fresh hit test then sees the destination, not the control that
+  /// was tapped, so a usable pressed target wins even when the fresh one is
+  /// actionable and has a path. Without it a navigating tap could carry a
+  /// destination control's fingerprint.
+  ///
+  /// `targetSource` and `targetRouteKey` report how the target was resolved
+  /// and the route key its fingerprint was hashed under.
   ({
     TugboatSceneInventory? inventory,
     TugboatTargetAnchor? target,
+    TugboatTargetResolutionSource? targetSource,
+    String? targetRouteKey,
     bool tapHitsDismissibleBarrier,
   })
   buildTapContext({
@@ -648,64 +659,178 @@ class AnchorResolver {
     required bool detectDismissibleBarrier,
     List<HitTestTarget>? pressedHitPath,
     String? pressedRoute,
+    bool routeChangedSincePress = false,
   }) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
     if (rootRender is! RenderBox || rootContext is! Element) {
-      return (inventory: null, target: null, tapHitsDismissibleBarrier: false);
+      return _emptyTapContext;
     }
 
     final tokenMap = _tokenMapFor(rootContext, rootRender);
-    if (tokenMap == null) {
-      return (inventory: null, target: null, tapHitsDismissibleBarrier: false);
-    }
+    if (tokenMap == null) return _emptyTapContext;
 
-    var target = _targetAtWithTokenMap(
+    final resolved = _resolveTapTarget(
       tapPosition,
       route: route,
       tokenMap: tokenMap,
       rootRender: rootRender,
+      pressedHitPath: pressedHitPath,
+      pressedRoute: pressedRoute,
+      routeChangedSincePress: routeChangedSincePress,
     );
-    if (pressedHitPath != null && !_isActionableWithPath(target)) {
-      final pressed = _targetFromHitPath(
-        pressedHitPath,
-        route: pressedRoute ?? route,
-        tokenMap: tokenMap,
+    return (
+      inventory: resolved.inventory,
+      target: resolved.target,
+      targetSource: resolved.source,
+      targetRouteKey: resolved.routeKey,
+      tapHitsDismissibleBarrier: _tapHitsBarrier(
+        detect: detectDismissibleBarrier,
+        modalOpen: modalOpen,
+        tapPosition: tapPosition,
         rootRender: rootRender,
-      );
-      target = _preferPressedIfUsable(target, pressed);
-    }
+        tokenMap: tokenMap,
+      ),
+    );
+  }
+
+  bool _tapHitsBarrier({
+    required bool detect,
+    required bool modalOpen,
+    required Offset tapPosition,
+    required RenderBox rootRender,
+    required _TokenMap tokenMap,
+  }) {
+    if (!detect) return false;
+    if (!modalOpen && !tokenMap.hasDismissibleModalBarrier) return false;
+    return _tapHitsDismissibleModalBarrier(
+      rootRender: rootRender,
+      tapPosition: tapPosition,
+      tokenMap: tokenMap,
+    );
+  }
+
+  /// Hit-tests the tap, builds the inventory and re-anchors the target to it
+  /// (snap, then alias normalisation), tracking which route key the final
+  /// fingerprint was hashed under.
+  ({
+    TugboatSceneInventory? inventory,
+    TugboatTargetAnchor? target,
+    TugboatTargetResolutionSource? source,
+    String? routeKey,
+  })
+  _resolveTapTarget(
+    Offset tapPosition, {
+    required String? route,
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
+    required List<HitTestTarget>? pressedHitPath,
+    required String? pressedRoute,
+    required bool routeChangedSincePress,
+  }) {
+    final hit = _hitTapTarget(
+      tapPosition,
+      route: route,
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+      pressedHitPath: pressedHitPath,
+      pressedRoute: pressedRoute,
+      routeChangedSincePress: routeChangedSincePress,
+    );
     var inventory = _buildSceneInventoryFromTokenMap(
       tokenMap: tokenMap,
       rootRender: rootRender,
       route: route,
     );
-    target = _snapPathlessTargetToInventory(
-      target: target,
+    final snapped = _snapPathlessTargetToInventory(
+      target: hit.target,
       inventory: inventory,
       tapPosition: tapPosition,
       rootRender: rootRender,
     );
-    target = _normalizeTargetToInventory(target: target, inventory: inventory);
+    final normalized = _normalizeTargetToInventory(
+      target: snapped,
+      inventory: inventory,
+    );
     inventory = _injectTapTargetIntoInventory(
       inventory: inventory,
-      target: target,
+      target: normalized,
       tapPosition: tapPosition,
       route: route,
       tokenMap: tokenMap,
       rootRender: rootRender,
     );
+    final reanchored = !identical(hit.target, normalized);
+    // Inventory entries are hashed under the current route's key.
+    final keyRoute = reanchored ? route : hit.route;
+    final source = identical(hit.target, snapped)
+        ? hit.source
+        : TugboatTargetResolutionSource.snap;
+    final hasFingerprint = normalized?.fingerprint?.isNotEmpty ?? false;
     return (
       inventory: inventory,
-      target: target,
-      tapHitsDismissibleBarrier:
-          detectDismissibleBarrier &&
-          (modalOpen || tokenMap.hasDismissibleModalBarrier) &&
-          _tapHitsDismissibleModalBarrier(
-            rootRender: rootRender,
-            tapPosition: tapPosition,
-            tokenMap: tokenMap,
-          ),
+      target: normalized,
+      source: hasFingerprint ? source : null,
+      routeKey: hasFingerprint ? _resolveRouteKey(keyRoute, tokenMap) : null,
+    );
+  }
+
+  static const _emptyTapContext = (
+    inventory: null,
+    target: null,
+    targetSource: null,
+    targetRouteKey: null,
+    tapHitsDismissibleBarrier: false,
+  );
+
+  /// The tap's hit-test target: fresh at pointer-up, or the kept pressed path
+  /// when it is the better evidence. [route] in the result is the route the
+  /// winning target was hashed under.
+  ({
+    TugboatTargetAnchor? target,
+    TugboatTargetResolutionSource source,
+    String? route,
+  })
+  _hitTapTarget(
+    Offset tapPosition, {
+    required String? route,
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
+    required List<HitTestTarget>? pressedHitPath,
+    required String? pressedRoute,
+    required bool routeChangedSincePress,
+  }) {
+    final fresh = _targetAtWithTokenMap(
+      tapPosition,
+      route: route,
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+    );
+    final consultPressed =
+        pressedHitPath != null &&
+        (routeChangedSincePress || !_isActionableWithPath(fresh));
+    if (!consultPressed) {
+      return (
+        target: fresh,
+        source: TugboatTargetResolutionSource.pointerUp,
+        route: route,
+      );
+    }
+    final pressedKeyRoute = pressedRoute ?? route;
+    final pressed = _targetFromHitPath(
+      pressedHitPath,
+      route: pressedKeyRoute,
+      tokenMap: tokenMap,
+      rootRender: rootRender,
+    );
+    final chosen = _preferPressedIfUsable(fresh, pressed);
+    final usedPressed = pressed != null && identical(chosen, pressed);
+    return (
+      target: chosen,
+      source: usedPressed
+          ? TugboatTargetResolutionSource.pointerDown
+          : TugboatTargetResolutionSource.pointerUp,
+      route: usedPressed ? pressedKeyRoute : route,
     );
   }
 
@@ -916,10 +1041,16 @@ class AnchorResolver {
       if (tagId != null) 'tag': tagId,
     };
 
-    // A structural list position keeps sibling controls distinct without
-    // making visible copy or icon data part of their identity.
+    // A developer `TugboatTag` is an explicit identity alias, so the path
+    // evidence is `high`. Otherwise a structural list position keeps sibling
+    // controls distinct without making visible copy or icon data part of
+    // their identity.
     final hasItemPosition = _hasInheritedItemPosition(fpElement, tokenMap);
-    final pathConfidence = hasItemPosition ? 'medium' : 'low';
+    final pathConfidence = tagId != null
+        ? 'high'
+        : hasItemPosition
+        ? 'medium'
+        : 'low';
 
     return TugboatTargetAnchor(
       schemaVersion: tugboatFingerprintSchemaVersion,
@@ -1121,7 +1252,11 @@ class AnchorResolver {
   String? _tagIdFromWidget(Widget widget) {
     if (widget is TugboatTag) return widget.id;
     final key = widget.key;
-    if (key is ValueKey<String>) return key.value;
+    // The SDK's own capture root is keyed too; it is not a developer alias.
+    if (key is ValueKey<String> &&
+        !key.value.startsWith(tugboatCaptureRootKeyPrefix)) {
+      return key.value;
+    }
     return null;
   }
 

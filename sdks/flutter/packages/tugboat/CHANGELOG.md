@@ -1,3 +1,35 @@
+## 0.10.12
+
+### Added
+
+- Every `tap` interaction that carries a `targetFingerprint` now also carries
+  `fingerprintConfidence`, `fingerprintSource` and `routeKey`, in production
+  mode as well as exploration mode. Before, production taps never carried a
+  confidence. `fingerprintSource` is how the fingerprint was resolved: `tag`
+  (the control carries a developer tag), `pointerDown`, `pointerUp`, `snap`
+  (a pathless hit re-anchored to the inventory control under the tap) or
+  `inventory`. `routeKey` is the resolved route key the fingerprint was hashed
+  under, so a tap on a dialog or an unnamed page joins its inventory exactly.
+  `route` is unchanged and still the raw route.
+- `fingerprintConfidence: high` is now produced for a control that carries a
+  `TugboatTag` or a `ValueKey<String>` alias, as the design doc always said. It
+  is still the floor of route and path evidence, so it is `medium` on a route
+  whose key is structural.
+
+### Fixed
+
+- A tap on a control that stays mounted while the app navigates, such as a
+  persistent bottom bar outside the `Navigator`, was fingerprinted under the
+  destination route's key while its `route` showed the origin. The pointer-down
+  hit path now wins when the route changed since pointer-down, in production
+  mode as exploration mode already did, so the fingerprint and `routeKey`
+  belong to the route the tap happened on.
+- The SDK's own capture root (`ValueKey('tugboat-capture-N')`) was read as a
+  developer tag, so every control under `TugboatReplay.wrapApp` reported a
+  junk `tagFingerprint` and a `tag` fingerprint part. It is now ignored.
+  Fingerprints do not change; only the `tagFingerprint` alias and the `tag`
+  part of `fingerprintParts` go away on controls the developer did not tag.
+
 ## 0.10.11
 
 ### Fixed

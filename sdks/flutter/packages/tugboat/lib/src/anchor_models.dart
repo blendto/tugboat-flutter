@@ -448,3 +448,34 @@ class TugboatViewportSemanticResolution {
     if (enabled != null) 'enabled': enabled,
   };
 }
+
+/// Where a tap's target fingerprint came from, written as `fingerprintSource`.
+///
+/// `tag` wins when the resolved control carries a `TugboatTag`; the rest say
+/// when and how the structural fingerprint was resolved.
+enum TugboatTargetResolutionSource {
+  /// The control carries a developer `TugboatTag`.
+  tag('tag'),
+
+  /// Resolved from the hit test taken at pointer-down (exploration pre-tap
+  /// evidence, or the kept pressed path in production).
+  pointerDown('pointerDown'),
+
+  /// Resolved from a fresh hit test at pointer-up.
+  pointerUp('pointerUp'),
+
+  /// A pathless hit was re-anchored to the smallest interactive inventory
+  /// element under the tap point.
+  snap('snap'),
+
+  /// Taken from a scene inventory entry (semantic fallback).
+  inventory('inventory');
+
+  const TugboatTargetResolutionSource(this.wireName);
+
+  final String wireName;
+}
+
+/// Prefix of the `ValueKey<String>` on the SDK's own capture root. It is not a
+/// developer tag, so tag detection must skip it.
+const tugboatCaptureRootKeyPrefix = 'tugboat-capture-';

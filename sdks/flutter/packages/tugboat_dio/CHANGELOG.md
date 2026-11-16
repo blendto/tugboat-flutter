@@ -1,3 +1,10 @@
+## 0.10.12
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.12 (tap confidence, source and
+  route key on every tap). The Dio adapter has no runtime behavior change.
+
 ## 0.10.11
 
 ### Changed
