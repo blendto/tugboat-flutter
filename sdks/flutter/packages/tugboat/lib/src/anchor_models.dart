@@ -392,6 +392,14 @@ class TugboatSceneInventory {
   final String routeKey;
   final List<TugboatSceneInventoryEntry> elements;
 
+  /// Hash of every entry's `aliases`. Never serialized: emission de-duplicates
+  /// on it too, so the same controls re-emitted with other aliases (a sheet
+  /// stacked on its own copy carries its schema 6 `#1` fingerprints) still
+  /// reach the consumer.
+  String get aliasSignature => tugboatLabelHash(
+    [for (final entry in elements) entry.aliases.join(',')].join('|'),
+  );
+
   /// Not part of [inventoryHash] or the emission de-duplication key.
   final TugboatSurface surface;
 

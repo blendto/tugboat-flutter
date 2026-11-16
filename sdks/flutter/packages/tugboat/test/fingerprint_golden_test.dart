@@ -51,7 +51,7 @@ final Map<String, Object?> _goldenExpected = {
         'tier': 'interactive',
         'role': 'button',
         'enabled': true,
-        'aliases': ['5cbc415df9f25d9f', '68a14595e303625e'],
+        'aliases': ['5cbc415df9f25d9f'],
         'tag': null,
       },
       {
@@ -116,12 +116,7 @@ final Map<String, Object?> _goldenExpected = {
         'tier': 'interactive',
         'role': 'button',
         'enabled': true,
-        'aliases': [
-          '39e01adbfea8025a',
-          '808c52ac6a0a9633',
-          'c441be8e49a00755',
-          'e78bcc096fd2ab44',
-        ],
+        'aliases': ['39e01adbfea8025a', '808c52ac6a0a9633', 'e78bcc096fd2ab44'],
         'tag': null,
       },
       {

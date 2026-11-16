@@ -2,8 +2,8 @@ part of 'anchors.dart';
 
 /// Algorithm version for canonical-tree fingerprinting (denylist, tokenization).
 ///
-/// v7 (#139): overlay-host ordinals are not part of the path, and component
-/// theme wrappers (`ListTileTheme`, `SwitchTheme`, ...) are transparent.
+/// v7 (#139): overlay-host ordinals are not part of the path, and the
+/// `ListTileTheme` and `SwitchTheme` wrappers are transparent.
 ///
 /// v7: interactive coverage. Disabled controls and the identity of a control
 /// resolve to the same path whether enabled or not; `Semantics` tap actions,
@@ -189,63 +189,16 @@ const _canonicalDenylist = <String>{
   'ImageFiltered',
 };
 
-/// Schema 7 (#139): component themes that only style the controls under them.
-/// Each has no render object of its own (it is an `InheritedTheme` or an
-/// `InheritedWidget` of a Material or Cupertino component), so it added a path
-/// segment without adding identity. Schema 6 kept them: a control wrapped in a
-/// `ListTileTheme` had a different fingerprint from the same control unwrapped.
-const _canonicalWrapperDenylist = <String>{
-  // Material `InheritedTheme`s.
-  'ActionIconTheme',
-  'AppBarTheme',
-  'BadgeTheme',
-  'BottomAppBarTheme',
-  'ButtonTheme',
-  'CarouselViewTheme',
-  'ChipTheme',
-  'DatePickerTheme',
-  'DialogTheme',
-  'DividerTheme',
-  'DrawerTheme',
-  'DropdownMenuTheme',
-  'ElevatedButtonTheme',
-  'ExpansionTileTheme',
-  'FilledButtonTheme',
-  'FloatingActionButtonTheme',
-  'IconButtonTheme',
-  'InputDecorationTheme',
-  'ListTileTheme',
-  'MaterialBannerTheme',
-  'MenuBarTheme',
-  'MenuButtonTheme',
-  'MenuTheme',
-  'NavigationBarTheme',
-  'NavigationDrawerTheme',
-  'NavigationRailTheme',
-  'OutlinedButtonTheme',
-  'PopupMenuTheme',
-  'ProgressIndicatorTheme',
-  'ScrollbarTheme',
-  'SearchViewTheme',
-  'SegmentedButtonTheme',
-  'SliderTheme',
-  'SnackBarTheme',
-  'TabBarTheme',
-  'TextButtonTheme',
-  'TextSelectionTheme',
-  'TimePickerTheme',
-  'ToggleButtonsTheme',
-  'TooltipTheme',
-  // Component `InheritedWidget`s.
-  'BottomNavigationBarTheme',
-  'ButtonBarTheme',
-  'CardTheme',
-  'CheckboxTheme',
-  'DataTableTheme',
-  'RadioTheme',
-  'SearchBarTheme',
-  'SwitchTheme',
-};
+/// Schema 7 (#139): component themes an app wraps around its own controls.
+/// Each has no render object of its own, so it added a path segment without
+/// adding identity: the same tile wrapped and unwrapped had two schema 6
+/// fingerprints. Only reproduced wrappers are listed. Themes the framework
+/// inserts itself (`IconButtonTheme` in an `AppBar` toolbar, a `ListTile`
+/// trailing slot and a popup menu) are always present, so they never split a
+/// fingerprint, and dropping them would only move every control under them.
+/// `ListTileTheme` is also inserted by `Drawer` and `ExpansionTile`, so the
+/// controls under those move once at schema 7 (aliased).
+const _canonicalWrapperDenylist = <String>{'ListTileTheme', 'SwitchTheme'};
 
 /// Overlay hosts whose same-type ordinal depends on what else is mounted
 /// (`DisplayFeatureSubScreen#1` for the second open of a sheet). Schema 7 drops

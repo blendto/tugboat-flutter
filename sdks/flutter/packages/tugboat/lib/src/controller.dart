@@ -6087,6 +6087,7 @@ class TugboatReplayController extends ChangeNotifier {
       final dedupeKey = [
         inventory.routeKey,
         inventory.inventoryHash,
+        inventory.aliasSignature,
         scrollContext?.dedupeKey ?? '',
       ].join('|');
       if (_emittedInventories.add(dedupeKey)) {

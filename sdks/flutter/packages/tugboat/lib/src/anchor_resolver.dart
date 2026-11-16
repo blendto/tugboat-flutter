@@ -22,6 +22,7 @@ class _TokenMap {
     required this.subLabel,
     required this.controlCandidates,
     required this.newRoleCandidates,
+    required this.identityAncestors,
   });
 
   final Element root;
@@ -50,8 +51,12 @@ class _TokenMap {
   final Set<Element> controlCandidates;
 
   /// Schema 7 low-level roles (see [tugboatInteractiveRoleForWidget]) that sit
-  /// outside every control candidate.
+  /// outside every control and enclose no control.
   final Set<Element> newRoleCandidates;
+
+  /// Retained ancestors of the tokenized control and low-level candidates.
+  /// A candidate outside this set is a leaf identity.
+  final Set<Element> identityAncestors;
 
   /// The schema 6 walk of this same tree, built on first use for aliases.
   _TokenMap? legacyMap;
@@ -66,8 +71,9 @@ class _TokenMap {
 }
 
 /// How an element takes part in control identity. A [control] is a schema 6
-/// role (enabled or not) or a gesture stand-in inside one; a [lowLevel] role
-/// is a schema 7 role that no control encloses.
+/// role (enabled or not) or a gesture stand-in inside a disabled one; a
+/// [lowLevel] element has a schema 7 role, and is a control of its own only
+/// when it is in [_TokenMap.newRoleCandidates].
 enum _IdentityKind { none, control, lowLevel }
 
 class _VisitAcc {
@@ -246,13 +252,14 @@ class _TokenMapVisitor {
   }
 
   /// Records [element] as a control candidate or, for a schema 7 low-level
-  /// role outside every control, as a low-level candidate.
+  /// role outside every control and around no control, as a low-level
+  /// candidate.
   void _noteIdentity(Element element) {
     switch (resolver._identityKindOf(element, legacy: legacy)) {
       case _IdentityKind.control:
         controlCandidates.add(element);
       case _IdentityKind.lowLevel:
-        if (!resolver._hasControlAncestor(element, legacy: legacy)) {
+        if (resolver._isOwnLowLevelControl(element)) {
           newRoleCandidates.add(element);
         }
       case _IdentityKind.none:
@@ -1073,15 +1080,16 @@ class AnchorResolver {
   /// than the first non-chrome widget under the hit. Null otherwise.
   String? _lowLevelIdentityName(Element? identity, _TokenMap tokenMap) {
     if (identity == null) return null;
-    final kind = _identityKindOf(identity, legacy: tokenMap.legacy);
-    return kind == _IdentityKind.lowLevel ? _widgetName(identity.widget) : null;
+    return tokenMap.newRoleCandidates.contains(identity)
+        ? _widgetName(identity.widget)
+        : null;
   }
 
-  /// Capture chrome is skipped unless it is a control (a pointer-up Listener
-  /// or a tap Semantics).
+  /// Capture chrome is skipped unless it is a low-level control of its own (a
+  /// pointer-up Listener or a tap Semantics).
   bool _isSkippedChrome(Element element, _TokenMap tokenMap) =>
       tugboatIsCaptureChrome(element.widget) &&
-      _roleOf(element, legacy: tokenMap.legacy) == null;
+      !tokenMap.newRoleCandidates.contains(element);
 
   TugboatTargetAnchor _anchorForElement({
     required Element hitElement,
@@ -1094,12 +1102,10 @@ class AnchorResolver {
     bool? enabled;
     final actions = <String>{};
     String? widgetType;
-    var withinRoot = true;
 
     void inspectElement(Element element) {
       final widget = element.widget;
-      final widgetRole = _anchorRoleFor(element, tokenMap, withinRoot);
-      if (identical(element, tokenMap.root)) withinRoot = false;
+      final widgetRole = _anchorRoleFor(element, tokenMap);
       if (widgetRole != null) {
         role ??= widgetRole.name;
         enabled ??= widgetRole.enabled;
@@ -1265,12 +1271,22 @@ class AnchorResolver {
         actionablePaths.add(_pathForMaps(element, tokens, retainedParents));
       }
     }
+    final identityAncestors = legacy
+        ? <Element>{}
+        : _retainedAncestorsOf(
+            {
+              ...controlCandidates,
+              ...newRoleCandidates,
+            }.where(tokens.containsKey),
+            retainedParents,
+          );
     if (!legacy) {
       actionablePaths.addAll(
         _identityLeafPaths(
           tokens: tokens,
           retainedParents: retainedParents,
           candidates: {...controlCandidates, ...newRoleCandidates},
+          ancestors: identityAncestors,
         ),
       );
     }
@@ -1286,6 +1302,7 @@ class AnchorResolver {
       legacy: legacy,
       controlCandidates: controlCandidates,
       newRoleCandidates: newRoleCandidates,
+      identityAncestors: identityAncestors,
       tokens: tokens,
       retainedParents: retainedParents,
       tagIds: tagIds,
@@ -1304,55 +1321,52 @@ class AnchorResolver {
     );
   }
 
+  /// Retained ancestors of [candidates].
+  Set<Element> _retainedAncestorsOf(
+    Iterable<Element> candidates,
+    Map<Element, Element?> retainedParents,
+  ) {
+    final ancestors = <Element>{};
+    for (final element in candidates) {
+      var parent = retainedParents[element];
+      while (parent != null && ancestors.add(parent)) {
+        parent = retainedParents[parent];
+      }
+    }
+    return ancestors;
+  }
+
   /// Paths of the control identities that carry no other identity below them.
   ///
-  /// A control's gesture plumbing is a candidate only when a control does not
-  /// enclose it, so enabled and disabled twins name the same leaves.
+  /// Disabled controls and their stand-ins are candidates too, so enabled and
+  /// disabled twins name the same leaves.
   Set<String> _identityLeafPaths({
     required Map<Element, String> tokens,
     required Map<Element, Element?> retainedParents,
     required Set<Element> candidates,
-  }) {
-    final identity = candidates.where(tokens.containsKey).toSet();
-    final enclosing = <Element>{};
-    for (final element in identity) {
-      var parent = retainedParents[element];
-      while (parent != null) {
-        if (identity.contains(parent)) enclosing.add(parent);
-        parent = retainedParents[parent];
-      }
-    }
-    return {
-      for (final element in identity)
-        if (!enclosing.contains(element))
-          _pathForMaps(element, tokens, retainedParents, canonical: true),
-    };
-  }
+    required Set<Element> ancestors,
+  }) => {
+    for (final element in candidates)
+      if (tokens.containsKey(element) && !ancestors.contains(element))
+        _pathForMaps(element, tokens, retainedParents, canonical: true),
+  };
 
   /// Schema 6 roles stay one kind of identity. Schema 7 adds the low-level
-  /// roles and gesture stand-ins, which are identities only outside a control.
+  /// roles and the gesture stand-ins of disabled controls.
   _IdentityKind _identityKindOf(Element element, {required bool legacy}) {
     final widget = element.widget;
     final schema6 = tugboatRoleForWidget(widget);
     if (schema6 != null) {
-      return legacy ||
-              (!_isBareDisabledInk(widget, schema6) &&
-                  !_isTextInputPlumbing(element))
+      return legacy || !_isBareDisabledInk(widget, schema6)
           ? _IdentityKind.control
           : _IdentityKind.none;
     }
     if (legacy) return _IdentityKind.none;
-    if (_isStandInGesture(element)) return _IdentityKind.control;
+    if (_standInRoleOf(element) != null) return _IdentityKind.control;
     return _roleOf(element, legacy: false) != null
         ? _IdentityKind.lowLevel
         : _IdentityKind.none;
   }
-
-  /// The editable inside a [TextField] is the field's plumbing: the field is
-  /// the control, enabled or not.
-  bool _isTextInputPlumbing(Element element) =>
-      element.widget is EditableText &&
-      element.findAncestorWidgetOfExactType<TextField>() != null;
 
   /// An ink area without `onTap` is plumbing (a ListTile's ripple, a passive
   /// InkWell), not a disabled control. Its enabled twin is an InkWell too, so
@@ -1360,34 +1374,55 @@ class AnchorResolver {
   bool _isBareDisabledInk(Widget widget, WidgetRole role) =>
       role.enabled == false && (widget is InkWell || widget is InkResponse);
 
-  /// A gesture detector whose callbacks are gone (disabled control) and that
-  /// sits inside a schema 6 role. Its enabled twin has a role here, so the
-  /// disabled control keeps the same identity element.
-  bool _isStandInGesture(Element element) {
-    if (element.widget is! GestureDetector) return false;
-    var inside = false;
+  /// The role of the disabled control that a [GestureDetector] without a tap
+  /// callback stands in for: the nearest enclosing control, when it is
+  /// disabled. The enabled twin's tap detector is this same element, so the
+  /// disabled control keeps its identity. Inside an enabled control such a
+  /// detector is not an identity, as in schema 6. Null otherwise.
+  WidgetRole? _standInRoleOf(Element element) {
+    if (element.widget is! GestureDetector) return null;
+    WidgetRole? enclosing;
     element.visitAncestorElements((ancestor) {
-      inside = _isEnclosingControl(ancestor);
-      return !inside;
+      enclosing = _enclosingControlRole(ancestor.widget);
+      return enclosing == null;
     });
-    return inside;
+    return enclosing?.enabled == false ? enclosing : null;
   }
 
-  /// A scrollable's role says the list can scroll. It names the scroll view,
-  /// not a control, so it never encloses a low-level role or a stand-in.
-  bool _isScrollableRole(Element element) =>
-      tugboatRoleForWidget(element.widget)?.name == 'scrollable';
+  /// The schema 6 role of a control that owns the gesture plumbing below it:
+  /// not a scrollable and not a bare ink area.
+  WidgetRole? _enclosingControlRole(Widget widget) {
+    final role = tugboatRoleForWidget(widget);
+    if (role == null || role.name == 'scrollable') return null;
+    return _isBareDisabledInk(widget, role) ? null : role;
+  }
 
-  bool _isEnclosingControl(Element element) =>
-      _identityKindOf(element, legacy: false) == _IdentityKind.control &&
-      !_isScrollableRole(element);
+  /// A low-level role is a control of its own only outside every control and
+  /// around no schema 6 role. One inside a control is that control's plumbing,
+  /// and one around a control (a pointer-up `Listener` around a button) is a
+  /// layer of it. Either way it keeps no path segment, so no schema 6 path of
+  /// a control moves.
+  bool _isOwnLowLevelControl(Element element) =>
+      !_hasControlAncestor(element) && !_hasRoleBelow(element);
 
-  bool _hasControlAncestor(Element element, {required bool legacy}) {
+  bool _hasControlAncestor(Element element) {
     var found = false;
     element.visitAncestorElements((ancestor) {
-      found = _isEnclosingControl(ancestor);
+      found = _enclosingControlRole(ancestor.widget) != null;
       return !found;
     });
+    return found;
+  }
+
+  bool _hasRoleBelow(Element element) {
+    var found = false;
+    void visit(Element child) {
+      if (found) return;
+      found = tugboatRoleForWidget(child.widget) != null;
+      if (!found) child.visitChildElements(visit);
+    }
+
+    element.visitChildElements(visit);
     return found;
   }
 
@@ -1426,52 +1461,76 @@ class AnchorResolver {
     return owned;
   }
 
-  /// The identity element of a hit. Schema 6: the innermost role. Schema 7:
-  /// the innermost control that is not a scrollable, else the innermost
-  /// low-level role inside the capture root, else the innermost scrollable.
-  /// The low-level walk never looks above the root, so SDK pointer listeners
-  /// outside the capture cannot become the identity of every tap.
+  /// The identity element of a hit: the innermost control (any enabled state,
+  /// scrollables included, as in schema 6) or low-level control of its own.
+  /// A disabled control whose subtree ignores the hit is then mapped onto its
+  /// enabled twin's identity ([_disabledTwinIdentity]).
   Element? _identityElementFor(Element hit, _TokenMap map) {
-    Element? control;
-    Element? lowLevel;
-    Element? scrollable;
-    var withinRoot = true;
-    void consider(Element element) {
-      final kind = _identityKindOf(element, legacy: map.legacy);
-      if (kind == _IdentityKind.control) {
-        if (map.legacy) {
-          control ??= element;
-        } else if (_isScrollableRole(element)) {
-          scrollable ??= element;
-        } else {
-          control ??= element;
-        }
-      } else if (kind == _IdentityKind.lowLevel && withinRoot) {
-        lowLevel ??= element;
+    Element? found;
+    bool consider(Element element) {
+      if (_isIdentityAt(element, map)) found = element;
+      return found == null;
+    }
+
+    if (consider(hit)) hit.visitAncestorElements(consider);
+    final identity = found;
+    if (identity == null || map.legacy) return identity;
+    return _disabledTwinIdentity(identity, map) ?? identity;
+  }
+
+  bool _isIdentityAt(Element element, _TokenMap map) =>
+      map.newRoleCandidates.contains(element) ||
+      _identityKindOf(element, legacy: map.legacy) == _IdentityKind.control;
+
+  /// The identity of a disabled control the hit could not reach into (a
+  /// disabled `TextField` ignores pointers): the innermost control below it,
+  /// when the controls below form one chain of disabled controls, stand-ins
+  /// and scrollables. That is where its enabled twin's hit lands, so toggling
+  /// `enabled` keeps the fingerprint. Null when it does not apply.
+  Element? _disabledTwinIdentity(Element identity, _TokenMap map) {
+    if (tugboatRoleForWidget(identity.widget)?.enabled != false) return null;
+    Element? deepest;
+    for (final candidate in map.controlCandidates) {
+      if (!_isRetainedBelow(candidate, identity, map)) continue;
+      if (!_isPassiveTwinPart(candidate)) return null;
+      if (deepest == null || _isRetainedBelow(candidate, deepest, map)) {
+        deepest = candidate;
+      } else if (!_isRetainedBelow(deepest, candidate, map)) {
+        return null;
       }
-      if (identical(element, map.root)) withinRoot = false;
     }
-
-    consider(hit);
-    hit.visitAncestorElements((ancestor) {
-      consider(ancestor);
-      return control == null;
-    });
-    return control ?? lowLevel ?? scrollable;
+    return deepest;
   }
 
-  /// The role an anchor reports for [element]. Above the capture root only
-  /// schema 6 roles count, so an SDK or framework pointer listener outside the
-  /// boundary cannot make every hit inside it a control.
-  WidgetRole? _anchorRoleFor(Element element, _TokenMap map, bool withinRoot) {
-    final role = _roleOf(element, legacy: map.legacy);
-    if (withinRoot ||
-        map.legacy ||
-        tugboatRoleForWidget(element.widget) != null) {
-      return role;
+  /// A disabled control, a stand-in or a scrollable: never an enabled control.
+  bool _isPassiveTwinPart(Element element) =>
+      tugboatRoleForWidget(element.widget)?.enabled != true;
+
+  /// Whether tokenized [element] has [ancestor] on its retained parent chain.
+  bool _isRetainedBelow(Element element, Element ancestor, _TokenMap map) {
+    if (!map.tokens.containsKey(element)) return false;
+    var parent = map.retainedParents[element];
+    while (parent != null) {
+      if (identical(parent, ancestor)) return true;
+      parent = map.retainedParents[parent];
     }
-    return null;
+    return false;
   }
+
+  /// The role an anchor reports for [element]: its schema 6 role, or its
+  /// low-level role when it is a control of its own. A plumbing role inside a
+  /// control, or an SDK or framework listener, never names or enables a hit.
+  WidgetRole? _anchorRoleFor(Element element, _TokenMap map) =>
+      tugboatRoleForWidget(element.widget) ??
+      (map.newRoleCandidates.contains(element)
+          ? tugboatInteractiveRoleForWidget(element.widget)
+          : null);
+
+  /// The role an inventory entry reports for [element]: its own, or for a
+  /// stand-in the role of the disabled control it stands in for.
+  WidgetRole? _inventoryRoleOf(Element element, _TokenMap map) =>
+      _roleOf(element, legacy: map.legacy) ??
+      (map.legacy ? null : _standInRoleOf(element));
 
   /// The schema 6 walk of [map]'s tree, built once per token map for aliases.
   _TokenMap _legacyMapFor(_TokenMap map) =>

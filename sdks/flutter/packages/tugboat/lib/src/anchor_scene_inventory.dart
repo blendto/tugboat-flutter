@@ -76,6 +76,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     final legacy = withBoundsEvidence
         ? _legacyAliasContextFor(tokenMap, rootRender, route)
         : null;
+    final legacyAliases = <String, Set<String>>{};
 
     for (final element in tokenMap.includedElements) {
       _addInventoryElement(
@@ -86,6 +87,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         evidence: evidence,
         loading: loading,
         legacy: legacy,
+        legacyAliases: legacyAliases,
         route: route,
         routeKey: routeKey,
         hitCache: hitCache,
@@ -95,7 +97,10 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       );
     }
 
-    final elements = [...interactiveByFingerprint.values, ...contentEntries];
+    final elements = _withLegacyAliases([
+      ...interactiveByFingerprint.values,
+      ...contentEntries,
+    ], legacyAliases);
     if (elements.isEmpty) return null;
 
     return _inventoryFromElements(
@@ -116,6 +121,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required _BoundsEvidence? evidence,
     required _LoadingEvidence? loading,
     required _LegacyAliasContext? legacy,
+    required Map<String, Set<String>> legacyAliases,
     required String? route,
     required String routeKey,
     required Map<String, TugboatTargetAnchor?> hitCache,
@@ -167,18 +173,20 @@ extension TugboatSceneInventoryApi on AnchorResolver {
           result.entry.copyWith(
             placeholder: placeholder,
             tag: _explicitTagFor(element),
-            aliases: _legacyInteractiveAliases(
-              legacy,
-              element,
-              _inventoryEntryCenter(bounds, viewport),
-            ),
           ),
           result.structuralFingerprint,
+        );
+        (legacyAliases[result.entry.fingerprint] ??= {}).addAll(
+          _legacyInteractiveAliases(
+            legacy,
+            element,
+            _inventoryEntryCenter(bounds, viewport),
+          ),
         );
       }
       return;
     }
-    _addContentInventoryEntry(
+    final fingerprint = _addContentInventoryEntry(
       contentEntries,
       seenContentFingerprints,
       widget,
@@ -187,9 +195,57 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       routeKey,
       visibleFraction,
       placeholder: placeholder,
-      aliases: _legacyContentAliases(legacy, element),
     );
+    if (fingerprint != null) {
+      (legacyAliases[fingerprint] ??= {}).addAll(
+        _legacyContentAliases(legacy, element),
+      );
+    }
   }
+
+  /// Adds each entry's schema 6 fingerprints to its `aliases`, except one that
+  /// already names something in this inventory (an entry's fingerprint or a
+  /// layer alias) or that two entries claim: the schema 7 meaning wins, so a
+  /// schema 6 alias never redirects a tap to another control.
+  List<TugboatSceneInventoryEntry> _withLegacyAliases(
+    List<TugboatSceneInventoryEntry> entries,
+    Map<String, Set<String>> legacyAliases,
+  ) {
+    if (legacyAliases.isEmpty) return entries;
+    final taken = {
+      for (final entry in entries) ...[entry.fingerprint, ...entry.aliases],
+    };
+    final claims = _legacyAliasClaims(entries, legacyAliases);
+    bool usable(String alias) => !taken.contains(alias) && claims[alias] == 1;
+    return [
+      for (final entry in entries)
+        _withExtraAliases(
+          entry,
+          (legacyAliases[entry.fingerprint] ?? const {}).where(usable),
+        ),
+    ];
+  }
+
+  /// How many entries claim each schema 6 fingerprint.
+  Map<String, int> _legacyAliasClaims(
+    List<TugboatSceneInventoryEntry> entries,
+    Map<String, Set<String>> legacyAliases,
+  ) {
+    final claims = <String, int>{};
+    for (final entry in entries) {
+      for (final alias in legacyAliases[entry.fingerprint] ?? const {}) {
+        claims[alias] = (claims[alias] ?? 0) + 1;
+      }
+    }
+    return claims;
+  }
+
+  TugboatSceneInventoryEntry _withExtraAliases(
+    TugboatSceneInventoryEntry entry,
+    Iterable<String> extra,
+  ) => extra.isEmpty
+      ? entry
+      : entry.copyWith(aliases: [...entry.aliases, ...extra]..sort());
 
   bool _isInventoryCandidate(
     Widget widget,
@@ -203,7 +259,9 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       (widget is Text &&
           _isLargeTextBounds(_boundsForElement(element, rootRender, viewport)));
 
-  void _addContentInventoryEntry(
+  /// Adds a content entry and returns its fingerprint, or null when it was
+  /// not added.
+  String? _addContentInventoryEntry(
     List<TugboatSceneInventoryEntry> contentEntries,
     Set<String> seenContentFingerprints,
     Widget widget,
@@ -212,14 +270,13 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     String routeKey,
     double? visibleFraction, {
     required bool placeholder,
-    required List<String> aliases,
   }) {
     final fingerprint = _fingerprintForParts({
       'routeKey': routeKey,
       'path': structuralPath,
     });
     if (fingerprint.isEmpty || !seenContentFingerprints.add(fingerprint)) {
-      return;
+      return null;
     }
     contentEntries.add(
       TugboatSceneInventoryEntry(
@@ -231,13 +288,9 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         tier: 'content',
         visibleFraction: visibleFraction,
         placeholder: placeholder,
-        aliases: _mergeAliasFingerprints(
-          existingAliases: aliases,
-          primaryFingerprint: fingerprint,
-          structuralFingerprint: '',
-        ),
       ),
     );
+    return fingerprint;
   }
 
   TugboatSceneInventory _inventoryFromElements({
@@ -631,9 +684,10 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       viewport: viewport,
     );
     if (entry == null) return inventory;
-    final injectedEntry = entry.copyWith(
-      aliases: _legacyTapAliases(legacy, tapPosition),
-    );
+    final injectedEntry = _withLegacyAliases(
+      [...?inventory?.elements, entry],
+      {fingerprint: _legacyTapAliases(legacy, tapPosition).toSet()},
+    ).last;
 
     return _inventoryWithEntry(
       inventory: inventory,
@@ -795,14 +849,17 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     if (resolvedEntry != null) return resolvedEntry;
 
     // Skip wrappers that already expose a tokenized actionable child, but only
-    // after the same-chain path above had a chance to contribute aliases.
-    if (tokenMap.hasTokenizedActionableDescendant[element] == true) {
+    // after the same-chain path above had a chance to contribute aliases. A
+    // disabled control whose centre is covered skips to its innermost layer
+    // too, so it is one entry with its enabled twin's fingerprint.
+    if (tokenMap.hasTokenizedActionableDescendant[element] == true ||
+        tokenMap.identityAncestors.contains(element)) {
       return null;
     }
 
     if (structuralFingerprint.isEmpty) return null;
 
-    final role = _roleOf(element, legacy: tokenMap.legacy);
+    final role = _inventoryRoleOf(element, tokenMap);
     return (
       entry: TugboatSceneInventoryEntry(
         fingerprint: structuralFingerprint,
