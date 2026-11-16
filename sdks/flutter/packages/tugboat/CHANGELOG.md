@@ -1,3 +1,32 @@
+## 0.11.1
+
+### Fixed
+
+- The last screenshot of a session is uploaded before `session_end`. A frame
+  recorded while a collector flush was running was not part of that flush,
+  and `endSession()` only waited for it, so the frame was never sent
+  (BLE-549). A `flush()` call during a running pass now queues one follow-up
+  pass that runs after it.
+- One hung request no longer blocks every upload (BLE-551). `/v1/sessions` and
+  `/v1/events/batch` posts time out after 15 seconds like frame uploads, and a
+  timeout is retried. A flush drains only the events queued when it reached
+  them and uploads newly captured frames between event batches.
+- Stalled uploads no longer cut long holes in replays (BLE-550).
+  `maxPendingFrames` defaults to 400 (was 20) and the new
+  `maxPendingFrameBytes` (default 8 MiB) bounds held frame bytes. Eviction
+  drops the oldest frame no event references first and keeps the newest
+  frame.
+
+### Added
+
+- `collector_frame_upload` drop diagnostics also report the final count before
+  `session_end`, and carry `droppedReferencedFrameCount`.
+- `collector_request` diagnostics report the first failed session or event post
+  per outage (status code, or `error: timeout` / `transport`) and its recovery
+  (BLE-552).
+- `collector_flush` diagnostics report a flush pass slower than 10 seconds with
+  the step it spent the most time in.
+
 ## 0.11.0
 
 ### Added

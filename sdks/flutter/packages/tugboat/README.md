@@ -6,9 +6,19 @@ transitions, scrolling evidence, and optional viewport semantic maps. Capture
 is sent to the HTTP collector; exploration runs point it at a local HTTP
 collector.
 
-The current package version is `0.11.0`. Session JSON writers and readers use
+The current package version is `0.11.1`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
 version `7`.
+
+## 0.11.1
+
+Collector frame delivery holds up when uploads stall. Work queued while a flush
+runs gets a follow-up pass, so the session's last screenshot is uploaded before
+`session_end`. Session and event posts time out after 15 seconds, and frames go
+out between event batches instead of waiting behind them. Pending frames are
+bounded by `maxPendingFrames` (now 400) and `maxPendingFrameBytes` (8 MiB), and
+eviction keeps frames that events reference. New `collector_request` and
+`collector_flush` diagnostics report failing posts and slow flushes.
 
 ## 0.11.0
 
@@ -238,7 +248,7 @@ events.
 
 ```yaml
 dependencies:
-  tugboat: ^0.11.0
+  tugboat: ^0.11.1
 ```
 
 Then import the public barrel:
@@ -254,8 +264,8 @@ Install from pub.dev; a GitHub checkout is not required.
 
 ```yaml
 dependencies:
-  tugboat: ^0.11.0
-  tugboat_dio: ^0.11.0
+  tugboat: ^0.11.1
+  tugboat_dio: ^0.11.1
 ```
 
 See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.

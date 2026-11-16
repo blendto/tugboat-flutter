@@ -273,7 +273,21 @@ newest frame, and drops a referenced frame only when nothing else is left.
 
 A full batch triggers a flush; the periodic timer sends partial batches.
 Lifecycle backgrounding also asks the sink hub to flush, and session end drains
-events before posting the final lifecycle message.
+frames and events before posting the final lifecycle message. Flushes run one
+at a time; a flush requested while one runs queues a single follow-up pass, so
+work recorded mid-flush (such as the session's last frame) is never left
+behind. A pass sends pending lifecycle posts, then frames, then the events
+queued when it reached them, uploading newly captured frames between event
+batches. Every collector request times out after 15 seconds and is then
+retried.
+
+Bounded `capture_diagnostic` events describe delivery problems without image
+contents, payloads, or credentials: `collector_frame_upload` (frame upload
+failures, evictions, recovery), `collector_request` (the first failed
+`/v1/sessions` or `/v1/events/batch` post per outage, with `statusCode` or
+`error: timeout | transport`, and its recovery), and `collector_flush` (a pass
+slower than 10 seconds, with `durationMs`, the slowest `step`, and
+`stepDurationMs`).
 
 The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
 `429`, and `5xx`; other response codes are dropped. Retry batches, unsent
