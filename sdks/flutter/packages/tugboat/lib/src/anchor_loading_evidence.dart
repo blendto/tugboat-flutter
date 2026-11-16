@@ -1,9 +1,10 @@
 part of 'anchors.dart';
 
 /// Runtime type-name fragments that mark a placeholder (skeleton or shimmer)
-/// subtree. Matched case-sensitively. Flutter's own debug [Placeholder] also
-/// matches: it is a placeholder by definition, and it appears in exploration
-/// captures only where an app uses it as a stub.
+/// subtree. Matched case-sensitively against the type name without its type
+/// arguments, so `Provider<ShimmerController>` is not a placeholder. Flutter's
+/// own debug [Placeholder] also matches: it is a placeholder by definition,
+/// and it appears in exploration captures only where an app uses it as a stub.
 const _placeholderTypeFragments = <String>[
   'Shimmer',
   'Skeleton',
@@ -13,8 +14,12 @@ const _placeholderTypeFragments = <String>[
 
 bool _isPlaceholderWidget(Widget widget) {
   if (widget is TugboatLoading) return true;
+  // Scopes carry state for a subtree; they never draw a placeholder.
+  if (widget is InheritedWidget) return false;
   final name = widget.runtimeType.toString();
-  return _placeholderTypeFragments.any(name.contains);
+  final generic = name.indexOf('<');
+  final base = generic == -1 ? name : name.substring(0, generic);
+  return _placeholderTypeFragments.any(base.contains);
 }
 
 /// Every [ProgressIndicator] (Circular, Linear, Refresh) and the Cupertino
@@ -28,9 +33,19 @@ bool _isBusyBlockerWidget(Widget widget) =>
     (widget is AbsorbPointer && widget.absorbing) ||
     (widget is IgnorePointer && widget.ignoring);
 
+/// A subtree the progress walk skips: hidden, or with tickers off (a route
+/// covered by an opaque route above it, whose spinner neither shows nor
+/// turns).
+bool _skipsProgressSubtree(Widget widget) =>
+    tugboatHidesSubtree(widget) || (widget is TickerMode && !widget.enabled);
+
+typedef _LoadingFlags = ({bool placeholder, bool busy});
+
+const _LoadingFlags _noLoadingFlags = (placeholder: false, busy: false);
+
 /// Loading evidence for one exploration inventory build: a progress-indicator
-/// count for the whole capture tree, plus per-element placeholder and busy
-/// flags read from ancestors. Structural only: it never reads text, labels or
+/// count for the capture tree, plus per-element placeholder and busy flags
+/// read from ancestors. Structural only: it never reads text, labels or
 /// pixels. Only built when the inventory is emitted, never on the production
 /// tap path.
 class _LoadingEvidence {
@@ -50,40 +65,51 @@ class _LoadingEvidence {
 
   final Element _root;
   final int progressIndicators;
-  final Set<String> _busyFingerprints = <String>{};
 
-  /// Distinct interactive entries that sit beneath a busy blocker.
-  int get busyControls => _busyFingerprints.length;
-
-  void noteBusy(String fingerprint) => _busyFingerprints.add(fingerprint);
+  /// Flags of every ancestor walked so far, each including its own widget.
+  /// Rows of one list share their ancestors, so each chain is walked once.
+  final Map<Element, _LoadingFlags> _through = {};
 
   /// Placeholder and busy flags of [element], from its ancestors up to (not
   /// including) the capture root. Both false when the walk fails.
-  ({bool placeholder, bool busy}) flagsFor(Element element) {
-    var placeholder = false;
-    var busy = false;
-    if (identical(element, _root)) return (placeholder: false, busy: false);
+  _LoadingFlags flagsFor(Element element) {
+    if (identical(element, _root)) return _noLoadingFlags;
+    final pending = <Element>[];
+    var flags = _noLoadingFlags;
     try {
       element.visitAncestorElements((ancestor) {
         if (identical(ancestor, _root)) return false;
-        final widget = ancestor.widget;
-        placeholder = placeholder || _isPlaceholderWidget(widget);
-        busy = busy || _isBusyBlockerWidget(widget);
-        return !(placeholder && busy);
+        final known = _through[ancestor];
+        if (known != null) {
+          flags = known;
+          return false;
+        }
+        pending.add(ancestor);
+        return true;
       });
     } catch (_) {
-      return (placeholder: false, busy: false);
+      return _noLoadingFlags;
     }
-    return (placeholder: placeholder, busy: busy);
+    for (final ancestor in pending.reversed) {
+      flags = _withWidget(flags, ancestor.widget);
+      _through[ancestor] = flags;
+    }
+    return flags;
   }
+
+  _LoadingFlags _withWidget(_LoadingFlags above, Widget widget) => (
+    placeholder: above.placeholder || _isPlaceholderWidget(widget),
+    busy: above.busy || _isBusyBlockerWidget(widget),
+  );
 }
 
-/// Progress indicators in [root]'s tree, skipping hidden subtrees.
+/// Progress indicators in [root]'s tree, skipping hidden and ticker-disabled
+/// subtrees.
 int _countProgressIndicators(Element root) {
   var count = 0;
   void walk(Element element) {
     final widget = element.widget;
-    if (tugboatHidesSubtree(widget)) return;
+    if (_skipsProgressSubtree(widget)) return;
     if (_isProgressIndicatorWidget(widget)) count++;
     element.visitChildElements(walk);
   }
@@ -101,6 +127,6 @@ TugboatInventoryLoading? _loadingSummary(
   return TugboatInventoryLoading(
     progressIndicators: evidence.progressIndicators,
     placeholders: elements.where((entry) => entry.placeholder).length,
-    busyControls: evidence.busyControls,
+    busyControls: elements.where((entry) => entry.busy).length,
   );
 }

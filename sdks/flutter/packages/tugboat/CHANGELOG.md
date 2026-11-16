@@ -3,20 +3,24 @@
 ### Added
 
 - Every scene inventory carries `trigger` (`initial`, `resume`, `route`,
-  `tap`, `scroll`, `settled`, `manual`). It is not part of any hash or the
-  de-duplication key.
+  `tap`, `scroll`, `gesture`, `settled`, `manual`). A scroll-end capture is
+  `scroll` and a swipe, pan or zoom capture is `gesture`. It is not part of
+  any hash or the de-duplication key.
 - In exploration mode, the settled re-sample is on by default. A page that
   changes after its first inventory (a loading `FutureBuilder`, a paginated
-  list) emits an inventory with `trigger: "settled"` once it has been quiet
-  for 400 ms and its structure changed. At most five per route key per session,
-  and nothing runs when the page is idle. Turn it off with
-  `resampleSettledInventory: false`. Production captures are unaffected.
+  list, content beside a spinner) emits an inventory with
+  `trigger: "settled"` once it has settled, if that structure was never
+  emitted for its route key. It never expires while the route is current, an
+  idle page costs no timer, and a looping animation or blinking cursor never
+  emits. At most five per route key per session, and five per route visit. Turn it off with
+  `resampleSettledInventory: false`; production captures run none of it.
 - In exploration mode, every scene inventory carries `loading`
   (`progressIndicators`, `placeholders`, `busyControls`) and each element
   beneath a skeleton, shimmer, `Redacted` or `Placeholder` ancestor, or a new
   `TugboatLoading` marker, carries `placeholder: true`. The signal is
   structural and text-free, and no fingerprint, route key or inventory hash
-  changes.
+  changes. Placeholder names are a heuristic; see the capture design doc for
+  its known false positives.
 - In exploration mode (scene inventory emission on), every `tap` interaction
   that carries a `targetFingerprint` now also carries `fingerprintSource` and
   `routeKey`, next to the existing `fingerprintConfidence`. Production taps keep

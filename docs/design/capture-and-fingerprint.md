@@ -458,31 +458,48 @@ structural, text-free, and never part of an identity:
 - **`loading`** on every inventory built in exploration mode:
   `{ progressIndicators, placeholders, busyControls }`.
   - `progressIndicators` counts `ProgressIndicator` widgets (Circular, Linear,
-    Refresh) and `CupertinoActivityIndicator` in the capture boundary's tree,
-    skipping hidden subtrees.
+    Refresh) and `CupertinoActivityIndicator` in the capture boundary's tree.
+    It skips hidden subtrees and subtrees under `TickerMode(enabled: false)`,
+    which is how a route covered by an opaque route is kept. A route capture
+    taken as a push transition ends can still count the covered route's
+    spinner for that one inventory; the next inventory does not.
   - `placeholders` counts inventory elements beneath a placeholder ancestor.
-  - `busyControls` counts distinct interactive entries beneath an
-    `AbsorbPointer(absorbing: true)` or `IgnorePointer(ignoring: true)`.
+  - `busyControls` counts enabled interactive entries beneath an
+    `AbsorbPointer(absorbing: true)` or `IgnorePointer(ignoring: true)`. A
+    disabled control (a disabled `TextField` sits under its own
+    `IgnorePointer`) is not busy.
+  - Both element counts follow the entries the inventory keeps: a tap
+    inventory that drops entries recounts them.
 - **`placeholder: true`** on an element beneath a placeholder ancestor, omitted
   otherwise.
 
-A placeholder ancestor is a widget whose runtime type name contains
-`Shimmer`, `Skeleton`, `Placeholder` or `Redacted` (case-sensitive), or a
-`TugboatLoading` marker. Flutter's own debug `Placeholder` matches the
-`Placeholder` fragment: it is a placeholder by definition, and it only appears
-in captures where an app uses it as a stub.
+A placeholder ancestor is a `TugboatLoading` marker, or a widget whose runtime
+type name, without its type arguments, contains `Shimmer`, `Skeleton`,
+`Placeholder` or `Redacted` (case-sensitive). `InheritedWidget`s never count,
+and `Provider<ShimmerController>` does not match. Flutter's own debug
+`Placeholder` matches the `Placeholder` fragment on purpose: it is a stub by
+definition. The match is a name heuristic, so it has known false positives:
+
+- an app widget whose name merely contains a fragment
+  (`PlaceholderSettingsPage`) marks everything beneath it;
+- a skeleton widget that stays mounted once loaded (a `Skeletonizer` or
+  `Shimmer` with `enabled: false`) keeps marking its subtree, because the SDK
+  reads no package fields. Hosts that build skeletons this way should use
+  `TugboatLoading` only while loading, and treat `placeholder` as a hint.
 
 `TugboatLoading({required child})` is for hosts whose skeleton widgets have
-other names. It is transparent: it adds no canonical path segment and changes
-no fingerprint, `routeKey`, `surface` or `inventoryHash`, so wrapping a control
-in it leaves that control's identity unchanged. It is exported from
-`package:tugboat/tugboat.dart`.
+other names. It is transparent: it adds no canonical path segment, can never
+be `surface.widgetClass`, and changes no fingerprint, `routeKey`, `surface` or
+`inventoryHash`, so wrapping a control in it leaves that control's identity
+unchanged. It is exported from `package:tugboat/tugboat.dart`.
 
-The ancestor walk is bounded at the capture root, and the progress-indicator
-walk runs only when an exploration inventory is built. Production taps compute
-none of it. An exploration tap whose target is injected into an inventory that
-had no elements gets a `loading` with only `progressIndicators` set, and its
-injected entry is never a placeholder.
+The ancestor walk is bounded at the capture root and memoised per inventory
+(rows of a list share their ancestors), and the progress-indicator walk runs
+only when an exploration inventory is built. Production taps compute none of
+it. An exploration tap whose target is injected into an inventory that had no
+elements gets a `loading` with the tree's `progressIndicators` and zero
+`placeholders` and `busyControls`. An injected entry is never marked
+`placeholder` or busy, because the SDK has its anchor, not its element.
 
 ### Settled re-sample and `trigger`
 
@@ -493,43 +510,62 @@ Every scene inventory carries `trigger`, the reason it was taken:
 | `initial` | the first capture of a session |
 | `resume` | the app returns to the foreground |
 | `route` | the visible route changes |
-| `tap` | a tap (and a gesture completion, which reads as a tap) |
-| `scroll` | scroll start, update or end |
+| `tap` | a tap, at pointer-up or by its after-capture |
+| `scroll` | scroll start, update or end, including the scroll-end capture |
+| `gesture` | the after-capture of a swipe, pan or zoom |
 | `settled` | the settled re-sample below |
 | `manual` | a manual capture |
 
 `trigger` is not part of `inventoryHash`, `routeKey` or the emission
-de-duplication key.
+de-duplication key, and it is never added to viewport semantic maps.
 
 **Settled re-sample** is on by default in exploration mode (it needs
 `emitSceneInventory: true`). It catches a page that loads after its first
 inventory (a `FutureBuilder`, a paginated list), which otherwise shows only its
-placeholder layout until the next tap or route change. It is off in production,
-where nothing runs.
+placeholder layout until the next tap or route change. Production captures
+(`emitSceneInventory: false`, the default) run none of it: no watch, no frame
+callback, no timer and no extra field.
 
 To turn it off in exploration, set `resampleSettledInventory: false` on
-`TugboatReplayConfig`. With it off, a tap, scroll and route flow emits the same
-inventories as before this change.
+`TugboatReplayConfig`. With it off, a tap, scroll and route flow emits exactly
+the inventories it emitted before this change. With it on, the only additional
+inventories carry `trigger: "settled"`.
 
-After an inventory is emitted for a route, a watch is armed. Each frame drawn
-while armed pushes back a 400 ms quiet window. When the page has been quiet for
-the window, the inventory is rebuilt and emitted with `trigger: "settled"` only
-if its structural signature differs from the last emitted inventory for that
-route. The signature is `inventoryHash`, the element count, and each element's
-`boundsNorm` quantised to a 2% grid, joined and hashed. A rebuild that finds no
-change stops the watch.
+The rules:
 
-- Settled emissions do not write to the emission de-duplication set. They
-  compare against their own per-route signature, so existing triggers are
-  unaffected.
-- At most five settled inventories per route key per session. A session-wide
-  cap of 40 settled inventories and 200 rebuilds bounds the work further.
-- The watch stops on route change, pause, lifecycle pause, session end and
-  dispose. It also stops after five seconds armed, checked on frames.
-- Idle pages, blinking cursors and looping animations that do not move
-  anything produce no extra events. A page that keeps moving stops at the cap.
-- No timer repeats forever: the quiet timer exists only after a drawn frame,
-  and an idle page leaves none pending.
+1. **Arming.** Every inventory the capture flows build for emission arms a
+   watch for the current route epoch, whether it was emitted or de-duplicated.
+   One already armed for the same epoch just returns to its shortest window.
+2. **Cost while idle.** An armed watch parks one post-frame callback and holds
+   no timer. A page that draws no frame is never re-sampled, however long the
+   watch stays armed, so a page that loads after 8 s or 60 s is still caught.
+3. **Windows.** A drawn frame opens a window, 400 ms at first. A window with no
+   frame in it means the page is quiet, and the inventory is re-sampled (unless
+   a frame is already scheduled, which opens the next window). A window with
+   frames opens another one, until 2 s of continuous activity forces a sample,
+   so content that loads beside a spinner that never stops is still caught.
+4. **Back-off.** A sample that finds nothing new doubles the window, up to
+   6.4 s. A sample that emits, or a new inventory on the route, resets it. A
+   blinking cursor or a looping animation is re-sampled ever more rarely, never
+   more than once per window, and never emits.
+5. **What emits.** A sample emits with `trigger: "settled"` only when its
+   structural signature was never emitted for its route key this session. The
+   signature is `inventoryHash`, the element count, the `loading` counts, and
+   each element's `boundsNorm` quantised to a 2% grid with its `placeholder`
+   flag, joined and hashed. So loaded content with the same fingerprints but a
+   new layout, or a skeleton replaced in place, emits; sub-pixel jitter does
+   not (a box that sits exactly on a grid edge can flip once); and a layout that
+   loops between two states emits each state at most once.
+6. **Cap.** At most five settled inventories per route key per session, and
+   at most five per route visit (route epoch), because an unnamed page's
+   `struct:` route key can change as its content loads. When either is
+   reached the watch stops, and it is not re-armed for that key or visit.
+7. **Ending.** The watch ends on any visible route change, capture pause,
+   lifecycle pause or hide, session end and dispose. It never ends on a timer.
+
+Settled emissions do not write to the emission de-duplication set. A later
+tap, scroll or route capture that builds the same content still emits it under
+its own trigger, exactly as it would with the re-sample off.
 
 ### What is and is not retained
 

@@ -155,6 +155,7 @@ class TugboatSceneInventoryEntry {
     this.visibleFraction,
     this.placeholder = false,
     this.tag,
+    this.busy = false,
   });
 
   final String fingerprint;
@@ -189,6 +190,12 @@ class TugboatSceneInventoryEntry {
   /// hash input.
   bool get positional => canonicalPath.contains('[item:');
 
+  /// True when the enabled control sits beneath an absorbing or ignoring
+  /// pointer blocker. Never serialized on the entry: it is only counted in
+  /// `loading.busyControls`, so the count can follow the entries an inventory
+  /// keeps.
+  final bool busy;
+
   Map<String, Object?> toJson() => {
     'fingerprint': fingerprint,
     'canonicalPath': canonicalPath,
@@ -209,6 +216,7 @@ class TugboatSceneInventoryEntry {
     List<String>? aliases,
     bool? placeholder,
     String? tag,
+    bool? busy,
   }) {
     return TugboatSceneInventoryEntry(
       fingerprint: fingerprint,
@@ -223,6 +231,7 @@ class TugboatSceneInventoryEntry {
       visibleFraction: visibleFraction,
       placeholder: placeholder ?? this.placeholder,
       tag: tag ?? this.tag,
+      busy: busy ?? this.busy,
     );
   }
 }
@@ -416,8 +425,8 @@ class TugboatSceneInventory {
   final TugboatInventoryLoading? loading;
 
   /// Why the inventory was taken: one of `initial`, `resume`, `route`, `tap`,
-  /// `scroll`, `settled`, `manual`. Null when not stamped. Not part of
-  /// [inventoryHash] or the de-duplication key.
+  /// `scroll`, `gesture` (a swipe, pan or zoom), `settled`, `manual`. Null
+  /// when not stamped. Not part of [inventoryHash] or the de-duplication key.
   final String? trigger;
 
   /// A copy of this inventory stamped with [trigger].
