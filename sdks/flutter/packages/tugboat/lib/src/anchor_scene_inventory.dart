@@ -139,7 +139,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
           interactiveByFingerprint,
           result.entry.copyWith(
             placeholder: placeholder,
-            busy: (flags?.busy ?? false) && result.entry.enabled != false,
+            busy: _isBusyEntry(flags, result.entry),
           ),
           result.structuralFingerprint,
         );
@@ -157,6 +157,13 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       placeholder: placeholder,
     );
   }
+
+  /// An enabled control beneath a pointer blocker. A disabled control (a
+  /// disabled `TextField` sits under its own `IgnorePointer`) is not busy.
+  bool _isBusyEntry(
+    ({bool placeholder, bool busy})? flags,
+    TugboatSceneInventoryEntry entry,
+  ) => (flags?.busy ?? false) && entry.enabled != false;
 
   bool _isInventoryCandidate(
     Widget widget,

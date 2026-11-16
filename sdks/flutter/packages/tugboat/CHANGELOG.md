@@ -12,7 +12,7 @@
   `trigger: "settled"` once it has settled, if that structure was never
   emitted for its route key. It never expires while the route is current, an
   idle page costs no timer, and a looping animation or blinking cursor never
-  emits. At most five per route key per session. Turn it off with
+  emits. At most five per route key per session, and five per route visit. Turn it off with
   `resampleSettledInventory: false`; production captures run none of it.
 - In exploration mode, every scene inventory carries `loading`
   (`progressIndicators`, `placeholders`, `busyControls`) and each element

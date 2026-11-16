@@ -554,8 +554,10 @@ The rules:
    new layout, or a skeleton replaced in place, emits; sub-pixel jitter does
    not (a box that sits exactly on a grid edge can flip once); and a layout that
    loops between two states emits each state at most once.
-6. **Cap.** At most five settled inventories per route key per session. When a
-   route key reaches it, the watch stops and is not re-armed for that key.
+6. **Cap.** At most five settled inventories per route key per session, and
+   at most five per route visit (route epoch), because an unnamed page's
+   `struct:` route key can change as its content loads. When either is
+   reached the watch stops, and it is not re-armed for that key or visit.
 7. **Ending.** The watch ends on any visible route change, capture pause,
    lifecycle pause or hide, session end and dispose. It never ends on a timer.
 

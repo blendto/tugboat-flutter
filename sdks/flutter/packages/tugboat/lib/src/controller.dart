@@ -1176,6 +1176,11 @@ class TugboatReplayController extends ChangeNotifier {
   // structural signatures already emitted per route key this session.
   final Map<String, Set<String>> _settledSeen = <String, Set<String>>{};
   final Map<String, int> _settledEmissionsByRoute = <String, int>{};
+  // Settled emissions in the route epoch [_settledEpoch]. A structural
+  // `struct:` route key can change as an unnamed page loads, so the per-key
+  // cap alone does not bound one visit.
+  int _settledEpoch = -1;
+  int _settledEmissionsInEpoch = 0;
   int _settledSampleCount = 0;
   SettledInventoryWatch? _settledWatch;
   SemanticsHandle? _semanticsHandle;
@@ -6025,6 +6030,8 @@ class TugboatReplayController extends ChangeNotifier {
     _stopSettledWatch();
     _settledSeen.clear();
     _settledEmissionsByRoute.clear();
+    _settledEpoch = -1;
+    _settledEmissionsInEpoch = 0;
     _settledSampleCount = 0;
   }
 
@@ -6056,7 +6063,20 @@ class TugboatReplayController extends ChangeNotifier {
       _anchorResolver != null;
 
   bool _settledCapReached(String routeKey) =>
-      (_settledEmissionsByRoute[routeKey] ?? 0) >= settledInventoryEmissionCap;
+      (_settledEmissionsByRoute[routeKey] ?? 0) >=
+          settledInventoryEmissionCap ||
+      (_settledEpoch == _routeEpoch &&
+          _settledEmissionsInEpoch >= settledInventoryEmissionCap);
+
+  void _countSettledEmission(String routeKey) {
+    _settledEmissionsByRoute[routeKey] =
+        (_settledEmissionsByRoute[routeKey] ?? 0) + 1;
+    if (_settledEpoch != _routeEpoch) {
+      _settledEpoch = _routeEpoch;
+      _settledEmissionsInEpoch = 0;
+    }
+    _settledEmissionsInEpoch++;
+  }
 
   void _stopSettledWatch() {
     _settledWatch?.cancel();
@@ -6091,8 +6111,7 @@ class TugboatReplayController extends ChangeNotifier {
       return false;
     }
     (_settledSeen[routeKey] ??= <String>{}).add(signature);
-    final emitted = (_settledEmissionsByRoute[routeKey] ?? 0) + 1;
-    _settledEmissionsByRoute[routeKey] = emitted;
+    _countSettledEmission(routeKey);
     _addEvent(
       TugboatEvent(
         id: _nextId('event'),
@@ -6101,7 +6120,7 @@ class TugboatReplayController extends ChangeNotifier {
         data: inventory.withTrigger('settled').toJson(),
       ),
     );
-    if (emitted >= settledInventoryEmissionCap) _stopSettledWatch();
+    if (_settledCapReached(routeKey)) _stopSettledWatch();
     return true;
   }
 

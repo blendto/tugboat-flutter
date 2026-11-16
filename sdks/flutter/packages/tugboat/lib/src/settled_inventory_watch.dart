@@ -15,7 +15,8 @@ const Duration settledInventoryMaxBusy = Duration(seconds: 2);
 /// something new resets it.
 const Duration settledInventoryMaxWindow = Duration(milliseconds: 6400);
 
-/// At most this many settled inventories per route key per session.
+/// At most this many settled inventories per route key per session, and per
+/// route visit (route epoch).
 const int settledInventoryEmissionCap = 5;
 
 /// Grid step for the coarse bounds signature (2% of the boundary).

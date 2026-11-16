@@ -624,6 +624,71 @@ void main() {
     });
   });
 
+  group('pushed routes', () {
+    Future<void> push(WidgetTester tester, Widget page) async {
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      unawaited(navigator.push(MaterialPageRoute<void>(builder: (_) => page)));
+      await _advance(tester, const Duration(seconds: 1));
+    }
+
+    testWidgets('a pushed page that loads late emits, and a pop re-arms', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        Scaffold(
+          body: FilledButton(onPressed: () {}, child: const Text('Home')),
+        ),
+        _exploration,
+      );
+      final load = Completer<List<int>>();
+      await push(tester, _LoadingPage(load: load.future));
+      final pushedKey = _inventories().last['routeKey'];
+      expect(_inventories().last['trigger'], 'route');
+      expect(_controller.debugSettledWatchArmed, isTrue);
+
+      await _advance(tester, const Duration(seconds: 3));
+      load.complete([1, 2, 3]);
+      await _advance(tester, const Duration(seconds: 2));
+
+      final settled = _settled();
+      expect(settled, hasLength(1));
+      expect(_elements(settled.single), hasLength(4));
+      expect(
+        settled.single['routeKey'],
+        isNot(_inventories().first['routeKey']),
+      );
+      expect(pushedKey, isNotNull);
+
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await _advance(tester, const Duration(seconds: 1));
+      expect(_controller.debugSettledWatchArmed, isTrue);
+    });
+
+    testWidgets(
+      'a pushed unnamed page that keeps growing still stops at five',
+      (tester) async {
+        await _mount(
+          tester,
+          Scaffold(
+            body: FilledButton(onPressed: () {}, child: const Text('Home')),
+          ),
+          _exploration,
+        );
+        await push(
+          tester,
+          const Scaffold(body: _Appending(period: Duration(milliseconds: 600))),
+        );
+
+        await _advance(tester, const Duration(seconds: 12));
+
+        // Its `struct:` route key moves as rows arrive; the visit cap holds.
+        expect(_settled(), hasLength(5));
+        expect(_controller.debugSettledWatchArmed, isFalse);
+      },
+    );
+  });
+
   group('lifecycle', () {
     /// Mounts a page that is loading and draws one frame after its first
     /// inventory, so a quiet window is pending when the test acts.
@@ -789,6 +854,45 @@ void main() {
       expect(triggers.skip(1), everyElement('scroll'));
     });
 
+    testWidgets('a swipe after-capture is a gesture, not a tap', (
+      tester,
+    ) async {
+      final revealed = ValueNotifier<bool>(false);
+      addTearDown(revealed.dispose);
+      await _mount(
+        tester,
+        Scaffold(
+          body: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragEnd: (_) => revealed.value = true,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: revealed,
+              builder: (context, value, _) => Column(
+                children: [
+                  FilledButton(onPressed: () {}, child: const Text('Header')),
+                  if (value)
+                    FilledButton(onPressed: () {}, child: const Text('New')),
+                  const Expanded(child: SizedBox.expand()),
+                ],
+              ),
+            ),
+          ),
+        ),
+        _resampleOff,
+      );
+      await tester.dragFrom(const Offset(100, 400), const Offset(300, 0));
+      await waitForTugboatCaptureWork(tester);
+      await _advance(tester, const Duration(seconds: 1));
+
+      final gestures = [
+        for (final event in _controller.session!.events)
+          if (event.type == 'interaction') event.data['gesture'],
+      ];
+      expect(gestures, contains('swipe'));
+      final triggers = [for (final inv in _inventories()) inv['trigger']];
+      expect(triggers, ['initial', 'gesture']);
+    });
+
     testWidgets('initial, scroll, tap and route each carry their own trigger', (
       tester,
     ) async {
@@ -821,6 +925,14 @@ void main() {
         TugboatReplay.resetForTest();
 
         await _runFlow(tester, _exploration);
+        // No settled inventory repeats a structure already emitted for its
+        // route key.
+        final seen = <String>{};
+        for (final inv in _inventories()) {
+          final key = '${inv['routeKey']}|${_structure(inv)}';
+          if (inv['trigger'] == 'settled') expect(seen, isNot(contains(key)));
+          seen.add(key);
+        }
         final on = [
           for (final inv in _inventories())
             if (inv['trigger'] != 'settled') [inv['trigger'], _structure(inv)],
