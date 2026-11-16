@@ -610,6 +610,16 @@ the schema 6 fingerprints of the same control in `aliases` for one release.
   list, so another item at the same index, in another tab or state, shares it.
   No key value enters a path: `ValueKey` and `ObjectKey` values are never hash
   input.
+- **Sheet and dialog route keys (#137).** An anonymous sheet or dialog route
+  is keyed `sheet:<WidgetClass>` or `dialog:<WidgetClass>` when its
+  `surface.widgetClass` is known, instead of its runtime type string
+  (`ModalBottomSheetRoute<bool>`) or a structural hash. The kind comes from the
+  route's type name, so a sheet's own button still resolves to its sheet key
+  after a navigating tap. A host-named route (`RouteSettings(name: ...)`) keeps
+  its name, and an inline builder with no nameable class keeps the runtime type.
+  Known gap: a custom `PopupRoute` cannot be told from its type name, so it
+  keeps its key. Two inline-builder sheets with the same structure still
+  collide; name the sheet's class or pass `RouteSettings(name: ...)`.
 - **Golden.** `test/fingerprint_golden_test.dart` pins fingerprints, route keys,
   aliases and the schema version for a fixture tree. Any change to them fails
   that test: bump `tugboatFingerprintSchemaVersion` and update the golden in

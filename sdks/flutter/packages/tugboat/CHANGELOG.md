@@ -71,6 +71,10 @@
   another keeps the fingerprints of the same control; component theme wrappers
   (`ListTileTheme`, `SwitchTheme`, ...) are transparent. Expect new fingerprints
   for controls under a sheet or a theme wrapper.
+  An anonymous sheet or dialog route is keyed `sheet:<WidgetClass>` or
+  `dialog:<WidgetClass>` when its widget class is known (#137), instead of
+  `ModalBottomSheetRoute<bool>` or `struct:<hash>`. Host-named routes and
+  inline builders are unchanged. Custom popup routes keep their key.
 
 ### Fixed
 

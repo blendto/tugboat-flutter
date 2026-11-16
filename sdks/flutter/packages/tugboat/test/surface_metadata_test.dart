@@ -173,7 +173,7 @@ Future<Map<String, Object?>> _openAndInventory(
 void main() {
   tearDown(TugboatReplay.resetForTest);
 
-  testWidgets('two anonymous sheets share a route key but not a widgetClass', (
+  testWidgets('two anonymous sheets get a route key per widgetClass', (
     tester,
   ) async {
     final alpha = await _openAndInventory(
@@ -193,8 +193,8 @@ void main() {
       ),
     );
 
-    expect(alpha['routeKey'], 'ModalBottomSheetRoute<bool>');
-    expect(beta['routeKey'], alpha['routeKey']);
+    expect(alpha['routeKey'], 'sheet:AlphaSheet');
+    expect(beta['routeKey'], 'sheet:BetaSheet');
     expect(_surface(alpha), {'kind': 'sheet', 'widgetClass': 'AlphaSheet'});
     expect(_surface(beta), {'kind': 'sheet', 'widgetClass': 'BetaSheet'});
   });
@@ -325,7 +325,7 @@ void main() {
           showDialog<void>(context: c, builder: (_) => const ConfirmDialog()),
     );
 
-    expect((inventory['routeKey']! as String).startsWith('struct:'), isTrue);
+    expect(inventory['routeKey'], 'dialog:ConfirmDialog');
     expect(_surface(inventory), {
       'kind': 'dialog',
       'widgetClass': 'ConfirmDialog',

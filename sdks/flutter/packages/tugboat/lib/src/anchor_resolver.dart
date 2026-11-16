@@ -56,6 +56,10 @@ class _TokenMap {
   /// The schema 6 walk of this same tree, built on first use for aliases.
   _TokenMap? legacyMap;
 
+  /// The sheet or dialog widget class of this tree, computed once.
+  bool surfaceClassKnown = false;
+  String? surfaceClass;
+
   bool isIdentityCandidate(Element element) =>
       controlCandidates.contains(element) ||
       newRoleCandidates.contains(element);
@@ -1597,10 +1601,52 @@ class AnchorResolver {
   }
 
   String _resolveRouteKey(String? route, _TokenMap tokenMap) {
+    final surfaceKey = _surfaceRouteKey(route, tokenMap);
+    if (surfaceKey != null) return surfaceKey;
     if (route != null && route.isNotEmpty && !_isAnonymousRouteName(route)) {
       return route;
     }
     return 'struct:${tokenMap.structuralRouteSignature}';
+  }
+
+  /// `sheet:<WidgetClass>` or `dialog:<WidgetClass>` for an anonymous sheet or
+  /// dialog route (schema 7, #137), when its widget class is known. The route
+  /// string names the kind: an anonymous route's string is its runtime type
+  /// (`ModalBottomSheetRoute<bool>`). A host-named route keeps its name, and
+  /// a popup cannot be told from its type name, so it keeps its key too.
+  String? _surfaceRouteKey(String? route, _TokenMap tokenMap) {
+    if (tokenMap.legacy || route == null || route.isEmpty) return null;
+    final kind = _sheetOrDialogKindOf(route);
+    if (kind == null) return null;
+    final widgetClass = _surfaceClassFor(tokenMap, kind);
+    return widgetClass == null ? null : '$kind:$widgetClass';
+  }
+
+  /// `sheet` or `dialog` for the runtime type names of anonymous sheet and
+  /// dialog routes (the same names as `tugboatSurfaceKindForRouteType`).
+  String? _sheetOrDialogKindOf(String route) {
+    final generic = route.indexOf('<');
+    final base = generic == -1 ? route : route.substring(0, generic);
+    const sheets = {
+      'ModalBottomSheetRoute',
+      'CupertinoModalPopupRoute',
+      'CupertinoSheetRoute',
+    };
+    const dialogs = {'DialogRoute', 'RawDialogRoute', 'CupertinoDialogRoute'};
+    final name = base.startsWith('_') ? base.substring(1) : base;
+    if (sheets.contains(name)) return TugboatSurfaceKind.sheet;
+    if (dialogs.contains(name)) return TugboatSurfaceKind.dialog;
+    return null;
+  }
+
+  /// The widget class of the tree's sheet or dialog, cached per token map.
+  String? _surfaceClassFor(_TokenMap tokenMap, String kind) {
+    if (!tokenMap.surfaceClassKnown) {
+      tokenMap
+        ..surfaceClass = _surfaceFor(tokenMap, kind: kind).widgetClass
+        ..surfaceClassKnown = true;
+    }
+    return tokenMap.surfaceClass;
   }
 
   bool _isAnonymousRouteName(String route) {
