@@ -143,6 +143,15 @@
   control inside it, that control now wins, so both modes give the tile's
   fingerprint. Taps on a scrollable outside any control are unchanged. The
   same happened on 0.10.11.
+- In exploration mode, the inventory of a programmatic scroll (an
+  auto-scrolling marquee) could be built while the tree still needed layout:
+  its hit tests read stale boxes and, in debug builds, failed
+  `'!debugNeedsLayout'` in `RenderFractionalTranslation`, losing the
+  inventory (`[tugboat] queued scroll_end task failed`). Such inventories now
+  wait for the frame's post-frame callback when layout may be dirty and are
+  built at once otherwise. A failing scroll inventory is caught and logged,
+  never thrown into the app's scroll notification. Pointer-driven scrolls and
+  production are unchanged. The same happened on 0.10.11.
 - An inventory taken while a route transition was running (an input
   observation after system back, or a focus change as a dialog opened) listed
   the departing or covered route's controls under the destination's route key.

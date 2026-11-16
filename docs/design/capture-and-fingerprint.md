@@ -197,6 +197,18 @@ Pointer work and post-interaction capture are serialized through a controller
 queue. An error in one queued task is caught and logged so later taps, scrolls,
 and route captures continue.
 
+The scroll-start, scroll-update and scroll-end inventories of a programmatic
+scroll (one no pointer drives: `jumpTo`, an auto-scrolling marquee) are built
+only once the render tree is laid out. When a frame is under way before its
+post-frame callbacks, or one is scheduled, the inventory waits for the next
+post-frame callback and is dropped if the session, capture lifecycle or route
+changed meanwhile; otherwise it is built at once, as before. Building it with
+layout dirty hit-tested stale boxes and tripped `!debugNeedsLayout` in
+`RenderFractionalTranslation`. A scroll a pointer drives keeps its inventories
+at once, and a scroll inventory that fails is logged and never reaches the
+host's scroll notification. Production builds no scroll inventory and
+schedules nothing.
+
 ## Fingerprint schema v6
 
 `tugboatFingerprintSchemaVersion` is currently `7`. Hashes are 16-character

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart' show HitTestTarget;
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
@@ -4629,15 +4630,15 @@ class TugboatReplayController extends ChangeNotifier {
       _trimScrollSamples();
     }
 
-    _maybeEmitSceneInventory(
-      trigger: 'scroll',
-      scrollContext: _scrollSemanticContext(
+    tracker.pointerLinked = _linkScrollStartToActiveGestures(startEventId);
+    _emitScrollInventoryFor(
+      tracker,
+      _scrollSemanticContext(
         trigger: 'scroll_start',
         metrics: metrics,
         tracker: tracker,
       ),
     );
-    tracker.pointerLinked = _linkScrollStartToActiveGestures(startEventId);
     if (!_disposed) notifyListeners();
   }
 
@@ -4666,9 +4667,9 @@ class TugboatReplayController extends ChangeNotifier {
     )) {
       return;
     }
-    _maybeEmitSceneInventory(
-      trigger: 'scroll',
-      scrollContext: _scrollSemanticContext(
+    _emitScrollInventoryFor(
+      tracker,
+      _scrollSemanticContext(
         trigger: 'scroll_update',
         metrics: metrics,
         tracker: tracker,
@@ -4698,6 +4699,69 @@ class TugboatReplayController extends ChangeNotifier {
     );
     _trimScrollSamples();
     return true;
+  }
+
+  /// A scroll a pointer drives emits its inventory at once, as always. A
+  /// programmatic one (an auto-scrolling marquee, `jumpTo`) waits for a
+  /// laid-out tree.
+  void _emitScrollInventoryFor(
+    _ScrollTracker tracker,
+    TugboatViewportSemanticScrollContext scrollContext,
+  ) => tracker.pointerLinked
+      ? _emitScrollInventory(scrollContext)
+      : _emitScrollInventoryWhenLaidOut(scrollContext);
+
+  /// Emits a scroll inventory now when the render tree is laid out, otherwise
+  /// after the current or next frame has laid it out. A scroll notification
+  /// can arrive with layout dirty: a programmatic scroll between frames, or a
+  /// ticker-driven one (an auto-scrolling marquee) before the frame's layout.
+  /// An inventory built then hit-tests stale boxes, and trips
+  /// `!debugNeedsLayout` in `RenderFractionalTranslation`. With a laid-out
+  /// tree and no frame pending it runs at once, exactly as before. A deferred
+  /// one is dropped when the session, lifecycle or route changed meanwhile.
+  /// Production emits no inventory, so it schedules nothing.
+  void _emitScrollInventoryWhenLaidOut(
+    TugboatViewportSemanticScrollContext scrollContext,
+  ) {
+    if (!config.sceneInventoryEmissionEnabled &&
+        !config.semanticMapEmissionEnabled) {
+      return;
+    }
+    if (!_layoutMayBeDirty) {
+      _emitScrollInventory(scrollContext);
+      return;
+    }
+    final session = _session;
+    final lifecycleEpoch = _captureLifecycleEpoch;
+    final routeEpoch = _routeEpoch;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!_isCaptureLifecycleCurrent(session, lifecycleEpoch) ||
+          routeEpoch != _routeEpoch) {
+        return;
+      }
+      _emitScrollInventory(scrollContext);
+    });
+  }
+
+  /// Whether the render tree may need layout: a frame is under way before
+  /// its post-frame callbacks, or one is scheduled (something marked the
+  /// tree dirty, or an animation ticks).
+  bool get _layoutMayBeDirty {
+    final scheduler = SchedulerBinding.instance;
+    final phase = scheduler.schedulerPhase;
+    final betweenFrames =
+        phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks;
+    return !betweenFrames || scheduler.hasScheduledFrame;
+  }
+
+  void _emitScrollInventory(TugboatViewportSemanticScrollContext context) {
+    try {
+      _maybeEmitSceneInventory(trigger: 'scroll', scrollContext: context);
+    } catch (error, stackTrace) {
+      // Capture never interrupts the host's scroll notification.
+      debugPrint('[tugboat] scroll inventory failed: $error\n$stackTrace');
+    }
   }
 
   bool _scrollSampleIsDue(_ScrollTracker tracker, DateTime now) =>
@@ -4751,9 +4815,8 @@ class TugboatReplayController extends ChangeNotifier {
         )) {
           return;
         }
-        _maybeEmitSceneInventory(
-          trigger: 'scroll',
-          scrollContext: _scrollSemanticContext(
+        _emitScrollInventoryWhenLaidOut(
+          _scrollSemanticContext(
             trigger: 'scroll_end',
             metrics: metrics,
             tracker: tracker,
