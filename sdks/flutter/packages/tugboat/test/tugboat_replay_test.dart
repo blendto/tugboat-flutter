@@ -318,10 +318,8 @@ void main() {
               as TugboatCaptureRenderBoundary;
       final acceptedGeneration = boundary.paintGeneration;
 
-      // The seeded frame is compatible and the subtree has not changed. This
-      // also simulates the local exploration WebSocket's non-interaction
-      // suppression. A completed pointer interaction must still capture.
-      controller.debugSetExplorationFramesSuppressed(true);
+      // The seeded frame is compatible and the subtree has not changed. A
+      // completed pointer interaction must still capture.
       expect(boundary.paintGeneration, acceptedGeneration);
       final framesBeforeInteraction = controller.session!.frames.length;
       controller.recordPointerDown(const Offset(40, 40), pointer: 7);
@@ -1947,7 +1945,6 @@ void main() {
     );
     await controller.initialize();
     controller.start(const Size(100, 100), 'test');
-    controller.debugSetExplorationFramesSuppressed(true);
 
     unawaited(
       controller.debugEnqueueTask('test_failure', () async {
@@ -1974,7 +1971,6 @@ void main() {
     );
     await controller.initialize();
     controller.start(const Size(100, 100), 'test');
-    controller.debugSetExplorationFramesSuppressed(true);
 
     controller.recordPointerDown(const Offset(1, 1), pointer: 1);
     controller.recordPointerDown(const Offset(2, 2), pointer: 2);

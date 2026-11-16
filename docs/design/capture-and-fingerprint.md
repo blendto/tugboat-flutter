@@ -41,8 +41,8 @@ NavigatorObserver + global/local pointer input + scroll notifications
                         in-memory session
                               |
                     sink hub (failure-isolated)
-                       /                  \
-              exploration WebSocket    HTTP collector
+                              |
+                        HTTP collector
 ```
 
 `TugboatReplay.wrapApp` installs the controller, repaint boundary, input
@@ -240,8 +240,7 @@ SDK is installed in the app builder. Sessions and events carry a normalized
 locale object with `language`, optional `country` and `script`, and a BCP 47
 `tag`. A runtime transition emits `locale_changed` on the evidence stream.
 
-The exploration WebSocket session message and the HTTP collector
-`session_start` carry the initial active app locale. Later events carry the
+The HTTP collector `session_start` carries the initial active app locale. Later events carry the
 current locale directly. `TugboatReplay.setLocale(...)` supports hosts where
 the capture root cannot observe `Localizations`.
 
@@ -544,13 +543,6 @@ a second full-frame copy (unlike a plain isolate/`compute` send). Platform
 views, video textures, maps, and native overlays may be absent or incomplete
 in repaint-boundary output.
 
-When the exploration WebSocket connects and there is no HTTP collector, the
-controller suppresses only non-interaction Flutter screenshots for UI-thread
-performance. Each completed interaction still requests a visual observation.
-A route capture can satisfy it. Events, anchors,
-inventories, and semantic evidence continue to stream. Any frames captured
-before connection are still sent.
-
 ### Capture stage clocks
 
 The Dart clock names do not match processing stages. Native capture must emit
@@ -600,17 +592,15 @@ semantics without emitting map events.
 
 ## Transport boundary
 
-The controller fans evidence to zero, one, or both built-in sinks:
-
-- an exploration WebSocket configured by `explorationCollectorUrl`;
-- an HTTP sink configured by `collector`.
+The controller fans evidence to the built-in HTTP sink configured by
+`collector`, plus any registered custom sinks.
 
 The sink hub isolates synchronous and asynchronous sink failures. Capture
 remains authoritative in memory. Public `TugboatCaptureSinkFactory` registration
-is supported via `TugboatReplayConfig.sinkFactories`; built-in HTTP/WS sinks
-remain available through existing config fields.
+is supported via `TugboatReplayConfig.sinkFactories`; the built-in HTTP sink
+remains available through `collector`.
 
-HTTP delivery and exploration WebSocket queues remain process-local. See
+HTTP delivery queues remain process-local. See
 [Collector integration](../integration/collector.md) for the wire behavior.
 
 ## Lifecycle

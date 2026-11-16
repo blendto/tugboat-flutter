@@ -10,7 +10,6 @@ import 'capture_sink.dart';
 import 'collector_http_sink.dart';
 import 'coordinate_space.dart';
 import 'debug_logging.dart';
-import 'exploration_sink.dart';
 import 'evidence_recorder.dart';
 import 'external_event.dart';
 import 'health.dart';
@@ -99,7 +98,6 @@ class _ScheduledCapture {
   _ScheduledCapture({
     required this.trigger,
     required this.force,
-    required this.bypassesExplorationSuppression,
     required this.freshness,
     required this.notBefore,
     required this.enqueuedAt,
@@ -108,7 +106,6 @@ class _ScheduledCapture {
 
   TugboatFrameTrigger trigger;
   bool force;
-  bool bypassesExplorationSuppression;
   _CaptureFreshness freshness;
   DateTime notBefore;
   DateTime enqueuedAt;
@@ -121,8 +118,6 @@ class _ScheduledCapture {
       trigger = other.trigger;
     }
     force = force || other.force;
-    bypassesExplorationSuppression =
-        bypassesExplorationSuppression || other.bypassesExplorationSuppression;
     if (other.freshness == _CaptureFreshness.freshPaint) {
       freshness = _CaptureFreshness.freshPaint;
     }
@@ -587,9 +582,6 @@ class _VisibleRouteChange {
   final String? hostPageRouteInstanceId;
   final List<Map<String, Object?>> routeStack;
   final bool routeStackTruncated;
-
-  bool get bypassesExplorationSuppression =>
-      causeEventId != null || overlayKind != TugboatOverlayKind.page;
 
   _VisibleRouteChange asSessionStartWireChange() => _VisibleRouteChange(
     previousRoute: null,
@@ -1091,7 +1083,6 @@ class TugboatReplayController extends ChangeNotifier {
   ScreenshotCapturer? _capturer;
   AnchorResolver? _anchorResolver;
   TugboatCaptureSinkHub? _sinkHub;
-  ExplorationCaptureSink? _explorationSink;
   CollectorHttpSink? _collectorHttpSink;
   final TugboatScreenshotBudgetTracker _screenshotBudget =
       TugboatScreenshotBudgetTracker();
@@ -1126,7 +1117,6 @@ class TugboatReplayController extends ChangeNotifier {
 
   bool _disposed = false;
   bool _capturePaused = false;
-  bool _explorationFramesSuppressed = false;
   bool _captureInFlight = false;
   Completer<void> _captureIdle = Completer<void>()..complete();
   int _captureGeneration = 0;
@@ -1221,11 +1211,6 @@ class TugboatReplayController extends ChangeNotifier {
   void debugSetCurrentRoute(String? route) {
     _currentRoute = route;
     _currentSurfaceKind = null;
-  }
-
-  @visibleForTesting
-  void debugSetExplorationFramesSuppressed(bool suppressed) {
-    _explorationFramesSuppressed = suppressed;
   }
 
   @visibleForTesting
@@ -1540,18 +1525,6 @@ class TugboatReplayController extends ChangeNotifier {
       screenshotCaptureBackend: config.screenshotCaptureBackend,
     );
     final sinks = <TugboatCaptureSink>[];
-    final collectorUrl = config.explorationCollectorUrl;
-    if (collectorUrl != null) {
-      _explorationSink = ExplorationCaptureSink(
-        url: collectorUrl,
-        runId: config.explorationRunId,
-        onControl: handleExplorationControl,
-        onConnected: _handleExplorationCollectorConnected,
-        onDisconnected: _handleExplorationCollectorDisconnected,
-      );
-      sinks.add(_explorationSink!);
-      unawaited(_explorationSink!.connect());
-    }
     final collectorConfig = config.collector;
     if (collectorConfig != null) {
       // [_initialTraits] / [_initialUserId] may have been updated by
@@ -1643,7 +1616,6 @@ class TugboatReplayController extends ChangeNotifier {
     if (hub != null) {
       unawaited(ending.whenComplete(hub.dispose));
     }
-    _explorationSink = null;
     _collectorHttpSink = null;
     final capturer = _capturer;
     _capturer = null;
@@ -1702,6 +1674,7 @@ class TugboatReplayController extends ChangeNotifier {
     return _sinkHub?.flush() ?? Future<void>.value();
   }
 
+  /// Pauses or resumes screenshot capture requests.
   void setCapturePaused(bool paused) {
     _capturePaused = paused;
   }
@@ -2176,7 +2149,6 @@ class TugboatReplayController extends ChangeNotifier {
   _requestCaptureCancellable({
     required TugboatFrameTrigger trigger,
     bool force = false,
-    bool bypassExplorationSuppression = false,
     bool dropWhenBusy = false,
     Duration? settleDelay,
     String? relatedEventId,
@@ -2188,10 +2160,7 @@ class TugboatReplayController extends ChangeNotifier {
       relatedEventId: relatedEventId,
     );
     final freshness = _captureFreshnessFor(trigger, force);
-    final bypassesExplorationSuppression =
-        bypassExplorationSuppression ||
-        trigger == TugboatFrameTrigger.interaction;
-    if (_requestCaptureIsSuppressed(bypassesExplorationSuppression)) {
+    if (_requestCaptureIsSuppressed) {
       return _completeRejectedCaptureRequest(
         waiter,
         _cancelledCaptureExecution(_captureSuppressionReason()),
@@ -2216,7 +2185,6 @@ class TugboatReplayController extends ChangeNotifier {
     final incoming = _ScheduledCapture(
       trigger: trigger,
       force: force,
-      bypassesExplorationSuppression: bypassesExplorationSuppression,
       freshness: freshness,
       notBefore: notBefore,
       enqueuedAt: now,
@@ -2234,11 +2202,8 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
-  bool _requestCaptureIsSuppressed(bool bypass) =>
-      _disposed ||
-      _capturePaused ||
-      _skipCapture ||
-      _explorationCaptureIsSuppressed(bypass);
+  bool get _requestCaptureIsSuppressed =>
+      _disposed || _capturePaused || _skipCapture;
 
   bool get _captureQueueIsBusy => _captureInFlight || _scheduledCapture != null;
 
@@ -2388,7 +2353,6 @@ class TugboatReplayController extends ChangeNotifier {
       return await _executeCapture(
         trigger: scheduled.trigger,
         force: scheduled.force,
-        bypassExplorationSuppression: scheduled.bypassesExplorationSuppression,
         freshness: scheduled.freshness,
         context: scheduled.context.withTrigger(scheduled.trigger),
         queueWaitMicros: queueWaitMicros,
@@ -2504,7 +2468,6 @@ class TugboatReplayController extends ChangeNotifier {
   Future<_CaptureExecution> _executeCapture({
     required TugboatFrameTrigger trigger,
     bool force = false,
-    bool bypassExplorationSuppression = false,
     required _CaptureFreshness freshness,
     required _CaptureRequestContext context,
     required int queueWaitMicros,
@@ -2515,7 +2478,7 @@ class TugboatReplayController extends ChangeNotifier {
     final requiresFreshPaint = freshness == _CaptureFreshness.freshPaint;
     final debugExecution = _takeDebugCaptureExecution();
     if (debugExecution != null) return debugExecution;
-    if (_captureExecutionIsSuppressed(bypassExplorationSuppression)) {
+    if (_captureExecutionIsSuppressed) {
       return _cancelledCaptureExecution(
         _captureInFlight ? 'capture_in_flight' : _captureSuppressionReason(),
       );
@@ -2570,15 +2533,8 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
-  bool _captureExecutionIsSuppressed(bool bypassExplorationSuppression) =>
-      _disposed ||
-      _capturePaused ||
-      _skipCapture ||
-      _captureInFlight ||
-      _explorationCaptureIsSuppressed(bypassExplorationSuppression);
-
-  bool _explorationCaptureIsSuppressed(bool bypass) =>
-      _shouldSuppressFrameCapture && !bypass;
+  bool get _captureExecutionIsSuppressed =>
+      _disposed || _capturePaused || _skipCapture || _captureInFlight;
 
   bool _isEligibleForBudgetSkip(
     _CaptureFreshness freshness,
@@ -4701,7 +4657,7 @@ class TugboatReplayController extends ChangeNotifier {
 
     if (!tracker.pointerLinked) {
       // Programmatic scrolls retain evidence, but do not manufacture an
-      // interaction capture or bypass local-WebSocket suppression.
+      // interaction capture.
       _enqueue('scroll_end', () async {
         if (!_isCaptureLifecycleCurrent(
           captureSession,
@@ -4897,7 +4853,7 @@ class TugboatReplayController extends ChangeNotifier {
     final work = _RouteCaptureWork(
       epoch: ++_routeEpoch,
       change: change,
-      deadline: _routeCaptureDeadline(transition, change),
+      deadline: _routeCaptureDeadline(transition),
     );
     _activeRouteCaptures[captureKey] = work;
     _latestRouteCaptureKey = captureKey;
@@ -4945,14 +4901,8 @@ class TugboatReplayController extends ChangeNotifier {
     if (_activeRouteCaptures.isEmpty) _advanceCaptureGeneration();
   }
 
-  Duration _routeCaptureDeadline(
-    _RouteTransition transition,
-    _VisibleRouteChange change,
-  ) =>
-      transition.transitionDuration +
-      (_shouldSuppressFrameCapture && !change.bypassesExplorationSuppression
-          ? Duration.zero
-          : config.settleDelay);
+  Duration _routeCaptureDeadline(_RouteTransition transition) =>
+      transition.transitionDuration + config.settleDelay;
 
   void _updateRouteCaptureCausality(
     _RouteCaptureWork? prior,
@@ -5171,7 +5121,6 @@ class TugboatReplayController extends ChangeNotifier {
       final capture = _requestCaptureCancellable(
         trigger: TugboatFrameTrigger.route,
         force: true,
-        bypassExplorationSuppression: change.bypassesExplorationSuppression,
         // The route deadline already includes the configured post-route
         // settle. Scheduling it again here would delay capture twice and can
         // strand widget-backed callers waiting for route completion.
@@ -6081,6 +6030,8 @@ class TugboatReplayController extends ChangeNotifier {
     return _evidence.beginNetworkCall(method: method, route: route);
   }
 
+  /// Opens an action window: later events carry [runId] and [actionId] until
+  /// [clearActionContext]. No-op unless `acceptActionContext` is enabled.
   void setActionContext({required String runId, required String actionId}) {
     if (!config.actionContextEnabled) return;
     _activeExplorationRunId = runId;
@@ -6095,6 +6046,7 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
+  /// Closes the window opened by [setActionContext], if any.
   void clearActionContext() {
     final clearedActionId = _activeActionId;
     if (clearedActionId != null) {
@@ -6108,45 +6060,6 @@ class TugboatReplayController extends ChangeNotifier {
       );
     }
     _activeActionId = null;
-  }
-
-  void _handleExplorationCollectorConnected() {
-    if (config.collector != null) return;
-    _explorationFramesSuppressed = true;
-  }
-
-  void _handleExplorationCollectorDisconnected() {
-    _explorationFramesSuppressed = false;
-  }
-
-  bool get _shouldSuppressFrameCapture =>
-      _explorationFramesSuppressed && config.collector == null;
-
-  void handleExplorationControl(Map<String, dynamic> message) {
-    final type = message['type'] as String?;
-    switch (type) {
-      case 'set_action_window':
-        final runId = message['explorationRunId'] as String?;
-        final actionId = message['actionId'] as String?;
-        if (runId != null && actionId != null) {
-          setActionContext(runId: runId, actionId: actionId);
-          _explorationSink?.transport.acknowledge(type!, actionId: actionId);
-        }
-      case 'clear_action_window':
-        clearActionContext();
-        _explorationSink?.transport.acknowledge(
-          type!,
-          actionId: message['actionId'] as String?,
-        );
-      case 'pause_capture':
-        setCapturePaused(true);
-        _explorationSink?.transport.acknowledge(type!);
-      case 'resume_capture':
-        setCapturePaused(false);
-        _explorationSink?.transport.acknowledge(type!);
-      default:
-        break;
-    }
   }
 
   void _trim() {

@@ -8,7 +8,7 @@ docs describe only the contracts on the boundary.
 
 **Collector** — standalone HTTP sink that receives session evidence from the
 sink hub. Wire behavior: `docs/integration/collector.md`. Local exploration
-runs use a separate WebSocket destination, not the collector.
+runs also use it, pointed at a local HTTP collector.
 
 **Context Graph** — downstream consumer of this repo's evidence (fingerprints,
 routes, masked screenshots). Ingestion, enrichment, and identity remapping

@@ -24,7 +24,6 @@ export 'src/capture_sink.dart'
 export 'src/collector_config.dart';
 export 'src/collector_host.dart' show TugboatCollectorHost;
 export 'src/controller.dart' show TugboatReplayController;
-export 'src/exploration_transport.dart' show TugboatExplorationTransport;
 export 'src/health.dart'
     show
         TugboatSdkHealth,
