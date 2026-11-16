@@ -85,6 +85,7 @@ class TugboatReplayConfig {
     this.degradedCaptureScale = 0.80,
     this.enableGlobalPointerCapture = true,
     this.emitSceneInventory = false,
+    this.resampleSettledInventory = true,
     this.emitViewportSemanticMap = false,
     this.emitCaptureDiagnostics = false,
     this.acceptActionContext = false,
@@ -146,6 +147,15 @@ class TugboatReplayConfig {
   /// Allows bounded `scene_inventory` events for this app launch.
   final bool emitSceneInventory;
 
+  /// Re-samples the inventory once a page has been quiet after its last
+  /// emission, and emits it with `trigger: "settled"` when its structure
+  /// changed. Exploration only: it has no effect unless [emitSceneInventory]
+  /// is also true. Bounded: at most five settled inventories per route key
+  /// per session, and the watch stops when nothing changes, on route change,
+  /// pause, session end and dispose. Default on in exploration mode; set false
+  /// to keep exploration inventories to the existing triggers only.
+  final bool resampleSettledInventory;
+
   /// Allows bounded viewport semantic-map events for this app launch.
   final bool emitViewportSemanticMap;
 
@@ -189,6 +199,9 @@ class TugboatReplayConfig {
 
   bool get sceneInventoryEmissionEnabled => emitSceneInventory;
 
+  bool get settledInventoryResampleEnabled =>
+      emitSceneInventory && resampleSettledInventory;
+
   bool get semanticMapEmissionEnabled => viewportSemanticPolicy.emitEvents;
 
   bool get actionContextEnabled => acceptActionContext;
@@ -217,6 +230,7 @@ class TugboatReplayConfig {
     double? degradedCaptureScale,
     bool? enableGlobalPointerCapture,
     bool? emitSceneInventory,
+    bool? resampleSettledInventory,
     bool? emitViewportSemanticMap,
     bool? emitCaptureDiagnostics,
     bool? acceptActionContext,
@@ -276,6 +290,10 @@ class TugboatReplayConfig {
         this.enableGlobalPointerCapture,
       ),
       emitSceneInventory: _or(emitSceneInventory, this.emitSceneInventory),
+      resampleSettledInventory: _or(
+        resampleSettledInventory,
+        this.resampleSettledInventory,
+      ),
       emitViewportSemanticMap: _or(
         emitViewportSemanticMap,
         this.emitViewportSemanticMap,

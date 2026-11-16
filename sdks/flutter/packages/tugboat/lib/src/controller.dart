@@ -6,6 +6,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
+import 'settled_inventory_watch.dart';
 import 'capture_sink.dart';
 import 'collector_http_sink.dart';
 import 'coordinate_space.dart';
@@ -1162,6 +1163,13 @@ class TugboatReplayController extends ChangeNotifier {
   final Set<InteractionTransaction> _activeCompletedGestureCaptures = {};
   final Set<Future<void>> _activeCompletedGestureTasks = {};
   final Set<String> _emittedInventories = <String>{};
+  // Settled re-sample state (exploration only). Settled emissions never write
+  // to [_emittedInventories]; they compare against [_settledSignatures].
+  final Map<String, String> _settledSignatures = <String, String>{};
+  final Map<String, int> _settledEmissionsByRoute = <String, int>{};
+  int _settledEmissionsTotal = 0;
+  int _settledRebuildsTotal = 0;
+  SettledInventoryWatch? _settledWatch;
   SemanticsHandle? _semanticsHandle;
   late final ViewportSemanticSession _viewportSemantics =
       ViewportSemanticSession(
@@ -1605,6 +1613,7 @@ class TugboatReplayController extends ChangeNotifier {
   void dispose() {
     if (_disposed) return;
     final hub = _sinkHub;
+    _stopSettledWatch();
     final ending = _endSession('dispose');
     _disposed = true;
     _clearReleasedInteractions();
@@ -1633,6 +1642,7 @@ class TugboatReplayController extends ChangeNotifier {
   Future<void> _endSession(String cancellationReason) {
     final active = _endSessionFuture;
     if (active != null) return active;
+    _stopSettledWatch();
     if (_session == null) return Future<void>.value();
 
     // Claim the end-session future before any sync sink work so re-entry sees
@@ -1677,6 +1687,7 @@ class TugboatReplayController extends ChangeNotifier {
   /// Pauses or resumes screenshot capture requests.
   void setCapturePaused(bool paused) {
     _capturePaused = paused;
+    if (paused) _stopSettledWatch();
   }
 
   void start(Size viewport, String platform, {TugboatLocaleInfo? locale}) {
@@ -1732,6 +1743,7 @@ class TugboatReplayController extends ChangeNotifier {
     _frameReuseObservations.clear();
     _lastCaptureFailure = null;
     _emittedInventories.clear();
+    _resetSettledInventoryState();
     _viewportSemantics.clear();
     _capturer?.resetCoalesceState();
     _captureDiagnosticOutcomes.clear();
@@ -1764,7 +1776,7 @@ class TugboatReplayController extends ChangeNotifier {
         trigger: TugboatFrameTrigger.initial,
         settleDelay: Duration.zero,
       ).then((_) {
-        _maybeEmitSceneInventory();
+        _maybeEmitSceneInventory(trigger: 'initial');
       }),
     );
   }
@@ -2006,7 +2018,7 @@ class TugboatReplayController extends ChangeNotifier {
       );
     }
     _reuseCompatibleFrame(compatible, context, reuseReason);
-    _maybeEmitSceneInventory();
+    _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(context.trigger));
     return _CaptureExecution(
       outcome: outcome,
       frameId: compatible,
@@ -2217,7 +2229,9 @@ class TugboatReplayController extends ChangeNotifier {
     _CaptureExecution execution, {
     bool emitSceneInventory = true,
   }) {
-    if (emitSceneInventory) _maybeEmitSceneInventory();
+    if (emitSceneInventory) {
+      _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(waiter.context.trigger));
+    }
     _completeCaptureWaiter(
       waiter,
       executionId: _nextId('capture_execution'),
@@ -2808,7 +2822,7 @@ class TugboatReplayController extends ChangeNotifier {
     capturer.commitAcceptedPaintGeneration(result.paintGeneration);
     capturer.commitAcceptedDHash(result.dHash);
     capturer.commitAcceptedStructure(result.structureSignature);
-    _maybeEmitSceneInventory();
+    _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(context.trigger));
     return _CaptureExecution(
       outcome: _CaptureOutcome.exactContentReused,
       frameId: existingId,
@@ -2896,7 +2910,7 @@ class TugboatReplayController extends ChangeNotifier {
     capturer.commitAcceptedPaintGeneration(result.paintGeneration);
     capturer.commitAcceptedDHash(result.dHash);
     capturer.commitAcceptedStructure(result.structureSignature);
-    _maybeEmitSceneInventory();
+    _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(trigger));
     _sinkHub?.recordFrame(
       frame,
       result.bytes,
@@ -2936,7 +2950,7 @@ class TugboatReplayController extends ChangeNotifier {
       if (frameId != null && _frameProvenance.containsKey(frameId)) {
         _latestFrameId = frameId;
       }
-      _maybeEmitSceneInventory();
+      _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(trigger));
       final resolved = frameId != null && _isFrameCompatible(frameId, context)
           ? frameId
           : (requiresFreshPaint ? null : _compatibleFrameFor(context));
@@ -3436,7 +3450,10 @@ class TugboatReplayController extends ChangeNotifier {
       tx.targetRouteKey = tapContext.targetRouteKey;
       tapInventory = tapContext.inventory;
       if (tapInventory != null) {
-        _emitSceneInventory(tapInventory, emitViewportSemanticMap: false);
+        _emitSceneInventory(
+          tapInventory.withTrigger('tap'),
+          emitViewportSemanticMap: false,
+        );
       }
     }
     final viewportResolution = _viewportSemantics.resolveTap(
@@ -3484,7 +3501,10 @@ class TugboatReplayController extends ChangeNotifier {
   void _publishExplorationTapEvidence(TugboatPreTapEvidence evidence) {
     final inventory = evidence.inventory;
     if (inventory != null) {
-      _emitSceneInventory(inventory, emitViewportSemanticMap: false);
+      _emitSceneInventory(
+        inventory.withTrigger('tap'),
+        emitViewportSemanticMap: false,
+      );
     }
     final semanticMap = evidence.semanticMap;
     if (semanticMap == null) return;
@@ -4560,6 +4580,7 @@ class TugboatReplayController extends ChangeNotifier {
     }
 
     _maybeEmitSceneInventory(
+      trigger: 'scroll',
       scrollContext: _scrollSemanticContext(
         trigger: 'scroll_start',
         metrics: metrics,
@@ -4596,6 +4617,7 @@ class TugboatReplayController extends ChangeNotifier {
       return;
     }
     _maybeEmitSceneInventory(
+      trigger: 'scroll',
       scrollContext: _scrollSemanticContext(
         trigger: 'scroll_update',
         metrics: metrics,
@@ -4680,6 +4702,7 @@ class TugboatReplayController extends ChangeNotifier {
           return;
         }
         _maybeEmitSceneInventory(
+          trigger: 'scroll',
           scrollContext: _scrollSemanticContext(
             trigger: 'scroll_end',
             metrics: metrics,
@@ -4815,6 +4838,7 @@ class TugboatReplayController extends ChangeNotifier {
       );
     }
     _maybeEmitSceneInventory(
+      trigger: 'scroll',
       scrollContext: _scrollSemanticContext(
         trigger: 'scroll_end',
         metrics: metrics,
@@ -4887,6 +4911,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   void _applyVisibleRouteChange(_VisibleRouteChange change) {
     if (!change.updatesRoute) return;
+    if (change.destinationRoute != _currentRoute) _stopSettledWatch();
     _currentRoute = change.destinationRoute;
     _currentRouteIdentity = TugboatRouteIdentity(
       route: change.destinationRoute,
@@ -5171,7 +5196,7 @@ class TugboatReplayController extends ChangeNotifier {
         afterFrame,
         outcome,
       );
-      _maybeEmitSceneInventory();
+      _maybeEmitSceneInventory(trigger: 'route');
       if (!_disposed) notifyListeners();
     } finally {
       _completeFinalizedRouteCapture(
@@ -5465,6 +5490,7 @@ class TugboatReplayController extends ChangeNotifier {
         _clearScrollCompletionState();
         _flushPendingInputObservations();
         _captureLifecycleActive = false;
+        _stopSettledWatch();
         break;
       case AppLifecycleState.resumed:
         _captureLifecycleActive = true;
@@ -5907,6 +5933,7 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   void _maybeEmitSceneInventory({
+    required String trigger,
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
     if (!config.sceneInventoryEmissionEnabled &&
@@ -5925,7 +5952,130 @@ class TugboatReplayController extends ChangeNotifier {
     );
     if (inventory == null) return;
 
-    _emitSceneInventory(inventory, scrollContext: scrollContext);
+    _emitSceneInventory(
+      inventory.withTrigger(trigger),
+      scrollContext: scrollContext,
+    );
+  }
+
+  /// Maps the capture reason to `scene_inventory.trigger`. `interaction`
+  /// captures are gesture completions, so they read as taps.
+  String _inventoryTriggerFor(TugboatFrameTrigger trigger) => switch (trigger) {
+    TugboatFrameTrigger.initial => 'initial',
+    TugboatFrameTrigger.lifecycle => 'resume',
+    TugboatFrameTrigger.route => 'route',
+    TugboatFrameTrigger.tap => 'tap',
+    TugboatFrameTrigger.interaction => 'tap',
+    TugboatFrameTrigger.scroll => 'scroll',
+    TugboatFrameTrigger.manual => 'manual',
+  };
+
+  void _resetSettledInventoryState() {
+    _stopSettledWatch();
+    _settledSignatures.clear();
+    _settledEmissionsByRoute.clear();
+    _settledEmissionsTotal = 0;
+    _settledRebuildsTotal = 0;
+  }
+
+  void _armSettledWatch() {
+    if (_disposed || _capturePaused || _session == null) return;
+    _stopSettledWatch();
+    final watch = SettledInventoryWatch(
+      route: _currentRoute,
+      onQuiet: _onSettledQuiet,
+    );
+    _settledWatch = watch;
+    watch.arm();
+  }
+
+  void _stopSettledWatch() {
+    _settledWatch?.cancel();
+    _settledWatch = null;
+  }
+
+  /// Test hook: stops an armed settled-inventory watch so its quiet timer is
+  /// not pending when a test that does not exercise the re-sample ends.
+  @visibleForTesting
+  void debugStopSettledWatch() => _stopSettledWatch();
+
+  /// Runs once per quiet window of an armed watch. Rebuilds the inventory and
+  /// emits it as `settled` only when its structural signature changed. Stops
+  /// the watch when nothing changed or a cap is reached.
+  void _onSettledQuiet(SettledInventoryWatch watch) {
+    if (!identical(watch, _settledWatch)) return;
+    if (!_settledWatchIsCurrent(watch) ||
+        _settledRebuildsTotal >= settledInventorySessionRebuildCap) {
+      _stopSettledWatch();
+      return;
+    }
+    _settledRebuildsTotal++;
+    final inventory = _buildInventoryForSettled();
+    if (inventory == null) {
+      _stopSettledWatch();
+      return;
+    }
+    final signature = _settledSignatureOf(inventory);
+    final routeKey = inventory.routeKey;
+    if (signature == _settledSignatures[routeKey] ||
+        !_canEmitSettled(routeKey)) {
+      _stopSettledWatch();
+      return;
+    }
+    _settledEmissionsByRoute[routeKey] =
+        (_settledEmissionsByRoute[routeKey] ?? 0) + 1;
+    _settledEmissionsTotal++;
+    _settledSignatures[routeKey] = signature;
+    _addEvent(
+      TugboatEvent(
+        id: _nextId('event'),
+        atMs: atMs,
+        type: 'scene_inventory',
+        data: inventory.withTrigger('settled').toJson(),
+      ),
+    );
+    watch.restartQuietWindow();
+  }
+
+  bool _settledWatchIsCurrent(SettledInventoryWatch watch) =>
+      !_disposed &&
+      !_capturePaused &&
+      _session != null &&
+      _anchorResolver != null &&
+      watch.route == _currentRoute;
+
+  bool _canEmitSettled(String routeKey) =>
+      (_settledEmissionsByRoute[routeKey] ?? 0) <
+          settledInventoryEmissionCap &&
+      _settledEmissionsTotal < settledInventorySessionEmissionCap;
+
+  TugboatSceneInventory? _buildInventoryForSettled() {
+    final resolver = _anchorResolver;
+    if (resolver == null) return null;
+    resolver.invalidateTokenMapCache();
+    return resolver.buildSceneInventory(
+      route: _currentRoute,
+      keyboardOpen: _isKeyboardOpen(),
+      modalOpen: _isModalOpen(),
+      surfaceKind: _surfaceKind,
+      withBoundsEvidence: true,
+    );
+  }
+
+  /// inventoryHash, element count and a coarse bounds signature (each box
+  /// quantised to a 2% grid). Text-free and never serialized.
+  String _settledSignatureOf(TugboatSceneInventory inventory) {
+    final boxes = [
+      for (final entry in inventory.elements) _quantisedBoxKey(entry.boundsNorm),
+    ]..sort();
+    return '${inventory.inventoryHash}|${inventory.elements.length}|'
+        '${tugboatLabelHash(boxes.join(';'))}';
+  }
+
+  String _quantisedBoxKey(TugboatNormalizedBounds bounds) {
+    int q(double value) => (value / settledInventoryGridStep).round();
+    return '${q(bounds.left)},${q(bounds.top)},'
+        '${q(bounds.width)},${q(bounds.height)}';
   }
 
   void _emitSceneInventory(
@@ -5948,6 +6098,13 @@ class TugboatReplayController extends ChangeNotifier {
             data: inventory.toJson(),
           ),
         );
+        if (config.settledInventoryResampleEnabled &&
+            inventory.trigger != 'settled') {
+          _settledSignatures[inventory.routeKey] = _settledSignatureOf(
+            inventory,
+          );
+          _armSettledWatch();
+        }
       }
     }
     if (emitViewportSemanticMap && config.semanticMapEmissionEnabled) {

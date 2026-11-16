@@ -2,6 +2,15 @@
 
 ### Added
 
+- Every scene inventory carries `trigger` (`initial`, `resume`, `route`,
+  `tap`, `scroll`, `settled`, `manual`). It is not part of any hash or the
+  de-duplication key.
+- In exploration mode, the settled re-sample is on by default. A page that
+  changes after its first inventory (a loading `FutureBuilder`, a paginated
+  list) emits an inventory with `trigger: "settled"` once it has been quiet
+  for 400 ms and its structure changed. At most five per route key per session,
+  and nothing runs when the page is idle. Turn it off with
+  `resampleSettledInventory: false`. Production captures are unaffected.
 - In exploration mode, every scene inventory carries `loading`
   (`progressIndicators`, `placeholders`, `busyControls`) and each element
   beneath a skeleton, shimmer, `Redacted` or `Placeholder` ancestor, or a new

@@ -369,6 +369,8 @@ class ReplayCoherenceHarness {
     await pumpMicrotasks();
     await controller.drainPointerQueue();
     await pumpMicrotasks();
+    // The settled-inventory quiet timer must not outlive the test body.
+    controller.debugStopSettledWatch();
   }
 
   /// Mounts a minimal scene with a keyed interactive target under [boundaryKey].

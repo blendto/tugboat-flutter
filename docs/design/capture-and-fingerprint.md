@@ -482,6 +482,53 @@ none of it. An exploration tap whose target is injected into an inventory that
 had no elements gets a `loading` with only `progressIndicators` set, and its
 injected entry is never a placeholder.
 
+### Settled re-sample and `trigger`
+
+Every scene inventory carries `trigger`, the reason it was taken:
+
+| `trigger` | Taken when |
+| --- | --- |
+| `initial` | the first capture of a session |
+| `resume` | the app returns to the foreground |
+| `route` | the visible route changes |
+| `tap` | a tap (and a gesture completion, which reads as a tap) |
+| `scroll` | scroll start, update or end |
+| `settled` | the settled re-sample below |
+| `manual` | a manual capture |
+
+`trigger` is not part of `inventoryHash`, `routeKey` or the emission
+de-duplication key.
+
+**Settled re-sample** is on by default in exploration mode (it needs
+`emitSceneInventory: true`). It catches a page that loads after its first
+inventory (a `FutureBuilder`, a paginated list), which otherwise shows only its
+placeholder layout until the next tap or route change. It is off in production,
+where nothing runs.
+
+To turn it off in exploration, set `resampleSettledInventory: false` on
+`TugboatReplayConfig`. With it off, a tap, scroll and route flow emits the same
+inventories as before this change.
+
+After an inventory is emitted for a route, a watch is armed. Each frame drawn
+while armed pushes back a 400 ms quiet window. When the page has been quiet for
+the window, the inventory is rebuilt and emitted with `trigger: "settled"` only
+if its structural signature differs from the last emitted inventory for that
+route. The signature is `inventoryHash`, the element count, and each element's
+`boundsNorm` quantised to a 2% grid, joined and hashed. A rebuild that finds no
+change stops the watch.
+
+- Settled emissions do not write to the emission de-duplication set. They
+  compare against their own per-route signature, so existing triggers are
+  unaffected.
+- At most five settled inventories per route key per session. A session-wide
+  cap of 40 settled inventories and 200 rebuilds bounds the work further.
+- The watch stops on route change, pause, lifecycle pause, session end and
+  dispose. It also stops after five seconds armed, checked on frames.
+- Idle pages, blinking cursors and looping animations that do not move
+  anything produce no extra events. A page that keeps moving stops at the cap.
+- No timer repeats forever: the quiet timer exists only after a drawn frame,
+  and an idle page leaves none pending.
+
 ### What is and is not retained
 
 The structural pipeline does not use or serialize arbitrary `Text`,

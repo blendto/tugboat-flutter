@@ -370,6 +370,7 @@ class TugboatSceneInventory {
     this.viewport,
     this.scroll,
     this.loading,
+    this.trigger,
   });
 
   final String inventoryHash;
@@ -391,10 +392,28 @@ class TugboatSceneInventory {
   /// evidence. Same hash rules as [viewport].
   final TugboatInventoryLoading? loading;
 
+  /// Why the inventory was taken: one of `initial`, `resume`, `route`, `tap`,
+  /// `scroll`, `settled`, `manual`. Null when not stamped. Not part of
+  /// [inventoryHash] or the de-duplication key.
+  final String? trigger;
+
+  /// A copy of this inventory stamped with [trigger].
+  TugboatSceneInventory withTrigger(String trigger) => TugboatSceneInventory(
+    inventoryHash: inventoryHash,
+    routeKey: routeKey,
+    elements: elements,
+    surface: surface,
+    viewport: viewport,
+    scroll: scroll,
+    loading: loading,
+    trigger: trigger,
+  );
+
   Map<String, Object?> toJson() => {
     'inventoryHash': inventoryHash,
     'routeKey': routeKey,
     'surface': surface.toJson(),
+    if (trigger != null) 'trigger': trigger,
     if (viewport != null) 'viewport': viewport!.toJson(),
     if (scroll != null) 'scroll': scroll!.toJson(),
     if (loading != null) 'loading': loading!.toJson(),

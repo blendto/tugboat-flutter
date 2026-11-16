@@ -465,6 +465,7 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
     TugboatReplayConfig current,
   ) =>
       previous.emitSceneInventory != current.emitSceneInventory ||
+      previous.resampleSettledInventory != current.resampleSettledInventory ||
       previous.emitViewportSemanticMap != current.emitViewportSemanticMap ||
       previous.emitCaptureDiagnostics != current.emitCaptureDiagnostics ||
       previous.acceptActionContext != current.acceptActionContext ||
