@@ -348,10 +348,10 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     role: best.role ?? target.role,
     fingerprint: best.fingerprint,
     fingerprintConfidence: 'low',
-    // The fingerprint now describes the inventory element, so the original
-    // anchor's parts would be stale; inventory entries carry no parts.
+    // The fingerprint now describes the inventory element, a different
+    // control, so the original anchor's parts and tag alias would be stale;
+    // inventory entries carry neither.
     fingerprintParts: const {},
-    tagFingerprint: target.tagFingerprint,
     canonicalPath: best.canonicalPath,
     relativePosition: target.relativePosition,
     enabled: best.enabled ?? target.enabled,

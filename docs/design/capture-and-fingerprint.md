@@ -226,9 +226,11 @@ A target fingerprint is derived from `routeKey + canonicalPath`. The serialized
 position metadata, enabled/actions metadata, confidence, and compact
 fingerprint parts for diagnosis.
 
-`TugboatTag` and a stable `ValueKey<String>` can add a high-confidence
-`tagFingerprint`. A tag is transparent to structural identity: adding it does
-not change the target fingerprint. `TugboatSubView` adds a developer-owned
+`TugboatTag` and a `ValueKey<String>` add a `tagFingerprint` alias. The nearest
+one at or above the control wins, and the lookup ends at the SDK's capture root,
+so the SDK's own root key and anything above it are never tags. A tag is
+transparent to structural identity: adding it does not change the target
+fingerprint, and it does not raise confidence. `TugboatSubView` adds a developer-owned
 subview label for route-internal state and scroll attribution.
 
 ### Locale evidence
@@ -257,29 +259,25 @@ evidence, target anchors, and frame hashes for raw replay facts.
 
 Confidence is the floor of route and structural evidence:
 
-- `high`: explicit developer alias such as `TugboatTag`/stable value key, on a
-  route whose key is a name (a structural `struct:` route key caps it at
-  `medium`);
+- `high`: reserved. No target anchor is `high` today: a tag alias does not raise
+  confidence, because a `ValueKey<String>` on any ancestor also counts as a tag;
 - `medium`: usable structural path and/or structural route fallback;
 - `low`: ambiguous structure, bare collapsed item, or insufficient actionable
   evidence.
 
 Confidence is evidence quality, not a uniqueness guarantee. Consumers should
 corroborate low-confidence matches rather than treating them as ground truth.
-The SDK's own capture root key is not a developer alias and never raises
-confidence.
 
-A `tap` interaction that carries a `targetFingerprint` also carries, in
-production and exploration mode alike:
+In exploration mode (scene inventory emission on), a `tap` interaction that
+carries a `targetFingerprint` also carries the fields below. Production taps keep
+the lean envelope (`route` and `targetFingerprint`) and do not carry them:
 
 - `fingerprintConfidence`, as above. An inventory snap and the semantic
   inventory fallback are `low`.
-- `fingerprintSource`: how the fingerprint was resolved. `tag` (the control
-  carries a developer alias), `pointerDown` (the pointer-down hit test, or the
-  kept pressed hit path in production), `pointerUp` (a fresh hit test at
-  pointer-up), `snap` (a pathless hit re-anchored to the smallest interactive
-  inventory element under the tap) or `inventory` (taken from an inventory
-  entry). `tag` wins over the others.
+- `fingerprintSource`: how the fingerprint was resolved. `pointerDown` (the
+  pointer-down hit test), `snap` (a pathless hit re-anchored to the smallest
+  interactive inventory element under the tap) or `inventory` (taken from an
+  inventory entry).
 - `routeKey`: the resolved route key the fingerprint was hashed under, the same
   value an inventory carries as its `routeKey`. `route` stays the raw origin
   route captured at pointer-down. A consumer joins a tap to an inventory on
@@ -371,7 +369,7 @@ A control that stays mounted while the app navigates (a persistent bottom bar
 outside the `Navigator`) is not absorbed, so its pointer-up hit test succeeds
 but runs under the destination route. When the route changed since pointer-down,
 a usable pointer-down hit path therefore wins over the fresh hit test, and the
-fingerprint and `routeKey` belong to the route the tap happened on. Exploration
+fingerprint belongs to the route the tap happened on. Exploration
 mode resolves at pointer-down and has no such window.
 
 Mask fills, dHash, JPEG encoding, and content hashing run on a persistent

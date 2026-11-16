@@ -242,15 +242,18 @@ void _writeTapResolutionPayload(
   String? fingerprint,
 ) {
   final hasFingerprint = fingerprint != null && fingerprint.isNotEmpty;
-  if (hasFingerprint) _writeFingerprintEvidence(envelope, tx);
+  // Exploration only: production taps keep the lean envelope.
+  if (hasFingerprint && tx.preTapEvidence != null) {
+    _writeFingerprintEvidence(envelope, tx);
+  }
   final failureReason = tx.targetResolutionFailureReason;
   if ((fingerprint == null || fingerprint.isEmpty) && failureReason != null) {
     envelope['targetResolutionFailureReason'] = failureReason.wireName;
   }
 }
 
-/// Confidence, source and resolved route key for a tap that carries a
-/// fingerprint, in exploration and production alike. `routeKey` is the key the
+/// Confidence, source and resolved route key for an exploration tap that
+/// carries a fingerprint. `routeKey` is the key the
 /// fingerprint was hashed under; `route` stays the raw origin route.
 void _writeFingerprintEvidence(
   Map<String, Object?> envelope,
@@ -261,10 +264,7 @@ void _writeFingerprintEvidence(
   if (confidence != null && confidence.isNotEmpty) {
     envelope['fingerprintConfidence'] = confidence;
   }
-  final hasTag = anchor?.tagFingerprint?.isNotEmpty ?? false;
-  final source = hasTag
-      ? TugboatTargetResolutionSource.tag
-      : tx.targetResolutionSource;
+  final source = tx.targetResolutionSource;
   if (source != null) envelope['fingerprintSource'] = source.wireName;
   final routeKey = tx.targetRouteKey;
   if (routeKey != null && routeKey.isNotEmpty) envelope['routeKey'] = routeKey;

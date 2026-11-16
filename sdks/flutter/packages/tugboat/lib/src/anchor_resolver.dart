@@ -1041,16 +1041,10 @@ class AnchorResolver {
       if (tagId != null) 'tag': tagId,
     };
 
-    // A developer `TugboatTag` is an explicit identity alias, so the path
-    // evidence is `high`. Otherwise a structural list position keeps sibling
-    // controls distinct without making visible copy or icon data part of
-    // their identity.
+    // A structural list position keeps sibling controls distinct without
+    // making visible copy or icon data part of their identity.
     final hasItemPosition = _hasInheritedItemPosition(fpElement, tokenMap);
-    final pathConfidence = tagId != null
-        ? 'high'
-        : hasItemPosition
-        ? 'medium'
-        : 'low';
+    final pathConfidence = hasItemPosition ? 'medium' : 'low';
 
     return TugboatTargetAnchor(
       schemaVersion: tugboatFingerprintSchemaVersion,
@@ -1249,20 +1243,27 @@ class AnchorResolver {
     return parts.reversed.join('/');
   }
 
+  static bool _isCaptureRoot(Widget widget) {
+    final key = widget.key;
+    return key is ValueKey<String> &&
+        key.value.startsWith(tugboatCaptureRootKeyPrefix);
+  }
+
   String? _tagIdFromWidget(Widget widget) {
     if (widget is TugboatTag) return widget.id;
-    final key = widget.key;
     // The SDK's own capture root is keyed too; it is not a developer alias.
-    if (key is ValueKey<String> &&
-        !key.value.startsWith(tugboatCaptureRootKeyPrefix)) {
-      return key.value;
-    }
+    if (_isCaptureRoot(widget)) return null;
+    final key = widget.key;
+    if (key is ValueKey<String>) return key.value;
     return null;
   }
 
   String? _tagIdForElement(Element element, _TokenMap tokenMap) {
     var current = element;
     while (true) {
+      // The capture root is the SDK's own widget: nothing at or above it is
+      // a tag for a control inside the capture.
+      if (_isCaptureRoot(current.widget)) break;
       final tag = tokenMap.tagIds[current];
       if (tag != null) return tag;
       final widgetTag = _tagIdFromWidget(current.widget);

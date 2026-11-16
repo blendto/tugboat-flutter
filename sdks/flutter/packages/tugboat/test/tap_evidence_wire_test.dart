@@ -49,7 +49,6 @@ Widget _button(String label, VoidCallback onPressed, {String? tag}) {
 Widget _app(
   TugboatReplayConfig config, {
   required VoidCallback Function(BuildContext) onPressed,
-  String? tag,
 }) {
   return MaterialApp(
     initialRoute: '/home',
@@ -58,7 +57,7 @@ Widget _app(
         TugboatReplay.wrapApp(config: config, child: child!),
     routes: {
       '/home': (context) => Scaffold(
-        body: Center(child: _button('Continue', onPressed(context), tag: tag)),
+        body: Center(child: _button('Continue', onPressed(context))),
       ),
       '/next': (context) => const Scaffold(body: Text('Next screen')),
     },
@@ -67,10 +66,9 @@ Widget _app(
 
 Future<Map<String, Object?>> _singleTap(
   WidgetTester tester,
-  TugboatReplayConfig config, {
-  String? tag,
-}) async {
-  await tester.pumpWidget(_app(config, onPressed: (_) => () {}, tag: tag));
+  TugboatReplayConfig config,
+) async {
+  await tester.pumpWidget(_app(config, onPressed: (_) => () {}));
   await waitForTugboatCaptureWork(tester);
   await tester.tap(find.text('Continue'));
   await tester.pump();
@@ -83,54 +81,115 @@ Future<Map<String, Object?>> _singleTap(
 void main() {
   tearDown(TugboatReplay.resetForTest);
 
-  testWidgets('a production tap carries confidence, source and routeKey', (
-    tester,
-  ) async {
+  testWidgets('a production tap keeps the lean envelope', (tester) async {
     final data = await _singleTap(tester, _production);
 
     expect(data['targetFingerprint'], isNotNull);
-    expect(data['fingerprintConfidence'], isIn(['low', 'medium', 'high']));
-    expect(data['fingerprintSource'], 'pointerUp');
-    expect(data['routeKey'], '/home');
-    // The raw route is unchanged for existing consumers.
     expect(data['route'], '/home');
+    // Confidence, source and routeKey are exploration-only evidence.
+    expect(data.containsKey('fingerprintConfidence'), isFalse);
+    expect(data.containsKey('fingerprintSource'), isFalse);
+    expect(data.containsKey('routeKey'), isFalse);
   });
 
-  testWidgets('a tagged control reports high confidence and source tag', (
-    tester,
-  ) async {
-    final data = await _singleTap(tester, _production, tag: 'continue-cta');
-
-    expect(data['fingerprintConfidence'], 'high');
-    expect(data['fingerprintSource'], 'tag');
-  });
-
-  testWidgets('an untagged control is never reported as high', (tester) async {
-    final data = await _singleTap(tester, _production);
-
-    expect(data['fingerprintConfidence'], isNot('high'));
-  });
-
-  testWidgets('an exploration tap resolves at pointer-down with its routeKey', (
+  testWidgets('an exploration tap carries confidence, source and routeKey', (
     tester,
   ) async {
     final data = await _singleTap(tester, _exploration);
 
     expect(data['targetFingerprint'], isNotNull);
-    expect(data['fingerprintConfidence'], isNotNull);
+    expect(data['fingerprintConfidence'], isIn(['low', 'medium', 'high']));
     expect(data['fingerprintSource'], 'pointerDown');
     expect(data['routeKey'], '/home');
+    // The raw route is unchanged for existing consumers.
+    expect(data['route'], '/home');
+  });
+
+  // Taps one 'Continue' button built by [button], under an optional app key.
+  Future<TugboatTargetAnchor?> tapAnchor(
+    WidgetTester tester, {
+    required Widget button,
+    Key? appKey,
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        key: appKey,
+        initialRoute: '/home',
+        navigatorObservers: [TugboatReplay.navigatorObserver],
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: _production, child: child!),
+        routes: {'/home': (_) => Scaffold(body: Center(child: button))},
+      ),
+    );
+    await waitForTugboatCaptureWork(tester);
+    await tester.tap(find.text('Continue'));
+    await tester.pump();
+    final taps = await _waitForTaps(tester, 1);
+    await waitForTugboatCaptureWork(tester);
+    expect(taps, hasLength(1));
+    return taps.single.targetAnchor;
+  }
+
+  testWidgets('an untagged control carries no tag alias', (tester) async {
+    // The SDK's own capture root key used to be read as a developer tag.
+    final anchor = await tapAnchor(
+      tester,
+      button: FilledButton(onPressed: () {}, child: const Text('Continue')),
+    );
+
+    expect(anchor?.fingerprint, isNotNull);
+    expect(anchor?.tagFingerprint, isNull);
+    expect(anchor?.fingerprintParts.containsKey('tag'), isFalse);
+  });
+
+  testWidgets('a key above the capture root is not a tag', (tester) async {
+    // The tag walk ends at the capture root, so app-level keys never tag the
+    // controls inside the capture.
+    final anchor = await tapAnchor(
+      tester,
+      appKey: const ValueKey('app-en'),
+      button: FilledButton(onPressed: () {}, child: const Text('Continue')),
+    );
+
+    expect(anchor?.fingerprint, isNotNull);
+    expect(anchor?.tagFingerprint, isNull);
+    expect(anchor?.fingerprintParts.containsKey('tag'), isFalse);
+  });
+
+  testWidgets('TugboatTag and string keys inside the capture still tag', (
+    tester,
+  ) async {
+    final tagged = await tapAnchor(
+      tester,
+      button: _button('Continue', () {}, tag: 'continue-cta'),
+    );
+    expect(tagged?.fingerprintParts, containsPair('tag', 'continue-cta'));
+    expect(tagged?.tagFingerprint, isNotNull);
+
+    await tester.pumpWidget(const SizedBox());
+    TugboatReplay.resetForTest();
+    final keyed = await tapAnchor(
+      tester,
+      button: FilledButton(
+        key: const ValueKey('row-12'),
+        onPressed: () {},
+        child: const Text('Continue'),
+      ),
+    );
+    expect(keyed?.fingerprintParts, containsPair('tag', 'row-12'));
+    // A tag never changes the structural fingerprint.
+    expect(keyed?.fingerprint, tagged?.fingerprint);
   });
 
   testWidgets(
-    'production and exploration give the same (routeKey, fingerprint) for one tap',
+    'production and exploration give the same fingerprint for one tap',
     (tester) async {
       final production = await _singleTap(tester, _production);
       await tester.pumpWidget(const SizedBox());
       TugboatReplay.resetForTest();
       final exploration = await _singleTap(tester, _exploration);
 
-      expect(exploration['routeKey'], production['routeKey']);
+      expect(production['targetFingerprint'], isNotNull);
       expect(exploration['targetFingerprint'], production['targetFingerprint']);
     },
   );
@@ -192,11 +251,17 @@ void main() {
         expect(taps, hasLength(2));
         final stayed = taps[0].data;
         final navigated = taps[1].data;
-        expect(stayed['routeKey'], '/home');
         expect(navigated['route'], '/home');
-        expect(navigated['routeKey'], '/home');
+        // Same control, same screen: the fingerprint must not move to the
+        // destination route's key, whichever mode resolved it.
         expect(navigated['targetFingerprint'], stayed['targetFingerprint']);
-        expect(navigated['fingerprintConfidence'], isNotNull);
+        if (identical(config, _exploration)) {
+          expect(navigated['routeKey'], '/home');
+          expect(navigated['fingerprintSource'], 'pointerDown');
+          expect(navigated['fingerprintConfidence'], isNotNull);
+        } else {
+          expect(navigated.containsKey('routeKey'), isFalse);
+        }
       },
     );
   }

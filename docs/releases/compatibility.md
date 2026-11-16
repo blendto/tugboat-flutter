@@ -2,7 +2,7 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
-| Flutter `tugboat` | 0.10.12 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; every tap with a fingerprint carries `fingerprintConfidence`, `fingerprintSource` and `routeKey` (production included); `high` confidence for tagged controls; a tap on a control outside the navigator keeps its origin fingerprint. |
+| Flutter `tugboat` | 0.10.12 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; exploration taps carry `fingerprintSource` and `routeKey` next to `fingerprintConfidence`; the SDK's capture root is no longer read as a tag; a tap on a control outside the navigator keeps its origin fingerprint. |
 | Flutter `tugboat` | 0.10.11 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; a tap whose handler navigates keeps its `targetAnchor` (resolved from the pointer-down hit path when the pointer-up hit test is absorbed). |
 | Flutter `tugboat` | 0.10.10 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; seeds the visible navigator route at session start via one `route_change` with `navigation: session_start` before the initial capture. |
 | Flutter `tugboat` | 0.10.9 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; isolates rejected frame batches and reports bounded collector upload diagnostics. |

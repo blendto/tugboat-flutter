@@ -3324,13 +3324,19 @@ class TugboatReplayController extends ChangeNotifier {
     TugboatTargetAnchor? base,
     String? confidence,
   }) {
+    // The hit target's parts and tag alias describe this entry only when the
+    // entry is that same control (its fingerprint or one of its aliases).
+    final baseFingerprint = base?.fingerprint;
+    final sameControl =
+        baseFingerprint == entry.fingerprint ||
+        entry.aliases.contains(baseFingerprint);
     return TugboatTargetAnchor(
       schemaVersion: base?.schemaVersion ?? 1,
       widgetType: entry.widgetType ?? base?.widgetType,
       role: entry.role ?? base?.role,
       fingerprint: entry.fingerprint,
       fingerprintConfidence: confidence ?? base?.fingerprintConfidence,
-      tagFingerprint: base?.tagFingerprint,
+      tagFingerprint: sameControl ? base?.tagFingerprint : null,
       fingerprintParts: base?.fingerprint == entry.fingerprint
           ? base?.fingerprintParts ?? const {}
           : const {},

@@ -449,19 +449,14 @@ class TugboatViewportSemanticResolution {
   };
 }
 
-/// Where a tap's target fingerprint came from, written as `fingerprintSource`.
-///
-/// `tag` wins when the resolved control carries a `TugboatTag`; the rest say
-/// when and how the structural fingerprint was resolved.
+/// How a tap's target fingerprint was resolved, written as
+/// `fingerprintSource` on exploration taps.
 enum TugboatTargetResolutionSource {
-  /// The control carries a developer `TugboatTag`.
-  tag('tag'),
-
   /// Resolved from the hit test taken at pointer-down (exploration pre-tap
   /// evidence, or the kept pressed path in production).
   pointerDown('pointerDown'),
 
-  /// Resolved from a fresh hit test at pointer-up.
+  /// Resolved from a fresh hit test at pointer-up (production only).
   pointerUp('pointerUp'),
 
   /// A pathless hit was re-anchored to the smallest interactive inventory
