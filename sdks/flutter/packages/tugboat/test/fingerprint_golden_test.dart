@@ -37,7 +37,13 @@ final Map<String, Object?> _goldenExpected = {
         'tier': 'interactive',
         'role': 'button',
         'enabled': true,
-        'aliases': ['1e0730bd5f6bec07', '655f0d398ae48748'],
+        'aliases': [
+          '0cd6f1fe9e5e0d1b',
+          '1334873be267c1ba',
+          '1e0730bd5f6bec07',
+          '655f0d398ae48748',
+          'ee0c56eb312ceae3',
+        ],
         'tag': null,
       },
       {
@@ -75,11 +81,11 @@ final Map<String, Object?> _goldenExpected = {
         'role': 'button',
         'enabled': true,
         'aliases': [
-          '1aa408ff18afd5f5',
           '309eabed5e502727',
           '455d45581ec76703',
-          'ea7755101b9d6ace',
-          'fc57cb2f0c222208',
+          '67e1803b26d90f04',
+          '91f252ed5a94a6b6',
+          'de2f06295953d964',
         ],
         'tag': null,
       },
@@ -97,11 +103,11 @@ final Map<String, Object?> _goldenExpected = {
         'role': 'button',
         'enabled': true,
         'aliases': [
-          '059fd4a17541b92b',
+          '7508ebfa772fe12d',
+          '93d9d0708fd8e39b',
           'a3b29125d294afc8',
-          'bba6126a7b85ca9c',
-          'c03f28d11874906a',
           'c83f020fb8ed0dbd',
+          'eaf64847346848d3',
         ],
         'tag': null,
       },
@@ -111,10 +117,10 @@ final Map<String, Object?> _goldenExpected = {
         'role': 'button',
         'enabled': true,
         'aliases': [
-          '19cb6de4fceebda4',
+          '39e01adbfea8025a',
           '808c52ac6a0a9633',
-          'b4e70e4419c043ab',
           'c441be8e49a00755',
+          'e78bcc096fd2ab44',
         ],
         'tag': null,
       },
@@ -133,10 +139,10 @@ final Map<String, Object?> _goldenExpected = {
         'enabled': true,
         'aliases': [
           '1ba1664e631d8286',
-          '356392d7a0ac9e68',
-          '810519de8504c93d',
-          'c09668a6d44b1cf9',
+          '226afcb605204f3b',
+          '911a4021d8e53b3d',
           'e0e906d439941143',
+          'f082db86e4a22d98',
         ],
         'tag': 'cta',
       },
@@ -150,15 +156,15 @@ final Map<String, Object?> _goldenExpected = {
 const _schema6Observed = <String, Map<String, List<String>>>{
   'named': {
     'b81b3e59183ebd21': ['25b1b03b6a41028f', '6da905874663e646'],
-    'd3b6f52768a94fd4': ['1e0730bd5f6bec07', '655f0d398ae48748'],
+    '1334873be267c1ba': ['0cd6f1fe9e5e0d1b', 'ee0c56eb312ceae3'],
     'e72ca8effba2e941': ['5cbc415df9f25d9f'],
     '8b3fde97c2246047': ['b3e2cd635f763dc3', 'f22b6e97553c1759'],
   },
   'anonymous': {
-    'ea7755101b9d6ace': ['1aa408ff18afd5f5', 'fc57cb2f0c222208'],
-    '059fd4a17541b92b': ['bba6126a7b85ca9c', 'c03f28d11874906a'],
-    'b4e70e4419c043ab': ['19cb6de4fceebda4'],
-    '810519de8504c93d': ['356392d7a0ac9e68', 'c09668a6d44b1cf9'],
+    'de2f06295953d964': ['67e1803b26d90f04', '91f252ed5a94a6b6'],
+    '93d9d0708fd8e39b': ['7508ebfa772fe12d', 'eaf64847346848d3'],
+    'e78bcc096fd2ab44': ['39e01adbfea8025a'],
+    '911a4021d8e53b3d': ['226afcb605204f3b', 'f082db86e4a22d98'],
   },
 };
 
@@ -170,7 +176,10 @@ Widget _goldenTree() => Padding(
     children: [
       FilledButton(onPressed: () {}, child: const Text('Save')),
       ElevatedButton(onPressed: null, child: const Text('Continue')),
-      ListTile(onTap: () {}, title: const Text('Row')),
+      ListTileTheme(
+        data: const ListTileThemeData(dense: true),
+        child: ListTile(onTap: () {}, title: const Text('Row')),
+      ),
       Switch(value: false, onChanged: (_) {}),
       Semantics(onTap: () {}, child: const SizedBox(width: 60, height: 40)),
       TugboatTag(

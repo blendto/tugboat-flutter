@@ -508,7 +508,7 @@ void main() {
       [for (final e in elements) e['canonicalPath']],
       everyElement(
         startsWith(
-          'DisplayFeatureSubScreen#0/BottomSheet#0/RawGestureDetector#0/',
+          'DisplayFeatureSubScreen/BottomSheet#0/RawGestureDetector#0/',
         ),
       ),
     );

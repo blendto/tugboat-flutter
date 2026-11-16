@@ -276,7 +276,7 @@ class _TokenMapVisitor {
     WidgetRole? role,
   ) {
     if (!retainable) return null;
-    final canonical = resolver._canonicalType(widget);
+    final canonical = resolver._canonicalType(widget, legacy: legacy);
     if (canonical != null) return canonical;
     if (role == null) return null;
     if (legacy && role.enabled == false) return null;
@@ -1321,7 +1321,7 @@ class AnchorResolver {
     return {
       for (final element in identity)
         if (!enclosing.contains(element))
-          _pathForMaps(element, tokens, retainedParents),
+          _pathForMaps(element, tokens, retainedParents, canonical: true),
     };
   }
 
@@ -1505,8 +1505,12 @@ class AnchorResolver {
     }
   }
 
-  String _pathFor(Element element, _TokenMap tokenMap) =>
-      _pathForMaps(element, tokenMap.tokens, tokenMap.retainedParents);
+  String _pathFor(Element element, _TokenMap tokenMap) => _pathForMaps(
+    element,
+    tokenMap.tokens,
+    tokenMap.retainedParents,
+    canonical: !tokenMap.legacy,
+  );
 
   /// Whether [element] or a retained ancestor has a structural item position.
   bool _hasInheritedItemPosition(Element element, _TokenMap tokenMap) {
@@ -1518,11 +1522,14 @@ class AnchorResolver {
     return false;
   }
 
+  /// The canonical path of [element]. [canonical] drops the ordinal of an
+  /// overlay host (schema 7); schema 6 paths keep it.
   String _pathForMaps(
     Element element,
     Map<Element, String> tokens,
-    Map<Element, Element?> retainedParents,
-  ) {
+    Map<Element, Element?> retainedParents, {
+    bool canonical = false,
+  }) {
     Element? walkStart = element;
     if (!tokens.containsKey(walkStart)) {
       Element? tokenizedAncestor;
@@ -1540,10 +1547,17 @@ class AnchorResolver {
     Element? current = walkStart;
     while (current != null) {
       final token = tokens[current];
-      if (token != null) parts.add(token);
+      if (token != null) parts.add(canonical ? _canonicalToken(token) : token);
       current = retainedParents[current];
     }
     return parts.reversed.join('/');
+  }
+
+  /// `DisplayFeatureSubScreen#2` -> `DisplayFeatureSubScreen` for an overlay
+  /// host; any other token is unchanged.
+  String _canonicalToken(String token) {
+    final type = _tokenTypeName(token);
+    return type != null && _overlayHostWidgets.contains(type) ? type : token;
   }
 
   static bool _isCaptureRoot(Widget widget) {
@@ -1620,9 +1634,12 @@ class AnchorResolver {
     return type;
   }
 
-  String? _canonicalType(Widget widget) {
+  /// The retained type of a widget that is not an actionable role. Schema 7
+  /// also drops the component theme wrappers ([_canonicalWrapperDenylist]).
+  String? _canonicalType(Widget widget, {required bool legacy}) {
     final type = _normalizedWidgetTypeName(widget);
     if (type == null || _canonicalDenylist.contains(type)) return null;
+    if (!legacy && _canonicalWrapperDenylist.contains(type)) return null;
     return type;
   }
 

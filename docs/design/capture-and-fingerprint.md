@@ -592,6 +592,24 @@ the schema 6 fingerprints of the same control in `aliases` for one release.
   from a second, schema 6 walk of the same tree, kept only to produce aliases.
   A control that schema 6 did not report has no schema 6 alias. Aliases are the
   only place schema 6 values appear, and they are removed one release later.
+- **Overlay hosts (#139).** `DisplayFeatureSubScreen`, `ModalBarrier` and
+  `AnimatedModalBarrier` carry no ordinal in a canonical path. A sheet opened on
+  top of another has the fingerprints of the same control as the sheet opened
+  alone (schema 6 gave `DisplayFeatureSubScreen#0` and `#1`). Two identical
+  overlay hosts under one parent share a segment; the controls below them keep
+  their own paths.
+- **Theme wrappers (#139).** The component `*Theme` widgets in
+  `_canonicalWrapperDenylist` are transparent: each is an `InheritedTheme` or an
+  `InheritedWidget` that styles the controls below it and has no render object
+  of its own. `ListTileTheme` and `SwitchTheme` are the reproduced cases; a
+  `ListTile` wrapped in a `ListTileTheme` had a different schema 6 fingerprint
+  from the same tile unwrapped. Behaviour-bearing wrappers (`Focus`, `Actions`,
+  `Semantics`, `Listener`) are not on the list.
+- **List positions (#139).** An entry whose canonical path has an `[item:N]`
+  segment carries `positional: true`. The fingerprint names a position in a
+  list, so another item at the same index, in another tab or state, shares it.
+  No key value enters a path: `ValueKey` and `ObjectKey` values are never hash
+  input.
 - **Golden.** `test/fingerprint_golden_test.dart` pins fingerprints, route keys,
   aliases and the schema version for a fixture tree. Any change to them fails
   that test: bump `tugboatFingerprintSchemaVersion` and update the golden in

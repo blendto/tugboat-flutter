@@ -48,6 +48,9 @@
   `routeKey`, `inventoryHash` or the de-duplication key, and production taps do
   not compute it.
 
+- Scene inventory entries carry `positional: true` when the canonical path
+  has a list position (`[item:N]`), so a consumer can tell that the
+  fingerprint names a position rather than the control.
 - Scene inventory entries carry `tag` (the nearest explicit `TugboatTag` id)
   when the element sits under one. `hitTestBounds` is not reported.
 
@@ -63,6 +66,11 @@
   for controls whose gesture plumbing is now a role (a `TextField`, a
   `Switch`, a passive `Listener`), and disabled entries in inventories. Each
   entry's `aliases` carry its schema 6 fingerprints for one release.
+  Canonicalisation (#139): an overlay host's ordinal (`DisplayFeatureSubScreen#1`,
+  a modal barrier) is no longer part of a path, so a sheet opened on top of
+  another keeps the fingerprints of the same control; component theme wrappers
+  (`ListTileTheme`, `SwitchTheme`, ...) are transparent. Expect new fingerprints
+  for controls under a sheet or a theme wrapper.
 
 ### Fixed
 

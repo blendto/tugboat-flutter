@@ -183,6 +183,12 @@ class TugboatSceneInventoryEntry {
   /// the host chose. Omitted when there is none. Never hash input.
   final String? tag;
 
+  /// True when the canonical path runs through a structural list position
+  /// (`[item:N]`). Such a fingerprint names a position, not the control, so a
+  /// different item at the same index in another tab or state shares it. Never
+  /// hash input.
+  bool get positional => canonicalPath.contains('[item:');
+
   Map<String, Object?> toJson() => {
     'fingerprint': fingerprint,
     'canonicalPath': canonicalPath,
@@ -196,6 +202,7 @@ class TugboatSceneInventoryEntry {
     if (visibleFraction != null) 'visibleFraction': visibleFraction,
     if (placeholder) 'placeholder': true,
     if (tag != null) 'tag': tag,
+    if (positional) 'positional': true,
   };
 
   TugboatSceneInventoryEntry copyWith({
