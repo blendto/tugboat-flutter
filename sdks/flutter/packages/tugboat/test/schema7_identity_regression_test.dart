@@ -293,6 +293,34 @@ void main() {
     expect(await key(tappable: true), isNot(await key(tappable: false)));
   });
 
+  testWidgets('a tap Semantics list row keeps its fingerprint when the list '
+      'scrolls', (tester) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    final rootKey = await _mount(
+      tester,
+      Scaffold(
+        body: ListView.builder(
+          controller: controller,
+          itemCount: 50,
+          itemBuilder: (_, i) => Semantics(
+            onTap: () {},
+            child: SizedBox(height: 40, child: Text('Row $i')),
+          ),
+        ),
+      ),
+    );
+    String? row20() => AnchorResolver(
+      rootKey: rootKey,
+    ).targetAt(tester.getCenter(find.text('Row 20')), route: '/r')?.fingerprint;
+
+    final before = row20();
+    controller.jumpTo(600);
+    await tester.pumpAndSettle();
+    expect(before, isNotNull);
+    expect(row20(), before);
+  });
+
   testWidgets('a disabled TextField has its enabled twin\'s fingerprint', (
     tester,
   ) async {

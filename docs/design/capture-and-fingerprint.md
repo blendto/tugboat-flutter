@@ -570,14 +570,16 @@ of `path` and `routeKey`. What moves, exhaustively:
   (`ListTile#0` becomes `ListTile#1`), and the wrapped control can take that
   sibling's schema 6 fingerprint.
 - **Disabled controls (#141).** An `InkWell` without `onTap` keeps its path
-  segment, so a control inside one (a `Switch` trailing a `ListTile` with no
-  callbacks) moves. A disabled control takes its enabled twin's fingerprint, so
+  segment and is no longer a tap's identity, so a control inside one (a
+  `Switch` trailing a `ListTile` with no callbacks) moves, and so does a
+  control around one (a `GestureDetector` or `InkWell` with `onTap` around a
+  `ListTile` with no callbacks, which now names the outer control). A disabled control takes its enabled twin's fingerprint, so
   a disabled `TextField` (schema 6: `.../TextField#0`) moves to its enabled
   path, and a production tap on a disabled control carries that fingerprint.
 
 Nothing else moves: an enabled control on a named route, with no overlay host,
-theme wrapper or bare `InkWell` above it, keeps its schema 6 fingerprint, and
-so does its production tap.
+theme wrapper or bare `InkWell` above or inside it, keeps its schema 6
+fingerprint, and so does its production tap.
 
 - **Roles.** `Semantics` with `onTap` or `onLongPress`, a `Listener` with
   `onPointerUp`, and a `RawGestureDetector` with a `TapGestureRecognizer` or
@@ -587,7 +589,8 @@ so does its production tap.
   `Listener` around a button) it is a layer of that control, so neither adds an
   entry or a path segment. A control of its own gets a path for itself
   (`.../Semantics#0`) but is not a parent in any other path, so the content
-  below it keeps its schema 6 path. The `Listener` that `Navigator` builds and the
+  below it keeps its schema 6 path. As a list row it takes the row's
+  `[item:N]` position instead and is the parent of the row's content. The `Listener` that `Navigator` builds and the
   dismiss `Semantics` of a `ModalBarrier` are never controls. A `MouseRegion`
   is never a role. Framework widgets that build a low-level role around no
   control are reported: a bottom sheet's drag handle, a `SelectionArea` around
@@ -595,8 +598,9 @@ so does its production tap.
 - **Disabled controls** are listed with `enabled: false` and no tap action. They
   are never tap targets (`enabled != false` gates tap selection and the
   pathless snap), and exploration taps on them stay unresolved as before.
-  For a control with a disabled state (Material and Cupertino buttons,
-  toggles, chips, sliders, dropdowns, text fields, `ListTile.enabled`),
+  For the controls tested (Material buttons, `IconButton`, `CupertinoButton`,
+  `Checkbox`, `Switch`, `ActionChip`, `TextField`, `ListTile.enabled`; also
+  probed: radios, sliders, `CupertinoSwitch`, `FilterChip`, toggle tiles),
   toggling it changes only `enabled` and `actions`: not its fingerprint, the
   fingerprints below it, or the route key.
 - **Identity element.** As in schema 6, the identity of a hit is the innermost
@@ -655,7 +659,11 @@ so does its production tap.
   custom `PopupRoute` cannot be told from its type name, so it keeps its
   `struct:` key. A disabled control whose inner controls fork (a disabled
   `TextField` with a suffix button) keeps its own path, so enabling it changes
-  its fingerprint. A `GestureDetector`, `InkWell`, `ListTile` or tap
+  its fingerprint. Disabled twins that still differ, as in schema 6: an
+  `InputChip` disabled by `isEnabled` (the role reads only its callbacks), a
+  `CupertinoTextField` and a `SearchBar`. A pointer-up `Listener` or tap
+  `Semantics` around a `ListTile` with no callbacks or around a scrollable is
+  neither a control nor part of one. A `GestureDetector`, `InkWell`, `ListTile` or tap
   `Semantics` has no disabled state: with its callback `null` it is not a
   control, so toggling the callback adds or removes its entry and changes an
   anonymous route's `struct:` key (and every fingerprint on that route).

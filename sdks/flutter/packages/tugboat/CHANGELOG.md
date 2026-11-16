@@ -68,8 +68,9 @@
   controls under a `ListTileTheme` (including inside `Drawer` and
   `ExpansionTile`) or `SwitchTheme`, which are now transparent, and later
   same-type siblings of such a control, which are renumbered; controls inside
-  an `InkWell` without `onTap` (a `Switch` trailing a `ListTile` with no
-  callbacks); and a disabled `TextField`, which takes its enabled twin's
+  or around an `InkWell` without `onTap` (a `Switch` trailing a `ListTile`
+  with no callbacks, a `GestureDetector` around such a tile); and a disabled
+  `TextField` with no other control inside, which takes its enabled twin's
   fingerprint. Nothing else moves: an enabled control on a named route with
   none of these above it keeps its fingerprint, in inventories and production
   taps. For one release each exploration inventory entry lists its schema 6
@@ -81,9 +82,9 @@
   long-press recognizer are reported when they are a control of their own
   (outside every control and around none). Disabled controls are listed with
   `enabled: false` and keep their enabled twin's fingerprint; toggling a
-  control that has a disabled state (buttons, toggles, chips, sliders,
-  dropdowns, text fields, `ListTile.enabled`) changes no fingerprint or route
-  key. A `GestureDetector`, `InkWell`, `ListTile` or tap `Semantics` with a
+  Material or Cupertino button, toggle, `ActionChip`, `TextField` or
+  `ListTile.enabled` changes no fingerprint or route key (`InputChip.isEnabled`,
+  `CupertinoTextField` and `SearchBar` still differ, as before). A `GestureDetector`, `InkWell`, `ListTile` or tap `Semantics` with a
   `null` callback is not a control, so toggling it still changes an anonymous
   route's `struct:` key. Production taps on a disabled control carry its
   twin's fingerprint. A custom `PopupRoute` keeps its key, and two

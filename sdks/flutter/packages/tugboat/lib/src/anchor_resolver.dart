@@ -310,7 +310,7 @@ class _TokenMapVisitor {
     if (retainType == null) {
       return (parent: retainedParent, emittedListItem: false);
     }
-    if (_isLeafToken(element)) {
+    if (!inList && _isLeafToken(element)) {
       return _recordLeafToken(element, retainedParent, retainType);
     }
     final token = inList
@@ -323,9 +323,10 @@ class _TokenMapVisitor {
 
   /// A low-level control of its own that schema 6 did not retain (a tap
   /// `Semantics`, a pointer-up `Listener`; a `RawGestureDetector` was always
-  /// retained) gets a path for itself but is no retained parent and takes no
-  /// list position, so the paths below it stay as in schema 6 whether or not
-  /// its callback is set.
+  /// retained) gets a path for itself but is no retained parent, so the paths
+  /// below it stay as in schema 6 whether or not its callback is set. In a
+  /// list it takes the row's `[item:N]` position instead (and is a parent),
+  /// because an ordinal would follow which rows happen to be built.
   bool _isLeafToken(Element element) =>
       !legacy &&
       newRoleCandidates.contains(element) &&
@@ -1283,36 +1284,31 @@ class AnchorResolver {
     final actionableSummary = <String, int>{};
     final actionablePaths = <String>{};
     for (final element in includedElements) {
-      if (isActionable[element] != true || !tokens.containsKey(element)) {
-        continue;
-      }
-      if (hasActionableDescendant[element] == true) continue;
-      final role = tugboatRoleForWidget(element.widget);
-      if (role == null || role.enabled == false) continue;
+      final role = _leafActionableRole(
+        element,
+        isActionable,
+        hasActionableDescendant,
+        tokens,
+      );
+      if (role == null) continue;
       actionableSummary[role.name] = (actionableSummary[role.name] ?? 0) + 1;
       if (legacy) {
         actionablePaths.add(_pathForMaps(element, tokens, retainedParents));
       }
     }
-    final identityAncestors = legacy
-        ? <Element>{}
-        : _retainedAncestorsOf(
-            {
-              ...controlCandidates,
-              ...newRoleCandidates,
-            }.where(tokens.containsKey),
-            retainedParents,
-          );
-    if (!legacy) {
-      actionablePaths.addAll(
-        _identityLeafPaths(
-          tokens: tokens,
-          retainedParents: retainedParents,
-          candidates: {...controlCandidates, ...newRoleCandidates},
-          ancestors: identityAncestors,
-        ),
-      );
-    }
+    final candidates = {...controlCandidates, ...newRoleCandidates};
+    final identityAncestors = _retainedAncestorsOf(
+      legacy ? const <Element>[] : candidates.where(tokens.containsKey),
+      retainedParents,
+    );
+    actionablePaths.addAll(
+      _identityLeafPaths(
+        tokens: tokens,
+        retainedParents: retainedParents,
+        candidates: legacy ? const <Element>{} : candidates,
+        ancestors: identityAncestors,
+      ),
+    );
 
     final sortedPaths =
         actionablePaths.map(_normalizeItemPathForSignature).toSet().toList()
@@ -1342,6 +1338,21 @@ class AnchorResolver {
       actionableSummary: actionableSummary,
       subLabel: visitor.subLabel,
     );
+  }
+
+  /// The enabled schema 6 role of a tokenized actionable leaf, else null.
+  WidgetRole? _leafActionableRole(
+    Element element,
+    Map<Element, bool> isActionable,
+    Map<Element, bool> hasActionableDescendant,
+    Map<Element, String> tokens,
+  ) {
+    if (isActionable[element] != true || !tokens.containsKey(element)) {
+      return null;
+    }
+    if (hasActionableDescendant[element] == true) return null;
+    final role = tugboatRoleForWidget(element.widget);
+    return role == null || role.enabled == false ? null : role;
   }
 
   /// Retained ancestors of [candidates].
