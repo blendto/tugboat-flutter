@@ -273,6 +273,9 @@ class ReplayCoherenceHarness {
       config: TugboatReplayConfig(
         enabled: enabled,
         emitSceneInventory: true,
+        // The harness characterises the capture flows that existed before the
+        // settled re-sample, so it runs them without it.
+        resampleSettledInventory: false,
         emitViewportSemanticMap: emitViewportSemanticMap,
         emitCaptureDiagnostics: emitCaptureDiagnostics,
         acceptActionContext: true,
@@ -369,8 +372,6 @@ class ReplayCoherenceHarness {
     await pumpMicrotasks();
     await controller.drainPointerQueue();
     await pumpMicrotasks();
-    // The settled-inventory quiet timer must not outlive the test body.
-    controller.debugStopSettledWatch();
   }
 
   /// Mounts a minimal scene with a keyed interactive target under [boundaryKey].

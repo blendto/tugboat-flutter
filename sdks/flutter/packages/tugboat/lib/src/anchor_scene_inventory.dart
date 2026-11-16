@@ -135,10 +135,12 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         visibleFraction: visibleFraction,
       );
       if (result != null) {
-        if (flags?.busy == true) loading!.noteBusy(result.entry.fingerprint);
         _accumulateInteractiveEntry(
           interactiveByFingerprint,
-          result.entry.copyWith(placeholder: placeholder),
+          result.entry.copyWith(
+            placeholder: placeholder,
+            busy: (flags?.busy ?? false) && result.entry.enabled != false,
+          ),
           result.structuralFingerprint,
         );
       }
@@ -248,6 +250,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     interactiveByFingerprint[entry.fingerprint] = existing.copyWith(
       aliases: aliases,
       placeholder: existing.placeholder || entry.placeholder,
+      busy: existing.busy || entry.busy,
     );
   }
 

@@ -50,14 +50,42 @@ class _TileGrid extends StatelessWidget {
   );
 }
 
+/// A scope whose type argument names a shimmer, as `Provider<...>` would.
+class _Scope<T> extends StatelessWidget {
+  const _Scope({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
+class ShimmerController {}
+
+/// An inherited scope named like a skeleton: it carries state, draws nothing.
+class SkeletonTheme extends InheritedWidget {
+  const SkeletonTheme({required super.child, super.key});
+
+  @override
+  bool updateShouldNotify(SkeletonTheme oldWidget) => false;
+}
+
+/// A dialog: an app widget class `surface.widgetClass` can name.
+class ConfirmDialog extends StatelessWidget {
+  const ConfirmDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    actions: [TextButton(onPressed: () {}, child: const Text('Confirm'))],
+  );
+}
+
 Future<void> _mount(WidgetTester tester, Widget body) async {
   await tester.pumpWidget(
     MaterialApp(
       navigatorObservers: [TugboatReplay.navigatorObserver],
-      builder: (context, child) => TugboatReplay.wrapApp(
-        config: _exploration,
-        child: child!,
-      ),
+      builder: (context, child) =>
+          TugboatReplay.wrapApp(config: _exploration, child: child!),
       home: Scaffold(body: body),
     ),
   );
@@ -179,10 +207,7 @@ void main() {
     final wrappedEntries = _elements(wrapped);
     expect(wrappedEntries, hasLength(plainEntries.length));
     for (var i = 0; i < plainEntries.length; i++) {
-      expect(
-        wrappedEntries[i]['fingerprint'],
-        plainEntries[i]['fingerprint'],
-      );
+      expect(wrappedEntries[i]['fingerprint'], plainEntries[i]['fingerprint']);
       expect(
         wrappedEntries[i]['canonicalPath'],
         plainEntries[i]['canonicalPath'],
@@ -203,6 +228,136 @@ void main() {
     );
 
     expect(_loading(_last())['busyControls'], 1);
+  });
+
+  testWidgets('a disabled text field is not a busy control', (tester) async {
+    await _mount(tester, const Center(child: TextField(enabled: false)));
+
+    final inventory = _last();
+    expect(_elements(inventory), isNotEmpty);
+    expect(_loading(inventory)['busyControls'], 0);
+  });
+
+  testWidgets('a scope whose type argument names a shimmer marks nothing', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      _Scope<ShimmerController>(
+        child: SkeletonTheme(
+          child: FilledButton(onPressed: () {}, child: const Text('Live')),
+        ),
+      ),
+    );
+
+    final inventory = _last();
+    expect(_loading(inventory)['placeholders'], 0);
+    expect(_flagged(inventory), isEmpty);
+  });
+
+  testWidgets(
+    'a spinner on a route covered by an opaque route is not counted',
+    (tester) async {
+      await _mount(
+        tester,
+        Builder(
+          builder: (context) => Column(
+            children: [
+              const CircularProgressIndicator(),
+              FilledButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => Scaffold(
+                      body: FilledButton(
+                        onPressed: () {},
+                        child: const Text('Second'),
+                      ),
+                    ),
+                  ),
+                ),
+                child: const Text('Go'),
+              ),
+            ],
+          ),
+        ),
+      );
+      expect(_loading(_last())['progressIndicators'], 1);
+
+      await tester.tap(find.text('Go'));
+      await tester.pump(const Duration(seconds: 1));
+      await waitForTugboatCaptureWork(tester);
+      await tester.tap(find.text('Second'));
+      await tester.pump(const Duration(seconds: 1));
+      await waitForTugboatCaptureWork(tester);
+
+      expect(_last()['trigger'], 'tap');
+      expect(_loading(_last())['progressIndicators'], 0);
+      // The spinner's ticker is off while covered.
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'a tap inventory counts busy controls among the entries it keeps',
+    (tester) async {
+      await _mount(
+        tester,
+        Column(
+          children: [
+            FilledButton(onPressed: () {}, child: const Text('Live')),
+            const AbsorbPointer(
+              child: FilledButton(onPressed: _noop, child: Text('Blocked')),
+            ),
+          ],
+        ),
+      );
+      expect(_loading(_last())['busyControls'], 1);
+
+      await tester.tap(find.text('Live'));
+      await tester.pump(const Duration(milliseconds: 500));
+      await waitForTugboatCaptureWork(tester);
+
+      final tap = _inventories().lastWhere((inv) => inv['trigger'] == 'tap');
+      final kept = _elements(tap).length;
+      expect(_loading(tap)['busyControls'], lessThan(kept));
+      expect(_loading(tap)['busyControls'], 0);
+    },
+  );
+
+  testWidgets('TugboatLoading cannot become a dialog surface widgetClass', (
+    tester,
+  ) async {
+    Future<Map<String, Object?>> dialogInventory(Widget body) async {
+      await _mount(
+        tester,
+        Builder(
+          builder: (context) => FilledButton(
+            onPressed: () =>
+                showDialog<void>(context: context, builder: (_) => body),
+            child: const Text('Open'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pump(const Duration(seconds: 1));
+      await waitForTugboatCaptureWork(tester);
+      return _inventories().lastWhere(
+        (inv) => (inv['surface']! as Map)['kind'] == 'dialog',
+      );
+    }
+
+    final plain = await dialogInventory(const ConfirmDialog());
+    await tester.pumpWidget(const SizedBox());
+    TugboatReplay.resetForTest();
+    final wrapped = await dialogInventory(
+      const TugboatLoading(child: ConfirmDialog()),
+    );
+
+    expect((plain['surface']! as Map)['widgetClass'], 'ConfirmDialog');
+    expect(wrapped['surface'], plain['surface']);
+    expect(wrapped['routeKey'], plain['routeKey']);
+    expect(wrapped['inventoryHash'], plain['inventoryHash']);
+    expect(_loading(wrapped)['placeholders'], greaterThan(0));
   });
 
   testWidgets('no label text is emitted by the loading signal', (tester) async {

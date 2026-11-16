@@ -318,6 +318,7 @@ class _CaptureRequestContext {
     this.visualObservationGeneration,
     this.boundaryLogicalRect,
     this.boundaryTransformGeneration = 0,
+    this.inventoryTrigger,
   });
 
   final String? captureSessionId;
@@ -330,6 +331,11 @@ class _CaptureRequestContext {
   final int? visualObservationGeneration;
   final Rect? boundaryLogicalRect;
   final int boundaryTransformGeneration;
+
+  /// `scene_inventory.trigger` of an inventory this capture emits, when the
+  /// frame trigger alone does not say it (an `interaction` capture can be a
+  /// tap, a scroll end or a swipe, pan or zoom). Never part of compatibility.
+  final String? inventoryTrigger;
 
   bool compatibleWith(_CaptureRequestContext other) =>
       captureSessionId == other.captureSessionId &&
@@ -358,6 +364,7 @@ class _CaptureRequestContext {
         visualObservationGeneration: visualObservationGeneration,
         boundaryLogicalRect: boundaryLogicalRect,
         boundaryTransformGeneration: boundaryTransformGeneration,
+        inventoryTrigger: inventoryTrigger,
       );
 
   _CaptureRequestContext withBoundaryTransform({
@@ -374,6 +381,7 @@ class _CaptureRequestContext {
     visualObservationGeneration: visualObservationGeneration,
     boundaryLogicalRect: logicalRect,
     boundaryTransformGeneration: generation,
+    inventoryTrigger: inventoryTrigger,
   );
 }
 
@@ -1164,11 +1172,11 @@ class TugboatReplayController extends ChangeNotifier {
   final Set<Future<void>> _activeCompletedGestureTasks = {};
   final Set<String> _emittedInventories = <String>{};
   // Settled re-sample state (exploration only). Settled emissions never write
-  // to [_emittedInventories]; they compare against [_settledSignatures].
-  final Map<String, String> _settledSignatures = <String, String>{};
+  // to [_emittedInventories]; they compare against [_settledSeen], the
+  // structural signatures already emitted per route key this session.
+  final Map<String, Set<String>> _settledSeen = <String, Set<String>>{};
   final Map<String, int> _settledEmissionsByRoute = <String, int>{};
-  int _settledEmissionsTotal = 0;
-  int _settledRebuildsTotal = 0;
+  int _settledSampleCount = 0;
   SettledInventoryWatch? _settledWatch;
   SemanticsHandle? _semanticsHandle;
   late final ViewportSemanticSession _viewportSemantics =
@@ -1315,6 +1323,19 @@ class TugboatReplayController extends ChangeNotifier {
 
   @visibleForTesting
   int get debugRouteEpoch => _routeEpoch;
+
+  /// Whether a settled-inventory watch is armed (exploration only).
+  @visibleForTesting
+  bool get debugSettledWatchArmed => _settledWatch != null;
+
+  /// Whether the armed settled-inventory watch holds a pending window timer.
+  @visibleForTesting
+  bool get debugSettledWatchHasTimer =>
+      _settledWatch?.hasPendingWindow ?? false;
+
+  /// Settled re-samples taken this session, emitted or not.
+  @visibleForTesting
+  int get debugSettledSampleCount => _settledSampleCount;
 
   @visibleForTesting
   bool get debugRouteCapturePending => _activeRouteCaptures.isNotEmpty;
@@ -1867,7 +1888,10 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
-  _CaptureRequestContext _captureContext(TugboatFrameTrigger trigger) {
+  _CaptureRequestContext _captureContext(
+    TugboatFrameTrigger trigger, {
+    String? inventoryTrigger,
+  }) {
     final boundary = _observeCurrentBoundaryTransform();
     return _CaptureRequestContext(
       captureSessionId: _session?.id,
@@ -1880,6 +1904,7 @@ class TugboatReplayController extends ChangeNotifier {
       visualObservationGeneration: _visualObservationGeneration,
       boundaryLogicalRect: boundary.rect,
       boundaryTransformGeneration: boundary.generation,
+      inventoryTrigger: inventoryTrigger,
     );
   }
 
@@ -2018,7 +2043,9 @@ class TugboatReplayController extends ChangeNotifier {
       );
     }
     _reuseCompatibleFrame(compatible, context, reuseReason);
-    _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(context.trigger));
+    _maybeEmitSceneInventory(
+      trigger: _inventoryTriggerFor(context.trigger, context),
+    );
     return _CaptureExecution(
       outcome: outcome,
       frameId: compatible,
@@ -2164,8 +2191,12 @@ class TugboatReplayController extends ChangeNotifier {
     bool dropWhenBusy = false,
     Duration? settleDelay,
     String? relatedEventId,
+    String? inventoryTrigger,
   }) {
-    final context = _captureContext(trigger);
+    final context = _captureContext(
+      trigger,
+      inventoryTrigger: inventoryTrigger,
+    );
     final waiter = _CaptureWaiter(
       requestId: _nextId('capture_request'),
       context: context,
@@ -2230,7 +2261,9 @@ class TugboatReplayController extends ChangeNotifier {
     bool emitSceneInventory = true,
   }) {
     if (emitSceneInventory) {
-      _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(waiter.context.trigger));
+      _maybeEmitSceneInventory(
+        trigger: _inventoryTriggerFor(waiter.context.trigger, waiter.context),
+      );
     }
     _completeCaptureWaiter(
       waiter,
@@ -2822,7 +2855,9 @@ class TugboatReplayController extends ChangeNotifier {
     capturer.commitAcceptedPaintGeneration(result.paintGeneration);
     capturer.commitAcceptedDHash(result.dHash);
     capturer.commitAcceptedStructure(result.structureSignature);
-    _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(context.trigger));
+    _maybeEmitSceneInventory(
+      trigger: _inventoryTriggerFor(context.trigger, context),
+    );
     return _CaptureExecution(
       outcome: _CaptureOutcome.exactContentReused,
       frameId: existingId,
@@ -2910,7 +2945,7 @@ class TugboatReplayController extends ChangeNotifier {
     capturer.commitAcceptedPaintGeneration(result.paintGeneration);
     capturer.commitAcceptedDHash(result.dHash);
     capturer.commitAcceptedStructure(result.structureSignature);
-    _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(trigger));
+    _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(trigger, context));
     _sinkHub?.recordFrame(
       frame,
       result.bytes,
@@ -2950,7 +2985,7 @@ class TugboatReplayController extends ChangeNotifier {
       if (frameId != null && _frameProvenance.containsKey(frameId)) {
         _latestFrameId = frameId;
       }
-      _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(trigger));
+      _maybeEmitSceneInventory(trigger: _inventoryTriggerFor(trigger, context));
       final resolved = frameId != null && _isFrameCompatible(frameId, context)
           ? frameId
           : (requiresFreshPaint ? null : _compatibleFrameFor(context));
@@ -3308,13 +3343,14 @@ class TugboatReplayController extends ChangeNotifier {
       surface: inventory.surface,
       viewport: inventory.viewport,
       scroll: inventory.scroll,
-      loading: _recountPlaceholders(inventory.loading, elements),
+      loading: _recountLoading(inventory.loading, elements),
     );
   }
 
-  /// [loading] for the kept [elements]: the placeholder count follows the
-  /// elements that remain, the rest of the summary is unchanged.
-  TugboatInventoryLoading? _recountPlaceholders(
+  /// [loading] for the kept [elements]: the placeholder and busy counts
+  /// follow the elements that remain; the progress-indicator count is the
+  /// tree's and is unchanged.
+  TugboatInventoryLoading? _recountLoading(
     TugboatInventoryLoading? loading,
     List<TugboatSceneInventoryEntry> elements,
   ) => loading == null
@@ -3322,7 +3358,7 @@ class TugboatReplayController extends ChangeNotifier {
       : TugboatInventoryLoading(
           progressIndicators: loading.progressIndicators,
           placeholders: elements.where((entry) => entry.placeholder).length,
-          busyControls: loading.busyControls,
+          busyControls: elements.where((entry) => entry.busy).length,
         );
 
   bool _isTapInventoryEntry(TugboatSceneInventoryEntry entry) =>
@@ -3451,7 +3487,8 @@ class TugboatReplayController extends ChangeNotifier {
       tapInventory = tapContext.inventory;
       if (tapInventory != null) {
         _emitSceneInventory(
-          tapInventory.withTrigger('tap'),
+          tapInventory,
+          trigger: 'tap',
           emitViewportSemanticMap: false,
         );
       }
@@ -3502,7 +3539,8 @@ class TugboatReplayController extends ChangeNotifier {
     final inventory = evidence.inventory;
     if (inventory != null) {
       _emitSceneInventory(
-        inventory.withTrigger('tap'),
+        inventory,
+        trigger: 'tap',
         emitViewportSemanticMap: false,
       );
     }
@@ -4015,6 +4053,7 @@ class TugboatReplayController extends ChangeNotifier {
     );
     final capture = _requestCaptureCancellable(
       trigger: TugboatFrameTrigger.interaction,
+      inventoryTrigger: 'tap',
       force: true,
       settleDelay: Duration.zero,
       relatedEventId: pending.id,
@@ -4439,6 +4478,7 @@ class TugboatReplayController extends ChangeNotifier {
       try {
         final capture = _requestCaptureCancellable(
           trigger: TugboatFrameTrigger.interaction,
+          inventoryTrigger: 'gesture',
           force: true,
           settleDelay: Duration.zero,
           relatedEventId: tx.id,
@@ -4788,6 +4828,7 @@ class TugboatReplayController extends ChangeNotifier {
     // temporal observation, but it does not make the route scroll-caused.
     final afterCapture = _requestCaptureCancellable(
       trigger: TugboatFrameTrigger.interaction,
+      inventoryTrigger: 'scroll',
       force: true,
       settleDelay: Duration.zero,
       relatedEventId: tracker.startEventId,
@@ -4811,6 +4852,7 @@ class TugboatReplayController extends ChangeNotifier {
   ) async {
     final afterCapture = _requestCaptureCancellable(
       trigger: TugboatFrameTrigger.interaction,
+      inventoryTrigger: 'scroll',
       force: true,
       settleDelay: Duration.zero,
       relatedEventId: tracker.startEventId,
@@ -4911,7 +4953,8 @@ class TugboatReplayController extends ChangeNotifier {
 
   void _applyVisibleRouteChange(_VisibleRouteChange change) {
     if (!change.updatesRoute) return;
-    if (change.destinationRoute != _currentRoute) _stopSettledWatch();
+    // A new route epoch follows; the armed watch belongs to the old one.
+    _stopSettledWatch();
     _currentRoute = change.destinationRoute;
     _currentRouteIdentity = TugboatRouteIdentity(
       route: change.destinationRoute,
@@ -5953,79 +5996,103 @@ class TugboatReplayController extends ChangeNotifier {
     if (inventory == null) return;
 
     _emitSceneInventory(
-      inventory.withTrigger(trigger),
+      inventory,
+      trigger: trigger,
       scrollContext: scrollContext,
     );
   }
 
-  /// Maps the capture reason to `scene_inventory.trigger`. `interaction`
-  /// captures are gesture completions, so they read as taps.
-  String _inventoryTriggerFor(TugboatFrameTrigger trigger) => switch (trigger) {
-    TugboatFrameTrigger.initial => 'initial',
-    TugboatFrameTrigger.lifecycle => 'resume',
-    TugboatFrameTrigger.route => 'route',
-    TugboatFrameTrigger.tap => 'tap',
-    TugboatFrameTrigger.interaction => 'tap',
-    TugboatFrameTrigger.scroll => 'scroll',
-    TugboatFrameTrigger.manual => 'manual',
-  };
+  /// `scene_inventory.trigger` for an inventory emitted by a capture: the
+  /// request's own reason when it set one (the `interaction` captures of a
+  /// tap, a scroll end, or a swipe, pan or zoom), otherwise the frame trigger.
+  String _inventoryTriggerFor(
+    TugboatFrameTrigger trigger,
+    _CaptureRequestContext context,
+  ) => context.inventoryTrigger ?? _frameInventoryTrigger(trigger);
+
+  String _frameInventoryTrigger(TugboatFrameTrigger trigger) =>
+      switch (trigger) {
+        TugboatFrameTrigger.initial => 'initial',
+        TugboatFrameTrigger.lifecycle => 'resume',
+        TugboatFrameTrigger.route => 'route',
+        TugboatFrameTrigger.tap => 'tap',
+        TugboatFrameTrigger.interaction => 'gesture',
+        TugboatFrameTrigger.scroll => 'scroll',
+        TugboatFrameTrigger.manual => 'manual',
+      };
 
   void _resetSettledInventoryState() {
     _stopSettledWatch();
-    _settledSignatures.clear();
+    _settledSeen.clear();
     _settledEmissionsByRoute.clear();
-    _settledEmissionsTotal = 0;
-    _settledRebuildsTotal = 0;
+    _settledSampleCount = 0;
   }
 
-  void _armSettledWatch() {
-    if (_disposed || _capturePaused || _session == null) return;
+  /// Arms the settled watch for the current route epoch, or sends the armed
+  /// one back to its shortest window. Exploration only.
+  void _armSettledWatch(String routeKey) {
+    if (!_settledWatchCanRun || _settledCapReached(routeKey)) return;
+    final current = _settledWatch;
+    if (current != null && current.routeEpoch == _routeEpoch) {
+      current.nudge();
+      return;
+    }
     _stopSettledWatch();
     final watch = SettledInventoryWatch(
-      route: _currentRoute,
-      onQuiet: _onSettledQuiet,
+      routeEpoch: _routeEpoch,
+      onSample: _onSettledSample,
     );
     _settledWatch = watch;
     watch.arm();
   }
+
+  bool get _settledWatchCanRun =>
+      !_disposed &&
+      !_capturePaused &&
+      !_skipCapture &&
+      _captureLifecycleActive &&
+      _session != null &&
+      _endSessionFuture == null &&
+      _anchorResolver != null;
+
+  bool _settledCapReached(String routeKey) =>
+      (_settledEmissionsByRoute[routeKey] ?? 0) >= settledInventoryEmissionCap;
 
   void _stopSettledWatch() {
     _settledWatch?.cancel();
     _settledWatch = null;
   }
 
-  /// Test hook: stops an armed settled-inventory watch so its quiet timer is
-  /// not pending when a test that does not exercise the re-sample ends.
-  @visibleForTesting
-  void debugStopSettledWatch() => _stopSettledWatch();
+  /// One settled re-sample. Rebuilds the inventory and emits it as `settled`
+  /// only when its structural signature was never emitted for its route key
+  /// this session. Returns whether it emitted. Never throws.
+  bool _onSettledSample(SettledInventoryWatch watch) {
+    if (!identical(watch, _settledWatch)) return false;
+    if (!_settledWatchCanRun || watch.routeEpoch != _routeEpoch) {
+      _stopSettledWatch();
+      return false;
+    }
+    _settledSampleCount++;
+    try {
+      return _emitSettledIfNew(_buildInventoryForSettled());
+    } catch (_) {
+      // A racing tree only costs this sample.
+      return false;
+    }
+  }
 
-  /// Runs once per quiet window of an armed watch. Rebuilds the inventory and
-  /// emits it as `settled` only when its structural signature changed. Stops
-  /// the watch when nothing changed or a cap is reached.
-  void _onSettledQuiet(SettledInventoryWatch watch) {
-    if (!identical(watch, _settledWatch)) return;
-    if (!_settledWatchIsCurrent(watch) ||
-        _settledRebuildsTotal >= settledInventorySessionRebuildCap) {
-      _stopSettledWatch();
-      return;
-    }
-    _settledRebuildsTotal++;
-    final inventory = _buildInventoryForSettled();
-    if (inventory == null) {
-      _stopSettledWatch();
-      return;
-    }
-    final signature = _settledSignatureOf(inventory);
+  bool _emitSettledIfNew(TugboatSceneInventory? inventory) {
+    if (inventory == null) return false;
     final routeKey = inventory.routeKey;
-    if (signature == _settledSignatures[routeKey] ||
-        !_canEmitSettled(routeKey)) {
+    final signature = _settledSignatureOf(inventory);
+    if (_settledSeen[routeKey]?.contains(signature) ?? false) return false;
+    if (_settledCapReached(routeKey)) {
       _stopSettledWatch();
-      return;
+      return false;
     }
-    _settledEmissionsByRoute[routeKey] =
-        (_settledEmissionsByRoute[routeKey] ?? 0) + 1;
-    _settledEmissionsTotal++;
-    _settledSignatures[routeKey] = signature;
+    (_settledSeen[routeKey] ??= <String>{}).add(signature);
+    final emitted = (_settledEmissionsByRoute[routeKey] ?? 0) + 1;
+    _settledEmissionsByRoute[routeKey] = emitted;
     _addEvent(
       TugboatEvent(
         id: _nextId('event'),
@@ -6034,20 +6101,9 @@ class TugboatReplayController extends ChangeNotifier {
         data: inventory.withTrigger('settled').toJson(),
       ),
     );
-    watch.restartQuietWindow();
+    if (emitted >= settledInventoryEmissionCap) _stopSettledWatch();
+    return true;
   }
-
-  bool _settledWatchIsCurrent(SettledInventoryWatch watch) =>
-      !_disposed &&
-      !_capturePaused &&
-      _session != null &&
-      _anchorResolver != null &&
-      watch.route == _currentRoute;
-
-  bool _canEmitSettled(String routeKey) =>
-      (_settledEmissionsByRoute[routeKey] ?? 0) <
-          settledInventoryEmissionCap &&
-      _settledEmissionsTotal < settledInventorySessionEmissionCap;
 
   TugboatSceneInventory? _buildInventoryForSettled() {
     final resolver = _anchorResolver;
@@ -6062,13 +6118,20 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
-  /// inventoryHash, element count and a coarse bounds signature (each box
-  /// quantised to a 2% grid). Text-free and never serialized.
+  /// inventoryHash, element count, the loading counts, and a coarse bounds
+  /// signature (each box quantised to a 2% grid, with its placeholder flag).
+  /// Text-free and never serialized.
   String _settledSignatureOf(TugboatSceneInventory inventory) {
     final boxes = [
-      for (final entry in inventory.elements) _quantisedBoxKey(entry.boundsNorm),
+      for (final entry in inventory.elements)
+        '${_quantisedBoxKey(entry.boundsNorm)}${entry.placeholder ? 'p' : ''}',
     ]..sort();
-    return '${inventory.inventoryHash}|${inventory.elements.length}|'
+    final loading = inventory.loading;
+    final counts = loading == null
+        ? ''
+        : '${loading.progressIndicators},${loading.placeholders},'
+              '${loading.busyControls}';
+    return '${inventory.inventoryHash}|${inventory.elements.length}|$counts|'
         '${tugboatLabelHash(boxes.join(';'))}';
   }
 
@@ -6078,8 +6141,13 @@ class TugboatReplayController extends ChangeNotifier {
         '${q(bounds.width)},${q(bounds.height)}';
   }
 
+  /// Emits [inventory] stamped with [trigger] unless the same route, hash and
+  /// scroll context was already emitted this session. In exploration with the
+  /// settled re-sample on, every attempt (emitted or not) arms the watch, and
+  /// an emitted inventory's structure becomes one the watch will not repeat.
   void _emitSceneInventory(
     TugboatSceneInventory inventory, {
+    required String trigger,
     bool emitViewportSemanticMap = true,
     TugboatViewportSemanticScrollContext? scrollContext,
   }) {
@@ -6089,22 +6157,19 @@ class TugboatReplayController extends ChangeNotifier {
         inventory.inventoryHash,
         scrollContext?.dedupeKey ?? '',
       ].join('|');
-      if (_emittedInventories.add(dedupeKey)) {
+      final emitted = _emittedInventories.add(dedupeKey);
+      if (emitted) {
         _addEvent(
           TugboatEvent(
             id: _nextId('event'),
             atMs: atMs,
             type: 'scene_inventory',
-            data: inventory.toJson(),
+            data: inventory.withTrigger(trigger).toJson(),
           ),
         );
-        if (config.settledInventoryResampleEnabled &&
-            inventory.trigger != 'settled') {
-          _settledSignatures[inventory.routeKey] = _settledSignatureOf(
-            inventory,
-          );
-          _armSettledWatch();
-        }
+      }
+      if (config.settledInventoryResampleEnabled) {
+        _noteInventoryForSettled(inventory, emitted: emitted);
       }
     }
     if (emitViewportSemanticMap && config.semanticMapEmissionEnabled) {
@@ -6114,6 +6179,18 @@ class TugboatReplayController extends ChangeNotifier {
         scrollContext: scrollContext,
       );
     }
+  }
+
+  void _noteInventoryForSettled(
+    TugboatSceneInventory inventory, {
+    required bool emitted,
+  }) {
+    if (emitted) {
+      (_settledSeen[inventory.routeKey] ??= <String>{}).add(
+        _settledSignatureOf(inventory),
+      );
+    }
+    _armSettledWatch(inventory.routeKey);
   }
 
   /// Publishes one timeline event.
