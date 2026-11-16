@@ -51,8 +51,12 @@
 - In exploration mode, every scene inventory carries `viewport`
   (`widthPx`, `heightPx`, `devicePixelRatio`, `boundaryOffset`, `insets`,
   `keyboardInset`, `referenceFrame: "captureBoundary"`): the frame `boundsNorm`
-  is a fraction of. All sizes are in logical pixels; multiply by
-  `devicePixelRatio` for device pixels. Each element carries `visibleFraction`
+  is a fraction of. All sizes are in the render view's logical pixels;
+  multiply by `devicePixelRatio`, the render view's own ratio, for device
+  pixels. `widthPx`, `heightPx` and `boundaryOffset` are the boundary's box
+  after any transform above it, so `(boundaryOffset + boundsNorm * widthPx) *
+  devicePixelRatio` is exact under a `Transform.scale`, a `FittedBox` or a
+  host binding that scales the whole UI. Each element carries `visibleFraction`
   (0 to 1) when part of its paint box is outside the capture boundary or
   clipped by an ancestor, and an inventory with a vertical scrollable carries
   `scroll` (`offsetPx`, `maxExtentPx`, `axis`) for the largest one. `boundsNorm`

@@ -391,26 +391,33 @@ display pixels exactly:
 }
 ```
 
-- **Units: every value is in Flutter logical pixels** (device-independent
-  pixels, what `RenderBox.size` and `MediaQuery` report), not device pixels,
-  despite the `Px` in the names of `widthPx` and `heightPx` (and `offsetPx` and
-  `maxExtentPx` below). Multiply by `devicePixelRatio` to get device pixels.
-- `widthPx` and `heightPx` are the capture boundary's size, the denominator of
-  `boundsNorm`. It can be smaller than the display (system bars, insets, host
-  layout around the SDK's root).
-- `boundaryOffset` is the boundary's top-left in the Flutter view's logical
-  coordinates (`localToGlobal(Offset.zero)`).
+- **Units: every value is in Flutter logical pixels** of the render view
+  (device-independent pixels, the coordinates `RenderBox.localToGlobal` and
+  pointer events use), not device pixels, despite the `Px` in the names of
+  `widthPx` and `heightPx` (and `offsetPx` and `maxExtentPx` below). Multiply
+  by `devicePixelRatio` to get device pixels.
+- `devicePixelRatio` is the render view's own ratio of device pixels to those
+  logical pixels (its `ViewConfiguration`). It is `FlutterView.devicePixelRatio`
+  unless the host scales its UI through its binding: Blend sets the ratio to
+  `1.75 * 1.0549` on a 1.75 phone so its layout is 390 logical pixels wide, and
+  the view's own 1.75 would put every box 19 to 72 px off.
+- `widthPx` and `heightPx` are the size of the capture boundary's box in those
+  logical pixels, after every transform between it and the view (a
+  `Transform.scale`, a `FittedBox`): the box `boundsNorm` is a fraction of. With
+  no transform it is the boundary's layout size. It can be smaller than the
+  display (system bars, insets, host layout around the SDK's root).
+- `boundaryOffset` is the top-left of that box in the view's logical
+  coordinates.
 - `insets` is the view padding (`FlutterView.viewPadding`: status and navigation
-  bars, cutouts), top, bottom, left and right. It is not reduced by the keyboard
-  and is read from the view, so a `MediaQuery` override inside the app does not
-  change it.
-- `keyboardInset` is the bottom view inset (`FlutterView.viewInsets.bottom`), 0
-  when no keyboard is shown.
+  bars, cutouts), top, bottom, left and right, divided by `devicePixelRatio`.
+  It is not reduced by the keyboard and is read from the view, so a
+  `MediaQuery` override inside the app does not change it.
+- `keyboardInset` is the bottom view inset (`FlutterView.viewInsets.bottom`)
+  divided by `devicePixelRatio`, 0 when no keyboard is shown.
 - `referenceFrame` is always `captureBoundary`: the only frame boxes are
   normalized in.
 - The object is left out when the boundary has no laid-out `FlutterView` to
-  read. A boundary placed under a scaling `Transform` reports its own layout
-  size, not the scaled size.
+  read.
 
 To place an element on a screenshot, scale the box by the frame it is measured
 in:
@@ -425,7 +432,11 @@ in:
   `height = boundsNorm.height * heightPx * devicePixelRatio`. These are pixels
   of the Flutter view. They are display pixels only when the view fills the
   display: the view's own position on the display (split screen, multi-window,
-  an embedded view) is not reported.
+  an embedded view) is not reported. The formula is exact for any translation
+  and scale between the boundary and the view, including a host binding that
+  scales the whole UI; under a rotation or skew `widthPx`, `heightPx` and
+  `boundaryOffset` describe the boundary's axis-aligned bounding box, so it is
+  approximate.
 
 **`visibleFraction`** (per element) is the share, from 0 to 1 rounded to three
 decimals, of the element's paint box that is inside the capture boundary and

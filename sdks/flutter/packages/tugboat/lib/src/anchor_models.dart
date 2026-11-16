@@ -334,15 +334,18 @@ class TugboatInventoryViewport {
   /// capture boundary's render box.
   static const referenceFrame = 'captureBoundary';
 
-  /// Capture boundary size in logical pixels.
+  /// Capture boundary size in the view's logical pixels, after every
+  /// transform above it (its layout size when nothing scales it).
   final double widthPx;
   final double heightPx;
 
-  /// Device pixels per logical pixel of the boundary's view.
+  /// Device pixels per logical pixel of the boundary's render view (its
+  /// `ViewConfiguration`, which a host binding that scales its UI can set
+  /// apart from `FlutterView.devicePixelRatio`).
   final double devicePixelRatio;
 
-  /// Top-left of the capture boundary in the Flutter view's logical
-  /// coordinates (`localToGlobal(Offset.zero)`).
+  /// Top-left of the capture boundary's transformed box in the Flutter view's
+  /// logical coordinates.
   final double boundaryLeft;
   final double boundaryTop;
 

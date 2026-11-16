@@ -89,20 +89,31 @@ class _BoundsEvidence {
 extension TugboatBoundsEvidenceApi on AnchorResolver {
   /// The frame `boundsNorm` is measured in. Null when the boundary is not
   /// laid out or has no [FlutterView]. Never throws.
+  ///
+  /// Everything is in the render view's logical pixels: the boundary's box
+  /// after every transform above it (a `Transform.scale`, a `FittedBox`), and
+  /// the render view's own ratio to device pixels, which a host binding that
+  /// scales its UI through its `ViewConfiguration` sets apart from
+  /// [FlutterView.devicePixelRatio]. So `(boundaryOffset + boundsNorm *
+  /// widthPx) * devicePixelRatio` is exact for any translation and scale.
   TugboatInventoryViewport? _viewportFor(RenderBox rootRender) {
     try {
-      final view = _renderViewOf(rootRender)?.flutterView;
+      final renderView = _renderViewOf(rootRender);
+      final view = renderView?.flutterView;
       if (view == null || !rootRender.hasSize) return null;
-      final ratio = view.devicePixelRatio;
+      final ratio = renderView!.configuration.devicePixelRatio;
       if (!(ratio > 0)) return null;
-      final origin = rootRender.localToGlobal(Offset.zero);
+      final box = MatrixUtils.transformRect(
+        rootRender.getTransformTo(null),
+        Offset.zero & rootRender.size,
+      );
       final padding = view.viewPadding;
       return TugboatInventoryViewport(
-        widthPx: rootRender.size.width,
-        heightPx: rootRender.size.height,
+        widthPx: box.width,
+        heightPx: box.height,
         devicePixelRatio: ratio,
-        boundaryLeft: origin.dx,
-        boundaryTop: origin.dy,
+        boundaryLeft: box.left,
+        boundaryTop: box.top,
         insets: TugboatViewportInsets(
           top: padding.top / ratio,
           bottom: padding.bottom / ratio,
