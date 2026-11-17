@@ -197,6 +197,19 @@ none, and the route capture emits the destination's inventory once the
 transition settles. Before, such inventories listed the departing route's
 controls under the destination's route key.
 
+"Settles" means the transition has run, not that its duration has passed.
+The route capture is due a transition duration after the Navigator callback,
+but the animation runs on frames and can lag behind (jank, fake time), and a
+covered route goes offstage only in the frame after its cover's animation
+ends. So once due, the capture, and the end of the transition window for
+every other trigger, goes at once only when no animation of the routes the
+change moves runs and no frame is due; otherwise it waits until two frames
+have passed with none of them running, bounded by the route barrier timeout.
+Before, the `route` inventory of a pushed unnamed page could still include
+the page below it: its spinner in `loading`, and a `struct:` route key
+computed over both pages, which that page's first taps then carried while
+every later inventory of the page had another key.
+
 It is not yet a production-accepted guarantee. Production acceptance #13/#14
 remains open: rapid/nested modal chains and programmatic/automatic navigation
 can still be absent or degraded. Treat those observations as SDK capture gaps,

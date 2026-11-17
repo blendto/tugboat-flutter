@@ -891,11 +891,16 @@ class _RouteCaptureWork {
     required this.epoch,
     required this.change,
     required this.deadline,
+    this.animations = const [],
   });
 
   final int epoch;
   final _VisibleRouteChange change;
   final Duration deadline;
+
+  /// Animations of the routes this change moves (the pushed route, the
+  /// popped one). The capture waits until none of them runs.
+  final List<Animation<double>> animations;
 
   /// Completes once with this epoch's terminal barrier outcome.
   final Completer<_RouteCaptureResult> completer =
@@ -5032,6 +5037,7 @@ class TugboatReplayController extends ChangeNotifier {
       epoch: ++_routeEpoch,
       change: change,
       deadline: _routeCaptureDeadline(transition),
+      animations: _transitionAnimations(route, departingRoute),
     );
     _activeRouteCaptures[captureKey] = work;
     _latestRouteCaptureKey = captureKey;
@@ -5281,10 +5287,44 @@ class TugboatReplayController extends ChangeNotifier {
     try {
       await deadline;
       if (!_isActiveRouteCapture(work)) return;
+      await _awaitTransitionSettled(work);
+      if (!_isActiveRouteCapture(work)) return;
       _skipCapture = false;
       await _enqueueReady('route_change', () => _finalizeRouteCapture(work));
     } catch (error, stackTrace) {
       debugPrint('[tugboat] route deadline failed: $error\n$stackTrace');
+    }
+  }
+
+  static List<Animation<double>> _transitionAnimations(
+    Route<dynamic>? route,
+    Route<dynamic>? departingRoute,
+  ) => [
+    for (final moved in [route, departingRoute])
+      if (moved is TransitionRoute<dynamic> && moved.animation != null)
+        moved.animation!,
+  ];
+
+  /// The deadline is the route's transition duration from the Navigator
+  /// callback, but the animation runs on frames and can lag behind it (fake
+  /// time in tests, jank on a device); its status read at the deadline can
+  /// even say `completed` before the forward run has begun. And when it
+  /// ends, the route only turns opaque: the covered route goes offstage in
+  /// the next frame. Until then the tree still shows the departing or
+  /// covered route, so an inventory taken then lists its controls and
+  /// spinners under the destination's key (and a `struct:` key computed over
+  /// both). So, unless no animation of the change runs and no frame is due
+  /// (the tree is settled and laid out: go at once), it checks on every frame
+  /// until two frames have passed with no such animation running. Bounded by
+  /// the barrier timeout, which completes [work].
+  Future<void> _awaitTransitionSettled(_RouteCaptureWork work) async {
+    if (work.animations.isEmpty) return;
+    var quietFrames = 0;
+    while (quietFrames < 2 && _isActiveRouteCapture(work)) {
+      final running = work.animations.any((a) => a.isAnimating);
+      if (!running && !_layoutMayBeDirty) return;
+      quietFrames = running ? 0 : quietFrames + 1;
+      await SchedulerBinding.instance.endOfFrame;
     }
   }
 

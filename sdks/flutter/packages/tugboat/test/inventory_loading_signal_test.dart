@@ -427,6 +427,7 @@ void main() {
         ),
       );
       expect(_loading(_last())['progressIndicators'], 1);
+      final beforePush = _inventories().length;
 
       await tester.tap(find.text('Go'));
       await tester.pump(const Duration(seconds: 1));
@@ -435,8 +436,19 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await waitForTugboatCaptureWork(tester);
 
-      expect(_last()['trigger'], 'tap');
-      expect(_loading(_last())['progressIndicators'], 0);
+      // Which trigger sends the covering route's inventory depends on timing:
+      // a tap inventory identical to one already sent is held back. Every
+      // inventory taken once the covering route is up must leave the spinner
+      // on the covered route out.
+      final coveredKey = _inventories()[beforePush - 1]['routeKey'];
+      final covering = _inventories()
+          .skip(beforePush)
+          .where((inventory) => inventory['routeKey'] != coveredKey)
+          .toList();
+      expect(covering, isNotEmpty);
+      for (final inventory in covering) {
+        expect(_loading(inventory)['progressIndicators'], 0);
+      }
       // The spinner's ticker is off while covered.
       await tester.pumpWidget(const SizedBox());
     },

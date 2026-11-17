@@ -197,6 +197,19 @@
   capture emits the destination's once the transition settles. The same
   happened on 0.10.11.
 
+- The route capture fired a transition duration after the Navigator
+  callback, while the transition could still be running and before the
+  covered route went offstage. The `route` inventory of a pushed page then
+  counted the covered page's spinner, and on an unnamed page whose
+  predecessor stays visible beneath it during the transition its `struct:`
+  key was computed over both pages: the page's route inventory and first taps
+  carried one key, every later inventory of the page another. The capture
+  (and the transition window that holds back other inventories) now goes at
+  once only when those routes are not animating and no frame is due, and
+  otherwise waits until two frames have passed with them at rest, bounded by
+  the route barrier timeout. Those route keys move to the settled
+  page's key. The same happened on 0.10.11.
+
 ### Removed
 
 - The local exploration WebSocket. `TugboatReplayConfig.explorationCollectorUrl`
