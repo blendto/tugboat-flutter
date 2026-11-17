@@ -219,7 +219,66 @@ Future<TugboatTargetAnchor?> _tapIn(
   return onboardingTaps().last.targetAnchor;
 }
 
+class _TwoHiddenRows extends StatelessWidget {
+  const _TwoHiddenRows();
+  @override
+  Widget build(BuildContext context) =>
+      Scaffold(body: ListView(children: [_hidden('A'), _hidden('B')]));
+}
+
+class _HiddenOnPages extends StatelessWidget {
+  const _HiddenOnPages();
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: PageView(
+      children: [
+        for (final label in ['P0', 'P1']) Center(child: _hidden(label)),
+      ],
+    ),
+  );
+}
+
+class _HiddenOnPage extends StatelessWidget {
+  const _HiddenOnPage();
+  @override
+  Widget build(BuildContext context) =>
+      Scaffold(body: Center(child: _hidden('Solo')));
+}
+
 void _boundaryTests() {
+  // Unchanged by the fix: the retained widget whose path the tap would take
+  // is the list's or the PageView's own, shared by every row or page, so the
+  // hidden control does not name the tap (it would merge distinct buttons).
+  for (final (name, page, label) in [
+    ('two hidden buttons as ListView rows', const _TwoHiddenRows(), 'A'),
+    ('a hidden button alone on a PageView page', const _HiddenOnPages(), 'P0'),
+  ]) {
+    testWidgets('$name keep the scrollable in production', (tester) async {
+      final production = await _tapIn(
+        tester,
+        page,
+        find.text(label),
+        exploration: false,
+      );
+      expect(production?.role, 'scrollable');
+    });
+  }
+
+  // Unchanged by the fix: with no enclosing control the tap keeps the path
+  // above the wrapper and reports no role.
+  testWidgets('a hidden button outside any scrollable reports no role', (
+    tester,
+  ) async {
+    final production = await _tapIn(
+      tester,
+      const _HiddenOnPage(),
+      find.text('Solo'),
+      exploration: false,
+    );
+    expect(production?.role, isNull);
+    expect(production?.canonicalPath, isNotEmpty);
+  });
+
   // Before the fix this tap was the ListView's Scrollable in production and
   // unresolved in exploration.
   testWidgets('a sole hidden button in a ListView is the button in both '

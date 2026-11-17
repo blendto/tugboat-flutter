@@ -181,6 +181,33 @@ class _CarouselState extends State<_Carousel> {
   );
 }
 
+/// The marquee with a button that reveals another one, after a delay.
+class _MarqueeWithReveal extends StatefulWidget {
+  const _MarqueeWithReveal();
+  @override
+  State<_MarqueeWithReveal> createState() => _MarqueeWithRevealState();
+}
+
+class _MarqueeWithRevealState extends State<_MarqueeWithReveal> {
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      const Expanded(child: LogoOnboardingMarquee()),
+      FilledButton(
+        onPressed: () => Future<void>.delayed(
+          const Duration(milliseconds: 600),
+          () => setState(() => _revealed = true),
+        ),
+        child: const Text('Reveal'),
+      ),
+      if (_revealed)
+        FilledButton(onPressed: () {}, child: const Text('Revealed')),
+    ],
+  );
+}
+
 List<Map<String, Object?>> _elements(Map<String, Object?> inventory) => [
   for (final e in inventory['elements']! as List) (e as Map).cast(),
 ];
@@ -281,6 +308,30 @@ void main() {
       expect(all.skip(1).map((e) => e['trigger']), everyElement('scroll'));
     });
   }
+
+  // The marquee ends a programmatic scroll every frame; that must not
+  // relabel the re-sample a tap asked for.
+  testWidgets('a control a tap reveals beside a running marquee is listed '
+      'as tap', (tester) async {
+    await _mountNamed(
+      tester,
+      '/marquee',
+      (_) => const Scaffold(body: _MarqueeWithReveal()),
+    );
+    await tester.tap(find.text('Reveal'));
+    await waitForTugboatCaptureWork(tester);
+    await _pumpFor(tester, const Duration(seconds: 5));
+    await waitForTugboatCaptureWork(tester);
+
+    final revealing = [
+      for (final inventory in _inventories())
+        if (_elements(inventory).length >
+            _elements(_inventories().first).length)
+          inventory,
+    ];
+    expect(revealing, hasLength(1));
+    expect(revealing.single['trigger'], 'tap');
+  });
 
   testWidgets('a Continue revealed by a row tap is listed once, as tap', (
     tester,

@@ -613,7 +613,9 @@ The rules:
    end of a scroll, and any inventory a capture builds, including one that
    finds nothing to list yet (a full-screen spinner). The next re-sample is
    labelled with the moment that asked for it (`tap`, `gesture`, `scroll`),
-   else `settled`, and the label is used once. A re-sample is never taken on
+   else `settled`, and the label is used once. A programmatic scroll end
+   does not replace a pending `tap` or `gesture` label (a tap that animates a
+   `PageView`, a tap beside a running marquee). A re-sample is never taken on
    a rebuild or a frame as such.
 2. **When.** One watch per route visit (route epoch) decides when, with the
    settled watch's frame rules. An armed watch parks one post-frame callback
@@ -778,28 +780,33 @@ fingerprint, and so does its production tap.
   subtree from the token map like any excluded subtree. A tap on it keeps the
   path of the nearest retained widget above the wrapper (the pointer-down
   fallback of 0.10.10), at `low` confidence, in both modes.
-  - **The hidden control names the tap** when the hit path shows it: the first
-    `RenderExcludeSemantics` on the path that the token map recorded as a
-    subtree root (one inside the hidden subtree, such as the button's own
-    `Icon`, is looked past), and below it a chain of single children leads
-    to the first role, a control that is not a scrollable, which the hit
-    reaches. Then the
-    tap's `role`, `enabled`, `actions`, `widgetType` and box are the hidden
-    control's, and no enclosing scrollable takes over its identity. So a
-    hidden button inside a `PageView` or a list (Blend's onboarding Continue,
-    under `Visibility` and `AnimatedOpacity`) is that button in both modes,
+  - **Inside a scrollable, the hidden control names the tap** when the hit
+    path shows it and its path is its own. On the path: the first
+    `RenderExcludeSemantics` the token map recorded as a subtree root (one
+    inside the hidden subtree, such as the button's own `Icon`, is looked
+    past), and below it a chain of single children to the first role, a
+    control that is not a scrollable, which the hit reaches. Its own path:
+    every element from that root up to the retained widget whose path the
+    tap takes (Blend's `PillButton`) has a single child and is no list
+    container. Then the tap's `role`, `enabled`, `actions`, `widgetType` and
+    box are the hidden control's instead of the scrollable's, in both modes,
     and when its `onPressed` animates the scrollable the pointer-down rule
-    below keeps it. Before, its tap took the scrollable's fingerprint, or in
-    exploration a row that listed the scrollable's fingerprint as an alias.
-    The rule follows only the chain, never the subtree, so production pays a
-    few element visits for taps through such a wrapper and nothing for
-    others.
-  - **Unchanged:** a fork above the first hidden control (two buttons under
-    one wrapper, a hidden list) names nothing; a hidden control inside
-    another control (an `InkWell` around the wrapper) keeps that control as
-    its identity; neither fingerprint, `routeKey` nor `struct:` signature
-    moves. A tap on a hidden control outside any scrollable keeps its
-    fingerprint and now reports the control's role and box instead of none.
+    below keeps it. So Blend's onboarding Continue (in a `PageView`, under
+    `Visibility` and `AnimatedOpacity`) is that button. Before, its tap took
+    the `PageView`'s fingerprint, or in exploration a row that listed that
+    fingerprint as an alias. The rule follows only the two chains, never the
+    subtree, so production pays a few element visits for taps through such
+    a wrapper inside a scrollable and nothing for others.
+  - **Unchanged:** a hidden control with no enclosing control keeps the path
+    above the wrapper and no role, as since 0.10.10. The tap still names the
+    scrollable, as before, when the path is not the control's own (two
+    hidden buttons in one row, list rows or `PageView` pages whose only
+    retained widget is the scrollable's own, which would otherwise share one
+    fingerprint), when a fork sits above the first hidden control (two
+    buttons under one wrapper, a hidden list). A hidden control
+    inside another control (an `InkWell` around the wrapper) keeps that
+    control as its identity. No fingerprint, `routeKey` or `struct:`
+    signature moves outside the case above.
   - **Exploration inventories** list the hidden control as an entry: its
     fingerprint and `canonicalPath` are what a tap at the control's centre
     resolves to, its `role`, `actions` and `enabled` are the control's, and

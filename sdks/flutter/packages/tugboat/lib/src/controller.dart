@@ -6181,15 +6181,17 @@ class TugboatReplayController extends ChangeNotifier {
   }
 
   /// A programmatic scroll ended (an auto-scrolling marquee ends one every
-  /// frame). It builds nothing: the next re-sample is labelled `scroll`, and
-  /// the watch is armed if it is not, without resetting its back-off.
+  /// frame). It builds nothing: the next re-sample is labelled `scroll`
+  /// unless a tap or gesture already asked for it (a tap that animates a
+  /// `PageView`, a tap beside a running marquee), and the watch is armed if
+  /// it is not, without resetting its back-off.
   void _noteScrollEndMoment() {
     if (!config.settledInventoryResampleEnabled || !_settledWatchCanRun) {
       return;
     }
     final visit = _currentVisit();
     if (visit.capReached) return;
-    visit.pendingTrigger = 'scroll';
+    if (visit.pendingTrigger == 'settled') visit.pendingTrigger = 'scroll';
     final current = _settledWatch;
     if (current == null || current.routeEpoch != _routeEpoch) {
       _startSettledWatch();

@@ -67,6 +67,12 @@ class _TokenMap {
   /// The schema 6 walk of this same tree, built on first use for aliases.
   _TokenMap? legacyMap;
 
+  /// [excludedSemantics] by their `RenderExcludeSemantics`, built on first use.
+  late final Map<RenderObject, Element> excludedByRender = {
+    for (final excluded in excludedSemantics)
+      if (excluded.renderObject != null) excluded.renderObject!: excluded,
+  };
+
   /// The sheet or dialog widget class of this tree, computed once.
   bool surfaceClassKnown = false;
   String? surfaceClass;
@@ -1171,7 +1177,7 @@ class AnchorResolver {
     TugboatTargetAnchor? fallback;
     // Only the first retained element above the excluded subtree can be
     // named by the control hidden in it.
-    Element? hidden = _hiddenControlIf(nameHiddenControls, hitPath, tokenMap);
+    var hidden = _hiddenControlIf(nameHiddenControls, hitPath, tokenMap);
     for (final target in hitPath) {
       final element = _retainedHitElement(target, tokenMap);
       if (element == null) continue;
@@ -1204,7 +1210,7 @@ class AnchorResolver {
     return (anchor: roleOnly ?? fallback, hiddenControl: null);
   }
 
-  Element? _hiddenControlIf(
+  _HiddenControl? _hiddenControlIf(
     bool enabled,
     List<HitTestTarget> hitPath,
     _TokenMap tokenMap,
@@ -1247,17 +1253,13 @@ class AnchorResolver {
     Element? hiddenControl,
   }) {
     final described = _describeHit(hiddenControl ?? hitElement, tokenMap);
-    final identityElement = hiddenControl == null
-        ? _identityElementFor(hitElement, tokenMap)
-        : null;
+    final identity = _hitIdentity(hitElement, hiddenControl, tokenMap);
+    final identityElement = identity.element;
     final widgetType =
         _lowLevelIdentityName(identityElement, tokenMap) ??
         described.widgetType;
-    final bounds = _rawBoundsForElement(
-      identityElement ?? hiddenControl ?? hitElement,
-      rootRender,
-    );
-    final fpElement = identityElement ?? hitElement;
+    final bounds = _rawBoundsForElement(identity.box, rootRender);
+    final fpElement = identity.path;
     final routeKey = _resolveRouteKey(route, tokenMap);
     final tagId = _tagIdForElement(fpElement, tokenMap);
     // The path already carries hashed discriminators (e.g. `[item:a1b2]`), so
@@ -1293,6 +1295,25 @@ class AnchorResolver {
       relativePosition: _relativePosition(bounds, viewport),
       enabled: described.enabled,
       actions: described.actions,
+    );
+  }
+
+  /// The identity element of a hit (none for a hidden control, which keeps
+  /// [hitElement]'s path), the element whose path is hashed, and the element
+  /// whose box the anchor reports.
+  ({Element? element, Element path, Element box}) _hitIdentity(
+    Element hitElement,
+    Element? hiddenControl,
+    _TokenMap tokenMap,
+  ) {
+    if (hiddenControl != null) {
+      return (element: null, path: hitElement, box: hiddenControl);
+    }
+    final identity = _identityElementFor(hitElement, tokenMap);
+    return (
+      element: identity,
+      path: identity ?? hitElement,
+      box: identity ?? hitElement,
     );
   }
 

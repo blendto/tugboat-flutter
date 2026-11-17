@@ -153,22 +153,25 @@
   re-sample never saw it appear. Exploration inventories now list it under
   the identity a tap on it resolves to in both modes, with the hidden
   button's role, actions and paint box, and exploration taps join that entry.
-  No fingerprint or route key moves for such a button outside a scrollable;
-  its taps now report its role and box. The same happened on 0.10.11.
+  Production taps are unchanged, and no fingerprint or route key moves. The
+  same happened on 0.10.11.
 - A tap on such a button inside a scrollable named the scrollable. Blend's
   onboarding Continue (`Visibility` > `AnimatedOpacity` > `Semantics(button)`
   > `ExcludeSemantics` > `ElevatedButton`, whose `onPressed` animates the
   onboarding `PageView`) was the `PageView`'s `Scrollable` in production and,
   in exploration, the list row at the `PageView`'s centre, whose inventory
-  entry listed the `Scrollable`'s fingerprint as an alias. The hit path now
-  names a sole control hidden under `ExcludeSemantics` (found down a chain of
-  single children, no subtree walk) when nothing but a scrollable encloses
-  it, so both modes give the button, and the pointer-down rule keeps it when
-  its tap animates the `PageView`, also for a tap on the button's own icon.
-  A scrollable whose centre lands on such a control keeps its own inventory
-  entry. Moves: taps on such a control inside a scrollable. Two controls
-  under one wrapper, and a hidden control inside another control, are
-  unchanged. The same happened on 0.10.11.
+  entry listed the `Scrollable`'s fingerprint as an alias. Inside a
+  scrollable, the hit path now names a sole control hidden under
+  `ExcludeSemantics` (found down a chain of single children, no subtree
+  walk) when the retained widget whose path the tap takes holds that control
+  alone, so both modes give the button, and the pointer-down rule keeps it
+  when its tap animates the `PageView`, also for a tap on the button's own
+  icon. A scrollable whose centre lands on such a control keeps its own
+  inventory entry. Moves: taps on such a control inside a scrollable. Two
+  controls under one wrapper, hidden buttons with no retained widget of
+  their own (rows or pages that would share one path), a hidden control
+  inside another control, and one outside any scrollable are unchanged. The
+  same happened on 0.10.11.
 - A production tap on a control whose `onTap` animates the scrollable it sits
   in (a grid tile that calls `PageController.nextPage`) was fingerprinted as
   the scrollable, while exploration taps named the tile: the animated scroll

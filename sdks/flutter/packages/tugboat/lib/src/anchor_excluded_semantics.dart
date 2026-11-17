@@ -5,8 +5,12 @@ part of 'anchors.dart';
 const _excludedSemanticsWalkLimit = 400;
 
 /// Single-child levels followed at most from an excluded root down to the
-/// control a hit lands on.
+/// control a hit lands on, and up to the retained widget whose path it takes.
 const _hiddenChainLimit = 24;
+
+/// A control hidden under `ExcludeSemantics` that a hit lands on, and the
+/// root of the excluded subtree it is hidden in.
+typedef _HiddenControl = ({Element root, Element control});
 
 /// Controls an app builds under `ExcludeSemantics` to give them one semantics
 /// node of its own (`Semantics(label: ..., child: ExcludeSemantics(child:
@@ -168,37 +172,26 @@ extension TugboatExcludedSemanticsApi on AnchorResolver {
 
   /// The control a hit inside an excluded-semantics subtree lands on, found
   /// from the hit path alone: the subtree root is the first
-  /// `RenderExcludeSemantics` on the path, one the token map recorded, and
-  /// the control is the first role on a chain of single children below it
-  /// (`ExcludeSemantics` > `ElevatedButton`), when the hit reaches it. A root
-  /// with a fork above its first control (two hidden buttons, a hidden list)
-  /// gives null, so no two controls share the identity. No subtree walk:
-  /// only the chain, at most [_hiddenChainLimit] levels.
-  Element? _hiddenControlOnHitPath(
+  /// `RenderExcludeSemantics` on the path that the token map recorded (one
+  /// inside the hidden subtree, such as the button's `Icon`, is looked past),
+  /// and the control is the first role on a chain of single children below
+  /// it (`ExcludeSemantics` > `ElevatedButton`), when the hit reaches it. A
+  /// fork above the first control (two hidden buttons, a hidden list) gives
+  /// null. No subtree walk: only the chain, at most [_hiddenChainLimit]
+  /// levels.
+  _HiddenControl? _hiddenControlOnHitPath(
     List<HitTestTarget> hitPath,
     _TokenMap tokenMap,
   ) {
     if (tokenMap.excludedSemantics.isEmpty) return null;
     for (final target in hitPath) {
+      if (target is! RenderObject) continue;
       // A retained element first: the hit is not inside a skipped subtree.
-      if (target is RenderObject &&
-          tokenMap.renderElements.containsKey(target)) {
-        return null;
-      }
-      // An excluding render inside the skipped subtree (an `Icon` in the
-      // hidden button builds its own) was never recorded: look past it.
-      final root = _recordedExcludedRoot(target, tokenMap);
-      if (root != null) return _hiddenChainControl(root, hitPath, tokenMap);
-    }
-    return null;
-  }
-
-  /// The excluded-semantics root the token map recorded for [target], or
-  /// null when [target] is not one.
-  Element? _recordedExcludedRoot(HitTestTarget target, _TokenMap tokenMap) {
-    if (target is! RenderExcludeSemantics || !target.excluding) return null;
-    for (final excluded in tokenMap.excludedSemantics) {
-      if (identical(excluded.renderObject, target)) return excluded;
+      if (tokenMap.renderElements.containsKey(target)) return null;
+      final root = tokenMap.excludedByRender[target];
+      if (root == null) continue;
+      final control = _hiddenChainControl(root, hitPath, tokenMap);
+      return control == null ? null : (root: root, control: control);
     }
     return null;
   }
@@ -233,22 +226,52 @@ extension TugboatExcludedSemanticsApi on AnchorResolver {
     return count == 1 ? only : null;
   }
 
-  /// [hidden] names a hit whose first retained element is [element] when no
-  /// control other than a scrollable encloses it: then the tap is the hidden
-  /// control (role, actions, box) at [element]'s path, the path a tap on it
-  /// has always had when nothing encloses it. A hidden control inside a
-  /// scrollable (Blend's onboarding Continue in a `PageView`) no longer
-  /// takes the scrollable's identity. Inside another control (an `InkWell`
-  /// around the wrapper) that control stays the identity, as before.
+  /// [hidden] names a hit whose first retained element is [element] when a
+  /// scrollable is what would otherwise be its identity (Blend's onboarding
+  /// Continue in a `PageView`), and the retained widget whose path the tap
+  /// takes holds this control alone ([_ownsHiddenRoot]). The tap is then the
+  /// hidden control (role, actions, box) at that path. Otherwise nothing
+  /// changes: with no enclosing control the tap keeps the path and no role
+  /// (0.10.10), and inside another control (an `InkWell` around the wrapper)
+  /// that control stays the identity.
   Element? _hiddenControlNaming(
-    Element? hidden,
+    _HiddenControl? hidden,
     Element element,
     _TokenMap tokenMap,
   ) {
     if (hidden == null) return null;
     final enclosing = _identityElementFor(element, tokenMap);
-    if (enclosing == null) return hidden;
-    final role = tugboatRoleForWidget(enclosing.widget);
-    return role?.name == 'scrollable' ? hidden : null;
+    if (enclosing == null) return null;
+    if (tugboatRoleForWidget(enclosing.widget)?.name != 'scrollable') {
+      return null;
+    }
+    return _ownsHiddenRoot(hidden.root, element, tokenMap)
+        ? hidden.control
+        : null;
   }
+
+  /// Whether every element from [root] up to the retained widget whose path
+  /// a hit at [hitElement] takes (the first tokenized element at or above
+  /// [hitElement]) has a single child and is no list container. Then that
+  /// path names this one control: two hidden buttons in one list row, list
+  /// rows with no retained widget of their own, or pages of a `PageView`
+  /// whose only retained widget is the scrollable's own would otherwise share
+  /// it.
+  bool _ownsHiddenRoot(Element root, Element hitElement, _TokenMap tokenMap) {
+    var owns = false;
+    var reachedHit = false;
+    var level = 0;
+    root.visitAncestorElements((ancestor) {
+      if (++level > _hiddenChainLimit || !_isSoleChildLevel(ancestor)) {
+        return false;
+      }
+      reachedHit = reachedHit || identical(ancestor, hitElement);
+      owns = reachedHit && tokenMap.tokens.containsKey(ancestor);
+      return !owns;
+    });
+    return owns;
+  }
+
+  bool _isSoleChildLevel(Element element) =>
+      _onlyChild(element) != null && !_isListContainer(element.widget);
 }
