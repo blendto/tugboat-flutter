@@ -22,6 +22,9 @@
   `user_changed`, is dropped instead of being retried on every flush, where
   it held every later lifecycle post, `session_end` included. A rejected
   `session_start` is still retried, because uploads wait for its session id.
+- A session started while the previous one was still ending no longer
+  receives that session's `session_end`, and keeps its periodic flush. The
+  ending session stops at the switch.
 
 ### Added
 

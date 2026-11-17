@@ -409,20 +409,28 @@ class CollectorHttpSink implements TugboatCaptureSink {
   @override
   Future<void> endSession() async {
     if (_disposed || _session == null) return;
+    // A new session can start while this one drains. From then on the queues
+    // and the flush timer are the new session's, so stop touching them.
+    final epoch = _sessionEpoch;
     await _flushIdentityDebounce();
     await flush();
-    // Drop diagnostics are sampled at powers of two; send the final count so
-    // the session's true gap is visible.
-    if (_droppedFrameCount > _reportedDroppedFrameCount) {
-      _recordDropDiagnostic();
-      await flush();
-    }
+    await _flushFinalDropCount(epoch);
+    if (!_isCurrentEpoch(epoch)) return;
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionEnd.wireValue,
       DateTime.now(),
     );
     await _drainLifecyclePosts();
-    _cancelFlushTimer();
+    if (_isCurrentEpoch(epoch)) _cancelFlushTimer();
+  }
+
+  /// Drop diagnostics are sampled at powers of two; sends the final count so
+  /// the session's true gap is visible.
+  Future<void> _flushFinalDropCount(int epoch) async {
+    if (!_isCurrentEpoch(epoch)) return;
+    if (_droppedFrameCount <= _reportedDroppedFrameCount) return;
+    _recordDropDiagnostic();
+    await flush();
   }
 
   @override
@@ -475,7 +483,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
   }
 
   Future<void> _drainLifecyclePosts() async {
-    while (!_disposed && _pendingLifecycle.isNotEmpty) {
+    final epoch = _sessionEpoch;
+    while (_isCurrentEpoch(epoch) && _pendingLifecycle.isNotEmpty) {
       final head = _pendingLifecycle.first;
       await flush();
       // Stop only when the head was not accepted (still retrying). Advancing

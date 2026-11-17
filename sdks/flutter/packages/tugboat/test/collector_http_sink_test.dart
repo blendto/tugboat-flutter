@@ -1309,6 +1309,42 @@ void main() {
     },
   );
 
+  test(
+    'a session started while the last one ends does not get its session_end',
+    () async {
+      final lifecycle = <String>[];
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            final body = jsonDecode(request.body) as Map;
+            lifecycle.add('${body['eventType']}:${body['sessionId']}');
+            return http.Response(
+              jsonEncode({'sessionId': 'server-${body['sessionId']}'}),
+              202,
+            );
+          }
+          // Keep the ending session's flush busy long enough to restart.
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession(id: 'first'));
+      await sink.flush();
+      sink.recordEvent(createEvent(0));
+
+      final ending = sink.endSession();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      sink.startSession(createSession(id: 'second'));
+      await ending;
+      await sink.flush();
+
+      expect(lifecycle, ['session_start:first', 'session_start:second']);
+      sink.dispose();
+    },
+  );
+
   test('accepts empty 202 lifecycle body without retrying', () async {
     sessionResponseBody = '';
     final sink = CollectorHttpSink(config: configForServer());
