@@ -1130,6 +1130,57 @@ void main() {
     sink.dispose();
   });
 
+  test('a timed-out post is aborted instead of left open', () async {
+    // A raw socket server answers session posts and never answers events, so
+    // the test sees whether the client closes the hung connection.
+    final rawServer = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final eventSocketClosed = Completer<void>();
+    rawServer.listen((socket) {
+      var carriesEventPost = false;
+      socket.listen(
+        (data) {
+          final text = latin1.decode(data);
+          if (text.startsWith('POST /v1/sessions')) {
+            const body = '{"sessionId":"sess_server"}';
+            socket.write(
+              'HTTP/1.1 202 Accepted\r\n'
+              'content-type: application/json\r\n'
+              'content-length: ${body.length}\r\n\r\n$body',
+            );
+          } else if (text.startsWith('POST /v1/events/batch')) {
+            carriesEventPost = true;
+          }
+        },
+        onDone: () {
+          if (carriesEventPost && !eventSocketClosed.isCompleted) {
+            eventSocketClosed.complete();
+          }
+          socket.destroy();
+        },
+        onError: (Object _) {},
+      );
+    });
+    baseUri = Uri.parse('http://127.0.0.1:${rawServer.port}');
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      requestTimeout: const Duration(milliseconds: 100),
+    );
+    sink.startSession(createSession());
+    await sink.flush();
+    for (var i = 0; i < 10; i++) {
+      sink.recordEvent(createEvent(i));
+    }
+    await sink.flush();
+
+    // Without the abort the socket stays open until the sink is disposed.
+    await expectLater(
+      eventSocketClosed.future.timeout(const Duration(seconds: 2)),
+      completes,
+    );
+    sink.dispose();
+    await rawServer.close();
+  });
+
   test('a hung session_start post times out and is retried', () async {
     var sessionPosts = 0;
     final frameNos = <String>[];

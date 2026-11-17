@@ -558,14 +558,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     );
 
     try {
-      final response = await _tracedResponse(
-        '/v1/sessions',
-        () => _client.post(
-          _baseUri.resolve('/v1/sessions'),
-          headers: _CollectorHttpClient._jsonHeaders,
-          body: jsonEncode(body),
-        ),
-      ).timeout(_requestTimeout);
+      final response = await _postJson('/v1/sessions', body);
 
       final result = _classifyResponse(response.statusCode);
       if (!_isCurrentEpoch(epoch)) return result;
@@ -703,14 +696,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     }
 
     try {
-      final response = await _tracedResponse(
-        '/v1/events/batch',
-        () => _client.post(
-          _baseUri.resolve('/v1/events/batch'),
-          headers: _CollectorHttpClient._jsonHeaders,
-          body: jsonEncode({'events': events}),
-        ),
-      ).timeout(_requestTimeout);
+      final response = await _postJson('/v1/events/batch', {'events': events});
 
       final result = _classifyResponse(response.statusCode);
       if (_isCurrentEpoch(epoch)) {
@@ -924,11 +910,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
     List<_PendingFrameUpload> uploads,
   ) async {
     try {
-      final request = _frameUploadRequest(sessionId, uploads);
-      final response = await _tracedResponse(
+      final response = await _sendTimed(
         '/v1/frames',
-        () async => http.Response.fromStream(await _client.send(request)),
-      ).timeout(_requestTimeout);
+        (abortTrigger) => _frameUploadRequest(sessionId, uploads, abortTrigger),
+      );
       return (
         result: _classifyResponse(response.statusCode),
         statusCode: response.statusCode,
@@ -938,13 +923,52 @@ class CollectorHttpSink implements TugboatCaptureSink {
     }
   }
 
+  Future<http.Response> _postJson(String path, Object body) {
+    return _sendTimed(
+      path,
+      (abortTrigger) =>
+          http.AbortableRequest(
+              'POST',
+              _baseUri.resolve(path),
+              abortTrigger: abortTrigger,
+            )
+            ..headers.addAll(_CollectorHttpClient._jsonHeaders)
+            ..body = jsonEncode(body),
+    );
+  }
+
+  /// Sends one collector request and aborts it once [_requestTimeout]
+  /// passes. Giving up on the future alone would leave the socket open, and
+  /// the request body (up to a batch of frames) held, until the OS times the
+  /// connection out; a retry would then open another. Throws
+  /// [TimeoutException] on timeout.
+  Future<http.Response> _sendTimed(
+    String path,
+    http.BaseRequest Function(Future<void> abortTrigger) build,
+  ) {
+    final abort = Completer<void>();
+    return _tracedResponse(
+      path,
+      () async =>
+          http.Response.fromStream(await _client.send(build(abort.future))),
+    ).timeout(
+      _requestTimeout,
+      onTimeout: () {
+        abort.complete();
+        throw TimeoutException('collector request timed out', _requestTimeout);
+      },
+    );
+  }
+
   http.MultipartRequest _frameUploadRequest(
     String sessionId,
     List<_PendingFrameUpload> uploads,
+    Future<void> abortTrigger,
   ) {
-    final request = http.MultipartRequest(
+    final request = http.AbortableMultipartRequest(
       'POST',
       _baseUri.resolve('/v1/frames'),
+      abortTrigger: abortTrigger,
     );
     request.fields['sessionId'] = sessionId;
     request.fields['frameNos'] = uploads

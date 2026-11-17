@@ -21,7 +21,7 @@ dependencies:
   disk_space_plus: ^0.2.6
   flutter:
     sdk: flutter
-  http: ^1.4.0
+  http: ^1.5.0
   image: ^4.5.4
   package_info_plus: ^8.0.1
   http_parser: ^4.1.2
