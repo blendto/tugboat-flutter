@@ -4,6 +4,10 @@ part of 'anchors.dart';
 /// control it hides; a larger subtree is not reported.
 const _excludedSemanticsWalkLimit = 400;
 
+/// Single-child levels followed at most from an excluded root down to the
+/// control a hit lands on.
+const _hiddenChainLimit = 24;
+
 /// Controls an app builds under `ExcludeSemantics` to give them one semantics
 /// node of its own (`Semantics(label: ..., child: ExcludeSemantics(child:
 /// ElevatedButton(...)))`). The token map skips such a subtree, so a tap on
@@ -133,8 +137,9 @@ extension TugboatExcludedSemanticsApi on AnchorResolver {
   }
 
   /// What a tap at the centre of [control] resolves to, when that tap reaches
-  /// the control and resolves to a path with no role (the widget above the
-  /// skipped subtree). Null otherwise.
+  /// the control and names it: the control itself names the hit
+  /// ([_hiddenControlNaming]), or the hit resolves to a path with no role
+  /// (the widget above the skipped subtree). Null otherwise.
   TugboatTargetAnchor? _hiddenControlTarget(
     Element control,
     Offset center, {
@@ -149,12 +154,94 @@ extension TugboatExcludedSemanticsApi on AnchorResolver {
       (entry) => identical(entry.target, controlRender),
     );
     if (!hitsControl) return null;
-    final target = _targetFromHitPath(
+    final resolved = _resolveHitPath(
       AnchorResolver._hitTargets(result),
       route: route,
       tokenMap: tokenMap,
       rootRender: rootRender,
     );
-    return target == null || target.role != null ? null : target;
+    final target = resolved.anchor;
+    if (target == null) return null;
+    if (identical(resolved.hiddenControl, control)) return target;
+    return target.role != null ? null : target;
+  }
+
+  /// The control a hit inside an excluded-semantics subtree lands on, found
+  /// from the hit path alone: the subtree root is the first
+  /// `RenderExcludeSemantics` on the path, one the token map recorded, and
+  /// the control is the first role on a chain of single children below it
+  /// (`ExcludeSemantics` > `ElevatedButton`), when the hit reaches it. A root
+  /// with a fork above its first control (two hidden buttons, a hidden list)
+  /// gives null, so no two controls share the identity. No subtree walk:
+  /// only the chain, at most [_hiddenChainLimit] levels.
+  Element? _hiddenControlOnHitPath(
+    List<HitTestTarget> hitPath,
+    _TokenMap tokenMap,
+  ) {
+    if (tokenMap.excludedSemantics.isEmpty) return null;
+    for (final target in hitPath) {
+      if (target is RenderExcludeSemantics && target.excluding) {
+        return _hiddenChainControl(target, hitPath, tokenMap);
+      }
+      // A retained element first: the hit is not inside a skipped subtree.
+      if (target is RenderObject &&
+          tokenMap.renderElements.containsKey(target)) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  Element? _hiddenChainControl(
+    RenderExcludeSemantics render,
+    List<HitTestTarget> hitPath,
+    _TokenMap tokenMap,
+  ) {
+    Element? root;
+    for (final excluded in tokenMap.excludedSemantics) {
+      if (identical(excluded.renderObject, render)) root = excluded;
+    }
+    if (root == null || !_parentIsIncluded(root, tokenMap)) return null;
+    var current = root;
+    for (var level = 0; level < _hiddenChainLimit; level++) {
+      final child = _onlyChild(current);
+      if (child == null) return null;
+      final role = tugboatRoleForWidget(child.widget);
+      if (role != null) {
+        if (role.name == 'scrollable') return null;
+        return hitPath.contains(child.renderObject) ? child : null;
+      }
+      current = child;
+    }
+    return null;
+  }
+
+  static Element? _onlyChild(Element element) {
+    Element? only;
+    var count = 0;
+    element.visitChildElements((child) {
+      only = child;
+      count++;
+    });
+    return count == 1 ? only : null;
+  }
+
+  /// [hidden] names a hit whose first retained element is [element] when no
+  /// control other than a scrollable encloses it: then the tap is the hidden
+  /// control (role, actions, box) at [element]'s path, the path a tap on it
+  /// has always had when nothing encloses it. A hidden control inside a
+  /// scrollable (Blend's onboarding Continue in a `PageView`) no longer
+  /// takes the scrollable's identity. Inside another control (an `InkWell`
+  /// around the wrapper) that control stays the identity, as before.
+  Element? _hiddenControlNaming(
+    Element? hidden,
+    Element element,
+    _TokenMap tokenMap,
+  ) {
+    if (hidden == null) return null;
+    final enclosing = _identityElementFor(element, tokenMap);
+    if (enclosing == null) return hidden;
+    final role = tugboatRoleForWidget(enclosing.widget);
+    return role?.name == 'scrollable' ? hidden : null;
   }
 }

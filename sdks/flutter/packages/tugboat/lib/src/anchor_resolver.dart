@@ -1143,35 +1143,58 @@ class AnchorResolver {
     required String? route,
     required _TokenMap tokenMap,
     required RenderBox rootRender,
+  }) => _resolveHitPath(
+    hitPath,
+    route: route,
+    tokenMap: tokenMap,
+    rootRender: rootRender,
+  ).anchor;
+
+  /// The anchor for [hitPath] and, when a control hidden under
+  /// `ExcludeSemantics` names it, that control.
+  ({TugboatTargetAnchor? anchor, Element? hiddenControl}) _resolveHitPath(
+    List<HitTestTarget> hitPath, {
+    required String? route,
+    required _TokenMap tokenMap,
+    required RenderBox rootRender,
   }) {
     final viewport = rootRender.size;
     TugboatTargetAnchor? roleOnly;
     TugboatTargetAnchor? fallback;
+    // Only the first retained element above the excluded subtree can be
+    // named by the control hidden in it.
+    var hidden = _hiddenControlOnHitPath(hitPath, tokenMap);
     for (final target in hitPath) {
       if (target is! RenderObject || !target.attached) continue;
       final element = tokenMap.renderElements[target];
       if (element == null || _isSkippedChrome(element, tokenMap)) continue;
 
+      final named = _hiddenControlNaming(hidden, element, tokenMap);
+      hidden = null;
       final anchor = _anchorForElement(
         hitElement: element,
         rootRender: rootRender,
         viewport: viewport,
         route: route,
         tokenMap: tokenMap,
+        hiddenControl: named,
       );
+      if (named != null) return (anchor: anchor, hiddenControl: named);
       final hasPath = anchor.canonicalPath?.isNotEmpty ?? false;
       // Prefer an anchor that is both actionable and structurally addressable.
       // A role without a canonical path (e.g. a Texture overlay with a
       // long-press ancestor) cannot join a scene inventory, so keep scanning
       // for a deeper hit entry that can.
-      if (anchor.role != null && hasPath) return anchor;
+      if (anchor.role != null && hasPath) {
+        return (anchor: anchor, hiddenControl: null);
+      }
       if (anchor.role != null) {
         roleOnly ??= anchor;
       } else {
         fallback ??= anchor;
       }
     }
-    return roleOnly ?? fallback;
+    return (anchor: roleOnly ?? fallback, hiddenControl: null);
   }
 
   /// A low-level identity (a Listener, a tap Semantics) names itself rather
@@ -1189,13 +1212,87 @@ class AnchorResolver {
       tugboatIsCaptureChrome(element.widget) &&
       !tokenMap.newRoleCandidates.contains(element);
 
+  /// [hiddenControl] is a control hidden under `ExcludeSemantics` that names
+  /// this hit ([_hiddenControlNaming]): it supplies the role, actions, widget
+  /// type and box, and the hit keeps [hitElement]'s path, the identity a tap
+  /// on such a control has always had when nothing encloses it.
   TugboatTargetAnchor _anchorForElement({
     required Element hitElement,
     required RenderBox rootRender,
     required Size viewport,
     required String? route,
     required _TokenMap tokenMap,
+    Element? hiddenControl,
   }) {
+    final described = _describeHit(hiddenControl ?? hitElement, tokenMap);
+    final identityElement = hiddenControl == null
+        ? _identityElementFor(hitElement, tokenMap)
+        : null;
+    final widgetType =
+        _lowLevelIdentityName(identityElement, tokenMap) ??
+        described.widgetType;
+    final bounds = _rawBoundsForElement(
+      identityElement ?? hiddenControl ?? hitElement,
+      rootRender,
+    );
+    final fpElement = identityElement ?? hitElement;
+    final routeKey = _resolveRouteKey(route, tokenMap);
+    final tagId = _tagIdForElement(fpElement, tokenMap);
+    // The path already carries hashed discriminators (e.g. `[item:a1b2]`), so
+    // it is the sole structural determinant of identity.
+    final path = _pathFor(fpElement, tokenMap);
+
+    // Hash input includes the full structural path. It is the determinant of
+    // identity but far too verbose to ship on every event, so it stays here.
+    final fingerprint = _fingerprintForParts({
+      'routeKey': routeKey,
+      'path': path,
+    });
+
+    return TugboatTargetAnchor(
+      schemaVersion: tugboatFingerprintSchemaVersion,
+      widgetType: widgetType,
+      role: described.role,
+      fingerprint: fingerprint.isEmpty ? null : fingerprint,
+      fingerprintConfidence: fingerprint.isEmpty
+          ? null
+          : _anchorConfidence(routeKey, fpElement, tokenMap),
+      tagFingerprint: tagId == null
+          ? null
+          : _fingerprintForParts({'routeKey': routeKey, 'tag': tagId}),
+      // Serialized evidence: only the small, human-meaningful fields. The
+      // full path lives in [fingerprint], not on the wire.
+      fingerprintParts: {
+        'schemaVersion': tugboatFingerprintSchemaVersion.toString(),
+        'routeKey': routeKey,
+        if (tagId != null) 'tag': tagId,
+      },
+      canonicalPath: path,
+      relativePosition: _relativePosition(bounds, viewport),
+      enabled: described.enabled,
+      actions: described.actions,
+    );
+  }
+
+  /// A structural list position keeps sibling controls distinct without
+  /// making visible copy or icon data part of their identity.
+  String _anchorConfidence(
+    String routeKey,
+    Element fpElement,
+    _TokenMap tokenMap,
+  ) {
+    final hasItemPosition = _hasInheritedItemPosition(fpElement, tokenMap);
+    return _confidenceFloor([
+      _routeKeyConfidence(routeKey),
+      hasItemPosition ? 'medium' : 'low',
+    ]);
+  }
+
+  /// Role, enabled state and actions of the first role at or above
+  /// [inspected] (actions of every role on the way), and the widget type: the
+  /// first role widget, else the first widget that is not capture chrome.
+  ({String? role, bool? enabled, List<String> actions, String? widgetType})
+  _describeHit(Element inspected, _TokenMap tokenMap) {
     String? role;
     bool? enabled;
     final actions = <String>{};
@@ -1216,63 +1313,16 @@ class AnchorResolver {
       }
     }
 
-    inspectElement(hitElement);
-    hitElement.visitAncestorElements((ancestor) {
+    inspectElement(inspected);
+    inspected.visitAncestorElements((ancestor) {
       inspectElement(ancestor);
       return true;
     });
-
-    final identityElement = _identityElementFor(hitElement, tokenMap);
-    widgetType = _lowLevelIdentityName(identityElement, tokenMap) ?? widgetType;
-    final anchorElement = identityElement ?? hitElement;
-
-    final bounds = _rawBoundsForElement(anchorElement, rootRender);
-
-    final relativePosition = _relativePosition(bounds, viewport);
-    final sortedActions = actions.toList()..sort();
-
-    final routeKey = _resolveRouteKey(route, tokenMap);
-    final fpElement = identityElement ?? hitElement;
-    final tagId = _tagIdForElement(fpElement, tokenMap);
-    // The path already carries hashed discriminators (e.g. `[item:a1b2]`), so
-    // it is the sole structural determinant of identity.
-    final path = _pathFor(fpElement, tokenMap);
-
-    // Hash input includes the full structural path. It is the determinant of
-    // identity but far too verbose to ship on every event, so it stays here.
-    final hashParts = <String, String>{'routeKey': routeKey, 'path': path};
-    final fingerprint = _fingerprintForParts(hashParts);
-    final tagFingerprint = tagId == null
-        ? null
-        : _fingerprintForParts({'routeKey': routeKey, 'tag': tagId});
-
-    // Serialized evidence: only the small, human-meaningful fields. The full
-    // path lives in [fingerprint], not on the wire.
-    final fingerprintParts = <String, String>{
-      'schemaVersion': tugboatFingerprintSchemaVersion.toString(),
-      'routeKey': routeKey,
-      if (tagId != null) 'tag': tagId,
-    };
-
-    // A structural list position keeps sibling controls distinct without
-    // making visible copy or icon data part of their identity.
-    final hasItemPosition = _hasInheritedItemPosition(fpElement, tokenMap);
-    final pathConfidence = hasItemPosition ? 'medium' : 'low';
-
-    return TugboatTargetAnchor(
-      schemaVersion: tugboatFingerprintSchemaVersion,
-      widgetType: widgetType,
+    return (
       role: role,
-      fingerprint: fingerprint.isEmpty ? null : fingerprint,
-      fingerprintConfidence: fingerprint.isEmpty
-          ? null
-          : _confidenceFloor([_routeKeyConfidence(routeKey), pathConfidence]),
-      tagFingerprint: tagFingerprint,
-      fingerprintParts: fingerprintParts,
-      canonicalPath: path,
-      relativePosition: relativePosition,
       enabled: enabled,
-      actions: sortedActions,
+      actions: actions.toList()..sort(),
+      widgetType: widgetType,
     );
   }
 
