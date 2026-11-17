@@ -206,10 +206,12 @@ Pointer work and post-interaction capture are serialized through a controller
 queue. An error in one queued task is caught and logged so later taps, scrolls,
 and route captures continue.
 
-The scroll-start, scroll-update and scroll-end inventories of a programmatic
-scroll (one no pointer drives: `jumpTo`, an auto-scrolling marquee) are built
-only once the render tree is laid out. When a frame is under way before its
-post-frame callbacks, or one is scheduled, the inventory waits for the next
+A programmatic scroll (one no pointer drives: `jumpTo`, an auto-scrolling
+marquee) captures no frame, so it builds no scene inventory of its own (see
+[Re-sample](#re-sample-moments-plus-novelty-and-trigger)); its scroll-start,
+scroll-update and scroll-end inventories are built for the viewport semantic
+map only, and only once the render tree is laid out. When a frame is under
+way before its post-frame callbacks, or one is scheduled, the inventory waits for the next
 post-frame callback and is dropped if the session, capture lifecycle or route
 changed meanwhile; otherwise it is built at once, as before. Building it with
 layout dirty hit-tested stale boxes and tripped `!debugNeedsLayout` in
@@ -575,7 +577,7 @@ elements gets a `loading` with the tree's `progressIndicators` and zero
 `placeholders` and `busyControls`. An injected entry is never marked
 `placeholder` or busy, because the SDK has its anchor, not its element.
 
-### Settled re-sample and `trigger`
+### Re-sample: moments plus novelty, and `trigger`
 
 Every scene inventory carries `trigger`, the reason it was taken:
 
@@ -584,62 +586,106 @@ Every scene inventory carries `trigger`, the reason it was taken:
 | `initial` | the first capture of a session |
 | `resume` | the app returns to the foreground |
 | `route` | the visible route changes |
-| `tap` | a tap, at pointer-up or by its after-capture |
-| `scroll` | scroll start, update or end, including the scroll-end capture |
-| `gesture` | the after-capture of a swipe, pan or zoom |
-| `settled` | the settled re-sample below |
+| `tap` | a tap, at pointer-up or by its after-capture; a re-sample after a tap |
+| `scroll` | a frame captured during a scroll or at its end; a re-sample after a scroll end |
+| `gesture` | the after-capture of a swipe, pan or zoom; a re-sample after one |
+| `settled` | a re-sample with no interaction (a page that loads) |
 | `manual` | a manual capture |
 
 `trigger` is not part of `inventoryHash`, `routeKey` or the emission
 de-duplication key, and it is never added to viewport semantic maps.
 
-**Settled re-sample** is on by default in exploration mode (it needs
-`emitSceneInventory: true`). It catches a page that loads after its first
-inventory (a `FutureBuilder`, a paginated list), which otherwise shows only its
-placeholder layout until the next tap or route change. Production captures
-(`emitSceneInventory: false`, the default) run none of it: no watch, no frame
-callback, no timer and no extra field.
-
-To turn it off in exploration, set `resampleSettledInventory: false` on
-`TugboatReplayConfig`. With it off, a tap, scroll and route flow emits exactly
-the inventories it emitted before this change. With it on, the only additional
-inventories carry `trigger: "settled"`.
+**Re-sampling** is on by default in exploration mode (it needs
+`emitSceneInventory: true`) and catches what appears after an inventory
+without a new capture: a control an interaction reveals (Blend's onboarding
+Continue, shown once a row is picked), content that loads (a `FutureBuilder`,
+a skeleton or a full-screen spinner replaced by content), and what a scroll
+brings into view. Production captures (`emitSceneInventory: false`, the
+default) run none of it: no watch, no frame callback, no timer and no extra
+field. To turn it off in exploration, set `resampleSettledInventory: false` on
+`TugboatReplayConfig`; route, tap, initial, resume, manual, gesture and
+frame-tied scroll inventories are emitted either way.
 
 The rules:
 
-1. **Arming.** Every inventory the capture flows build for emission arms a
-   watch for the current route epoch, whether it was emitted or de-duplicated.
-   One already armed for the same epoch just returns to its shortest window.
-2. **Cost while idle.** An armed watch parks one post-frame callback and holds
-   no timer. A page that draws no frame is never re-sampled, however long the
-   watch stays armed, so a page that loads after 8 s or 60 s is still caught.
-3. **Windows.** A drawn frame opens a window, 400 ms at first. A window with no
-   frame in it means the page is quiet, and the inventory is re-sampled (unless
-   a frame is already scheduled, which opens the next window). A window with
-   frames opens another one, until 2 s of continuous activity forces a sample,
-   so content that loads beside a spinner that never stops is still caught.
-4. **Back-off.** A sample that finds nothing new doubles the window, up to
-   6.4 s. A sample that emits, or a new inventory on the route, resets it. A
-   blinking cursor or a looping animation is re-sampled ever more rarely, never
-   more than once per window, and never emits.
-5. **What emits.** A sample emits with `trigger: "settled"` only when its
-   structural signature was never emitted for its route key this session. The
-   signature is `inventoryHash`, the element count, the `loading` counts, and
-   each element's `boundsNorm` quantised to a 2% grid with its `placeholder`
-   flag, joined and hashed. So loaded content with the same fingerprints but a
-   new layout, or a skeleton replaced in place, emits; sub-pixel jitter does
-   not (a box that sits exactly on a grid edge can flip once); and a layout that
-   loops between two states emits each state at most once.
-6. **Cap.** At most five settled inventories per route key per session, and
-   at most five per route visit (route epoch), because an unnamed page's
-   `struct:` route key can change as its content loads. When either is
-   reached the watch stops, and it is not re-armed for that key or visit.
-7. **Ending.** The watch ends on any visible route change, capture pause,
+1. **Moments.** A re-sample is asked for by a moment: a tap or gesture whose
+   inventory was built (the main case: controls revealed by interaction), the
+   end of a scroll, and any inventory a capture builds, including one that
+   finds nothing to list yet (a full-screen spinner). The next re-sample is
+   labelled with the moment that asked for it (`tap`, `gesture`, `scroll`),
+   else `settled`, and the label is used once. A re-sample is never taken on
+   a rebuild or a frame as such.
+2. **When.** One watch per route visit (route epoch) decides when, with the
+   settled watch's frame rules. An armed watch parks one post-frame callback
+   and holds no timer, so a page that draws no frame is never re-sampled. A
+   drawn frame opens a window, 400 ms at first; a window with no frame in it
+   means the page is quiet and it is re-sampled; frames in every window force
+   a re-sample after 2 s of continuous activity, so content beside a spinner
+   that never stops, or a control revealed under a looping animation, is
+   still caught. A re-sample that finds nothing new doubles the window up to
+   6.4 s; one that emits, or any new inventory a capture builds, resets it. A
+   programmatic scroll end (an auto-scrolling marquee ends one every frame)
+   only labels the next re-sample and arms the watch if it is not: it builds
+   nothing and does not reset the back-off.
+3. **Novelty.** Per route visit the SDK remembers the controls and content
+   already sent, by canonical path with list positions collapsed (`[item:N]`
+   becomes `[item]`, the normalisation of the structural route signature),
+   and the states each was sent in: enabled or disabled, loaded or
+   placeholder. Every inventory a capture builds counts, whether it is
+   emitted or an exact repeat of one already emitted this session. A
+   re-sample is emitted only when it adds a path not yet sent in this visit,
+   or lists a sent path in a state not yet sent (a button enabled, a skeleton
+   replaced in place by its loaded control). Content entries (images, large
+   text) count, so loaded content replacing a skeleton is new.
+   - **Pages of a `PageView` stay apart.** The page position of a `PageView`
+     (the `[item:N]` after its own `Scrollable`, up to the next `Scrollable`)
+     is not collapsed. Its pages are different screens under one route, and
+     two pages built from one widget class (Blend's first and third
+     onboarding pages are both `OnboardingGridPage`) would otherwise share
+     every path, so a page reached by `nextPage` would never be new. Rows of
+     a list inside a page collapse as usual.
+   - **Exact repeats.** A re-sample whose de-duplication key and every
+     entry's enabled and placeholder state match an inventory already sent
+     this session is not emitted. One that flips only a state keeps its
+     fingerprints and so its de-duplication key (a disabled control has its
+     enabled twin's fingerprint); it is emitted once per state. An emitted
+     re-sample adds its key to the de-duplication set, so a later capture
+     that builds the same content does not repeat it.
+4. **Backstop.** At most 50 re-sampled inventories per route visit
+   (`inventoryResampleCapPerVisit`). Novelty bounds a visit on its own; the
+   cap only stops a page that keeps adding new kinds of controls for ever.
+   It replaces the old cap of five settled inventories per route key per
+   session, which starved screens whose pages share one route, such as an
+   onboarding `PageView`. When it is reached the watch stops for that visit.
+5. **Ending.** The watch ends on any visible route change, capture pause,
    lifecycle pause or hide, session end and dispose. It never ends on a timer.
 
-Settled emissions do not write to the emission de-duplication set. A later
-tap, scroll or route capture that builds the same content still emits it under
-its own trigger, exactly as it would with the re-sample off.
+**Positional inventories follow frames.** A scroll inventory is positional:
+it records where the content is, and its job is to match a captured frame.
+So during a scroll a scene inventory is built only when a frame is captured
+for that moment (`captureScrollScreenshots` and its interval, and the
+after-capture at the end of a scroll a pointer drives), and it is emitted only
+when its content differs from the last inventory sent: a different
+`inventoryHash`, element count, `loading` counts, or a box that moved on a 2%
+grid. A scroll start and an update with no frame build none; a programmatic
+scroll end (no frame) leaves its scene inventory to the re-sample. Every
+captured frame keeps a matching inventory, sent then or earlier. The viewport
+semantic map keeps its own scroll cadence.
+
+**Known gaps.**
+
+- A new list row built from the same template as a row already sent (a
+  paginated list loading more of the same) is not new, because positions are
+  collapsed; the rows reach an inventory with the next frame-tied scroll
+  inventory or capture. Two template-identical pages of a `PageView` are
+  kept apart (above), but two template-identical tabs of any other paging
+  widget are not.
+- A control revealed by a timer while an animation keeps running (a
+  looping arrow) is caught by the forced check, up to 2 s late at first and
+  up to 6.4 s late once the back-off has grown.
+- A layout change that adds no control (a box that grows, a loop between two
+  layouts) is not new; a frame-tied scroll inventory still records new
+  positions.
 
 ### What is and is not retained
 
@@ -723,26 +769,42 @@ fingerprint, and so does its production tap.
   it if those form one chain of disabled controls and scrollables.
 - **Controls under `ExcludeSemantics`.** An app that gives a button one
   semantics node of its own (`Semantics(label: ..., child: ExcludeSemantics(
-  child: ElevatedButton(...)))`) hides the button's subtree from the token map
-  like any excluded subtree. A tap on it resolves, in both modes, to the
-  nearest retained widget above it with no role (the pointer-down fallback of
-  0.10.10), at `low` confidence. Exploration inventories list that identity as
-  the control's entry: its fingerprint and `canonicalPath` are what a tap at
-  the button's centre resolves to, its `role`, `actions` and `enabled` are the
-  hidden button's, and `boundsNorm` is the hidden button's paint box. So an
-  exploration tap on it joins an inventory instead of failing with
-  `no_target_at_point`, and the settled re-sample sees it appear. It is left
-  out when the excluded subtree hides no control or more than one (a
-  scrollable is not the control; the controls in it count), when a tap at its
-  centre does not reach it (it ignores pointers or is covered), when that tap
-  resolves to a control with a role, when two hidden controls or an existing
-  entry share the fingerprint, and when other entries or other hidden
-  controls sit under its path (a page or a section, not the button). A hidden
-  button inside a scrollable is therefore not listed: a tap on it resolves to
-  the scrollable in both modes. Production taps are unchanged
-  and compute none of it, and no fingerprint, `routeKey` or `struct:`
-  signature moves; an inventory that lists such a control has a new
-  `inventoryHash`.
+  child: ElevatedButton(...)))`, Blend's `SemanticButton`) hides the button's
+  subtree from the token map like any excluded subtree. A tap on it keeps the
+  path of the nearest retained widget above the wrapper (the pointer-down
+  fallback of 0.10.10), at `low` confidence, in both modes.
+  - **The hidden control names the tap** when the hit path shows it: the first
+    `RenderExcludeSemantics` on the path is a subtree root the token map
+    recorded, and below it a chain of single children leads to the first
+    role, a control that is not a scrollable, which the hit reaches. Then the
+    tap's `role`, `enabled`, `actions`, `widgetType` and box are the hidden
+    control's, and no enclosing scrollable takes over its identity. So a
+    hidden button inside a `PageView` or a list (Blend's onboarding Continue,
+    under `Visibility` and `AnimatedOpacity`) is that button in both modes,
+    and when its `onPressed` animates the scrollable the pointer-down rule
+    below keeps it. Before, its tap took the scrollable's fingerprint, or in
+    exploration a row that listed the scrollable's fingerprint as an alias.
+    The rule follows only the chain, never the subtree, so production pays a
+    few element visits for taps through such a wrapper and nothing for
+    others.
+  - **Unchanged:** a fork above the first hidden control (two buttons under
+    one wrapper, a hidden list) names nothing; a hidden control inside
+    another control (an `InkWell` around the wrapper) keeps that control as
+    its identity; neither fingerprint, `routeKey` nor `struct:` signature
+    moves. A tap on a hidden control outside any scrollable keeps its
+    fingerprint and now reports the control's role and box instead of none.
+  - **Exploration inventories** list the hidden control as an entry: its
+    fingerprint and `canonicalPath` are what a tap at the control's centre
+    resolves to, its `role`, `actions` and `enabled` are the control's, and
+    `boundsNorm` is its paint box, so an exploration tap on it joins an
+    inventory. It is left out when the excluded subtree hides no control or
+    more than one (a scrollable is not the control; the controls in it
+    count), when a tap at its centre does not reach it (it ignores pointers
+    or is covered), when that tap resolves to another control, when two
+    hidden controls or an existing entry share the fingerprint, and when
+    other entries or other hidden controls sit under its path (a page or a
+    section, not the button). An inventory that lists such a control has a
+    new `inventoryHash`.
 - **Tag.** An inventory entry carries `tag` when an explicit `TugboatTag` sits
   at or above its element. It is the developer's id, not a `ValueKey`, and it is
   never hash input.

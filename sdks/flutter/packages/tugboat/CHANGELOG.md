@@ -6,14 +6,20 @@
   `tap`, `scroll`, `gesture`, `settled`, `manual`). A scroll-end capture is
   `scroll` and a swipe, pan or zoom capture is `gesture`. It is not part of
   any hash or the de-duplication key.
-- In exploration mode, the settled re-sample is on by default. A page that
-  changes after its first inventory (a loading `FutureBuilder`, a paginated
-  list, content beside a spinner) emits an inventory with
-  `trigger: "settled"` once it has settled, if that structure was never
-  emitted for its route key. It never expires while the route is current, an
-  idle page costs no timer, and a looping animation or blinking cursor never
-  emits. At most five per route key per session, and five per route visit. Turn it off with
-  `resampleSettledInventory: false`; production captures run none of it.
+- In exploration mode, the inventory is re-sampled by default once the page
+  settles after a moment: a tap or gesture (a control the interaction
+  reveals, such as a Continue shown once a row is picked), a scroll end, or a
+  load with no interaction (a `FutureBuilder`, a skeleton or a full-screen
+  spinner replaced by content). A re-sample is emitted only when it is new to
+  the route visit: a control or content path not yet sent (list positions
+  collapsed, except a `PageView`'s page position), or a sent one flipped
+  between enabled and disabled or placeholder and loaded. It is labelled
+  `tap`, `gesture` or `scroll` after that moment, else `settled`. An idle
+  page costs no timer; a page that keeps animating is checked after 2 s of
+  frames, then ever more rarely; a looping animation or blinking cursor
+  never emits. At most 50 re-samples per route visit, as a backstop. Turn it
+  off with `resampleSettledInventory: false`; production captures run none
+  of it.
 - In exploration mode, every scene inventory carries `loading`
   (`progressIndicators`, `placeholders`, `busyControls`) and each element
   beneath a skeleton, shimmer, `Redacted` or `Placeholder` ancestor, or a new
@@ -73,6 +79,17 @@
 
 ### Changed
 
+- In exploration mode, scroll inventories follow frames. During a scroll a
+  scene inventory is built only for a moment that also captures a frame
+  (scroll screenshots, and the after-capture at the end of a scroll a
+  pointer drives), and is emitted only when its content differs from the
+  last inventory sent. A scroll start, an update with no frame and a
+  programmatic scroll end (an auto-scrolling marquee, `jumpTo`) no longer
+  build one; the re-sample emits what such a scroll reveals, if anything is
+  new. Blend's Logo Maker marquee sent about 14 inventories a second; a
+  fixture of it now sends its first inventory and nothing more over 30 s
+  (340 before). The viewport semantic map keeps its scroll cadence. This
+  holds with `resampleSettledInventory: false` too.
 - The fingerprint schema is now 7 (`tugboatFingerprintSchemaVersion`), one
   bump for #137, #139 and #141. Fingerprints that move: controls under a sheet
   or dialog's `DisplayFeatureSubScreen` or modal barrier (the ordinal is
@@ -133,11 +150,21 @@
   `no_target_at_point` while production taps resolved it, and the settled
   re-sample never saw it appear. Exploration inventories now list it under
   the identity a tap on it resolves to in both modes, with the hidden
-  button's role, actions and paint box, and exploration taps join that entry
-  (not a hidden button inside a scrollable, whose taps name the scrollable in
-  both modes).
-  Production taps are unchanged, and no fingerprint or route key moves. The
-  same happened on 0.10.11.
+  button's role, actions and paint box, and exploration taps join that entry.
+  No fingerprint or route key moves for such a button outside a scrollable;
+  its taps now report its role and box. The same happened on 0.10.11.
+- A tap on such a button inside a scrollable named the scrollable. Blend's
+  onboarding Continue (`Visibility` > `AnimatedOpacity` > `Semantics(button)`
+  > `ExcludeSemantics` > `ElevatedButton`, whose `onPressed` animates the
+  onboarding `PageView`) was the `PageView`'s `Scrollable` in production and,
+  in exploration, the list row at the `PageView`'s centre, whose inventory
+  entry listed the `Scrollable`'s fingerprint as an alias. The hit path now
+  names a sole control hidden under `ExcludeSemantics` (found down a chain of
+  single children, no subtree walk) when nothing but a scrollable encloses
+  it, so both modes give the button, and the pointer-down rule keeps it when
+  its tap animates the `PageView`. Moves: taps on such a control inside a
+  scrollable. Two controls under one wrapper, and a hidden control inside
+  another control, are unchanged. The same happened on 0.10.11.
 - A production tap on a control whose `onTap` animates the scrollable it sits
   in (a grid tile that calls `PageController.nextPage`) was fingerprinted as
   the scrollable, while exploration taps named the tile: the animated scroll
