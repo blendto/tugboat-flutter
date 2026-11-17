@@ -12,10 +12,16 @@ import 'helpers/widget_capture_wait.dart';
 // exploration scroll-end inventory hit-tested the tree while its layout was
 // dirty. The failure is caught, but the inventory is lost and, in release,
 // hit tests would read stale boxes.
+//
+// A programmatic scroll (no frame) now builds an inventory only for the
+// viewport semantic map; its scene inventory is left to the re-sample. These
+// tests follow the semantic maps, which still take the laid-out-tree path.
 
 const _exploration = TugboatReplayConfig(
   enabled: true,
   emitSceneInventory: true,
+  emitViewportSemanticMap: true,
+  viewportSemanticMode: TugboatViewportSemanticMode.full,
   screenshotMaskLevel: TugboatScreenshotMaskLevel.explicitOnly,
   settleDelay: Duration.zero,
   interactionClaimWindow: Duration.zero,
@@ -45,7 +51,16 @@ Widget _marqueePage(ScrollController controller) => Scaffold(
   ),
 );
 
+/// Viewport semantic maps built for a scroll notification.
 List<Map<String, Object?>> _scrollInventories() => [
+  for (final event in TugboatReplay.controller!.session!.events)
+    if (event.type == 'viewport_semantic_map' &&
+        event.data['scrollContext'] != null)
+      event.data,
+];
+
+/// Scene inventories a programmatic scroll emitted: none now.
+List<Map<String, Object?>> _scrollSceneInventories() => [
   for (final event in TugboatReplay.controller!.session!.events)
     if (event.type == 'scene_inventory' && event.data['trigger'] == 'scroll')
       event.data,
@@ -101,6 +116,9 @@ void main() {
 
     // One for the start, one for the end.
     expect(_scrollInventories().length, before + 2);
+    expect(_scrollSceneInventories(), isEmpty);
+    // Releases the SDK's semantics handle.
+    await tester.pumpWidget(const SizedBox());
   });
 }
 
@@ -135,4 +153,6 @@ Future<void> _scrollWithDirtyLayout(
   await waitForTugboatCaptureWork(tester);
   expect(_scrollInventories().length, greaterThan(before));
   expect(logs.where((line) => line.contains('[tugboat]')), isEmpty);
+  // Releases the SDK's semantics handle.
+  await tester.pumpWidget(const SizedBox());
 }

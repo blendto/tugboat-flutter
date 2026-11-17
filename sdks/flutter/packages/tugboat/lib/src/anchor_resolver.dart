@@ -1165,9 +1165,8 @@ class AnchorResolver {
     // named by the control hidden in it.
     var hidden = _hiddenControlOnHitPath(hitPath, tokenMap);
     for (final target in hitPath) {
-      if (target is! RenderObject || !target.attached) continue;
-      final element = tokenMap.renderElements[target];
-      if (element == null || _isSkippedChrome(element, tokenMap)) continue;
+      final element = _retainedHitElement(target, tokenMap);
+      if (element == null) continue;
 
       final named = _hiddenControlNaming(hidden, element, tokenMap);
       hidden = null;
@@ -1195,6 +1194,15 @@ class AnchorResolver {
       }
     }
     return (anchor: roleOnly ?? fallback, hiddenControl: null);
+  }
+
+  /// The retained element of one hit-path entry, or null when the entry is
+  /// detached, not retained, or capture chrome.
+  Element? _retainedHitElement(HitTestTarget target, _TokenMap tokenMap) {
+    if (target is! RenderObject || !target.attached) return null;
+    final element = tokenMap.renderElements[target];
+    if (element == null || _isSkippedChrome(element, tokenMap)) return null;
+    return element;
   }
 
   /// A low-level identity (a Listener, a tap Semantics) names itself rather

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tugboat/src/inventory_novelty.dart';
 import 'package:tugboat/tugboat.dart';
 
 import 'helpers/widget_capture_wait.dart';
@@ -182,9 +183,13 @@ class _TogglingState extends State<_Toggling> {
 
 /// A paginated list that appends a row every [period] for ever.
 class _Appending extends StatefulWidget {
-  const _Appending({required this.period});
+  const _Appending({required this.period, this.limit = 12, this.small = false});
 
   final Duration period;
+  final int limit;
+
+  /// Small tappable boxes in a `Wrap`, so 80 of them fit on screen.
+  final bool small;
 
   @override
   State<_Appending> createState() => _AppendingState();
@@ -198,7 +203,7 @@ class _AppendingState extends State<_Appending> {
   void initState() {
     super.initState();
     _timer = Timer.periodic(widget.period, (_) {
-      if (_rows < 12) setState(() => _rows++);
+      if (_rows < widget.limit) setState(() => _rows++);
     });
   }
 
@@ -209,15 +214,25 @@ class _AppendingState extends State<_Appending> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      for (var i = 0; i < _rows; i++)
-        SizedBox(
-          height: 40,
-          child: FilledButton(onPressed: () {}, child: Text('Row $i')),
-        ),
-    ],
-  );
+  Widget build(BuildContext context) => widget.small
+      ? Wrap(
+          children: [
+            for (var i = 0; i < _rows; i++)
+              GestureDetector(
+                onTap: () {},
+                child: const SizedBox(width: 30, height: 30),
+              ),
+          ],
+        )
+      : Column(
+          children: [
+            for (var i = 0; i < _rows; i++)
+              SizedBox(
+                height: 40,
+                child: FilledButton(onPressed: () {}, child: Text('Row $i')),
+              ),
+          ],
+        );
 }
 
 /// A colour animates for ever and nothing moves.
@@ -492,7 +507,9 @@ void main() {
       expect(_controller.debugSettledSampleCount, greaterThan(samples));
     });
 
-    testWidgets('a layout looping between two states emits each state once', (
+    // Changed with the novelty rule: a layout change that adds no control
+    // is not new (it emitted the tall state once before).
+    testWidgets('a layout looping between two states emits nothing', (
       tester,
     ) async {
       await _mount(
@@ -503,11 +520,13 @@ void main() {
 
       await _advance(tester, const Duration(seconds: 10));
 
-      // Short was the initial inventory; tall is new once, then both repeat.
-      expect(_settled(), hasLength(1));
+      expect(_settled(), isEmpty);
+      expect(_controller.debugSettledSampleCount, greaterThan(0));
     });
 
-    testWidgets('a page that keeps growing stops at five settled inventories', (
+    // Changed with the novelty rule: each new control is new to the visit,
+    // and the cap is the per-visit backstop, not five per route key.
+    testWidgets('a page that keeps growing emits each new control', (
       tester,
     ) async {
       await _mount(
@@ -519,14 +538,30 @@ void main() {
       await _advance(tester, const Duration(seconds: 10));
 
       final settled = _settled();
-      expect(settled, hasLength(5));
-      expect(settled.map((inv) => _elements(inv).length).toList(), [
-        2,
-        3,
-        4,
-        5,
-        6,
-      ]);
+      final sizes = settled.map((inv) => _elements(inv).length).toList();
+      expect(sizes.length, greaterThan(5));
+      expect(sizes.last, 12);
+      for (var i = 1; i < sizes.length; i++) {
+        expect(sizes[i], greaterThan(sizes[i - 1]));
+      }
+      expect(_controller.debugSettledWatchArmed, isTrue);
+    });
+
+    testWidgets('a page that never stops adding controls stops at the '
+        'backstop of $inventoryResampleCapPerVisit per visit', (tester) async {
+      await _mount(
+        tester,
+        const _Appending(
+          period: Duration(milliseconds: 500),
+          limit: 80,
+          small: true,
+        ),
+        _exploration,
+      );
+
+      await _advance(tester, const Duration(seconds: 45));
+
+      expect(_settled(), hasLength(inventoryResampleCapPerVisit));
       expect(_controller.debugSettledWatchArmed, isFalse);
     });
 
@@ -554,7 +589,9 @@ void main() {
   });
 
   group('structural signature', () {
-    testWidgets('the same fingerprints with a new layout emit as settled', (
+    // Changed with the novelty rule: a new layout of the same controls is
+    // not new (it emitted before).
+    testWidgets('the same fingerprints with a new layout emit nothing', (
       tester,
     ) async {
       final height = ValueNotifier<double>(40);
@@ -566,14 +603,40 @@ void main() {
         _Resizable(height: height, loading: loading),
         _exploration,
       );
-      final first = _inventories().last;
-
       height.value = 90;
+      await _advance(tester, const Duration(seconds: 2));
+
+      expect(_settled(), isEmpty);
+      expect(_controller.debugSettledSampleCount, greaterThan(0));
+    });
+
+    testWidgets('a control that becomes enabled is new', (tester) async {
+      final enabled = ValueNotifier<bool>(false);
+      addTearDown(enabled.dispose);
+      await _mount(
+        tester,
+        Scaffold(
+          body: ValueListenableBuilder<bool>(
+            valueListenable: enabled,
+            builder: (context, value, _) => FilledButton(
+              onPressed: value ? () {} : null,
+              child: const Text('Continue'),
+            ),
+          ),
+        ),
+        _exploration,
+      );
+      final first = _inventories().single;
+      expect(_elements(first).single['enabled'], isFalse);
+
+      enabled.value = true;
       await _advance(tester, const Duration(seconds: 2));
 
       final settled = _settled();
       expect(settled, hasLength(1));
+      // The disabled twin has the same fingerprint, so the same hash.
       expect(settled.single['inventoryHash'], first['inventoryHash']);
+      expect(_elements(settled.single).single['enabled'], isTrue);
     });
 
     testWidgets('sub-pixel jitter is sampled but emits nothing', (
@@ -665,8 +728,10 @@ void main() {
       expect(_controller.debugSettledWatchArmed, isTrue);
     });
 
+    // Changed with the novelty rule: the visit is bounded by novelty and the
+    // backstop, not five per visit.
     testWidgets(
-      'a pushed unnamed page that keeps growing still stops at five',
+      'a pushed unnamed page that keeps growing emits each new control',
       (tester) async {
         await _mount(
           tester,
@@ -682,9 +747,11 @@ void main() {
 
         await _advance(tester, const Duration(seconds: 12));
 
-        // Its `struct:` route key moves as rows arrive; the visit cap holds.
-        expect(_settled(), hasLength(5));
-        expect(_controller.debugSettledWatchArmed, isFalse);
+        // Its `struct:` route key moves as rows arrive; the visit is one.
+        final settled = _settled();
+        expect(settled.length, greaterThan(5));
+        expect(_elements(settled.last), hasLength(12));
+        expect(_controller.debugSettledWatchArmed, isTrue);
       },
     );
   });
@@ -989,7 +1056,10 @@ void main() {
         await _advance(tester, const Duration(seconds: 1));
 
         // (routeKey, inventoryHash, element count) measured on fdd0aa2, before
-        // the settled re-sample existed.
+        // the settled re-sample existed, less two scroll inventories: the
+        // scroll start (no frame; it listed 3 elements mid-drag) and the
+        // scroll end's repeat of its own frame's inventory. Scroll
+        // inventories now follow frames whether or not the re-sample is on.
         expect(
           [
             for (final inv in _inventories())
@@ -997,8 +1067,6 @@ void main() {
           ],
           [
             ['/', '8e0fe11f97c5d88b', 14],
-            ['/', '7b44e9db023584a7', 3],
-            ['/', '0d92151895d2f459', 15],
             ['/', '0d92151895d2f459', 15],
             ['struct:de6eee2c7e62f2ef', '141a48eb7189ba17', 1],
           ],

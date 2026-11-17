@@ -305,14 +305,21 @@ void main() {
     await _mount(tester, _listPage(controller));
     final before = _inventories().length;
 
-    controller.jumpTo(500);
+    // A scroll a pointer drives captures a frame at its end, and its
+    // inventory follows that frame. (A programmatic `jumpTo` captures no
+    // frame; only the re-sample can emit for it, and only something new.)
+    await tester.timedDrag(
+      find.byType(Scrollable).first,
+      const Offset(0, -300),
+      const Duration(seconds: 1),
+    );
     await tester.pumpAndSettle();
     await waitForTugboatCaptureWork(tester);
 
     final inventories = _inventories();
     expect(inventories.length, greaterThan(before));
     final scroll = _map(inventories.last['scroll']);
-    expect(scroll['offsetPx'], 500.0);
+    expect(controller.offset, greaterThan(_initialOffset));
     expect(scroll['offsetPx'], controller.offset);
   });
 

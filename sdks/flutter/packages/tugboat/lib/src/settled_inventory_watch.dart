@@ -15,15 +15,14 @@ const Duration settledInventoryMaxBusy = Duration(seconds: 2);
 /// something new resets it.
 const Duration settledInventoryMaxWindow = Duration(milliseconds: 6400);
 
-/// At most this many settled inventories per route key per session, and per
-/// route visit (route epoch).
-const int settledInventoryEmissionCap = 5;
-
-/// Grid step for the coarse bounds signature (2% of the boundary).
+/// Grid step for the coarse bounds signature (2% of the boundary) that a
+/// positional (scroll) inventory is compared by.
 const double settledInventoryGridStep = 0.02;
 
-/// Watches one route epoch for frame activity after an inventory, and asks
-/// its owner to re-sample once the page has settled.
+/// Watches one route epoch for frame activity after an inventory or a
+/// moment (a tap, a gesture, a scroll end), and asks its owner to re-sample
+/// once the page has settled. The owner emits a sample only when it is new
+/// to the visit (see `InventoryVisit`).
 ///
 /// - Armed, it parks one post-frame callback and holds no timer. A page that
 ///   draws no frame costs nothing, however long it stays armed.
@@ -37,7 +36,8 @@ const double settledInventoryGridStep = 0.02;
 ///   is re-sampled ever more rarely; [nudge] resets it.
 ///
 /// It never expires on its own: the owner cancels it on route change, pause,
-/// session end and dispose, or when its cap is reached. It never throws.
+/// session end and dispose, or when the visit's backstop cap is reached. It
+/// never throws.
 class SettledInventoryWatch {
   SettledInventoryWatch({required this.routeEpoch, required this.onSample});
 

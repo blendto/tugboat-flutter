@@ -152,21 +152,40 @@ class OnboardingListPage extends StatefulWidget {
     required this.title,
     required this.onContinue,
     required this.loopArrow,
+    this.revealDelay = Duration.zero,
   });
   final String title;
   final VoidCallback onContinue;
   final bool loopArrow;
+
+  /// Continue shows this long after the first selection (Blend: at once).
+  final Duration revealDelay;
   @override
   State<OnboardingListPage> createState() => _OnboardingListPageState();
 }
 
 class _OnboardingListPageState extends State<OnboardingListPage> {
   final selected = <int>{};
+  bool _revealed = false;
+
+  void _select(int index) {
+    setState(() {
+      if (!selected.remove(index)) selected.add(index);
+    });
+    if (_revealed) return;
+    if (widget.revealDelay == Duration.zero) {
+      _revealed = true;
+      return;
+    }
+    Future<void>.delayed(widget.revealDelay, () {
+      if (mounted) setState(() => _revealed = true);
+    });
+  }
 
   @override
   Widget build(BuildContext context) => OnboardingPageContainer(
     title: widget.title,
-    showCta: selected.isNotEmpty,
+    showCta: _revealed && selected.isNotEmpty,
     onContinue: widget.onContinue,
     loopArrow: widget.loopArrow,
     child: ListView.separated(
@@ -175,9 +194,7 @@ class _OnboardingListPageState extends State<OnboardingListPage> {
       separatorBuilder: (_, _) => const SizedBox(height: 14),
       physics: const BouncingScrollPhysics(),
       itemBuilder: (context, index) => GestureDetector(
-        onTap: () => setState(() {
-          if (!selected.remove(index)) selected.add(index);
-        }),
+        onTap: () => _select(index),
         child: Container(
           constraints: const BoxConstraints(minHeight: 80),
           color: const Color(0xff1a1a1a),
@@ -205,16 +222,19 @@ class OnboardingSellingOptions extends StatelessWidget {
     required this.index,
     required this.onContinue,
     required this.loopArrow,
+    this.revealDelay = Duration.zero,
   });
   final int index;
   final VoidCallback onContinue;
   final bool loopArrow;
+  final Duration revealDelay;
 
   @override
   Widget build(BuildContext context) => OnboardingListPage(
     title: 'Where do you sell? $index',
     onContinue: onContinue,
     loopArrow: loopArrow,
+    revealDelay: revealDelay,
   );
 }
 
@@ -224,9 +244,11 @@ class StepOnboarding extends StatefulWidget {
     required this.loopArrow,
     this.pages = 1,
     this.animate = true,
+    this.revealDelay = Duration.zero,
   });
   final bool loopArrow;
   final int pages;
+  final Duration revealDelay;
 
   /// When false, Continue does nothing (no PageView animation).
   final bool animate;
@@ -267,6 +289,7 @@ class _StepOnboardingState extends State<StepOnboarding> {
                 index: index,
                 onContinue: _next,
                 loopArrow: widget.loopArrow,
+                revealDelay: widget.revealDelay,
               )
             : const Center(child: Text('Next step')),
       ),
@@ -280,6 +303,7 @@ Future<void> mountOnboarding(
   bool loopArrow = true,
   int pages = 1,
   bool animate = true,
+  Duration revealDelay = Duration.zero,
 }) async {
   tester.view.physicalSize = const Size(720, 1560);
   tester.view.devicePixelRatio = 2;
@@ -297,6 +321,7 @@ Future<void> mountOnboarding(
           loopArrow: loopArrow,
           pages: pages,
           animate: animate,
+          revealDelay: revealDelay,
         ),
       },
     ),
