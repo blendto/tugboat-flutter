@@ -71,11 +71,10 @@ void main() {
     },
   );
 
-  testWidgets('exploration suppression still captures overlay after-frames', (
+  testWidgets('page pushes and unclaimed sheets both capture after-frames', (
     tester,
   ) async {
     final fixture = await _OverlayIdentityFixture.mount(tester);
-    fixture.controller.debugSetExplorationFramesSuppressed(true);
 
     var eventCursor = fixture.eventCount;
     await fixture.pushNamedPage(tester, '/details');
@@ -87,11 +86,7 @@ void main() {
     expect(page.data['overlayKind'], TugboatOverlayKind.page);
     expect(page.data.containsKey('presentedOverRoute'), isFalse);
     expect(page.data['causeEventId'], isNull);
-    expect(
-      page.afterFrame,
-      isNull,
-      reason: 'unclaimed page pushes stay suppressed',
-    );
+    expect(page.afterFrame, isNotNull);
 
     eventCursor = fixture.eventCount;
     await fixture.pushUnnamedSheet(tester);

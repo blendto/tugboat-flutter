@@ -35,21 +35,7 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
       sessionId: sessionId,
       userId: userId,
       traitsId: traitsId,
-      extra: {
-        'interactionSchema':
-            data['interactionSchema'] ?? tugboatInteractionSchemaVersion,
-        if (data['route'] != null) 'route': data['route'],
-        if (data['targetFingerprint'] != null)
-          'targetFingerprint': data['targetFingerprint'],
-        if (data['fingerprintConfidence'] != null)
-          'fingerprintConfidence': data['fingerprintConfidence'],
-        if (data['targetResolutionFailureReason'] != null)
-          'targetResolutionFailureReason':
-              data['targetResolutionFailureReason'],
-        if (data['gesture'] != null) 'gesture': data['gesture'],
-        if (data['payload'] != null) 'payload': data['payload'],
-        if (targetAnchor != null) 'targetAnchor': targetAnchor,
-      },
+      extra: _interactionCollectorExtra(data, targetAnchor),
     );
   }
 
@@ -349,4 +335,35 @@ void _copyPresentRouteChangeKeys(
     final value = data[key];
     if (value != null) extra[key] = value;
   }
+}
+
+/// Allow-list of interaction envelope keys the collector record carries at the
+/// top level. `fingerprintSource`, `routeKey` and `surface` only appear on
+/// exploration taps; production taps never write them.
+const _interactionCollectorKeys = <String>[
+  'route',
+  'targetFingerprint',
+  'fingerprintConfidence',
+  'fingerprintSource',
+  'routeKey',
+  'surface',
+  'targetResolutionFailureReason',
+  'gesture',
+  'payload',
+];
+
+Map<String, Object?> _interactionCollectorExtra(
+  Map<String, Object?> data,
+  Map<String, Object?>? targetAnchor,
+) {
+  final extra = <String, Object?>{
+    'interactionSchema':
+        data['interactionSchema'] ?? tugboatInteractionSchemaVersion,
+  };
+  for (final key in _interactionCollectorKeys) {
+    final value = data[key];
+    if (value != null) extra[key] = value;
+  }
+  if (targetAnchor != null) extra['targetAnchor'] = targetAnchor;
+  return extra;
 }

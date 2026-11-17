@@ -1,3 +1,231 @@
+## 0.11.0
+
+### Added
+
+- Every scene inventory carries `trigger` (`initial`, `resume`, `route`,
+  `tap`, `scroll`, `gesture`, `settled`, `manual`). A scroll-end capture is
+  `scroll` and a swipe, pan or zoom capture is `gesture`. It is not part of
+  any hash or the de-duplication key.
+- In exploration mode, the inventory is re-sampled by default once the page
+  settles after a moment: a tap or gesture (a control the interaction
+  reveals, such as a Continue shown once a row is picked), a scroll end, or a
+  load with no interaction (a `FutureBuilder`, a skeleton or a full-screen
+  spinner replaced by content). A re-sample is emitted only when it is new to
+  the route visit: a control or content path not yet sent (list positions
+  collapsed, except a `PageView`'s page position), or a sent one flipped
+  between enabled and disabled or placeholder and loaded. It is labelled
+  `tap`, `gesture` or `scroll` after that moment, else `settled`. An idle
+  page costs no timer; a page that keeps animating is checked after 2 s of
+  frames, then ever more rarely; a looping animation or blinking cursor
+  never emits. At most 50 re-samples per route visit, as a backstop. A
+  `PageView`'s page position is kept apart, so each onboarding page is new;
+  the cost is that an auto-advancing carousel sends one re-sample per page
+  it has not shown in the visit. Turn it off with
+  `resampleSettledInventory: false`; production captures run none of it.
+- In exploration mode, every scene inventory carries `loading`
+  (`progressIndicators`, `placeholders`, `busyControls`) and each element
+  beneath a skeleton, shimmer, `Redacted` or `Placeholder` ancestor, or a new
+  `TugboatLoading` marker, carries `placeholder: true`. The signal is
+  structural and text-free, and no fingerprint, route key or inventory hash
+  changes. Placeholder names are a heuristic; see the capture design doc for
+  its known false positives. `TugboatLoading(enabled: false)` switches the
+  marker off: the nearest `TugboatLoading` above an element decides, so a
+  disabled one also overrides a skeleton ancestor that stays mounted after
+  loading (`Skeletonizer(enabled: loading, child: TugboatLoading(enabled:
+  loading, child: content))`). Toggling `enabled` changes no fingerprint.
+- In exploration mode (scene inventory emission on), every `tap` interaction
+  that carries a `targetFingerprint` now also carries `fingerprintSource` and
+  `routeKey`, next to the existing `fingerprintConfidence`. Production taps keep
+  their lean envelope and do not carry these. `fingerprintSource` is how the
+  fingerprint was resolved: `pointerDown`, `snap` (a pathless hit re-anchored to the inventory control
+  under the tap) or `inventory`. `routeKey` is the resolved route key the
+  fingerprint was hashed under, so a tap on a dialog or an unnamed page joins
+  its inventory exactly. `route` is unchanged and still the raw route.
+- Every scene inventory carries `surface`: `{ "kind": "page" | "sheet" |
+  "dialog" | "popup" | "menu", "widgetClass": "..." }`, and exploration taps
+  carry the surface of their inventory. `kind` comes from the current route's
+  type; `widgetClass` is the first app-level widget class below a sheet,
+  dialog or popup's overlay host, as in the canonical paths, and is omitted
+  when it cannot be told (private or inline builders, pages, menus, shells). It
+  is found when the app wraps the `Navigator` in a widget of its own in the
+  `MaterialApp` builder (a provider or overlay host), and while a toolbar or a
+  toast in an app overlay shows. A dialog route's `Dialog` around one app
+  class (`Dialog.fullscreen(child: CouponDialog())`) names that class, and a
+  custom popup route's own `Scaffold` is looked through to its body. Two
+  anonymous sheets with the same type argument share a `routeKey` but differ in
+  `surface.widgetClass`. Production taps do not carry `surface`. It is not
+  part of any fingerprint, `routeKey` or `inventoryHash`.
+- Documented that `RouteSettings(name: ...)` on `showModalBottomSheet` and
+  `showDialog` gives a sheet or dialog a stable, readable route key today.
+- In exploration mode, every scene inventory carries `viewport`
+  (`widthPx`, `heightPx`, `devicePixelRatio`, `boundaryOffset`, `insets`,
+  `keyboardInset`, `referenceFrame: "captureBoundary"`): the frame `boundsNorm`
+  is a fraction of. All sizes are in the render view's logical pixels;
+  multiply by `devicePixelRatio`, the render view's own ratio, for device
+  pixels. `widthPx`, `heightPx` and `boundaryOffset` are the boundary's box
+  after any transform above it, so `(boundaryOffset + boundsNorm * widthPx) *
+  devicePixelRatio` is exact under a `Transform.scale`, a `FittedBox` or a
+  host binding that scales the whole UI. Each element carries `visibleFraction`
+  (0 to 1) when part of its paint box is outside the capture boundary or
+  clipped by an ancestor, and an inventory with a vertical scrollable carries
+  `scroll` (`offsetPx`, `maxExtentPx`, `axis`) for the largest one. `boundsNorm`
+  stays unclipped paint bounds. None of it is part of any fingerprint,
+  `routeKey`, `inventoryHash` or the de-duplication key, and production taps do
+  not compute it.
+
+- Scene inventory entries carry `positional: true` when the canonical path
+  has a list position (`[item:N]`), so a consumer can tell that the
+  fingerprint names a position rather than the control.
+- Scene inventory entries carry `tag` (the nearest explicit `TugboatTag` id)
+  when the element sits under one. `hitTestBounds` is not reported.
+
+### Changed
+
+- In exploration mode, scroll inventories follow frames. During a scroll a
+  scene inventory is built only for a moment that also captures a frame
+  (scroll screenshots, and the after-capture at the end of a scroll a
+  pointer drives), and is emitted only when its content differs from the
+  last inventory sent. A scroll start, an update with no frame and a
+  programmatic scroll end (an auto-scrolling marquee, `jumpTo`) no longer
+  build one; the re-sample emits what such a scroll reveals, if anything is
+  new. Blend's Logo Maker marquee sent about 14 inventories a second; a
+  fixture of it now sends its first inventory and nothing more over 30 s
+  (340 before). The viewport semantic map keeps its scroll cadence. This
+  holds with `resampleSettledInventory: false` too.
+- The fingerprint schema is now 7 (`tugboatFingerprintSchemaVersion`), one
+  bump for #137, #139 and #141. Fingerprints that move: controls under a sheet
+  or dialog's `DisplayFeatureSubScreen` or modal barrier (the ordinal is
+  dropped, so a sheet stacked on its own copy keeps its fingerprints); every
+  control on an anonymous sheet or dialog with a nameable class, now keyed
+  `sheet:<WidgetClass>` or `dialog:<WidgetClass>` instead of
+  `ModalBottomSheetRoute<T>` or `struct:<hash>` (a dialog whose builder
+  returns a `Dialog` around one app class included); every control on a route
+  whose `struct:` key moved (an anonymous dialog with no nameable class, or
+  an anonymous route with a disabled control or a new low-level control);
+  controls under a `ListTileTheme` (including inside `Drawer` and
+  `ExpansionTile`) or `SwitchTheme`, which are now transparent, and later
+  same-type siblings of such a control, which are renumbered; controls inside
+  or around an `InkWell` without `onTap` (a `Switch` trailing a `ListTile`
+  with no callbacks, a `GestureDetector` around such a tile); and a disabled
+  `TextField` with no other control inside, which takes its enabled twin's
+  fingerprint. Nothing else moves: an enabled control on a named route with
+  none of these above it keeps its fingerprint, in inventories and production
+  taps. For one release each exploration inventory entry lists its schema 6
+  fingerprints in `aliases`, except one that already names another entry in
+  the same inventory. Consumers keyed on schema 6 fingerprints should map
+  them through `aliases` during that release.
+- Interactive coverage (#141): `Semantics` with a tap or long-press action, a
+  `Listener` with `onPointerUp` and a `RawGestureDetector` with a tap or
+  long-press recognizer are reported when they are a control of their own
+  (outside every control and around none). Disabled controls are listed with
+  `enabled: false` and keep their enabled twin's fingerprint; toggling a
+  Material or Cupertino button, toggle, `ActionChip`, `TextField` or
+  `ListTile.enabled` changes no fingerprint or route key (`InputChip.isEnabled`,
+  `CupertinoTextField` and `SearchBar` still differ, as before). A `GestureDetector`, `InkWell`, `ListTile` or tap `Semantics` with a
+  `null` callback is not a control, so toggling it still changes an anonymous
+  route's `struct:` key. Production taps on a disabled control carry its
+  twin's fingerprint. A custom `PopupRoute` keeps its key, and two
+  sheets or dialogs with no nameable class and the same structure still share
+  one.
+
+### Fixed
+
+- Exploration taps now deliver `fingerprintSource`, `routeKey` and `surface` to
+  the HTTP collector. The collector mapper dropped them, so they stayed in the
+  in-memory envelope only.
+- A tap on a control that stays mounted while the app navigates, such as a
+  persistent bottom bar outside the `Navigator`, was fingerprinted under the
+  destination route's key while its `route` showed the origin. In production
+  mode the pointer-down hit path now wins when the route changed since
+  pointer-down, as exploration mode already did, so the fingerprint belongs to
+  the route the tap happened on.
+- The SDK's own capture root (`ValueKey('tugboat-capture-N')`) was read as a
+  developer tag, so every control under `TugboatReplay.wrapApp` with no nearer
+  tag reported a junk `tagFingerprint` and `tag` fingerprint part. The tag
+  lookup now ends at the capture root. `TugboatTag` and `ValueKey<String>`
+  inside the capture tag as before, and fingerprints do not change.
+- A tap re-anchored to a different inventory control (an inventory snap or the
+  semantic fallback) no longer carries the original hit's `tagFingerprint`.
+- In exploration mode a button an app wraps in `ExcludeSemantics` to give it
+  one semantics node of its own (`Semantics(label) > ExcludeSemantics >
+  ElevatedButton`) was in no inventory, so taps on it failed with
+  `no_target_at_point` while production taps resolved it, and the settled
+  re-sample never saw it appear. Exploration inventories now list it under
+  the identity a tap on it resolves to in both modes, with the hidden
+  button's role, actions and paint box, and exploration taps join that entry.
+  Production taps are unchanged, and no fingerprint or route key moves. The
+  same happened on 0.10.11.
+- A tap on such a button inside a scrollable named the scrollable. Blend's
+  onboarding Continue (`Visibility` > `AnimatedOpacity` > `Semantics(button)`
+  > `ExcludeSemantics` > `ElevatedButton`, whose `onPressed` animates the
+  onboarding `PageView`) was the `PageView`'s `Scrollable` in production and,
+  in exploration, the list row at the `PageView`'s centre, whose inventory
+  entry listed the `Scrollable`'s fingerprint as an alias. Inside a
+  scrollable, the hit path now names a sole control hidden under
+  `ExcludeSemantics` (found down a chain of single children, no subtree
+  walk) when the retained widget whose path the tap takes holds that control
+  alone, so both modes give the button, and the pointer-down rule keeps it
+  when its tap animates the `PageView`, also for a tap on the button's own
+  icon. A scrollable whose centre lands on such a control keeps its own
+  inventory entry. Moves: taps on such a control inside a scrollable. Two
+  controls under one wrapper, hidden buttons with no retained widget of
+  their own (rows or pages that would share one path), a hidden control
+  inside another control, and one outside any scrollable are unchanged. The
+  same happened on 0.10.11.
+- A production tap on a control whose `onTap` animates the scrollable it sits
+  in (a grid tile that calls `PageController.nextPage`) was fingerprinted as
+  the scrollable, while exploration taps named the tile: the animated scroll
+  makes the scrollable ignore pointers before the SDK reads pointer-up. When
+  the pointer-up target is a scrollable and the pointer-down hit path names a
+  control inside it, that control now wins, so both modes give the tile's
+  fingerprint. Taps on a scrollable outside any control are unchanged. The
+  same happened on 0.10.11.
+- In exploration mode, the inventory of a programmatic scroll (an
+  auto-scrolling marquee) could be built while the tree still needed layout:
+  its hit tests read stale boxes and, in debug builds, failed
+  `'!debugNeedsLayout'` in `RenderFractionalTranslation`, losing the
+  inventory (`[tugboat] queued scroll_end task failed`). Such inventories now
+  wait for the frame's post-frame callback when layout may be dirty and are
+  built at once otherwise. A failing scroll inventory is caught and logged,
+  never thrown into the app's scroll notification. Pointer-driven scrolls and
+  production are unchanged. The same happened on 0.10.11.
+- An inventory taken while a route transition was running (an input
+  observation after system back, or a focus change as a dialog opened) listed
+  the departing or covered route's controls under the destination's route key.
+  A capture request that a running transition suppresses, and a scroll during
+  it (a marquee on the page below), no longer emit an inventory; the route
+  capture emits the destination's once the transition settles. The same
+  happened on 0.10.11.
+
+- The route capture fired a transition duration after the Navigator
+  callback, while the transition could still be running and before the
+  covered route went offstage. The `route` inventory of a pushed page then
+  counted the covered page's spinner, and on an unnamed page whose
+  predecessor stays visible beneath it during the transition its `struct:`
+  key was computed over both pages: the page's route inventory and first taps
+  carried one key, every later inventory of the page another. The capture
+  (and the transition window that holds back other inventories) now goes at
+  once only when those routes are not animating and no frame is due, and
+  otherwise waits until two frames have passed with them at rest, bounded by
+  the route barrier timeout. Those route keys move to the settled
+  page's key. The same happened on 0.10.11.
+
+### Removed
+
+- The local exploration WebSocket. `TugboatReplayConfig.explorationCollectorUrl`
+  and the exported `TugboatExplorationTransport` are gone, along with the
+  internal `ExplorationCaptureSink`. Nothing receives that socket any more;
+  point `collector` at a local HTTP collector instead.
+- The WebSocket control messages `set_action_window`, `clear_action_window`,
+  `pause_capture` and `resume_capture`, and `handleExplorationControl` on the
+  controller. `TugboatReplayController.setActionContext`, `clearActionContext`
+  and `setCapturePaused` are unchanged and remain the in-process way to open
+  and close an action window and to pause capture.
+- The socket-triggered frame suppression. Connecting the socket without an HTTP
+  collector used to suppress non-interaction screenshots; with no socket that
+  never happened in a real run, so capture scheduling is unchanged.
+- The example app's `tools/sdk-event-collector.js` WebSocket server.
+
 ## 0.10.11
 
 ### Fixed

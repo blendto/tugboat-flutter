@@ -85,12 +85,12 @@ class TugboatReplayConfig {
     this.degradedCaptureScale = 0.80,
     this.enableGlobalPointerCapture = true,
     this.emitSceneInventory = false,
+    this.resampleSettledInventory = true,
     this.emitViewportSemanticMap = false,
     this.emitCaptureDiagnostics = false,
     this.acceptActionContext = false,
     this.captureFocusChanges = false,
     this.captureSystemInput = false,
-    this.explorationCollectorUrl,
     this.explorationRunId,
     this.userId,
     this.appInfo,
@@ -147,6 +147,18 @@ class TugboatReplayConfig {
   /// Allows bounded `scene_inventory` events for this app launch.
   final bool emitSceneInventory;
 
+  /// Re-samples the inventory once the page settles after a tap, a gesture, a
+  /// scroll end or a load, and emits it only when it adds a control or
+  /// content path (list positions collapsed) not yet sent in the route visit,
+  /// or flips a sent one between enabled and disabled or placeholder and
+  /// loaded. It is labelled `tap`, `gesture` or `scroll` after that moment,
+  /// else `settled`. Exploration only: it has no effect unless
+  /// [emitSceneInventory] is also true. Bounded: at most 50 re-sampled
+  /// inventories per route visit, and the watch ends on route change, pause,
+  /// session end and dispose. Default on in exploration mode; set false to
+  /// keep exploration inventories to the capture triggers only.
+  final bool resampleSettledInventory;
+
   /// Allows bounded viewport semantic-map events for this app launch.
   final bool emitViewportSemanticMap;
 
@@ -169,7 +181,6 @@ class TugboatReplayConfig {
   /// collector must accept the event type.
   final bool captureSystemInput;
 
-  final String? explorationCollectorUrl;
   final String? explorationRunId;
   final String? userId;
   final TugboatCollectorAppInfo? appInfo;
@@ -190,6 +201,9 @@ class TugboatReplayConfig {
       screenshotMaskLevel ?? TugboatScreenshotMaskLevel.allTextAndMedia;
 
   bool get sceneInventoryEmissionEnabled => emitSceneInventory;
+
+  bool get settledInventoryResampleEnabled =>
+      emitSceneInventory && resampleSettledInventory;
 
   bool get semanticMapEmissionEnabled => viewportSemanticPolicy.emitEvents;
 
@@ -219,12 +233,12 @@ class TugboatReplayConfig {
     double? degradedCaptureScale,
     bool? enableGlobalPointerCapture,
     bool? emitSceneInventory,
+    bool? resampleSettledInventory,
     bool? emitViewportSemanticMap,
     bool? emitCaptureDiagnostics,
     bool? acceptActionContext,
     bool? captureFocusChanges,
     bool? captureSystemInput,
-    String? explorationCollectorUrl,
     String? explorationRunId,
     String? userId,
     TugboatCollectorAppInfo? appInfo,
@@ -279,6 +293,10 @@ class TugboatReplayConfig {
         this.enableGlobalPointerCapture,
       ),
       emitSceneInventory: _or(emitSceneInventory, this.emitSceneInventory),
+      resampleSettledInventory: _or(
+        resampleSettledInventory,
+        this.resampleSettledInventory,
+      ),
       emitViewportSemanticMap: _or(
         emitViewportSemanticMap,
         this.emitViewportSemanticMap,
@@ -290,10 +308,6 @@ class TugboatReplayConfig {
       acceptActionContext: _or(acceptActionContext, this.acceptActionContext),
       captureFocusChanges: _or(captureFocusChanges, this.captureFocusChanges),
       captureSystemInput: _or(captureSystemInput, this.captureSystemInput),
-      explorationCollectorUrl: _or(
-        explorationCollectorUrl,
-        this.explorationCollectorUrl,
-      ),
       explorationRunId: _or(explorationRunId, this.explorationRunId),
       userId: _or(userId, this.userId),
       appInfo: _or(appInfo, this.appInfo),

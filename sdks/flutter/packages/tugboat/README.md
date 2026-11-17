@@ -3,11 +3,32 @@
 Screenshot-based session evidence for Tugboat. The SDK records masked visual
 checkpoints around meaningful interactions, compact structural anchors, route
 transitions, scrolling evidence, and optional viewport semantic maps. Capture
-can be sent to the local exploration WebSocket, the HTTP collector, or both.
+is sent to the HTTP collector; exploration runs point it at a local HTTP
+collector.
 
-The current package version is `0.10.11`. Session JSON writers and readers use
+The current package version is `0.11.0`. Session JSON writers and readers use
 schema version `10` only. Structural fingerprints use fingerprint schema
-version `6`.
+version `7`.
+
+## 0.11.0
+
+Fingerprint schema 7. Sheet and dialog host ordinals no longer enter paths,
+anonymous sheets and dialogs with a nameable widget class are keyed
+`sheet:<Class>` or `dialog:<Class>`, `ListTileTheme` and `SwitchTheme` add no
+path segment, and disabled controls are listed with `enabled: false`. For one
+release every moved inventory entry lists its schema 6 fingerprint in
+`aliases`. Treat schema 6 and schema 7 fingerprints as separate namespaces.
+
+Exploration inventories (`emitSceneInventory`) carry `surface`, `viewport`,
+`visibleFraction`, `scroll`, `loading`, `trigger`, `positional` and `tag`, and
+are re-sampled when a page settles (`resampleSettledInventory`, on by default).
+Exploration taps carry `fingerprintSource`, `routeKey` and `surface`.
+Production taps keep their envelope. A tap on a control that stays mounted
+while the app navigates keeps the fingerprint of the route it happened on.
+
+Removed: the exploration WebSocket (`explorationCollectorUrl`,
+`TugboatExplorationTransport`) and its control messages. The HTTP collector is
+the only transport.
 
 ## 0.10.11
 
@@ -217,7 +238,7 @@ events.
 
 ```yaml
 dependencies:
-  tugboat: ^0.10.11
+  tugboat: ^0.11.0
 ```
 
 Then import the public barrel:
@@ -233,8 +254,8 @@ Install from pub.dev; a GitHub checkout is not required.
 
 ```yaml
 dependencies:
-  tugboat: ^0.10.11
-  tugboat_dio: ^0.10.11
+  tugboat: ^0.11.0
+  tugboat_dio: ^0.11.0
 ```
 
 See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.
@@ -348,7 +369,6 @@ MaterialApp(
       emitSceneInventory: true,
       emitViewportSemanticMap: true,
       acceptActionContext: true,
-      explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
       viewportSemanticMode: TugboatViewportSemanticMode.full,
     ),
   ),
@@ -381,6 +401,22 @@ immediately below (`presentedOver*`) and the nearest page (`hostPage*`) when
 the same-navigator stack can resolve them. Nested navigators need their own
 observer wiring, and native/system overlays are outside the Flutter
 Navigator/repaint-boundary contract.
+
+An unnamed sheet's route key is its runtime type (`ModalBottomSheetRoute<bool>`
+for every `showModalBottomSheet<bool>`), and an unnamed dialog's is a
+structural hash. To get a stable, readable key today, name the route:
+
+```dart
+showModalBottomSheet<bool>(
+  context: context,
+  routeSettings: const RouteSettings(name: '/checkout/payment-method'),
+  builder: (_) => const PaymentMethodSheet(),
+);
+```
+
+Scene inventories and exploration taps also carry `surface`
+(`{kind, widgetClass}`) so a consumer can tell sheets and dialogs apart without
+parsing canonical paths; see `docs/design/capture-and-fingerprint.md`.
 
 Each visible route change creates a route epoch and waits for the transition
 plus the configured settle delay before taking the destination capture. A newer
@@ -513,10 +549,9 @@ but it does not persist events or frames across process restarts.
 | `acceptActionContext` | `false` | allow external action context on captured evidence |
 | `captureFocusChanges` | `false` | emit `focus_changed` when primary focus enters, leaves, or moves between text fields, with one observation after `settleDelay` as `afterFrame` |
 | `captureSystemInput` | `false` | emit `system_input` for system back and allowlisted hardware keys (volume, power, media), with one observation after `settleDelay` as `afterFrame`; never consumes the input |
-| `explorationCollectorUrl` | null | local exploration WebSocket endpoint |
 | `explorationRunId` | null | optional run correlation ID |
 | `userId` | null | optional HTTP event user ID |
-| `appInfo` | null | app metadata used by exploration and as a fallback |
+| `appInfo` | null | session app metadata; falls back to `collector.appInfo` |
 | `collector` | null | HTTP collector configuration |
 | `screenshotMaskLevel` | `allTextAndMedia` | explicit screenshot redaction policy |
 | `widgetNames` | empty | `Type` to stable-name overrides for canonical paths |
@@ -671,12 +706,6 @@ frozen origin. Route ownership remains separate. `afterFrame` is only a later
 visual observation and can come from an unclaimed route successor. It does not
 assign a result or destination to the interaction.
 
-During local WebSocket exploration, connecting without an HTTP collector
-suppresses only non-interaction Flutter screenshot capture for UI-thread
-performance. Every completed interaction still requests a post-interaction
-visual observation. A route capture can satisfy it. Events, anchors, inventories,
-and semantic evidence continue to stream; the CLI's ADB before/after screenshots
-remain the primary gesture-level visual evidence.
 
 ## Structural identity
 
@@ -701,7 +730,7 @@ Locale is evidence, not identity. When `wrapApp` is installed in
 `MaterialApp.builder` or `CupertinoApp.builder`, the SDK observes the active
 `Localizations` locale. Session metadata and every event carry the current
 locale. A change emits a `locale_changed` evidence event with the previous and
-current locale. Exploration WebSocket sessions carry the same locale metadata.
+current locale. Collector sessions carry the same locale metadata.
 
 Apps that mount Tugboat above `Localizations`, or own a separate locale state,
 can report it explicitly:
@@ -765,11 +794,10 @@ The supported import exports `TugboatReplay` (including `setTraits` /
 `setUserId`), `TugboatNavigatorObserver`, `TugboatReplayConfig`,
 capture/semantic/masking enums and policies, collector configuration and host
 helpers, markers (`TugboatSensitive`, `TugboatTag`, `TugboatSubView`,
-`TugboatInternal`), anchor and session models, the controller, and
-`TugboatExplorationTransport`.
+`TugboatInternal`), anchor and session models, and the controller.
 
 `TugboatCaptureSink` and the built-in sink implementations are internal today;
-config supports only the WebSocket and HTTP destinations above. A stable custom
+config supports only the HTTP destination above. A stable custom
 sink registration API has not been published.
 
 ## Current limits

@@ -1,3 +1,11 @@
+## 0.11.0
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.0 (fingerprint schema 7, exploration
+  inventory metadata, exploration WebSocket removed). Requires `tugboat`
+  `^0.11.0`. The Dio adapter has no runtime behavior change.
+
 ## 0.10.11
 
 ### Changed

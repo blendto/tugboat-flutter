@@ -4,10 +4,9 @@ This page documents the transport behavior implemented by the Flutter SDK.
 Server-side storage, enrichment, and Atlas behavior are outside this repository
 and must be verified against the service that receives these requests.
 
-The SDK can enable either or both built-in destinations:
-
-- a local exploration WebSocket;
-- a standalone HTTP collector.
+The SDK's built-in destination is the standalone HTTP collector. Exploration
+runs use the same collector: point `collector.baseUrl` at a local HTTP
+collector.
 
 Evidence remains authoritative in the controller's bounded, in-memory session.
 Transport failures are isolated from the host app.
@@ -40,71 +39,36 @@ Screenshot JPEG frames are schema-v10 `frame` records regardless of
 not change collector URLs, event names, or the frame transport schema. Keep
 the default `flutterRepaintBoundary` backend for production collector cohorts.
 
-## Local exploration WebSocket
+## Local exploration runs
 
-Use the exploration destination for an interactive local run:
+An interactive local run uses the HTTP collector with a local `baseUrl`. Turn
+on the exploration evidence you need:
 
 ```dart
-const config = TugboatReplayConfig(
+final config = TugboatReplayConfig(
   enabled: true,
   emitSceneInventory: true,
   emitViewportSemanticMap: true,
   acceptActionContext: true,
-  explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
   explorationRunId: 'optional-run-id',
-  appInfo: TugboatCollectorAppInfo(
-    name: 'My App',
-    version: '1.0.0',
-    buildNumber: '42',
-    installationId: 'device-installation-id',
-    appId: 'com.example.my_app',
-  ),
+  collector: localCollectorConfig,
 );
 ```
 
-For an Android emulator the host-side runner must make the socket reachable,
-for example with `adb reverse tcp:7832 tcp:7832` when using
-`127.0.0.1:7832`. Connection setup is not performed by the Flutter package.
+The same switches are available at launch through the Android Intent extras
+and iOS launch inputs listed in the package README. For an Android emulator the
+host-side runner must make the local collector reachable (`10.0.2.2` from the
+emulator, or `adb reverse`). Connection setup is not performed by the Flutter
+package.
 
-If `appInfo` is omitted, session metadata falls back to
-`collector.appInfo` when the HTTP destination is also configured.
+The optional `locale` object on session metadata contains `language`, optional
+`country` and `script`, and a BCP 47 `tag`. Every SDK event carries the current
+locale when known. A `locale_changed` evidence event contains `previousLocale`
+when known and the new `locale` in its payload.
 
-### WebSocket messages
-
-The SDK sends:
-
-- `type: session`: session metadata, platform, exploration run ID when set, and
-  `fingerprintSchemaVersion`, plus the active app locale when available;
-- `type: event`: serialized event payload plus available session/run/action
-  correlation fields;
-- `type: frame`: frame metadata (`captureMicros`, `byteLength`,
-  `requestedBackend`, `resolvedBackend`, optional `fallbackReason`) followed by
-  a binary JPEG message;
-- `type: control_ack`: acknowledgement for supported exploration commands.
-
-The optional `locale` object contains `language`, optional `country` and
-`script`, and a BCP 47 `tag`. Every SDK event carries the current locale when
-known. A `locale_changed` evidence event contains `previousLocale` when known
-and the new `locale` in its payload.
-
-Incoming JSON control messages are forwarded to the controller. The current
-controller understands `set_action_window`, `clear_action_window`,
-`pause_capture`, and `resume_capture`, and acknowledges recognized commands.
-Malformed or unknown messages are ignored.
-
-The transport reconnects after two seconds. Messages produced while
-disconnected are queued in memory, with a maximum of 200 messages; the oldest
-message is dropped when the bound is exceeded. The queue is not persisted.
-
-### Exploration screenshot suppression
-
-When the WebSocket connects and no HTTP collector is configured, the controller
-suppresses non-interaction Flutter screenshot capture to reduce UI-thread work.
-Each completed interaction still captures and encodes a fresh screenshot. A
-route capture claimed by that interaction also bypasses this suppression.
-Events, anchors, scene inventories, and enabled viewport semantic evidence
-continue to stream. Frames captured before the socket connects can still be
-sent.
+Action windows and capture pause are in-process controller calls
+(`setActionContext`, `clearActionContext`, `setCapturePaused`). The SDK does
+not receive control messages over the network.
 
 The external exploration runner may record its own before/after screenshots,
 but that behavior is not implemented or guaranteed by this Flutter package.
@@ -247,6 +211,14 @@ Event payloads contain:
 - build identity: app ID, platform, version name, build number, and fingerprint
   schema version.
 
+An `interaction` record carries `route`, `targetFingerprint`, `gesture`,
+`payload` and `targetAnchor`, plus `targetResolutionFailureReason` when no
+target resolved. Exploration taps (scene inventory emission on) also carry
+`fingerprintConfidence`, `fingerprintSource` (how the fingerprint was
+resolved), `routeKey` (the route key it was hashed under) and `surface`
+(`kind`, optional `widgetClass`). These four are exploration-only: production
+taps never carry them.
+
 The collector must accept all SDK schema-v2 gesture names: `tap`, `swipe`,
 `scroll`, `pan`, `zoom_in`, `zoom_out`, and `cancelled`. The mapper preserves
 these names. It does not rename zoom to swipe or scroll.
@@ -276,8 +248,7 @@ does not assert that the interaction caused that frame, route, or UI state.
 Frame uploads are sorted by numeric frame suffix and sent as multipart files
 named `<frameNo>.jpg`, with `sessionId` and comma-separated `frameNos` fields.
 Backend identity (`requestedBackend` / `resolvedBackend`) lives on the in-memory
-`TugboatFrame` and exploration WebSocket frame payload, not on this multipart
-upload.
+`TugboatFrame`, not on this multipart upload.
 Malformed frame IDs and frames belonging to a stale SDK session are dropped.
 Queued frames are uploaded as-is: events reference exact `beforeFrame` /
 `afterFrame` IDs, and the multipart protocol has no hash alias, so intermediate
@@ -306,7 +277,7 @@ The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
 events, and frames are bounded in memory. When a bound is exceeded the oldest
 items are discarded and a debug message is printed.
 
-Collector and WebSocket delivery are best-effort. Bounded in-memory queues retry
+Collector delivery is best-effort. Bounded in-memory queues retry
 temporary failures while the process remains alive. The SDK does not persist
 events or frames across process restarts.
 
@@ -314,30 +285,16 @@ Fresh events can continue to flush even while an older retry head remains
 blocked. Session epochs prevent an in-flight response from a prior session from
 stamping or clearing a newer session's evidence.
 
-## Using both destinations
-
-```dart
-final config = TugboatReplayConfig(
-  enabled: true,
-  emitSceneInventory: true,
-  emitViewportSemanticMap: true,
-  acceptActionContext: true,
-  explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
-  collector: productionCollectorConfig,
-);
-```
-
-The sink hub fans each session, event, and frame to both destinations and
-isolates failures per sink. With HTTP configured, connecting the WebSocket does
-not enable exploration-only screenshot suppression because frames still need to
-reach the HTTP destination.
+## Custom destinations
 
 Custom destinations can be registered through `sinkFactories` on
-`TugboatReplayConfig`; the SDK owns one sink instance per capture session.
+`TugboatReplayConfig`; the SDK owns one sink instance per capture session. The
+sink hub fans each session, event, and frame to every sink and isolates
+failures per sink.
 
 ## Operational limits
 
-- Collector HTTP and exploration WebSocket delivery stay process-local.
+- Collector HTTP delivery stays process-local.
 - `activationRequestId` and `captureSessionId` are distinct and both emitted.
 - Platform-view / video-texture capture adapters are deferred.
 - Disposal requests asynchronous finalization; a force-killed process can lose

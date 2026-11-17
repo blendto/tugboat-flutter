@@ -2,6 +2,15 @@ part of 'anchors.dart';
 
 /// Algorithm version for canonical-tree fingerprinting (denylist, tokenization).
 ///
+/// v7 (#139): overlay-host ordinals are not part of the path, and the
+/// `ListTileTheme` and `SwitchTheme` wrappers are transparent.
+///
+/// v7: interactive coverage. Disabled controls and the identity of a control
+/// resolve to the same path whether enabled or not; `Semantics` tap actions,
+/// `Listener` pointer-up and `RawGestureDetector` tap recognizers are roles; the
+/// anonymous-route structural signature covers every control, enabled or not.
+/// Schema 6 values travel as `aliases` for one release.
+///
 /// v6: use locale-independent structural positions for list and grid items.
 /// Nested Flutter hit-target aliases normalize to the inventory primary.
 ///
@@ -15,7 +24,7 @@ part of 'anchors.dart';
 /// v3: fixed `[item]` list-collapse (single token per row), generic-aware
 /// denylist matching + expanded denylist, and the verbose structural path
 /// skeleton moved out of the serialized `*Parts` (hash-only now).
-const int tugboatFingerprintSchemaVersion = 6;
+const int tugboatFingerprintSchemaVersion = 7;
 
 const _canonicalDenylist = <String>{
   'Padding',
@@ -178,6 +187,26 @@ const _canonicalDenylist = <String>{
   'ShaderMask',
   'ColorFiltered',
   'ImageFiltered',
+};
+
+/// Schema 7 (#139): component themes an app wraps around its own controls.
+/// Each has no render object of its own, so it added a path segment without
+/// adding identity: the same tile wrapped and unwrapped had two schema 6
+/// fingerprints. Only reproduced wrappers are listed. Themes the framework
+/// inserts itself (`IconButtonTheme` in an `AppBar` toolbar, a `ListTile`
+/// trailing slot and a popup menu) are always present, so they never split a
+/// fingerprint, and dropping them would only move every control under them.
+/// `ListTileTheme` is also inserted by `Drawer` and `ExpansionTile`, so the
+/// controls under those move once at schema 7 (aliased).
+const _canonicalWrapperDenylist = <String>{'ListTileTheme', 'SwitchTheme'};
+
+/// Overlay hosts whose same-type ordinal depends on what else is mounted
+/// (`DisplayFeatureSubScreen#1` for the second open of a sheet). Schema 7 drops
+/// the ordinal from the path, so a sheet opened twice keeps its fingerprints.
+const _overlayHostWidgets = <String>{
+  'DisplayFeatureSubScreen',
+  'ModalBarrier',
+  'AnimatedModalBarrier',
 };
 
 /// Privacy-preserving hash of a label string.

@@ -48,6 +48,8 @@ class TugboatPreTapEvidence {
     required this.frameCompletionSequence,
     required this.buildMicros,
     required this.failureReason,
+    this.targetSource,
+    this.targetRouteKey,
   });
 
   final String? route;
@@ -64,6 +66,10 @@ class TugboatPreTapEvidence {
   final int frameCompletionSequence;
   final int buildMicros;
   final TugboatTargetResolutionFailureReason? failureReason;
+
+  /// How [targetAnchor] was resolved, and the route key it was hashed under.
+  final TugboatTargetResolutionSource? targetSource;
+  final String? targetRouteKey;
 
   String? get inventoryHash => inventory?.inventoryHash;
 }
@@ -235,18 +241,43 @@ void _writeTapResolutionPayload(
   InteractionTransaction tx,
   String? fingerprint,
 ) {
-  final confidence = tx.targetAnchor?.fingerprintConfidence;
-  if (tx.preTapEvidence != null &&
-      fingerprint != null &&
-      fingerprint.isNotEmpty &&
-      confidence != null &&
-      confidence.isNotEmpty) {
-    envelope['fingerprintConfidence'] = confidence;
+  final hasFingerprint = fingerprint != null && fingerprint.isNotEmpty;
+  // Exploration only: production taps keep the lean envelope.
+  if (hasFingerprint && tx.preTapEvidence != null) {
+    _writeFingerprintEvidence(envelope, tx);
   }
   final failureReason = tx.targetResolutionFailureReason;
   if ((fingerprint == null || fingerprint.isEmpty) && failureReason != null) {
     envelope['targetResolutionFailureReason'] = failureReason.wireName;
   }
+}
+
+/// Confidence, source, resolved route key and surface for an exploration tap
+/// that carries a fingerprint. `routeKey` is the key the fingerprint was
+/// hashed under; `route` stays the raw origin route. `surface` is the one the
+/// tap's own inventory carries (same route, same pointer-down walk).
+void _writeFingerprintEvidence(
+  Map<String, Object?> envelope,
+  InteractionTransaction tx,
+) {
+  final anchor = tx.targetAnchor;
+  final confidence = anchor?.fingerprintConfidence;
+  if (confidence != null && confidence.isNotEmpty) {
+    envelope['fingerprintConfidence'] = confidence;
+  }
+  final source = tx.targetResolutionSource;
+  if (source != null) envelope['fingerprintSource'] = source.wireName;
+  _writeRouteEvidence(envelope, tx);
+}
+
+void _writeRouteEvidence(
+  Map<String, Object?> envelope,
+  InteractionTransaction tx,
+) {
+  final routeKey = tx.targetRouteKey;
+  if (routeKey != null && routeKey.isNotEmpty) envelope['routeKey'] = routeKey;
+  final surface = tx.preTapEvidence?.inventory?.surface;
+  if (surface != null) envelope['surface'] = surface.toJson();
 }
 
 Map<String, Object?> _buildGesturePayload(InteractionTransaction tx) {
@@ -362,6 +393,11 @@ class InteractionTransaction {
   TugboatPreTapEvidence? preTapEvidence;
   TugboatTargetResolutionFailureReason? targetResolutionFailureReason;
 
+  /// How [targetAnchor] was resolved, and the resolved route key its
+  /// fingerprint was computed under. Set for exploration and production taps.
+  TugboatTargetResolutionSource? targetResolutionSource;
+  String? targetRouteKey;
+
   /// Resolved only after this gesture remains a tap. Pointer-down stores only
   /// origin facts so possible scrolls do not pay tap inventory costs.
   TugboatTargetAnchor? targetAnchor;
@@ -442,6 +478,8 @@ class InteractionTransaction {
   void discardPreTapEvidence() {
     preTapEvidence = null;
     targetResolutionFailureReason = null;
+    targetResolutionSource = null;
+    targetRouteKey = null;
   }
 }
 

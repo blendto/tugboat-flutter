@@ -1,5 +1,22 @@
 part of 'anchors.dart';
 
+/// The schema 6 walk of one exploration tree and the route key it gives, used
+/// to compute `aliases` (see [TugboatSceneInventoryApi._legacyInteractiveAliases]).
+class _LegacyAliasContext {
+  _LegacyAliasContext({
+    required this.map,
+    required this.routeKey,
+    required this.route,
+    required this.rootRender,
+  });
+
+  final _TokenMap map;
+  final String routeKey;
+  final String? route;
+  final RenderBox rootRender;
+  final Map<String, TugboatTargetAnchor?> hitCache = {};
+}
+
 extension TugboatSceneInventoryApi on AnchorResolver {
   /// Minimum normalized paint area for tokenized [Text] widgets to qualify as
   /// content-tier inventory entries.
@@ -8,10 +25,20 @@ extension TugboatSceneInventoryApi on AnchorResolver {
   /// Enumerates tokenized actionable elements, [Image] widgets, and large
   /// [Text] blocks on the current screen. Fingerprints match [targetAt] for the
   /// same element.
+  ///
+  /// [surfaceKind] is the [TugboatSurfaceKind] of the current route; it only
+  /// labels the inventory's `surface` and never reaches a hash.
+  ///
+  /// [withBoundsEvidence] adds the `viewport`, `scroll` and per-element
+  /// `visibleFraction` evidence. It costs one extra ancestor walk per element,
+  /// so only inventories that will be emitted ask for it. None of it reaches a
+  /// hash.
   TugboatSceneInventory? buildSceneInventory({
     required String? route,
     required bool keyboardOpen,
     required bool modalOpen,
+    String? surfaceKind,
+    bool withBoundsEvidence = false,
   }) {
     final rootContext = rootKey.currentContext;
     final rootRender = rootContext?.findRenderObject();
@@ -24,6 +51,8 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       tokenMap: tokenMap,
       rootRender: rootRender,
       route: route,
+      surface: _surfaceFor(tokenMap, kind: surfaceKind),
+      withBoundsEvidence: withBoundsEvidence,
     );
   }
 
@@ -31,6 +60,8 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required _TokenMap tokenMap,
     required RenderBox rootRender,
     required String? route,
+    required TugboatSurface surface,
+    required bool withBoundsEvidence,
   }) {
     final routeKey = _resolveRouteKey(route, tokenMap);
     final viewport = rootRender.size;
@@ -38,6 +69,14 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     final interactiveByFingerprint = <String, TugboatSceneInventoryEntry>{};
     final seenContentFingerprints = <String>{};
     final hitCache = <String, TugboatTargetAnchor?>{};
+    final evidence = withBoundsEvidence ? _BoundsEvidence(rootRender) : null;
+    final loading = withBoundsEvidence
+        ? _LoadingEvidence.capture(rootKey.currentContext)
+        : null;
+    final legacy = withBoundsEvidence
+        ? _legacyAliasContextFor(tokenMap, rootRender, route)
+        : null;
+    final legacyAliases = <String, Set<String>>{};
 
     for (final element in tokenMap.includedElements) {
       _addInventoryElement(
@@ -45,6 +84,10 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         tokenMap: tokenMap,
         rootRender: rootRender,
         viewport: viewport,
+        evidence: evidence,
+        loading: loading,
+        legacy: legacy,
+        legacyAliases: legacyAliases,
         route: route,
         routeKey: routeKey,
         hitCache: hitCache,
@@ -54,10 +97,30 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       );
     }
 
-    final elements = [...interactiveByFingerprint.values, ...contentEntries];
+    if (evidence != null) {
+      _addExcludedSemanticsControls(
+        tokenMap: tokenMap,
+        rootRender: rootRender,
+        route: route,
+        evidence: evidence,
+        interactiveByFingerprint: interactiveByFingerprint,
+        contentEntries: contentEntries,
+      );
+    }
+    final elements = _withLegacyAliases([
+      ...interactiveByFingerprint.values,
+      ...contentEntries,
+    ], legacyAliases);
     if (elements.isEmpty) return null;
 
-    return _inventoryFromElements(routeKey: routeKey, elements: elements);
+    return _inventoryFromElements(
+      routeKey: routeKey,
+      elements: elements,
+      surface: surface,
+      viewport: evidence == null ? null : _viewportFor(rootRender),
+      scroll: evidence == null ? null : _primaryScrollFor(tokenMap, rootRender),
+      loading: _loadingSummary(loading, elements),
+    );
   }
 
   void _addInventoryElement({
@@ -65,6 +128,10 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required _TokenMap tokenMap,
     required RenderBox rootRender,
     required Size viewport,
+    required _BoundsEvidence? evidence,
+    required _LoadingEvidence? loading,
+    required _LegacyAliasContext? legacy,
+    required Map<String, Set<String>> legacyAliases,
     required String? route,
     required String routeKey,
     required Map<String, TugboatTargetAnchor?> hitCache,
@@ -74,7 +141,11 @@ extension TugboatSceneInventoryApi on AnchorResolver {
   }) {
     if (!tokenMap.tokens.containsKey(element)) return;
     final widget = element.widget;
-    final actionable = tokenMap.isActionable[element] == true;
+    // A disabled control is listed too (enabled: false), so it is a candidate
+    // whenever it names an identity.
+    final actionable =
+        tokenMap.isActionable[element] == true ||
+        tokenMap.isIdentityCandidate(element);
     if (!_isInventoryCandidate(
       widget,
       actionable,
@@ -85,8 +156,12 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       return;
     }
     final structuralPath = _pathFor(element, tokenMap);
-    final bounds = _boundsForElement(element, rootRender, viewport);
-    if (bounds == null) return;
+    final rect = _paintRectInRoot(element, rootRender);
+    if (rect == null) return;
+    final bounds = TugboatNormalizedBounds.fromRect(rect, viewport);
+    final visibleFraction = evidence?.visibleFractionFor(element, rect);
+    final flags = loading?.flagsFor(element);
+    final placeholder = flags?.placeholder ?? false;
     if (actionable) {
       final result = _interactiveInventoryEntry(
         element: element,
@@ -99,25 +174,104 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         rootRender: rootRender,
         viewport: viewport,
         hitCache: hitCache,
+        visibleFraction: visibleFraction,
       );
-      if (result != null) {
-        _accumulateInteractiveEntry(
-          interactiveByFingerprint,
-          result.entry,
-          result.structuralFingerprint,
-        );
-      }
+      if (result == null) return;
+      _accumulateInteractiveEntry(
+        interactiveByFingerprint,
+        result.entry.copyWith(
+          placeholder: placeholder,
+          busy: _isBusyEntry(flags, result.entry),
+          tag: _explicitTagFor(element),
+        ),
+        result.structuralFingerprint,
+      );
+      _recordLegacyAliases(
+        legacyAliases,
+        result.entry.fingerprint,
+        _legacyInteractiveAliases(
+          legacy,
+          element,
+          _inventoryEntryCenter(bounds, viewport),
+        ),
+      );
       return;
     }
-    _addContentInventoryEntry(
-      contentEntries,
-      seenContentFingerprints,
-      widget,
-      structuralPath,
-      bounds,
-      routeKey,
+    _recordLegacyAliases(
+      legacyAliases,
+      _addContentInventoryEntry(
+        contentEntries,
+        seenContentFingerprints,
+        widget,
+        structuralPath,
+        bounds,
+        routeKey,
+        visibleFraction,
+        placeholder: placeholder,
+      ),
+      _legacyContentAliases(legacy, element),
     );
   }
+
+  void _recordLegacyAliases(
+    Map<String, Set<String>> legacyAliases,
+    String? fingerprint,
+    List<String> aliases,
+  ) {
+    if (fingerprint == null || aliases.isEmpty) return;
+    (legacyAliases[fingerprint] ??= {}).addAll(aliases);
+  }
+
+  /// Adds each entry's schema 6 fingerprints to its `aliases`, except one that
+  /// already names something in this inventory (an entry's fingerprint or a
+  /// layer alias) or that two entries claim: the schema 7 meaning wins, so a
+  /// schema 6 alias never redirects a tap to another control.
+  List<TugboatSceneInventoryEntry> _withLegacyAliases(
+    List<TugboatSceneInventoryEntry> entries,
+    Map<String, Set<String>> legacyAliases,
+  ) {
+    if (legacyAliases.isEmpty) return entries;
+    final taken = {
+      for (final entry in entries) ...[entry.fingerprint, ...entry.aliases],
+    };
+    final claims = _legacyAliasClaims(entries, legacyAliases);
+    bool usable(String alias) => !taken.contains(alias) && claims[alias] == 1;
+    return [
+      for (final entry in entries)
+        _withExtraAliases(
+          entry,
+          (legacyAliases[entry.fingerprint] ?? const {}).where(usable),
+        ),
+    ];
+  }
+
+  /// How many entries claim each schema 6 fingerprint.
+  Map<String, int> _legacyAliasClaims(
+    List<TugboatSceneInventoryEntry> entries,
+    Map<String, Set<String>> legacyAliases,
+  ) {
+    final claims = <String, int>{};
+    for (final entry in entries) {
+      for (final alias in legacyAliases[entry.fingerprint] ?? const {}) {
+        claims[alias] = (claims[alias] ?? 0) + 1;
+      }
+    }
+    return claims;
+  }
+
+  TugboatSceneInventoryEntry _withExtraAliases(
+    TugboatSceneInventoryEntry entry,
+    Iterable<String> extra,
+  ) => extra.isEmpty
+      ? entry
+      : entry.copyWith(aliases: [...entry.aliases, ...extra]..sort());
+
+  /// An enabled control beneath a pointer blocker. A disabled control (a
+  /// disabled `TextField` sits under its own `IgnorePointer`) is not busy.
+  bool _isBusyEntry(
+    ({bool placeholder, bool busy})? flags,
+    TugboatSceneInventoryEntry entry,
+  ) => (flags?.busy ?? false) && entry.enabled != false;
 
   bool _isInventoryCandidate(
     Widget widget,
@@ -131,20 +285,24 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       (widget is Text &&
           _isLargeTextBounds(_boundsForElement(element, rootRender, viewport)));
 
-  void _addContentInventoryEntry(
+  /// Adds a content entry and returns its fingerprint, or null when it was
+  /// not added.
+  String? _addContentInventoryEntry(
     List<TugboatSceneInventoryEntry> contentEntries,
     Set<String> seenContentFingerprints,
     Widget widget,
     String structuralPath,
     TugboatNormalizedBounds bounds,
     String routeKey,
-  ) {
+    double? visibleFraction, {
+    required bool placeholder,
+  }) {
     final fingerprint = _fingerprintForParts({
       'routeKey': routeKey,
       'path': structuralPath,
     });
     if (fingerprint.isEmpty || !seenContentFingerprints.add(fingerprint)) {
-      return;
+      return null;
     }
     contentEntries.add(
       TugboatSceneInventoryEntry(
@@ -154,13 +312,20 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         role: 'display',
         boundsNorm: bounds,
         tier: 'content',
+        visibleFraction: visibleFraction,
+        placeholder: placeholder,
       ),
     );
+    return fingerprint;
   }
 
   TugboatSceneInventory _inventoryFromElements({
     required String routeKey,
     required List<TugboatSceneInventoryEntry> elements,
+    required TugboatSurface surface,
+    TugboatInventoryViewport? viewport,
+    TugboatInventoryScroll? scroll,
+    TugboatInventoryLoading? loading,
   }) {
     final fingerprints = elements.map((entry) => entry.fingerprint).toList()
       ..sort();
@@ -170,6 +335,10 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       inventoryHash: inventoryHash,
       routeKey: routeKey,
       elements: elements,
+      surface: surface,
+      viewport: viewport,
+      scroll: scroll,
+      loading: loading,
     );
   }
 
@@ -181,7 +350,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     final existing = interactiveByFingerprint[entry.fingerprint];
     if (existing == null) {
       final aliases = _mergeAliasFingerprints(
-        existingAliases: const [],
+        existingAliases: entry.aliases,
         primaryFingerprint: entry.fingerprint,
         structuralFingerprint: structuralFingerprint,
       );
@@ -192,12 +361,14 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     }
 
     final aliases = _mergeAliasFingerprints(
-      existingAliases: existing.aliases,
+      existingAliases: [...existing.aliases, ...entry.aliases],
       primaryFingerprint: entry.fingerprint,
       structuralFingerprint: structuralFingerprint,
     );
     interactiveByFingerprint[entry.fingerprint] = existing.copyWith(
       aliases: aliases,
+      placeholder: existing.placeholder || entry.placeholder,
+      busy: existing.busy || entry.busy,
     );
   }
 
@@ -211,6 +382,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         structuralFingerprint != primaryFingerprint) {
       merged.add(structuralFingerprint);
     }
+    merged.remove(primaryFingerprint);
     final sorted = merged.toList()..sort();
     return sorted;
   }
@@ -280,6 +452,119 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     actions: entry.actions.isNotEmpty ? entry.actions : target.actions,
   );
 
+  /// The schema 6 view of this tree, or null when it cannot be built. Only
+  /// exploration inventories and taps ask for it.
+  _LegacyAliasContext? _legacyAliasContextFor(
+    _TokenMap tokenMap,
+    RenderBox rootRender,
+    String? route,
+  ) {
+    try {
+      final legacy = _legacyMapFor(tokenMap);
+      return _LegacyAliasContext(
+        map: legacy,
+        routeKey: _resolveRouteKey(route, legacy),
+        route: route,
+        rootRender: rootRender,
+      );
+    } catch (_) {
+      // A racing tree only costs the aliases, never the inventory.
+      return null;
+    }
+  }
+
+  /// The schema 6 fingerprints of an interactive element, as schema 6 reported
+  /// it at [center]: its primary and its structural path. Empty when schema 6
+  /// reported no entry for the element.
+  List<String> _legacyInteractiveAliases(
+    _LegacyAliasContext? legacy,
+    Element element,
+    Offset center,
+  ) {
+    if (legacy == null) return const [];
+    final map = legacy.map;
+    if (map.isActionable[element] != true) return const [];
+    final structuralPath = _pathFor(element, map);
+    final structural = _fingerprintForParts({
+      'routeKey': legacy.routeKey,
+      'path': structuralPath,
+    });
+    if (structural.isEmpty) return const [];
+    final resolved = _cachedInventoryTarget(
+      center,
+      legacy.route,
+      map,
+      legacy.rootRender,
+      legacy.hitCache,
+    );
+    final resolvedFingerprint = resolved?.fingerprint;
+    if (_resolvedPathMatches(
+      resolvedFingerprint,
+      resolved?.canonicalPath,
+      structuralPath,
+    )) {
+      return [resolvedFingerprint!, structural];
+    }
+    // Schema 6 dropped a wrapper that exposed a tokenized actionable child.
+    if (map.hasTokenizedActionableDescendant[element] == true) {
+      return const [];
+    }
+    return [structural];
+  }
+
+  /// The schema 6 fingerprint of a content element, when schema 6 kept it as
+  /// a non-interactive token.
+  List<String> _legacyContentAliases(
+    _LegacyAliasContext? legacy,
+    Element element,
+  ) {
+    if (legacy == null) return const [];
+    final map = legacy.map;
+    if (!map.tokens.containsKey(element) || map.isActionable[element] == true) {
+      return const [];
+    }
+    final fingerprint = _fingerprintForParts({
+      'routeKey': legacy.routeKey,
+      'path': _pathFor(element, map),
+    });
+    return fingerprint.isEmpty ? const [] : [fingerprint];
+  }
+
+  /// The schema 6 fingerprint of the hit at [tapPosition], for an entry that
+  /// a tap injects into the inventory.
+  List<String> _legacyTapAliases(
+    _LegacyAliasContext? legacy,
+    Offset tapPosition,
+  ) {
+    if (legacy == null) return const [];
+    final fingerprint = _targetAtWithTokenMap(
+      tapPosition,
+      route: legacy.route,
+      tokenMap: legacy.map,
+      rootRender: legacy.rootRender,
+    )?.fingerprint;
+    return fingerprint == null || fingerprint.isEmpty
+        ? const []
+        : [fingerprint];
+  }
+
+  /// The id of the nearest explicit [TugboatTag] at or above [element].
+  String? _explicitTagFor(Element element) {
+    String? tag;
+    if (element.widget is TugboatTag) {
+      return (element.widget as TugboatTag).id;
+    }
+    element.visitAncestorElements((ancestor) {
+      final widget = ancestor.widget;
+      if (widget is TugboatTag) {
+        tag = widget.id;
+        return false;
+      }
+      return true;
+    });
+    return tag;
+  }
+
   /// When hit-testing produced a target without a canonical path (e.g. a
   /// decorated box that is not part of the token map), its fingerprint can
   /// never join the scene inventory. Re-anchor the tap to the smallest
@@ -348,10 +633,10 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     role: best.role ?? target.role,
     fingerprint: best.fingerprint,
     fingerprintConfidence: 'low',
-    // The fingerprint now describes the inventory element, so the original
-    // anchor's parts would be stale; inventory entries carry no parts.
+    // The fingerprint now describes the inventory element, a different
+    // control, so the original anchor's parts and tag alias would be stale;
+    // inventory entries carry neither.
     fingerprintParts: const {},
-    tagFingerprint: target.tagFingerprint,
     canonicalPath: best.canonicalPath,
     relativePosition: target.relativePosition,
     enabled: best.enabled ?? target.enabled,
@@ -364,6 +649,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     double? hitAreaNorm,
   ) {
     if (entry.tier != 'interactive') return false;
+    if (entry.enabled == false) return false;
     if (entry.role == null && entry.actions.isEmpty) return false;
     final bounds = entry.boundsNorm;
     if (!_pointIsInBounds(tap.x, tap.y, bounds)) return false;
@@ -401,6 +687,9 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required TugboatTargetAnchor? target,
     required Offset tapPosition,
     required String? route,
+    required TugboatSurface surface,
+    required bool withBoundsEvidence,
+    required _LegacyAliasContext? legacy,
     required _TokenMap tokenMap,
     required RenderBox rootRender,
   }) {
@@ -414,24 +703,76 @@ extension TugboatSceneInventoryApi on AnchorResolver {
 
     final routeKey = _resolveRouteKey(route, tokenMap);
     final viewport = rootRender.size;
-    final injectedEntry = _entryFromTargetAnchor(
+    final entry = _entryFromTargetAnchor(
       target: target!,
       tapPosition: tapPosition,
       tokenMap: tokenMap,
       rootRender: rootRender,
       viewport: viewport,
     );
-    if (injectedEntry == null) return inventory;
+    if (entry == null) return inventory;
+    final injectedEntry = _withLegacyAliases(
+      [...?inventory?.elements, entry],
+      {fingerprint: _legacyTapAliases(legacy, tapPosition).toSet()},
+    ).last;
 
-    final elements = [
-      ...(inventory?.elements ?? const <TugboatSceneInventoryEntry>[]),
-      injectedEntry,
-    ];
-    return _inventoryFromElements(
-      routeKey: inventory?.routeKey ?? routeKey,
-      elements: elements,
+    return _inventoryWithEntry(
+      inventory: inventory,
+      entry: injectedEntry,
+      routeKey: routeKey,
+      surface: surface,
+      viewport: _injectedViewport(inventory, rootRender, withBoundsEvidence),
+      loading: _injectedLoading(inventory, withBoundsEvidence),
     );
   }
+
+  /// The loading summary of an inventory with the tap target injected. The
+  /// injected entry is never a placeholder and adds no busy control. When
+  /// there was no inventory, only the progress-indicator count is walked.
+  TugboatInventoryLoading? _injectedLoading(
+    TugboatSceneInventory? inventory,
+    bool withBoundsEvidence,
+  ) {
+    if (inventory != null) return inventory.loading;
+    if (!withBoundsEvidence) return null;
+    final progress =
+        _LoadingEvidence.capture(rootKey.currentContext)?.progressIndicators ??
+        0;
+    return TugboatInventoryLoading(
+      progressIndicators: progress,
+      placeholders: 0,
+      busyControls: 0,
+    );
+  }
+
+  TugboatSceneInventory _inventoryWithEntry({
+    required TugboatSceneInventory? inventory,
+    required TugboatSceneInventoryEntry entry,
+    required String routeKey,
+    required TugboatSurface surface,
+    required TugboatInventoryViewport? viewport,
+    required TugboatInventoryLoading? loading,
+  }) => _inventoryFromElements(
+    routeKey: inventory?.routeKey ?? routeKey,
+    elements: [
+      ...(inventory?.elements ?? const <TugboatSceneInventoryEntry>[]),
+      entry,
+    ],
+    surface: inventory?.surface ?? surface,
+    viewport: viewport,
+    scroll: inventory?.scroll,
+    loading: loading,
+  );
+
+  /// The viewport an inventory with the injected tap target carries: its own,
+  /// or, when the target is the inventory's only element, the boundary's frame.
+  TugboatInventoryViewport? _injectedViewport(
+    TugboatSceneInventory? inventory,
+    RenderBox rootRender,
+    bool withBoundsEvidence,
+  ) => inventory == null && withBoundsEvidence
+      ? _viewportFor(rootRender)
+      : inventory?.viewport;
 
   TugboatSceneInventoryEntry? _entryFromTargetAnchor({
     required TugboatTargetAnchor target,
@@ -504,55 +845,80 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required RenderBox rootRender,
     required Size viewport,
     required Map<String, TugboatTargetAnchor?> hitCache,
+    required double? visibleFraction,
   }) {
     final structuralFingerprint = _fingerprintForParts({
       'routeKey': routeKey,
       'path': structuralPath,
     });
 
+    // A low-level role (a tap Semantics, a pointer-up Listener) often has no
+    // box of its own that absorbs the hit, so a centre hit lands on an
+    // enclosing scrollable. Such an element is its own identity.
+    final ownLowLevel = tokenMap.newRoleCandidates.contains(element);
     final center = _inventoryEntryCenter(bounds, viewport);
     // Hit-test once per distinct center (cached). Wrappers that resolve to the
     // same actionable descendant still run through so their structural
     // fingerprints become aliases for edge taps that land on the wrapper.
-    final resolved = _cachedInventoryTarget(
-      center,
-      route,
-      tokenMap,
-      rootRender,
-      hitCache,
-    );
-    final resolvedEntry = _resolvedInteractiveInventoryEntry(
-      resolved,
-      structuralPath,
-      widget,
-      bounds,
-      structuralFingerprint,
-    );
+    final resolvedEntry = ownLowLevel
+        ? null
+        : _resolvedInteractiveInventoryEntry(
+            _cachedInventoryTarget(
+              center,
+              route,
+              tokenMap,
+              rootRender,
+              hitCache,
+            ),
+            structuralPath,
+            widget,
+            bounds,
+            structuralFingerprint,
+            visibleFraction,
+          );
     if (resolvedEntry != null) return resolvedEntry;
 
     // Skip wrappers that already expose a tokenized actionable child, but only
-    // after the same-chain path above had a chance to contribute aliases.
-    if (tokenMap.hasTokenizedActionableDescendant[element] == true) {
+    // after the same-chain path above had a chance to contribute aliases. A
+    // disabled control whose centre is covered skips to its innermost layer
+    // too, so it is one entry with its enabled twin's fingerprint.
+    if (tokenMap.hasTokenizedActionableDescendant[element] == true ||
+        tokenMap.identityAncestors.contains(element)) {
       return null;
     }
 
     if (structuralFingerprint.isEmpty) return null;
-
-    final role = tugboatRoleForWidget(widget);
     return (
-      entry: TugboatSceneInventoryEntry(
-        fingerprint: structuralFingerprint,
-        canonicalPath: structuralPath,
-        widgetType: _widgetName(widget),
-        role: role?.name,
-        actions: [...(role?.actions ?? const [])]..sort(),
-        enabled: role?.enabled,
-        boundsNorm: bounds,
-        tier: 'interactive',
+      entry: _structuralInteractiveEntry(
+        _inventoryRoleOf(element, tokenMap),
+        structuralFingerprint,
+        structuralPath,
+        widget,
+        bounds,
+        visibleFraction,
       ),
       structuralFingerprint: structuralFingerprint,
     );
   }
+
+  TugboatSceneInventoryEntry _structuralInteractiveEntry(
+    WidgetRole? role,
+    String structuralFingerprint,
+    String structuralPath,
+    Widget widget,
+    TugboatNormalizedBounds bounds,
+    double? visibleFraction,
+  ) => TugboatSceneInventoryEntry(
+    fingerprint: structuralFingerprint,
+    canonicalPath: structuralPath,
+    widgetType: _widgetName(widget),
+    role: role?.name,
+    actions: [...(role?.actions ?? const [])]..sort(),
+    enabled: role?.enabled,
+    boundsNorm: bounds,
+    tier: 'interactive',
+    visibleFraction: visibleFraction,
+  );
 
   Offset _inventoryEntryCenter(TugboatNormalizedBounds bounds, Size viewport) =>
       Offset(
@@ -568,11 +934,14 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     Map<String, TugboatTargetAnchor?> hitCache,
   ) => hitCache.putIfAbsent(
     '${center.dx}|${center.dy}',
+    // A control hidden under `ExcludeSemantics` is listed with its own box;
+    // a wrapper whose centre lands on it keeps its own entry.
     () => _targetAtWithTokenMap(
       center,
       route: route,
       tokenMap: tokenMap,
       rootRender: rootRender,
+      nameHiddenControls: false,
     ),
   );
 
@@ -583,6 +952,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     Widget widget,
     TugboatNormalizedBounds bounds,
     String structuralFingerprint,
+    double? visibleFraction,
   ) {
     final fingerprint = resolved?.fingerprint;
     final path = resolved?.canonicalPath;
@@ -597,6 +967,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         enabled: resolved?.enabled,
         boundsNorm: bounds,
         tier: 'interactive',
+        visibleFraction: visibleFraction,
       ),
       structuralFingerprint: structuralFingerprint,
     );

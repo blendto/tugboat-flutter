@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'anchors.dart' show tugboatCaptureRootKeyPrefix;
 import 'capture_boundary.dart';
 import 'controller.dart';
 import 'external_event.dart';
@@ -19,7 +20,12 @@ export 'input_context_capture.dart' show TugboatFocusKind, TugboatSystemInput;
 export 'lifecycle.dart' show TugboatLifecycleState;
 export 'screenshot_mask_level.dart' show TugboatScreenshotMaskLevel;
 export 'markers.dart'
-    show TugboatInternal, TugboatSensitive, TugboatSubView, TugboatTag;
+    show
+        TugboatInternal,
+        TugboatLoading,
+        TugboatSensitive,
+        TugboatSubView,
+        TugboatTag;
 
 typedef TugboatControllerTestHook =
     void Function(TugboatReplayController controller);
@@ -459,6 +465,7 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
     TugboatReplayConfig current,
   ) =>
       previous.emitSceneInventory != current.emitSceneInventory ||
+      previous.resampleSettledInventory != current.resampleSettledInventory ||
       previous.emitViewportSemanticMap != current.emitViewportSemanticMap ||
       previous.emitCaptureDiagnostics != current.emitCaptureDiagnostics ||
       previous.acceptActionContext != current.acceptActionContext ||
@@ -517,7 +524,7 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
     }
     final lifecycle = TugboatReplay._lifecycle;
     return _TugboatReplayRoot(
-      key: ValueKey('tugboat-capture-${_mountedEpoch ?? 0}'),
+      key: ValueKey('$tugboatCaptureRootKeyPrefix${_mountedEpoch ?? 0}'),
       config: widget.config.copyWith(enabled: true),
       activationRequestId: lifecycle.activationRequestId,
       sessionEpoch: _mountedEpoch ?? lifecycle.requestEpoch,

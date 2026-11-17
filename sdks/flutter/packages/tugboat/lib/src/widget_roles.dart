@@ -69,6 +69,39 @@ final _widgetRoleResolvers = <WidgetRole? Function(Widget)>[
   _textFieldRoleForWidget,
 ];
 
+/// Roles of the low-level gesture widgets that schema 6 did not report
+/// (#141): `Semantics` with tap or long-press actions, a `Listener` with a
+/// pointer-up handler, and a `RawGestureDetector` with a tap or long-press
+/// recognizer. Read only by the interactive identity rules in
+/// `anchor_resolver.dart`, never by masking or control-state signatures.
+WidgetRole? tugboatInteractiveRoleForWidget(Widget widget) =>
+    tugboatRoleForWidget(widget) ?? _lowLevelRoleForWidget(widget);
+
+WidgetRole? _lowLevelRoleForWidget(Widget widget) {
+  if (widget is Semantics) return _semanticsRole(widget.properties);
+  if (widget is Listener && widget.onPointerUp != null) {
+    return _tapRole('button', true);
+  }
+  if (widget is RawGestureDetector) return _rawGestureRole(widget.gestures);
+  return null;
+}
+
+WidgetRole? _semanticsRole(SemanticsProperties properties) {
+  final actions = <String>[
+    if (properties.onTap != null) 'tap',
+    if (properties.onLongPress != null) 'longPress',
+  ];
+  return actions.isEmpty ? null : WidgetRole('button', true, actions: actions);
+}
+
+WidgetRole? _rawGestureRole(Map<Type, GestureRecognizerFactory> gestures) {
+  final actions = <String>[
+    if (gestures.containsKey(TapGestureRecognizer)) 'tap',
+    if (gestures.containsKey(LongPressGestureRecognizer)) 'longPress',
+  ];
+  return actions.isEmpty ? null : WidgetRole('button', true, actions: actions);
+}
+
 WidgetRole _tapRole(String name, bool enabled) =>
     WidgetRole(name, enabled, actions: enabled ? const ['tap'] : const []);
 

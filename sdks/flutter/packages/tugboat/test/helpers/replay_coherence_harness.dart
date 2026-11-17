@@ -273,6 +273,9 @@ class ReplayCoherenceHarness {
       config: TugboatReplayConfig(
         enabled: enabled,
         emitSceneInventory: true,
+        // The harness characterises the capture flows that existed before the
+        // settled re-sample, so it runs them without it.
+        resampleSettledInventory: false,
         emitViewportSemanticMap: emitViewportSemanticMap,
         emitCaptureDiagnostics: emitCaptureDiagnostics,
         acceptActionContext: true,
