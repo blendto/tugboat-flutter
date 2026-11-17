@@ -6,7 +6,7 @@ import 'package:tugboat/tugboat.dart';
 
 // The fixture lives in the example app, which is not a package dependency.
 // ignore: avoid_relative_lib_imports
-import '../example/lib/screens/interactive_coverage_screen.dart';
+import 'helpers/interactive_coverage_fixture.dart';
 
 /// What the scene inventory must say about each fixture pattern. A pattern
 /// that is not reported carries the reason it is not.
