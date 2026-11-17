@@ -817,39 +817,50 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final epoch = _sessionEpoch;
     final sessionId = _collectorSessionId;
     // Confirm the current collector session before draining so frames queued
-    // for a newer session cannot be cleared by a stale in-flight flush.
+    // for a newer session cannot be taken by a stale in-flight flush.
     if (sessionId == null || sessionId.isEmpty || !_isCurrentEpoch(epoch)) {
       return;
     }
 
-    final uploads = List<_PendingFrameUpload>.from(_pendingFrames)
-      ..sort((a, b) => a.frameNo.compareTo(b.frameNo));
-    _pendingFrames.clear();
-
-    // Drop extracted uploads when the session was reset mid-flush rather than
-    // sending them under a stale collector id.
-    if (!_isCurrentEpoch(epoch)) {
-      return;
-    }
-    const batchSize = 20;
+    // Take one batch at a time and upload only the frames present now. The
+    // rest stay pending under maxPendingFrames / maxPendingFrameBytes, so at
+    // most one batch is held beyond those bounds, and frames captured during
+    // the drain wait for the next pass instead of extending this one.
+    var remaining = _pendingFrames.length;
     var droppedBatch = false;
-    for (var start = 0; start < uploads.length; start += batchSize) {
-      if (!_isCurrentEpoch(epoch)) return;
-      final end = start + batchSize < uploads.length
-          ? start + batchSize
-          : uploads.length;
-      final batch = uploads.sublist(start, end);
+    while (remaining > 0 && _pendingFrames.isNotEmpty) {
+      final batch = _takeFrameBatch();
+      remaining -= batch.length;
       final result = await _processFrameBatch(sessionId, batch, epoch);
+      // A session reset mid-flush drops the batch rather than sending it
+      // under a stale collector id.
       if (!_isCurrentEpoch(epoch)) return;
       if (result.retry) {
         _framesNeedRetry = true;
         _forgetFinishedFrames(batch.sublist(0, result.retryOffset));
-        _requeueFailedUploads(uploads.sublist(start + result.retryOffset));
+        _requeueFailedUploads(batch.sublist(result.retryOffset));
         return;
       }
       _forgetFinishedFrames(batch);
       droppedBatch = droppedBatch || result.dropped;
     }
+    _noteFrameLaneHealthy(droppedBatch);
+  }
+
+  static const _frameBatchSize = 20;
+
+  /// Removes and returns the oldest pending frames, up to one upload batch.
+  List<_PendingFrameUpload> _takeFrameBatch() {
+    _pendingFrames.sort((a, b) => a.frameNo.compareTo(b.frameNo));
+    final count = _pendingFrames.length < _frameBatchSize
+        ? _pendingFrames.length
+        : _frameBatchSize;
+    final batch = _pendingFrames.sublist(0, count);
+    _pendingFrames.removeRange(0, count);
+    return batch;
+  }
+
+  void _noteFrameLaneHealthy(bool droppedBatch) {
     _framesNeedRetry = false;
     if (_frameUploadFailureReported && !droppedBatch) {
       _recordUploadDiagnostic('recovered', null, 0);

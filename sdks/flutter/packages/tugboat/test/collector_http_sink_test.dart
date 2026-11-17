@@ -1707,6 +1707,43 @@ void main() {
     sink.dispose();
   });
 
+  test(
+    'frames held during a backlog upload stay within one batch of the bound',
+    () async {
+      sessionStatus = 503;
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingFrames: 40),
+      );
+      final session = createSession();
+      sink.startSession(session);
+      for (var i = 0; i < 40; i++) {
+        recordTestFrame(sink, session, i);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      sessionStatus = 202;
+      frameResponseDelay = const Duration(milliseconds: 100);
+      final draining = sink.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      // A full bound of new frames arrives while the first batch uploads.
+      for (var i = 40; i < 80; i++) {
+        recordTestFrame(sink, session, i);
+      }
+      await draining;
+      await sink.flush();
+      await sink.flush();
+
+      final sent = [
+        for (final post in framePosts)
+          for (final frameNo in post['frameNos'] as List) int.parse('$frameNo'),
+      ];
+      // Held at once: one batch in flight plus at most 40 pending.
+      expect(sent.length, lessThanOrEqualTo(40 + 20));
+      expect(sent, containsAll([for (var i = 40; i < 80; i++) i]));
+      sink.dispose();
+    },
+  );
+
   test('pending frames are bounded by encoded bytes', () async {
     sessionStatus = 503;
     final sink = CollectorHttpSink(

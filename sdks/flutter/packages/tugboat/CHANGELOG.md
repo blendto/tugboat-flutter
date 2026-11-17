@@ -17,7 +17,9 @@
   `maxPendingFrames` defaults to 400 (was 20) and the new
   `maxPendingFrameBytes` (default 8 MiB) bounds held frame bytes. Eviction
   drops the oldest frame no event references first and keeps the newest
-  frame.
+  frame. A flush takes one 20-frame batch from the queue at a time, so at
+  most that batch is held beyond the bounds, and a timed-out request is
+  aborted rather than left holding its frames.
 - A session lifecycle post the collector rejects (4xx), such as
   `user_changed`, is dropped instead of being retried on every flush, where
   it held every later lifecycle post, `session_end` included. A rejected

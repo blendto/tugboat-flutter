@@ -257,6 +257,8 @@ refs. Backpressure may still drop pending frames when `maxPendingFrames` or
 `maxPendingFrameBytes` is exceeded. Eviction drops the oldest frame that no
 recorded event references (`beforeFrame` / `afterFrame`) first, keeps the
 newest frame, and drops a referenced frame only when nothing else is left.
+Both bounds cover frames waiting for upload: a flush takes one batch of up to
+20 frames from the queue at a time, so at most that batch is held beyond them.
 
 ### Batching, retry, and backpressure
 

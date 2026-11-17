@@ -197,7 +197,8 @@ class TugboatCollectorConfig {
 
   /// Most encoded frame bytes held in memory while uploads stall or retry.
   /// Over either bound the sink evicts the oldest frame that no event
-  /// references first.
+  /// references first. Both bounds cover frames waiting for upload; the
+  /// batch being uploaded (at most 20 frames) is held in addition.
   final int maxPendingFrameBytes;
 
   TugboatCollectorConfig withUserId(String? userId) {
