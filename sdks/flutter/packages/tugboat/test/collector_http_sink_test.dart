@@ -1261,6 +1261,54 @@ void main() {
     },
   );
 
+  test(
+    'events that arrive during a hung post do not evict parked batches',
+    () async {
+      var eventPosts = 0;
+      final delivered = <String>[];
+      late CollectorHttpSink sink;
+      sink = CollectorHttpSink(
+        config: configForServer(maxPendingBatches: 2, maxPendingEvents: 60),
+        requestTimeout: const Duration(milliseconds: 50),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (path != '/v1/events/batch') return http.Response('{}', 202);
+          eventPosts += 1;
+          if (eventPosts == 1) {
+            // Events keep arriving while the only hung post waits.
+            Timer(const Duration(milliseconds: 10), () {
+              for (var i = 20; i < 50; i++) {
+                sink.recordEvent(createEvent(i));
+              }
+            });
+            return Completer<http.Response>().future;
+          }
+          delivered.addAll([
+            for (final event
+                in (jsonDecode(request.body) as Map)['events'] as List)
+              (event as Map)['id'] as String,
+          ]);
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+
+      for (var i = 0; i < 20; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      await sink.flush();
+      await sink.flush();
+      expect(delivered.where((id) => id.startsWith('event-')), [
+        for (var i = 0; i < 50; i++) 'event-$i',
+      ]);
+      sink.dispose();
+    },
+  );
+
   test('accepts empty 202 lifecycle body without retrying', () async {
     sessionResponseBody = '';
     final sink = CollectorHttpSink(config: configForServer());

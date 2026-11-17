@@ -621,16 +621,22 @@ class CollectorHttpSink implements TugboatCaptureSink {
     return (count: count, retry: true);
   }
 
-  /// Moves every pending event into retry batches without sending them. They
-  /// keep the same retention as batches that were sent and failed, and go
-  /// out in order once the collector accepts the retry head.
-  void _parkPendingEvents() {
-    while (_pendingEvents.isNotEmpty) {
+  /// Moves the next [count] pending events into retry batches without
+  /// sending them, batched exactly as the drain would have sent them (the
+  /// last batch fills up with later events). They keep the same retention as
+  /// batches that were sent and failed, and go out in order once the
+  /// collector accepts the retry head. Events that arrived later stay pending
+  /// for the next pass, so they cannot push this pass's batches out of the
+  /// retry queue.
+  void _parkPendingEvents(int count) {
+    var left = count;
+    while (left > 0 && _pendingEvents.isNotEmpty) {
       final size = _pendingEvents.length < _config.eventBatchSize
           ? _pendingEvents.length
           : _config.eventBatchSize;
       _enqueueRetryBatch(_pendingEvents.sublist(0, size));
       _pendingEvents.removeRange(0, size);
+      left -= size;
     }
   }
 
@@ -755,7 +761,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       if (sent.retry) {
         // The endpoint is failing or hung, so every further batch would wait
         // out its own timeout. Park this pass's other events instead.
-        if (remaining > 0) _parkPendingEvents();
+        _parkPendingEvents(remaining);
         return;
       }
       // Frames captured while that batch was in flight go before the next
