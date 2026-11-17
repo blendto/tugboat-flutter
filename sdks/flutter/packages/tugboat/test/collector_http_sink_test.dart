@@ -1211,6 +1211,56 @@ void main() {
     sink.dispose();
   });
 
+  test(
+    'a hung event post ends the pass and parks the rest for retry',
+    () async {
+      var hang = true;
+      final batchesTriedWhileHung = <String>{};
+      final delivered = <String>[];
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        requestTimeout: const Duration(milliseconds: 50),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (path != '/v1/events/batch') return http.Response('{}', 202);
+          final ids = [
+            for (final event
+                in (jsonDecode(request.body) as Map)['events'] as List)
+              (event as Map)['id'] as String,
+          ];
+          if (hang) {
+            batchesTriedWhileHung.add(ids.first);
+            return Completer<http.Response>().future;
+          }
+          delivered.addAll(ids);
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+
+      for (var i = 0; i < 50; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      await sink.flush();
+      // Only the first batch waited out a timeout; the other four were parked
+      // unsent instead of each timing out in turn.
+      expect(batchesTriedWhileHung.where((id) => id.startsWith('event-')), [
+        'event-0',
+      ]);
+
+      hang = false;
+      await sink.flush();
+      expect(delivered.where((id) => id.startsWith('event-')), [
+        for (var i = 0; i < 50; i++) 'event-$i',
+      ]);
+      sink.dispose();
+    },
+  );
+
   test('accepts empty 202 lifecycle body without retrying', () async {
     sessionResponseBody = '';
     final sink = CollectorHttpSink(config: configForServer());

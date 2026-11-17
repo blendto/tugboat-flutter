@@ -10,7 +10,9 @@
 - One hung request no longer blocks every upload (BLE-551). `/v1/sessions` and
   `/v1/events/batch` posts time out after 15 seconds like frame uploads, and a
   timeout is retried. A flush drains only the events queued when it reached
-  them and uploads newly captured frames between event batches.
+  them and uploads newly captured frames between event batches. When an event
+  post fails, the flush moves the rest of its events to the retry queue
+  unsent instead of waiting out a timeout for each batch.
 - Stalled uploads no longer cut long holes in replays (BLE-550).
   `maxPendingFrames` defaults to 400 (was 20) and the new
   `maxPendingFrameBytes` (default 8 MiB) bounds held frame bytes. Eviction

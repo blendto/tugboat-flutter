@@ -596,9 +596,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_isSessionStart(eventType)) _collectorSessionId ??= localSessionId;
   }
 
-  /// Sends the next event batch and returns how many events it took.
-  Future<int> _flushEventBatch() async {
-    if (_pendingEvents.isEmpty) return 0;
+  /// Sends the next event batch. Returns how many events it took and whether
+  /// the collector left it to retry.
+  Future<({int count, bool retry})> _flushEventBatch() async {
+    if (_pendingEvents.isEmpty) return (count: 0, retry: false);
     final epoch = _sessionEpoch;
 
     final count = _pendingEvents.length < _config.eventBatchSize
@@ -608,11 +609,23 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingEvents.removeRange(0, count);
 
     final result = await _sendEventBatch(batch, epoch: epoch);
-    if (!_isCurrentEpoch(epoch)) return count;
-    if (result == _SendResult.retry) {
-      _enqueueRetryBatch(batch);
+    if (!_isCurrentEpoch(epoch)) return (count: count, retry: false);
+    if (result != _SendResult.retry) return (count: count, retry: false);
+    _enqueueRetryBatch(batch);
+    return (count: count, retry: true);
+  }
+
+  /// Moves every pending event into retry batches without sending them. They
+  /// keep the same retention as batches that were sent and failed, and go
+  /// out in order once the collector accepts the retry head.
+  void _parkPendingEvents() {
+    while (_pendingEvents.isNotEmpty) {
+      final size = _pendingEvents.length < _config.eventBatchSize
+          ? _pendingEvents.length
+          : _config.eventBatchSize;
+      _enqueueRetryBatch(_pendingEvents.sublist(0, size));
+      _pendingEvents.removeRange(0, size);
     }
-    return count;
   }
 
   Future<void> _flushRetryBatches() async {
@@ -720,14 +733,25 @@ class CollectorHttpSink implements TugboatCaptureSink {
       // Try the retry head once, but keep draining fresh events below.
       await timing.step('event_retries', _flushRetryBatches);
     }
-    // Drain only the events queued when this pass reached them. Events keep
-    // arriving in a busy session; later ones go to the next pass so the loop
-    // cannot keep frames waiting indefinitely.
+    await _drainPendingEvents(timing, epoch);
+  }
+
+  /// Drains only the events queued when this pass reached them. Events keep
+  /// arriving in a busy session; later ones go to the next pass so the loop
+  /// cannot keep frames waiting indefinitely.
+  Future<void> _drainPendingEvents(_FlushTiming timing, int epoch) async {
     var remaining = _pendingEvents.length;
     while (remaining > 0 &&
         _pendingEvents.isNotEmpty &&
         _isCurrentEpoch(epoch)) {
-      remaining -= await timing.step('events', _flushEventBatch);
+      final sent = await timing.step('events', _flushEventBatch);
+      remaining -= sent.count;
+      if (sent.retry) {
+        // The endpoint is failing or hung, so every further batch would wait
+        // out its own timeout. Park this pass's other events instead.
+        if (remaining > 0) _parkPendingEvents();
+        return;
+      }
       // Frames captured while that batch was in flight go before the next
       // batch, which may reference them. A failing frame lane waits for the
       // next pass instead of stalling every batch behind its timeout.
