@@ -18,6 +18,10 @@
   `maxPendingFrameBytes` (default 8 MiB) bounds held frame bytes. Eviction
   drops the oldest frame no event references first and keeps the newest
   frame.
+- A session lifecycle post the collector rejects (4xx), such as
+  `user_changed`, is dropped instead of being retried on every flush, where
+  it held every later lifecycle post, `session_end` included. A rejected
+  `session_start` is still retried, because uploads wait for its session id.
 
 ### Added
 

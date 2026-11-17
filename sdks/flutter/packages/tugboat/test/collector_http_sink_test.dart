@@ -2176,6 +2176,102 @@ void main() {
     sink.dispose();
   });
 
+  group('rejected lifecycle posts', () {
+    Future<List<String>> run({required String rejectOnce}) async {
+      final eventTypes = <String>[];
+      var rejected = false;
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        identityDebounceDuration: const Duration(milliseconds: 1),
+        client: MockClient((request) async {
+          if (request.url.path != '/v1/sessions') {
+            return http.Response('{}', 202);
+          }
+          final type = (jsonDecode(request.body) as Map)['eventType'] as String;
+          eventTypes.add(type);
+          if (type == rejectOnce && !rejected) {
+            rejected = true;
+            return http.Response('{}', 400);
+          }
+          return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+      await sink.flush();
+      await sink.setUserId('user-1');
+      await sink.endSession();
+      sink.dispose();
+      return eventTypes;
+    }
+
+    test('a rejected identity post does not hold session_end', () async {
+      expect(await run(rejectOnce: 'user_changed'), [
+        'session_start',
+        'user_changed',
+        'session_end',
+      ]);
+    });
+
+    test('a rejected session_start is kept and retried', () async {
+      expect(await run(rejectOnce: 'session_start'), [
+        'session_start',
+        'session_start',
+        'user_changed',
+        'session_end',
+      ]);
+    });
+
+    test('do not keep the slow-flush report switched off', () async {
+      var eventsHang = false;
+      final delivered = <Map>[];
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        requestTimeout: const Duration(milliseconds: 40),
+        slowFlushThreshold: const Duration(milliseconds: 30),
+        identityDebounceDuration: const Duration(milliseconds: 1),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            if (request.body.contains('user_changed')) {
+              return http.Response('{}', 400);
+            }
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (path != '/v1/events/batch') return http.Response('{}', 202);
+          if (eventsHang) return Completer<http.Response>().future;
+          delivered.addAll(
+            ((jsonDecode(request.body) as Map)['events'] as List).cast<Map>(),
+          );
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+      await sink.setUserId('user-1');
+      await sink.flush();
+      // Two separate event outages each report one slow flush.
+      for (final index in [0, 1]) {
+        sink.recordEvent(createEvent(index));
+        eventsHang = true;
+        for (var pass = 0; pass < 3; pass++) {
+          await sink.flush();
+        }
+        eventsHang = false;
+        for (var pass = 0; pass < 5; pass++) {
+          await sink.flush();
+        }
+      }
+      final slowIds = {
+        for (final event in delivered)
+          if ((event['payload'] as Map?)?['component'] == 'collector_flush')
+            event['id'],
+      };
+      expect(slowIds, hasLength(2));
+      sink.dispose();
+    });
+  });
+
   group('slow-flush diagnostics during an outage', () {
     Future<({List<String> realIds, int slowReports})> runOutage({
       required bool flaky,

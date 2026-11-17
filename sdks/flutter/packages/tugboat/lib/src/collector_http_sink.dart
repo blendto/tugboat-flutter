@@ -499,9 +499,19 @@ class CollectorHttpSink implements TugboatCaptureSink {
       epoch,
     );
     if (!_isCurrentEpoch(epoch)) return;
-    if (result == _SendResult.accepted) {
+    if (_lifecyclePostSettled(pending.eventType, result)) {
       _pendingLifecycle.removeAt(0);
     }
+  }
+
+  /// Whether a lifecycle post leaves the queue. A post the collector rejects
+  /// (4xx) would be rejected again, and leaving it at the head would hold
+  /// every later post, `session_end` included, for the rest of the session.
+  /// `session_start` stays until accepted: events and frames are gated on
+  /// the collector session id it returns.
+  bool _lifecyclePostSettled(String eventType, _SendResult result) {
+    if (result == _SendResult.accepted) return true;
+    return result == _SendResult.drop && !_isSessionStart(eventType);
   }
 
   Future<_SendResult> _sendSessionLifecycle(
@@ -772,15 +782,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
   }
 
   /// Reports the first slow pass of an outage. The outage ends with a fast
-  /// pass once every lane has recovered; a pass that fails fast on a flaky
-  /// network does not end it.
+  /// pass once nothing is waiting for a retry; a pass that fails fast on a
+  /// flaky network does not end it.
   void _reportSlowFlush(_FlushTiming timing, int epoch) {
     if (!_isCurrentEpoch(epoch)) return;
     final elapsed = timing.elapsed;
     if (elapsed < _slowFlushThreshold) {
-      if (_failingRequestPaths.isEmpty && !_framesNeedRetry) {
-        _slowFlushReported = false;
-      }
+      if (!_awaitingRetry) _slowFlushReported = false;
       return;
     }
     if (_slowFlushReported) return;
@@ -793,6 +801,12 @@ class CollectorHttpSink implements TugboatCaptureSink {
       'stepDurationMs': timing.slowestStepDuration.inMilliseconds,
     });
   }
+
+  /// Whether any lane still holds work the collector has not accepted.
+  bool get _awaitingRetry =>
+      _framesNeedRetry ||
+      _retryBatches.isNotEmpty ||
+      _pendingLifecycle.isNotEmpty;
 
   Future<void> _flushFrames() async {
     if (_pendingFrames.isEmpty) return;
