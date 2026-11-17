@@ -190,8 +190,9 @@ class TugboatCollectorConfig {
   final int maxPendingEvents;
 
   /// Most frames held in memory while uploads stall or retry. Frames are
-  /// small masked JPEGs (about 5–25 KB), so [maxPendingFrameBytes] is
-  /// usually the bound that applies.
+  /// small masked JPEGs (about 5–25 KB), so this count is usually reached
+  /// before [maxPendingFrameBytes]; the byte bound applies when frames
+  /// average more than about 21 KB.
   final int maxPendingFrames;
 
   /// Most encoded frame bytes held in memory while uploads stall or retry.

@@ -105,7 +105,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<void>? _followUpFlush;
   bool _framesNeedRetry = false;
   bool _frameUploadFailureReported = false;
-  int _frameUploadDiagnosticSequence = 0;
+  int _diagnosticSequence = 0;
   int _droppedFrameCount = 0;
   int _droppedReferencedFrameCount = 0;
   int _reportedDroppedFrameCount = 0;
@@ -186,7 +186,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingLifecycle.clear();
     _framesNeedRetry = false;
     _frameUploadFailureReported = false;
-    _frameUploadDiagnosticSequence = 0;
+    _diagnosticSequence = 0;
     _resetDropTracking();
     _cancelIdentityDebounce();
     _userDirty = false;
@@ -989,7 +989,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final session = _session;
     if (session == null) return;
     final event = TugboatEvent(
-      id: '$idPrefix-${_frameUploadDiagnosticSequence++}',
+      id: '$idPrefix-${_diagnosticSequence++}',
       atMs: DateTime.now().difference(session.startedAt).inMilliseconds,
       type: 'capture_diagnostic',
       data: data,
