@@ -668,9 +668,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   /// The newest retry batch when it has room, else a new one. Parking a few
   /// events per pass during an outage would otherwise fill the bounded retry
-  /// queue with near-empty batches.
+  /// queue with near-empty batches. Never the head: it is the batch that is
+  /// failing, and events merged into it would fail, and be evicted, with it.
   List<Map<String, Object?>> _retryBatchWithRoom() {
-    if (_retryBatches.isNotEmpty &&
+    if (_retryBatches.length > 1 &&
         _retryBatches.last.length < _config.eventBatchSize) {
       return _retryBatches.last;
     }

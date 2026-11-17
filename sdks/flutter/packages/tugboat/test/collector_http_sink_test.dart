@@ -1368,6 +1368,28 @@ void main() {
       run.sink.dispose();
     });
 
+    test('does not merge parked events into a short hanging head', () async {
+      final run = hangingSink(
+        hangs: (ids) => ids.contains('event-0'),
+        maxPendingBatches: 2,
+      );
+      run.sink.startSession(createSession());
+      await run.sink.flush();
+      run.sink.recordEvent(createEvent(0));
+      await run.sink.flush();
+      for (var i = 1; i < 60; i++) {
+        run.sink.recordEvent(createEvent(i));
+        await run.sink.flush();
+      }
+      await run.sink.flush();
+      await run.sink.flush();
+
+      final delivered = run.delivered.where((id) => id.startsWith('event-'));
+      expect(delivered, isNot(contains('event-0')));
+      expect(delivered, containsAll([for (var i = 1; i < 9; i++) 'event-$i']));
+      run.sink.dispose();
+    });
+
     test('holds later events only until a hanging batch is evicted', () async {
       // The collector hangs on one batch only, and answers every other one.
       final run = hangingSink(
