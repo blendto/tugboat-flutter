@@ -12,7 +12,9 @@
   timeout is retried. A flush drains only the events queued when it reached
   them and uploads newly captured frames between event batches. When an event
   post fails, the flush moves the rest of its events to the retry queue
-  unsent instead of waiting out a timeout for each batch.
+  unsent instead of waiting out a timeout for each batch, and while the
+  oldest retry batch gets no response at all, fresh events join it there
+  rather than being posted.
 - Stalled uploads no longer cut long holes in replays (BLE-550).
   `maxPendingFrames` defaults to 400 (was 20) and the new
   `maxPendingFrameBytes` (default 8 MiB) bounds held frame bytes. Eviction

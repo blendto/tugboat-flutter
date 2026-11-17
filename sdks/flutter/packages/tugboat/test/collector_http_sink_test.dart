@@ -1312,6 +1312,91 @@ void main() {
     },
   );
 
+  group('an event retry head with no response', () {
+    ({CollectorHttpSink sink, List<String> delivered, List<String> heads})
+    hangingSink({
+      required bool Function(List<String> ids) hangs,
+      int maxPendingBatches = 20,
+    }) {
+      final delivered = <String>[];
+      final heads = <String>[];
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingBatches: maxPendingBatches),
+        requestTimeout: const Duration(milliseconds: 40),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (path != '/v1/events/batch') return http.Response('{}', 202);
+          final ids = [
+            for (final event
+                in (jsonDecode(request.body) as Map)['events'] as List)
+              (event as Map)['id'] as String,
+          ];
+          heads.add(ids.first);
+          if (hangs(ids)) return Completer<http.Response>().future;
+          delivered.addAll(ids);
+          return http.Response('{}', 202);
+        }),
+      );
+      return (sink: sink, delivered: delivered, heads: heads);
+    }
+
+    test('parks fresh events instead of posting them', () async {
+      var hang = true;
+      final run = hangingSink(hangs: (_) => hang);
+      run.sink.startSession(createSession());
+      await run.sink.flush();
+      run.sink.recordEvent(createEvent(0));
+      await run.sink.flush();
+      run.heads.clear();
+
+      for (var i = 1; i < 6; i++) {
+        run.sink.recordEvent(createEvent(i));
+      }
+      await run.sink.flush();
+      // Only the retry head went out; the fresh events did not wait out a
+      // timeout of their own.
+      expect(run.heads, ['event-0']);
+
+      hang = false;
+      await run.sink.flush();
+      expect(run.delivered.where((id) => id.startsWith('event-')), [
+        for (var i = 0; i < 6; i++) 'event-$i',
+      ]);
+      run.sink.dispose();
+    });
+
+    test('holds later events only until a hanging batch is evicted', () async {
+      // The collector hangs on one batch only, and answers every other one.
+      final run = hangingSink(
+        hangs: (ids) => ids.contains('event-0'),
+        maxPendingBatches: 2,
+      );
+      run.sink.startSession(createSession());
+      await run.sink.flush();
+      for (var i = 0; i < 10; i++) {
+        run.sink.recordEvent(createEvent(i));
+      }
+      await run.sink.flush();
+      for (var i = 10; i < 40; i++) {
+        run.sink.recordEvent(createEvent(i));
+        await run.sink.flush();
+      }
+      await run.sink.flush();
+      await run.sink.flush();
+
+      final delivered = run.delivered.where((id) => id.startsWith('event-'));
+      expect(delivered, isNot(contains('event-0')));
+      expect(
+        delivered,
+        containsAll([for (var i = 10; i < 40; i++) 'event-$i']),
+      );
+      run.sink.dispose();
+    });
+  });
+
   test(
     'events that arrive during a hung post do not evict parked batches',
     () async {

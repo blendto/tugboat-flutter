@@ -281,9 +281,11 @@ work recorded mid-flush (such as the session's last frame) is never left
 behind. A pass sends pending lifecycle posts, then frames, then the events
 queued when it reached them, uploading newly captured frames between event
 batches. When an event post fails or times out, the pass stops posting events
-and moves the rest of them to the retry queue unsent, so a hung endpoint costs
-at most two event timeouts per pass (the oldest retry batch and one fresh
-batch) rather than one per batch. Every collector request times
+and moves the rest of them to the retry queue unsent. When the oldest retry
+batch gets no response at all (timeout or transport error), fresh events are
+also moved there unsent, so a hung endpoint costs one event timeout per pass.
+When it answers with an error status, one fresh batch is still tried, so a
+batch the collector keeps rejecting cannot hold every later event. Every collector request times
 out after 15 seconds and is then retried.
 
 Bounded `capture_diagnostic` events describe delivery problems without image

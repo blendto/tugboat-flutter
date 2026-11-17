@@ -127,6 +127,10 @@ class CollectorHttpSink implements TugboatCaptureSink {
   /// one timeout is slow, so without this every pass of a hang would queue a
   /// diagnostic, and those would push real events out of the retry queue.
   bool _slowFlushReported = false;
+
+  /// Whether the last event post got no response (timeout or transport
+  /// error), as opposed to a status code.
+  bool _lastEventPostUnanswered = false;
   final List<Map<String, Object?>> _pendingEvents = [];
   final List<_PendingFrameUpload> _pendingFrames = [];
   final List<List<Map<String, Object?>>> _retryBatches = [];
@@ -243,6 +247,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _referencedFrameNos.clear();
     _finishedFrameNos.clear();
     _failingRequestPaths.clear();
+    _lastEventPostUnanswered = false;
     _slowFlushReported = false;
   }
 
@@ -652,13 +657,26 @@ class CollectorHttpSink implements TugboatCaptureSink {
   void _parkPendingEvents(int count) {
     var left = count;
     while (left > 0 && _pendingEvents.isNotEmpty) {
-      final size = _pendingEvents.length < _config.eventBatchSize
-          ? _pendingEvents.length
-          : _config.eventBatchSize;
-      _enqueueRetryBatch(_pendingEvents.sublist(0, size));
+      final batch = _retryBatchWithRoom();
+      final room = _config.eventBatchSize - batch.length;
+      final size = _pendingEvents.length < room ? _pendingEvents.length : room;
+      batch.addAll(_pendingEvents.sublist(0, size));
       _pendingEvents.removeRange(0, size);
       left -= size;
     }
+  }
+
+  /// The newest retry batch when it has room, else a new one. Parking a few
+  /// events per pass during an outage would otherwise fill the bounded retry
+  /// queue with near-empty batches.
+  List<Map<String, Object?>> _retryBatchWithRoom() {
+    if (_retryBatches.isNotEmpty &&
+        _retryBatches.last.length < _config.eventBatchSize) {
+      return _retryBatches.last;
+    }
+    final batch = <Map<String, Object?>>[];
+    _enqueueRetryBatch(batch);
+    return batch;
   }
 
   Future<void> _flushRetryBatches() async {
@@ -700,11 +718,15 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
       final result = _classifyResponse(response.statusCode);
       if (_isCurrentEpoch(epoch)) {
+        _lastEventPostUnanswered = false;
         _noteRequestOutcome('/v1/events/batch', result, response.statusCode);
       }
       return result;
     } catch (error) {
-      if (_isCurrentEpoch(epoch)) _noteRequestError('/v1/events/batch', error);
+      if (_isCurrentEpoch(epoch)) {
+        _lastEventPostUnanswered = true;
+        _noteRequestError('/v1/events/batch', error);
+      }
       return _SendResult.retry;
     }
   }
@@ -759,8 +781,22 @@ class CollectorHttpSink implements TugboatCaptureSink {
       // Try the retry head once, but keep draining fresh events below.
       await timing.step('event_retries', _flushRetryBatches);
     }
+    if (_eventLaneUnanswered) {
+      // The retry head got no response at all, so the endpoint is down or
+      // hung and a fresh batch would only wait out another timeout. A batch
+      // the collector rejects gets a status back, so fresh events still go
+      // out behind it; one that hangs the collector holds them in the retry
+      // queue until it is evicted.
+      _parkPendingEvents(_pendingEvents.length);
+      return;
+    }
     await _drainPendingEvents(timing, epoch);
   }
+
+  /// Whether the event lane is waiting on a retry head whose last post got
+  /// no response (timeout or transport error).
+  bool get _eventLaneUnanswered =>
+      _retryBatches.isNotEmpty && _lastEventPostUnanswered;
 
   /// Drains only the events queued when this pass reached them. Events keep
   /// arriving in a busy session; later ones go to the next pass so the loop
