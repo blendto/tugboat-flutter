@@ -1627,6 +1627,35 @@ void main() {
     sink.dispose();
   });
 
+  test('frame references are forgotten once their frames leave', () async {
+    final sink = CollectorHttpSink(config: configForServer());
+    final session = createSession();
+    TugboatEvent tap(int frameNo) => TugboatEvent(
+      id: 'tap-$frameNo-${DateTime.now().microsecondsSinceEpoch}',
+      atMs: frameNo,
+      type: 'interaction',
+      afterFrame: 'frame-$frameNo',
+    );
+    sink.startSession(session);
+    await sink.flush();
+
+    for (var i = 0; i < 30; i++) {
+      // An event can name its frame before the frame reaches the sink.
+      sink.recordEvent(tap(i));
+      recordTestFrame(sink, session, i);
+    }
+    await sink.flush();
+    expect(sink.referencedFrameCount, 0);
+
+    // And after the frame already went out.
+    for (var i = 0; i < 30; i++) {
+      sink.recordEvent(tap(i));
+    }
+    await sink.flush();
+    expect(sink.referencedFrameCount, 0);
+    sink.dispose();
+  });
+
   test('pending frames are bounded by encoded bytes', () async {
     sessionStatus = 503;
     final sink = CollectorHttpSink(

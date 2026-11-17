@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -114,6 +115,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
   /// `afterFrame`). Eviction keeps these over unreferenced captures.
   final Set<int> _referencedFrameNos = {};
 
+  /// Recently uploaded or evicted frame numbers, so an event that arrives
+  /// after its frame left the queue does not mark it again. Bounded by
+  /// `maxPendingFrames`.
+  final LinkedHashSet<int> _finishedFrameNos = LinkedHashSet<int>();
+
   /// Session and event paths whose current outage was already reported.
   final Set<String> _failingRequestPaths = {};
 
@@ -225,7 +231,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
   void _markReferencedFrame(String? frameId) {
     if (frameId == null) return;
     final frameNo = frameNumberFromId(frameId);
-    if (frameNo != null) _referencedFrameNos.add(frameNo);
+    if (frameNo == null || _finishedFrameNos.contains(frameNo)) return;
+    _referencedFrameNos.add(frameNo);
   }
 
   void _resetDropTracking() {
@@ -234,6 +241,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _reportedDroppedFrameCount = 0;
     _nextDropReportAt = 1;
     _referencedFrameNos.clear();
+    _finishedFrameNos.clear();
     _failingRequestPaths.clear();
     _slowFlushReported = false;
   }
@@ -448,6 +456,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _retryBatches.clear();
     _pendingLifecycle.clear();
     _referencedFrameNos.clear();
+    _finishedFrameNos.clear();
     _flushInFlight = null;
     _followUpFlush = null;
     _session = null;
@@ -848,9 +857,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
       if (!_isCurrentEpoch(epoch)) return;
       if (result.retry) {
         _framesNeedRetry = true;
+        _forgetFinishedFrames(batch.sublist(0, result.retryOffset));
         _requeueFailedUploads(uploads.sublist(start + result.retryOffset));
         return;
       }
+      _forgetFinishedFrames(batch);
       droppedBatch = droppedBatch || result.dropped;
     }
     _framesNeedRetry = false;
@@ -994,6 +1005,21 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _trimPendingEvents();
   }
 
+  /// Frames that left the queue (uploaded, rejected, or evicted) no longer
+  /// need eviction protection.
+  void _forgetFinishedFrames(Iterable<_PendingFrameUpload> frames) {
+    for (final frame in frames) {
+      _referencedFrameNos.remove(frame.frameNo);
+      _finishedFrameNos.add(frame.frameNo);
+    }
+    while (_finishedFrameNos.length > _config.maxPendingFrames) {
+      _finishedFrameNos.remove(_finishedFrameNos.first);
+    }
+  }
+
+  @visibleForTesting
+  int get referencedFrameCount => _referencedFrameNos.length;
+
   void _requeueFailedUploads(List<_PendingFrameUpload> uploads) {
     // Keep failed uploads within the configured memory bound. Diagnostics
     // record any evictions so downstream consumers can see the evidence gap.
@@ -1025,6 +1051,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       if (_referencedFrameNos.contains(evicted.frameNo)) {
         _droppedReferencedFrameCount += 1;
       }
+      _forgetFinishedFrames([evicted]);
     }
     if (dropped == 0) return;
     _droppedFrameCount += dropped;
