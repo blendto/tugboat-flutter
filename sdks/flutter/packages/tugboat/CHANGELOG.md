@@ -26,8 +26,8 @@
 - `collector_request` diagnostics report the first failed session or event post
   per outage (status code, or `error: timeout` / `transport`) and its recovery
   (BLE-552).
-- `collector_flush` diagnostics report a flush pass slower than 10 seconds with
-  the step it spent the most time in.
+- `collector_flush` diagnostics report the first flush pass per outage slower
+  than 10 seconds, with the step it spent the most time in.
 
 ## 0.11.0
 

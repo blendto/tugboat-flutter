@@ -2127,4 +2127,72 @@ void main() {
     expect(sessionPosts.last['traits'], {'plan': 'pro'});
     sink.dispose();
   });
+
+  group('slow-flush diagnostics during an outage', () {
+    Future<({List<String> realIds, int slowReports})> runOutage({
+      required bool flaky,
+    }) async {
+      var outage = true;
+      var eventPosts = 0;
+      final delivered = <Map>[];
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        requestTimeout: const Duration(milliseconds: 30),
+        slowFlushThreshold: const Duration(milliseconds: 20),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (path != '/v1/events/batch') return http.Response('{}', 202);
+          if (outage) {
+            eventPosts += 1;
+            // A flaky network mixes hangs with instant failures.
+            if (flaky && eventPosts.isEven) return http.Response('{}', 503);
+            return Completer<http.Response>().future;
+          }
+          final body = jsonDecode(request.body) as Map;
+          delivered.addAll((body['events'] as List).cast<Map>());
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+      for (var i = 0; i < 3; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      for (var pass = 0; pass < 40; pass++) {
+        await sink.flush();
+      }
+      outage = false;
+      for (var pass = 0; pass < 5; pass++) {
+        await sink.flush();
+      }
+      sink.dispose();
+      return (
+        realIds: [
+          for (final event in delivered)
+            if ('${event['id']}'.startsWith('event-')) '${event['id']}',
+        ],
+        slowReports: delivered
+            .where(
+              (event) =>
+                  (event['payload'] as Map?)?['component'] == 'collector_flush',
+            )
+            .length,
+      );
+    }
+
+    test('are reported once and do not evict real events', () async {
+      final result = await runOutage(flaky: false);
+      expect(result.realIds, ['event-0', 'event-1', 'event-2']);
+      expect(result.slowReports, 1);
+    });
+
+    test('stay reported once when fast failures mix with hangs', () async {
+      final result = await runOutage(flaky: true);
+      expect(result.realIds, ['event-0', 'event-1', 'event-2']);
+      expect(result.slowReports, 1);
+    });
+  });
 }

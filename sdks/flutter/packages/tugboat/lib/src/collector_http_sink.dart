@@ -116,6 +116,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
   /// Session and event paths whose current outage was already reported.
   final Set<String> _failingRequestPaths = {};
+
+  /// Whether this outage already reported a slow flush. A pass that waits out
+  /// one timeout is slow, so without this every pass of a hang would queue a
+  /// diagnostic, and those would push real events out of the retry queue.
+  bool _slowFlushReported = false;
   final List<Map<String, Object?>> _pendingEvents = [];
   final List<_PendingFrameUpload> _pendingFrames = [];
   final List<List<Map<String, Object?>>> _retryBatches = [];
@@ -230,6 +235,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _nextDropReportAt = 1;
     _referencedFrameNos.clear();
     _failingRequestPaths.clear();
+    _slowFlushReported = false;
   }
 
   @override
@@ -759,9 +765,20 @@ class CollectorHttpSink implements TugboatCaptureSink {
     }
   }
 
+  /// Reports the first slow pass of an outage. The outage ends with a fast
+  /// pass once every lane has recovered; a pass that fails fast on a flaky
+  /// network does not end it.
   void _reportSlowFlush(_FlushTiming timing, int epoch) {
+    if (!_isCurrentEpoch(epoch)) return;
     final elapsed = timing.elapsed;
-    if (elapsed < _slowFlushThreshold || !_isCurrentEpoch(epoch)) return;
+    if (elapsed < _slowFlushThreshold) {
+      if (_failingRequestPaths.isEmpty && !_framesNeedRetry) {
+        _slowFlushReported = false;
+      }
+      return;
+    }
+    if (_slowFlushReported) return;
+    _slowFlushReported = true;
     _recordDiagnostic('collector-flush', {
       'component': 'collector_flush',
       'result': 'slow',

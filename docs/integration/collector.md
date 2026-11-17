@@ -287,9 +287,10 @@ Bounded `capture_diagnostic` events describe delivery problems without image
 contents, payloads, or credentials: `collector_frame_upload` (frame upload
 failures, evictions, recovery), `collector_request` (the first failed
 `/v1/sessions` or `/v1/events/batch` post per outage, with `statusCode` or
-`error: timeout | transport`, and its recovery), and `collector_flush` (a pass
-slower than 10 seconds, with `durationMs`, the slowest `step`, and
-`stepDurationMs`).
+`error: timeout | transport`, and its recovery), and `collector_flush` (the
+first pass per outage slower than 10 seconds, with `durationMs`, the slowest
+`step`, and `stepDurationMs`; the outage ends with a fast pass once every
+request path and frame uploads have recovered).
 
 The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
 `429`, and `5xx`; other response codes are dropped. Retry batches, unsent
