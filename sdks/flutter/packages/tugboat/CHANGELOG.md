@@ -30,6 +30,11 @@
   receives that session's `session_end`, and keeps its periodic flush. The
   ending session stops at the switch.
 
+### Changed
+
+- Requires `package:http` 1.5.0 or later (was 1.4.0), for aborting a
+  collector request when it times out.
+
 ### Added
 
 - `collector_frame_upload` drop diagnostics also report the final count before
