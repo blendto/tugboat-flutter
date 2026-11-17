@@ -705,13 +705,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
 
     final sessionId = _collectorSessionId;
     if (sessionId == null || sessionId.isEmpty) return _SendResult.retry;
-    final traitsId = _traitsId;
-    for (final event in events) {
-      event['sessionId'] = sessionId;
-      if (traitsId != null && traitsId.isNotEmpty) {
-        event['traitsId'] = traitsId;
-      }
-    }
+    _stampCollectorIds(events, sessionId);
 
     try {
       final response = await _postJson('/v1/events/batch', {'events': events});
@@ -728,6 +722,17 @@ class CollectorHttpSink implements TugboatCaptureSink {
         _noteRequestError('/v1/events/batch', error);
       }
       return _SendResult.retry;
+    }
+  }
+
+  /// Stamps the collector session id, and traits id once known, at send time.
+  void _stampCollectorIds(List<Map<String, Object?>> events, String sessionId) {
+    final traitsId = _traitsId;
+    for (final event in events) {
+      event['sessionId'] = sessionId;
+      if (traitsId != null && traitsId.isNotEmpty) {
+        event['traitsId'] = traitsId;
+      }
     }
   }
 
