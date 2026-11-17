@@ -124,6 +124,63 @@ Future<void> _pumpFor(WidgetTester tester, Duration total) async {
   }
 }
 
+/// An auto-advancing carousel: a `PageView.builder` of [itemCount] images
+/// whose page moves on every [period] (`nextPage`, like Blend's marquee but
+/// paged).
+class _Carousel extends StatefulWidget {
+  const _Carousel({required this.itemCount, required this.period});
+  final int itemCount;
+  final Duration period;
+  @override
+  State<_Carousel> createState() => _CarouselState();
+}
+
+class _CarouselState extends State<_Carousel> {
+  final _pages = PageController();
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(widget.period, (_) {
+      final page = (_pages.page ?? 0).round();
+      if (page + 1 >= widget.itemCount) {
+        _pages.jumpToPage(0);
+      } else {
+        _pages.nextPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.ease,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pages.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Column(
+      children: [
+        SizedBox(
+          height: 300,
+          child: PageView.builder(
+            controller: _pages,
+            itemCount: widget.itemCount,
+            itemBuilder: (context, index) =>
+                Image(image: MemoryImage(_imageBytes), width: 300, height: 300),
+          ),
+        ),
+        ElevatedButton(onPressed: () {}, child: const Text('Start')),
+      ],
+    ),
+  );
+}
+
 List<Map<String, Object?>> _elements(Map<String, Object?> inventory) => [
   for (final e in inventory['elements']! as List) (e as Map).cast(),
 ];
@@ -196,6 +253,34 @@ void main() {
     expect(all, hasLength(1));
     expect(_controller.debugSettledSampleCount, inInclusiveRange(1, 12));
   });
+
+  // The cost of keeping a PageView's page position: each page index is a
+  // new path, so an auto-advancing carousel sends one re-sample per page it
+  // has not shown yet in the visit, and nothing once it loops.
+  for (final itemCount in [4, 1000]) {
+    testWidgets('an auto-advancing PageView of $itemCount pages sends one '
+        'inventory per page not yet shown', (tester) async {
+      await _mountNamed(
+        tester,
+        '/carousel',
+        (_) =>
+            _Carousel(itemCount: itemCount, period: const Duration(seconds: 2)),
+      );
+      await _pumpFor(tester, const Duration(seconds: 30));
+      await waitForTugboatCaptureWork(tester);
+      final all = _inventories();
+      // ignore: avoid_print
+      print(
+        'CAROUSEL $itemCount ${all.length} '
+        '${all.map((e) => e['trigger']).toList()}',
+      );
+      // 30 s at one page every 2 s: 15 page moves. Measured: 4 pages send 4
+      // (the first, then each new page once), 1000 pages send 15.
+      expect(all.length, itemCount == 4 ? 4 : 15);
+      expect(all.first['trigger'], 'initial');
+      expect(all.skip(1).map((e) => e['trigger']), everyElement('scroll'));
+    });
+  }
 
   testWidgets('a Continue revealed by a row tap is listed once, as tap', (
     tester,

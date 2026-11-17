@@ -17,9 +17,11 @@
   `tap`, `gesture` or `scroll` after that moment, else `settled`. An idle
   page costs no timer; a page that keeps animating is checked after 2 s of
   frames, then ever more rarely; a looping animation or blinking cursor
-  never emits. At most 50 re-samples per route visit, as a backstop. Turn it
-  off with `resampleSettledInventory: false`; production captures run none
-  of it.
+  never emits. At most 50 re-samples per route visit, as a backstop. A
+  `PageView`'s page position is kept apart, so each onboarding page is new;
+  the cost is that an auto-advancing carousel sends one re-sample per page
+  it has not shown in the visit. Turn it off with
+  `resampleSettledInventory: false`; production captures run none of it.
 - In exploration mode, every scene inventory carries `loading`
   (`progressIndicators`, `placeholders`, `busyControls`) and each element
   beneath a skeleton, shimmer, `Redacted` or `Placeholder` ancestor, or a new
@@ -162,9 +164,11 @@
   names a sole control hidden under `ExcludeSemantics` (found down a chain of
   single children, no subtree walk) when nothing but a scrollable encloses
   it, so both modes give the button, and the pointer-down rule keeps it when
-  its tap animates the `PageView`. Moves: taps on such a control inside a
-  scrollable. Two controls under one wrapper, and a hidden control inside
-  another control, are unchanged. The same happened on 0.10.11.
+  its tap animates the `PageView`, also for a tap on the button's own icon.
+  A scrollable whose centre lands on such a control keeps its own inventory
+  entry. Moves: taps on such a control inside a scrollable. Two controls
+  under one wrapper, and a hidden control inside another control, are
+  unchanged. The same happened on 0.10.11.
 - A production tap on a control whose `onTap` animates the scrollable it sits
   in (a grid tile that calls `PageController.nextPage`) was fingerprinted as
   the scrollable, while exploration taps named the tile: the animated scroll

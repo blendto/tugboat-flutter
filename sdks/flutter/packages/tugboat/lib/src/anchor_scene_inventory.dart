@@ -934,11 +934,14 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     Map<String, TugboatTargetAnchor?> hitCache,
   ) => hitCache.putIfAbsent(
     '${center.dx}|${center.dy}',
+    // A control hidden under `ExcludeSemantics` is listed with its own box;
+    // a wrapper whose centre lands on it keeps its own entry.
     () => _targetAtWithTokenMap(
       center,
       route: route,
       tokenMap: tokenMap,
       rootRender: rootRender,
+      nameHiddenControls: false,
     ),
   );
 

@@ -180,28 +180,35 @@ extension TugboatExcludedSemanticsApi on AnchorResolver {
   ) {
     if (tokenMap.excludedSemantics.isEmpty) return null;
     for (final target in hitPath) {
-      if (target is RenderExcludeSemantics && target.excluding) {
-        return _hiddenChainControl(target, hitPath, tokenMap);
-      }
       // A retained element first: the hit is not inside a skipped subtree.
       if (target is RenderObject &&
           tokenMap.renderElements.containsKey(target)) {
         return null;
       }
+      // An excluding render inside the skipped subtree (an `Icon` in the
+      // hidden button builds its own) was never recorded: look past it.
+      final root = _recordedExcludedRoot(target, tokenMap);
+      if (root != null) return _hiddenChainControl(root, hitPath, tokenMap);
+    }
+    return null;
+  }
+
+  /// The excluded-semantics root the token map recorded for [target], or
+  /// null when [target] is not one.
+  Element? _recordedExcludedRoot(HitTestTarget target, _TokenMap tokenMap) {
+    if (target is! RenderExcludeSemantics || !target.excluding) return null;
+    for (final excluded in tokenMap.excludedSemantics) {
+      if (identical(excluded.renderObject, target)) return excluded;
     }
     return null;
   }
 
   Element? _hiddenChainControl(
-    RenderExcludeSemantics render,
+    Element root,
     List<HitTestTarget> hitPath,
     _TokenMap tokenMap,
   ) {
-    Element? root;
-    for (final excluded in tokenMap.excludedSemantics) {
-      if (identical(excluded.renderObject, render)) root = excluded;
-    }
-    if (root == null || !_parentIsIncluded(root, tokenMap)) return null;
+    if (!_parentIsIncluded(root, tokenMap)) return null;
     var current = root;
     for (var level = 0; level < _hiddenChainLimit; level++) {
       final child = _onlyChild(current);

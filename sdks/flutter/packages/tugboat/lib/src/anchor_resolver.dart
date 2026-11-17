@@ -1086,6 +1086,7 @@ class AnchorResolver {
     required String? route,
     required _TokenMap tokenMap,
     required RenderBox rootRender,
+    bool nameHiddenControls = true,
   }) {
     final result = BoxHitTestResult();
     final localPosition = rootRender.globalToLocal(globalPosition);
@@ -1095,6 +1096,7 @@ class AnchorResolver {
       route: route,
       tokenMap: tokenMap,
       rootRender: rootRender,
+      nameHiddenControls: nameHiddenControls,
     );
   }
 
@@ -1143,27 +1145,33 @@ class AnchorResolver {
     required String? route,
     required _TokenMap tokenMap,
     required RenderBox rootRender,
+    bool nameHiddenControls = true,
   }) => _resolveHitPath(
     hitPath,
     route: route,
     tokenMap: tokenMap,
     rootRender: rootRender,
+    nameHiddenControls: nameHiddenControls,
   ).anchor;
 
   /// The anchor for [hitPath] and, when a control hidden under
-  /// `ExcludeSemantics` names it, that control.
+  /// `ExcludeSemantics` names it, that control. [nameHiddenControls] false
+  /// resolves as before that rule: the inventory's centre hits for an
+  /// enclosing scrollable must not adopt the hidden control (its entry is
+  /// added with its own box, see [_addExcludedSemanticsControls]).
   ({TugboatTargetAnchor? anchor, Element? hiddenControl}) _resolveHitPath(
     List<HitTestTarget> hitPath, {
     required String? route,
     required _TokenMap tokenMap,
     required RenderBox rootRender,
+    bool nameHiddenControls = true,
   }) {
     final viewport = rootRender.size;
     TugboatTargetAnchor? roleOnly;
     TugboatTargetAnchor? fallback;
     // Only the first retained element above the excluded subtree can be
     // named by the control hidden in it.
-    var hidden = _hiddenControlOnHitPath(hitPath, tokenMap);
+    Element? hidden = _hiddenControlIf(nameHiddenControls, hitPath, tokenMap);
     for (final target in hitPath) {
       final element = _retainedHitElement(target, tokenMap);
       if (element == null) continue;
@@ -1179,7 +1187,7 @@ class AnchorResolver {
         hiddenControl: named,
       );
       if (named != null) return (anchor: anchor, hiddenControl: named);
-      final hasPath = anchor.canonicalPath?.isNotEmpty ?? false;
+      final hasPath = _hasPath(anchor);
       // Prefer an anchor that is both actionable and structurally addressable.
       // A role without a canonical path (e.g. a Texture overlay with a
       // long-press ancestor) cannot join a scene inventory, so keep scanning
@@ -1195,6 +1203,12 @@ class AnchorResolver {
     }
     return (anchor: roleOnly ?? fallback, hiddenControl: null);
   }
+
+  Element? _hiddenControlIf(
+    bool enabled,
+    List<HitTestTarget> hitPath,
+    _TokenMap tokenMap,
+  ) => enabled ? _hiddenControlOnHitPath(hitPath, tokenMap) : null;
 
   /// The retained element of one hit-path entry, or null when the entry is
   /// detached, not retained, or capture chrome.

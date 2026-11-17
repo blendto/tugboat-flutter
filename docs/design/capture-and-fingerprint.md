@@ -683,6 +683,11 @@ semantic map keeps its own scroll cadence.
 - A control revealed by a timer while an animation keeps running (a
   looping arrow) is caught by the forced check, up to 2 s late at first and
   up to 6.4 s late once the back-off has grown.
+- Keeping a `PageView`'s page position costs an auto-advancing carousel one
+  re-sample (`scroll`) per page it has not shown yet in the visit: a looping
+  4-page carousel sends its first inventory and 3 more, then nothing; one
+  with a large `itemCount` sends one per page move (15 in 30 s at a page
+  every 2 s) until the backstop of 50 per visit.
 - A layout change that adds no control (a box that grows, a loop between two
   layouts) is not new; a frame-tied scroll inventory still records new
   positions.
@@ -774,9 +779,11 @@ fingerprint, and so does its production tap.
   path of the nearest retained widget above the wrapper (the pointer-down
   fallback of 0.10.10), at `low` confidence, in both modes.
   - **The hidden control names the tap** when the hit path shows it: the first
-    `RenderExcludeSemantics` on the path is a subtree root the token map
-    recorded, and below it a chain of single children leads to the first
-    role, a control that is not a scrollable, which the hit reaches. Then the
+    `RenderExcludeSemantics` on the path that the token map recorded as a
+    subtree root (one inside the hidden subtree, such as the button's own
+    `Icon`, is looked past), and below it a chain of single children leads
+    to the first role, a control that is not a scrollable, which the hit
+    reaches. Then the
     tap's `role`, `enabled`, `actions`, `widgetType` and box are the hidden
     control's, and no enclosing scrollable takes over its identity. So a
     hidden button inside a `PageView` or a list (Blend's onboarding Continue,
@@ -803,8 +810,10 @@ fingerprint, and so does its production tap.
     or is covered), when that tap resolves to another control, when two
     hidden controls or an existing entry share the fingerprint, and when
     other entries or other hidden controls sit under its path (a page or a
-    section, not the button). An inventory that lists such a control has a
-    new `inventoryHash`.
+    section, not the button). A scrollable whose centre lands on the hidden
+    control keeps its own entry, resolved as before this rule, so the
+    control's entry keeps its own box. An inventory that lists such a
+    control has a new `inventoryHash`.
 - **Tag.** An inventory entry carries `tag` when an explicit `TugboatTag` sits
   at or above its element. It is the developer's id, not a `ValueKey`, and it is
   never hash input.

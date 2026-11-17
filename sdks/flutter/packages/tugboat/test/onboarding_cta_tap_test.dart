@@ -110,6 +110,35 @@ void main() {
     expect(_fingerprint(still), _fingerprint(animated));
   });
 
+  // The arrow is an `Icon`, which builds an `ExcludeSemantics` of its own
+  // inside the hidden button. Production gave a list row before this was
+  // handled.
+  testWidgets('a tap on the Continue arrow is the button in both modes', (
+    tester,
+  ) async {
+    Future<TugboatTargetAnchor?> tapArrow({required bool exploration}) async {
+      await mountOnboarding(
+        tester,
+        config: onboardingConfig(exploration: exploration),
+        loopArrow: false,
+        animate: false,
+      );
+      await tester.tap(find.text('Option 0'));
+      await tester.pump(const Duration(milliseconds: 500));
+      await waitForTugboatCaptureWork(tester);
+      await tester.tap(find.byIcon(Icons.arrow_forward));
+      await tester.pump(const Duration(milliseconds: 400));
+      await waitForTugboatCaptureWork(tester);
+      return onboardingTaps().last.targetAnchor;
+    }
+
+    final exploration = await tapArrow(exploration: true);
+    final production = await tapArrow(exploration: false);
+    expect(exploration?.canonicalPath, endsWith('/PillButton#0'));
+    expect(production?.canonicalPath, exploration?.canonicalPath);
+    expect(production?.role, 'button');
+  });
+
   _boundaryTests();
 }
 
@@ -219,6 +248,44 @@ void _boundaryTests() {
     expect(exploration?.role, 'button');
     expect(exploration?.widgetType, 'ElevatedButton');
     expect(production?.fingerprint, exploration?.fingerprint);
+  });
+
+  // The ListView's centre lands on the hidden button. Its entry keeps the
+  // button's own box, and the ListView keeps its own entry.
+  testWidgets('a hidden button at its ListView centre is listed with its own '
+      'box', (tester) async {
+    await tester.pumpWidget(const SizedBox());
+    TugboatReplay.resetForTest();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorObservers: [TugboatReplay.navigatorObserver],
+        builder: (context, child) => TugboatReplay.wrapApp(
+          config: onboardingConfig(exploration: true),
+          child: child!,
+        ),
+        initialRoute: '/list',
+        routes: {'/list': (_) => const _HiddenInList()},
+      ),
+    );
+    await waitForTugboatCaptureWork(tester);
+    final button = tester.getRect(find.byType(ElevatedButton));
+    final list = tester.getRect(find.byType(ListView));
+    expect(list.contains(list.center), isTrue);
+    expect(button.contains(list.center), isTrue);
+
+    final entries = [
+      for (final e in TugboatReplay.controller!.session!.events)
+        if (e.type == 'scene_inventory')
+          ...(e.data['elements']! as List).cast<Map<String, Object?>>(),
+    ];
+    final hidden = entries.singleWhere(
+      (e) => e['widgetType'] == 'ElevatedButton',
+    );
+    final box = (hidden['boundsNorm']! as Map).cast<String, Object?>();
+    expect(box['top'], closeTo(button.top / list.height, 0.001));
+    expect(box['height'], closeTo(button.height / list.height, 0.001));
+    final scrollable = entries.singleWhere((e) => e['role'] == 'scrollable');
+    expect(scrollable['canonicalPath'], 'Scaffold#0/ListView#0/Scrollable#0');
   });
 
   // Unchanged by the fix (checked against the code before it).
