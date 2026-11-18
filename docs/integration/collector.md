@@ -253,8 +253,12 @@ Malformed frame IDs and frames belonging to a stale SDK session are dropped.
 Queued frames are uploaded as-is: events reference exact `beforeFrame` /
 `afterFrame` IDs, and the multipart protocol has no hash alias, so intermediate
 scroll or duplicate-content captures cannot be dropped without breaking those
-refs. Backpressure may still drop the oldest pending frames when
-`maxPendingFrames` is exceeded.
+refs. Backpressure may still drop pending frames when `maxPendingFrames` or
+`maxPendingFrameBytes` is exceeded. Eviction drops the oldest frame that no
+recorded event references (`beforeFrame` / `afterFrame`) first, keeps the
+newest frame, and drops a referenced frame only when nothing else is left.
+Both bounds cover frames waiting for upload: a flush takes one batch of up to
+20 frames from the queue at a time, so at most that batch is held beyond them.
 
 ### Batching, retry, and backpressure
 
@@ -266,16 +270,46 @@ refs. Backpressure may still drop the oldest pending frames when
 | `eventFlushInterval` | `3 seconds` |
 | `maxPendingBatches` | `20` |
 | `maxPendingEvents` | `60` |
-| `maxPendingFrames` | `20` |
+| `maxPendingFrames` | `400` |
+| `maxPendingFrameBytes` | `8 MiB` |
 
 A full batch triggers a flush; the periodic timer sends partial batches.
 Lifecycle backgrounding also asks the sink hub to flush, and session end drains
-events before posting the final lifecycle message.
+frames and events before posting the final lifecycle message. Flushes run one
+at a time; a flush requested while one runs queues a single follow-up pass, so
+work recorded mid-flush (such as the session's last frame) is never left
+behind. A pass sends pending lifecycle posts, then frames, then the events
+queued when it reached them, uploading newly captured frames between event
+batches. When an event post fails or times out, the pass stops posting events
+and moves the rest of them to the retry queue unsent. When the oldest retry
+batch gets no response at all (timeout or transport error), fresh events are
+also moved there unsent, so a hung endpoint costs one event timeout per pass.
+When it answers with an error status, one fresh batch is still tried, so a
+batch the collector keeps rejecting cannot hold every later event. Every
+collector request times out after 15 seconds; the request is then aborted, so
+its connection and body are released, and retried.
+
+Bounded `capture_diagnostic` events describe delivery problems without image
+contents, payloads, or credentials: `collector_frame_upload` (frame upload
+failures, evictions, recovery), `collector_request` (the first failed
+`/v1/sessions` or `/v1/events/batch` post per outage, with `statusCode` or
+`error: timeout | transport`, and its recovery), and `collector_flush` (the
+first pass per outage slower than 10 seconds, with `durationMs`, the slowest
+`step`, and `stepDurationMs`; the outage ends with a fast pass once nothing
+is waiting for a retry: no frame upload, event retry batch, or lifecycle
+post).
 
 The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
-`429`, and `5xx`; other response codes are dropped. Retry batches, unsent
+`429`, and `5xx`; other response codes are dropped. That includes a lifecycle
+post such as `user_changed`, so it cannot hold later lifecycle posts, except
+`session_start`, which is retried until accepted because uploads wait for its
+session id. Retry batches, unsent
 events, and frames are bounded in memory. When a bound is exceeded the oldest
-items are discarded and a debug message is printed.
+items are discarded (frames by the eviction order above) and a debug message is
+printed. Frame evictions emit a `collector_frame_upload` diagnostic with
+`result: dropped` when the running count reaches a power of two, and once more
+with the final count before `session_end`. Each carries `droppedFrameCount`
+and `droppedReferencedFrameCount`.
 
 Collector delivery is best-effort. Bounded in-memory queues retry
 temporary failures while the process remains alive. The SDK does not persist

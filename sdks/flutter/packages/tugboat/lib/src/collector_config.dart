@@ -173,7 +173,8 @@ class TugboatCollectorConfig {
     this.eventFlushInterval = const Duration(seconds: 3),
     this.maxPendingBatches = 20,
     this.maxPendingEvents = 60,
-    this.maxPendingFrames = 20,
+    this.maxPendingFrames = 400,
+    this.maxPendingFrameBytes = 8 * 1024 * 1024,
   });
 
   final String baseUrl;
@@ -187,7 +188,18 @@ class TugboatCollectorConfig {
   final Duration eventFlushInterval;
   final int maxPendingBatches;
   final int maxPendingEvents;
+
+  /// Most frames held in memory while uploads stall or retry. Frames are
+  /// small masked JPEGs (about 5–25 KB), so this count is usually reached
+  /// before [maxPendingFrameBytes]; the byte bound applies when frames
+  /// average more than about 21 KB.
   final int maxPendingFrames;
+
+  /// Most encoded frame bytes held in memory while uploads stall or retry.
+  /// Over either bound the sink evicts the oldest frame that no event
+  /// references first. Both bounds cover frames waiting for upload; the
+  /// batch being uploaded (at most 20 frames) is held in addition.
+  final int maxPendingFrameBytes;
 
   TugboatCollectorConfig withUserId(String? userId) {
     return TugboatCollectorConfig(
@@ -203,6 +215,7 @@ class TugboatCollectorConfig {
       maxPendingBatches: maxPendingBatches,
       maxPendingEvents: maxPendingEvents,
       maxPendingFrames: maxPendingFrames,
+      maxPendingFrameBytes: maxPendingFrameBytes,
     );
   }
 
@@ -221,6 +234,7 @@ class TugboatCollectorConfig {
       maxPendingBatches: maxPendingBatches,
       maxPendingEvents: maxPendingEvents,
       maxPendingFrames: maxPendingFrames,
+      maxPendingFrameBytes: maxPendingFrameBytes,
     );
   }
 }

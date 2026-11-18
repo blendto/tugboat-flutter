@@ -1,3 +1,50 @@
+## 0.11.1
+
+### Fixed
+
+- The last screenshot of a session is uploaded before `session_end`. A frame
+  recorded while a collector flush was running was not part of that flush,
+  and `endSession()` only waited for it, so the frame was never sent
+  (BLE-549). A `flush()` call during a running pass now queues one follow-up
+  pass that runs after it.
+- One hung request no longer blocks every upload (BLE-551). `/v1/sessions` and
+  `/v1/events/batch` posts time out after 15 seconds like frame uploads, and a
+  timeout is retried. A flush drains only the events queued when it reached
+  them and uploads newly captured frames between event batches. When an event
+  post fails, the flush moves the rest of its events to the retry queue
+  unsent instead of waiting out a timeout for each batch, and while the
+  oldest retry batch gets no response at all, fresh events join it there
+  rather than being posted.
+- Stalled uploads no longer cut long holes in replays (BLE-550).
+  `maxPendingFrames` defaults to 400 (was 20) and the new
+  `maxPendingFrameBytes` (default 8 MiB) bounds held frame bytes. Eviction
+  drops the oldest frame no event references first and keeps the newest
+  frame. A flush takes one 20-frame batch from the queue at a time, so at
+  most that batch is held beyond the bounds, and a timed-out request is
+  aborted rather than left holding its frames.
+- A session lifecycle post the collector rejects (4xx), such as
+  `user_changed`, is dropped instead of being retried on every flush, where
+  it held every later lifecycle post, `session_end` included. A rejected
+  `session_start` is still retried, because uploads wait for its session id.
+- A session started while the previous one was still ending no longer
+  receives that session's `session_end`, and keeps its periodic flush. The
+  ending session stops at the switch.
+
+### Changed
+
+- Requires `package:http` 1.5.0 or later (was 1.4.0), for aborting a
+  collector request when it times out.
+
+### Added
+
+- `collector_frame_upload` drop diagnostics also report the final count before
+  `session_end`, and carry `droppedReferencedFrameCount`.
+- `collector_request` diagnostics report the first failed session or event post
+  per outage (status code, or `error: timeout` / `transport`) and its recovery
+  (BLE-552).
+- `collector_flush` diagnostics report the first flush pass per outage slower
+  than 10 seconds, with the step it spent the most time in.
+
 ## 0.11.0
 
 ### Added

@@ -1,3 +1,10 @@
+## 0.11.1
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.1 (collector frame delivery under
+  stalled or failing uploads). The Dio adapter has no runtime behavior change.
+
 ## 0.11.0
 
 ### Changed
