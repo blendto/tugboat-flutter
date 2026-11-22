@@ -1081,7 +1081,9 @@ obfuscated release builds or app-specific navigator/overlay structures.
 Continue exercising `--obfuscate`, nested navigators, platform views, and
 overlay-heavy screens on representative devices. Obfuscated builds without
 generated `widgetNames` must fail the compatibility gate rather than invent
-cross-build equivalence.
+cross-build equivalence. The `tugboat_build` package generates `widgetNames`
+for an app's public widget classes; private, generic, and framework widgets
+stay unnamed, so a generated map does not by itself close this gap.
 
 ### 2. Screenshot budget device baselines
 
