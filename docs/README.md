@@ -53,6 +53,8 @@ gates, canaries) are not listed below.
 
 - [Compatibility table](releases/compatibility.md)
 - [Release process](releases/process.md)
+- [Migrating to 0.5.0](releases/migrating-to-0.5.0.md)
+- [0.8.5 collector compatibility](releases/0.8.5-collector-compatibility.md)
 - [Repository migration](releases/repository-migration.md)
 - [Third-party notices](releases/third-party-notices.md)
 

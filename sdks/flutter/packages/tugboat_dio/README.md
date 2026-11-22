@@ -5,9 +5,7 @@ status, outcome, and duration into an active Tugboat session. HTTP error
 responses additionally retain bounded JSON/text bodies. Successful response
 bodies, headers, queries, raw transport errors, and stack traces are omitted.
 
-Requires `tugboat` `0.8.16` (lockstep).
-
-This package stays on the `0.8.x` line with the core SDK.
+Versions move in lockstep with `tugboat`: use the same version of both packages.
 
 ## Install
 
