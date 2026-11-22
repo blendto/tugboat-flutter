@@ -107,6 +107,14 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
   /// the clock) cannot make a lifecycle post or diagnostic go backwards.
   Stopwatch? _sessionStopwatch;
 
+  /// Time between the session's `startedAt` and [startSession], added to
+  /// [_sessionStopwatch]. The controller starts its event clock and stamps
+  /// `startedAt` before notifying listeners and building factory sinks, so a
+  /// stopwatch started here alone would run behind every event `atMs`, and
+  /// `session_end` could land before the session's last event. Read once
+  /// from the wall clock at session start; only the stopwatch advances it.
+  Duration _sessionStartOffset = Duration.zero;
+
   bool _disposed = false;
   TugboatSession? _session;
 
@@ -151,13 +159,18 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
 
   /// Events and frames taken out of their queues for a request that has not
   /// finished. They still count as pending: a stalled request would otherwise
-  /// make the backlog read 0.
+  /// make the backlog read 0. A new session or [dispose] does not reset
+  /// them: a request already sent may still be delivered, so its items stay
+  /// pending until it settles, and only then count as dropped if the
+  /// collector left them to retry (see [_settleStaleRequest]).
   int _inFlightEvents = 0;
   int _inFlightFrames = 0;
 
-  /// Events and frames discarded at the bounded caps, for the lifetime of the
-  /// sink. Unlike [_droppedFrameCount] this is not reset per session and does
-  /// not drive any wire diagnostic.
+  /// Events and frames discarded for the lifetime of the sink: at the bounded
+  /// caps, as backlog cleared by a new session or [dispose], and as requests
+  /// from a replaced session that the collector left to retry. Unlike
+  /// [_droppedFrameCount] this is not reset per session and does not drive
+  /// any wire diagnostic.
   int _droppedTotal = 0;
 
   /// Runtime user id (may change via [setUserId]).
@@ -209,7 +222,8 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
       _pendingFrames.length +
       _inFlightFrames;
 
-  /// Events and frames discarded at the pending, retry, and frame bounds.
+  /// Events and frames discarded at the bounds, or cleared undelivered by a
+  /// new session or [dispose].
   @override
   int get droppedCount => _droppedTotal;
 
@@ -224,13 +238,10 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
     // Clear any prior collector-issued id so a new session cannot route to the old one.
     // Traits / traitsId persist across sessions for the process lifetime.
     _collectorSessionId = null;
-    _pendingEvents.clear();
-    _pendingFrames.clear();
-    _retryBatches.clear();
+    _discardBacklog();
     _pendingLifecycle.clear();
-    _inFlightEvents = 0;
-    _inFlightFrames = 0;
     _sessionStopwatch = _stopwatchFactory()..start();
+    _sessionStartOffset = _startOffset(session);
     _framesNeedRetry = false;
     _frameUploadFailureReported = false;
     _diagnosticSequence = 0;
@@ -246,6 +257,22 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
       (at: session.startedAt, elapsed: Duration.zero),
     );
     unawaited(flush());
+  }
+
+  /// Counts the queued events and frames as dropped and clears them. Items
+  /// in a request are not touched: that request may still deliver them.
+  void _discardBacklog() {
+    _droppedTotal +=
+        _pendingEvents.length + _retryEventCount + _pendingFrames.length;
+    _pendingEvents.clear();
+    _pendingFrames.clear();
+    _retryBatches.clear();
+  }
+
+  /// How long ago [session] started on the wall clock, never negative.
+  Duration _startOffset(TugboatSession session) {
+    final offset = _wallClock().difference(session.startedAt);
+    return offset.isNegative ? Duration.zero : offset;
   }
 
   @override
@@ -431,10 +458,16 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
 
   /// Now, as a wall-clock timestamp plus the monotonic time since the session
   /// started. Order triggers by [_Trigger.elapsed], never by [_Trigger.at].
-  _Trigger _markTrigger() =>
-      (at: _wallClock(), elapsed: _sessionStopwatch?.elapsed ?? Duration.zero);
+  _Trigger _markTrigger() => (at: _wallClock(), elapsed: _sessionElapsed());
 
-  int _elapsedMs() => _sessionStopwatch?.elapsedMilliseconds ?? 0;
+  /// Time since the session started, on the controller's time base.
+  Duration _sessionElapsed() {
+    final watch = _sessionStopwatch;
+    if (watch == null) return Duration.zero;
+    return _sessionStartOffset + watch.elapsed;
+  }
+
+  int _elapsedMs() => _sessionElapsed().inMilliseconds;
 
   _Trigger _coalescedIdentityTrigger() {
     if (_userDirty && _traitsDirty) return _latestIdentityTrigger();
@@ -506,12 +539,8 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
     _userTrigger = null;
     _traitsTrigger = null;
     _client.close();
-    _pendingEvents.clear();
-    _pendingFrames.clear();
-    _retryBatches.clear();
+    _discardBacklog();
     _pendingLifecycle.clear();
-    _inFlightEvents = 0;
-    _inFlightFrames = 0;
     _sessionStopwatch = null;
     _referencedFrameNos.clear();
     _finishedFrameNos.clear();
@@ -699,8 +728,11 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
     _inFlightEvents += count;
 
     final result = await _sendEventBatch(batch, epoch: epoch);
-    if (!_isCurrentEpoch(epoch)) return (count: count, retry: false);
     _inFlightEvents -= count;
+    if (!_isCurrentEpoch(epoch)) {
+      _settleStaleRequest(result, count);
+      return (count: count, retry: false);
+    }
     if (result != _SendResult.retry) return (count: count, retry: false);
     _enqueueRetryBatch(batch);
     return (count: count, retry: true);
@@ -739,14 +771,35 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
     return batch;
   }
 
+  /// Sends retry batches oldest first. The head leaves the retry queue while
+  /// it is in a request, so a new session or [dispose] cannot count it as
+  /// dropped while that request may still deliver it.
   Future<void> _flushRetryBatches() async {
     final epoch = _sessionEpoch;
     while (_retryBatches.isNotEmpty) {
-      final result = await _sendEventBatch(_retryBatches.first, epoch: epoch);
-      if (!_isCurrentEpoch(epoch)) return;
-      if (result == _SendResult.retry) return;
-      _retryBatches.removeAt(0);
+      final head = _retryBatches.removeAt(0);
+      _inFlightEvents += head.length;
+      final result = await _sendEventBatch(head, epoch: epoch);
+      _inFlightEvents -= head.length;
+      if (!_isCurrentEpoch(epoch)) {
+        _settleStaleRequest(result, head.length);
+        return;
+      }
+      if (result == _SendResult.retry) {
+        // Nothing else touches the retry queue during a pass (flushes are
+        // single-flight), so putting the head back cannot exceed the cap.
+        _retryBatches.insert(0, head);
+        return;
+      }
     }
+  }
+
+  /// Settles a request that finished after its session was replaced or the
+  /// sink disposed. Its items are never requeued, so those the collector
+  /// left to retry are lost; delivered and rejected ones are not (a rejected
+  /// item is not counted as dropped in a live session either).
+  void _settleStaleRequest(_SendResult result, int count) {
+    if (result == _SendResult.retry) _droppedTotal += count;
   }
 
   void _enqueueRetryBatch(List<Map<String, Object?>> batch) {
@@ -933,10 +986,13 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
       final batch = _takeFrameBatch();
       remaining -= batch.length;
       final result = await _processFrameBatch(sessionId, batch, epoch);
+      _inFlightFrames -= batch.length;
       // A session reset mid-flush drops the batch rather than sending it
       // under a stale collector id.
-      if (!_isCurrentEpoch(epoch)) return;
-      _inFlightFrames -= batch.length;
+      if (!_isCurrentEpoch(epoch)) {
+        _settleStaleFrames(batch, result);
+        return;
+      }
       if (result.retry) {
         _framesNeedRetry = true;
         _forgetFinishedFrames(batch.sublist(0, result.retryOffset));
@@ -947,6 +1003,15 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
       droppedBatch = droppedBatch || result.dropped;
     }
     _noteFrameLaneHealthy(droppedBatch);
+  }
+
+  /// Frame counterpart of [_settleStaleRequest]: frames from `retryOffset` on
+  /// were left to retry, or never sent, and will not be requeued.
+  void _settleStaleFrames(
+    List<_PendingFrameUpload> batch,
+    ({bool retry, bool dropped, int retryOffset}) result,
+  ) {
+    if (result.retry) _droppedTotal += batch.length - result.retryOffset;
   }
 
   static const _frameBatchSize = 20;
@@ -978,7 +1043,9 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
   ) async {
     final result = await _sendFrameBatch(sessionId, batch);
     if (!_isCurrentEpoch(epoch)) {
-      return (retry: false, dropped: false, retryOffset: 0);
+      // Reported so the caller can count frames that will not be retried.
+      final retry = result.result == _SendResult.retry;
+      return (retry: retry, dropped: false, retryOffset: 0);
     }
     if (result.result == _SendResult.retry) {
       _reportFrameUploadFailure(result.statusCode, batch.length);
@@ -1006,7 +1073,11 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
     // A single invalid capture must not discard its valid neighbors.
     for (var index = 0; index < batch.length; index++) {
       final result = await _sendFrameBatch(sessionId, [batch[index]]);
-      if (!_isCurrentEpoch(epoch)) break;
+      if (!_isCurrentEpoch(epoch)) {
+        // The rest of the batch will not be sent: report it for counting.
+        final unsent = result.result == _SendResult.retry ? index : index + 1;
+        return (retry: true, dropped: dropped, retryOffset: unsent);
+      }
       if (result.result == _SendResult.retry) {
         _reportFrameUploadFailure(result.statusCode, 1);
         return (retry: true, dropped: dropped, retryOffset: index);

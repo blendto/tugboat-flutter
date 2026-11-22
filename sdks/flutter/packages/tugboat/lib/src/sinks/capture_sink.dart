@@ -149,7 +149,8 @@ abstract interface class TugboatSinkBacklog {
   /// Events and frames accepted by the sink and not yet delivered or dropped.
   int get pendingCount;
 
-  /// Events and frames the sink discarded at its bounds, over its lifetime.
+  /// Events and frames the sink discarded undelivered, over its lifetime: at
+  /// its bounds, or when a new session or disposal cleared its queues.
   int get droppedCount;
 }
 

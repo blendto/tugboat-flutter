@@ -175,7 +175,9 @@ not uploaded before this handshake completes.
 
 Session payloads may include:
 
-- `atMs` — milliseconds since session start, plus absolute UTC `triggeredAt`;
+- `atMs` — milliseconds since session start, on the same time base as event
+  `atMs` (so `session_end` is not before the session's last event), plus
+  absolute UTC `triggeredAt`;
 - `userId` — current runtime user on every session lifecycle event, including
   `session_end`. After start, `null` is an explicit identity-clear on
   `user_changed` / `session_identify` and the current (possibly anonymous)
@@ -308,7 +310,11 @@ When a bound is exceeded the oldest items are discarded (frames by the
 eviction order above), a debug message is printed, and the discarded events
 and frames are counted in `TugboatReplay.health.sinks.dropped`
 (`health.sinks.pending` counts what is still held, including a request in
-flight). Frame evictions emit a `collector_frame_upload` diagnostic with
+flight). A new session or disposing the sink clears the queued events and
+frames, and those count as dropped too. Items already in a request stay in
+`pending` until that request finishes, and count as dropped only if the
+collector leaves them to retry, since a request from the old session is never
+retried. Frame evictions emit a `collector_frame_upload` diagnostic with
 `result: dropped` when the running count reaches a power of two, and once more
 with the final count before `session_end`. Each carries `droppedFrameCount`
 and `droppedReferencedFrameCount`.
