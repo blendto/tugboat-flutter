@@ -58,6 +58,31 @@ Widget _app({
   );
 }
 
+/// A close button like the paywall's: a small icon inside an
+/// [OutlinedButton] that is mostly padding.
+Widget _closeButtonApp({required void Function(BuildContext) onTap}) {
+  return MaterialApp(
+    routes: {'/next': (_) => const Scaffold(body: Text('Next screen'))},
+    navigatorObservers: [TugboatReplay.navigatorObserver],
+    builder: (context, child) =>
+        TugboatReplay.wrapApp(config: _config, child: child!),
+    home: Builder(
+      builder: (context) => Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: 64,
+            height: 64,
+            child: OutlinedButton(
+              onPressed: () => onTap(context),
+              child: const Icon(Icons.close, size: 16),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 void main() {
   tearDown(TugboatReplay.resetForTest);
 
@@ -141,6 +166,51 @@ void main() {
       final anchor = taps.single.targetAnchor;
       expect(anchor?.fingerprint, isNotNull);
       expect(anchor?.canonicalPath, isNotEmpty);
+      await waitForTugboatCaptureWork(tester);
+    },
+  );
+  testWidgets(
+    'a navigating tap on a button\'s padding keeps the glyph tap\'s target '
+    '(BLE-440)',
+    (tester) async {
+      // A tap on the padding hits the button's own gesture Listener first,
+      // not the glyph. It must resolve to the same control, and the same
+      // layer, as a tap on the glyph, whether or not it navigates.
+      var navigate = false;
+      await tester.pumpWidget(
+        _closeButtonApp(
+          onTap: (context) {
+            if (navigate) Navigator.of(context).pushNamed('/next');
+          },
+        ),
+      );
+      await waitForTugboatCaptureWork(tester);
+      final button = tester.getRect(find.byType(OutlinedButton));
+      final padding = Offset(button.left + 4, button.center.dy);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pump();
+      await _waitForTaps(tester, 1);
+      await waitForTugboatCaptureWork(tester);
+
+      await tester.tapAt(padding);
+      await tester.pump();
+      await _waitForTaps(tester, 2);
+      await waitForTugboatCaptureWork(tester);
+
+      navigate = true;
+      await tester.tapAt(padding);
+      await tester.pumpAndSettle();
+      final taps = await _waitForTaps(tester, 3);
+
+      expect(taps, hasLength(3));
+      final glyph = taps[0].targetAnchor;
+      final paddingStayed = taps[1].targetAnchor;
+      final paddingNavigated = taps[2].targetAnchor;
+      expect(glyph?.fingerprint, isNotNull);
+      expect(paddingStayed?.fingerprint, glyph?.fingerprint);
+      expect(paddingNavigated?.canonicalPath, glyph?.canonicalPath);
+      expect(paddingNavigated?.fingerprint, glyph?.fingerprint);
       await waitForTugboatCaptureWork(tester);
     },
   );
