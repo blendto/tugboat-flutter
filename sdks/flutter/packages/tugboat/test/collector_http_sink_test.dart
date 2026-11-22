@@ -7,11 +7,45 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:tugboat/src/capture_sink.dart';
 import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/collector_http_sink.dart';
 import 'package:tugboat/src/models.dart';
 import 'package:tugboat/src/screenshot_capture_backend.dart';
 import 'package:tugboat/src/sdk_version.dart';
+
+/// A stopwatch the test advances by hand, standing in for the monotonic clock.
+class _FakeStopwatch implements Stopwatch {
+  Duration time = Duration.zero;
+  bool _running = false;
+
+  @override
+  int get frequency => 1000000;
+
+  @override
+  Duration get elapsed => time;
+
+  @override
+  int get elapsedMicroseconds => time.inMicroseconds;
+
+  @override
+  int get elapsedMilliseconds => time.inMilliseconds;
+
+  @override
+  int get elapsedTicks => time.inMicroseconds;
+
+  @override
+  bool get isRunning => _running;
+
+  @override
+  void reset() => time = Duration.zero;
+
+  @override
+  void start() => _running = true;
+
+  @override
+  void stop() => _running = false;
+}
 
 void main() {
   late HttpServer server;
@@ -2597,6 +2631,559 @@ void main() {
       final result = await runOutage(flaky: true);
       expect(result.realIds, ['event-0', 'event-1', 'event-2']);
       expect(result.slowReports, 1);
+    });
+  });
+
+  group('lifecycle durations ignore wall-clock changes', () {
+    final startedAt = DateTime.utc(2026, 6, 19);
+    final jumps = {
+      'back a day': const Duration(days: -1),
+      'forward a day': const Duration(days: 1),
+    };
+
+    ({CollectorHttpSink sink, List<Map<String, dynamic>> sessions}) build({
+      required DateTime Function() wallClock,
+      required _FakeStopwatch watch,
+      List<Map<String, dynamic>>? batches,
+      Duration identityDebounce = const Duration(hours: 1),
+    }) {
+      final sessions = <Map<String, dynamic>>[];
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        wallClock: wallClock,
+        stopwatchFactory: () => watch,
+        identityDebounceDuration: identityDebounce,
+        client: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (request.url.path == '/v1/sessions') {
+            sessions.add(body);
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          batches?.addAll([
+            for (final event in body['events'] as List)
+              Map<String, dynamic>.from(event as Map),
+          ]);
+          return http.Response('{}', 202);
+        }),
+      );
+      return (sink: sink, sessions: sessions);
+    }
+
+    for (final jump in jumps.entries) {
+      test(
+        'session_end keeps its duration when the clock jumps ${jump.key}',
+        () async {
+          var wall = startedAt;
+          final watch = _FakeStopwatch();
+          final built = build(wallClock: () => wall, watch: watch);
+          final sink = built.sink;
+          sink.startSession(createSession());
+          await sink.flush();
+
+          watch.time = const Duration(seconds: 5);
+          wall = startedAt.add(const Duration(seconds: 5) + jump.value);
+          await sink.endSession();
+
+          final end = built.sessions.last;
+          expect(end['eventType'], 'session_end');
+          expect(end['atMs'], 5000);
+          // Absolute timestamps still come from the wall clock.
+          expect(end['triggeredAt'], wall.toIso8601String());
+          sink.dispose();
+        },
+      );
+    }
+
+    test('session_start stays at atMs 0', () async {
+      final watch = _FakeStopwatch()..time = const Duration(seconds: 2);
+      final built = build(
+        wallClock: () => startedAt.add(const Duration(days: 3)),
+        watch: watch,
+      );
+      built.sink.startSession(createSession());
+      await built.sink.flush();
+
+      expect(built.sessions.first['eventType'], 'session_start');
+      expect(built.sessions.first['atMs'], 0);
+      expect(built.sessions.first['triggeredAt'], startedAt.toIso8601String());
+      built.sink.dispose();
+    });
+
+    test(
+      'a coalesced identity update uses the later trigger by elapsed time',
+      () async {
+        var wall = startedAt;
+        final watch = _FakeStopwatch();
+        final built = build(
+          wallClock: () => wall,
+          watch: watch,
+          identityDebounce: const Duration(milliseconds: 30),
+        );
+        final sink = built.sink;
+        sink.startSession(createSession());
+        await sink.flush();
+
+        watch.time = const Duration(seconds: 1);
+        wall = startedAt.add(const Duration(hours: 5));
+        await sink.setTraits({'plan': 'pro'});
+        // The user change comes later, but the wall clock was set back before it.
+        watch.time = const Duration(seconds: 2);
+        wall = startedAt.add(const Duration(hours: 1));
+        await sink.setUserId('user_at');
+        watch.time = const Duration(seconds: 4);
+        await waitFor(() => built.sessions.length >= 2);
+
+        final identify = built.sessions.last;
+        expect(identify['eventType'], 'session_identify');
+        expect(identify['atMs'], 2000);
+        expect(
+          identify['triggeredAt'],
+          startedAt.add(const Duration(hours: 1)).toIso8601String(),
+        );
+        sink.dispose();
+      },
+    );
+
+    test('capture_diagnostic atMs comes from the session stopwatch', () async {
+      var accept = false;
+      final events = <Map<String, dynamic>>[];
+      final watch = _FakeStopwatch();
+      var wall = startedAt;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        wallClock: () => wall,
+        stopwatchFactory: () => watch,
+        client: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (request.url.path == '/v1/sessions') {
+            return accept
+                ? http.Response(jsonEncode({'sessionId': 'sess_server'}), 202)
+                : http.Response('', 503);
+          }
+          events.addAll([
+            for (final event in body['events'] as List)
+              Map<String, dynamic>.from(event as Map),
+          ]);
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      watch.time = const Duration(seconds: 3);
+      wall = startedAt.add(const Duration(days: 1));
+      await sink.flush();
+      accept = true;
+      await sink.flush();
+      await sink.flush();
+
+      final failed = events.firstWhere(
+        (event) =>
+            (event['payload'] as Map)['component'] == 'collector_request' &&
+            (event['payload'] as Map)['result'] == 'failed',
+      );
+      expect(failed['atMs'], 3000);
+      sink.dispose();
+    });
+  });
+
+  group('sink health reflects what the collector sink holds', () {
+    TugboatFrame frameFor(int frameNo) => TugboatFrame(
+      id: 'frame-$frameNo',
+      atMs: frameNo,
+      width: 1,
+      height: 1,
+      contentHash: 'hash-$frameNo',
+    );
+
+    test('events in a stalled request count as pending', () async {
+      final stalled = Completer<http.Response>();
+      var eventPosts = 0;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        client: MockClient((request) async {
+          if (request.url.path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          eventPosts += 1;
+          return stalled.future;
+        }),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      hub.startSession(createSession());
+      await sink.flush();
+
+      for (var i = 0; i < 10; i++) {
+        hub.recordEvent(createEvent(i));
+      }
+      await waitFor(() => eventPosts > 0);
+      expect(hub.acceptCount, 10);
+      expect(hub.pendingCount, 10);
+      expect(hub.dropCount, 0);
+
+      stalled.complete(http.Response('{}', 202));
+      await sink.flush();
+      expect(hub.pendingCount, 0);
+      sink.dispose();
+    });
+
+    test('frames in a stalled upload count as pending', () async {
+      final stalled = Completer<http.Response>();
+      var frameRequests = 0;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        client: MockClient((request) async {
+          if (request.url.path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (request.url.path == '/v1/frames') {
+            frameRequests += 1;
+            return stalled.future;
+          }
+          return http.Response('{}', 202);
+        }),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      final session = createSession();
+      hub.startSession(session);
+      await sink.flush();
+
+      for (var i = 0; i < 3; i++) {
+        hub.recordFrame(frameFor(i), Uint8List(1), sessionId: session.id);
+      }
+      await waitFor(() => frameRequests > 0);
+      expect(hub.pendingCount, 3);
+      expect(hub.dropCount, 0);
+
+      stalled.complete(http.Response('{}', 202));
+      await sink.flush();
+      expect(hub.pendingCount, 0);
+      sink.dispose();
+    });
+
+    test('events dropped at the pending cap are counted', () async {
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingEvents: 5),
+        client: MockClient((request) async => http.Response('', 503)),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      hub.startSession(createSession());
+      // The failed session_start queues one collector_request diagnostic.
+      await sink.flush();
+      final queued = hub.pendingCount;
+
+      for (var i = 0; i < 10; i++) {
+        hub.recordEvent(createEvent(i));
+      }
+
+      expect(hub.pendingCount, 5);
+      expect(hub.dropCount, queued + 10 - 5);
+      sink.dispose();
+    });
+
+    test('events evicted from the retry queue are counted', () async {
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingBatches: 1),
+        client: MockClient((request) async {
+          if (request.url.path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          return http.Response('', 503);
+        }),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      hub.startSession(createSession());
+      await sink.flush();
+
+      for (var i = 0; i < 30; i++) {
+        hub.recordEvent(createEvent(i));
+      }
+      for (var pass = 0; pass < 3; pass++) {
+        await sink.flush();
+      }
+
+      // Nothing is delivered and the retry queue holds a single batch, so most
+      // of the 30 events are evicted and counted. The sink also queues its own
+      // diagnostics, which can push a batch out as well, so only lower bounds
+      // are asserted here.
+      expect(hub.dropCount, greaterThanOrEqualTo(20));
+      expect(hub.pendingCount + hub.dropCount, greaterThanOrEqualTo(30));
+      sink.dispose();
+    });
+
+    test('frames evicted at the frame cap are counted', () async {
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingFrames: 3),
+        client: MockClient((request) async => http.Response('', 503)),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      final session = createSession();
+      hub.startSession(session);
+      await sink.flush();
+      final queued = hub.pendingCount;
+
+      for (var i = 0; i < 5; i++) {
+        hub.recordFrame(frameFor(i), Uint8List(1), sessionId: session.id);
+      }
+
+      // Each of the two evictions also queued a `dropped` diagnostic event.
+      expect(hub.pendingCount, queued + 3 + 2);
+      expect(hub.dropCount, 2);
+      sink.dispose();
+    });
+
+    test('the drop count survives a new session', () async {
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingFrames: 1),
+        client: MockClient((request) async => http.Response('', 503)),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      final session = createSession();
+      hub.startSession(session);
+      for (var i = 0; i < 3; i++) {
+        hub.recordFrame(frameFor(i), Uint8List(1), sessionId: session.id);
+      }
+      expect(hub.dropCount, 2);
+      // The kept frame and the drop diagnostics are still queued; the new
+      // session clears them and counts them as dropped on top.
+      final queued = hub.pendingCount;
+      expect(queued, greaterThan(0));
+
+      hub.startSession(createSession(id: 'session-next'));
+      expect(hub.dropCount, 2 + queued);
+      sink.dispose();
+    });
+  });
+
+  group('backlog cleared by a new session or dispose', () {
+    TugboatFrame frameFor(int frameNo) => TugboatFrame(
+      id: 'frame-$frameNo',
+      atMs: frameNo,
+      width: 1,
+      height: 1,
+      contentHash: 'hash-$frameNo',
+    );
+
+    /// A sink whose posts to [stallPath] (after [failFirst] 503s) wait on the
+    /// returned completer. Every other request is accepted.
+    ({
+      CollectorHttpSink sink,
+      Completer<http.Response> stalled,
+      int Function() stalledPosts,
+    })
+    stallingSink(String stallPath, {int failFirst = 0}) {
+      final stalled = Completer<http.Response>();
+      var posts = 0;
+      var failures = failFirst;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        client: MockClient((request) async {
+          if (request.url.path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (request.url.path != stallPath) return http.Response('{}', 202);
+          if (failures > 0) {
+            failures -= 1;
+            return http.Response('', 503);
+          }
+          posts += 1;
+          return stalled.future;
+        }),
+      );
+      return (sink: sink, stalled: stalled, stalledPosts: () => posts);
+    }
+
+    for (final release in {'delivered': 202, 'left to retry': 503}.entries) {
+      final delivered = release.value == 202;
+
+      test('a new session counts queued events as dropped; a stalled request '
+          '${release.key} settles its own events', () async {
+        final built = stallingSink('/v1/events/batch');
+        final sink = built.sink;
+        final hub = TugboatCaptureSinkHub([sink]);
+        hub.startSession(createSession());
+        await sink.flush();
+        for (var i = 0; i < 10; i++) {
+          hub.recordEvent(createEvent(i));
+        }
+        await waitFor(() => built.stalledPosts() > 0);
+        for (var i = 10; i < 13; i++) {
+          hub.recordEvent(createEvent(i));
+        }
+        expect(hub.pendingCount, 13);
+        expect(hub.dropCount, 0);
+
+        hub.startSession(createSession(id: 'session-next'));
+        // The 3 queued events are gone; the 10 in the request may still land.
+        expect(hub.pendingCount, 10);
+        expect(hub.dropCount, 3);
+
+        built.stalled.complete(http.Response('{}', release.value));
+        await waitFor(() => hub.pendingCount == 0);
+        await sink.flush();
+        expect(sink.pendingCount, 0);
+        expect(hub.dropCount, delivered ? 3 : 13);
+        sink.dispose();
+      });
+
+      test('a retry head in a stalled request is not counted twice when it '
+          'is ${release.key}', () async {
+        final built = stallingSink('/v1/events/batch', failFirst: 1);
+        final sink = built.sink;
+        final hub = TugboatCaptureSinkHub([sink]);
+        hub.startSession(createSession());
+        await sink.flush();
+        for (var i = 0; i < 10; i++) {
+          hub.recordEvent(createEvent(i));
+        }
+        // The batch fails once and waits in the retry queue.
+        await waitFor(() => hub.pendingCount > 10);
+        // The retry head goes out again and stalls.
+        unawaited(sink.flush());
+        await waitFor(() => built.stalledPosts() > 0);
+        final pendingBefore = hub.pendingCount;
+        expect(pendingBefore, greaterThan(10));
+        expect(hub.dropCount, 0);
+
+        hub.startSession(createSession(id: 'session-next'));
+        // Only what was queued (the failure diagnostic) is dropped; the head
+        // is still in its request.
+        expect(hub.pendingCount, 10);
+        expect(hub.dropCount, pendingBefore - 10);
+
+        built.stalled.complete(http.Response('{}', release.value));
+        await waitFor(() => hub.pendingCount == 0);
+        await sink.flush();
+        expect(sink.pendingCount, 0);
+        expect(hub.dropCount, delivered ? pendingBefore - 10 : pendingBefore);
+        sink.dispose();
+      });
+
+      test('dispose counts queued items as dropped; a stalled frame upload '
+          '${release.key} settles its own frames', () async {
+        final built = stallingSink('/v1/frames');
+        final sink = built.sink;
+        final session = createSession();
+        sink.startSession(session);
+        await sink.flush();
+        for (var i = 0; i < 3; i++) {
+          sink.recordFrame(frameFor(i), Uint8List(1), sessionId: session.id);
+        }
+        await waitFor(() => built.stalledPosts() > 0);
+        for (var i = 0; i < 2; i++) {
+          sink.recordEvent(createEvent(i));
+        }
+        expect(sink.pendingCount, 5);
+        expect(sink.droppedCount, 0);
+
+        sink.dispose();
+        expect(sink.pendingCount, 3);
+        expect(sink.droppedCount, 2);
+
+        built.stalled.complete(http.Response('{}', release.value));
+        await waitFor(() => sink.pendingCount == 0);
+        expect(sink.pendingCount, 0);
+        expect(sink.droppedCount, delivered ? 2 : 5);
+      });
+    }
+
+    test('dispose with a stalled event request never reads negative', () async {
+      final built = stallingSink('/v1/events/batch');
+      final sink = built.sink;
+      sink.startSession(createSession());
+      await sink.flush();
+      for (var i = 0; i < 10; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      await waitFor(() => built.stalledPosts() > 0);
+      sink.recordEvent(createEvent(10));
+
+      sink.dispose();
+      expect(sink.pendingCount, 10);
+      expect(sink.droppedCount, 1);
+
+      built.stalled.complete(http.Response('{}', 202));
+      await waitFor(() => sink.pendingCount == 0);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(sink.pendingCount, 0);
+      expect(sink.droppedCount, 1);
+    });
+
+    test('frames requeued after a 5xx are not counted twice', () async {
+      var frameFailures = 1;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        client: MockClient((request) async {
+          if (request.url.path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (request.url.path == '/v1/frames' && frameFailures > 0) {
+            frameFailures -= 1;
+            return http.Response('', 503);
+          }
+          return http.Response('{}', 202);
+        }),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      final session = createSession();
+      hub.startSession(session);
+      await sink.flush();
+      for (var i = 0; i < 3; i++) {
+        hub.recordFrame(frameFor(i), Uint8List(1), sessionId: session.id);
+      }
+      await waitFor(() => frameFailures == 0);
+      await sink.flush();
+      expect(hub.dropCount, 0);
+
+      await sink.flush();
+      await sink.flush();
+      expect(hub.pendingCount, 0);
+      expect(hub.dropCount, 0);
+      sink.dispose();
+    });
+  });
+
+  group('lifecycle atMs shares the controller clock', () {
+    test('session_end is not before the last event when the sink starts '
+        'late', () async {
+      final startedAt = DateTime.utc(2026, 6, 19);
+      final watch = _FakeStopwatch();
+      final sessions = <Map<String, dynamic>>[];
+      final events = <Map<String, dynamic>>[];
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        // The controller stamped startedAt and started its clock 250 ms
+        // before the sink's startSession (listeners, sink factories).
+        wallClock: () => startedAt.add(const Duration(milliseconds: 250)),
+        stopwatchFactory: () => watch,
+        client: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (request.url.path == '/v1/sessions') {
+            sessions.add(body);
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          events.addAll([
+            for (final event in body['events'] as List)
+              Map<String, dynamic>.from(event as Map),
+          ]);
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+
+      // The controller clock now reads 1250 ms; the sink's stopwatch 1000 ms.
+      watch.time = const Duration(seconds: 1);
+      sink.recordEvent(
+        const TugboatEvent(id: 'last', atMs: 1250, type: 'tap', data: {}),
+      );
+      await sink.endSession();
+
+      final end = sessions.last;
+      expect(end['eventType'], 'session_end');
+      final lastEvent = events.last;
+      expect(end['atMs'], greaterThanOrEqualTo(lastEvent['atMs'] as int));
+      expect(end['atMs'], 1250);
+      expect(sessions.first['atMs'], 0);
+      sink.dispose();
     });
   });
 }

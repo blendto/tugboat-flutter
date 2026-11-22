@@ -1,3 +1,42 @@
+## 0.11.2
+
+### Changed
+
+- `TugboatReplay.health.sinks.pending` and `dropped` now report what the
+  collector sink really holds and discards. They always read 0 before: the
+  sink mailbox delivers synchronously and never queued anything, so the
+  collector sink's own queues were invisible. `pending` counts events and
+  frames that are queued, waiting for a retry, or in a request that has not
+  finished. `dropped` counts, over the life of the sink, events and frames
+  discarded at the pending-event cap (`maxPendingEvents`), the retry-queue cap
+  (`maxPendingBatches`) and the frame caps (`maxPendingFrames`,
+  `maxPendingFrameBytes`), and those still queued when a new session starts
+  or the sink is disposed. Items already in a request then stay in `pending`
+  until it finishes and count as dropped only if the collector leaves them to
+  retry, so a delivered request is never counted. All three cover the whole
+  process rather than one activation: each activation builds a new sink, so
+  `accepted` and `dropped` are now running totals across
+  `activate` / `deactivate` cycles, and a deactivated session's sink keeps
+  counting in `pending` and `dropped` until its last request finishes. Before,
+  health read only the current activation's sink and reset to 0, hiding what
+  the previous one discarded. This changes what health reports (diagnostics
+  only); the collector wire format and delivery behavior are unchanged.
+
+### Fixed
+
+- Durations in collector lifecycle posts no longer depend on the wall clock.
+  `atMs` on `session_end`, on `user_changed` / `traits_updated` /
+  `session_identify`, and on `capture_diagnostic` events the sink records was
+  a `DateTime.now()` difference, so an NTP step or a clock change mid-session
+  made it wrong or negative. It now comes from a monotonic stopwatch started
+  with the session, offset once by the time between the session's
+  `startedAt` and the sink starting, so it shares the time base of event
+  `atMs` and `session_end` is never before the session's last event. The
+  later of two coalesced identity changes is chosen by that stopwatch.
+  `triggeredAt` is still a wall-clock timestamp, so after a clock change it
+  can differ from `session start + atMs`. The wire shape of every event is
+  unchanged.
+
 ## 0.11.1
 
 ### Fixed

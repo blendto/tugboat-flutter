@@ -15,6 +15,7 @@ import 'lifecycle.dart';
 import 'models.dart';
 import 'navigator_observer_registry.dart';
 import 'network_observer.dart';
+import 'sink_ledger.dart';
 
 export 'input_context_capture.dart' show TugboatFocusKind, TugboatSystemInput;
 export 'lifecycle.dart' show TugboatLifecycleState;
@@ -281,6 +282,7 @@ class TugboatReplay {
     );
     navigatorObserver.debugClearRetainedRouteStack();
     _lifecycle.resetForTest();
+    TugboatSinkLedger.instance.resetForTest();
     _pendingTraits = null;
     _pendingTraitsId = null;
     _pendingUserId = null;
