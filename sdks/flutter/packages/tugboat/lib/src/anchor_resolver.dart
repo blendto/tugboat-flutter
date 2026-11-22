@@ -980,6 +980,7 @@ class AnchorResolver {
         route: pressedRoute ?? route,
         tokenMap: tokenMap,
         rootRender: rootRender,
+        chromeNamesItsControl: true,
       ),
       route: route,
       pressedRoute: pressedRoute ?? route,
@@ -1152,12 +1153,14 @@ class AnchorResolver {
     required _TokenMap tokenMap,
     required RenderBox rootRender,
     bool nameHiddenControls = true,
+    bool chromeNamesItsControl = false,
   }) => _resolveHitPath(
     hitPath,
     route: route,
     tokenMap: tokenMap,
     rootRender: rootRender,
     nameHiddenControls: nameHiddenControls,
+    chromeNamesItsControl: chromeNamesItsControl,
   ).anchor;
 
   /// The anchor for [hitPath] and, when a control hidden under
@@ -1165,20 +1168,44 @@ class AnchorResolver {
   /// resolves as before that rule: the inventory's centre hits for an
   /// enclosing scrollable must not adopt the hidden control (its entry is
   /// added with its own box, see [_addExcludedSemanticsControls]).
+  ///
+  /// [chromeNamesItsControl] is set for the hit path kept at pointer-down
+  /// (BLE-440). A tap on a button's padding hits the button's own gesture
+  /// `Listener` first. Skipping it as chrome starts the climb above the
+  /// `GestureDetector` (at `MouseRegion`), so the target lands on the
+  /// `InkWell`. On the fresh pointer-up path, alias normalisation folds that
+  /// back to the inventory primary, but after a navigating tap it cannot run.
+  /// With the flag, a chrome entry whose own climb reaches an actionable,
+  /// addressable control resolves to that control: the layer a glyph tap
+  /// and the scene inventory report. It does not apply when a control
+  /// hidden under `ExcludeSemantics` names the hit.
   ({TugboatTargetAnchor? anchor, Element? hiddenControl}) _resolveHitPath(
     List<HitTestTarget> hitPath, {
     required String? route,
     required _TokenMap tokenMap,
     required RenderBox rootRender,
     bool nameHiddenControls = true,
+    bool chromeNamesItsControl = false,
   }) {
     final viewport = rootRender.size;
-    TugboatTargetAnchor? roleOnly;
-    TugboatTargetAnchor? fallback;
+    final fallbacks = _HitFallbacks();
     // Only the first retained element above the excluded subtree can be
     // named by the control hidden in it.
     var hidden = _hiddenControlIf(nameHiddenControls, hitPath, tokenMap);
+    // A control hidden under `ExcludeSemantics` has no role of its own, so a
+    // climb from chrome inside it would pass it by; its own rule names it.
+    final chromeAllowed = chromeNamesItsControl && hidden == null;
     for (final target in hitPath) {
+      final chromeControl = _chromeHitControl(
+        chromeAllowed,
+        target,
+        route,
+        tokenMap,
+        rootRender,
+      );
+      if (chromeControl != null) {
+        return (anchor: chromeControl, hiddenControl: null);
+      }
       final element = _retainedHitElement(target, tokenMap);
       if (element == null) continue;
 
@@ -1193,21 +1220,16 @@ class AnchorResolver {
         hiddenControl: named,
       );
       if (named != null) return (anchor: anchor, hiddenControl: named);
-      final hasPath = _hasPath(anchor);
       // Prefer an anchor that is both actionable and structurally addressable.
       // A role without a canonical path (e.g. a Texture overlay with a
       // long-press ancestor) cannot join a scene inventory, so keep scanning
       // for a deeper hit entry that can.
-      if (anchor.role != null && hasPath) {
+      if (_isActionableWithPath(anchor)) {
         return (anchor: anchor, hiddenControl: null);
       }
-      if (anchor.role != null) {
-        roleOnly ??= anchor;
-      } else {
-        fallback ??= anchor;
-      }
+      fallbacks.note(anchor);
     }
-    return (anchor: roleOnly ?? fallback, hiddenControl: null);
+    return (anchor: fallbacks.best, hiddenControl: null);
   }
 
   _HiddenControl? _hiddenControlIf(
@@ -1223,6 +1245,29 @@ class AnchorResolver {
     final element = tokenMap.renderElements[target];
     if (element == null || _isSkippedChrome(element, tokenMap)) return null;
     return element;
+  }
+
+  /// The control a capture-chrome hit entry belongs to, when [allowed] and
+  /// climbing from it reaches one that is actionable and has a path. Null
+  /// for anything else, so the entry is skipped exactly as before.
+  TugboatTargetAnchor? _chromeHitControl(
+    bool allowed,
+    HitTestTarget target,
+    String? route,
+    _TokenMap tokenMap,
+    RenderBox rootRender,
+  ) {
+    if (!allowed || target is! RenderObject || !target.attached) return null;
+    final element = tokenMap.renderElements[target];
+    if (element == null || !_isSkippedChrome(element, tokenMap)) return null;
+    final anchor = _anchorForElement(
+      hitElement: element,
+      rootRender: rootRender,
+      viewport: rootRender.size,
+      route: route,
+      tokenMap: tokenMap,
+    );
+    return _isActionableWithPath(anchor) ? anchor : null;
   }
 
   /// A low-level identity (a Listener, a tap Semantics) names itself rather
@@ -2004,4 +2049,21 @@ class AnchorResolver {
     if (centerY > 0.66) return 'bottom';
     return 'center';
   }
+}
+
+/// The first role-only and the first role-less anchor along a hit path, kept
+/// while the walk looks for one that is both actionable and addressable.
+class _HitFallbacks {
+  TugboatTargetAnchor? _roleOnly;
+  TugboatTargetAnchor? _fallback;
+
+  void note(TugboatTargetAnchor anchor) {
+    if (anchor.role != null) {
+      _roleOnly ??= anchor;
+    } else {
+      _fallback ??= anchor;
+    }
+  }
+
+  TugboatTargetAnchor? get best => _roleOnly ?? _fallback;
 }

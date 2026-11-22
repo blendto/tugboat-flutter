@@ -1,3 +1,27 @@
+## 0.11.4
+
+### Fixed
+
+- A tap on a button's padding whose handler navigates (a close button that
+  pops the route, say) records the same target as a tap on the button's glyph
+  again (BLE-440). Since 0.10.11 such a tap is resolved from the hit path kept
+  at pointer-down. The padding hit lands first on the button's own gesture
+  `Listener`, which is skipped as capture chrome, so the walk climbed from
+  the `MouseRegion` above the `GestureDetector` and recorded the `InkWell`
+  (`…/OutlinedButton#0/InkWell#0`). On a tap that stays on the screen, alias
+  normalisation folds that back to the inventory primary, but after a
+  navigating tap it cannot run, so one control was recorded under two
+  fingerprints and the `InkWell` one matched nothing in scene inventories.
+  On the pointer-down path only, a chrome hit entry whose climb reaches an
+  actionable, addressable control now resolves to that control
+  (`…/InkWell#0/GestureDetector#0`), the layer a glyph tap and the scene
+  inventory report. Taps resolved from the pointer-up hit test, and controls
+  hidden under `ExcludeSemantics`, resolve exactly as before. Identity change:
+  only navigating taps on a button's padding move, back from the `InkWell`
+  fingerprint to the `GestureDetector` one that 0.10.10 and earlier recorded
+  and that scene inventories list (the `InkWell` fingerprint is already in
+  that entry's `aliases`). `fingerprintSchemaVersion` is unchanged.
+
 ## 0.11.3
 
 ### Changed

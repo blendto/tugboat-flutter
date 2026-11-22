@@ -1,3 +1,11 @@
+## 0.11.4
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.4 (a navigating tap on a button's
+  padding records the button's `GestureDetector` again). The Dio adapter has
+  no runtime behavior change.
+
 ## 0.11.3
 
 ### Added

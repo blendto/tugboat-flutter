@@ -963,6 +963,17 @@ has no canonical path and the kept one has a path but no role, as for a control
 whose button sits under `ExcludeSemantics`. A tap that already resolves is
 unchanged, and fingerprints are the same element's fingerprints either way.
 
+On the kept path, a hit entry that is capture chrome can still name its
+control. A tap on a button's padding hits the button's own gesture `Listener`
+first; skipping it would start the climb above the `GestureDetector` and land
+on the `InkWell`, a layer the scene inventory lists only as an alias. The
+fresh path folds that alias back to the inventory primary, but after a
+navigating tap the inventory cannot see the old screen. So on the kept path a
+chrome entry whose climb reaches an actionable, addressable control resolves to
+that control, the same layer a glyph tap and the scene inventory report. This
+does not apply when a control hidden under `ExcludeSemantics` names the hit
+(its own rule above handles it), and the fresh path is unchanged.
+
 A control that stays mounted while the app navigates (a persistent bottom bar
 outside the `Navigator`) is not absorbed, so its pointer-up hit test succeeds
 but runs under the destination route. When the route changed since pointer-down,
