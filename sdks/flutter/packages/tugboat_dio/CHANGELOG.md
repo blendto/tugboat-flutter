@@ -1,3 +1,11 @@
+## 0.11.2
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.2 (collector sink health counts and
+  monotonic lifecycle durations). The Dio adapter has no runtime behavior
+  change.
+
 ## 0.11.1
 
 ### Changed

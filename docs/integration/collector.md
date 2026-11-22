@@ -303,10 +303,12 @@ The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
 `429`, and `5xx`; other response codes are dropped. That includes a lifecycle
 post such as `user_changed`, so it cannot hold later lifecycle posts, except
 `session_start`, which is retried until accepted because uploads wait for its
-session id. Retry batches, unsent
-events, and frames are bounded in memory. When a bound is exceeded the oldest
-items are discarded (frames by the eviction order above) and a debug message is
-printed. Frame evictions emit a `collector_frame_upload` diagnostic with
+session id. Retry batches, unsent events, and frames are bounded in memory.
+When a bound is exceeded the oldest items are discarded (frames by the
+eviction order above), a debug message is printed, and the discarded events
+and frames are counted in `TugboatReplay.health.sinks.dropped`
+(`health.sinks.pending` counts what is still held, including a request in
+flight). Frame evictions emit a `collector_frame_upload` diagnostic with
 `result: dropped` when the running count reaches a power of two, and once more
 with the final count before `session_end`. Each carries `droppedFrameCount`
 and `droppedReferencedFrameCount`.

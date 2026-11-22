@@ -52,7 +52,7 @@ String _safeHttpProofIdValue(String? value) => value == null
     : 'redacted';
 
 /// Best-effort HTTP sink for the standalone `tugboat-collector` service.
-class CollectorHttpSink implements TugboatCaptureSink {
+class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
   CollectorHttpSink({
     required TugboatCollectorConfig config,
     http.Client? client,
@@ -62,7 +62,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
     @visibleForTesting Duration? identityDebounceDuration,
     @visibleForTesting Duration? requestTimeout,
     @visibleForTesting Duration? slowFlushThreshold,
+    @visibleForTesting DateTime Function()? wallClock,
+    @visibleForTesting Stopwatch Function()? stopwatchFactory,
   }) : _config = config,
+       _wallClock = wallClock ?? DateTime.now,
+       _stopwatchFactory = stopwatchFactory ?? Stopwatch.new,
        _requestTimeout = requestTimeout ?? _defaultRequestTimeout,
        _slowFlushThreshold = slowFlushThreshold ?? _defaultSlowFlushThreshold,
        _userId = initialUserId ?? config.userId,
@@ -93,6 +97,15 @@ class CollectorHttpSink implements TugboatCaptureSink {
   /// A flush pass slower than this records a `collector_flush` diagnostic.
   static const _defaultSlowFlushThreshold = Duration(seconds: 10);
   final Duration _slowFlushThreshold;
+
+  /// Wall clock, for absolute timestamps only (`triggeredAt`).
+  final DateTime Function() _wallClock;
+  final Stopwatch Function() _stopwatchFactory;
+
+  /// Started with the session. Every duration since the session start
+  /// (`atMs`) is read from it, so a wall-clock change (NTP, the user setting
+  /// the clock) cannot make a lifecycle post or diagnostic go backwards.
+  Stopwatch? _sessionStopwatch;
 
   bool _disposed = false;
   TugboatSession? _session;
@@ -136,6 +149,17 @@ class CollectorHttpSink implements TugboatCaptureSink {
   final List<List<Map<String, Object?>>> _retryBatches = [];
   final List<_PendingSessionLifecycle> _pendingLifecycle = [];
 
+  /// Events and frames taken out of their queues for a request that has not
+  /// finished. They still count as pending: a stalled request would otherwise
+  /// make the backlog read 0.
+  int _inFlightEvents = 0;
+  int _inFlightFrames = 0;
+
+  /// Events and frames discarded at the bounded caps, for the lifetime of the
+  /// sink. Unlike [_droppedFrameCount] this is not reset per session and does
+  /// not drive any wire diagnostic.
+  int _droppedTotal = 0;
+
   /// Runtime user id (may change via [setUserId]).
   String? _userId;
 
@@ -158,8 +182,8 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Timer? _identityDebounceTimer;
   bool _userDirty = false;
   bool _traitsDirty = false;
-  DateTime? _userTriggeredAt;
-  DateTime? _traitsTriggeredAt;
+  _Trigger? _userTrigger;
+  _Trigger? _traitsTrigger;
 
   Uri get _baseUri => Uri.parse(_config.baseUrl.replaceAll(RegExp(r'/+$'), ''));
 
@@ -176,6 +200,22 @@ class CollectorHttpSink implements TugboatCaptureSink {
   /// Current runtime user id stamped on sessions and events.
   String? get userId => _userId;
 
+  /// Events and frames waiting for delivery, including those in a request.
+  @override
+  int get pendingCount =>
+      _pendingEvents.length +
+      _retryEventCount +
+      _inFlightEvents +
+      _pendingFrames.length +
+      _inFlightFrames;
+
+  /// Events and frames discarded at the pending, retry, and frame bounds.
+  @override
+  int get droppedCount => _droppedTotal;
+
+  int get _retryEventCount =>
+      _retryBatches.fold<int>(0, (sum, batch) => sum + batch.length);
+
   @override
   void startSession(TugboatSession session) {
     if (_disposed) return;
@@ -188,6 +228,9 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _pendingFrames.clear();
     _retryBatches.clear();
     _pendingLifecycle.clear();
+    _inFlightEvents = 0;
+    _inFlightFrames = 0;
+    _sessionStopwatch = _stopwatchFactory()..start();
     _framesNeedRetry = false;
     _frameUploadFailureReported = false;
     _diagnosticSequence = 0;
@@ -195,12 +238,12 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _cancelIdentityDebounce();
     _userDirty = false;
     _traitsDirty = false;
-    _userTriggeredAt = null;
-    _traitsTriggeredAt = null;
+    _userTrigger = null;
+    _traitsTrigger = null;
     _scheduleFlushTimer();
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionStart.wireValue,
-      session.startedAt,
+      (at: session.startedAt, elapsed: Duration.zero),
     );
     unawaited(flush());
   }
@@ -337,7 +380,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_session == null) return;
     if (_isSessionStartPending()) return;
     _traitsDirty = true;
-    _traitsTriggeredAt = DateTime.now();
+    _traitsTrigger = _markTrigger();
     _scheduleIdentityDebounce();
   }
 
@@ -354,7 +397,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_session == null) return;
     if (_isSessionStartPending()) return;
     _userDirty = true;
-    _userTriggeredAt = DateTime.now();
+    _userTrigger = _markTrigger();
     _scheduleIdentityDebounce();
   }
 
@@ -386,19 +429,26 @@ class CollectorHttpSink implements TugboatCaptureSink {
     await _drainLifecyclePosts();
   }
 
-  DateTime _coalescedIdentityTriggeredAt() {
+  /// Now, as a wall-clock timestamp plus the monotonic time since the session
+  /// started. Order triggers by [_Trigger.elapsed], never by [_Trigger.at].
+  _Trigger _markTrigger() =>
+      (at: _wallClock(), elapsed: _sessionStopwatch?.elapsed ?? Duration.zero);
+
+  int _elapsedMs() => _sessionStopwatch?.elapsedMilliseconds ?? 0;
+
+  _Trigger _coalescedIdentityTrigger() {
     if (_userDirty && _traitsDirty) return _latestIdentityTrigger();
-    if (_userDirty) return _userTriggeredAt ?? DateTime.now();
-    return _traitsTriggeredAt ?? DateTime.now();
+    if (_userDirty) return _userTrigger ?? _markTrigger();
+    return _traitsTrigger ?? _markTrigger();
   }
 
-  DateTime _latestIdentityTrigger() {
-    final userAt = _userTriggeredAt;
-    final traitsAt = _traitsTriggeredAt;
-    if (userAt != null && traitsAt != null) {
-      return userAt.isAfter(traitsAt) ? userAt : traitsAt;
+  _Trigger _latestIdentityTrigger() {
+    final user = _userTrigger;
+    final traits = _traitsTrigger;
+    if (user != null && traits != null) {
+      return user.elapsed > traits.elapsed ? user : traits;
     }
-    return userAt ?? traitsAt ?? DateTime.now();
+    return user ?? traits ?? _markTrigger();
   }
 
   void _enqueueCoalescedIdentityUpdate() {
@@ -410,13 +460,13 @@ class CollectorHttpSink implements TugboatCaptureSink {
         : _userDirty
         ? TugboatCollectorSessionEventType.userChanged.wireValue
         : TugboatCollectorSessionEventType.traitsUpdated.wireValue;
-    final triggeredAt = _coalescedIdentityTriggeredAt();
+    final trigger = _coalescedIdentityTrigger();
 
     _userDirty = false;
     _traitsDirty = false;
-    _enqueueSessionLifecycle(eventType, triggeredAt);
-    _userTriggeredAt = null;
-    _traitsTriggeredAt = null;
+    _enqueueSessionLifecycle(eventType, trigger);
+    _userTrigger = null;
+    _traitsTrigger = null;
   }
 
   @override
@@ -431,7 +481,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (!_isCurrentEpoch(epoch)) return;
     _enqueueSessionLifecycle(
       TugboatCollectorSessionEventType.sessionEnd.wireValue,
-      DateTime.now(),
+      _markTrigger(),
     );
     await _drainLifecyclePosts();
     if (_isCurrentEpoch(epoch)) _cancelFlushTimer();
@@ -453,13 +503,16 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _cancelIdentityDebounce();
     _userDirty = false;
     _traitsDirty = false;
-    _userTriggeredAt = null;
-    _traitsTriggeredAt = null;
+    _userTrigger = null;
+    _traitsTrigger = null;
     _client.close();
     _pendingEvents.clear();
     _pendingFrames.clear();
     _retryBatches.clear();
     _pendingLifecycle.clear();
+    _inFlightEvents = 0;
+    _inFlightFrames = 0;
+    _sessionStopwatch = null;
     _referencedFrameNos.clear();
     _finishedFrameNos.clear();
     _flushInFlight = null;
@@ -483,11 +536,12 @@ class CollectorHttpSink implements TugboatCaptureSink {
     _flushTimer = null;
   }
 
-  void _enqueueSessionLifecycle(String eventType, DateTime triggeredAt) {
+  void _enqueueSessionLifecycle(String eventType, _Trigger trigger) {
     _pendingLifecycle.add(
       _PendingSessionLifecycle(
         eventType: eventType,
-        triggeredAt: triggeredAt,
+        triggeredAt: trigger.at,
+        atMs: trigger.elapsed.inMilliseconds,
         activeLocale:
             eventType == TugboatCollectorSessionEventType.sessionStart.wireValue
             ? _session?.locale
@@ -518,6 +572,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     final result = await _sendSessionLifecycle(
       pending.eventType,
       pending.triggeredAt,
+      pending.atMs,
       pending.activeLocale,
       epoch,
     );
@@ -540,6 +595,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
   Future<_SendResult> _sendSessionLifecycle(
     String eventType,
     DateTime triggeredAt,
+    int atMs,
     TugboatLocaleInfo? activeLocale,
     int epoch,
   ) async {
@@ -555,6 +611,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       sessionId: sessionId,
       sessionStartedAt: session.startedAt,
       triggeredAt: triggeredAt,
+      atMs: atMs,
       config: _config,
       userId: _userId,
       traits: traits,
@@ -639,9 +696,11 @@ class CollectorHttpSink implements TugboatCaptureSink {
         : _config.eventBatchSize;
     final batch = _pendingEvents.sublist(0, count);
     _pendingEvents.removeRange(0, count);
+    _inFlightEvents += count;
 
     final result = await _sendEventBatch(batch, epoch: epoch);
     if (!_isCurrentEpoch(epoch)) return (count: count, retry: false);
+    _inFlightEvents -= count;
     if (result != _SendResult.retry) return (count: count, retry: false);
     _enqueueRetryBatch(batch);
     return (count: count, retry: true);
@@ -693,7 +752,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
   void _enqueueRetryBatch(List<Map<String, Object?>> batch) {
     _retryBatches.add(batch);
     while (_retryBatches.length > _config.maxPendingBatches) {
-      _retryBatches.removeAt(0);
+      _droppedTotal += _retryBatches.removeAt(0).length;
     }
   }
 
@@ -877,6 +936,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       // A session reset mid-flush drops the batch rather than sending it
       // under a stale collector id.
       if (!_isCurrentEpoch(epoch)) return;
+      _inFlightFrames -= batch.length;
       if (result.retry) {
         _framesNeedRetry = true;
         _forgetFinishedFrames(batch.sublist(0, result.retryOffset));
@@ -899,6 +959,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
         : _frameBatchSize;
     final batch = _pendingFrames.sublist(0, count);
     _pendingFrames.removeRange(0, count);
+    _inFlightFrames += count;
     return batch;
   }
 
@@ -1067,7 +1128,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (session == null) return;
     final event = TugboatEvent(
       id: '$idPrefix-${_diagnosticSequence++}',
-      atMs: DateTime.now().difference(session.startedAt).inMilliseconds,
+      atMs: _elapsedMs(),
       type: 'capture_diagnostic',
       data: data,
     );
@@ -1108,6 +1169,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
     if (_pendingEvents.length <= _config.maxPendingEvents) return;
     final dropped = _pendingEvents.length - _config.maxPendingEvents;
     _pendingEvents.removeRange(0, dropped);
+    _droppedTotal += dropped;
     debugPrint(
       '[tugboat] collector dropped $dropped pending event(s) due to backpressure',
     );
@@ -1131,6 +1193,7 @@ class CollectorHttpSink implements TugboatCaptureSink {
       _forgetFinishedFrames([evicted]);
     }
     if (dropped == 0) return;
+    _droppedTotal += dropped;
     _droppedFrameCount += dropped;
     if (_droppedFrameCount >= _nextDropReportAt) {
       while (_nextDropReportAt <= _droppedFrameCount) {
@@ -1278,15 +1341,23 @@ class _CollectorHttpClient extends http.BaseClient {
   void close() => _inner.close();
 }
 
+/// A moment in a session: [at] is the wall-clock time, for absolute
+/// timestamps, and [elapsed] the monotonic time since the session started.
+typedef _Trigger = ({DateTime at, Duration elapsed});
+
 class _PendingSessionLifecycle {
   const _PendingSessionLifecycle({
     required this.eventType,
     required this.triggeredAt,
+    required this.atMs,
     this.activeLocale,
   });
 
   final String eventType;
   final DateTime triggeredAt;
+
+  /// Milliseconds since the session started, from the monotonic clock.
+  final int atMs;
   final TugboatLocaleInfo? activeLocale;
 }
 

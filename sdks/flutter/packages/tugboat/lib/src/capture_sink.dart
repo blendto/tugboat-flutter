@@ -7,6 +7,7 @@ import 'sinks/capture_sink.dart'
         TugboatCaptureSinkFactory,
         TugboatEnvelopeKind,
         TugboatSessionCaptureSink,
+        TugboatSinkBacklog,
         TugboatSinkMailbox,
         TugboatSinkSessionContext;
 
@@ -17,6 +18,7 @@ export 'sinks/capture_sink.dart'
         TugboatCaptureSinkFactory,
         TugboatEnvelopeKind,
         TugboatSessionCaptureSink,
+        TugboatSinkBacklog,
         TugboatSinkMailbox,
         TugboatSinkSessionContext;
 
@@ -57,10 +59,22 @@ class TugboatCaptureSinkHub implements TugboatCaptureSink {
   int _acceptCount = 0;
 
   int get acceptCount => _acceptCount;
+
+  /// Envelopes dropped by the mailboxes plus items sinks dropped at their own
+  /// bounds (see [TugboatSinkBacklog]).
   int get dropCount =>
-      _mailboxes.fold<int>(0, (sum, box) => sum + box.droppedCount);
+      _mailboxes.fold<int>(0, (sum, box) => sum + box.droppedCount) +
+      _backlogs.fold<int>(0, (sum, sink) => sum + sink.droppedCount);
+
+  /// Envelopes queued in the mailboxes plus items held by sinks that report a
+  /// backlog. The mailboxes deliver synchronously, so the latter is the real
+  /// number.
   int get pendingCount =>
-      _mailboxes.fold<int>(0, (sum, box) => sum + box.pendingCount);
+      _mailboxes.fold<int>(0, (sum, box) => sum + box.pendingCount) +
+      _backlogs.fold<int>(0, (sum, sink) => sum + sink.pendingCount);
+
+  Iterable<TugboatSinkBacklog> get _backlogs =>
+      _sinks.whereType<TugboatSinkBacklog>();
 
   Future<void> startContext(TugboatSinkSessionContext context) async {
     _context = context;

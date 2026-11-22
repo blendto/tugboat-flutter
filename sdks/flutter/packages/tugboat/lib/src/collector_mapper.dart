@@ -238,6 +238,7 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   required String sessionId,
   required DateTime sessionStartedAt,
   required DateTime triggeredAt,
+  int? atMs,
   required TugboatCollectorConfig config,
   String? userId,
   Map<String, dynamic>? traits,
@@ -249,7 +250,7 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   final body = <String, Object?>{
     'sessionId': sessionId,
     'eventType': eventType,
-    'atMs': triggeredAt.difference(sessionStartedAt).inMilliseconds,
+    'atMs': atMs ?? triggeredAt.difference(sessionStartedAt).inMilliseconds,
     'triggeredAt': triggeredAt.toUtc().toIso8601String(),
     // Only session_start inherits the configured startup identity. Later
     // lifecycle records send the runtime id as-is, including null.

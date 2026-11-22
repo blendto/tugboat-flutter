@@ -41,7 +41,32 @@ class _RecordingSink implements TugboatCaptureSink {
   void dispose() {}
 }
 
+class _BacklogSink extends _RecordingSink implements TugboatSinkBacklog {
+  _BacklogSink({required this.pending, required this.dropped});
+
+  final int pending;
+  final int dropped;
+
+  @override
+  int get pendingCount => pending;
+
+  @override
+  int get droppedCount => dropped;
+}
+
 void main() {
+  test('hub health adds the backlog that sinks report', () {
+    final hub = TugboatCaptureSinkHub([
+      _BacklogSink(pending: 3, dropped: 1),
+      _RecordingSink(),
+      _BacklogSink(pending: 4, dropped: 2),
+    ]);
+
+    // The mailboxes deliver synchronously, so their own counts stay 0.
+    expect(hub.pendingCount, 7);
+    expect(hub.dropCount, 3);
+  });
+
   test('hub broadcasts capture output to every sink', () async {
     final first = _RecordingSink();
     final second = _RecordingSink();
