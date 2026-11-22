@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'anchors.dart';
 import 'inventory_novelty.dart';
 import 'settled_inventory_watch.dart';
+import 'sink_ledger.dart';
 import 'capture_sink.dart';
 import 'collector_http_sink.dart';
 import 'coordinate_space.dart';
@@ -1623,11 +1624,7 @@ class TugboatReplayController extends ChangeNotifier {
       lifecycle: _session == null ? 'dormant' : 'active',
       activationRequestId: activationRequestId,
       captureSessionId: _session?.id,
-      sinks: TugboatSinkHealth(
-        pending: _sinkHub?.pendingCount ?? 0,
-        accepted: _sinkHub?.acceptCount ?? 0,
-        dropped: _sinkHub?.dropCount ?? 0,
-      ),
+      sinks: TugboatSinkLedger.instance.snapshot(_sinkHub),
       screenshots: _screenshotBudget.snapshot(),
       captureDiagnostics: TugboatCaptureDiagnosticHealth(
         total: _captureDiagnosticTotal,
@@ -1654,7 +1651,9 @@ class TugboatReplayController extends ChangeNotifier {
     _session = null;
     _cancelScheduledCaptureWaiters('dispose');
     if (hub != null) {
-      unawaited(ending.whenComplete(hub.dispose));
+      final disposed = ending.whenComplete(hub.dispose);
+      TugboatSinkLedger.instance.retire(hub, disposed);
+      unawaited(disposed);
     }
     _collectorHttpSink = null;
     final capturer = _capturer;

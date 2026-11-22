@@ -314,7 +314,10 @@ flight). A new session or disposing the sink clears the queued events and
 frames, and those count as dropped too. Items already in a request stay in
 `pending` until that request finishes, and count as dropped only if the
 collector leaves them to retry, since a request from the old session is never
-retried. Frame evictions emit a `collector_frame_upload` diagnostic with
+retried. These health counts cover the whole process, not one activation:
+`accepted` and `dropped` are running totals across `TugboatReplay.activate` /
+`deactivate` cycles, and a deactivated session's sink keeps contributing to
+`pending` and `dropped` until its last request finishes. Frame evictions emit a `collector_frame_upload` diagnostic with
 `result: dropped` when the running count reaches a power of two, and once more
 with the final count before `session_end`. Each carries `droppedFrameCount`
 and `droppedReferencedFrameCount`.

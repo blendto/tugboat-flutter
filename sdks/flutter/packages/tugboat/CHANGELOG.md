@@ -13,9 +13,14 @@
   `maxPendingFrameBytes`), and those still queued when a new session starts
   or the sink is disposed. Items already in a request then stay in `pending`
   until it finishes and count as dropped only if the collector leaves them to
-  retry, so a delivered request is never counted. This changes what health
-  reports (diagnostics only); the collector wire format and delivery behavior
-  are unchanged.
+  retry, so a delivered request is never counted. All three cover the whole
+  process rather than one activation: each activation builds a new sink, so
+  `accepted` and `dropped` are now running totals across
+  `activate` / `deactivate` cycles, and a deactivated session's sink keeps
+  counting in `pending` and `dropped` until its last request finishes. Before,
+  health read only the current activation's sink and reset to 0, hiding what
+  the previous one discarded. This changes what health reports (diagnostics
+  only); the collector wire format and delivery behavior are unchanged.
 
 ### Fixed
 
