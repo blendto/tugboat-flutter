@@ -52,7 +52,7 @@ class LibraryScan {
 }
 
 /// Thrown when the analyzer in use does not expose an element member this
-/// package reads, under either its 7.x or its 8 and newer name.
+/// package reads.
 ///
 /// This is a hard error, not a skipped library: every library would hit it,
 /// and the builder must fail instead of writing an empty map.
@@ -71,14 +71,13 @@ class UnsupportedAnalyzerError implements Exception {
 
 /// Classifies every class declared in [library] (including its `part` files).
 ///
-/// [library] is the analyzer's `LibraryElement2` (analyzer 7.x) or
-/// `LibraryElement` (analyzer 8 and newer). The element model's getters were
-/// renamed between those versions (`name3` to `name`, `typeParameters2` to
-/// `typeParameters`, `element3` to `element`, `library2` to `library`), and a
-/// builder cannot choose which analyzer the host's `build_runner` brings. So
-/// this file reads every member it needs through [_get], trying the 7.x name
-/// first and the newer one second, instead of importing the analyzer's element
-/// types. A member neither name provides throws [UnsupportedAnalyzerError].
+/// [library] is the analyzer's `LibraryElement`. A builder cannot choose which
+/// analyzer the host's `build_runner` brings, so this file does not import the
+/// analyzer's element types: it reads every member it needs dynamically
+/// through [_get]. Every member it reads has the same name in analyzer 8.0
+/// through 14.x, the range this package's pubspec allows. A member the analyzer
+/// in use does not provide throws [UnsupportedAnalyzerError] instead of a bare
+/// [NoSuchMethodError].
 LibraryScan scanLibrary(Object library) {
   final dynamic lib = library;
   final libraryUri = _uriOf(lib, 'library.uri');
@@ -123,45 +122,30 @@ bool _isConcreteWidget(dynamic element) {
 }
 
 bool _isFlutterWidget(dynamic type) {
-  final dynamic element = _get(
-    'type.element',
-    () => type.element3,
-    () => type.element,
-  );
+  final dynamic element = _get('type.element', () => type.element);
   if (_nameOf(element) != 'Widget') return false;
-  final dynamic library = _get(
-    'element.library',
-    () => element.library2,
-    () => element.library,
-  );
+  final dynamic library = _get('element.library', () => element.library);
   return _uriOf(library, 'library.uri') == flutterWidgetLibraryUri;
 }
 
 String? _nameOf(dynamic element) =>
-    _get('element.name', () => element.name3, () => element.name) as String?;
+    _get('element.name', () => element.name) as String?;
 
 bool _hasTypeParameters(dynamic element) {
   final parameters = _get(
     'class.typeParameters',
-    () => element.typeParameters2,
-    () => element.typeParameters,
+    () => element.typeParameters as Iterable,
   );
-  return (parameters as Iterable).isNotEmpty;
+  return parameters.isNotEmpty;
 }
 
-/// Evaluates [read]; if the analyzer in use has no such member, [fallback]
-/// (the newer name). Throws [UnsupportedAnalyzerError] when neither exists.
-T _get<T>(String member, T Function() read, [T Function()? fallback]) {
+/// Evaluates [read], which reads [member] from the analyzer's element model.
+/// Throws [UnsupportedAnalyzerError] when the analyzer in use has no such
+/// member.
+T _get<T>(String member, T Function() read) {
   try {
     return read();
   } on NoSuchMethodError {
-    if (fallback != null) {
-      try {
-        return fallback();
-      } on NoSuchMethodError {
-        // Reported below.
-      }
-    }
     throw UnsupportedAnalyzerError(member);
   }
 }

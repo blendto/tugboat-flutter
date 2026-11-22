@@ -58,22 +58,35 @@ in canonical paths, like any other identity input.
 
    ```yaml
    dev_dependencies:
-     build_runner: ^2.7.0
+     build_runner: ^2.7.1
      tugboat_build:
        git:
          url: https://github.com/blendto/tugboat-flutter
          path: sdks/flutter/packages/tugboat_build
    ```
 
-   `tugboat_build` reads the analyzer's element model through a small
-   compatibility layer, so it follows whichever `analyzer` your `build_runner`
-   brings (7.x through 14.x). It was run end to end with Flutter 3.47.5 and
-   `build_runner` 2.17.1 (analyzer 14), and with Flutter 3.35.7 and
-   `build_runner` 2.7.1 (analyzer 8) and 2.15.1 (analyzer 10), by building a
-   scratch host by hand. The tests in this repository run only against
-   analyzer 7.7.1; the analyzer 8 and newer path has no automated test here.
-   `build_runner` 2.7.0 or newer is needed so a fresh checkout that already
-   contains the committed output builds without `--delete-conflicting-outputs`.
+   `tugboat_build` requires `analyzer` 8.0 through 14.x and `build` 3.0.1
+   through 5.x. Analyzer 7 cannot parse the dot shorthands in current Flutter
+   SDK sources (the build fails with `Missing implementation of
+   visitDotShorthandPropertyAccess`), so the package excludes it; if your
+   resolution fails on `analyzer`, upgrade `build_runner` or whatever pins
+   analyzer 7. Flutter 3.35 (Dart 3.9) can resolve up to analyzer 10.
+
+   It reads the analyzer's element model dynamically, under member names that
+   are the same in analyzer 8.0 through 14.x, so it follows whichever analyzer
+   your `build_runner` brings. Tested end to end by building a host app:
+
+   | Flutter | `build_runner` | `build` | `analyzer` |
+   | --- | --- | --- | --- |
+   | 3.35.7 | 2.7.1 | 3.1.0 | 8.0.0, 8.4.1 |
+   | 3.35.7 | 2.15.1 | 4.0.7 | 10.0.1 |
+   | 3.47.5 | 2.15.1 | 4.0.7 | 8.4.1 (this repository's example app) |
+   | 3.47.5 | 2.17.1 | 5.0.0 | 14.7.0 |
+
+   The tests in this repository run against the analyzer the workspace
+   lockfile resolves (8.4.1). `build_runner` 2.7.0 or newer is needed so a
+   fresh checkout that already contains the committed output builds without
+   `--delete-conflicting-outputs`; 2.7.1 is the oldest tested.
 
 2. Generate the map.
 

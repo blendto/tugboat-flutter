@@ -58,6 +58,22 @@ void main() {
       }
     });
 
+    test('rejects the dart:core type names the generated file uses', () {
+      for (final name in ['Map', 'String', 'Type']) {
+        expect(
+          () => WidgetNamesOptions.fromConfig({'variable_name': name}),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('dart:core'),
+            ),
+          ),
+          reason: name,
+        );
+      }
+    });
+
     test('rejects a variable name that is not a string', () {
       expect(
         () => WidgetNamesOptions.fromConfig(const {'variable_name': 3}),

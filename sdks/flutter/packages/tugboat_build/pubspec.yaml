@@ -15,11 +15,14 @@ environment:
 resolution: workspace
 
 dependencies:
-  build: ">=3.0.0 <6.0.0"
+  # Not imported by lib/: the scanner reads the analyzer's element model
+  # dynamically. The constraint keeps analyzer 7, which cannot parse current
+  # Flutter SDK sources, from being selected; build 3.0.1 to 4.0.1 still allow it.
+  analyzer: ">=8.0.0 <15.0.0"
+  build: ">=3.0.1 <6.0.0"
   glob: ^2.1.3
 
 dev_dependencies:
-  analyzer: ^7.7.1
   flutter_lints: ^5.0.0
   flutter_test:
     sdk: flutter

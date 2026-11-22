@@ -9,15 +9,18 @@
 - Private, generic, abstract and sealed widgets are skipped; private and
   generic ones are recorded in a comment in the generated file.
 - `variable_name` and `exclude` builder options.
-- Reads the analyzer's element model through a small compatibility layer, so it
-  allows the `analyzer` 7.x through 14.x that `build` 3 to 5 allow. The tests in
-  this repository run only against analyzer 7.7.1; the analyzer 8 and newer
-  path was checked by building scratch hosts by hand (analyzer 8, 10 and 14),
-  not by automated tests.
+- Requires `analyzer` 8.0 through 14.x (`build` 3.0.1 through 5.x). Analyzer 7
+  is excluded: it cannot parse the dot shorthands in current Flutter SDK
+  sources. The element model is read dynamically, under member names shared by
+  analyzer 8.0 through 14.x, so the builder follows the host's analyzer. The
+  tests run against analyzer 8.4.1; host builds were run by hand with Flutter
+  3.35.7 (analyzer 8.0.0, 8.4.1 and 10.0.1) and Flutter 3.47.5 (analyzer 8.4.1
+  and 14.7.0).
 - Fails the build when every library fails to scan or the analyzer lacks a
   member the scanner reads (`build_runner` then removes the generated file
   until the next successful build), and warns loudly when the generated map is
   empty.
-- Rejects a `variable_name` that is a reserved word, private, or looks like a
-  generated import prefix (`_i0`).
+- Rejects a `variable_name` that is a reserved word, private, looks like a
+  generated import prefix (`_i0`), or shadows a `dart:core` type the generated
+  file uses (`Map`, `String`, `Type`).
 - Not published to pub.dev yet.

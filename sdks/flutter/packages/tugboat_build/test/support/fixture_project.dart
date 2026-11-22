@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/analysis/session.dart';
-import 'package:analyzer/dart/element/element2.dart';
+import 'package:analyzer/dart/element/element.dart';
 
 /// A stub of the one Flutter library the scanner looks for: the file that
 /// declares `Widget`, at the same `package:` URI as the real framework.
@@ -69,13 +69,12 @@ class FixtureProject {
   String get appPath => '${root.path}/app';
 
   /// The element of the library `package:app/<libPath>`.
-  Future<LibraryElement2> library(String libPath) async {
+  Future<LibraryElement> library(String libPath) async {
     final result = await _session.getLibraryByUri('package:app/$libPath');
     if (result is! LibraryElementResult) {
       throw StateError('package:app/$libPath is not a library: $result');
     }
-    // ignore: experimental_member_use
-    return result.element2;
+    return result.element;
   }
 
   /// Whether `lib/<libPath>` is a library rather than a `part` file.
@@ -89,10 +88,9 @@ class FixtureProject {
     final result = await _session.getErrors('$appPath/lib/$libPath');
     if (result is! ErrorsResult) throw StateError('No errors result: $result');
     return [
-      for (final error in result.errors)
-        if (error.severity.name == 'error')
-          '${error.errorCode.name}: '
-              '${error.message}',
+      for (final diagnostic in result.diagnostics)
+        if (diagnostic.severity.name == 'error')
+          '${diagnostic.diagnosticCode.name}: ${diagnostic.message}',
     ];
   }
 

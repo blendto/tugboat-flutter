@@ -73,6 +73,11 @@ class WidgetNamesOptions {
     'with',
   };
 
+  /// The `dart:core` types the generated file names without a prefix
+  /// (`const Map<Type, String> ...`). A constant with one of these names would
+  /// shadow the type and break the generated file.
+  static const Set<String> _coreTypeNames = {'Map', 'String', 'Type'};
+
   static String _variableName(Object? value) {
     if (value == null) return defaultVariableName;
     final problem = value is String
@@ -94,6 +99,9 @@ class WidgetNamesOptions {
     }
     if (_reservedWords.contains(name)) {
       return 'is a reserved word in Dart';
+    }
+    if (_coreTypeNames.contains(name)) {
+      return 'shadows the dart:core type the generated map is declared with';
     }
     return null;
   }

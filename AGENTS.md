@@ -55,7 +55,10 @@ Unfamiliar terms are defined in `docs/glossary/INDEX.md`.
   `dart run melos run test:sdk` / `dart run melos run test:dio` /
   `dart run melos run test:build`.
 - Lint gate: `dart run melos run complexity` — `dallow` rejects cyclomatic complexity
-  above 10. Do not weaken it; refactor or suppress narrowly.
+  above 10. Do not weaken it; refactor or suppress narrowly. dallow resolves
+  in `tool/complexity/` (own lockfile, outside the workspace) because it pins
+  analyzer ^7, which would hold the workspace's `build_runner` on an analyzer
+  that cannot parse current Flutter SDK sources.
 - C++ core tests: `bash tool/ci/run-image-core-tests.sh`.
 - Android AAR build: `bash tool/ci/build-android-runtime.sh` (NDK
   28.2.13676358, CMake 3.22.1).

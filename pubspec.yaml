@@ -11,7 +11,6 @@ workspace:
   - sdks/flutter/packages/tugboat_dio
 
 dev_dependencies:
-  dallow: ^0.2.1
   melos: ^7.8.2
 
 melos:
@@ -23,7 +22,12 @@ melos:
       run: dart analyze .
       description: Analyze every package in the workspace.
     complexity:
-      run: dart run dallow complexity --recursive --max-complexity 10 --fail-on warning .
+      # dallow runs from tool/complexity, outside the workspace: it pins
+      # analyzer ^7, which must not constrain the workspace's build_runner.
+      run: >-
+        cd tool/complexity && dart pub get &&
+        dart run dallow complexity --recursive --max-complexity 10
+        --fail-on warning ../..
       description: Reject functions with cyclomatic complexity above 10.
     test:
       run: bash tool/ci/run-flutter-tests.sh
