@@ -480,7 +480,11 @@ TugboatTag(
 `TugboatSubView` adds a developer-owned section label useful for nested content
 and scroll attribution. `widgetNames` can replace runtime type names used in
 canonical paths, which is particularly useful when an obfuscated build needs a
-generated stable-name map.
+stable-name map. The repository's
+[`tugboat_build`](https://github.com/blendto/tugboat-flutter/tree/main/sdks/flutter/packages/tugboat_build)
+package (not on pub.dev yet) generates that map for an app's public widget
+classes. It cannot name private, generic, or framework widgets; its README lists
+what it covers.
 
 Locale is evidence, not identity. When `wrapApp` is installed in
 `MaterialApp.builder` or `CupertinoApp.builder`, the SDK observes the active

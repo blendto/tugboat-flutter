@@ -16,7 +16,9 @@ A mobile monorepo (Dart pub workspace + Melos 7), not a single package:
   after a local build); it does not compile `platforms/android` from source.
 - `platforms/apple` — `TugboatCaptureRuntime` (CocoaPods + SwiftPM, iOS 15+).
 - `sdks/flutter/packages/tugboat` — the Flutter adapter/plugin (pub.dev);
-  `tugboat_dio` — Dio network evidence; `example/` — demo app, not published.
+  `tugboat_dio` — Dio network evidence; `tugboat_build` — `build_runner`
+  generator for the `widgetNames` map (not published yet); `example/` — demo
+  app, not published.
 - `sdks/react-native` — future adapter placeholder only.
 - `tool/ci` — host scripts for tests, builds, pins, API dumps, release checks.
 - `docs/` — public contracts; `docs/publishing.md` rules what belongs there.
@@ -50,7 +52,8 @@ Unfamiliar terms are defined in `docs/glossary/INDEX.md`.
   `pubspec.lock` (native pub workspace). `dart pub get` first.
 - `dart run melos run format`, `dart run melos run analyze`, and
   `dart run melos run test` — full workspace. Package-scoped:
-  `dart run melos run test:sdk` / `dart run melos run test:dio`.
+  `dart run melos run test:sdk` / `dart run melos run test:dio` /
+  `dart run melos run test:build`.
 - Lint gate: `dart run melos run complexity` — `dallow` rejects cyclomatic complexity
   above 10. Do not weaken it; refactor or suppress narrowly.
 - C++ core tests: `bash tool/ci/run-image-core-tests.sh`.

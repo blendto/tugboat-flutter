@@ -19,6 +19,7 @@ The Tugboat CLI is maintained separately.
 | `platforms/apple` | Apple runtime (`TugboatCaptureRuntime` 0.1.0, CocoaPods / SwiftPM) |
 | `sdks/flutter/packages/tugboat` | Flutter adapter / plugin ([pub.dev](https://pub.dev/packages/tugboat)) |
 | `sdks/flutter/packages/tugboat_dio` | Dio network evidence ([pub.dev](https://pub.dev/packages/tugboat_dio)) |
+| `sdks/flutter/packages/tugboat_build` | `widgetNames` generator for obfuscated builds (not published yet) |
 | `sdks/flutter/packages/tugboat/example` | Demo app (not published) |
 | `sdks/react-native` | Future adapter placeholder |
 | `docs/` | Architecture, integration, privacy, performance, releases |
