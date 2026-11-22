@@ -1,3 +1,12 @@
+## 0.11.3
+
+### Changed
+
+- Lockstep release with `tugboat_dio` 0.11.3, which adds the opt-in
+  `errorBodyDenyUrls` and `errorBodyUrls` controls over which request URLs may
+  keep an HTTP error response body. The `tugboat` package has no runtime
+  behavior change, and error bodies are still retained by default.
+
 ## 0.11.2
 
 ### Changed
