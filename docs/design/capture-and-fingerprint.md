@@ -206,7 +206,7 @@ every other trigger, goes at once only when no animation of the routes the
 change moves runs and no frame is due; otherwise it waits until two frames
 have passed with none of them running, bounded by the route barrier timeout.
 Before, the `route` inventory of a pushed unnamed page could still include
-the page below it: its spinner in `loading`, and a `struct:` route key
+the page below it, and a `struct:` route key
 computed over both pages, which that page's first taps then carried while
 every later inventory of the page had another key.
 
@@ -521,75 +521,6 @@ reports the first.
 same route and hash at different scroll offsets or insets are emitted only when
 a scroll event makes the scroll context differ.
 
-### Loading and placeholders
-
-Exploration inventories say when a surface is still loading, so a consumer can
-tell a loading frame from a loaded one. Like the bounds evidence above, this is
-structural, text-free, and never part of an identity:
-
-- **`loading`** on every inventory built in exploration mode:
-  `{ progressIndicators, placeholders, busyControls }`.
-  - `progressIndicators` counts `ProgressIndicator` widgets (Circular, Linear,
-    Refresh) and `CupertinoActivityIndicator` in the capture boundary's tree.
-    It skips hidden subtrees and subtrees under `TickerMode(enabled: false)`,
-    which is how a route covered by an opaque route is kept. A route capture
-    taken as a push transition ends can still count the covered route's
-    spinner for that one inventory; the next inventory does not.
-  - `placeholders` counts inventory elements beneath a placeholder ancestor.
-  - `busyControls` counts enabled interactive entries beneath an
-    `AbsorbPointer(absorbing: true)` or `IgnorePointer(ignoring: true)`. A
-    disabled control (a disabled `TextField` sits under its own
-    `IgnorePointer`) is not busy.
-  - Both element counts follow the entries the inventory keeps: a tap
-    inventory that drops entries recounts them.
-- **`placeholder: true`** on an element beneath a placeholder ancestor, omitted
-  otherwise.
-
-A placeholder ancestor is decided by walking up from the element. The nearest
-`TugboatLoading` marker decides: `enabled: true` (the default) makes the element
-a placeholder, `enabled: false` does not, and the walk stops there. Only when no
-`TugboatLoading` is above the element does a name match apply: a widget whose
-runtime type name, without its type arguments, contains `Shimmer`, `Skeleton`,
-`Placeholder` or `Redacted` (case-sensitive). `InheritedWidget`s never count,
-and `Provider<ShimmerController>` does not match. Flutter's own debug
-`Placeholder` matches the `Placeholder` fragment on purpose: it is a stub by
-definition. The match is a name heuristic, so it has a known false positive:
-an app widget whose name merely contains a fragment
-(`PlaceholderSettingsPage`) marks everything beneath it.
-
-A skeleton widget that stays mounted once loaded (a `Skeletonizer` or `Shimmer`
-with `enabled: false`) would keep marking its subtree, because the SDK reads no
-package fields. `TugboatLoading(enabled: ...)` is the remedy. Mirror the
-skeleton's flag on the marker:
-
-```dart
-Skeletonizer(
-  enabled: loading,
-  child: TugboatLoading(enabled: loading, child: content),
-)
-```
-
-While `loading` is true the content is marked `placeholder: true`. Once it is
-false the disabled marker is the nearest one, so the content is not a
-placeholder even though a `Skeletonizer` ancestor is still mounted. A disabled
-marker switches off name-matched detection for its whole subtree, and an
-enabled outer marker does not reach past a disabled inner one.
-
-`TugboatLoading({enabled = true, required child})` is also for hosts whose
-skeleton widgets have other names. It is transparent in both states: it adds no
-canonical path segment, can never be `surface.widgetClass`, and changes no
-fingerprint, `routeKey`, `surface` or `inventoryHash`, so wrapping a control in
-it, or toggling `enabled`, leaves that control's identity unchanged. It is
-exported from `package:tugboat/tugboat.dart`.
-
-The ancestor walk is bounded at the capture root and memoised per inventory
-(rows of a list share their ancestors), and the progress-indicator walk runs
-only when an exploration inventory is built. Production taps compute none of
-it. An exploration tap whose target is injected into an inventory that had no
-elements gets a `loading` with the tree's `progressIndicators` and zero
-`placeholders` and `busyControls`. An injected entry is never marked
-`placeholder` or busy, because the SDK has its anchor, not its element.
-
 ### Re-sample: moments plus novelty, and `trigger`
 
 Every scene inventory carries `trigger`, the reason it was taken:
@@ -645,13 +576,15 @@ The rules:
 3. **Novelty.** Per route visit the SDK remembers the controls and content
    already sent, by canonical path with list positions collapsed (`[item:N]`
    becomes `[item]`, the normalisation of the structural route signature),
-   and the states each was sent in: enabled or disabled, loaded or
-   placeholder. Every inventory a capture builds counts, whether it is
-   emitted or an exact repeat of one already emitted this session. A
-   re-sample is emitted only when it adds a path not yet sent in this visit,
-   or lists a sent path in a state not yet sent (a button enabled, a skeleton
-   replaced in place by its loaded control). Content entries (images, large
-   text) count, so loaded content replacing a skeleton is new.
+   and the states each was sent in: enabled or disabled. Every inventory a
+   capture builds counts, whether it is emitted or an exact repeat of one
+   already emitted this session. A re-sample is emitted only when it adds a
+   path not yet sent in this visit, or lists a sent path in a state not yet
+   sent (a button enabled). Content entries (images, large text) count, so
+   loaded content replacing a skeleton or spinner is new when it adds paths
+   the skeleton did not have. The SDK does not detect loading states: a
+   skeleton that keeps the same controls in place and only changes how they
+   look (not whether they are enabled) is not new.
    - **Pages of a `PageView` stay apart.** The page position of a `PageView`
      (the `[item:N]` after its own `Scrollable`, up to the next `Scrollable`)
      is not collapsed. Its pages are different screens under one route, and
@@ -660,8 +593,8 @@ The rules:
      every path, so a page reached by `nextPage` would never be new. Rows of
      a list inside a page collapse as usual.
    - **Exact repeats.** A re-sample whose de-duplication key and every
-     entry's enabled and placeholder state match an inventory already sent
-     this session is not emitted. One that flips only a state keeps its
+     entry's enabled state match an inventory already sent this session is
+     not emitted. One that flips only a state keeps its
      fingerprints and so its de-duplication key (a disabled control has its
      enabled twin's fingerprint); it is emitted once per state. An emitted
      re-sample adds its key to the de-duplication set, so a later capture
@@ -681,8 +614,7 @@ So during a scroll a scene inventory is built only when a frame is captured
 for that moment (`captureScrollScreenshots` and its interval, and the
 after-capture at the end of a scroll a pointer drives), and it is emitted only
 when its content differs from the last inventory sent: a different
-`inventoryHash`, element count, `loading` counts, or a box that moved on a 2%
-grid. A scroll start and an update with no frame build none; a programmatic
+`inventoryHash`, element count, or a box that moved on a 2% grid. A scroll start and an update with no frame build none; a programmatic
 scroll end (no frame) leaves its scene inventory to the re-sample. Every
 captured frame keeps a matching inventory, sent then or earlier. The viewport
 semantic map keeps its own scroll cadence.

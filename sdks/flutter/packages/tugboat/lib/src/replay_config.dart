@@ -150,10 +150,9 @@ class TugboatReplayConfig {
   /// Re-samples the inventory once the page settles after a tap, a gesture, a
   /// scroll end or a load, and emits it only when it adds a control or
   /// content path (list positions collapsed) not yet sent in the route visit,
-  /// or flips a sent one between enabled and disabled or placeholder and
-  /// loaded. It is labelled `tap`, `gesture` or `scroll` after that moment,
-  /// else `settled`. Exploration only: it has no effect unless
-  /// [emitSceneInventory] is also true. Bounded: at most 50 re-sampled
+  /// or flips a sent one between enabled and disabled. It is labelled `tap`,
+  /// `gesture` or `scroll` after that moment, else `settled`. Exploration
+  /// only: it has no effect unless [emitSceneInventory] is also true. Bounded: at most 50 re-sampled
   /// inventories per route visit, and the watch ends on route change, pause,
   /// session end and dispose. Default on in exploration mode; set false to
   /// keep exploration inventories to the capture triggers only.

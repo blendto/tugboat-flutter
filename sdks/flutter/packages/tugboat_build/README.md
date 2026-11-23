@@ -40,9 +40,8 @@ non-generic widget classes declared in your package's `lib/`**. It cannot name:
   readable and stable; it does not make an obfuscated build equivalent to an
   unobfuscated one.
 - **Name-based features that read `runtimeType.toString()` directly.** The map
-  feeds canonical paths and the recorded widget type. The SDK's placeholder
-  detection (`Shimmer`, `Skeleton`, `Placeholder`, `Redacted` in a type name),
-  its `Sliver` list-container check, its check for private widgets while it
+  feeds canonical paths and the recorded widget type. The SDK's `Sliver`
+  list-container check, its check for private widgets while it
   resolves a sheet or dialog, and its route-type matching (sheet, dialog and
   menu kinds) do not consult the map. Where the type name is mangled they stop
   matching, for your widgets as well as the framework's.

@@ -91,8 +91,7 @@ List<Map<String, Object?>> _elements(Map<String, Object?> inventory) => [
 /// The structure a consumer sees, minus the fields this change added.
 String _structure(Map<String, Object?> inventory) => jsonEncode({
   for (final entry in inventory.entries)
-    if (entry.key != 'trigger' && entry.key != 'loading')
-      entry.key: entry.value,
+    if (entry.key != 'trigger') entry.key: entry.value,
 });
 
 /// A header button, then a batch of item buttons once [load] completes.
@@ -271,13 +270,11 @@ class _BlinkingState extends State<_Blinking>
   );
 }
 
-/// One button whose height follows [height] and which sits beneath a
-/// [TugboatLoading] marker while [loading] is true.
+/// One button whose height follows [height].
 class _Resizable extends StatelessWidget {
-  const _Resizable({required this.height, required this.loading});
+  const _Resizable({required this.height});
 
   final ValueNotifier<double> height;
-  final ValueNotifier<bool> loading;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -285,15 +282,12 @@ class _Resizable extends StatelessWidget {
       children: [
         FilledButton(onPressed: () {}, child: const Text('Header')),
         ListenableBuilder(
-          listenable: Listenable.merge([height, loading]),
-          builder: (context, _) {
-            final button = SizedBox(
-              height: height.value,
-              width: 200,
-              child: FilledButton(onPressed: () {}, child: const Text('Body')),
-            );
-            return loading.value ? TugboatLoading(child: button) : button;
-          },
+          listenable: height,
+          builder: (context, _) => SizedBox(
+            height: height.value,
+            width: 200,
+            child: FilledButton(onPressed: () {}, child: const Text('Body')),
+          ),
         ),
       ],
     ),
@@ -595,14 +589,8 @@ void main() {
       tester,
     ) async {
       final height = ValueNotifier<double>(40);
-      final loading = ValueNotifier<bool>(false);
       addTearDown(height.dispose);
-      addTearDown(loading.dispose);
-      await _mount(
-        tester,
-        _Resizable(height: height, loading: loading),
-        _exploration,
-      );
+      await _mount(tester, _Resizable(height: height), _exploration);
       height.value = 90;
       await _advance(tester, const Duration(seconds: 2));
 
@@ -643,14 +631,8 @@ void main() {
       tester,
     ) async {
       final height = ValueNotifier<double>(40);
-      final loading = ValueNotifier<bool>(false);
       addTearDown(height.dispose);
-      addTearDown(loading.dispose);
-      await _mount(
-        tester,
-        _Resizable(height: height, loading: loading),
-        _exploration,
-      );
+      await _mount(tester, _Resizable(height: height), _exploration);
 
       for (final value in const [40.3, 40.0, 40.4]) {
         height.value = value;
@@ -659,31 +641,6 @@ void main() {
 
       expect(_controller.debugSettledSampleCount, greaterThan(0));
       expect(_settled(), isEmpty);
-    });
-
-    testWidgets('a skeleton replaced in place by its loaded control emits', (
-      tester,
-    ) async {
-      final height = ValueNotifier<double>(40);
-      final loading = ValueNotifier<bool>(true);
-      addTearDown(height.dispose);
-      addTearDown(loading.dispose);
-      await _mount(
-        tester,
-        _Resizable(height: height, loading: loading),
-        _exploration,
-      );
-      final first = _inventories().last;
-      expect((first['loading']! as Map)['placeholders'], 1);
-
-      loading.value = false;
-      await _advance(tester, const Duration(seconds: 2));
-
-      final settled = _settled();
-      expect(settled, hasLength(1));
-      // Same fingerprints and boxes: only the loading evidence moved.
-      expect(settled.single['inventoryHash'], first['inventoryHash']);
-      expect((settled.single['loading']! as Map)['placeholders'], 0);
     });
   });
 
@@ -879,7 +836,7 @@ void main() {
       });
     }
 
-    testWidgets('production events carry no inventory or loading evidence', (
+    testWidgets('production events carry no inventory evidence', (
       tester,
     ) async {
       await loadAndTap(tester, _production);
@@ -888,8 +845,6 @@ void main() {
       expect(events.where((e) => e.type == 'interaction'), isNotEmpty);
       final encoded = jsonEncode([for (final e in events) e.data]);
       expect(encoded, isNot(contains('scene_inventory')));
-      expect(encoded, isNot(contains('"loading"')));
-      expect(encoded, isNot(contains('"placeholder"')));
       expect(encoded, isNot(contains('"settled"')));
     });
 
