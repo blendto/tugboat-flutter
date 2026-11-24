@@ -22,7 +22,7 @@ melos:
       run: bash tool/ci/format.sh --check
       description: Fail if any tracked Dart source is not formatted.
     analyze:
-      run: dart analyze --fatal-infos .
+      run: dart analyze .
       description: Analyze every package in the workspace.
     test:
       run: bash tool/ci/run-flutter-tests.sh

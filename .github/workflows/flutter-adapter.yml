@@ -41,8 +41,10 @@ jobs:
       # called directly: `dart run melos` cannot locate itself on the runner.
       - name: Check formatting
         run: bash tool/ci/format.sh --check
+      # Warnings and errors fail; infos do not, because the floating stable
+      # channel adds deprecation infos with each Flutter release.
       - name: Analyze
-        run: dart analyze --fatal-infos .
+        run: dart analyze .
 
   test:
     name: Test ${{ matrix.package }}

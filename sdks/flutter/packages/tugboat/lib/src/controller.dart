@@ -1823,7 +1823,10 @@ class TugboatReplayController extends ChangeNotifier {
   void seedSessionStartRoute({TugboatObservedNavigatorSource? source}) {
     try {
       if (_routeCaptureIsUnavailable) return;
-      final retained = source ?? TugboatNavigatorObserverRegistry.seedSource();
+      var retained = source;
+      if (retained == null) {
+        retained = TugboatNavigatorObserverRegistry.seedSource();
+      }
       if (retained == null) return;
       final navigator = retained.observedNavigator;
       if (navigator == null) return;
