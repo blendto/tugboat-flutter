@@ -1,3 +1,34 @@
+## 0.11.5
+
+### Changed
+
+- Identity contract change: `session_start` now sends a real installation id
+  as `appInfo.installationId` (BLE-566). Before, `fromPlatform` filled that
+  field from `device_info_plus`, which on Android is `Build.ID`, the OS build
+  label shared by every device on that build, and on iOS is
+  `identifierForVendor`; the collector mapper then dropped the field, so no
+  session ever carried it. The SDK now mints a random UUID on first launch and
+  keeps it in its own file (`tugboat/installation_id` in the app support
+  directory, not the host's shared preferences), so it lasts across launches
+  and updates and is new after a reinstall or a data clear. On iOS the first
+  value is `identifierForVendor` instead of a random UUID, so existing iOS
+  installs keep the value they already reported as `device.id`. A host can
+  pass its own id with the new optional `installationId` argument on
+  `TugboatCollectorHost.fromPlatform` and `loadAppInfo`; a non-empty host id
+  wins. `TugboatCollectorHost.installationId()` returns the SDK's id.
+  Existing data: sessions before 0.11.5 have no `installationId`, so nothing
+  already stored changes meaning. `device.id` is unchanged (still `Build.ID`
+  on Android, `identifierForVendor` on iOS), so consumers that grouped by it
+  keep working; group installs by `appInfo.installationId` from now on. On
+  Android each install gets a new id the first time it runs 0.11.5; on iOS it
+  matches the earlier `device.id`. A host that builds
+  `TugboatCollectorConfig` by hand now has its `appInfo.installationId` sent
+  as given, where it was dropped before.
+
+### Added
+
+- Dependency on `path_provider` (^2.1.4) to locate the app support directory.
+
 ## 0.11.4
 
 ### Fixed

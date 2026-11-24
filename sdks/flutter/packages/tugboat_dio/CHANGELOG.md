@@ -1,3 +1,11 @@
+## 0.11.5
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.5 (`session_start` sends an
+  SDK-minted `appInfo.installationId`). The Dio adapter has no runtime
+  behavior change.
+
 ## 0.11.4
 
 ### Changed

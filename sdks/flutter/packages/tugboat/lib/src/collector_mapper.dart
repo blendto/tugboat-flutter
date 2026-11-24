@@ -258,8 +258,9 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   };
 
   if (isSessionStart) {
+    // installationId is the SDK-owned (or host-supplied) per-install id;
+    // see TugboatCollectorHost.installationId.
     final appInfo = Map<String, Object?>.from(config.appInfo.toJson())
-      ..remove('installationId')
       ..remove('name');
     final locale = Map<String, Object?>.from(config.locale.toJson());
     if (activeLocale != null) {
