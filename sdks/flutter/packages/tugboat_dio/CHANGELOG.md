@@ -152,8 +152,7 @@
 
 - Compatibility release for `tugboat` 0.10.3 (non-secret automation run
   correlation id on the launch plumbing). The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.10.1
 
@@ -181,48 +180,42 @@
 ### Changed
 
 - Compatibility release for `tugboat` 0.8.17. The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.8.16
 
 ### Changed
 
 - Compatibility release for `tugboat` 0.8.16. The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.8.15
 
 ### Changed
 
 - Compatibility release for `tugboat` 0.8.15. The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.8.14
 
 ### Changed
 
 - Compatibility release for `tugboat` 0.8.14. The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.8.13
 
 ### Changed
 
 - Compatibility release for `tugboat` 0.8.13. The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.8.12
 
 ### Changed
 
 - Compatibility release for `tugboat` 0.8.12. The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.8.11
 
@@ -237,16 +230,14 @@
 ### Changed
 
 - Compatibility release for `tugboat` 0.8.10. The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.8.9
 
 ### Changed
 
 - Compatibility release for `tugboat` 0.8.9. The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.8.8
 
@@ -255,8 +246,7 @@ This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.8`.
 ### Changed
 
 - Compatibility release for `tugboat` 0.8.8. The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.8.7
 
