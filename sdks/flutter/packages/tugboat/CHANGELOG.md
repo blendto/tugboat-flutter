@@ -23,11 +23,27 @@
   Android each install gets a new id the first time it runs 0.11.5; on iOS it
   matches the earlier `device.id`. A host that builds
   `TugboatCollectorConfig` by hand now has its `appInfo.installationId` sent
-  as given, where it was dropped before.
+  as given, where it was dropped before, so do not put `device_info_plus`
+  ids such as Android's `Build.ID` there.
+  Known caveat: the id file is in the app's support directory, which platform
+  backups include, so restoring a backup onto a second device gives both
+  devices the same id. A host that needs to avoid that passes its own
+  `installationId` or excludes `tugboat/installation_id` from backup.
+  Persistence is hardened: a failed first write is retried on later reads
+  instead of being cached, and stores racing on first launch (isolates,
+  processes) adopt the id that reached disk.
 
 ### Added
 
 - Dependency on `path_provider` (^2.1.4) to locate the app support directory.
+
+### Breaking
+
+- Minimum SDKs are now Flutter 3.38.4 and Dart 3.10.0 (were Flutter 3.35.0
+  and Dart 3.9.2). The `path_provider` platform packages the new dependency
+  resolves to need Flutter 3.38.4. `tugboat_dio` raises its constraints to
+  match. Hosts on Flutter 3.35 to 3.38.3 must upgrade Flutter before taking
+  0.11.5.
 
 ## 0.11.4
 

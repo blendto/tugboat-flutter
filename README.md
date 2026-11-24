@@ -43,8 +43,8 @@ gates pass. Raw pixels never enter Dart. See
 
 ## Requirements
 
-- Flutter 3.35.0 or newer
-- Dart 3.9.2 or newer
+- Flutter 3.38.4 or newer
+- Dart 3.10.0 or newer
 - Android NDK `28.2.13676358` and CMake `3.22.1` to build the AAR
 - Git
 

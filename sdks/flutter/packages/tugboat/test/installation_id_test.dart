@@ -17,6 +17,7 @@ void main() {
   });
 
   tearDown(() async {
+    TugboatCollectorHost.debugResetInstallationIdStore();
     if (await root.exists()) await root.delete(recursive: true);
   });
 
@@ -129,6 +130,43 @@ void main() {
       ).writeAsString('blocker');
 
       expect(await store().read(), matches(_uuidV4));
+    });
+
+    test(
+      'a failed write is retried on a later read with the same id',
+      () async {
+        final blocker = File(
+          '${root.path}/${TugboatInstallationIdStore.directoryName}',
+        );
+        await blocker.writeAsString('blocker');
+        final s = store();
+
+        final first = await s.read();
+        await blocker.delete();
+        final second = await s.read();
+
+        expect(second, first);
+        expect(await idFile().readAsString(), first);
+      },
+    );
+
+    test('stores racing on first launch all return the id on disk', () async {
+      final results = await Future.wait([
+        for (var i = 0; i < 8; i++) store(random: Random(i)).read(),
+      ]);
+
+      expect(results.toSet(), hasLength(1));
+      expect(await idFile().readAsString(), results.first);
+    });
+
+    test('leaves no temp files behind', () async {
+      await store().read();
+
+      final names = idFile().parent
+          .listSync()
+          .map((e) => e.uri.pathSegments.last)
+          .toList();
+      expect(names, [TugboatInstallationIdStore.fileName]);
     });
   });
 

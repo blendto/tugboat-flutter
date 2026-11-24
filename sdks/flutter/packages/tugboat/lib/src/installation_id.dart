@@ -13,8 +13,13 @@ typedef TugboatInstallationIdDirectory = Future<Directory> Function();
 /// logout keeps the same installation id.
 ///
 /// Persistence failures never interrupt the host: if the file cannot be read
-/// or written, the id is still returned and stays stable for this process,
-/// but a later launch mints a new one.
+/// or written, the id is still returned and stays stable for this process.
+/// A failed write is retried on later reads, so a transient error (low disk
+/// space, say) does not make every launch mint a new id. If nothing ever
+/// persists, a later launch mints a new one.
+///
+/// When several stores (isolates, processes) race on first launch, the file
+/// that ends up on disk wins and every store returns it.
 class TugboatInstallationIdStore {
   TugboatInstallationIdStore({
     required TugboatInstallationIdDirectory directory,
@@ -30,7 +35,7 @@ class TugboatInstallationIdStore {
 
   final TugboatInstallationIdDirectory _directory;
   final Random _random;
-  Future<String>? _resolved;
+  Future<_Resolved>? _resolved;
 
   /// The persisted id, minting and persisting one on first call.
   ///
@@ -38,15 +43,81 @@ class TugboatInstallationIdStore {
   /// persisted yet (iOS passes `identifierForVendor`, so existing installs
   /// keep the value they already reported as `device.id`). Later calls in
   /// the same process return the first result.
-  Future<String> read({String? seed}) => _resolved ??= _readOrMint(seed);
+  Future<String> read({String? seed}) {
+    final resolved = _resolved ??= _readOrMint(seed);
+    return resolved.then((result) {
+      // A result that never reached disk is retried on the next read; the
+      // retry keeps the same id, so it stays stable within this process.
+      if (!result.persisted) _resolved = _retry(result.id);
+      return result.id;
+    });
+  }
 
-  Future<String> _readOrMint(String? seed) async {
+  Future<_Resolved> _retry(String id) async {
     final file = await _file();
     final existing = await _readExisting(file);
-    if (existing != null) return existing;
-    final id = _usable(seed) ?? generateTugboatUuidV4(_random);
-    if (file != null) await _persist(file, id);
-    return id;
+    if (existing != null) return _Resolved(existing, persisted: true);
+    return _store(file, id);
+  }
+
+  Future<_Resolved> _readOrMint(String? seed) async {
+    final file = await _file();
+    final existing = await _readExisting(file);
+    if (existing != null) return _Resolved(existing, persisted: true);
+    return _store(file, _usable(seed) ?? generateTugboatUuidV4(_random));
+  }
+
+  /// Persists [id] and returns the id on disk, so a store that lost a
+  /// first-launch race adopts the winner's id.
+  Future<_Resolved> _store(File? file, String id) async {
+    if (file == null) return _Resolved(id, persisted: false);
+    try {
+      await file.parent.create(recursive: true);
+      if (await _createExclusive(file, id)) {
+        return _Resolved(id, persisted: true);
+      }
+      final winner = await _awaitWinner(file);
+      if (winner != null) return _Resolved(winner, persisted: true);
+      // The file exists but never became a usable id (a torn write from an
+      // earlier launch): replace it.
+      await file.delete();
+      final won = await _createExclusive(file, id);
+      return _Resolved(
+        won ? id : (await _readExisting(file)) ?? id,
+        persisted: won,
+      );
+    } catch (_) {
+      // The id stays valid for this process; the write is retried on a
+      // later read.
+      return _Resolved(id, persisted: false);
+    }
+  }
+
+  /// Creates [file] only if absent (atomically) and writes [id] to it.
+  /// Returns false when another store created it first.
+  static Future<bool> _createExclusive(File file, String id) async {
+    try {
+      await file.create(exclusive: true);
+    } on PathExistsException {
+      return false;
+    }
+    try {
+      await file.writeAsString(id, flush: true);
+    } catch (_) {
+      await file.delete();
+      rethrow;
+    }
+    return true;
+  }
+
+  /// Another store created the file; wait briefly for it to finish writing.
+  static Future<String?> _awaitWinner(File file) async {
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final id = await _readExisting(file);
+      if (id != null) return id;
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    return null;
   }
 
   Future<File?> _file() async {
@@ -68,17 +139,6 @@ class TugboatInstallationIdStore {
     }
   }
 
-  static Future<void> _persist(File file, String id) async {
-    try {
-      await file.parent.create(recursive: true);
-      final tmp = File('${file.path}.tmp');
-      await tmp.writeAsString(id, flush: true);
-      await tmp.rename(file.path);
-    } catch (_) {
-      // The id stays valid for this process; the next launch mints again.
-    }
-  }
-
   static String? _usable(String? value) {
     final trimmed = value?.trim();
     if (trimmed == null || trimmed.isEmpty || trimmed.length > maxLength) {
@@ -86,6 +146,13 @@ class TugboatInstallationIdStore {
     }
     return trimmed;
   }
+}
+
+class _Resolved {
+  const _Resolved(this.id, {required this.persisted});
+
+  final String id;
+  final bool persisted;
 }
 
 /// Picks the installation id a session reports: a non-empty id the host

@@ -32,6 +32,11 @@ abstract final class TugboatCollectorHost {
   static set debugInstallationIdStore(TugboatInstallationIdStore store) =>
       _installationIdStore = store;
 
+  /// Restores the default installation id store after a test.
+  @visibleForTesting
+  static void debugResetInstallationIdStore() => _installationIdStore =
+      TugboatInstallationIdStore(directory: getApplicationSupportDirectory);
+
   /// The SDK's own installation id: a random UUID minted on first launch and
   /// persisted until the app is reinstalled or its data is cleared. On iOS
   /// the first value is the device's `identifierForVendor`, so installs that

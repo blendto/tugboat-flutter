@@ -101,8 +101,13 @@ not stored in the host's shared preferences, so clearing those (for example on
 logout) does not change it. The id survives launches and app updates and is
 new after a reinstall or when the app's data is cleared. Like any app file it
 is included in platform backups, so a restore onto another device carries it
-over. If the file cannot be read or written, the SDK still sends an id that is
-stable for the process, and the next launch mints a new one.
+over, and both devices then report the same id. To avoid that, pass your own
+`installationId` or exclude `tugboat/installation_id` from backup (Android
+backup rules, iOS backup exclusion). If the file cannot be read or written,
+the SDK still sends an id that is stable for the process and retries the
+write on later reads; if it never persists, the next launch mints a new one.
+Stores racing on first launch (several isolates or processes) all end up with
+the id that reached disk.
 
 On iOS the first id is the device's `identifierForVendor` (unchanged, so
 uppercase), not a random UUID, so installs that reported it as `device.id`
@@ -122,7 +127,8 @@ final collector = await TugboatCollectorHost.fromPlatform(
 ```
 
 With a manually built `TugboatCollectorConfig`, `appInfo.installationId` is
-sent exactly as given. `TugboatCollectorHost.installationId()` returns the
+sent exactly as given, so do not fill it from `device_info_plus` ids such as
+Android's `Build.ID`, which every device on that OS build shares. `TugboatCollectorHost.installationId()` returns the
 SDK's own id, for hosts that want to log it next to their user id.
 
 `device.id` is unchanged: it is still the platform-reported value
