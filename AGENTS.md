@@ -65,8 +65,13 @@ Unfamiliar terms are defined in `docs/glossary/INDEX.md`.
 - Version/pin discipline: `tool/ci/check-version-policy.sh`,
   `check-flutter-apple-pin-published.sh`, `verify-android-runtime-api.sh`,
   `verify-swift-api.sh`, `verify-native-capture-pigeon.sh` — run the relevant
-  ones when touching native code or versions. Packages version and changelog
-  independently (ADR 0008).
+  ones when touching native code or versions. Native runtimes version independently (ADR 0008).
+- Before opening or updating a PR to main that changes Flutter package source,
+  a pub.dev README, or Dartdoc, bump `tugboat` and `tugboat_dio` together.
+  Use a patch for documentation. Update both changelogs, the Dio and example
+  dependency floors, `lib/src/sdk_version.dart` in tugboat, and the compatibility
+  table. Check open release PRs for collisions and run
+  `BASE_SHA=origin/main bash tool/ci/check-version-policy.sh` against fresh main.
 - Requires Flutter 3.35+, Dart 3.9.2+.
 - Cross-repo: host-app integration and end-to-end validation target is
   `mobile_app/` (see workspace `AGENTS.md`). Capture-contract changes must be
