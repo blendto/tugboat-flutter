@@ -11,6 +11,13 @@ class TugboatCollectorAppInfo {
   final String name;
   final String version;
   final String buildNumber;
+
+  /// One id per app install, sent as `appInfo.installationId`.
+  ///
+  /// Use `TugboatCollectorHost.installationId()` (what `fromPlatform` fills
+  /// in) or your own per-install id. Do not use `device_info_plus` ids such as
+  /// Android's `Build.ID`: every device on the same OS build shares it, so
+  /// unrelated installs would merge downstream.
   final String installationId;
 
   /// Native package / bundle identifier (e.g. `to.blend.mobile_app`).
