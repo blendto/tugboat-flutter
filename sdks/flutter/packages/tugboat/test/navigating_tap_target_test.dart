@@ -22,10 +22,10 @@ List<TugboatEvent> _taps() => [
 ];
 
 Future<List<TugboatEvent>> _waitForTaps(WidgetTester tester, int count) async {
-  for (var attempt = 0; attempt < 20 && _taps().length < count; attempt++) {
+  for (var attempt = 0; attempt < 200 && _taps().length < count; attempt++) {
     await tester.pump();
     await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
     await tester.pump();
   }

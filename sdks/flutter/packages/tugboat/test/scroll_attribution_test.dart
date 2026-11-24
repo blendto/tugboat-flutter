@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 
+import 'helpers/widget_capture_wait.dart';
+
 const _scrollTestConfig = TugboatReplayConfig(
   enabled: true,
   emitSceneInventory: true,
@@ -24,11 +26,7 @@ Future<void> _waitForCaptures(WidgetTester tester) async {
           return controller.debugSeedFrame(trigger: trigger);
         };
   }
-  await tester.pump();
-  await tester.runAsync(() async {
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-  });
-  await tester.pump();
+  await settleTugboatCaptureWork(tester);
 }
 
 Future<void> _exerciseScrollCallbackOrder(

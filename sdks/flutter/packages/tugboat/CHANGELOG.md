@@ -1,3 +1,11 @@
+## 0.12.1
+
+### Changed
+
+- Internal lint fix in `seedSessionStartRoute` (`prefer_conditional_assignment`)
+  so the workspace passes `dart analyze --fatal-infos`. No behaviour change, no
+  public API change, no fingerprint, route key or inventory hash change.
+
 ## 0.12.0
 
 ### Removed

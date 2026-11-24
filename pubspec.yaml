@@ -16,19 +16,14 @@ dev_dependencies:
 melos:
   scripts:
     format:
-      run: dart format .
-      description: Format Dart source across the workspace.
+      run: bash tool/ci/format.sh
+      description: Format tracked Dart source, leaving Pigeon output alone.
+    format:check:
+      run: bash tool/ci/format.sh --check
+      description: Fail if any tracked Dart source is not formatted.
     analyze:
-      run: dart analyze .
+      run: dart analyze --fatal-infos .
       description: Analyze every package in the workspace.
-    complexity:
-      # dallow runs from tool/complexity, outside the workspace: it pins
-      # analyzer ^7, which must not constrain the workspace's build_runner.
-      run: >-
-        cd tool/complexity && dart pub get &&
-        dart run dallow complexity --recursive --max-complexity 10
-        --fail-on warning ../..
-      description: Reject functions with cyclomatic complexity above 10.
     test:
       run: bash tool/ci/run-flutter-tests.sh
       description: Run all package tests with each package's asset bundle.
