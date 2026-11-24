@@ -37,10 +37,12 @@ jobs:
           cache: true
       - name: Install Dart dependencies
         run: dart pub get
+      # Same commands as `melos run format:check` and `melos run analyze`,
+      # called directly: `dart run melos` cannot locate itself on the runner.
       - name: Check formatting
-        run: dart run melos run format:check
+        run: bash tool/ci/format.sh --check
       - name: Analyze
-        run: dart run melos run analyze
+        run: dart analyze --fatal-infos .
 
   test:
     name: Test ${{ matrix.package }}
