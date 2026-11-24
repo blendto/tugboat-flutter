@@ -281,6 +281,14 @@ separate, so visible frame changes do not prove event acceptance. Deploy
 collector contract support before testing a production session with these
 gestures. Check both zoom directions and the stored `pointerCount` and `scale`.
 
+With `TugboatReplayConfig.capturePressDuration` on, a tap's nested `payload`
+also carries `pressDurationMs`: whole milliseconds from pointer-down to
+pointer-up on the event `atMs` clock. A long press stays `gesture: tap`; the
+duration is what tells it apart. It is omitted when the tap has no pointer-up
+time. Collectors before the BLE-567 change accept and store it as an unknown
+`payload` key but do not validate it; turn the flag on once the collector that
+validates it is deployed.
+
 The opt-in `focus_changed` and `system_input` evidence events
 (`TugboatReplayConfig.captureFocusChanges` / `captureSystemInput`) use the
 generic envelope with `stream: evidence`. Their `payload` is the closed

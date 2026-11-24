@@ -2,6 +2,7 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
+| Flutter `tugboat` | 0.11.6 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; opt-in `capturePressDuration` (default off) adds `payload.pressDurationMs` to tap interactions; the gesture stays `tap`; `tugboat_dio` 0.11.6 is a compatibility release. |
 | Flutter `tugboat` | 0.11.5 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; identity contract change: `session_start` sends `appInfo.installationId`, an SDK-minted UUID persisted on first launch (seeded from `identifierForVendor` on iOS) unless the host passes its own; `fromPlatform` and `loadAppInfo` take an optional `installationId`; new dependency `path_provider`; `tugboat_dio` 0.11.5 is a compatibility release. Minimum SDKs unchanged (Flutter 3.35.0, Dart 3.9.2). |
 | Flutter `tugboat` | 0.11.4 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; a navigating tap on a button's padding resolves to the button's `GestureDetector` (the glyph tap's and scene inventory's layer) instead of its `InkWell`; pointer-down path only; `tugboat_dio` 0.11.4 is a compatibility release. |
 | Flutter `tugboat` | 0.11.3 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; no `tugboat` runtime change. `tugboat_dio` 0.11.3 adds opt-in `errorBodyDenyUrls` and `errorBodyUrls` to choose which request URLs may keep an HTTP error response body (matched on host and path only); the default still retains every error body. |

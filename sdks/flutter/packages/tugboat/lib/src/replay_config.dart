@@ -91,6 +91,7 @@ class TugboatReplayConfig {
     this.acceptActionContext = false,
     this.captureFocusChanges = false,
     this.captureSystemInput = false,
+    this.capturePressDuration = false,
     this.explorationRunId,
     this.userId,
     this.appInfo,
@@ -181,6 +182,11 @@ class TugboatReplayConfig {
   /// collector must accept the event type.
   final bool captureSystemInput;
 
+  /// Adds `payload.pressDurationMs` to tap interactions: milliseconds from
+  /// pointer-down to pointer-up, so a long press is no longer a plain tap
+  /// downstream. Off by default: the collector must keep the fact.
+  final bool capturePressDuration;
+
   final String? explorationRunId;
   final String? userId;
   final TugboatCollectorAppInfo? appInfo;
@@ -239,6 +245,7 @@ class TugboatReplayConfig {
     bool? acceptActionContext,
     bool? captureFocusChanges,
     bool? captureSystemInput,
+    bool? capturePressDuration,
     String? explorationRunId,
     String? userId,
     TugboatCollectorAppInfo? appInfo,
@@ -308,6 +315,10 @@ class TugboatReplayConfig {
       acceptActionContext: _or(acceptActionContext, this.acceptActionContext),
       captureFocusChanges: _or(captureFocusChanges, this.captureFocusChanges),
       captureSystemInput: _or(captureSystemInput, this.captureSystemInput),
+      capturePressDuration: _or(
+        capturePressDuration,
+        this.capturePressDuration,
+      ),
       explorationRunId: _or(explorationRunId, this.explorationRunId),
       userId: _or(userId, this.userId),
       appInfo: _or(appInfo, this.appInfo),
