@@ -1,3 +1,10 @@
+## 0.11.5
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.5 (opt-in tap press duration).
+  The Dio adapter has no runtime behavior change.
+
 ## 0.11.4
 
 ### Changed

@@ -1,3 +1,17 @@
+## 0.11.5
+
+### Added
+
+- Opt-in `TugboatReplayConfig.capturePressDuration`, default off: tap
+  interactions carry `payload.pressDurationMs`, the milliseconds from
+  pointer-down to pointer-up (BLE-567). Until now a 1.5 s press reached the
+  collector as a plain `tap` with nothing to tell it from a quick one. The
+  gesture stays `tap`; there is no `long_press` gesture name, because
+  collectors that do not know a gesture reject the whole batch. Swipes,
+  scrolls, pan and zoom never carry it. Turn it on once the collector that
+  validates `pressDurationMs` as a tap fact is deployed. With the flag off,
+  events are unchanged.
+
 ## 0.11.4
 
 ### Fixed

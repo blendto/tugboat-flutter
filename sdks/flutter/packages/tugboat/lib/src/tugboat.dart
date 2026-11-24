@@ -472,7 +472,8 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
       previous.emitCaptureDiagnostics != current.emitCaptureDiagnostics ||
       previous.acceptActionContext != current.acceptActionContext ||
       previous.captureFocusChanges != current.captureFocusChanges ||
-      previous.captureSystemInput != current.captureSystemInput;
+      previous.captureSystemInput != current.captureSystemInput ||
+      previous.capturePressDuration != current.capturePressDuration;
 
   @override
   void dispose() {

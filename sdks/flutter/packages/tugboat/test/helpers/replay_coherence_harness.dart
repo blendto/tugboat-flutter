@@ -221,6 +221,7 @@ class ReplayCoherenceHarness {
     this.enabled = true,
     this.emitViewportSemanticMap = true,
     this.emitCaptureDiagnostics = true,
+    this.capturePressDuration = false,
     GlobalKey? boundaryKey,
   }) : boundaryKey = boundaryKey ?? GlobalKey();
 
@@ -231,6 +232,7 @@ class ReplayCoherenceHarness {
   final bool enabled;
   final bool emitViewportSemanticMap;
   final bool emitCaptureDiagnostics;
+  final bool capturePressDuration;
   final GlobalKey boundaryKey;
   final ControllableScheduler scheduler = ControllableScheduler();
   final Map<String, HarnessFrameProvenance> _frameProvenance =
@@ -279,6 +281,7 @@ class ReplayCoherenceHarness {
         emitViewportSemanticMap: emitViewportSemanticMap,
         emitCaptureDiagnostics: emitCaptureDiagnostics,
         acceptActionContext: true,
+        capturePressDuration: capturePressDuration,
         settleDelay: settleDelay,
         interactionClaimWindow: interactionClaimWindow,
         maxFrames: maxFrames,

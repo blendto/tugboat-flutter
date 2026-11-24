@@ -1215,7 +1215,7 @@ class TugboatReplayController extends ChangeNotifier {
 
   bool get scrolling => _scrollTrackers.isNotEmpty;
   bool get capturePaused => _capturePaused;
-  int get atMs => _clock.elapsedMilliseconds;
+  int get atMs => debugElapsedMs?.call() ?? _clock.elapsedMilliseconds;
   String? get currentRoute => _currentRoute;
 
   /// `surface.kind` for the current route. Falls back to the raw route string
@@ -1243,6 +1243,11 @@ class TugboatReplayController extends ChangeNotifier {
   @visibleForTesting
   int get debugAnchorTokenMapBuildCount =>
       _anchorResolver?.tokenMapBuildCount ?? 0;
+
+  /// Test-only session clock behind [atMs]. Defaults to the session
+  /// stopwatch.
+  @visibleForTesting
+  int Function()? debugElapsedMs;
 
   /// Test-only clock for capture scheduling. Defaults to [DateTime.now].
   @visibleForTesting
@@ -4354,7 +4359,10 @@ class TugboatReplayController extends ChangeNotifier {
   void _publishCanonicalInteraction(InteractionTransaction tx) {
     if (tx.semanticPublished) return;
     tx.semanticPublished = true;
-    final payload = buildInteractionV2Payload(tx);
+    final payload = buildInteractionV2Payload(
+      tx,
+      includePressDuration: config.capturePressDuration,
+    );
     tx.discardPreTapEvidence();
     _addEvent(
       TugboatEvent(
@@ -5646,8 +5654,7 @@ class TugboatReplayController extends ChangeNotifier {
     // on an effective transition (e.g. backgrounded -> foregrounded ->
     // backgrounded still emits twice, correctly).
     final isDuplicate =
-        state == _lastLifecycleState ||
-        eventType == _lastLifecycleEventType;
+        state == _lastLifecycleState || eventType == _lastLifecycleEventType;
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
