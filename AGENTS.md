@@ -67,7 +67,7 @@ Unfamiliar terms are defined in `docs/glossary/INDEX.md`.
   `verify-swift-api.sh`, `verify-native-capture-pigeon.sh` — run the relevant
   ones when touching native code or versions. Packages version and changelog
   independently (ADR 0008).
-- Requires Flutter 3.38.4+, Dart 3.10.0+.
+- Requires Flutter 3.35+, Dart 3.9.2+.
 - Cross-repo: host-app integration and end-to-end validation target is
   `mobile_app/` (see workspace `AGENTS.md`). Capture-contract changes must be
   checked against both sides.

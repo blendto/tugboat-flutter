@@ -9,8 +9,8 @@ homepage: https://github.com/blendto/tugboat-flutter
 license: AGPL-3.0-only
 
 environment:
-  sdk: ^3.10.0
-  flutter: ">=3.38.4"
+  sdk: ^3.9.2
+  flutter: ">=3.35.0"
 
 resolution: workspace
 

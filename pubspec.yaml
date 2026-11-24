@@ -2,7 +2,7 @@ name: tugboat_flutter_workspace
 publish_to: none
 
 environment:
-  sdk: ^3.10.0
+  sdk: ^3.9.2
 
 workspace:
   - sdks/flutter/packages/tugboat

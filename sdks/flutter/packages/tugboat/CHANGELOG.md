@@ -37,13 +37,10 @@
 
 - Dependency on `path_provider` (^2.1.4) to locate the app support directory.
 
-### Breaking
-
-- Minimum SDKs are now Flutter 3.38.4 and Dart 3.10.0 (were Flutter 3.35.0
-  and Dart 3.9.2). The `path_provider` platform packages the new dependency
-  resolves to need Flutter 3.38.4. `tugboat_dio` raises its constraints to
-  match. Hosts on Flutter 3.35 to 3.38.3 must upgrade Flutter before taking
-  0.11.5.
+- The minimum stays Flutter 3.35.0 and Dart 3.9.2. Newer `path_provider`
+  platform packages need Flutter 3.38.4, but pub resolves older ones on
+  older SDKs, so a Flutter 3.35 host builds. The workspace lockfile is
+  resolved on Flutter 3.35.7 so it works on the minimum toolchain.
 
 ## 0.11.4
 

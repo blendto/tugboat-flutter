@@ -26,7 +26,7 @@ Then import the public barrel:
 import 'package:tugboat/tugboat.dart';
 ```
 
-The package requires Dart 3.10.0 or newer and Flutter 3.38.4 or newer.
+The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
 Install from pub.dev; a GitHub checkout is not required.
 
 ### Optional Dio network evidence

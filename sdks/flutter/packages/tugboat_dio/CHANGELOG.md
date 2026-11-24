@@ -4,8 +4,7 @@
 
 - Compatibility release for `tugboat` 0.11.5 (`session_start` sends an
   SDK-minted `appInfo.installationId`). The Dio adapter has no runtime
-  behavior change. Minimum SDKs rise with `tugboat` to Flutter 3.38.4 and
-  Dart 3.10.0.
+  behavior change.
 
 ## 0.11.4
 
