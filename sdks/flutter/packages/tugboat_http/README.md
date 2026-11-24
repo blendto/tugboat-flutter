@@ -32,3 +32,15 @@ response headers, and either the HTTP status or a transport failure outcome.
 An aborted send records cancellation. Headers and bodies, including HTTP
 error bodies, stay out of evidence. The caller receives the original response
 stream and handles any errors that occur while reading it.
+
+## Releasing
+
+An uploader publishes the first version from this package directory with
+`dart pub publish`. In the package's pub.dev Admin tab, enable GitHub Actions
+publishing for `blendto/tugboat-flutter`, set the tag pattern to
+`tugboat_http-v{{version}}`, and allow workflow dispatch events.
+
+For later stable releases, update the changelog and package version. When the
+version bump lands on `main`, the Publish tugboat_http workflow creates a
+package-specific tag and publishes that revision. To retry, dispatch the
+workflow on the release tag.
