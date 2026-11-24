@@ -1,3 +1,7 @@
+## 0.12.2
+
+- Updated interceptor setup, event verification, retry guidance, and error-body privacy examples.
+
 ## 0.12.0
 
 ### Changed

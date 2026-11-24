@@ -7,7 +7,7 @@
 # must increase, and the compatibility table must change.
 # Apple public Swift API or TugboatCaptureRuntime.podspec → Apple runtime
 # version must increase, and the compatibility table must change.
-# Documentation-only and C++ test/fuzz-only changes skip the Flutter bump.
+# Publishable Flutter READMEs and Dio source also trigger the lockstep release.
 # Flutter's Maven pin must not be newer than capture-runtime VERSION_NAME.
 # Changing that pin requires it to equal VERSION_NAME; runtime-only PRs may lag.
 # Flutter's CocoaPods pin must not be newer than TugboatCaptureRuntime s.version.
@@ -165,7 +165,10 @@ if [[ -n "$apple_pin" && -n "$apple_now" ]]; then
   fi
 fi
 
-mapfile -t changed < <(
+changed=()
+while IFS= read -r path; do
+  changed+=("$path")
+done < <(
   {
     git diff --name-only "$BASE_SHA"
     git ls-files --others --exclude-standard
@@ -192,6 +195,10 @@ is_flutter_adapter() {
     sdks/flutter/packages/tugboat/android/* | \
     sdks/flutter/packages/tugboat/ios/* | \
     sdks/flutter/packages/tugboat/pigeons/* | \
+    sdks/flutter/packages/tugboat/README.md | \
+    sdks/flutter/packages/tugboat_dio/README.md | \
+    sdks/flutter/packages/tugboat_dio/lib/* | \
+    sdks/flutter/packages/tugboat_dio/pubspec.yaml | \
     sdks/flutter/packages/tugboat/pubspec.yaml)
       return 0
       ;;
@@ -275,6 +282,17 @@ if [[ "$needs_flutter_bump" -eq 1 ]]; then
     echo "::error::Could not read version from $head_pubspec"
     exit 1
   fi
+  dio_version="$(extract_pubspec_version sdks/flutter/packages/tugboat_dio/pubspec.yaml)"
+  if [[ "$dio_version" != "$head_version" ]]; then
+    echo "::error::Set tugboat and tugboat_dio to the same release version before opening the PR."
+    exit 1
+  fi
+  for package in tugboat tugboat_dio; do
+    if ! grep -Fxq "## $head_version" "sdks/flutter/packages/$package/CHANGELOG.md"; then
+      echo "::error::Add a ## $head_version entry to the $package changelog."
+      exit 1
+    fi
+  done
   base_pubspec="$(pubspec_in_git "$BASE_SHA")"
   if [[ -z "$base_pubspec" ]]; then
     echo "Base branch has no tugboat pubspec; treating as new package (ok)."

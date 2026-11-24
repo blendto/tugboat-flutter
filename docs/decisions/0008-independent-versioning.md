@@ -18,7 +18,9 @@ in Phase 8, not as a second copy here.
 ## Consequences
 
 CI version-bump rules are path-aware (`tool/ci/check-version-policy.sh`).
-Documentation-only and C++ test/fuzz-only changes do not bump Flutter.
+Repository-only docs and C++ test/fuzz-only changes skip the Flutter bump.
+The two pub.dev packages publish in lockstep. Their package READMEs and
+Dartdoc ship with the package and require a new version.
 Public runtime API / C ABI changes bump `capture-runtime`. Adapter source
 changes bump `tugboat` and update
 [compatibility.md](../releases/compatibility.md).

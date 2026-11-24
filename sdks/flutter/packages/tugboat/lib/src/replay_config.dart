@@ -51,6 +51,7 @@ TugboatViewportSemanticPolicy resolveViewportSemanticPolicy({
   );
 }
 
+/// Time budget for screenshot processing within a rolling window.
 class TugboatScreenshotBudgetConfig {
   const TugboatScreenshotBudgetConfig({
     this.window = const Duration(seconds: 5),
@@ -189,12 +190,21 @@ class TugboatReplayConfig {
   final String? explorationRunId;
   final String? userId;
   final TugboatCollectorAppInfo? appInfo;
+
+  /// HTTP destination for session delivery. Omit to capture without HTTP upload.
   final TugboatCollectorConfig? collector;
+
+  /// Screenshot masking override. When omitted, [effectiveScreenshotMaskLevel]
+  /// resolves to [TugboatScreenshotMaskLevel.allTextAndMedia].
   final TugboatScreenshotMaskLevel? screenshotMaskLevel;
+
+  /// App-supplied widget names used in structural paths, including in obfuscated builds.
   final Map<Type, String> widgetNames;
   final TugboatViewportSemanticMode viewportSemanticMode;
   final int viewportSemanticMapMaxNodes;
   final int viewportSemanticMapMaxBytes;
+
+  /// Additional capture destinations. Each factory creates a sink per session.
   final List<TugboatCaptureSinkFactory> sinkFactories;
   final TugboatScreenshotBudgetConfig screenshotBudget;
 

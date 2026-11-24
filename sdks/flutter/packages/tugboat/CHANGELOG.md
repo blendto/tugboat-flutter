@@ -1,3 +1,7 @@
+## 0.12.2
+
+- Reworked the replay quick start, accessibility and navigation examples, and Dart API guide.
+
 ## 0.12.0
 
 ### Removed

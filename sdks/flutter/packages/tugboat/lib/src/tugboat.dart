@@ -146,7 +146,7 @@ class TugboatReplay {
     _controller?.recordLocale(info);
   }
 
-  /// Pending traits bag applied when the next [CollectorHttpSink] is created.
+  /// Pending traits to apply when the next HTTP collector sink is created.
   static Map<String, dynamic>? get pendingTraits => _pendingTraits == null
       ? null
       : Map<String, dynamic>.unmodifiable(_pendingTraits!);

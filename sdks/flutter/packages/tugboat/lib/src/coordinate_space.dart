@@ -20,7 +20,7 @@ enum TugboatCoordinateSourceSpace {
   /// Flutter global logical coordinates (same as legacy `x`/`y`).
   globalLogical,
 
-  /// Logical coordinates local to the active [TugboatCaptureBoundary].
+  /// Logical coordinates relative to the active capture boundary.
   boundaryLocalLogical,
 }
 
