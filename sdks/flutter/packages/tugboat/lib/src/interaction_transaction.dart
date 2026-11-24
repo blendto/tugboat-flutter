@@ -192,10 +192,16 @@ Map<String, double>? interactionNormalizedPoint(
 }
 
 /// Facts-only interaction schema v2 fields stored in [TugboatEvent.data].
-Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
+///
+/// [includePressDuration] adds a tap's `pressDurationMs`
+/// (`TugboatReplayConfig.capturePressDuration`).
+Map<String, Object?> buildInteractionV2Payload(
+  InteractionTransaction tx, {
+  bool includePressDuration = false,
+}) {
   final envelope = _interactionEnvelope(tx);
   if (tx.gesture == InteractionGesture.cancelled) return envelope;
-  final gesturePayload = _buildGesturePayload(tx);
+  final gesturePayload = _buildGesturePayload(tx, includePressDuration);
   if (gesturePayload.isNotEmpty) envelope['payload'] = gesturePayload;
   return envelope;
 }
@@ -280,10 +286,16 @@ void _writeRouteEvidence(
   if (surface != null) envelope['surface'] = surface.toJson();
 }
 
-Map<String, Object?> _buildGesturePayload(InteractionTransaction tx) {
+Map<String, Object?> _buildGesturePayload(
+  InteractionTransaction tx,
+  bool includePressDuration,
+) {
   final gesturePayload = <String, Object?>{};
   final position = interactionNormalizedPosition(tx.origin.captureCoordinate);
   if (position != null) gesturePayload['position'] = position;
+  if (includePressDuration && tx.gesture == InteractionGesture.tap) {
+    _writePressDuration(gesturePayload, tx);
+  }
   _writeGesturePayload(gesturePayload, tx, position);
   return gesturePayload;
 }
@@ -308,6 +320,17 @@ void _writeGesturePayload(
     case InteractionGesture.cancelled:
       break;
   }
+}
+
+/// Pointer-down to pointer-up on the controller clock. Omitted when the tap
+/// has no release time (it was never released through pointer-up).
+void _writePressDuration(
+  Map<String, Object?> gesturePayload,
+  InteractionTransaction tx,
+) {
+  final releasedAtMs = tx.releasedAtMs;
+  if (releasedAtMs == null || releasedAtMs < tx.origin.atMs) return;
+  gesturePayload['pressDurationMs'] = releasedAtMs - tx.origin.atMs;
 }
 
 void _writeTravelGesturePayload(

@@ -201,7 +201,7 @@ default screenshot mask is always `allTextAndMedia`.
 
 Optional evidence is additive. `emitSceneInventory`,
 `emitViewportSemanticMap`, `emitCaptureDiagnostics`, `acceptActionContext`,
-`captureFocusChanges`, and `captureSystemInput` are false by default. Enabling one capability does not
+`captureFocusChanges`, `captureSystemInput`, and `capturePressDuration` are false by default. Enabling one capability does not
 change masking, limits, transport, or lifecycle behavior.
 
 ### Device Farm launch inputs
@@ -305,6 +305,7 @@ but it does not persist events or frames across process restarts.
 | `acceptActionContext` | `false` | allow external action context on captured evidence |
 | `captureFocusChanges` | `false` | emit `focus_changed` when primary focus enters, leaves, or moves between text fields, with one observation after `settleDelay` as `afterFrame` |
 | `captureSystemInput` | `false` | emit `system_input` for system back and allowlisted hardware keys (volume, power, media), with one observation after `settleDelay` as `afterFrame`; never consumes the input |
+| `capturePressDuration` | `false` | add `pressDurationMs` (pointer-down to pointer-up, in milliseconds) to tap interactions' `payload` |
 | `explorationRunId` | null | optional run correlation ID |
 | `userId` | null | optional HTTP event user ID |
 | `appInfo` | null | session app metadata; falls back to `collector.appInfo` |

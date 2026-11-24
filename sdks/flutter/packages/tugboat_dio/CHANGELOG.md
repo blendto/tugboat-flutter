@@ -6,6 +6,21 @@
   the `TugboatLoading` marker removed). Requires `tugboat` `^0.12.0`. The Dio
   adapter has no runtime behavior change.
 
+## 0.11.6
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.6 (opt-in tap press duration).
+  The Dio adapter has no runtime behavior change.
+
+## 0.11.5
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.5 (`session_start` sends an
+  SDK-minted `appInfo.installationId`). The Dio adapter has no runtime
+  behavior change.
+
 ## 0.11.4
 
 ### Changed
