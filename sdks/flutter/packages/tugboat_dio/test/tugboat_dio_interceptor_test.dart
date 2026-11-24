@@ -818,397 +818,30 @@ void main() {
       expect(data['durationMs'], isA<int>());
     }
 
-    const url = 'https://api.example.test/v1/accounts/42';
-
-    for (final throwOnError in [false, true]) {
-      final path = throwOnError ? 'DioException path' : 'response path';
-
-      _testCapture('default keeps every body ($path)', (tester) async {
-        expectBodyKept(await send(tester, url, throwOnError: throwOnError));
-      });
-
-      _testCapture('deny drops a matching body ($path)', (tester) async {
-        final data = await send(
-          tester,
-          url,
-          deny: ['api.example.test/v1/accounts/*'],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('deny leaves a non-matching URL alone ($path)', (
-        tester,
-      ) async {
-        final data = await send(
-          tester,
-          url,
-          deny: ['api.example.test/v1/billing/*'],
-          throwOnError: throwOnError,
-        );
-        expectBodyKept(data);
-      });
-
-      _testCapture('allow keeps a matching body ($path)', (tester) async {
-        final data = await send(
-          tester,
-          url,
-          allow: ['api.example.test/v1/*'],
-          throwOnError: throwOnError,
-        );
-        expectBodyKept(data);
-      });
-
-      _testCapture('allow list with no match drops the body ($path)', (
-        tester,
-      ) async {
-        final data = await send(
-          tester,
-          url,
-          allow: ['other.example.test/*'],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('deny beats allow ($path)', (tester) async {
-        final data = await send(
-          tester,
-          url,
-          deny: ['*/v1/accounts/*'],
-          allow: ['api.example.test/*'],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('patterns ignore case ($path)', (tester) async {
-        final data = await send(
-          tester,
-          'https://API.Example.test/V1/Accounts/42',
-          deny: ['api.EXAMPLE.test/v1/ACCOUNTS/*'],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('query and fragment are never matched ($path)', (
-        tester,
-      ) async {
-        const tricky =
-            'https://api.example.test/v1/health'
-            '?email=someone@example.com&next=/accounts#accounts';
-        // A deny pattern that only the query/fragment could satisfy does not
-        // drop the body.
-        expectBodyKept(
-          await send(
+    for (final c in _urlCases) {
+      for (final throwOnError in c.responsePathOnly ? [false] : [false, true]) {
+        final suffix = c.responsePathOnly
+            ? ''
+            : ' (${throwOnError ? 'DioException path' : 'response path'})';
+        _testCapture('${c.name}$suffix', (tester) async {
+          final data = await send(
             tester,
-            tricky,
-            deny: ['*/*someone*', '*/*accounts*', '*someone*'],
+            c.url,
+            deny: c.deny,
+            allow: c.allow,
+            baseUrl: c.baseUrl,
+            query: c.query,
+            redirects: c.redirects?.map(Uri.parse).toList(),
             throwOnError: throwOnError,
-          ),
-        );
-      });
-
-      _testCapture('allow pattern cannot be satisfied by the query ($path)', (
-        tester,
-      ) async {
-        const tricky = 'https://api.example.test/v1/health?x=/accounts/42';
-        expectBodyDropped(
-          await send(
-            tester,
-            tricky,
-            allow: ['*/*accounts*'],
-            throwOnError: throwOnError,
-          ),
-        );
-      });
-
-      _testCapture('undenied request redirected to a denied URL drops the body '
-          '($path)', (tester) async {
-        final data = await send(
-          tester,
-          url,
-          deny: ['evil.test'],
-          redirects: [Uri.parse('https://evil.test/landing?x=1')],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('redirect to an unlisted URL keeps the body ($path)', (
-        tester,
-      ) async {
-        final data = await send(
-          tester,
-          url,
-          deny: ['evil.test'],
-          redirects: [Uri.parse('https://api.example.test/v1/next')],
-          throwOnError: throwOnError,
-        );
-        expectBodyKept(data);
-      });
-
-      _testCapture('allowed request redirected outside the allow list drops '
-          'the body ($path)', (tester) async {
-        final data = await send(
-          tester,
-          url,
-          allow: ['api.example.test/*'],
-          redirects: [Uri.parse('https://other.test/x')],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('allowed request redirected within the allow list keeps '
-          'the body ($path)', (tester) async {
-        final data = await send(
-          tester,
-          url,
-          allow: ['api.example.test/*'],
-          redirects: [Uri.parse('https://api.example.test/v1/next')],
-          throwOnError: throwOnError,
-        );
-        expectBodyKept(data);
-      });
-
-      _testCapture('two-hop chain with a relative last Location uses the hop '
-          'host ($path)', (tester) async {
-        final data = await send(
-          tester,
-          'https://api.example.test/start',
-          deny: ['sso.example.test'],
-          redirects: [
-            Uri.parse('https://sso.example.test/login'),
-            Uri.parse('/error'),
-          ],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('relative first hop resolves against the request URL '
-          '($path)', (tester) async {
-        final data = await send(
-          tester,
-          'https://api.example.test/a/b',
-          deny: ['api.example.test/a/sub/*'],
-          redirects: [Uri.parse('sub/x'), Uri.parse('y')],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('denied intermediate hop drops the body ($path)', (
-        tester,
-      ) async {
-        final data = await send(
-          tester,
-          url,
-          deny: ['evil.test'],
-          redirects: [
-            Uri.parse('https://evil.test/hop'),
-            Uri.parse('https://api.example.test/back'),
-          ],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('allow list with a hop outside it drops the body ($path)', (
-        tester,
-      ) async {
-        final data = await send(
-          tester,
-          url,
-          allow: ['api.example.test/*'],
-          redirects: [
-            Uri.parse('https://other.test/hop'),
-            Uri.parse('https://api.example.test/back'),
-          ],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      // Each redirect test below resolves hops against the hop BEFORE it; it
-      // would give the opposite answer if hops were resolved against the
-      // request URL.
-      _testCapture('deny on the second hop path resolved against hop one '
-          '($path)', (tester) async {
-        // Right: sso.example.test/error (denied); against the request URL it
-        // would be api.example.test/error (not denied).
-        final data = await send(
-          tester,
-          'https://api.example.test/start',
-          deny: ['sso.example.test/error'],
-          redirects: [
-            Uri.parse('https://sso.example.test/login'),
-            Uri.parse('/error'),
-          ],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('allow list rejects a second hop resolved against hop one '
-          '($path)', (tester) async {
-        // Right: sso.example.test/error (not allowed); against the request URL
-        // it would be api.example.test/error (allowed by the first pattern).
-        final data = await send(
-          tester,
-          'https://api.example.test/start',
-          allow: ['api.example.test/*', 'sso.example.test/login'],
-          redirects: [
-            Uri.parse('https://sso.example.test/login'),
-            Uri.parse('/error'),
-          ],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('relative first hop is allowed only via the request '
-          'directory ($path)', (tester) async {
-        // Right: /a/b/c + "d" = /a/b/d (allowed); against the host root it
-        // would be /d (outside the allow list).
-        final data = await send(
-          tester,
-          'https://api.example.test/a/b/c',
-          allow: ['api.example.test/a/b/*'],
-          redirects: [Uri.parse('d')],
-          throwOnError: throwOnError,
-        );
-        expectBodyKept(data);
-      });
-
-      _testCapture('second relative hop is denied only via the previous hop '
-          '($path)', (tester) async {
-        // Right: /a/x/one then /a/x/two (denied); against the request URL the
-        // second hop would be /a/two (not denied).
-        final data = await send(
-          tester,
-          'https://api.example.test/a/b',
-          deny: ['api.example.test/a/x/two'],
-          redirects: [Uri.parse('x/one'), Uri.parse('two')],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
-
-      _testCapture('second relative hop is allowed only via the previous hop '
-          '($path)', (tester) async {
-        // Right: /a/x/two (allowed); against the request URL it would be
-        // /a/two (outside the allow list).
-        final data = await send(
-          tester,
-          'https://api.example.test/a/b',
-          allow: ['api.example.test/a/b', 'api.example.test/a/x/*'],
-          redirects: [Uri.parse('x/one'), Uri.parse('two')],
-          throwOnError: throwOnError,
-        );
-        expectBodyKept(data);
-      });
-
-      _testCapture('port and user-info are not matched ($path)', (
-        tester,
-      ) async {
-        final data = await send(
-          tester,
-          'https://user:secret@api.example.test:8443/v1/health',
-          deny: ['*secret*', '*8443*'],
-          throwOnError: throwOnError,
-        );
-        expectBodyKept(data);
-      });
-
-      _testCapture('port and user-info do not block a path match ($path)', (
-        tester,
-      ) async {
-        final data = await send(
-          tester,
-          'https://user:secret@api.example.test:8443/v1/accounts/42',
-          deny: ['api.example.test/v1/accounts/*'],
-          throwOnError: throwOnError,
-        );
-        expectBodyDropped(data);
-      });
+          );
+          if (c.kept) {
+            expectBodyKept(data);
+          } else {
+            expectBodyDropped(data);
+          }
+        });
+      }
     }
-
-    _testCapture('queryParameters never influence the decision', (
-      tester,
-    ) async {
-      final data = await send(
-        tester,
-        '/v1/health',
-        baseUrl: 'https://api.example.test',
-        deny: ['*/*accounts*', '*/*someone*'],
-        query: {
-          'next': '/v1/accounts/42',
-          'email': 'someone@example.com',
-          'ids': [1, 2, 3],
-        },
-      );
-      expectBodyKept(data);
-    });
-
-    _testCapture('a path match still applies when queryParameters are set', (
-      tester,
-    ) async {
-      final data = await send(
-        tester,
-        '/v1/accounts/42',
-        baseUrl: 'https://api.example.test',
-        deny: ['api.example.test/v1/accounts/*'],
-        query: {'email': 'someone@example.com'},
-      );
-      expectBodyDropped(data);
-    });
-
-    _testCapture('the baseUrl path is part of the matched path', (
-      tester,
-    ) async {
-      final data = await send(
-        tester,
-        '/v1/accounts/42',
-        baseUrl: 'https://api.example.test/api/',
-        deny: ['api.example.test/api/v1/accounts/*'],
-      );
-      expectBodyDropped(data);
-    });
-
-    _testCapture('a root URL matches host/*', (tester) async {
-      final data = await send(
-        tester,
-        'https://api.example.test',
-        deny: ['api.example.test/*'],
-      );
-      expectBodyDropped(data);
-    });
-
-    _testCapture('a bare host pattern covers every path on that host', (
-      tester,
-    ) async {
-      final data = await send(
-        tester,
-        'https://api.example.test/v1/accounts/42',
-        deny: ['api.example.test'],
-      );
-      expectBodyDropped(data);
-    });
-
-    _testCapture(
-      'an unparseable URL under a restricted policy drops the body',
-      (tester) async {
-        final data = await send(
-          tester,
-          'http://[bad/x',
-          deny: ['other.test/*'],
-        );
-        expectBodyDropped(data);
-      },
-    );
 
     _testCapture('does not affect a successful response', (tester) async {
       await _pumpCapture(tester);
@@ -1222,7 +855,7 @@ void main() {
         errorBodyUrls: const [],
       );
 
-      await _runAsync(tester, () => dio.get<dynamic>(url));
+      await _runAsync(tester, () => dio.get<dynamic>(_accountUrl));
 
       final data = TugboatReplay.controller!.session!.events
           .singleWhere((e) => e.type == 'network_call')
@@ -1242,3 +875,255 @@ void main() {
     });
   });
 }
+
+/// One URL-control scenario: a GET to [url] that answers 404 with an email in
+/// the body, through an interceptor built from [deny] and [allow], optionally
+/// via [redirects]. [kept] is whether the error body survives. Each case runs
+/// on the response path and the DioException path unless [responsePathOnly].
+class _UrlCase {
+  const _UrlCase(
+    this.name,
+    this.url, {
+    required this.kept,
+    this.deny = const [],
+    this.allow,
+    this.redirects,
+    this.baseUrl = '',
+    this.query,
+    this.responsePathOnly = false,
+  });
+
+  final String name;
+  final String url;
+  final bool kept;
+  final List<String> deny;
+  final List<String>? allow;
+  final List<String>? redirects;
+  final String baseUrl;
+  final Map<String, dynamic>? query;
+  final bool responsePathOnly;
+}
+
+const _accountUrl = 'https://api.example.test/v1/accounts/42';
+
+// Each redirect case below resolves hops against the hop BEFORE it; it would
+// give the opposite answer if hops were resolved against the request URL.
+const _urlCases = <_UrlCase>[
+  _UrlCase('default keeps every body', _accountUrl, kept: true),
+  _UrlCase(
+    'deny drops a matching body',
+    _accountUrl,
+    deny: ['api.example.test/v1/accounts/*'],
+    kept: false,
+  ),
+  _UrlCase(
+    'deny leaves a non-matching URL alone',
+    _accountUrl,
+    deny: ['api.example.test/v1/billing/*'],
+    kept: true,
+  ),
+  _UrlCase(
+    'allow keeps a matching body',
+    _accountUrl,
+    allow: ['api.example.test/v1/*'],
+    kept: true,
+  ),
+  _UrlCase(
+    'allow list with no match drops the body',
+    _accountUrl,
+    allow: ['other.example.test/*'],
+    kept: false,
+  ),
+  _UrlCase(
+    'deny beats allow',
+    _accountUrl,
+    deny: ['*/v1/accounts/*'],
+    allow: ['api.example.test/*'],
+    kept: false,
+  ),
+  _UrlCase(
+    'patterns ignore case',
+    'https://API.Example.test/V1/Accounts/42',
+    deny: ['api.EXAMPLE.test/v1/ACCOUNTS/*'],
+    kept: false,
+  ),
+  // A deny pattern that only the query/fragment could satisfy does not drop
+  // the body.
+  _UrlCase(
+    'query and fragment are never matched',
+    'https://api.example.test/v1/health'
+        '?email=someone@example.com&next=/accounts#accounts',
+    deny: ['*/*someone*', '*/*accounts*', '*someone*'],
+    kept: true,
+  ),
+  _UrlCase(
+    'allow pattern cannot be satisfied by the query',
+    'https://api.example.test/v1/health?x=/accounts/42',
+    allow: ['*/*accounts*'],
+    kept: false,
+  ),
+  _UrlCase(
+    'undenied request redirected to a denied URL drops the body',
+    _accountUrl,
+    deny: ['evil.test'],
+    redirects: ['https://evil.test/landing?x=1'],
+    kept: false,
+  ),
+  _UrlCase(
+    'redirect to an unlisted URL keeps the body',
+    _accountUrl,
+    deny: ['evil.test'],
+    redirects: ['https://api.example.test/v1/next'],
+    kept: true,
+  ),
+  _UrlCase(
+    'allowed request redirected outside the allow list drops the body',
+    _accountUrl,
+    allow: ['api.example.test/*'],
+    redirects: ['https://other.test/x'],
+    kept: false,
+  ),
+  _UrlCase(
+    'allowed request redirected within the allow list keeps the body',
+    _accountUrl,
+    allow: ['api.example.test/*'],
+    redirects: ['https://api.example.test/v1/next'],
+    kept: true,
+  ),
+  _UrlCase(
+    'two-hop chain with a relative last Location uses the hop host',
+    'https://api.example.test/start',
+    deny: ['sso.example.test'],
+    redirects: ['https://sso.example.test/login', '/error'],
+    kept: false,
+  ),
+  _UrlCase(
+    'relative first hop resolves against the request URL',
+    'https://api.example.test/a/b',
+    deny: ['api.example.test/a/sub/*'],
+    redirects: ['sub/x', 'y'],
+    kept: false,
+  ),
+  _UrlCase(
+    'denied intermediate hop drops the body',
+    _accountUrl,
+    deny: ['evil.test'],
+    redirects: ['https://evil.test/hop', 'https://api.example.test/back'],
+    kept: false,
+  ),
+  _UrlCase(
+    'allow list with a hop outside it drops the body',
+    _accountUrl,
+    allow: ['api.example.test/*'],
+    redirects: ['https://other.test/hop', 'https://api.example.test/back'],
+    kept: false,
+  ),
+  // Right: sso.example.test/error (denied); against the request URL it would
+  // be api.example.test/error (not denied).
+  _UrlCase(
+    'deny on the second hop path resolved against hop one',
+    'https://api.example.test/start',
+    deny: ['sso.example.test/error'],
+    redirects: ['https://sso.example.test/login', '/error'],
+    kept: false,
+  ),
+  // Right: sso.example.test/error (not allowed); against the request URL it
+  // would be api.example.test/error (allowed by the first pattern).
+  _UrlCase(
+    'allow list rejects a second hop resolved against hop one',
+    'https://api.example.test/start',
+    allow: ['api.example.test/*', 'sso.example.test/login'],
+    redirects: ['https://sso.example.test/login', '/error'],
+    kept: false,
+  ),
+  // Right: /a/b/c + "d" = /a/b/d (allowed); against the host root it would be
+  // /d (outside the allow list).
+  _UrlCase(
+    'relative first hop is allowed only via the request directory',
+    'https://api.example.test/a/b/c',
+    allow: ['api.example.test/a/b/*'],
+    redirects: ['d'],
+    kept: true,
+  ),
+  // Right: /a/x/one then /a/x/two (denied); against the request URL the
+  // second hop would be /a/two (not denied).
+  _UrlCase(
+    'second relative hop is denied only via the previous hop',
+    'https://api.example.test/a/b',
+    deny: ['api.example.test/a/x/two'],
+    redirects: ['x/one', 'two'],
+    kept: false,
+  ),
+  // Right: /a/x/two (allowed); against the request URL it would be /a/two
+  // (outside the allow list).
+  _UrlCase(
+    'second relative hop is allowed only via the previous hop',
+    'https://api.example.test/a/b',
+    allow: ['api.example.test/a/b', 'api.example.test/a/x/*'],
+    redirects: ['x/one', 'two'],
+    kept: true,
+  ),
+  _UrlCase(
+    'port and user-info are not matched',
+    'https://user:secret@api.example.test:8443/v1/health',
+    deny: ['*secret*', '*8443*'],
+    kept: true,
+  ),
+  _UrlCase(
+    'port and user-info do not block a path match',
+    'https://user:secret@api.example.test:8443/v1/accounts/42',
+    deny: ['api.example.test/v1/accounts/*'],
+    kept: false,
+  ),
+  _UrlCase(
+    'queryParameters never influence the decision',
+    '/v1/health',
+    baseUrl: 'https://api.example.test',
+    deny: ['*/*accounts*', '*/*someone*'],
+    query: {
+      'next': '/v1/accounts/42',
+      'email': 'someone@example.com',
+      'ids': [1, 2, 3],
+    },
+    kept: true,
+    responsePathOnly: true,
+  ),
+  _UrlCase(
+    'a path match still applies when queryParameters are set',
+    '/v1/accounts/42',
+    baseUrl: 'https://api.example.test',
+    deny: ['api.example.test/v1/accounts/*'],
+    query: {'email': 'someone@example.com'},
+    kept: false,
+    responsePathOnly: true,
+  ),
+  _UrlCase(
+    'the baseUrl path is part of the matched path',
+    '/v1/accounts/42',
+    baseUrl: 'https://api.example.test/api/',
+    deny: ['api.example.test/api/v1/accounts/*'],
+    kept: false,
+    responsePathOnly: true,
+  ),
+  _UrlCase(
+    'a root URL matches host/*',
+    'https://api.example.test',
+    deny: ['api.example.test/*'],
+    kept: false,
+    responsePathOnly: true,
+  ),
+  _UrlCase(
+    'a bare host pattern covers every path on that host',
+    _accountUrl,
+    deny: ['api.example.test'],
+    kept: false,
+    responsePathOnly: true,
+  ),
+  _UrlCase(
+    'an unparseable URL under a restricted policy drops the body',
+    'http://[bad/x',
+    deny: ['other.test/*'],
+    kept: false,
+    responsePathOnly: true,
+  ),
+];

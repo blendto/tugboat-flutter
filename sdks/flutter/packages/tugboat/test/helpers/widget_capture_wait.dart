@@ -31,3 +31,31 @@ Future<void> waitForTugboatCaptureWork(WidgetTester tester) async {
     'scheduledRoutes=${controller?.debugScheduledCaptureRoutes}',
   );
 }
+
+/// Gives real asynchronous capture work (encoding, isolate round trips) up to
+/// [maxWait] of wall-clock time to finish, returning as soon as no capture is
+/// in flight or pending on two consecutive checks.
+///
+/// Unlike [waitForTugboatCaptureWork] this never advances the fake clock, so
+/// timers the test has not pumped past stay unfired, and it never fails: at
+/// worst it waits as long as the fixed sleep it replaces.
+Future<void> settleTugboatCaptureWork(
+  WidgetTester tester, {
+  Duration maxWait = const Duration(milliseconds: 400),
+}) async {
+  const step = Duration(milliseconds: 10);
+  final clock = Stopwatch()..start();
+  var consecutiveIdleChecks = 0;
+  await tester.pump();
+  while (clock.elapsed < maxWait) {
+    await tester.runAsync(() => Future<void>.delayed(step));
+    await tester.pump();
+    final controller = TugboatReplay.controller;
+    final idle =
+        controller == null ||
+        (!controller.debugCaptureInFlight &&
+            !controller.debugRouteCapturePending);
+    consecutiveIdleChecks = idle ? consecutiveIdleChecks + 1 : 0;
+    if (consecutiveIdleChecks >= 2) return;
+  }
+}

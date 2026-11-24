@@ -90,10 +90,10 @@ Future<TugboatEvent> _realTap(
   await waitForTugboatCaptureWork(tester);
   await tester.tap(find.text('Go'));
   await tester.pump();
-  for (var attempt = 0; attempt < 20 && _taps().isEmpty; attempt++) {
+  for (var attempt = 0; attempt < 200 && _taps().isEmpty; attempt++) {
     await tester.pump();
     await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
     await tester.pump();
   }

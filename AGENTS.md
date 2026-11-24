@@ -53,12 +53,11 @@ Unfamiliar terms are defined in `docs/glossary/INDEX.md`.
 - `dart run melos run format`, `dart run melos run analyze`, and
   `dart run melos run test` — full workspace. Package-scoped:
   `dart run melos run test:sdk` / `dart run melos run test:dio` /
-  `dart run melos run test:build`.
-- Lint gate: `dart run melos run complexity` — `dallow` rejects cyclomatic complexity
-  above 10. Do not weaken it; refactor or suppress narrowly. dallow resolves
-  in `tool/complexity/` (own lockfile, outside the workspace) because it pins
-  analyzer ^7, which would hold the workspace's `build_runner` on an analyzer
-  that cannot parse current Flutter SDK sources.
+  `dart run melos run test:build`. `format` skips Pigeon output (`*.g.dart`);
+  `format:check` is the CI form. Test files run in parallel; the wall-clock
+  tap benchmark (tag `benchmark`) runs alone afterwards and CI skips it.
+- CI (`.github/workflows/flutter-adapter.yml`) runs format, analyze and all
+  three packages' tests on every pull request.
 - C++ core tests: `bash tool/ci/run-image-core-tests.sh`.
 - Android AAR build: `bash tool/ci/build-android-runtime.sh` (NDK
   28.2.13676358, CMake 3.22.1).

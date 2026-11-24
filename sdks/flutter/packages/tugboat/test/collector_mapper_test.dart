@@ -104,7 +104,7 @@ void main() {
           canonicalPath: 'Scaffold#0/FilledButton#0',
           widgetType: 'FilledButton',
           role: 'button',
-          fingerprintParts: const {'routeKey': '/home'},
+          fingerprintParts: {'routeKey': '/home'},
         ),
         data: const {
           'interactionSchema': tugboatInteractionSchemaVersion,
