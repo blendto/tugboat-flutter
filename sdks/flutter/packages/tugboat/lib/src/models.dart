@@ -214,6 +214,7 @@ bool tugboatEventIsEnrichmentCandidate(TugboatEvent event) {
   }
 }
 
+/// A rectangle serialized as an origin, width, and height in session data.
 class TugboatRect {
   const TugboatRect(this.x, this.y, this.width, this.height);
 
@@ -249,6 +250,10 @@ enum TugboatFrameTrigger {
 
 enum TugboatInteractionResult { changed, noVisibleChange, navigated, unknown }
 
+/// Metadata for one visual checkpoint in a [TugboatSession].
+///
+/// Use [id] to match an event’s frame reference or look up the encoded image
+/// in [TugboatSession.frameBytes].
 class TugboatFrame {
   const TugboatFrame({
     required this.id,
@@ -305,6 +310,7 @@ class TugboatFrame {
   };
 }
 
+/// A timestamped scroll offset with optional frame and scrollable references.
 class TugboatScrollSample {
   const TugboatScrollSample({
     required this.atMs,
@@ -336,6 +342,10 @@ class TugboatScrollSample {
   };
 }
 
+/// A timestamped session record classified by [type] and [stream].
+///
+/// [beforeFrame] and [afterFrame] refer to [TugboatFrame.id] when visual
+/// evidence is available. A later frame alone does not establish causality.
 class TugboatEvent {
   const TugboatEvent({
     required this.id,
@@ -497,6 +507,10 @@ TugboatEvent _copyEventContext(
   actionId: actionId ?? source.actionId,
 );
 
+/// The events, visual checkpoints, and scroll samples for one capture session.
+///
+/// Use [id] to correlate capture evidence. [collectorSessionId] becomes
+/// available after the collector accepts the session start.
 class TugboatSession {
   TugboatSession({
     required this.id,

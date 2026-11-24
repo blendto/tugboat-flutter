@@ -90,6 +90,7 @@ class TugboatCaptureDiagnosticHealth {
   };
 }
 
+/// Counts of pending, accepted, and dropped capture deliveries.
 class TugboatSinkHealth {
   const TugboatSinkHealth({
     this.pending = 0,
@@ -108,6 +109,7 @@ class TugboatSinkHealth {
   };
 }
 
+/// Screenshot timing and drop counters for diagnosing degraded capture.
 class TugboatScreenshotBudgetHealth {
   const TugboatScreenshotBudgetHealth({
     this.degraded = false,
@@ -144,6 +146,7 @@ class TugboatScreenshotBudgetHealth {
   };
 }
 
+/// A timestamped SDK failure code with an optional component name.
 class TugboatSanitizedFailure {
   const TugboatSanitizedFailure({
     required this.at,

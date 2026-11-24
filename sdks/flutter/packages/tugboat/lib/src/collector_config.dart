@@ -34,6 +34,7 @@ class TugboatCollectorAppInfo {
   };
 }
 
+/// Screen dimensions included in collector device metadata.
 class TugboatCollectorScreenSize {
   const TugboatCollectorScreenSize({required this.width, required this.height});
 
@@ -112,6 +113,7 @@ class TugboatCollectorDeviceInfo {
   };
 }
 
+/// An IP address and optional location and network details for the collector.
 class TugboatCollectorIpInfo {
   const TugboatCollectorIpInfo({
     required this.ip,
@@ -142,6 +144,7 @@ class TugboatCollectorIpInfo {
   };
 }
 
+/// Language, country, and time zone metadata for collector delivery.
 class TugboatCollectorLocaleInfo {
   const TugboatCollectorLocaleInfo({
     this.language,
