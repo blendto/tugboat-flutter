@@ -44,7 +44,7 @@ void _useSeededCaptures() {
 }
 
 Future<void> _waitForInteraction(WidgetTester tester) async {
-  for (var attempt = 0; attempt < 12; attempt++) {
+  for (var attempt = 0; attempt < 120; attempt++) {
     if (TugboatReplay.controller?.session?.events.any(
           (event) => event.type == 'interaction',
         ) ??
@@ -53,7 +53,7 @@ Future<void> _waitForInteraction(WidgetTester tester) async {
     }
     await tester.pump();
     await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
     await tester.pump();
   }
@@ -400,10 +400,7 @@ void main() {
     await _waitForCaptures(tester);
     await tester.pump(const Duration(milliseconds: 400));
     await _waitForCaptures(tester);
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(seconds: 1));
-    });
-    await tester.pump();
+    await settleTugboatCaptureWork(tester, maxWait: const Duration(seconds: 1));
 
     final session = TugboatReplay.controller!.session!;
     final routeChange = session.events

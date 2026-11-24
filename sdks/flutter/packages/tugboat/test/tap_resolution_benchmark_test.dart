@@ -5,12 +5,17 @@
 // before every tap so the resolver's per-frame token map cache is cold and the
 // timed pair has to walk the tree, as a tap on a fresh frame does.
 //
-// This is a local regression guard that runs with the package test suite
-// (`melos run test`, `flutter test -j 1`). CI does not gate on it. The budgets
+// This is a local regression guard, tagged `benchmark`. `melos run test` runs
+// it on its own after the rest of the suite, so nothing competes with it for
+// CPU; a bare `flutter test` runs it alongside everything else, where a busy
+// machine can trip a budget. CI does not gate on it. The budgets
 // are a regression guard, not a performance promise: each one sits well above
 // what this test measured on a shared Linux host, so noise does not trip it
 // but an order-of-magnitude regression does. They say nothing about what a
 // device will do.
+@Tags(['benchmark'])
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';

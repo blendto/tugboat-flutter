@@ -53,20 +53,24 @@ Unfamiliar terms are defined in `docs/glossary/INDEX.md`.
 - `dart run melos run format`, `dart run melos run analyze`, and
   `dart run melos run test` — full workspace. Package-scoped:
   `dart run melos run test:sdk` / `dart run melos run test:dio` /
-  `dart run melos run test:build`.
-- Lint gate: `dart run melos run complexity` — `dallow` rejects cyclomatic complexity
-  above 10. Do not weaken it; refactor or suppress narrowly. dallow resolves
-  in `tool/complexity/` (own lockfile, outside the workspace) because it pins
-  analyzer ^7, which would hold the workspace's `build_runner` on an analyzer
-  that cannot parse current Flutter SDK sources.
+  `dart run melos run test:build`. `format` skips Pigeon output (`*.g.dart`);
+  `format:check` is the CI form. Test files run in parallel; the wall-clock
+  tap benchmark (tag `benchmark`) runs alone afterwards and CI skips it.
+- CI (`.github/workflows/flutter-adapter.yml`) runs format, analyze and all
+  three packages' tests on every pull request.
 - C++ core tests: `bash tool/ci/run-image-core-tests.sh`.
 - Android AAR build: `bash tool/ci/build-android-runtime.sh` (NDK
   28.2.13676358, CMake 3.22.1).
 - Version/pin discipline: `tool/ci/check-version-policy.sh`,
   `check-flutter-apple-pin-published.sh`, `verify-android-runtime-api.sh`,
   `verify-swift-api.sh`, `verify-native-capture-pigeon.sh` — run the relevant
-  ones when touching native code or versions. Packages version and changelog
-  independently (ADR 0008).
+  ones when touching native code or versions. Native runtimes version independently (ADR 0008).
+- Before opening or updating a PR to main that changes Flutter package source,
+  a pub.dev README, or Dartdoc, bump `tugboat` and `tugboat_dio` together.
+  Use a patch for documentation. Update both changelogs, the Dio and example
+  dependency floors, `lib/src/sdk_version.dart` in tugboat, and the compatibility
+  table. Check open release PRs for collisions and run
+  `BASE_SHA=origin/main bash tool/ci/check-version-policy.sh` against fresh main.
 - Requires Flutter 3.35+, Dart 3.9.2+.
 - Cross-repo: host-app integration and end-to-end validation target is
   `mobile_app/` (see workspace `AGENTS.md`). Capture-contract changes must be

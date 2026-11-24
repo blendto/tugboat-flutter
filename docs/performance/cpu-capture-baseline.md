@@ -104,7 +104,3 @@ These are not native-capture comparison gates.
 - **Example APK:** wrapper is Gradle 8.14 / AGP 8.11.1 / Kotlin 2.2.20 to meet
   Flutter 3.47's floor. Confirm `flutter build apk --release` on a machine
   with that Flutter SDK. This VM may not have Flutter installed.
-- **Complexity gate:** `dallow 0.2.1` crashes on Dart 3.13
-  (`Missing implementation of visitDotShorthandPropertyAccess`). `dart analyze`
-  is clean; the complexity script cannot run on this toolchain until dallow
-  (or its analyzer) is upgraded.

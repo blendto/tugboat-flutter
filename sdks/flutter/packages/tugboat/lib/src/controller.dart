@@ -1047,6 +1047,7 @@ class _PendingInputObservation {
   final TugboatEvent event;
 }
 
+/// Manages capture and the current session for a mounted Tugboat wrapper.
 class TugboatReplayController extends ChangeNotifier {
   // A route capture must never hold replay settlement indefinitely when the
   // platform readback callback is lost. This is deliberately private: #9 owns

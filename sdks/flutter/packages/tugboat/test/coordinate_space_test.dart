@@ -117,6 +117,7 @@ void main() {
   });
 
   test('golden fixture freezes the consumer contract', () {
+    expect(tugboatCaptureCoordinateVersion, 1);
     final golden = buildCaptureCoordinate(
       globalX: 45,
       globalY: 95,

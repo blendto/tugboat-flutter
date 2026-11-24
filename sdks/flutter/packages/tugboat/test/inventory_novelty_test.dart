@@ -296,11 +296,6 @@ void main() {
       await _pumpFor(tester, const Duration(seconds: 30));
       await waitForTugboatCaptureWork(tester);
       final all = _inventories();
-      // ignore: avoid_print
-      print(
-        'CAROUSEL $itemCount ${all.length} '
-        '${all.map((e) => e['trigger']).toList()}',
-      );
       // 30 s at one page every 2 s: 15 page moves. Measured: 4 pages send 4
       // (the first, then each new page once), 1000 pages send 15.
       expect(all.length, itemCount == 4 ? 4 : 15);

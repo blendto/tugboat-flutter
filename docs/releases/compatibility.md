@@ -2,6 +2,7 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
+| Flutter `tugboat` | 0.12.2 | Android `capture-runtime` `0.1.0`, Apple `TugboatCaptureRuntime` `0.1.1`, and `tugboat_dio` 0.12.2. Documentation release. |
 | Flutter `tugboat` | 0.12.0 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; exploration scene inventories no longer carry `loading` or per-element `placeholder`, and the `TugboatLoading` marker is removed (breaking for hosts that used it); the settled re-sample no longer treats placeholder to loaded as new; no fingerprint, route key or inventory hash change; `tugboat_dio` 0.12.0 is a compatibility release. |
 | Flutter `tugboat` | 0.11.6 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; opt-in `capturePressDuration` (default off) adds `payload.pressDurationMs` to tap interactions; the gesture stays `tap`; `tugboat_dio` 0.11.6 is a compatibility release. |
 | Flutter `tugboat` | 0.11.5 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; identity contract change: `session_start` sends `appInfo.installationId`, an SDK-minted UUID persisted on first launch (seeded from `identifierForVendor` on iOS) unless the host passes its own; `fromPlatform` and `loadAppInfo` take an optional `installationId`; new dependency `path_provider`; `tugboat_dio` 0.11.5 is a compatibility release. Minimum SDKs unchanged (Flutter 3.35.0, Dart 3.9.2). |
