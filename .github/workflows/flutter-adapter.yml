@@ -26,6 +26,8 @@ jobs:
       - name: Test collector frame delivery
         working-directory: sdks/flutter/packages/tugboat
         run: flutter test test/collector_http_sink_test.dart
+      - name: Test HTTP network evidence
+        run: dart run melos run test:http
 
   pub-dry-run:
     name: pub publish dry-run
