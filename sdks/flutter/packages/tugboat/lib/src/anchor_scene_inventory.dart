@@ -70,9 +70,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     final seenContentFingerprints = <String>{};
     final hitCache = <String, TugboatTargetAnchor?>{};
     final evidence = withBoundsEvidence ? _BoundsEvidence(rootRender) : null;
-    final loading = withBoundsEvidence
-        ? _LoadingEvidence.capture(rootKey.currentContext)
-        : null;
     final legacy = withBoundsEvidence
         ? _legacyAliasContextFor(tokenMap, rootRender, route)
         : null;
@@ -85,7 +82,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         rootRender: rootRender,
         viewport: viewport,
         evidence: evidence,
-        loading: loading,
         legacy: legacy,
         legacyAliases: legacyAliases,
         route: route,
@@ -119,7 +115,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       surface: surface,
       viewport: evidence == null ? null : _viewportFor(rootRender),
       scroll: evidence == null ? null : _primaryScrollFor(tokenMap, rootRender),
-      loading: _loadingSummary(loading, elements),
     );
   }
 
@@ -129,7 +124,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required RenderBox rootRender,
     required Size viewport,
     required _BoundsEvidence? evidence,
-    required _LoadingEvidence? loading,
     required _LegacyAliasContext? legacy,
     required Map<String, Set<String>> legacyAliases,
     required String? route,
@@ -160,8 +154,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     if (rect == null) return;
     final bounds = TugboatNormalizedBounds.fromRect(rect, viewport);
     final visibleFraction = evidence?.visibleFractionFor(element, rect);
-    final flags = loading?.flagsFor(element);
-    final placeholder = flags?.placeholder ?? false;
     if (actionable) {
       final result = _interactiveInventoryEntry(
         element: element,
@@ -179,11 +171,7 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       if (result == null) return;
       _accumulateInteractiveEntry(
         interactiveByFingerprint,
-        result.entry.copyWith(
-          placeholder: placeholder,
-          busy: _isBusyEntry(flags, result.entry),
-          tag: _explicitTagFor(element),
-        ),
+        result.entry.copyWith(tag: _explicitTagFor(element)),
         result.structuralFingerprint,
       );
       _recordLegacyAliases(
@@ -207,7 +195,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         bounds,
         routeKey,
         visibleFraction,
-        placeholder: placeholder,
       ),
       _legacyContentAliases(legacy, element),
     );
@@ -266,13 +253,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       ? entry
       : entry.copyWith(aliases: [...entry.aliases, ...extra]..sort());
 
-  /// An enabled control beneath a pointer blocker. A disabled control (a
-  /// disabled `TextField` sits under its own `IgnorePointer`) is not busy.
-  bool _isBusyEntry(
-    ({bool placeholder, bool busy})? flags,
-    TugboatSceneInventoryEntry entry,
-  ) => (flags?.busy ?? false) && entry.enabled != false;
-
   bool _isInventoryCandidate(
     Widget widget,
     bool actionable,
@@ -294,9 +274,8 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     String structuralPath,
     TugboatNormalizedBounds bounds,
     String routeKey,
-    double? visibleFraction, {
-    required bool placeholder,
-  }) {
+    double? visibleFraction,
+  ) {
     final fingerprint = _fingerprintForParts({
       'routeKey': routeKey,
       'path': structuralPath,
@@ -313,7 +292,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
         boundsNorm: bounds,
         tier: 'content',
         visibleFraction: visibleFraction,
-        placeholder: placeholder,
       ),
     );
     return fingerprint;
@@ -325,7 +303,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required TugboatSurface surface,
     TugboatInventoryViewport? viewport,
     TugboatInventoryScroll? scroll,
-    TugboatInventoryLoading? loading,
   }) {
     final fingerprints = elements.map((entry) => entry.fingerprint).toList()
       ..sort();
@@ -338,7 +315,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       surface: surface,
       viewport: viewport,
       scroll: scroll,
-      loading: loading,
     );
   }
 
@@ -367,8 +343,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     );
     interactiveByFingerprint[entry.fingerprint] = existing.copyWith(
       aliases: aliases,
-      placeholder: existing.placeholder || entry.placeholder,
-      busy: existing.busy || entry.busy,
     );
   }
 
@@ -722,26 +696,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
       routeKey: routeKey,
       surface: surface,
       viewport: _injectedViewport(inventory, rootRender, withBoundsEvidence),
-      loading: _injectedLoading(inventory, withBoundsEvidence),
-    );
-  }
-
-  /// The loading summary of an inventory with the tap target injected. The
-  /// injected entry is never a placeholder and adds no busy control. When
-  /// there was no inventory, only the progress-indicator count is walked.
-  TugboatInventoryLoading? _injectedLoading(
-    TugboatSceneInventory? inventory,
-    bool withBoundsEvidence,
-  ) {
-    if (inventory != null) return inventory.loading;
-    if (!withBoundsEvidence) return null;
-    final progress =
-        _LoadingEvidence.capture(rootKey.currentContext)?.progressIndicators ??
-        0;
-    return TugboatInventoryLoading(
-      progressIndicators: progress,
-      placeholders: 0,
-      busyControls: 0,
     );
   }
 
@@ -751,7 +705,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     required String routeKey,
     required TugboatSurface surface,
     required TugboatInventoryViewport? viewport,
-    required TugboatInventoryLoading? loading,
   }) => _inventoryFromElements(
     routeKey: inventory?.routeKey ?? routeKey,
     elements: [
@@ -761,7 +714,6 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     surface: inventory?.surface ?? surface,
     viewport: viewport,
     scroll: inventory?.scroll,
-    loading: loading,
   );
 
   /// The viewport an inventory with the injected tap target carries: its own,

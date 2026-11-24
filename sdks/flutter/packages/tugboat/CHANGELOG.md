@@ -1,3 +1,35 @@
+## 0.12.0
+
+### Removed
+
+- Loading-state detection on exploration scene inventories. It guessed from
+  widget types and names, which is not reliable enough to build on: any
+  widget whose name contains `Placeholder` (a `PlaceholderSettingsPage`)
+  marked its whole subtree as loading, a custom loader (Lottie, SpinKit, an
+  app's own skeleton) was invisible unless the host wrapped it, and a spinner
+  that disappeared did not by itself trigger a new inventory. Gone with it:
+  - the `loading` object on scene inventories (`progressIndicators`,
+    `placeholders`, `busyControls`);
+  - the per-element `placeholder: true` flag;
+  - the exported `TugboatLoading` marker widget. **Breaking:** remove any
+    `TugboatLoading(...)` wrapper and keep its `child`. The marker was
+    transparent, so removing it changes no fingerprint, route key or
+    inventory hash.
+
+  `loading` was already optional (omitted on production captures and when the
+  walk failed), so a consumer that reads it must already handle its absence.
+  No fingerprint, route key, inventory hash or `fingerprintSchemaVersion`
+  changes: none of these fields were ever hash input.
+
+### Changed
+
+- The settled re-sample no longer treats a control flipping between loaded
+  and placeholder as new. A re-sample is still emitted when it adds a control
+  or content path not yet sent in the route visit, or flips a sent control
+  between enabled and disabled; the quiet-screen timing is unchanged. A
+  skeleton replaced by content that adds new paths is still caught; one that
+  only restyles the same controls in place is not.
+
 ## 0.11.6
 
 ### Added

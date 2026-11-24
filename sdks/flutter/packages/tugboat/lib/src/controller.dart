@@ -1185,7 +1185,7 @@ class TugboatReplayController extends ChangeNotifier {
   InventoryVisit? _inventoryVisit;
   String? _lastSentInventorySignature;
   // Exact content of every inventory sent this session (de-dup key plus each
-  // entry's enabled and placeholder state). A re-sample never repeats one.
+  // entry's enabled state). A re-sample never repeats one.
   final Set<String> _sentInventoryContents = <String>{};
   int _settledSampleCount = 0;
   SettledInventoryWatch? _settledWatch;
@@ -3362,23 +3362,8 @@ class TugboatReplayController extends ChangeNotifier {
       surface: inventory.surface,
       viewport: inventory.viewport,
       scroll: inventory.scroll,
-      loading: _recountLoading(inventory.loading, elements),
     );
   }
-
-  /// [loading] for the kept [elements]: the placeholder and busy counts
-  /// follow the elements that remain; the progress-indicator count is the
-  /// tree's and is unchanged.
-  TugboatInventoryLoading? _recountLoading(
-    TugboatInventoryLoading? loading,
-    List<TugboatSceneInventoryEntry> elements,
-  ) => loading == null
-      ? null
-      : TugboatInventoryLoading(
-          progressIndicators: loading.progressIndicators,
-          placeholders: elements.where((entry) => entry.placeholder).length,
-          busyControls: elements.where((entry) => entry.busy).length,
-        );
 
   bool _isTapInventoryEntry(TugboatSceneInventoryEntry entry) =>
       entry.tier == 'interactive' &&
@@ -6276,8 +6261,8 @@ class TugboatReplayController extends ChangeNotifier {
       return false;
     }
     visit.noteSent(inventory);
-    // A state flip (a control enabled, a skeleton loaded in place) keeps the
-    // fingerprints and so the de-dup key; only an exact repeat is held back.
+    // A state flip (a control enabled or disabled) keeps the fingerprints and
+    // so the de-dup key; only an exact repeat is held back.
     if (_sentInventoryContents.contains(_inventoryContentKey(inventory))) {
       return false;
     }
@@ -6301,21 +6286,16 @@ class TugboatReplayController extends ChangeNotifier {
     );
   }
 
-  /// inventoryHash, element count, the loading counts, and a coarse bounds
-  /// signature (each box quantised to a 2% grid, with its placeholder flag),
-  /// under the route key. Text-free and never serialized.
+  /// inventoryHash, element count and a coarse bounds signature (each box
+  /// quantised to a 2% grid), under the route key. Text-free and never
+  /// serialized.
   String _inventorySignatureOf(TugboatSceneInventory inventory) {
     final boxes = [
       for (final entry in inventory.elements)
-        '${_quantisedBoxKey(entry.boundsNorm)}${entry.placeholder ? 'p' : ''}',
+        _quantisedBoxKey(entry.boundsNorm),
     ]..sort();
-    final loading = inventory.loading;
-    final counts = loading == null
-        ? ''
-        : '${loading.progressIndicators},${loading.placeholders},'
-              '${loading.busyControls}';
     return '${inventory.routeKey}|${inventory.inventoryHash}|'
-        '${inventory.elements.length}|$counts|'
+        '${inventory.elements.length}|'
         '${tugboatLabelHash(boxes.join(';'))}';
   }
 
@@ -6338,7 +6318,7 @@ class TugboatReplayController extends ChangeNotifier {
   String _inventoryContentKey(TugboatSceneInventory inventory) {
     final states = [
       for (final entry in inventory.elements)
-        '${entry.fingerprint}:${entry.enabled}:${entry.placeholder}',
+        '${entry.fingerprint}:${entry.enabled}',
     ]..sort();
     return '${_inventoryDedupeKey(inventory, null)}|'
         '${tugboatLabelHash(states.join(';'))}';

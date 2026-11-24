@@ -44,7 +44,7 @@ class _Home extends StatelessWidget {
   );
 }
 
-/// A page with one control, as in the loading-signal test.
+/// A page with one control.
 class _Single extends StatelessWidget {
   const _Single();
   @override
@@ -94,7 +94,6 @@ void main() {
         await waitForTugboatCaptureWork(tester);
         final route = _inventories().lastWhere((e) => e['trigger'] == 'route');
         expect(route['routeKey'], isNot(homeKey));
-        expect((route['loading']! as Map)['progressIndicators'], 0);
 
         await tester.tap(find.text('Buy'));
         await tester.pump(const Duration(milliseconds: 300));

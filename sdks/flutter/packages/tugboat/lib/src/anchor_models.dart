@@ -153,9 +153,7 @@ class TugboatSceneInventoryEntry {
     required this.tier,
     this.aliases = const [],
     this.visibleFraction,
-    this.placeholder = false,
     this.tag,
-    this.busy = false,
   });
 
   final String fingerprint;
@@ -175,11 +173,6 @@ class TugboatSceneInventoryEntry {
   /// element is fully visible or the share could not be told. Never hash input.
   final double? visibleFraction;
 
-  /// True when the element sits beneath a recognised placeholder (skeleton,
-  /// shimmer, [TugboatLoading]). Omitted otherwise. Text-free evidence, never
-  /// hash input.
-  final bool placeholder;
-
   /// The id of the nearest explicit [TugboatTag] above this element, a name
   /// the host chose. Omitted when there is none. Never hash input.
   final String? tag;
@@ -189,12 +182,6 @@ class TugboatSceneInventoryEntry {
   /// different item at the same index in another tab or state shares it. Never
   /// hash input.
   bool get positional => canonicalPath.contains('[item:');
-
-  /// True when the enabled control sits beneath an absorbing or ignoring
-  /// pointer blocker. Never serialized on the entry: it is only counted in
-  /// `loading.busyControls`, so the count can follow the entries an inventory
-  /// keeps.
-  final bool busy;
 
   Map<String, Object?> toJson() => {
     'fingerprint': fingerprint,
@@ -207,17 +194,11 @@ class TugboatSceneInventoryEntry {
     'tier': tier,
     if (aliases.isNotEmpty) 'aliases': aliases,
     if (visibleFraction != null) 'visibleFraction': visibleFraction,
-    if (placeholder) 'placeholder': true,
     if (tag != null) 'tag': tag,
     if (positional) 'positional': true,
   };
 
-  TugboatSceneInventoryEntry copyWith({
-    List<String>? aliases,
-    bool? placeholder,
-    String? tag,
-    bool? busy,
-  }) {
+  TugboatSceneInventoryEntry copyWith({List<String>? aliases, String? tag}) {
     return TugboatSceneInventoryEntry(
       fingerprint: fingerprint,
       canonicalPath: canonicalPath,
@@ -229,37 +210,9 @@ class TugboatSceneInventoryEntry {
       tier: tier,
       aliases: aliases ?? this.aliases,
       visibleFraction: visibleFraction,
-      placeholder: placeholder ?? this.placeholder,
       tag: tag ?? this.tag,
-      busy: busy ?? this.busy,
     );
   }
-}
-
-/// Loading summary of one exploration inventory: counts only, text-free
-/// evidence, never hash input.
-class TugboatInventoryLoading {
-  const TugboatInventoryLoading({
-    required this.progressIndicators,
-    required this.placeholders,
-    required this.busyControls,
-  });
-
-  /// Progress indicator widgets in the capture boundary's tree.
-  final int progressIndicators;
-
-  /// Inventory elements beneath a placeholder ancestor.
-  final int placeholders;
-
-  /// Interactive inventory elements beneath an absorbing or ignoring pointer
-  /// blocker.
-  final int busyControls;
-
-  Map<String, Object?> toJson() => {
-    'progressIndicators': progressIndicators,
-    'placeholders': placeholders,
-    'busyControls': busyControls,
-  };
 }
 
 /// Closed set of `surface.kind` values on scene inventories and exploration
@@ -396,7 +349,6 @@ class TugboatSceneInventory {
     this.surface = const TugboatSurface(kind: TugboatSurfaceKind.page),
     this.viewport,
     this.scroll,
-    this.loading,
     this.trigger,
   });
 
@@ -423,10 +375,6 @@ class TugboatSceneInventory {
   /// [viewport].
   final TugboatInventoryScroll? scroll;
 
-  /// Loading summary. Null when the inventory was built without exploration
-  /// evidence. Same hash rules as [viewport].
-  final TugboatInventoryLoading? loading;
-
   /// Why the inventory was taken: one of `initial`, `resume`, `route`, `tap`,
   /// `scroll`, `gesture` (a swipe, pan or zoom), `settled`, `manual`. Null
   /// when not stamped. Not part of [inventoryHash] or the de-duplication key.
@@ -440,7 +388,6 @@ class TugboatSceneInventory {
     surface: surface,
     viewport: viewport,
     scroll: scroll,
-    loading: loading,
     trigger: trigger,
   );
 
@@ -451,7 +398,6 @@ class TugboatSceneInventory {
     if (trigger != null) 'trigger': trigger,
     if (viewport != null) 'viewport': viewport!.toJson(),
     if (scroll != null) 'scroll': scroll!.toJson(),
-    if (loading != null) 'loading': loading!.toJson(),
     'elements': elements.map((entry) => entry.toJson()).toList(),
   };
 }

@@ -1970,11 +1970,7 @@ class AnchorResolver {
 
   String? _normalizedWidgetTypeName(Widget widget, {bool allowChrome = false}) {
     if (!allowChrome && tugboatIsCaptureChrome(widget)) return null;
-    if (widget is TugboatInternal ||
-        widget is TugboatTag ||
-        widget is TugboatLoading) {
-      return null;
-    }
+    if (widget is TugboatInternal || widget is TugboatTag) return null;
     var type = _widgetName(widget);
     // Collapse generic arguments so `BlocProvider<AuthBloc>` and
     // `BlocBuilder<BillingBloc, BillingState>` match their base denylist name.

@@ -35,7 +35,7 @@ _Paging _nextPaging(_Paging paging, String segment) {
 }
 
 /// What one route visit (route epoch) has sent: each entry's novelty path
-/// with the states it was sent in (enabled, placeholder). Exploration only.
+/// with the enabled states it was sent in. Exploration only.
 class InventoryVisit {
   InventoryVisit(this.routeEpoch);
 
@@ -63,7 +63,7 @@ class InventoryVisit {
 
   /// Whether [inventory] adds a control or content path not sent in this
   /// visit, or lists a sent path in a state it was not sent in: enabled or
-  /// disabled, loaded or placeholder.
+  /// disabled.
   bool isNovel(TugboatSceneInventory inventory) {
     for (final entry in inventory.elements) {
       final states = _sent[inventoryNoveltyPath(entry.canonicalPath)];
@@ -72,6 +72,5 @@ class InventoryVisit {
     return false;
   }
 
-  static String _state(TugboatSceneInventoryEntry entry) =>
-      '${entry.enabled}|${entry.placeholder}';
+  static String _state(TugboatSceneInventoryEntry entry) => '${entry.enabled}';
 }

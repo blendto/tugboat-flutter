@@ -1,3 +1,11 @@
+## 0.12.0
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.0 (loading-state detection and
+  the `TugboatLoading` marker removed). Requires `tugboat` `^0.12.0`. The Dio
+  adapter has no runtime behavior change.
+
 ## 0.11.6
 
 ### Changed

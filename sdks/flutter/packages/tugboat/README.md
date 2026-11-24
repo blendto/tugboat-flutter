@@ -17,7 +17,7 @@ Older migration and collector-compatibility notes are in
 
 ```yaml
 dependencies:
-  tugboat: ^0.11.1
+  tugboat: ^0.12.0
 ```
 
 Then import the public barrel:
@@ -33,8 +33,8 @@ Install from pub.dev; a GitHub checkout is not required.
 
 ```yaml
 dependencies:
-  tugboat: ^0.11.1
-  tugboat_dio: ^0.11.1
+  tugboat: ^0.12.0
+  tugboat_dio: ^0.12.0
 ```
 
 See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.
