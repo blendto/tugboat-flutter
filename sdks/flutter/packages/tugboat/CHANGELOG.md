@@ -12,6 +12,50 @@
   validates `pressDurationMs` as a tap fact is deployed. With the flag off,
   events are unchanged.
 
+## 0.11.5
+
+### Changed
+
+- Identity contract change: `session_start` now sends a real installation id
+  as `appInfo.installationId` (BLE-566). Before, `fromPlatform` filled that
+  field from `device_info_plus`, which on Android is `Build.ID`, the OS build
+  label shared by every device on that build, and on iOS is
+  `identifierForVendor`; the collector mapper then dropped the field, so no
+  session ever carried it. The SDK now mints a random UUID on first launch and
+  keeps it in its own file (`tugboat/installation_id` in the app support
+  directory, not the host's shared preferences), so it lasts across launches
+  and updates and is new after a reinstall or a data clear. On iOS the first
+  value is `identifierForVendor` instead of a random UUID, so existing iOS
+  installs keep the value they already reported as `device.id`. A host can
+  pass its own id with the new optional `installationId` argument on
+  `TugboatCollectorHost.fromPlatform` and `loadAppInfo`; a non-empty host id
+  wins. `TugboatCollectorHost.installationId()` returns the SDK's id.
+  Existing data: sessions before 0.11.5 have no `installationId`, so nothing
+  already stored changes meaning. `device.id` is unchanged (still `Build.ID`
+  on Android, `identifierForVendor` on iOS), so consumers that grouped by it
+  keep working; group installs by `appInfo.installationId` from now on. On
+  Android each install gets a new id the first time it runs 0.11.5; on iOS it
+  matches the earlier `device.id`. A host that builds
+  `TugboatCollectorConfig` by hand now has its `appInfo.installationId` sent
+  as given, where it was dropped before, so do not put `device_info_plus`
+  ids such as Android's `Build.ID` there.
+  Known caveat: the id file is in the app's support directory, which platform
+  backups include, so restoring a backup onto a second device gives both
+  devices the same id. A host that needs to avoid that passes its own
+  `installationId` or excludes `tugboat/installation_id` from backup.
+  Persistence is hardened: a failed first write is retried on later reads
+  instead of being cached, and stores racing on first launch (isolates,
+  processes) adopt the id that reached disk.
+
+### Added
+
+- Dependency on `path_provider` (^2.1.4) to locate the app support directory.
+
+- The minimum stays Flutter 3.35.0 and Dart 3.9.2. Newer `path_provider`
+  platform packages need Flutter 3.38.4, but pub resolves older ones on
+  older SDKs, so a Flutter 3.35 host builds. The workspace lockfile is
+  resolved on Flutter 3.35.7 so it works on the minimum toolchain.
+
 ## 0.11.4
 
 ### Fixed

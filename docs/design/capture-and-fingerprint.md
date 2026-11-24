@@ -69,6 +69,11 @@ Identity fields (session schema **v10** only):
 - `captureSessionId` — SDK-emitted session (`session.id`)
 - `collectorSessionId` — HTTP transport ID after accept
 - `explorationRunId` — exploration control plane
+- `appInfo.installationId` (collector `session_start`) — one id per app
+  install: an SDK-minted UUID persisted on first launch (seeded from
+  `identifierForVendor` on iOS), or the host's own id when it passes one.
+  Sent since 0.11.5; earlier sessions carry none. See
+  [collector integration](../integration/collector.md#installation-id).
 
 Cross-build fingerprint equivalence remains outside this repository. The SDK
 emits exact build and fingerprint-schema provenance only.
