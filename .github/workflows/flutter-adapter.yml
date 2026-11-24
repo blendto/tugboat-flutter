@@ -52,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [tugboat, tugboat_dio, tugboat_build]
+        package: [tugboat, tugboat_dio, tugboat_http, tugboat_build]
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -9,6 +9,7 @@ workspace:
   - sdks/flutter/packages/tugboat/example
   - sdks/flutter/packages/tugboat_build
   - sdks/flutter/packages/tugboat_dio
+  - sdks/flutter/packages/tugboat_http
 
 dev_dependencies:
   melos: ^7.8.2
@@ -33,6 +34,9 @@ melos:
     test:dio:
       run: bash tool/ci/run-flutter-tests.sh tugboat_dio
       description: Run the Dio adapter tests.
+    test:http:
+      run: bash tool/ci/run-flutter-tests.sh tugboat_http
+      description: Run the HTTP adapter tests.
     test:build:
       run: bash tool/ci/run-flutter-tests.sh tugboat_build
       description: Run the widget-name generator tests.

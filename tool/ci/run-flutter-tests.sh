@@ -23,13 +23,14 @@ case "${1:-all}" in
   all)
     run_package tugboat
     run_package tugboat_dio
+    run_package tugboat_http
     run_package tugboat_build
     ;;
-  tugboat | tugboat_dio | tugboat_build)
+  tugboat | tugboat_dio | tugboat_http | tugboat_build)
     run_package "$1"
     ;;
   *)
-    echo "usage: $0 [all|tugboat|tugboat_dio|tugboat_build]" >&2
+    echo "usage: $0 [all|tugboat|tugboat_dio|tugboat_http|tugboat_build]" >&2
     exit 1
     ;;
 esac
