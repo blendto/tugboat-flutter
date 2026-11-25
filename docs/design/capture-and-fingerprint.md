@@ -71,6 +71,18 @@ current controller and keeps future calls to `wrapApp` inert. Runtime
 requiring a host rebuild. `deactivate()` tears capture down through the same
 gate. Pause/hidden flush pending delivery; detach ends the session once.
 
+A capture session lasts one wrapper lifetime. Only `detached`, wrapper
+disposal, or deactivation ends it. Backgrounding (`paused` or `hidden`) only
+flushes pending delivery, and `resumed` forces a `lifecycle` frame capture in
+the same session. There is no inactivity rollover, by design: time in the
+background or idle never starts a new session. The `app_backgrounded` and
+`app_foregrounded` events mark the boundaries of background time, so consumers
+and backends that measure session duration or engagement should discount the
+time between them. Flutter does not reliably deliver `detached`; the
+operating system can terminate a backgrounded process without it. Expect long
+sessions that span many foreground visits, and sessions that end without
+`session_end`.
+
 Identity fields (session schema **v10** only):
 
 - `activationRequestId` — host request correlation
