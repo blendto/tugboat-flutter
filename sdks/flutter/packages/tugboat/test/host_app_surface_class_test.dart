@@ -384,7 +384,8 @@ void main() {
     expect(exploration['routeKey'], 'sheet:FeaturesSheet');
     expect(exploration['targetFingerprint'], entry['fingerprint']);
     expect(production['targetFingerprint'], entry['fingerprint']);
-    expect(production.containsKey('routeKey'), isFalse);
+    // The same key in both modes, so (routeKey, fingerprint) joins exactly.
+    expect(production['routeKey'], 'sheet:FeaturesSheet');
   });
 
   testWidgets('a full-screen Dialog around an app class names the class', (

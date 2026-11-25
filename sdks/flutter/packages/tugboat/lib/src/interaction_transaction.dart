@@ -248,9 +248,15 @@ void _writeTapResolutionPayload(
   String? fingerprint,
 ) {
   final hasFingerprint = fingerprint != null && fingerprint.isNotEmpty;
-  // Exploration only: production taps keep the lean envelope.
-  if (hasFingerprint && tx.preTapEvidence != null) {
-    _writeFingerprintEvidence(envelope, tx);
+  if (hasFingerprint) {
+    if (tx.preTapEvidence != null) {
+      _writeFingerprintEvidence(envelope, tx);
+    } else {
+      // Production taps carry only the route key their fingerprint was hashed
+      // under, so a consumer joins (routeKey, fingerprint) exactly; confidence,
+      // source and surface stay exploration-only.
+      _writeRouteKey(envelope, tx);
+    }
   }
   final failureReason = tx.targetResolutionFailureReason;
   if ((fingerprint == null || fingerprint.isEmpty) && failureReason != null) {
@@ -280,10 +286,16 @@ void _writeRouteEvidence(
   Map<String, Object?> envelope,
   InteractionTransaction tx,
 ) {
-  final routeKey = tx.targetRouteKey;
-  if (routeKey != null && routeKey.isNotEmpty) envelope['routeKey'] = routeKey;
+  _writeRouteKey(envelope, tx);
   final surface = tx.preTapEvidence?.inventory?.surface;
   if (surface != null) envelope['surface'] = surface.toJson();
+}
+
+/// The resolved route key [tx]'s fingerprint was hashed under. `route` stays
+/// the raw origin route; for an unnamed page, sheet or dialog the two differ.
+void _writeRouteKey(Map<String, Object?> envelope, InteractionTransaction tx) {
+  final routeKey = tx.targetRouteKey;
+  if (routeKey != null && routeKey.isNotEmpty) envelope['routeKey'] = routeKey;
 }
 
 Map<String, Object?> _buildGesturePayload(

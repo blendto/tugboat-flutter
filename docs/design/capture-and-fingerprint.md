@@ -341,8 +341,9 @@ Confidence is evidence quality, not a uniqueness guarantee. Consumers should
 corroborate low-confidence matches rather than treating them as ground truth.
 
 In exploration mode (scene inventory emission on), a `tap` interaction that
-carries a `targetFingerprint` also carries the fields below. Production taps keep
-the lean envelope (`route` and `targetFingerprint`) and do not carry them:
+carries a `targetFingerprint` also carries the fields below. Production taps
+(since 0.12.4) carry `routeKey` only and keep the rest of the lean envelope
+(`route` and `targetFingerprint`):
 
 - `fingerprintConfidence`, as above. An inventory snap and the semantic
   inventory fallback are `low`.
@@ -355,6 +356,9 @@ the lean envelope (`route` and `targetFingerprint`) and do not carry them:
   route captured at pointer-down. A consumer joins a tap to an inventory on
   `(routeKey, targetFingerprint)`; `route` alone does not join for dialogs,
   unnamed pages and anonymous sheets, whose route keys are not the raw route.
+  Production taps carry it too: it is the key already computed for their
+  fingerprint, so it changes no fingerprint, route key or inventory hash.
+  Taps from SDKs before 0.12.4 do not carry it in production.
 - `surface`: `{ "kind": ..., "widgetClass": ... }`, the same object the tap's
   inventory carries (see below).
 

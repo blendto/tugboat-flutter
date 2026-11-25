@@ -81,16 +81,64 @@ Future<Map<String, Object?>> _singleTap(
 void main() {
   tearDown(TugboatReplay.resetForTest);
 
-  testWidgets('a production tap keeps the lean envelope', (tester) async {
+  testWidgets('a production tap keeps the lean envelope plus its routeKey', (
+    tester,
+  ) async {
     final data = await _singleTap(tester, _production);
 
     expect(data['targetFingerprint'], isNotNull);
     expect(data['route'], '/home');
-    // Confidence, source, routeKey and surface are exploration-only evidence.
+    expect(data['routeKey'], '/home');
+    // Confidence, source and surface are exploration-only evidence.
     expect(data.containsKey('fingerprintConfidence'), isFalse);
     expect(data.containsKey('fingerprintSource'), isFalse);
-    expect(data.containsKey('routeKey'), isFalse);
     expect(data.containsKey('surface'), isFalse);
+  });
+
+  // An unnamed page's raw route is its runtime type while its fingerprint is
+  // hashed under a `struct:` key: production taps report that key so a
+  // consumer can join (routeKey, fingerprint) without the inventory.
+  Future<Map<String, Object?>> tapOnUnnamedPage(
+    WidgetTester tester,
+    TugboatReplayConfig config,
+  ) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        navigatorObservers: [TugboatReplay.navigatorObserver],
+        builder: (context, child) =>
+            TugboatReplay.wrapApp(config: config, child: child!),
+        home: const Scaffold(body: Text('Home')),
+      ),
+    );
+    await waitForTugboatCaptureWork(tester);
+    navigatorKey.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(body: Center(child: _button('Buy', () {}))),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await waitForTugboatCaptureWork(tester);
+    await tester.tap(find.text('Buy'));
+    await tester.pump();
+    final taps = await _waitForTaps(tester, 1);
+    await waitForTugboatCaptureWork(tester);
+    expect(taps, hasLength(1));
+    final data = taps.single.data;
+    TugboatReplay.resetForTest();
+    return data;
+  }
+
+  testWidgets('a production tap on an unnamed page carries its struct: key, '
+      'the same as exploration', (tester) async {
+    final production = await tapOnUnnamedPage(tester, _production);
+    final exploration = await tapOnUnnamedPage(tester, _exploration);
+
+    expect(production['route'], 'MaterialPageRoute<void>');
+    expect(production['routeKey'], startsWith('struct:'));
+    expect(production['routeKey'], exploration['routeKey']);
+    expect(production['targetFingerprint'], exploration['targetFingerprint']);
   });
 
   testWidgets('an exploration tap carries confidence, source and routeKey', (
@@ -257,12 +305,11 @@ void main() {
         // Same control, same screen: the fingerprint must not move to the
         // destination route's key, whichever mode resolved it.
         expect(navigated['targetFingerprint'], stayed['targetFingerprint']);
+        // Both modes report the origin's key, not the destination's.
+        expect(navigated['routeKey'], '/home');
         if (identical(config, _exploration)) {
-          expect(navigated['routeKey'], '/home');
           expect(navigated['fingerprintSource'], 'pointerDown');
           expect(navigated['fingerprintConfidence'], isNotNull);
-        } else {
-          expect(navigated.containsKey('routeKey'), isFalse);
         }
       },
     );

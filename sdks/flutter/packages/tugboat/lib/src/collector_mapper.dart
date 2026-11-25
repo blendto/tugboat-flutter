@@ -340,8 +340,9 @@ void _copyPresentRouteChangeKeys(
 }
 
 /// Allow-list of interaction envelope keys the collector record carries at the
-/// top level. `fingerprintSource`, `routeKey` and `surface` only appear on
-/// exploration taps; production taps never write them.
+/// top level. `routeKey` appears on every tap with a fingerprint;
+/// `fingerprintConfidence`, `fingerprintSource` and `surface` only on
+/// exploration taps.
 const _interactionCollectorKeys = <String>[
   'route',
   'targetFingerprint',

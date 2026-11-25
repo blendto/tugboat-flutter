@@ -26,7 +26,7 @@ const _exploration = TugboatReplayConfig(
   capturePixelRatio: 1.0,
 );
 
-const _explorationOnlyKeys = ['fingerprintSource', 'routeKey', 'surface'];
+const _explorationOnlyKeys = ['fingerprintSource', 'surface'];
 
 /// Top-level keys of the interaction envelope that are intentionally NOT on the
 /// collector record. Adding a field to the tap envelope fails the guard test
@@ -119,7 +119,11 @@ void main() {
     final event = await _realTap(tester, _exploration);
     final mapped = _map(event);
 
-    for (final key in [..._explorationOnlyKeys, 'fingerprintConfidence']) {
+    for (final key in [
+      ..._explorationOnlyKeys,
+      'routeKey',
+      'fingerprintConfidence',
+    ]) {
       expect(event.data[key], isNotNull, reason: '$key missing from envelope');
       expect(mapped[key], event.data[key], reason: '$key not uploaded');
     }
@@ -128,14 +132,14 @@ void main() {
     expect(mapped['surface'], {'kind': 'page'});
   });
 
-  testWidgets('a production tap reaches the collector without them', (
-    tester,
-  ) async {
+  testWidgets('a production tap reaches the collector with its routeKey '
+      'only', (tester) async {
     final event = await _realTap(tester, _production);
     final mapped = _map(event);
 
     expect(mapped['targetFingerprint'], isNotNull);
-    for (final key in _explorationOnlyKeys) {
+    expect(mapped['routeKey'], '/home');
+    for (final key in [..._explorationOnlyKeys, 'fingerprintConfidence']) {
       expect(mapped.containsKey(key), isFalse, reason: key);
     }
   });
