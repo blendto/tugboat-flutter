@@ -26,6 +26,14 @@ Cross-build stability is not promised. Consumers should namespace identity by
 build metadata and `fingerprintSchemaVersion`; remapping identities across app
 builds is downstream work.
 
+Capture occurrence IDs are opaque strings. Each new session uses
+`session-<UUIDv4>` and each controller event uses `event-<UUIDv4>`, with
+lowercase canonical UUIDs generated independently on the device. Collector
+diagnostics use their component prefix and a UUIDv4. Older SDKs used
+`session-<epoch microseconds>` and `event-<counter>`. Preserve either shape
+verbatim when joining related events. Use `startedAt`, `atMs` and
+`triggeredAt` for timing. Capture IDs never enter a fingerprint.
+
 ## Current architecture
 
 ```text

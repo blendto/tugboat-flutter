@@ -1025,6 +1025,10 @@ void main() {
     expect(metadata.single, {
       'id': 'frame-2',
       'atMs': 5,
+      'triggeredAt': session.startedAt
+          .add(const Duration(milliseconds: 5))
+          .toUtc()
+          .toIso8601String(),
       'width': 100,
       'height': 200,
       'contentHash': 'abc',

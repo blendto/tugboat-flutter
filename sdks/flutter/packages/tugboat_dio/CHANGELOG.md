@@ -1,3 +1,10 @@
+## 0.12.3
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.3 (session and event IDs are
+  UUID-scoped). The Dio adapter has no runtime behavior change.
+
 ## 0.12.2
 
 - Updated interceptor setup, event verification, retry guidance, and error-body privacy examples.

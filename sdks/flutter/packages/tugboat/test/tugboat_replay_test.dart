@@ -101,6 +101,55 @@ bool _containsLabelTelemetry(Object? value) {
 }
 
 void main() {
+  testWidgets(
+    'each controller and capture session mints fresh session and event IDs',
+    (tester) async {
+      const uuid =
+          r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+      final sessions = <String>{};
+      final events = <String>{};
+      for (var i = 0; i < 2; i++) {
+        final controller = TugboatReplayController(
+          config: _testConfig,
+          boundaryKey: GlobalKey(),
+        );
+        for (var j = 0; j < 2; j++) {
+          controller.start(const Size(80, 80), 'test');
+          await controller.endSession();
+          final session = controller.session!;
+          expect(
+            session.id,
+            matches(
+              RegExp(
+                '^session-$uuid'
+                r'$',
+              ),
+            ),
+          );
+          expect(sessions.add(session.id), isTrue);
+          expect(
+            session.events.map((event) => event.type),
+            containsAll(['session_start', 'session_end']),
+          );
+          for (final event in session.events) {
+            expect(
+              event.id,
+              matches(
+                RegExp(
+                  '^event-$uuid'
+                  r'$',
+                ),
+              ),
+            );
+            expect(events.add(event.id), isTrue);
+          }
+        }
+        controller.dispose();
+      }
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
   testWidgets('detached lifecycle emits session_end once', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

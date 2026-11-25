@@ -10,6 +10,7 @@ import 'capture_sink.dart';
 import 'collector_config.dart';
 import 'collector_mapper.dart';
 import 'models.dart';
+import 'uuid.dart';
 import 'sdk_version.dart';
 
 const _httpProofEnabled =
@@ -126,7 +127,6 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
   Future<void>? _followUpFlush;
   bool _framesNeedRetry = false;
   bool _frameUploadFailureReported = false;
-  int _diagnosticSequence = 0;
   int _droppedFrameCount = 0;
   int _droppedReferencedFrameCount = 0;
   int _reportedDroppedFrameCount = 0;
@@ -244,7 +244,6 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
     _sessionStartOffset = _startOffset(session);
     _framesNeedRetry = false;
     _frameUploadFailureReported = false;
-    _diagnosticSequence = 0;
     _resetDropTracking();
     _cancelIdentityDebounce();
     _userDirty = false;
@@ -350,7 +349,14 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
       _PendingFrameUpload(
         frameNo: frameNo,
         bytes: bytes,
-        metadata: frame.toJson(),
+        metadata: {
+          ...frame.toJson(),
+          if (activeSession != null)
+            'triggeredAt': activeSession.startedAt
+                .add(Duration(milliseconds: frame.atMs))
+                .toUtc()
+                .toIso8601String(),
+        },
       ),
     );
     _trimPendingFrames();
@@ -1198,7 +1204,7 @@ class CollectorHttpSink implements TugboatCaptureSink, TugboatSinkBacklog {
     final session = _session;
     if (session == null) return;
     final event = TugboatEvent(
-      id: '$idPrefix-${_diagnosticSequence++}',
+      id: generateTugboatCaptureId(idPrefix),
       atMs: _elapsedMs(),
       type: 'capture_diagnostic',
       data: data,

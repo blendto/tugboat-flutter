@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/collector_host.dart';
 import 'package:tugboat/src/installation_id.dart';
+import 'package:tugboat/src/uuid.dart';
 
 final _uuidV4 = RegExp(
   r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
