@@ -1,3 +1,25 @@
+## 0.12.3
+
+### Changed
+
+- Session and event IDs are now globally unique: `session-<UUIDv4>` and
+  `event-<UUIDv4>`, minted on the device. Previously they were
+  `session-<epoch microseconds>` and `event-<counter>`, so two devices (or two
+  controllers) could produce the same ID. This applies to every controller
+  event, the interaction, route and scroll IDs that double as event IDs, and
+  the sink's `capture_diagnostic` events.
+- Frame uploads carry a UTC `frameMetadata.triggeredAt` (session start plus the
+  frame's `atMs`), so the collector can recover capture time for a late
+  upload now that the session ID no longer encodes a start time.
+
+### Compatibility
+
+- Consumers must treat these IDs as opaque and preserve either shape: older
+  SDKs still send the old formats. Use `startedAt`, `atMs` and `triggeredAt`
+  for timing. `frame-<n>` IDs are unchanged (unique within a session), and
+  capture IDs never enter a fingerprint. No fingerprint, route key or
+  inventory hash change.
+
 ## 0.12.2
 
 - Reworked the replay quick start, accessibility and navigation examples, and Dart API guide.

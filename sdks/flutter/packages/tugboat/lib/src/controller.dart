@@ -20,6 +20,7 @@ import 'health.dart';
 import 'input_context_capture.dart';
 import 'interaction_transaction.dart';
 import 'models.dart';
+import 'uuid.dart';
 import 'navigator_observer_registry.dart';
 import 'network_observer.dart';
 import 'replay_config.dart';
@@ -1072,7 +1073,7 @@ class TugboatReplayController extends ChangeNotifier {
        _initialUserIdOverride = initialUserIdOverride {
     _evidence = TugboatEvidenceRecorder(
       appendEvidence: (event) => _addEvent(event, attachActionContext: false),
-      nextEventId: _nextId,
+      nextEventId: generateTugboatCaptureId,
       nowMs: () => atMs,
     );
   }
@@ -1194,7 +1195,7 @@ class TugboatReplayController extends ChangeNotifier {
   late final ViewportSemanticSession _viewportSemantics =
       ViewportSemanticSession(
         config: config,
-        nextEventId: _nextId,
+        nextEventId: generateTugboatCaptureId,
         atMs: () => atMs,
         addEvent: _addEvent,
       );
@@ -1443,7 +1444,7 @@ class TugboatReplayController extends ChangeNotifier {
     if (session == null) {
       throw StateError('debugSeedFrame requires an active session');
     }
-    final frameId = _nextId('frame');
+    final frameId = _nextLocalId('frame');
     final hash = contentHash ?? 'hash-$frameId';
     final frame = TugboatFrame(
       id: frameId,
@@ -1708,7 +1709,11 @@ class TugboatReplayController extends ChangeNotifier {
     _captureLifecycleActive = false;
 
     _addEvent(
-      TugboatEvent(id: _nextId('event'), atMs: atMs, type: 'session_end'),
+      TugboatEvent(
+        id: generateTugboatCaptureId('event'),
+        atMs: atMs,
+        type: 'session_end',
+      ),
     );
     final sinkEnd = _sinkHub?.endSession() ?? Future<void>.value();
     sinkEnd.then(done.complete, onError: done.completeError);
@@ -1750,7 +1755,7 @@ class TugboatReplayController extends ChangeNotifier {
     final effectiveLocale = locale ?? _currentLocale;
     _currentLocale = effectiveLocale;
     _session = TugboatSession(
-      id: 'session-${DateTime.now().microsecondsSinceEpoch}',
+      id: generateTugboatCaptureId('session'),
       startedAt: DateTime.now(),
       platform: platform,
       viewport: TugboatRect(0, 0, viewport.width, viewport.height),
@@ -1804,7 +1809,11 @@ class TugboatReplayController extends ChangeNotifier {
     }
     _sinkHub?.startSession(_session!);
     _addEvent(
-      TugboatEvent(id: _nextId('event'), atMs: atMs, type: 'session_start'),
+      TugboatEvent(
+        id: generateTugboatCaptureId('event'),
+        atMs: atMs,
+        type: 'session_start',
+      ),
     );
     seedSessionStartRoute();
     unawaited(
@@ -1864,7 +1873,7 @@ class TugboatReplayController extends ChangeNotifier {
   void _emitSessionStartRouteChange(_VisibleRouteChange applied) {
     final change = applied.asSessionStartWireChange();
     _emitRouteChange(
-      routeEventId: _nextId('event'),
+      routeEventId: generateTugboatCaptureId('event'),
       change: change,
       result: TugboatInteractionResult.unknown,
     );
@@ -1890,7 +1899,7 @@ class TugboatReplayController extends ChangeNotifier {
     session.locale = locale;
     _addEvent(
       TugboatEvent(
-        id: _nextId('event'),
+        id: generateTugboatCaptureId('event'),
         atMs: atMs,
         type: 'locale_changed',
         stream: TugboatEventStream.evidence,
@@ -2092,7 +2101,7 @@ class TugboatReplayController extends ChangeNotifier {
     if (!config.emitCaptureDiagnostics) return;
     _addEvent(
       TugboatEvent(
-        id: _nextId('event'),
+        id: generateTugboatCaptureId('event'),
         atMs: atMs,
         type: 'capture_diagnostic',
         stream: TugboatEventStream.diagnostic,
@@ -2213,7 +2222,7 @@ class TugboatReplayController extends ChangeNotifier {
       inventoryTrigger: inventoryTrigger,
     );
     final waiter = _CaptureWaiter(
-      requestId: _nextId('capture_request'),
+      requestId: _nextLocalId('capture_request'),
       context: context,
       relatedEventId: relatedEventId,
     );
@@ -2287,7 +2296,7 @@ class TugboatReplayController extends ChangeNotifier {
     }
     _completeCaptureWaiter(
       waiter,
-      executionId: _nextId('capture_execution'),
+      executionId: _nextLocalId('capture_execution'),
       execution: execution,
     );
     return (
@@ -2327,7 +2336,7 @@ class TugboatReplayController extends ChangeNotifier {
     _activeScheduledCapture?.waiters.remove(waiter);
     _completeCaptureWaiter(
       waiter,
-      executionId: _nextId('capture_execution'),
+      executionId: _nextLocalId('capture_execution'),
       execution: _cancelledCaptureExecution(reason),
     );
   }
@@ -2436,7 +2445,7 @@ class TugboatReplayController extends ChangeNotifier {
     _ScheduledCapture scheduled,
     _CaptureExecution execution,
   ) {
-    final executionId = _nextId('capture_execution');
+    final executionId = _nextLocalId('capture_execution');
     for (final waiter in scheduled.waiters) {
       _completeCaptureWaiter(
         waiter,
@@ -2500,7 +2509,7 @@ class TugboatReplayController extends ChangeNotifier {
       for (final waiter in active.waiters.toList(growable: false)) {
         _completeCaptureWaiter(
           waiter,
-          executionId: _nextId('capture_execution'),
+          executionId: _nextLocalId('capture_execution'),
           execution: _cancelledCaptureExecution(reason),
         );
       }
@@ -2510,7 +2519,7 @@ class TugboatReplayController extends ChangeNotifier {
       for (final waiter in scheduled.waiters) {
         _completeCaptureWaiter(
           waiter,
-          executionId: _nextId('capture_execution'),
+          executionId: _nextLocalId('capture_execution'),
           execution: _cancelledCaptureExecution(reason),
         );
       }
@@ -2929,7 +2938,7 @@ class TugboatReplayController extends ChangeNotifier {
     required ScreenshotCaptureResult result,
     required ScreenshotCapturer capturer,
   }) {
-    final frameId = _nextId('frame');
+    final frameId = _nextLocalId('frame');
     final frame = TugboatFrame(
       id: frameId,
       atMs: atMs,
@@ -3090,7 +3099,7 @@ class TugboatReplayController extends ChangeNotifier {
       frameId: coordinateFrame,
       context: attachmentContext,
     );
-    final eventId = _nextId('event');
+    final eventId = generateTugboatCaptureId('event');
     final startedAtMs = atMs;
     final origin = InteractionOrigin(
       interactionId: eventId,
@@ -3436,7 +3445,7 @@ class TugboatReplayController extends ChangeNotifier {
     if (!config.emitCaptureDiagnostics) return;
     _addEvent(
       TugboatEvent(
-        id: _nextId('event'),
+        id: generateTugboatCaptureId('event'),
         atMs: tx.origin.atMs,
         type: 'exploration_pre_tap_diagnostic',
         stream: TugboatEventStream.diagnostic,
@@ -4590,7 +4599,7 @@ class TugboatReplayController extends ChangeNotifier {
     final sectionLabel = _sectionLabelFor(scrollableElement);
     final attachmentContext = _captureContext(TugboatFrameTrigger.scroll);
     final beforeFrame = _compatibleFrameFor(attachmentContext);
-    final startEventId = _nextId('event');
+    final startEventId = generateTugboatCaptureId('event');
     final pageStart = metrics is PageMetrics ? metrics.page : null;
 
     final tracker = _ScrollTracker(
@@ -5209,7 +5218,7 @@ class TugboatReplayController extends ChangeNotifier {
       }
     }
     _skipCapture = false;
-    final routeEventId = _nextId('event');
+    final routeEventId = generateTugboatCaptureId('event');
     // This must not enqueue behind the blocked task that caused the timeout.
     // Dart's single isolate means the session mutation is still atomic with
     // respect to the next event-loop turn.
@@ -5443,7 +5452,7 @@ class TugboatReplayController extends ChangeNotifier {
     _RouteCaptureResult result,
     String? requestId,
   ) {
-    final eventId = _nextId('event');
+    final eventId = generateTugboatCaptureId('event');
     _attachCauseInteractionEvidence(change.causeEventId);
     _emitRouteChange(
       routeEventId: eventId,
@@ -5470,7 +5479,7 @@ class TugboatReplayController extends ChangeNotifier {
     String? afterFrame,
     _RouteCaptureOutcome outcome,
   ) {
-    final eventId = _nextId('event');
+    final eventId = generateTugboatCaptureId('event');
     _attachCauseInteractionEvidence(
       change.causeEventId,
       afterFrame: afterFrame,
@@ -5545,7 +5554,7 @@ class TugboatReplayController extends ChangeNotifier {
     final pending = _PendingInputObservation(
       session,
       TugboatEvent(
-        id: _nextId('event'),
+        id: generateTugboatCaptureId('event'),
         atMs: atMs,
         type: type,
         stream: TugboatEventStream.evidence,
@@ -5686,7 +5695,7 @@ class TugboatReplayController extends ChangeNotifier {
     _lastLifecycleEventType = eventType;
     _addEvent(
       TugboatEvent(
-        id: _nextId('event'),
+        id: generateTugboatCaptureId('event'),
         atMs: atMs,
         type: eventType,
         data: {'state': state.name},
@@ -6330,7 +6339,7 @@ class TugboatReplayController extends ChangeNotifier {
     _sentInventoryContents.add(_inventoryContentKey(inventory));
     _addEvent(
       TugboatEvent(
-        id: _nextId('event'),
+        id: generateTugboatCaptureId('event'),
         atMs: atMs,
         type: 'scene_inventory',
         data: inventory.withTrigger(trigger).toJson(),
@@ -6486,7 +6495,7 @@ class TugboatReplayController extends ChangeNotifier {
     _activeActionId = actionId;
     _addEvent(
       TugboatEvent(
-        id: _nextId('event'),
+        id: generateTugboatCaptureId('event'),
         atMs: atMs,
         type: 'action_window_set',
         data: {'actionId': actionId, 'explorationRunId': runId},
@@ -6500,7 +6509,7 @@ class TugboatReplayController extends ChangeNotifier {
     if (clearedActionId != null) {
       _addEvent(
         TugboatEvent(
-          id: _nextId('event'),
+          id: generateTugboatCaptureId('event'),
           atMs: atMs,
           type: 'action_window_cleared',
           data: {'actionId': clearedActionId},
@@ -6579,7 +6588,7 @@ class TugboatReplayController extends ChangeNotifier {
     }
   }
 
-  String _nextId(String prefix) => '$prefix-${_id++}';
+  String _nextLocalId(String prefix) => '$prefix-${_id++}';
 }
 
 /// Adapts a session-owned factory sink to the legacy hub interface.

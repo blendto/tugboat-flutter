@@ -10,6 +10,10 @@ collector.
 
 Evidence remains authoritative in the controller's bounded, in-memory session.
 Transport failures are isolated from the host app.
+Session and event IDs are opaque. The current SDK sends `session-<UUIDv4>`
+and `event-<UUIDv4>`. Frame uploads carry a UTC `frameMetadata.triggeredAt`
+calculated from the session start and frame offset, so collectors can recover
+capture time even when an upload arrives late.
 
 ## Required app integration
 
