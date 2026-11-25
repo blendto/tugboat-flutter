@@ -1,0 +1,34 @@
+# Starts a review by blendto/review-agent when chief-harbormaster is requested as a
+# reviewer, and again on later pushes to pull requests it has reviewed (they carry
+# the "review-agent" label; remove the label to stop follow-up reviews).
+#
+# This workflow never checks out or runs pull request code. pull_request_target means
+# it always runs as written on the default branch, whatever a pull request changes.
+# Managed from blendto/review-agent; edit templates/review-agent.yml there.
+
+name: review-agent
+
+on:
+  pull_request_target:
+    types: [review_requested, synchronize, ready_for_review]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        (github.event.action == 'review_requested' && github.event.requested_reviewer.login == 'chief-harbormaster') ||
+        (github.event.action != 'review_requested' && contains(github.event.pull_request.labels.*.name, 'review-agent'))
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ask review-agent to review this pull request
+        env:
+          GH_TOKEN: ${{ secrets.REVIEW_AGENT_DISPATCH_TOKEN }}
+          REPO: ${{ github.event.repository.name }}
+          PR: ${{ github.event.pull_request.number }}
+          REASON: ${{ github.event.action == 'review_requested' && 'requested' || 'push' }}
+        run: gh workflow run review.yml --repo blendto/review-agent --ref main -f repo="$REPO" -f pr="$PR" -f reason="$REASON"
