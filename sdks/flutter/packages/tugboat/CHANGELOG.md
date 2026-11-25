@@ -1,3 +1,26 @@
+## 0.12.4
+
+### Changed
+
+- Production `tap` interactions now carry `routeKey`, the resolved route key
+  their `targetFingerprint` was hashed under, the same value exploration taps
+  and scene inventories carry (#138). `route` stays the raw origin route: for
+  an unnamed page, a dialog or an anonymous sheet it is the route's runtime
+  type (`MaterialPageRoute<void>`), while the fingerprint is hashed under a
+  `struct:`, `dialog:` or `sheet:` key. Consumers can now join a production
+  tap to an inventory on `(routeKey, targetFingerprint)`. The value was
+  already computed for the fingerprint; no extra work is done on the device.
+  `fingerprintConfidence`, `fingerprintSource` and `surface` stay
+  exploration-only.
+
+### Compatibility
+
+- Wire addition only: no fingerprint, route key, inventory hash or
+  de-duplication key changes. The HTTP collector mapper already allowed
+  `routeKey`. Taps from earlier SDKs carry no `routeKey` in production, so
+  consumers fall back to `route`. A collector that does not keep top-level
+  `routeKey` on schema-v2 interactions drops it silently.
+
 ## 0.12.3
 
 ### Changed

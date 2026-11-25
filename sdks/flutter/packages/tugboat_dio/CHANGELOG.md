@@ -1,3 +1,11 @@
+## 0.12.4
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.4 (production taps carry
+  `routeKey`). The Dio adapter has no runtime behavior change; its `tugboat`
+  floor is now `^0.12.4`.
+
 ## 0.12.3
 
 ### Changed

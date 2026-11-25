@@ -2,6 +2,7 @@
 
 | Adapter | Adapter version | Native runtime |
 | --- | --- | --- |
+| Flutter `tugboat` | 0.12.4 | Android `capture-runtime` `0.1.0`, Apple `TugboatCaptureRuntime` `0.1.1`, and `tugboat_dio` 0.12.4. Production `tap` interactions carry `routeKey`, the route key their fingerprint was hashed under; no fingerprint, route key or inventory hash change. |
 | Flutter `tugboat` | 0.12.3 | Android `capture-runtime` `0.1.0`, Apple `TugboatCaptureRuntime` `0.1.1`, and `tugboat_dio` 0.12.3. Session and event IDs are `session-<UUIDv4>` / `event-<UUIDv4>` instead of epoch-microsecond and counter IDs (consumers must treat IDs as opaque); frame uploads add `frameMetadata.triggeredAt`; no fingerprint, route key or inventory hash change. |
 | Flutter `tugboat` | 0.12.2 | Android `capture-runtime` `0.1.0`, Apple `TugboatCaptureRuntime` `0.1.1`, and `tugboat_dio` 0.12.2. Documentation release. |
 | Flutter `tugboat` | 0.12.0 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; exploration scene inventories no longer carry `loading` or per-element `placeholder`, and the `TugboatLoading` marker is removed (breaking for hosts that used it); the settled re-sample no longer treats placeholder to loaded as new; no fingerprint, route key or inventory hash change; `tugboat_dio` 0.12.0 is a compatibility release. |

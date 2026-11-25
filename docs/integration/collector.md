@@ -265,11 +265,14 @@ Event payloads contain:
 
 An `interaction` record carries `route`, `targetFingerprint`, `gesture`,
 `payload` and `targetAnchor`, plus `targetResolutionFailureReason` when no
-target resolved. Exploration taps (scene inventory emission on) also carry
+target resolved. Every tap with a `targetFingerprint` also carries `routeKey`
+(the route key the fingerprint was hashed under; production taps since
+0.12.4). Join a tap to a scene inventory on `(routeKey, targetFingerprint)`,
+not on `route`: for unnamed pages, dialogs and anonymous sheets `route` is the
+route's runtime type. Exploration taps (scene inventory emission on) also carry
 `fingerprintConfidence`, `fingerprintSource` (how the fingerprint was
-resolved), `routeKey` (the route key it was hashed under) and `surface`
-(`kind`, optional `widgetClass`). These four are exploration-only: production
-taps never carry them.
+resolved) and `surface` (`kind`, optional `widgetClass`). These three are
+exploration-only.
 
 The collector must accept all SDK schema-v2 gesture names: `tap`, `swipe`,
 `scroll`, `pan`, `zoom_in`, `zoom_out`, and `cancelled`. The mapper preserves
