@@ -148,6 +148,20 @@ abstract final class TugboatCollectorHost {
     return 'http://127.0.0.1:3000';
   }
 
+  /// The exact iOS hardware identifier, such as `iPhone17,1`.
+  ///
+  /// `UIDevice.model` is only the family name (`iPhone`), which cannot tell
+  /// an iPhone 12 from an iPhone 14. On a physical device this is
+  /// `utsname.machine`; on the simulator `device_info_plus` substitutes
+  /// `SIMULATOR_MODEL_IDENTIFIER`, so the simulated device is reported rather
+  /// than the host CPU (`arm64`). Falls back to the family name when the
+  /// identifier is empty.
+  @visibleForTesting
+  static String iosModelIdentifier(IosDeviceInfo ios) {
+    final machine = ios.utsname.machine.trim();
+    return machine.isEmpty ? ios.model : machine;
+  }
+
   static Future<_DeviceMetadata> _resolveDeviceMetadata() async {
     final deviceInfo = DeviceInfoPlugin();
 
@@ -168,7 +182,7 @@ abstract final class TugboatCollectorHost {
         id: ios.identifierForVendor ?? _iosUnknownDeviceId,
         platform: 'ios',
         manufacturer: null,
-        model: ios.model,
+        model: iosModelIdentifier(ios),
         osVersion: ios.systemVersion,
       );
     }

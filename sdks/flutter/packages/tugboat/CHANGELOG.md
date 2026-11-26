@@ -1,4 +1,4 @@
-## 0.12.5
+## 0.12.6
 
 ### Added
 
@@ -20,6 +20,24 @@
 - Test-only controller seams for the cross-SDK conformance fixtures (an
   injectable elapsed clock and `debugRecordEvent`), and one shared helper for
   scene inventory hashes. No behaviour change.
+
+## 0.12.5
+
+### Changed
+
+- On iOS, `session_start` now sends the exact hardware identifier as
+  `device.model`, such as `iPhone17,1`, instead of the family name `iPhone`
+  (BLE-564). Session replay can then pick the right device frame rather than
+  guessing from the screen size. On the simulator it is the simulated device's
+  identifier (`SIMULATOR_MODEL_IDENTIFIER`), not the host CPU. Android already
+  sent `Build.MODEL` and `Build.MANUFACTURER`; nothing changes there.
+
+### Compatibility
+
+- Value change only, no new field. Consumers that matched iOS
+  `device.model` against `iPhone` or `iPad` should match on the identifier
+  prefix instead. Sessions from earlier SDKs keep the family name. No
+  fingerprint, route key, inventory hash or de-duplication key changes.
 
 ## 0.12.4
 
