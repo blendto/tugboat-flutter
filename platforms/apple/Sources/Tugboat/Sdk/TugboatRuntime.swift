@@ -26,6 +26,10 @@ final class TugboatRuntime {
   /// SDK submits. Main thread only.
   static var openTransport: () -> EngineTransport? = { EngineBridge.open() }
 
+  /// Keeps the process running for the background flush; tests replace it.
+  /// Main thread only.
+  static var backgroundTasks: BackgroundTasks = ApplicationBackgroundTasks()
+
   private init(parts: Parts) {
     host = parts.host
     adapter = parts.adapter

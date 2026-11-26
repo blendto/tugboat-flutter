@@ -29,7 +29,10 @@ final class Outbox {
 
   /// Any thread.
   private struct Tracking {
-    /// This process's latest attempt per key.
+    /// This process's latest attempt per key with a request in flight; a
+    /// key is forgotten when its last request is answered, so the map holds
+    /// only keys in flight (Android's `ActiveKeys`), and a key sent again
+    /// later starts at attempt 1.
     var latest: [String: Int] = [:]
     /// Requests in flight per key (engine and drainer).
     var active: [String: Int] = [:]
@@ -167,18 +170,25 @@ final class Outbox {
 
   /// The answer to an engine request recorded as `attempt`: an accepted or
   /// dropped answer deletes each unit's entry, after its write, unless a
-  /// later attempt for that key was sent since.
+  /// later attempt for that key was sent since. The delete is decided and
+  /// queued under the lock, as `record` queues its write: an attempt
+  /// recorded after this answer is written after the delete, so its entry
+  /// is written again, never lost.
   func answered(_ attempt: OutboxAttempt, outcome: TransportOutcome) {
-    tracking.withLock { state in
+    let final = SessionEndWatcher.isFinal(outcome)
+    tracking.withLock { (state: inout Tracking) in
+      var deletes: [String] = []
       for unit in attempt.units {
+        if final && state.latest[unit.key] == unit.number {
+          deletes.append(unit.key)
+        }
         Outbox.release(unit.key, in: &state)
       }
-    }
-    guard SessionEndWatcher.isFinal(outcome) else { return }
-    queue.async {
-      let latest = self.tracking.current.latest
-      for unit in attempt.units where latest[unit.key] == unit.number {
-        self.remove(dir: self.dirName(key: unit.key, epoch: self.processEpoch))
+      guard !deletes.isEmpty else { return }
+      queue.async {
+        for key in deletes {
+          self.remove(dir: self.dirName(key: key, epoch: self.processEpoch))
+        }
       }
     }
   }
@@ -187,6 +197,12 @@ final class Outbox {
   /// the outbox queue.
   func waitForWrites() {
     queue.sync {}
+  }
+
+  /// Runs `work` on the outbox queue once every write queued before this
+  /// call is on disk; never waits. Any thread.
+  func afterWrites(_ work: @escaping () -> Void) {
+    queue.async(execute: work)
   }
 
   /// Deletes every pending entry, after the writes queued before it
@@ -260,6 +276,7 @@ final class Outbox {
     var unkeyed: Int
     var currentSession: String?
     var activeKeys: Set<String>
+    var latestKeys: Set<String>
     var replayPasses: Int
   }
 
@@ -268,7 +285,8 @@ final class Outbox {
       let state = tracking.current
       return Snapshot(
         entries: loadedIndex().values.sorted { $0.dir < $1.dir }, writeFailures: writeFailures, unkeyed: state.unkeyed,
-        currentSession: state.currentSession, activeKeys: Set(state.active.keys), replayPasses: replay?.passes ?? 0)
+        currentSession: state.currentSession, activeKeys: Set(state.active.keys),
+        latestKeys: Set(state.latest.keys), replayPasses: replay?.passes ?? 0)
     }
   }
 
@@ -276,7 +294,12 @@ final class Outbox {
 
   private static func release(_ key: String, in state: inout Tracking) {
     let remaining = (state.active[key] ?? 1) - 1
-    state.active[key] = remaining > 0 ? remaining : nil
+    if remaining > 0 {
+      state.active[key] = remaining
+    } else {
+      state.active[key] = nil
+      state.latest[key] = nil
+    }
   }
 
   func dirName(key: String, epoch: String) -> String {

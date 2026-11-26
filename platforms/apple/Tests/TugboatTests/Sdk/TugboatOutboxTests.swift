@@ -15,13 +15,17 @@ final class TugboatOutboxTests: XCTestCase {
   private lazy var outbox = harness.outbox(epoch: "live")
   private var previousOpen: (() -> EngineTransport?)?
   private var previousOutbox: Outbox?
+  private var previousTasks: BackgroundTasks?
+  private let tasks = FakeBackgroundTasks()
 
   override func setUp() {
     super.setUp()
     previousOpen = TugboatRuntime.openTransport
     previousOutbox = Tugboat.outbox
+    previousTasks = TugboatRuntime.backgroundTasks
     let recorder = self.recorder
     TugboatRuntime.openTransport = { recorder.open() }
+    TugboatRuntime.backgroundTasks = tasks
     Tugboat.outbox = outbox
   }
 
@@ -30,6 +34,7 @@ final class TugboatOutboxTests: XCTestCase {
     drainMain()
     TugboatRuntime.openTransport = previousOpen ?? { EngineBridge.open() }
     Tugboat.outbox = previousOutbox
+    TugboatRuntime.backgroundTasks = previousTasks ?? ApplicationBackgroundTasks()
     super.tearDown()
   }
 
@@ -150,6 +155,72 @@ final class TugboatOutboxTests: XCTestCase {
         .contains { $0["userId"] as? String == "after-paused" }
     })
     XCTAssertEqual(recorder.messages.filter { $0.type == HostMessages.transportFlush }.count, flushes)
+  }
+
+  // MARK: - The background task around the flush (review of PR #100)
+
+  private func startAndPause() {
+    Tugboat.start(config(enabled: true, durableOutbox: true))
+    XCTAssertTrue(eventually { !self.recorder.inputs(SessionMessages.sessionStart).isEmpty })
+    NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+  }
+
+  /// Holds the outbox queue, standing in for a slow disk, until the
+  /// returned closure runs.
+  private func holdOutboxWrites() -> () -> Void {
+    let release = DispatchSemaphore(value: 0)
+    let held = expectation(description: "outbox queue held")
+    outbox.queue.async {
+      held.fulfill()
+      release.wait()
+    }
+    wait(for: [held], timeout: 30)
+    return { release.signal() }
+  }
+
+  func testPausedBeginsATaskThatEndsOnlyAfterTheFlushWritesLand() {
+    Tugboat.start(config(enabled: true, durableOutbox: true))
+    XCTAssertTrue(eventually { !self.recorder.inputs(SessionMessages.sessionStart).isEmpty })
+    let release = holdOutboxWrites()
+    NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+    XCTAssertEqual(tasks.begun, [BackgroundFlush.taskName], "begun before the notification returns")
+    XCTAssertTrue(eventually { self.recorder.messages.contains { $0.type == HostMessages.transportFlush && $0.ok } })
+    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+    XCTAssertEqual(tasks.ended, [], "the outbox writes have not landed yet")
+    release()
+    XCTAssertTrue(eventually { !self.tasks.ended.isEmpty })
+    outbox.waitForWrites()
+    drainMain()
+    XCTAssertEqual(tasks.ended, [UIBackgroundTaskIdentifier(rawValue: 1)])
+  }
+
+  func testAnExpiredTaskIsEndedOnceAndNotAgainWhenTheWritesLand() {
+    Tugboat.start(config(enabled: true, durableOutbox: true))
+    XCTAssertTrue(eventually { !self.recorder.inputs(SessionMessages.sessionStart).isEmpty })
+    let release = holdOutboxWrites()
+    NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+    tasks.expire()
+    XCTAssertEqual(tasks.ended, [UIBackgroundTaskIdentifier(rawValue: 1)])
+    release()
+    outbox.waitForWrites()
+    drainMain()
+    XCTAssertEqual(tasks.ended, [UIBackgroundTaskIdentifier(rawValue: 1)])
+  }
+
+  /// Nothing to write still ends the task: the flush's writes (none) have
+  /// landed once the outbox queue reaches it.
+  func testATaskEndsWhenTheFlushHasNothingToWrite() {
+    startAndPause()
+    XCTAssertEqual(tasks.begun, [BackgroundFlush.taskName])
+    XCTAssertTrue(eventually { self.tasks.ended == [UIBackgroundTaskIdentifier(rawValue: 1)] })
+  }
+
+  func testNoTaskIsBegunWithTheOutboxOff() {
+    Tugboat.start(config(enabled: true, durableOutbox: false))
+    XCTAssertTrue(eventually { !self.recorder.inputs(SessionMessages.sessionStart).isEmpty })
+    NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+    drainMain()
+    XCTAssertEqual(tasks.begun, [])
   }
 }
 #endif

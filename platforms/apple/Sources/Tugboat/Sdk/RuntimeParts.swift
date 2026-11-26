@@ -62,13 +62,19 @@ extension TugboatRuntime {
       let locale = LocaleBridge(initial: initialLocale) { input in
         ref.host?.post(type: SessionMessages.localeSet, inputJSON: input, at: clock.now())
       }
-      let flushOnPause = outbox != nil
+      let flushOutbox = outbox?.outbox
+      let backgroundTasks = TugboatRuntime.backgroundTasks
       let lifecycle = AppLifecycleBridge { state in
         ref.host?.post(type: SessionMessages.appLifecycle, inputJSON: SessionMessages.appLifecycleInput(state), at: clock.now())
         // With the outbox on, deliver (and so write) what the engine holds
-        // now, before the process can be suspended (W11 design section 3).
-        if flushOnPause && state == AppLifecycleBridge.paused {
-          ref.host?.post(type: HostMessages.transportFlush, inputJSON: "{}", at: clock.now())
+        // now (W11 design section 3), under a background task that ends
+        // once the flush's outbox writes have landed, so the process is not
+        // suspended first.
+        if let flushOutbox = flushOutbox, state == AppLifecycleBridge.paused, let host = ref.host {
+          BackgroundFlush.run(tasks: backgroundTasks) { done in
+            host.post(type: HostMessages.transportFlush, inputJSON: "{}", at: clock.now())
+            host.afterPosted { flushOutbox.afterWrites(done) }
+          }
         }
         // The engine ends the session on `detached`.
         if state == AppLifecycleBridge.detached { session.isLive = false }
