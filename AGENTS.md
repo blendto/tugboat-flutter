@@ -66,8 +66,9 @@ Unfamiliar terms are defined in `docs/glossary/INDEX.md`.
   `verify-swift-api.sh`, `verify-native-capture-pigeon.sh` — run the relevant
   ones when touching native code or versions. Native runtimes version independently (ADR 0008).
 - Before opening or updating a PR to main that changes Flutter package source,
-  a pub.dev README, or Dartdoc, bump `tugboat` and `tugboat_dio` together.
-  Use a patch for documentation. Update both changelogs, the Dio and example
+  a pub.dev README, or Dartdoc, bump `tugboat`, `tugboat_dio` and
+  `tugboat_http` together; they always share one version. Use a patch for
+  documentation. Update all three changelogs, the Dio, HTTP and example
   dependency floors, `lib/src/sdk_version.dart` in tugboat, and the compatibility
   table. Check open release PRs for collisions and run
   `BASE_SHA=origin/main bash tool/ci/check-version-policy.sh` against fresh main.

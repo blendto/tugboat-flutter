@@ -35,12 +35,8 @@ stream and handles any errors that occur while reading it.
 
 ## Releasing
 
-An uploader publishes the first version from this package directory with
-`dart pub publish`. In the package's pub.dev Admin tab, enable GitHub Actions
-publishing for `blendto/tugboat-flutter`, set the tag pattern to
-`tugboat_http-v{{version}}`, and allow workflow dispatch events.
-
-For later stable releases, update the changelog and package version. When the
-version bump lands on `main`, the Publish tugboat_http workflow creates a
-package-specific tag and publishes that revision. To retry, dispatch the
-workflow on the release tag.
+`tugboat_http` is released in lockstep with `tugboat` and `tugboat_dio`:
+all three share one version and are published together from the
+`v<version>` tag by the **Publish to pub.dev** workflow. In the package's
+pub.dev Admin tab, GitHub Actions publishing for `blendto/tugboat-flutter`
+uses the tag pattern `v{{version}}` with workflow dispatch events allowed.

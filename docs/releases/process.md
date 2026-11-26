@@ -14,8 +14,7 @@ Each package is released by a tag on a commit of `main`:
 
 | Package | Tag | Workflow |
 | --- | --- | --- |
-| `tugboat` and `tugboat_dio` (lockstep) | `v<version>` | **Publish to pub.dev** (`publish.yml`) |
-| `tugboat_http` | `tugboat_http-v<version>` | **Publish tugboat_http** (`publish-http.yml`) |
+| `tugboat`, `tugboat_dio` and `tugboat_http` (lockstep) | `v<version>` | **Publish to pub.dev** (`publish.yml`) |
 | `com.gettugboat.sdk:capture-runtime` | `capture-runtime-v<version>` | **Publish Android runtime** (`publish-android.yml`) |
 | `TugboatCaptureRuntime` | `apple-runtime-v<version>` | **Publish Apple runtime** (`publish-apple.yml`) |
 
