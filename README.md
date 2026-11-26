@@ -3,13 +3,6 @@
 Mobile capture SDKs for Tugboat. This repository is a mobile monorepo:
 a portable C++ image core, native capture runtimes, and framework adapters.
 
-The GitHub remote is still
-[blendto/tugboat-flutter](https://github.com/blendto/tugboat-flutter) until an
-administrator renames it to `tugboat-mobile`. See
-[repository migration](docs/releases/repository-migration.md).
-
-The Tugboat CLI is maintained separately.
-
 ## Layout
 
 | Path | Product |
