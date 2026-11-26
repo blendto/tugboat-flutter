@@ -83,6 +83,26 @@ jobs:
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
       - name: Run capture smoke test
         working-directory: ${{ env.EXAMPLE_DIR }}
+        timeout-minutes: 15
         env:
           SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
-        run: flutter test --no-pub --reporter expanded -d "$SIMULATOR_UDID" integration_test/capture_smoke_test.dart
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/ios-logs"
+          flutter test --no-pub --verbose --reporter expanded -d "$SIMULATOR_UDID" \
+            integration_test/capture_smoke_test.dart 2>&1 | tee "$RUNNER_TEMP/ios-logs/flutter-test.log"
+      - name: Collect simulator logs
+        if: failure() || cancelled()
+        env:
+          SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          xcrun simctl spawn "$SIMULATOR_UDID" log show --last 30m --style compact \
+            --predicate 'process == "Runner" OR subsystem CONTAINS "flutter"' \
+            > "$RUNNER_TEMP/ios-logs/simulator.log" 2>&1 || true
+          tail -n 200 "$RUNNER_TEMP/ios-logs/simulator.log"
+      - name: Upload iOS logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-smoke-logs
+          path: ${{ runner.temp }}/ios-logs
