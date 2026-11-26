@@ -143,7 +143,13 @@ metadata, not identity. Key installs on `appInfo.installationId`.
 
 `fromPlatform` uses `package_info_plus`, `device_info_plus`, `battery_plus`,
 `disk_space_plus`, and `connectivity_plus` to populate app, device, viewport,
-platform locale, and time-zone fields. The active Flutter app locale overrides
+platform locale, and time-zone fields. `device.model` is the exact hardware
+identifier: on iOS the `utsname` machine string such as `iPhone17,1` (on the
+simulator, the simulated device's `SIMULATOR_MODEL_IDENTIFIER`), and on
+Android `Build.MODEL` such as `24044RN32L`, with `Build.MANUFACTURER` in
+`device.manufacturer`. iOS SDKs before 0.12.5 sent the family name `iPhone` or
+`iPad` instead. Mapping identifiers to marketing names is left to consumers.
+The active Flutter app locale overrides
 the platform locale in `session_start` when the capture root can observe it.
 On `session_start`, the `device` bag may also
 include optional runtime facts when observable:
