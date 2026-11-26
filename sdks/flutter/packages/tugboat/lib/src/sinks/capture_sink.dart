@@ -139,7 +139,26 @@ class LegacyCaptureSinkAdapter implements TugboatSessionCaptureSink {
   }
 }
 
+/// Read-only view of what a sink itself holds back, for health reporting.
+///
+/// [TugboatSinkMailbox] hands every envelope to its sink synchronously, so the
+/// mailbox never queues anything. A sink with its own bounded queues (such as
+/// the collector HTTP sink) implements this so the health snapshot reflects
+/// them. Reading it must be cheap and must not throw.
+abstract interface class TugboatSinkBacklog {
+  /// Events and frames accepted by the sink and not yet delivered or dropped.
+  int get pendingCount;
+
+  /// Events and frames the sink discarded undelivered, over its lifetime: at
+  /// its bounds, or when a new session or disposal cleared its queues.
+  int get droppedCount;
+}
+
 /// Per-sink bounded mailbox with session-epoch fencing.
+///
+/// Delivery is synchronous (see [accept]), so [pendingCount] and
+/// [droppedCount] only cover this mailbox's own queue, which stays empty for
+/// that reason. A sink's real backlog is read through [TugboatSinkBacklog].
 class TugboatSinkMailbox {
   TugboatSinkMailbox({
     required this.sink,

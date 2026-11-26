@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:tugboat/src/anchors.dart';
@@ -343,7 +342,11 @@ Future<void> _expectNativeMasks(
     force: true,
     waitForFrame: false,
   );
-  expect(attempt.failure, isNull, reason: 'capturePixelRatio=$capturePixelRatio');
+  expect(
+    attempt.failure,
+    isNull,
+    reason: 'capturePixelRatio=$capturePixelRatio',
+  );
   final jpeg = attempt.result!.bytes;
   final decoded = img.decodeJpg(jpeg)!;
   expect(decoded.width, greaterThan(0));

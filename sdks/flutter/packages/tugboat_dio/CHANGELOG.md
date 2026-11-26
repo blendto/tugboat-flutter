@@ -1,20 +1,128 @@
-## 0.10.11-dev.4
+## 0.12.4
 
 ### Changed
 
-- Compatibility release for `tugboat` 0.10.11-dev.4 (adds the
-  `.tugboatTag` / `.tugboatSensitive` / `.tugboatSubView` marker extensions and
-  an opt-in `accessibility` identifier on tags). The Dio adapter has no runtime
-  behavior change.
+- Compatibility release for `tugboat` 0.12.4 (production taps carry
+  `routeKey`). The Dio adapter has no runtime behavior change; its `tugboat`
+  floor is now `^0.12.4`.
 
-## 0.10.11-dev.3
+## 0.12.3
 
 ### Changed
 
-- Lockstep prerelease with `tugboat` 0.10.11-dev.3 (test-only seams for the
-  shared session-engine conformance scenarios; the Android plugin compiles
-  against newer `capture-runtime` versions). The Dio adapter has no runtime
+- Compatibility release for `tugboat` 0.12.3 (session and event IDs are
+  UUID-scoped). The Dio adapter has no runtime behavior change.
+
+## 0.12.2
+
+- Updated interceptor setup, event verification, retry guidance, and error-body privacy examples.
+
+## 0.12.0
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.0 (loading-state detection and
+  the `TugboatLoading` marker removed). Requires `tugboat` `^0.12.0`. The Dio
+  adapter has no runtime behavior change.
+
+## 0.11.6
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.6 (opt-in tap press duration).
+  The Dio adapter has no runtime behavior change.
+
+## 0.11.5
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.5 (`session_start` sends an
+  SDK-minted `appInfo.installationId`). The Dio adapter has no runtime
   behavior change.
+
+## 0.11.4
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.4 (a navigating tap on a button's
+  padding records the button's `GestureDetector` again). The Dio adapter has
+  no runtime behavior change.
+
+## 0.11.3
+
+### Added
+
+- Privacy-boundary option, default unchanged: `TugboatDioInterceptor` (and
+  `install`) accept `errorBodyDenyUrls` and `errorBodyUrls` to control which
+  request URLs may keep an HTTP error response body. Both default to "no
+  restriction" (`errorBodyDenyUrls` empty, `errorBodyUrls` null), so every
+  HTTP error body is retained exactly as in 0.11.2 unless a host opts in.
+  A pattern is a case-insensitive `host` or `host/path` glob with `*` as the
+  only wildcard. It is split at its first `/`: in the host part `*` never
+  reaches into the path, in the path part `*` matches any run of characters,
+  and a pattern with no `/` matches that whole host with any path. An empty
+  URL path counts as `/`; dot segments are resolved and runs of `/` collapse
+  before matching. Only the host and path of `baseUrl` + `path` are compared;
+  the scheme, port, user-info, query, `queryParameters` and fragment are never
+  read, and ports are not matched. A redirected response is checked at its
+  request URL and at every redirect hop, each resolved against the hop before
+  it (this relies on the HTTP adapter reporting `Response.redirects`, as the
+  default IO adapter does): any URL matching a deny pattern drops the body, and
+  an allow list must allow every URL. A deny match always drops the body;
+  when `errorBodyUrls` is set, only matching URLs keep one (an empty list keeps
+  none). An excluded URL, or one that cannot be parsed while a list is set,
+  still records its method, route, status, outcome and duration, without the
+  body.
+- Unusable patterns fail closed. Patterns that are not accepted (blank,
+  starting with `/`, or containing a scheme, port, user-info, IPv6 brackets,
+  query, fragment, whitespace, non-ASCII, or a path character Dart rewrites
+  such as `[ ] { } | ^ " < >`, a backtick or a backslash; paths are matched in
+  percent-encoded form; or a path that the compared path can never contain:
+  `//`, a `.` or `..` segment, or an escaped unreserved character such as
+  `%7E`; or a `%` not followed by two literal hex digits, where a `*` is not
+  accepted in place of the digits) fail an `assert` in debug builds that names
+  them and never throw while requests run. In release builds, if any
+  `errorBodyDenyUrls` entry is unusable the interceptor drops every error body
+  (for example a deny entry that includes the scheme), and an `errorBodyUrls`
+  list with no usable pattern keeps none; an unusable entry among usable
+  `errorBodyUrls` entries is skipped.
+- Matching uses an iterative glob matcher with no regular expressions, so
+  adjacent `*` cannot cause slow matching.
+
+### Fixed
+
+- README: error response bodies are bounded to 4 KiB each (it said 16 KiB,
+  which is the collector's whole `network_call` payload cap).
+
+## 0.11.2
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.2 (collector sink health counts and
+  monotonic lifecycle durations). The Dio adapter has no runtime behavior
+  change.
+
+## 0.11.1
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.1 (collector frame delivery under
+  stalled or failing uploads). The Dio adapter has no runtime behavior change.
+
+## 0.11.0
+
+### Changed
+
+- Compatibility release for `tugboat` 0.11.0 (fingerprint schema 7, exploration
+  inventory metadata, exploration WebSocket removed). Requires `tugboat`
+  `^0.11.0`. The Dio adapter has no runtime behavior change.
+
+## 0.10.11
+
+### Changed
+
+- Compatibility release for `tugboat` 0.10.11 (a tap whose handler navigates
+  keeps its target). The Dio adapter has no runtime behavior change.
 
 ## 0.10.10
 

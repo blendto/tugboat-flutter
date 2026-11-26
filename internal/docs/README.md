@@ -14,7 +14,7 @@ Public contracts stay in `docs/`. Policy:
 | Tree | Contents |
 | --- | --- |
 | [plans/](plans/) | Milestone / agent sequencing |
-| [lab/](lab/) | Device-lab method, results, native CPU sign-off matrix |
+| [lab/](lab/) | Device-lab method, results, native CPU sign-off matrix, `boundsNorm` device check |
 | [canaries/](canaries/) | Blend and production-replay acceptance runs |
 | [reviews/](reviews/) | PR / Cursor review notes |
 | [roadmap/](roadmap/) | RN and GPU sketches |

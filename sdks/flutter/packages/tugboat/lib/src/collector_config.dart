@@ -11,6 +11,13 @@ class TugboatCollectorAppInfo {
   final String name;
   final String version;
   final String buildNumber;
+
+  /// One id per app install, sent as `appInfo.installationId`.
+  ///
+  /// Use `TugboatCollectorHost.installationId()` (what `fromPlatform` fills
+  /// in) or your own per-install id. Do not use `device_info_plus` ids such as
+  /// Android's `Build.ID`: every device on the same OS build shares it, so
+  /// unrelated installs would merge downstream.
   final String installationId;
 
   /// Native package / bundle identifier (e.g. `to.blend.mobile_app`).
@@ -27,6 +34,7 @@ class TugboatCollectorAppInfo {
   };
 }
 
+/// Screen dimensions included in collector device metadata.
 class TugboatCollectorScreenSize {
   const TugboatCollectorScreenSize({required this.width, required this.height});
 
@@ -105,6 +113,7 @@ class TugboatCollectorDeviceInfo {
   };
 }
 
+/// An IP address and optional location and network details for the collector.
 class TugboatCollectorIpInfo {
   const TugboatCollectorIpInfo({
     required this.ip,
@@ -135,6 +144,7 @@ class TugboatCollectorIpInfo {
   };
 }
 
+/// Language, country, and time zone metadata for collector delivery.
 class TugboatCollectorLocaleInfo {
   const TugboatCollectorLocaleInfo({
     this.language,
@@ -173,9 +183,8 @@ class TugboatCollectorConfig {
     this.eventFlushInterval = const Duration(seconds: 3),
     this.maxPendingBatches = 20,
     this.maxPendingEvents = 60,
-    this.maxPendingFrames = 20,
-    this.retryAfterCap = const Duration(seconds: 60),
-    this.endingRetryAfterCap = const Duration(seconds: 10),
+    this.maxPendingFrames = 400,
+    this.maxPendingFrameBytes = 8 * 1024 * 1024,
   });
 
   final String baseUrl;
@@ -189,20 +198,18 @@ class TugboatCollectorConfig {
   final Duration eventFlushInterval;
   final int maxPendingBatches;
   final int maxPendingEvents;
+
+  /// Most frames held in memory while uploads stall or retry. Frames are
+  /// small masked JPEGs (about 5–25 KB), so this count is usually reached
+  /// before [maxPendingFrameBytes]; the byte bound applies when frames
+  /// average more than about 21 KB.
   final int maxPendingFrames;
 
-  /// Longest wait honoured from a collector `Retry-After` header. On HTTP 429
-  /// or 503 with that header, the sink holds back that delivery lane
-  /// (lifecycle, events or frames) until the hinted delay, cut to this cap,
-  /// has passed; the other lanes keep sending. Clamped to zero through
-  /// 24 hours (never throws); [Duration.zero] honours no hint.
-  final Duration retryAfterCap;
-
-  /// [retryAfterCap] for the lifecycle lane once the session is ending, so
-  /// `session_end` is not held past host shutdown. It also shortens a
-  /// lifecycle wait already running when the session ends. Clamped like
-  /// [retryAfterCap].
-  final Duration endingRetryAfterCap;
+  /// Most encoded frame bytes held in memory while uploads stall or retry.
+  /// Over either bound the sink evicts the oldest frame that no event
+  /// references first. Both bounds cover frames waiting for upload; the
+  /// batch being uploaded (at most 20 frames) is held in addition.
+  final int maxPendingFrameBytes;
 
   TugboatCollectorConfig withUserId(String? userId) {
     return TugboatCollectorConfig(
@@ -218,8 +225,7 @@ class TugboatCollectorConfig {
       maxPendingBatches: maxPendingBatches,
       maxPendingEvents: maxPendingEvents,
       maxPendingFrames: maxPendingFrames,
-      retryAfterCap: retryAfterCap,
-      endingRetryAfterCap: endingRetryAfterCap,
+      maxPendingFrameBytes: maxPendingFrameBytes,
     );
   }
 
@@ -238,8 +244,7 @@ class TugboatCollectorConfig {
       maxPendingBatches: maxPendingBatches,
       maxPendingEvents: maxPendingEvents,
       maxPendingFrames: maxPendingFrames,
-      retryAfterCap: retryAfterCap,
-      endingRetryAfterCap: endingRetryAfterCap,
+      maxPendingFrameBytes: maxPendingFrameBytes,
     );
   }
 }

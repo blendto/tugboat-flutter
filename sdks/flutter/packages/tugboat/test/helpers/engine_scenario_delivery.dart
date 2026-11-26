@@ -238,8 +238,7 @@ class ScenarioDelivery {
       config: collector.config,
       client: client,
       identityDebounceDuration: collector.identityDebounce,
-      debugNow: now,
-      debugElapsed: () => Duration(microseconds: scheduler.nowUs),
+      wallClock: now,
     );
   }
 
@@ -346,10 +345,6 @@ ScenarioCollector scenarioCollector(
       maxPendingBatches: setting('maxPendingBatches', 20),
       maxPendingEvents: setting('maxPendingEvents', 60),
       maxPendingFrames: setting('maxPendingFrames', 20),
-      retryAfterCap: Duration(milliseconds: setting('maxRetryAfterMs', 60000)),
-      endingRetryAfterCap: Duration(
-        milliseconds: setting('maxEndingRetryAfterMs', 10000),
-      ),
     ),
     identityDebounce: Duration(
       milliseconds: setting('identityDebounceMs', 3000),

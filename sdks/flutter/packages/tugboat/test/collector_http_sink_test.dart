@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -6,11 +7,45 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:tugboat/src/capture_sink.dart';
 import 'package:tugboat/src/collector_config.dart';
 import 'package:tugboat/src/collector_http_sink.dart';
 import 'package:tugboat/src/models.dart';
 import 'package:tugboat/src/screenshot_capture_backend.dart';
 import 'package:tugboat/src/sdk_version.dart';
+
+/// A stopwatch the test advances by hand, standing in for the monotonic clock.
+class _FakeStopwatch implements Stopwatch {
+  Duration time = Duration.zero;
+  bool _running = false;
+
+  @override
+  int get frequency => 1000000;
+
+  @override
+  Duration get elapsed => time;
+
+  @override
+  int get elapsedMicroseconds => time.inMicroseconds;
+
+  @override
+  int get elapsedMilliseconds => time.inMilliseconds;
+
+  @override
+  int get elapsedTicks => time.inMicroseconds;
+
+  @override
+  bool get isRunning => _running;
+
+  @override
+  void reset() => time = Duration.zero;
+
+  @override
+  void start() => _running = true;
+
+  @override
+  void stop() => _running = false;
+}
 
 void main() {
   late HttpServer server;
@@ -89,6 +124,7 @@ void main() {
       if (path == '/v1/sessions') {
         final body = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
         sessionPosts.add(Map<String, dynamic>.from(body));
+        requestOrder.add('$path:${body['eventType']}');
         final status = sessionFailuresRemaining > 0
             ? (() {
                 sessionFailuresRemaining -= 1;
@@ -183,6 +219,7 @@ void main() {
     int maxPendingBatches = 20,
     int maxPendingEvents = 200,
     int maxPendingFrames = 50,
+    int maxPendingFrameBytes = 8 * 1024 * 1024,
   }) {
     return TugboatCollectorConfig(
       baseUrl: baseUri.toString(),
@@ -192,6 +229,7 @@ void main() {
       maxPendingBatches: maxPendingBatches,
       maxPendingEvents: maxPendingEvents,
       maxPendingFrames: maxPendingFrames,
+      maxPendingFrameBytes: maxPendingFrameBytes,
       appInfo: collectorConfig.appInfo,
       deviceInfo: collectorConfig.deviceInfo,
       ipInfo: collectorConfig.ipInfo,
@@ -219,6 +257,49 @@ void main() {
       type: 'capture_diagnostic',
       data: {'index': index},
     );
+  }
+
+  void recordTestFrame(
+    CollectorHttpSink sink,
+    TugboatSession session,
+    int frameNo, {
+    int byteLength = 1,
+  }) {
+    sink.recordFrame(
+      TugboatFrame(
+        id: 'frame-$frameNo',
+        atMs: frameNo,
+        width: 1,
+        height: 1,
+        contentHash: 'hash-$frameNo',
+      ),
+      Uint8List(byteLength),
+      sessionId: session.id,
+    );
+  }
+
+  Future<void> waitFor(
+    bool Function() condition, {
+    Duration timeout = const Duration(seconds: 1),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (!condition() && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+  }
+
+  /// Diagnostic payloads for [component], once per event id (a retried
+  /// batch is posted more than once).
+  List<Map<String, dynamic>> diagnosticsFor(String component) {
+    final seen = <Object?>{};
+    return [
+      for (final batch in batchPosts)
+        for (final event in batch)
+          if (event['payload'] is Map &&
+              (event['payload'] as Map)['component'] == component &&
+              seen.add(event['id']))
+            Map<String, dynamic>.from(event['payload'] as Map),
+    ];
   }
 
   test('HTTP proof lines redact secrets and unknown paths', () {
@@ -494,7 +575,10 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 80));
 
     expect(batchPosts, isNotEmpty);
-    expect(batchPosts.first.single['sessionId'], 'sess_server');
+    expect(
+      batchPosts.first.where((event) => event['id'] == 'event-0').single,
+      containsPair('sessionId', 'sess_server'),
+    );
     sink.dispose();
   });
 
@@ -941,6 +1025,10 @@ void main() {
     expect(metadata.single, {
       'id': 'frame-2',
       'atMs': 5,
+      'triggeredAt': session.startedAt
+          .add(const Duration(milliseconds: 5))
+          .toUtc()
+          .toIso8601String(),
       'width': 100,
       'height': 200,
       'contentHash': 'abc',
@@ -994,6 +1082,464 @@ void main() {
     ]);
     sink.dispose();
   });
+
+  test(
+    'a frame recorded during an in-flight flush is uploaded before session_end',
+    () async {
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // A full batch starts a flush that is busy in its event loop.
+      eventResponseDelay = const Duration(milliseconds: 150);
+      for (var i = 0; i < 10; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      while (batchPosts.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      // The session's last screenshot lands while that flush is running.
+      sink.recordFrame(
+        const TugboatFrame(
+          id: 'frame-313',
+          atMs: 313,
+          width: 1,
+          height: 1,
+          contentHash: 'last',
+        ),
+        Uint8List.fromList([3]),
+        sessionId: session.id,
+      );
+      await sink.endSession();
+
+      expect(
+        framePosts.expand((post) => post['frameNos'] as List),
+        contains('313'),
+      );
+      expect(
+        requestOrder,
+        containsAllInOrder(['/v1/frames', '/v1/sessions:session_end']),
+      );
+      sink.dispose();
+    },
+  );
+
+  test('a hung event post times out without blocking frame uploads', () async {
+    final framePaths = <String>[];
+    final eventIds = <String>[];
+    var hangEvents = true;
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      requestTimeout: const Duration(milliseconds: 100),
+      client: MockClient((request) async {
+        final path = request.url.path;
+        if (path == '/v1/sessions') {
+          return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+        }
+        if (path == '/v1/frames') {
+          framePaths.add(path);
+          return http.Response('{}', 202);
+        }
+        if (hangEvents) return Completer<http.Response>().future;
+        final body = jsonDecode(request.body) as Map;
+        eventIds.addAll([
+          for (final event in body['events'] as List)
+            (event as Map)['id'] as String,
+        ]);
+        return http.Response('{}', 202);
+      }),
+    );
+    final session = createSession();
+    sink.startSession(session);
+    await sink.flush();
+
+    for (var i = 0; i < 10; i++) {
+      sink.recordEvent(createEvent(i));
+    }
+    recordTestFrame(sink, session, 1);
+    await waitFor(() => framePaths.isNotEmpty);
+    expect(framePaths, hasLength(1));
+
+    hangEvents = false;
+    await sink.flush();
+    expect(eventIds, containsAll([for (var i = 0; i < 10; i++) 'event-$i']));
+    sink.dispose();
+  });
+
+  test('a timed-out post is aborted instead of left open', () async {
+    // A raw socket server answers session posts and never answers events, so
+    // the test sees whether the client closes the hung connection.
+    final rawServer = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final eventSocketClosed = Completer<void>();
+    rawServer.listen((socket) {
+      var carriesEventPost = false;
+      socket.listen(
+        (data) {
+          final text = latin1.decode(data);
+          if (text.startsWith('POST /v1/sessions')) {
+            const body = '{"sessionId":"sess_server"}';
+            socket.write(
+              'HTTP/1.1 202 Accepted\r\n'
+              'content-type: application/json\r\n'
+              'content-length: ${body.length}\r\n\r\n$body',
+            );
+          } else if (text.startsWith('POST /v1/events/batch')) {
+            carriesEventPost = true;
+          }
+        },
+        onDone: () {
+          if (carriesEventPost && !eventSocketClosed.isCompleted) {
+            eventSocketClosed.complete();
+          }
+          socket.destroy();
+        },
+        onError: (Object _) {},
+      );
+    });
+    baseUri = Uri.parse('http://127.0.0.1:${rawServer.port}');
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      requestTimeout: const Duration(milliseconds: 100),
+    );
+    sink.startSession(createSession());
+    await sink.flush();
+    for (var i = 0; i < 10; i++) {
+      sink.recordEvent(createEvent(i));
+    }
+    await sink.flush();
+
+    // Without the abort the socket stays open until the sink is disposed.
+    await expectLater(
+      eventSocketClosed.future.timeout(const Duration(seconds: 2)),
+      completes,
+    );
+    sink.dispose();
+    await rawServer.close();
+  });
+
+  test('a hung session_start post times out and is retried', () async {
+    var sessionPosts = 0;
+    final frameNos = <String>[];
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      requestTimeout: const Duration(milliseconds: 100),
+      client: MockClient((request) async {
+        final path = request.url.path;
+        if (path == '/v1/sessions') {
+          sessionPosts += 1;
+          if (sessionPosts == 1) return Completer<http.Response>().future;
+          return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+        }
+        if (path == '/v1/frames') {
+          frameNos.addAll(
+            RegExp(
+              r'filename="(\d+)\.jpg"',
+            ).allMatches(request.body).map((match) => match.group(1)!),
+          );
+        }
+        return http.Response('{}', 202);
+      }),
+    );
+    final session = createSession();
+    sink.startSession(session);
+    recordTestFrame(sink, session, 4);
+
+    await waitFor(() => frameNos.isNotEmpty);
+    expect(sessionPosts, 2);
+    expect(frameNos, ['4']);
+    sink.dispose();
+  });
+
+  test(
+    'frames recorded during a long event drain go out between batches',
+    () async {
+      final sink = CollectorHttpSink(config: configForServer());
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      eventResponseDelay = const Duration(milliseconds: 40);
+      for (var i = 0; i < 30; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      while (batchPosts.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      recordTestFrame(sink, session, 7);
+      await sink.flush();
+
+      final framesAt = requestOrder.indexOf('/v1/frames');
+      expect(framesAt, isNonNegative);
+      expect(framesAt, lessThan(requestOrder.lastIndexOf('/v1/events/batch')));
+      expect(batchPosts.expand((batch) => batch), hasLength(30));
+      sink.dispose();
+    },
+  );
+
+  test('a slow flush reports the step it spent the most time in', () async {
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      slowFlushThreshold: const Duration(milliseconds: 50),
+    );
+    sink.startSession(createSession());
+    await sink.flush();
+
+    eventResponseDelay = const Duration(milliseconds: 100);
+    sink.recordEvent(createEvent(0));
+    await sink.flush();
+    eventResponseDelay = Duration.zero;
+    await sink.flush();
+
+    final slow = diagnosticsFor('collector_flush');
+    expect(slow, hasLength(1));
+    expect(slow.single['result'], 'slow');
+    expect(slow.single['step'], 'events');
+    expect(slow.single['durationMs'], greaterThanOrEqualTo(100));
+    sink.dispose();
+  });
+
+  test(
+    'a hung event post ends the pass and parks the rest for retry',
+    () async {
+      var hang = true;
+      final batchesTriedWhileHung = <String>{};
+      final delivered = <String>[];
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        requestTimeout: const Duration(milliseconds: 50),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (path != '/v1/events/batch') return http.Response('{}', 202);
+          final ids = [
+            for (final event
+                in (jsonDecode(request.body) as Map)['events'] as List)
+              (event as Map)['id'] as String,
+          ];
+          if (hang) {
+            batchesTriedWhileHung.add(ids.first);
+            return Completer<http.Response>().future;
+          }
+          delivered.addAll(ids);
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+
+      for (var i = 0; i < 50; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      await sink.flush();
+      // Only the first batch waited out a timeout; the other four were parked
+      // unsent instead of each timing out in turn.
+      expect(batchesTriedWhileHung.where((id) => id.startsWith('event-')), [
+        'event-0',
+      ]);
+
+      hang = false;
+      await sink.flush();
+      expect(delivered.where((id) => id.startsWith('event-')), [
+        for (var i = 0; i < 50; i++) 'event-$i',
+      ]);
+      sink.dispose();
+    },
+  );
+
+  group('an event retry head with no response', () {
+    ({CollectorHttpSink sink, List<String> delivered, List<String> heads})
+    hangingSink({
+      required bool Function(List<String> ids) hangs,
+      int maxPendingBatches = 20,
+    }) {
+      final delivered = <String>[];
+      final heads = <String>[];
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingBatches: maxPendingBatches),
+        requestTimeout: const Duration(milliseconds: 40),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (path != '/v1/events/batch') return http.Response('{}', 202);
+          final ids = [
+            for (final event
+                in (jsonDecode(request.body) as Map)['events'] as List)
+              (event as Map)['id'] as String,
+          ];
+          heads.add(ids.first);
+          if (hangs(ids)) return Completer<http.Response>().future;
+          delivered.addAll(ids);
+          return http.Response('{}', 202);
+        }),
+      );
+      return (sink: sink, delivered: delivered, heads: heads);
+    }
+
+    test('parks fresh events instead of posting them', () async {
+      var hang = true;
+      final run = hangingSink(hangs: (_) => hang);
+      run.sink.startSession(createSession());
+      await run.sink.flush();
+      run.sink.recordEvent(createEvent(0));
+      await run.sink.flush();
+      run.heads.clear();
+
+      for (var i = 1; i < 6; i++) {
+        run.sink.recordEvent(createEvent(i));
+      }
+      await run.sink.flush();
+      // Only the retry head went out; the fresh events did not wait out a
+      // timeout of their own.
+      expect(run.heads, ['event-0']);
+
+      hang = false;
+      await run.sink.flush();
+      expect(run.delivered.where((id) => id.startsWith('event-')), [
+        for (var i = 0; i < 6; i++) 'event-$i',
+      ]);
+      run.sink.dispose();
+    });
+
+    test('does not merge parked events into a short hanging head', () async {
+      final run = hangingSink(
+        hangs: (ids) => ids.contains('event-0'),
+        maxPendingBatches: 2,
+      );
+      run.sink.startSession(createSession());
+      await run.sink.flush();
+      run.sink.recordEvent(createEvent(0));
+      await run.sink.flush();
+      for (var i = 1; i < 60; i++) {
+        run.sink.recordEvent(createEvent(i));
+        await run.sink.flush();
+      }
+      await run.sink.flush();
+      await run.sink.flush();
+
+      final delivered = run.delivered.where((id) => id.startsWith('event-'));
+      expect(delivered, isNot(contains('event-0')));
+      expect(delivered, containsAll([for (var i = 1; i < 9; i++) 'event-$i']));
+      run.sink.dispose();
+    });
+
+    test('holds later events only until a hanging batch is evicted', () async {
+      // The collector hangs on one batch only, and answers every other one.
+      final run = hangingSink(
+        hangs: (ids) => ids.contains('event-0'),
+        maxPendingBatches: 2,
+      );
+      run.sink.startSession(createSession());
+      await run.sink.flush();
+      for (var i = 0; i < 10; i++) {
+        run.sink.recordEvent(createEvent(i));
+      }
+      await run.sink.flush();
+      for (var i = 10; i < 40; i++) {
+        run.sink.recordEvent(createEvent(i));
+        await run.sink.flush();
+      }
+      await run.sink.flush();
+      await run.sink.flush();
+
+      final delivered = run.delivered.where((id) => id.startsWith('event-'));
+      expect(delivered, isNot(contains('event-0')));
+      expect(
+        delivered,
+        containsAll([for (var i = 10; i < 40; i++) 'event-$i']),
+      );
+      run.sink.dispose();
+    });
+  });
+
+  test(
+    'events that arrive during a hung post do not evict parked batches',
+    () async {
+      var eventPosts = 0;
+      final delivered = <String>[];
+      late CollectorHttpSink sink;
+      sink = CollectorHttpSink(
+        config: configForServer(maxPendingBatches: 2, maxPendingEvents: 60),
+        requestTimeout: const Duration(milliseconds: 50),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (path != '/v1/events/batch') return http.Response('{}', 202);
+          eventPosts += 1;
+          if (eventPosts == 1) {
+            // Events keep arriving while the only hung post waits.
+            Timer(const Duration(milliseconds: 10), () {
+              for (var i = 20; i < 50; i++) {
+                sink.recordEvent(createEvent(i));
+              }
+            });
+            return Completer<http.Response>().future;
+          }
+          delivered.addAll([
+            for (final event
+                in (jsonDecode(request.body) as Map)['events'] as List)
+              (event as Map)['id'] as String,
+          ]);
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+
+      for (var i = 0; i < 20; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      await sink.flush();
+      await sink.flush();
+      expect(delivered.where((id) => id.startsWith('event-')), [
+        for (var i = 0; i < 50; i++) 'event-$i',
+      ]);
+      sink.dispose();
+    },
+  );
+
+  test(
+    'a session started while the last one ends does not get its session_end',
+    () async {
+      final lifecycle = <String>[];
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            final body = jsonDecode(request.body) as Map;
+            lifecycle.add('${body['eventType']}:${body['sessionId']}');
+            return http.Response(
+              jsonEncode({'sessionId': 'server-${body['sessionId']}'}),
+              202,
+            );
+          }
+          // Keep the ending session's flush busy long enough to restart.
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession(id: 'first'));
+      await sink.flush();
+      sink.recordEvent(createEvent(0));
+
+      final ending = sink.endSession();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      sink.startSession(createSession(id: 'second'));
+      await ending;
+      await sink.flush();
+
+      expect(lifecycle, ['session_start:first', 'session_start:second']);
+      sink.dispose();
+    },
+  );
 
   test('accepts empty 202 lifecycle body without retrying', () async {
     sessionResponseBody = '';
@@ -1176,10 +1722,13 @@ void main() {
     expect(batchPosts.first.map((event) => event['id']), [
       for (var i = 0; i < 10; i++) 'event-$i',
     ]);
-    expect(batchPosts.last.map((event) => event['id']), [
-      'event-10',
-      'event-11',
-    ]);
+    // The outage's collector_request diagnostics ride along with them.
+    expect(
+      batchPosts.last
+          .map((event) => event['id'] as String)
+          .where((id) => !id.startsWith('collector-request-')),
+      ['event-10', 'event-11'],
+    );
     sink.dispose();
   });
 
@@ -1238,6 +1787,268 @@ void main() {
 
     expect(framePosts, hasLength(1));
     expect(framePosts.single['frameNos'], ['2', '3', '4']);
+    sink.dispose();
+  });
+
+  test('frame eviction keeps frames that events reference', () async {
+    sessionStatus = 503;
+    final sink = CollectorHttpSink(
+      config: configForServer(maxPendingFrames: 3),
+    );
+    final session = createSession();
+    sink.startSession(session);
+    for (var i = 0; i < 6; i++) {
+      recordTestFrame(sink, session, i);
+      if (i < 2) {
+        sink.recordEvent(
+          TugboatEvent(
+            id: 'tap-$i',
+            atMs: i,
+            type: 'interaction',
+            afterFrame: 'frame-$i',
+          ),
+        );
+      }
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+
+    sessionStatus = 202;
+    await sink.flush();
+
+    expect(framePosts.expand((post) => post['frameNos'] as List), [
+      '0',
+      '1',
+      '5',
+    ]);
+    sink.dispose();
+  });
+
+  test('frame references are forgotten once their frames leave', () async {
+    final sink = CollectorHttpSink(config: configForServer());
+    final session = createSession();
+    TugboatEvent tap(int frameNo) => TugboatEvent(
+      id: 'tap-$frameNo-${DateTime.now().microsecondsSinceEpoch}',
+      atMs: frameNo,
+      type: 'interaction',
+      afterFrame: 'frame-$frameNo',
+    );
+    sink.startSession(session);
+    await sink.flush();
+
+    for (var i = 0; i < 30; i++) {
+      // An event can name its frame before the frame reaches the sink.
+      sink.recordEvent(tap(i));
+      recordTestFrame(sink, session, i);
+    }
+    await sink.flush();
+    expect(sink.referencedFrameCount, 0);
+
+    // And after the frame already went out.
+    for (var i = 0; i < 30; i++) {
+      sink.recordEvent(tap(i));
+    }
+    await sink.flush();
+    expect(sink.referencedFrameCount, 0);
+    sink.dispose();
+  });
+
+  test(
+    'frames held during a backlog upload stay within one batch of the bound',
+    () async {
+      sessionStatus = 503;
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingFrames: 40),
+      );
+      final session = createSession();
+      sink.startSession(session);
+      for (var i = 0; i < 40; i++) {
+        recordTestFrame(sink, session, i);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      sessionStatus = 202;
+      frameResponseDelay = const Duration(milliseconds: 100);
+      final draining = sink.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      // A full bound of new frames arrives while the first batch uploads.
+      for (var i = 40; i < 80; i++) {
+        recordTestFrame(sink, session, i);
+      }
+      await draining;
+      await sink.flush();
+      await sink.flush();
+
+      final sent = [
+        for (final post in framePosts)
+          for (final frameNo in post['frameNos'] as List) int.parse('$frameNo'),
+      ];
+      // Held at once: one batch in flight plus at most 40 pending.
+      expect(sent.length, lessThanOrEqualTo(40 + 20));
+      expect(sent, containsAll([for (var i = 40; i < 80; i++) i]));
+      sink.dispose();
+    },
+  );
+
+  test('pending frames are bounded by encoded bytes', () async {
+    sessionStatus = 503;
+    final sink = CollectorHttpSink(
+      config: configForServer(maxPendingFrameBytes: 10),
+    );
+    final session = createSession();
+    sink.startSession(session);
+    for (var i = 0; i < 4; i++) {
+      recordTestFrame(sink, session, i, byteLength: 4);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+
+    sessionStatus = 202;
+    await sink.flush();
+
+    expect(framePosts.expand((post) => post['frameNos'] as List), ['2', '3']);
+    sink.dispose();
+  });
+
+  test(
+    'default limits keep every referenced frame through a stall of 200 frames',
+    () async {
+      frameStatus = 503;
+      final sink = CollectorHttpSink(
+        config: TugboatCollectorConfig(
+          baseUrl: baseUri.toString(),
+          apiKey: collectorConfig.apiKey,
+          eventFlushInterval: collectorConfig.eventFlushInterval,
+          appInfo: collectorConfig.appInfo,
+          deviceInfo: collectorConfig.deviceInfo,
+          ipInfo: collectorConfig.ipInfo,
+          locale: collectorConfig.locale,
+        ),
+      );
+      final session = createSession();
+      sink.startSession(session);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final referenced = <String>[];
+      for (var i = 0; i < 200; i++) {
+        recordTestFrame(sink, session, i, byteLength: 15 * 1024);
+        if (i % 4 == 0) {
+          referenced.add('$i');
+          sink.recordEvent(
+            TugboatEvent(
+              id: 'tap-$i',
+              atMs: i,
+              type: 'interaction',
+              afterFrame: 'frame-$i',
+            ),
+          );
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      frameStatus = 202;
+      await sink.flush();
+      await sink.flush();
+
+      final uploaded = framePosts
+          .where((post) => post['status'] == 202)
+          .expand((post) => (post['frameNos'] as List).cast<String>())
+          .toSet();
+      expect(uploaded, containsAll(referenced));
+      sink.dispose();
+    },
+  );
+
+  test('session end reports the final dropped frame count', () async {
+    frameStatus = 503;
+    final sink = CollectorHttpSink(
+      config: configForServer(maxPendingFrames: 3),
+    );
+    final session = createSession();
+    sink.startSession(session);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    for (var i = 0; i < 8; i++) {
+      recordTestFrame(sink, session, i);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    await sink.endSession();
+
+    final dropped = diagnosticsFor(
+      'collector_frame_upload',
+    ).where((payload) => payload['result'] == 'dropped').toList();
+    expect(dropped, isNotEmpty);
+    expect(dropped.last['droppedFrameCount'], 5);
+    expect(sessionPosts.last['eventType'], 'session_end');
+    sink.dispose();
+  });
+
+  test(
+    'session and event post failures report once per outage and recovery',
+    () async {
+      sessionFailuresRemaining = 2;
+      eventStatus = 502;
+      final sink = CollectorHttpSink(config: configForServer());
+      sink.startSession(createSession());
+      await sink.flush();
+      await sink.flush();
+      await sink.flush();
+
+      for (var i = 0; i < 20; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      await sink.flush();
+      eventStatus = 202;
+      await sink.flush();
+      await sink.flush();
+
+      final diagnostics = diagnosticsFor('collector_request');
+      expect(
+        diagnostics.map(
+          (payload) =>
+              (payload['path'], payload['result'], payload['statusCode']),
+        ),
+        [
+          ('/v1/sessions', 'failed', 503),
+          ('/v1/sessions', 'recovered', null),
+          ('/v1/events/batch', 'failed', 502),
+          ('/v1/events/batch', 'recovered', null),
+        ],
+      );
+      sink.dispose();
+    },
+  );
+
+  test('a timed-out session post is reported as a timeout', () async {
+    var sessionPosts = 0;
+    final events = <Map<String, dynamic>>[];
+    final sink = CollectorHttpSink(
+      config: configForServer(),
+      requestTimeout: const Duration(milliseconds: 50),
+      client: MockClient((request) async {
+        if (request.url.path == '/v1/sessions') {
+          sessionPosts += 1;
+          if (sessionPosts == 1) return Completer<http.Response>().future;
+          return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+        }
+        final body = jsonDecode(request.body) as Map;
+        events.addAll([
+          for (final event in body['events'] as List)
+            Map<String, dynamic>.from(event as Map),
+        ]);
+        return http.Response('{}', 202);
+      }),
+    );
+    sink.startSession(createSession());
+    await waitFor(() => sessionPosts >= 2);
+    await sink.flush();
+
+    final failed = events
+        .map((event) => event['payload'])
+        .whereType<Map>()
+        .where((payload) => payload['component'] == 'collector_request')
+        .first;
+    expect(failed['path'], '/v1/sessions');
+    expect(failed['result'], 'failed');
+    expect(failed['error'], 'timeout');
+    expect(failed.containsKey('statusCode'), isFalse);
     sink.dispose();
   });
 
@@ -1661,5 +2472,722 @@ void main() {
     expect(sessionPosts.last['userId'], isNull);
     expect(sessionPosts.last['traits'], {'plan': 'pro'});
     sink.dispose();
+  });
+
+  group('rejected lifecycle posts', () {
+    Future<List<String>> run({required String rejectOnce}) async {
+      final eventTypes = <String>[];
+      var rejected = false;
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        identityDebounceDuration: const Duration(milliseconds: 1),
+        client: MockClient((request) async {
+          if (request.url.path != '/v1/sessions') {
+            return http.Response('{}', 202);
+          }
+          final type = (jsonDecode(request.body) as Map)['eventType'] as String;
+          eventTypes.add(type);
+          if (type == rejectOnce && !rejected) {
+            rejected = true;
+            return http.Response('{}', 400);
+          }
+          return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+      await sink.flush();
+      await sink.setUserId('user-1');
+      await sink.endSession();
+      sink.dispose();
+      return eventTypes;
+    }
+
+    test('a rejected identity post does not hold session_end', () async {
+      expect(await run(rejectOnce: 'user_changed'), [
+        'session_start',
+        'user_changed',
+        'session_end',
+      ]);
+    });
+
+    test('a rejected session_start is kept and retried', () async {
+      expect(await run(rejectOnce: 'session_start'), [
+        'session_start',
+        'session_start',
+        'user_changed',
+        'session_end',
+      ]);
+    });
+
+    test('do not keep the slow-flush report switched off', () async {
+      var eventsHang = false;
+      final delivered = <Map>[];
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        requestTimeout: const Duration(milliseconds: 40),
+        slowFlushThreshold: const Duration(milliseconds: 30),
+        identityDebounceDuration: const Duration(milliseconds: 1),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            if (request.body.contains('user_changed')) {
+              return http.Response('{}', 400);
+            }
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (path != '/v1/events/batch') return http.Response('{}', 202);
+          if (eventsHang) return Completer<http.Response>().future;
+          delivered.addAll(
+            ((jsonDecode(request.body) as Map)['events'] as List).cast<Map>(),
+          );
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+      await sink.setUserId('user-1');
+      await sink.flush();
+      // Two separate event outages each report one slow flush.
+      for (final index in [0, 1]) {
+        sink.recordEvent(createEvent(index));
+        eventsHang = true;
+        for (var pass = 0; pass < 3; pass++) {
+          await sink.flush();
+        }
+        eventsHang = false;
+        for (var pass = 0; pass < 5; pass++) {
+          await sink.flush();
+        }
+      }
+      final slowIds = {
+        for (final event in delivered)
+          if ((event['payload'] as Map?)?['component'] == 'collector_flush')
+            event['id'],
+      };
+      expect(slowIds, hasLength(2));
+      sink.dispose();
+    });
+  });
+
+  group('slow-flush diagnostics during an outage', () {
+    Future<({List<String> realIds, int slowReports})> runOutage({
+      required bool flaky,
+    }) async {
+      var outage = true;
+      var eventPosts = 0;
+      final delivered = <Map>[];
+      final sink = CollectorHttpSink(
+        config: configForServer(),
+        requestTimeout: const Duration(milliseconds: 30),
+        slowFlushThreshold: const Duration(milliseconds: 20),
+        client: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (path != '/v1/events/batch') return http.Response('{}', 202);
+          if (outage) {
+            eventPosts += 1;
+            // A flaky network mixes hangs with instant failures.
+            if (flaky && eventPosts.isEven) return http.Response('{}', 503);
+            return Completer<http.Response>().future;
+          }
+          final body = jsonDecode(request.body) as Map;
+          delivered.addAll((body['events'] as List).cast<Map>());
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+      for (var i = 0; i < 3; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      for (var pass = 0; pass < 40; pass++) {
+        await sink.flush();
+      }
+      outage = false;
+      for (var pass = 0; pass < 5; pass++) {
+        await sink.flush();
+      }
+      sink.dispose();
+      return (
+        realIds: [
+          for (final event in delivered)
+            if ('${event['id']}'.startsWith('event-')) '${event['id']}',
+        ],
+        slowReports: delivered
+            .where(
+              (event) =>
+                  (event['payload'] as Map?)?['component'] == 'collector_flush',
+            )
+            .length,
+      );
+    }
+
+    test('are reported once and do not evict real events', () async {
+      final result = await runOutage(flaky: false);
+      expect(result.realIds, ['event-0', 'event-1', 'event-2']);
+      expect(result.slowReports, 1);
+    });
+
+    test('stay reported once when fast failures mix with hangs', () async {
+      final result = await runOutage(flaky: true);
+      expect(result.realIds, ['event-0', 'event-1', 'event-2']);
+      expect(result.slowReports, 1);
+    });
+  });
+
+  group('lifecycle durations ignore wall-clock changes', () {
+    final startedAt = DateTime.utc(2026, 6, 19);
+    final jumps = {
+      'back a day': const Duration(days: -1),
+      'forward a day': const Duration(days: 1),
+    };
+
+    ({CollectorHttpSink sink, List<Map<String, dynamic>> sessions}) build({
+      required DateTime Function() wallClock,
+      required _FakeStopwatch watch,
+      List<Map<String, dynamic>>? batches,
+      Duration identityDebounce = const Duration(hours: 1),
+    }) {
+      final sessions = <Map<String, dynamic>>[];
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        wallClock: wallClock,
+        stopwatchFactory: () => watch,
+        identityDebounceDuration: identityDebounce,
+        client: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (request.url.path == '/v1/sessions') {
+            sessions.add(body);
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          batches?.addAll([
+            for (final event in body['events'] as List)
+              Map<String, dynamic>.from(event as Map),
+          ]);
+          return http.Response('{}', 202);
+        }),
+      );
+      return (sink: sink, sessions: sessions);
+    }
+
+    for (final jump in jumps.entries) {
+      test(
+        'session_end keeps its duration when the clock jumps ${jump.key}',
+        () async {
+          var wall = startedAt;
+          final watch = _FakeStopwatch();
+          final built = build(wallClock: () => wall, watch: watch);
+          final sink = built.sink;
+          sink.startSession(createSession());
+          await sink.flush();
+
+          watch.time = const Duration(seconds: 5);
+          wall = startedAt.add(const Duration(seconds: 5) + jump.value);
+          await sink.endSession();
+
+          final end = built.sessions.last;
+          expect(end['eventType'], 'session_end');
+          expect(end['atMs'], 5000);
+          // Absolute timestamps still come from the wall clock.
+          expect(end['triggeredAt'], wall.toIso8601String());
+          sink.dispose();
+        },
+      );
+    }
+
+    test('session_start stays at atMs 0', () async {
+      final watch = _FakeStopwatch()..time = const Duration(seconds: 2);
+      final built = build(
+        wallClock: () => startedAt.add(const Duration(days: 3)),
+        watch: watch,
+      );
+      built.sink.startSession(createSession());
+      await built.sink.flush();
+
+      expect(built.sessions.first['eventType'], 'session_start');
+      expect(built.sessions.first['atMs'], 0);
+      expect(built.sessions.first['triggeredAt'], startedAt.toIso8601String());
+      built.sink.dispose();
+    });
+
+    test(
+      'a coalesced identity update uses the later trigger by elapsed time',
+      () async {
+        var wall = startedAt;
+        final watch = _FakeStopwatch();
+        final built = build(
+          wallClock: () => wall,
+          watch: watch,
+          identityDebounce: const Duration(milliseconds: 30),
+        );
+        final sink = built.sink;
+        sink.startSession(createSession());
+        await sink.flush();
+
+        watch.time = const Duration(seconds: 1);
+        wall = startedAt.add(const Duration(hours: 5));
+        await sink.setTraits({'plan': 'pro'});
+        // The user change comes later, but the wall clock was set back before it.
+        watch.time = const Duration(seconds: 2);
+        wall = startedAt.add(const Duration(hours: 1));
+        await sink.setUserId('user_at');
+        watch.time = const Duration(seconds: 4);
+        await waitFor(() => built.sessions.length >= 2);
+
+        final identify = built.sessions.last;
+        expect(identify['eventType'], 'session_identify');
+        expect(identify['atMs'], 2000);
+        expect(
+          identify['triggeredAt'],
+          startedAt.add(const Duration(hours: 1)).toIso8601String(),
+        );
+        sink.dispose();
+      },
+    );
+
+    test('capture_diagnostic atMs comes from the session stopwatch', () async {
+      var accept = false;
+      final events = <Map<String, dynamic>>[];
+      final watch = _FakeStopwatch();
+      var wall = startedAt;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        wallClock: () => wall,
+        stopwatchFactory: () => watch,
+        client: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (request.url.path == '/v1/sessions') {
+            return accept
+                ? http.Response(jsonEncode({'sessionId': 'sess_server'}), 202)
+                : http.Response('', 503);
+          }
+          events.addAll([
+            for (final event in body['events'] as List)
+              Map<String, dynamic>.from(event as Map),
+          ]);
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      watch.time = const Duration(seconds: 3);
+      wall = startedAt.add(const Duration(days: 1));
+      await sink.flush();
+      accept = true;
+      await sink.flush();
+      await sink.flush();
+
+      final failed = events.firstWhere(
+        (event) =>
+            (event['payload'] as Map)['component'] == 'collector_request' &&
+            (event['payload'] as Map)['result'] == 'failed',
+      );
+      expect(failed['atMs'], 3000);
+      sink.dispose();
+    });
+  });
+
+  group('sink health reflects what the collector sink holds', () {
+    TugboatFrame frameFor(int frameNo) => TugboatFrame(
+      id: 'frame-$frameNo',
+      atMs: frameNo,
+      width: 1,
+      height: 1,
+      contentHash: 'hash-$frameNo',
+    );
+
+    test('events in a stalled request count as pending', () async {
+      final stalled = Completer<http.Response>();
+      var eventPosts = 0;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        client: MockClient((request) async {
+          if (request.url.path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          eventPosts += 1;
+          return stalled.future;
+        }),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      hub.startSession(createSession());
+      await sink.flush();
+
+      for (var i = 0; i < 10; i++) {
+        hub.recordEvent(createEvent(i));
+      }
+      await waitFor(() => eventPosts > 0);
+      expect(hub.acceptCount, 10);
+      expect(hub.pendingCount, 10);
+      expect(hub.dropCount, 0);
+
+      stalled.complete(http.Response('{}', 202));
+      await sink.flush();
+      expect(hub.pendingCount, 0);
+      sink.dispose();
+    });
+
+    test('frames in a stalled upload count as pending', () async {
+      final stalled = Completer<http.Response>();
+      var frameRequests = 0;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        client: MockClient((request) async {
+          if (request.url.path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (request.url.path == '/v1/frames') {
+            frameRequests += 1;
+            return stalled.future;
+          }
+          return http.Response('{}', 202);
+        }),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      final session = createSession();
+      hub.startSession(session);
+      await sink.flush();
+
+      for (var i = 0; i < 3; i++) {
+        hub.recordFrame(frameFor(i), Uint8List(1), sessionId: session.id);
+      }
+      await waitFor(() => frameRequests > 0);
+      expect(hub.pendingCount, 3);
+      expect(hub.dropCount, 0);
+
+      stalled.complete(http.Response('{}', 202));
+      await sink.flush();
+      expect(hub.pendingCount, 0);
+      sink.dispose();
+    });
+
+    test('events dropped at the pending cap are counted', () async {
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingEvents: 5),
+        client: MockClient((request) async => http.Response('', 503)),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      hub.startSession(createSession());
+      // The failed session_start queues one collector_request diagnostic.
+      await sink.flush();
+      final queued = hub.pendingCount;
+
+      for (var i = 0; i < 10; i++) {
+        hub.recordEvent(createEvent(i));
+      }
+
+      expect(hub.pendingCount, 5);
+      expect(hub.dropCount, queued + 10 - 5);
+      sink.dispose();
+    });
+
+    test('events evicted from the retry queue are counted', () async {
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingBatches: 1),
+        client: MockClient((request) async {
+          if (request.url.path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          return http.Response('', 503);
+        }),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      hub.startSession(createSession());
+      await sink.flush();
+
+      for (var i = 0; i < 30; i++) {
+        hub.recordEvent(createEvent(i));
+      }
+      for (var pass = 0; pass < 3; pass++) {
+        await sink.flush();
+      }
+
+      // Nothing is delivered and the retry queue holds a single batch, so most
+      // of the 30 events are evicted and counted. The sink also queues its own
+      // diagnostics, which can push a batch out as well, so only lower bounds
+      // are asserted here.
+      expect(hub.dropCount, greaterThanOrEqualTo(20));
+      expect(hub.pendingCount + hub.dropCount, greaterThanOrEqualTo(30));
+      sink.dispose();
+    });
+
+    test('frames evicted at the frame cap are counted', () async {
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingFrames: 3),
+        client: MockClient((request) async => http.Response('', 503)),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      final session = createSession();
+      hub.startSession(session);
+      await sink.flush();
+      final queued = hub.pendingCount;
+
+      for (var i = 0; i < 5; i++) {
+        hub.recordFrame(frameFor(i), Uint8List(1), sessionId: session.id);
+      }
+
+      // Each of the two evictions also queued a `dropped` diagnostic event.
+      expect(hub.pendingCount, queued + 3 + 2);
+      expect(hub.dropCount, 2);
+      sink.dispose();
+    });
+
+    test('the drop count survives a new session', () async {
+      final sink = CollectorHttpSink(
+        config: configForServer(maxPendingFrames: 1),
+        client: MockClient((request) async => http.Response('', 503)),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      final session = createSession();
+      hub.startSession(session);
+      for (var i = 0; i < 3; i++) {
+        hub.recordFrame(frameFor(i), Uint8List(1), sessionId: session.id);
+      }
+      expect(hub.dropCount, 2);
+      // The kept frame and the drop diagnostics are still queued; the new
+      // session clears them and counts them as dropped on top.
+      final queued = hub.pendingCount;
+      expect(queued, greaterThan(0));
+
+      hub.startSession(createSession(id: 'session-next'));
+      expect(hub.dropCount, 2 + queued);
+      sink.dispose();
+    });
+  });
+
+  group('backlog cleared by a new session or dispose', () {
+    TugboatFrame frameFor(int frameNo) => TugboatFrame(
+      id: 'frame-$frameNo',
+      atMs: frameNo,
+      width: 1,
+      height: 1,
+      contentHash: 'hash-$frameNo',
+    );
+
+    /// A sink whose posts to [stallPath] (after [failFirst] 503s) wait on the
+    /// returned completer. Every other request is accepted.
+    ({
+      CollectorHttpSink sink,
+      Completer<http.Response> stalled,
+      int Function() stalledPosts,
+    })
+    stallingSink(String stallPath, {int failFirst = 0}) {
+      final stalled = Completer<http.Response>();
+      var posts = 0;
+      var failures = failFirst;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        client: MockClient((request) async {
+          if (request.url.path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (request.url.path != stallPath) return http.Response('{}', 202);
+          if (failures > 0) {
+            failures -= 1;
+            return http.Response('', 503);
+          }
+          posts += 1;
+          return stalled.future;
+        }),
+      );
+      return (sink: sink, stalled: stalled, stalledPosts: () => posts);
+    }
+
+    for (final release in {'delivered': 202, 'left to retry': 503}.entries) {
+      final delivered = release.value == 202;
+
+      test('a new session counts queued events as dropped; a stalled request '
+          '${release.key} settles its own events', () async {
+        final built = stallingSink('/v1/events/batch');
+        final sink = built.sink;
+        final hub = TugboatCaptureSinkHub([sink]);
+        hub.startSession(createSession());
+        await sink.flush();
+        for (var i = 0; i < 10; i++) {
+          hub.recordEvent(createEvent(i));
+        }
+        await waitFor(() => built.stalledPosts() > 0);
+        for (var i = 10; i < 13; i++) {
+          hub.recordEvent(createEvent(i));
+        }
+        expect(hub.pendingCount, 13);
+        expect(hub.dropCount, 0);
+
+        hub.startSession(createSession(id: 'session-next'));
+        // The 3 queued events are gone; the 10 in the request may still land.
+        expect(hub.pendingCount, 10);
+        expect(hub.dropCount, 3);
+
+        built.stalled.complete(http.Response('{}', release.value));
+        await waitFor(() => hub.pendingCount == 0);
+        await sink.flush();
+        expect(sink.pendingCount, 0);
+        expect(hub.dropCount, delivered ? 3 : 13);
+        sink.dispose();
+      });
+
+      test('a retry head in a stalled request is not counted twice when it '
+          'is ${release.key}', () async {
+        final built = stallingSink('/v1/events/batch', failFirst: 1);
+        final sink = built.sink;
+        final hub = TugboatCaptureSinkHub([sink]);
+        hub.startSession(createSession());
+        await sink.flush();
+        for (var i = 0; i < 10; i++) {
+          hub.recordEvent(createEvent(i));
+        }
+        // The batch fails once and waits in the retry queue.
+        await waitFor(() => hub.pendingCount > 10);
+        // The retry head goes out again and stalls.
+        unawaited(sink.flush());
+        await waitFor(() => built.stalledPosts() > 0);
+        final pendingBefore = hub.pendingCount;
+        expect(pendingBefore, greaterThan(10));
+        expect(hub.dropCount, 0);
+
+        hub.startSession(createSession(id: 'session-next'));
+        // Only what was queued (the failure diagnostic) is dropped; the head
+        // is still in its request.
+        expect(hub.pendingCount, 10);
+        expect(hub.dropCount, pendingBefore - 10);
+
+        built.stalled.complete(http.Response('{}', release.value));
+        await waitFor(() => hub.pendingCount == 0);
+        await sink.flush();
+        expect(sink.pendingCount, 0);
+        expect(hub.dropCount, delivered ? pendingBefore - 10 : pendingBefore);
+        sink.dispose();
+      });
+
+      test('dispose counts queued items as dropped; a stalled frame upload '
+          '${release.key} settles its own frames', () async {
+        final built = stallingSink('/v1/frames');
+        final sink = built.sink;
+        final session = createSession();
+        sink.startSession(session);
+        await sink.flush();
+        for (var i = 0; i < 3; i++) {
+          sink.recordFrame(frameFor(i), Uint8List(1), sessionId: session.id);
+        }
+        await waitFor(() => built.stalledPosts() > 0);
+        for (var i = 0; i < 2; i++) {
+          sink.recordEvent(createEvent(i));
+        }
+        expect(sink.pendingCount, 5);
+        expect(sink.droppedCount, 0);
+
+        sink.dispose();
+        expect(sink.pendingCount, 3);
+        expect(sink.droppedCount, 2);
+
+        built.stalled.complete(http.Response('{}', release.value));
+        await waitFor(() => sink.pendingCount == 0);
+        expect(sink.pendingCount, 0);
+        expect(sink.droppedCount, delivered ? 2 : 5);
+      });
+    }
+
+    test('dispose with a stalled event request never reads negative', () async {
+      final built = stallingSink('/v1/events/batch');
+      final sink = built.sink;
+      sink.startSession(createSession());
+      await sink.flush();
+      for (var i = 0; i < 10; i++) {
+        sink.recordEvent(createEvent(i));
+      }
+      await waitFor(() => built.stalledPosts() > 0);
+      sink.recordEvent(createEvent(10));
+
+      sink.dispose();
+      expect(sink.pendingCount, 10);
+      expect(sink.droppedCount, 1);
+
+      built.stalled.complete(http.Response('{}', 202));
+      await waitFor(() => sink.pendingCount == 0);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(sink.pendingCount, 0);
+      expect(sink.droppedCount, 1);
+    });
+
+    test('frames requeued after a 5xx are not counted twice', () async {
+      var frameFailures = 1;
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        client: MockClient((request) async {
+          if (request.url.path == '/v1/sessions') {
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          if (request.url.path == '/v1/frames' && frameFailures > 0) {
+            frameFailures -= 1;
+            return http.Response('', 503);
+          }
+          return http.Response('{}', 202);
+        }),
+      );
+      final hub = TugboatCaptureSinkHub([sink]);
+      final session = createSession();
+      hub.startSession(session);
+      await sink.flush();
+      for (var i = 0; i < 3; i++) {
+        hub.recordFrame(frameFor(i), Uint8List(1), sessionId: session.id);
+      }
+      await waitFor(() => frameFailures == 0);
+      await sink.flush();
+      expect(hub.dropCount, 0);
+
+      await sink.flush();
+      await sink.flush();
+      expect(hub.pendingCount, 0);
+      expect(hub.dropCount, 0);
+      sink.dispose();
+    });
+  });
+
+  group('lifecycle atMs shares the controller clock', () {
+    test('session_end is not before the last event when the sink starts '
+        'late', () async {
+      final startedAt = DateTime.utc(2026, 6, 19);
+      final watch = _FakeStopwatch();
+      final sessions = <Map<String, dynamic>>[];
+      final events = <Map<String, dynamic>>[];
+      final sink = CollectorHttpSink(
+        config: collectorConfig,
+        // The controller stamped startedAt and started its clock 250 ms
+        // before the sink's startSession (listeners, sink factories).
+        wallClock: () => startedAt.add(const Duration(milliseconds: 250)),
+        stopwatchFactory: () => watch,
+        client: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (request.url.path == '/v1/sessions') {
+            sessions.add(body);
+            return http.Response(jsonEncode({'sessionId': 'sess_server'}), 202);
+          }
+          events.addAll([
+            for (final event in body['events'] as List)
+              Map<String, dynamic>.from(event as Map),
+          ]);
+          return http.Response('{}', 202);
+        }),
+      );
+      sink.startSession(createSession());
+      await sink.flush();
+
+      // The controller clock now reads 1250 ms; the sink's stopwatch 1000 ms.
+      watch.time = const Duration(seconds: 1);
+      sink.recordEvent(
+        const TugboatEvent(id: 'last', atMs: 1250, type: 'tap', data: {}),
+      );
+      await sink.endSession();
+
+      final end = sessions.last;
+      expect(end['eventType'], 'session_end');
+      final lastEvent = events.last;
+      expect(end['atMs'], greaterThanOrEqualTo(lastEvent['atMs'] as int));
+      expect(end['atMs'], 1250);
+      expect(sessions.first['atMs'], 0);
+      sink.dispose();
+    });
   });
 }

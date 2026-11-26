@@ -1,99 +1,501 @@
-## 0.10.11-dev.6
-
-Prerelease.
+## 0.12.4
 
 ### Changed
 
-- Scene inventory hashes are computed by one internal helper, which the
-  shared engine conformance fixtures also use. The hash is unchanged.
+- Production `tap` interactions now carry `routeKey`, the resolved route key
+  their `targetFingerprint` was hashed under, the same value exploration taps
+  and scene inventories carry (#138). `route` stays the raw origin route: for
+  an unnamed page, a dialog or an anonymous sheet it is the route's runtime
+  type (`MaterialPageRoute<void>`), while the fingerprint is hashed under a
+  `struct:`, `dialog:` or `sheet:` key. Consumers can now join a production
+  tap to an inventory on `(routeKey, targetFingerprint)`. The value was
+  already computed for the fingerprint; no extra work is done on the device.
+  `fingerprintConfidence`, `fingerprintSource` and `surface` stay
+  exploration-only.
 
-## 0.10.11-dev.5
+### Compatibility
 
-Prerelease.
+- Wire addition only: no fingerprint, route key, inventory hash or
+  de-duplication key changes. The HTTP collector mapper already allowed
+  `routeKey`. Taps from earlier SDKs carry no `routeKey` in production, so
+  consumers fall back to `route`. A collector that does not keep top-level
+  `routeKey` on schema-v2 interactions drops it silently.
 
-### Added
-
-- `TugboatCollectorConfig.retryAfterCap` and
-  `TugboatCollectorConfig.endingRetryAfterCap` (`Duration`): the longest
-  collector `Retry-After` wait honoured, and the shorter cap for lifecycle
-  posts once `endSession` is called. Both are clamped to between zero and
-  24 hours; `Duration.zero` honours no hint. See the defaults table in
-  `docs/integration/collector.md`.
+## 0.12.3
 
 ### Changed
 
-- `CollectorHttpSink` honours collector `Retry-After` on HTTP 429 and 503 per
-  delivery lane (lifecycle, events, frames): a waiting lane skips sends until
-  its timer fires, at most `retryAfterCap` later (`endingRetryAfterCap` for
-  lifecycle while the session ends); the other lanes keep sending. When the
-  lifecycle lane resumes it sends every queued post, including a
-  `session_end` queued behind the waiting one. Fresh events not yet sent stay
-  queued while the events lane waits. Delta-seconds and IMF-fixdate forms are
-  accepted (ASCII whitespace trimmed); unparseable or oversize values are
-  ignored. Waits use a monotonic clock.
-- After `endSession`, a `session_end` with a retry outcome (transport error,
-  408, 429, 5xx) is re-posted on the periodic flush (`eventFlushInterval`)
-  until it is accepted or dropped. A dropped one (any other non-202 status)
-  is settled and never re-posted; either way the periodic flush then stops.
-  Once `session_end` is queued, an earlier post the collector dropped (for
-  example a rejected `session_start`) is settled too, so it cannot hold
-  `session_end` back.
+- Session and event IDs are now globally unique: `session-<UUIDv4>` and
+  `event-<UUIDv4>`, minted on the device. Previously they were
+  `session-<epoch microseconds>` and `event-<counter>`, so two devices (or two
+  controllers) could produce the same ID. This applies to every controller
+  event, the interaction, route and scroll IDs that double as event IDs, and
+  the sink's `capture_diagnostic` events.
+- Frame uploads carry a UTC `frameMetadata.triggeredAt` (session start plus the
+  frame's `atMs`), so the collector can recover capture time for a late
+  upload now that the session ID no longer encodes a start time.
 
-## 0.10.11-dev.4
+### Compatibility
 
-Prerelease.
+- Consumers must treat these IDs as opaque and preserve either shape: older
+  SDKs still send the old formats. Use `startedAt`, `atMs` and `triggeredAt`
+  for timing. `frame-<n>` IDs are unchanged (unique within a session), and
+  capture IDs never enter a fingerprint. No fingerprint, route key or
+  inventory hash change.
+
+## 0.12.2
+
+- Reworked the replay quick start, accessibility and navigation examples, and Dart API guide.
+
+## 0.12.0
+
+### Removed
+
+- Loading-state detection on exploration scene inventories. It guessed from
+  widget types and names, which is not reliable enough to build on: any
+  widget whose name contains `Placeholder` (a `PlaceholderSettingsPage`)
+  marked its whole subtree as loading, a custom loader (Lottie, SpinKit, an
+  app's own skeleton) was invisible unless the host wrapped it, and a spinner
+  that disappeared did not by itself trigger a new inventory. Gone with it:
+  - the `loading` object on scene inventories (`progressIndicators`,
+    `placeholders`, `busyControls`);
+  - the per-element `placeholder: true` flag;
+  - the exported `TugboatLoading` marker widget. **Breaking:** remove any
+    `TugboatLoading(...)` wrapper and keep its `child`. The marker was
+    transparent, so removing it changes no fingerprint, route key or
+    inventory hash.
+
+  `loading` was already optional (omitted on production captures and when the
+  walk failed), so a consumer that reads it must already handle its absence.
+  No fingerprint, route key, inventory hash or `fingerprintSchemaVersion`
+  changes: none of these fields were ever hash input.
+
+### Changed
+
+- The settled re-sample no longer treats a control flipping between loaded
+  and placeholder as new. A re-sample is still emitted when it adds a control
+  or content path not yet sent in the route visit, or flips a sent control
+  between enabled and disabled; the quiet-screen timing is unchanged. A
+  skeleton replaced by content that adds new paths is still caught; one that
+  only restyles the same controls in place is not.
+
+## 0.11.6
 
 ### Added
 
-- `TugboatMarkers` extension on `Widget` with modifier-style markers:
-  `.tugboatTag(id)`, `.tugboatSensitive()`, and `.tugboatSubView(label)`.
-  Each returns the matching `TugboatTag`, `TugboatSensitive`, or
-  `TugboatSubView` wrapper, so runtime behaviour, identity, fingerprints, and
-  masking are unchanged. The wrappers remain supported.
-- `TugboatTag` and `.tugboatTag` take `accessibility` (default `false`). When
-  true, the id is also published as the platform accessibility identifier
-  (Android resource-id, iOS `accessibilityIdentifier`). Enable it on a single
-  control, not a container. On Material buttons the identifier lands on a
-  label-less parent node rather than the button node, so it is not on the
-  button itself. Identity and masking are unchanged either way.
+- Opt-in `TugboatReplayConfig.capturePressDuration`, default off: tap
+  interactions carry `payload.pressDurationMs`, the milliseconds from
+  pointer-down to pointer-up (BLE-567). Until now a 1.5 s press reached the
+  collector as a plain `tap` with nothing to tell it from a quick one. The
+  gesture stays `tap`; there is no `long_press` gesture name, because
+  collectors that do not know a gesture reject the whole batch. Swipes,
+  scrolls, pan and zoom never carry it. Turn it on once the collector that
+  validates `pressDurationMs` as a tap fact is deployed. With the flag off,
+  events are unchanged.
 
-## 0.10.11-dev.3
+## 0.11.5
 
-Prerelease. No change to shipped behaviour.
+### Changed
 
-### Internal
+- Identity contract change: `session_start` now sends a real installation id
+  as `appInfo.installationId` (BLE-566). Before, `fromPlatform` filled that
+  field from `device_info_plus`, which on Android is `Build.ID`, the OS build
+  label shared by every device on that build, and on iOS is
+  `identifierForVendor`; the collector mapper then dropped the field, so no
+  session ever carried it. The SDK now mints a random UUID on first launch and
+  keeps it in its own file (`tugboat/installation_id` in the app support
+  directory, not the host's shared preferences), so it lasts across launches
+  and updates and is new after a reinstall or a data clear. On iOS the first
+  value is `identifierForVendor` instead of a random UUID, so existing iOS
+  installs keep the value they already reported as `device.id`. A host can
+  pass its own id with the new optional `installationId` argument on
+  `TugboatCollectorHost.fromPlatform` and `loadAppInfo`; a non-empty host id
+  wins. `TugboatCollectorHost.installationId()` returns the SDK's id.
+  Existing data: sessions before 0.11.5 have no `installationId`, so nothing
+  already stored changes meaning. `device.id` is unchanged (still `Build.ID`
+  on Android, `identifierForVendor` on iOS), so consumers that grouped by it
+  keep working; group installs by `appInfo.installationId` from now on. On
+  Android each install gets a new id the first time it runs 0.11.5; on iOS it
+  matches the earlier `device.id`. A host that builds
+  `TugboatCollectorConfig` by hand now has its `appInfo.installationId` sent
+  as given, where it was dropped before, so do not put `device_info_plus`
+  ids such as Android's `Build.ID` there.
+  Known caveat: the id file is in the app's support directory, which platform
+  backups include, so restoring a backup onto a second device gives both
+  devices the same id. A host that needs to avoid that passes its own
+  `installationId` or excludes `tugboat/installation_id` from backup.
+  Persistence is hardened: a failed first write is retried on later reads
+  instead of being cached, and stores racing on first launch (isolates,
+  processes) adopt the id that reached disk.
 
-- `CollectorHttpSink` takes a test-only `debugNow` wall clock for lifecycle
-  `triggeredAt` and upload diagnostic `atMs` (`DateTime.now` by default).
-  The shared session-engine delivery scenarios use it to drive the real
-  collector sink deterministically.
+### Added
 
-## 0.10.11-dev.2
+- Dependency on `path_provider` (^2.1.4) to locate the app support directory.
 
-Prerelease. No change to shipped behaviour.
+- The minimum stays Flutter 3.35.0 and Dart 3.9.2. Newer `path_provider`
+  platform packages need Flutter 3.38.4, but pub resolves older ones on
+  older SDKs, so a Flutter 3.35 host builds. The workspace lockfile is
+  resolved on Flutter 3.35.7 so it works on the minimum toolchain.
 
-### Internal
+## 0.11.4
 
-- The Android plugin maps capture-runtime statuses and coverage values
-  newer than its pinned runtime without failing to compile: a future
-  status becomes `cancelled` (no Dart fallback, no publish) and
-  `windowComposite` coverage maps to the existing Pigeon value. The
-  plugin never requests window capture, so neither branch runs today.
+### Fixed
 
-## 0.10.11-dev.1
+- A tap on a button's padding whose handler navigates (a close button that
+  pops the route, say) records the same target as a tap on the button's glyph
+  again (BLE-440). Since 0.10.11 such a tap is resolved from the hit path kept
+  at pointer-down. The padding hit lands first on the button's own gesture
+  `Listener`, which is skipped as capture chrome, so the walk climbed from
+  the `MouseRegion` above the `GestureDetector` and recorded the `InkWell`
+  (`…/OutlinedButton#0/InkWell#0`). On a tap that stays on the screen, alias
+  normalisation folds that back to the inventory primary, but after a
+  navigating tap it cannot run, so one control was recorded under two
+  fingerprints and the `InkWell` one matched nothing in scene inventories.
+  On the pointer-down path only, a chrome hit entry whose climb reaches an
+  actionable, addressable control now resolves to that control
+  (`…/InkWell#0/GestureDetector#0`), the layer a glyph tap and the scene
+  inventory report. Taps resolved from the pointer-up hit test, and controls
+  hidden under `ExcludeSemantics`, resolve exactly as before. Identity change:
+  only navigating taps on a button's padding move, back from the `InkWell`
+  fingerprint to the `GestureDetector` one that 0.10.10 and earlier recorded
+  and that scene inventories list (the `InkWell` fingerprint is already in
+  that entry's `aliases`). `fingerprintSchemaVersion` is unchanged.
 
-Prerelease. No change to shipped behaviour.
+## 0.11.3
 
-### Internal
+### Changed
 
-- `TugboatReplayController` takes a test-only `debugClock` (the elapsed
-  clock behind event `atMs`, a `Stopwatch` by default) and builds the
-  session id and `startedAt` from its existing `debugNow` wall clock
-  (`DateTime.now` by default).
-- A test-only `debugRecordEvent` records a toolkit event through the
-  evidence recorder's admission and append path. The shared
-  session-engine conformance scenarios use these to run deterministically
-  against the Dart controller.
+- Lockstep release with `tugboat_dio` 0.11.3, which adds the opt-in
+  `errorBodyDenyUrls` and `errorBodyUrls` controls over which request URLs may
+  keep an HTTP error response body. The `tugboat` package has no runtime
+  behavior change, and error bodies are still retained by default.
+
+## 0.11.2
+
+### Changed
+
+- `TugboatReplay.health.sinks.pending` and `dropped` now report what the
+  collector sink really holds and discards. They always read 0 before: the
+  sink mailbox delivers synchronously and never queued anything, so the
+  collector sink's own queues were invisible. `pending` counts events and
+  frames that are queued, waiting for a retry, or in a request that has not
+  finished. `dropped` counts, over the life of the sink, events and frames
+  discarded at the pending-event cap (`maxPendingEvents`), the retry-queue cap
+  (`maxPendingBatches`) and the frame caps (`maxPendingFrames`,
+  `maxPendingFrameBytes`), and those still queued when a new session starts
+  or the sink is disposed. Items already in a request then stay in `pending`
+  until it finishes and count as dropped only if the collector leaves them to
+  retry, so a delivered request is never counted. All three cover the whole
+  process rather than one activation: each activation builds a new sink, so
+  `accepted` and `dropped` are now running totals across
+  `activate` / `deactivate` cycles, and a deactivated session's sink keeps
+  counting in `pending` and `dropped` until its last request finishes. Before,
+  health read only the current activation's sink and reset to 0, hiding what
+  the previous one discarded. This changes what health reports (diagnostics
+  only); the collector wire format and delivery behavior are unchanged.
+
+### Fixed
+
+- Durations in collector lifecycle posts no longer depend on the wall clock.
+  `atMs` on `session_end`, on `user_changed` / `traits_updated` /
+  `session_identify`, and on `capture_diagnostic` events the sink records was
+  a `DateTime.now()` difference, so an NTP step or a clock change mid-session
+  made it wrong or negative. It now comes from a monotonic stopwatch started
+  with the session, offset once by the time between the session's
+  `startedAt` and the sink starting, so it shares the time base of event
+  `atMs` and `session_end` is never before the session's last event. The
+  later of two coalesced identity changes is chosen by that stopwatch.
+  `triggeredAt` is still a wall-clock timestamp, so after a clock change it
+  can differ from `session start + atMs`. The wire shape of every event is
+  unchanged.
+
+## 0.11.1
+
+### Fixed
+
+- The last screenshot of a session is uploaded before `session_end`. A frame
+  recorded while a collector flush was running was not part of that flush,
+  and `endSession()` only waited for it, so the frame was never sent
+  (BLE-549). A `flush()` call during a running pass now queues one follow-up
+  pass that runs after it.
+- One hung request no longer blocks every upload (BLE-551). `/v1/sessions` and
+  `/v1/events/batch` posts time out after 15 seconds like frame uploads, and a
+  timeout is retried. A flush drains only the events queued when it reached
+  them and uploads newly captured frames between event batches. When an event
+  post fails, the flush moves the rest of its events to the retry queue
+  unsent instead of waiting out a timeout for each batch, and while the
+  oldest retry batch gets no response at all, fresh events join it there
+  rather than being posted.
+- Stalled uploads no longer cut long holes in replays (BLE-550).
+  `maxPendingFrames` defaults to 400 (was 20) and the new
+  `maxPendingFrameBytes` (default 8 MiB) bounds held frame bytes. Eviction
+  drops the oldest frame no event references first and keeps the newest
+  frame. A flush takes one 20-frame batch from the queue at a time, so at
+  most that batch is held beyond the bounds, and a timed-out request is
+  aborted rather than left holding its frames.
+- A session lifecycle post the collector rejects (4xx), such as
+  `user_changed`, is dropped instead of being retried on every flush, where
+  it held every later lifecycle post, `session_end` included. A rejected
+  `session_start` is still retried, because uploads wait for its session id.
+- A session started while the previous one was still ending no longer
+  receives that session's `session_end`, and keeps its periodic flush. The
+  ending session stops at the switch.
+
+### Changed
+
+- Requires `package:http` 1.5.0 or later (was 1.4.0), for aborting a
+  collector request when it times out.
+
+### Added
+
+- `collector_frame_upload` drop diagnostics also report the final count before
+  `session_end`, and carry `droppedReferencedFrameCount`.
+- `collector_request` diagnostics report the first failed session or event post
+  per outage (status code, or `error: timeout` / `transport`) and its recovery
+  (BLE-552).
+- `collector_flush` diagnostics report the first flush pass per outage slower
+  than 10 seconds, with the step it spent the most time in.
+
+## 0.11.0
+
+### Added
+
+- Every scene inventory carries `trigger` (`initial`, `resume`, `route`,
+  `tap`, `scroll`, `gesture`, `settled`, `manual`). A scroll-end capture is
+  `scroll` and a swipe, pan or zoom capture is `gesture`. It is not part of
+  any hash or the de-duplication key.
+- In exploration mode, the inventory is re-sampled by default once the page
+  settles after a moment: a tap or gesture (a control the interaction
+  reveals, such as a Continue shown once a row is picked), a scroll end, or a
+  load with no interaction (a `FutureBuilder`, a skeleton or a full-screen
+  spinner replaced by content). A re-sample is emitted only when it is new to
+  the route visit: a control or content path not yet sent (list positions
+  collapsed, except a `PageView`'s page position), or a sent one flipped
+  between enabled and disabled or placeholder and loaded. It is labelled
+  `tap`, `gesture` or `scroll` after that moment, else `settled`. An idle
+  page costs no timer; a page that keeps animating is checked after 2 s of
+  frames, then ever more rarely; a looping animation or blinking cursor
+  never emits. At most 50 re-samples per route visit, as a backstop. A
+  `PageView`'s page position is kept apart, so each onboarding page is new;
+  the cost is that an auto-advancing carousel sends one re-sample per page
+  it has not shown in the visit. Turn it off with
+  `resampleSettledInventory: false`; production captures run none of it.
+- In exploration mode, every scene inventory carries `loading`
+  (`progressIndicators`, `placeholders`, `busyControls`) and each element
+  beneath a skeleton, shimmer, `Redacted` or `Placeholder` ancestor, or a new
+  `TugboatLoading` marker, carries `placeholder: true`. The signal is
+  structural and text-free, and no fingerprint, route key or inventory hash
+  changes. Placeholder names are a heuristic; see the capture design doc for
+  its known false positives. `TugboatLoading(enabled: false)` switches the
+  marker off: the nearest `TugboatLoading` above an element decides, so a
+  disabled one also overrides a skeleton ancestor that stays mounted after
+  loading (`Skeletonizer(enabled: loading, child: TugboatLoading(enabled:
+  loading, child: content))`). Toggling `enabled` changes no fingerprint.
+- In exploration mode (scene inventory emission on), every `tap` interaction
+  that carries a `targetFingerprint` now also carries `fingerprintSource` and
+  `routeKey`, next to the existing `fingerprintConfidence`. Production taps keep
+  their lean envelope and do not carry these. `fingerprintSource` is how the
+  fingerprint was resolved: `pointerDown`, `snap` (a pathless hit re-anchored to the inventory control
+  under the tap) or `inventory`. `routeKey` is the resolved route key the
+  fingerprint was hashed under, so a tap on a dialog or an unnamed page joins
+  its inventory exactly. `route` is unchanged and still the raw route.
+- Every scene inventory carries `surface`: `{ "kind": "page" | "sheet" |
+  "dialog" | "popup" | "menu", "widgetClass": "..." }`, and exploration taps
+  carry the surface of their inventory. `kind` comes from the current route's
+  type; `widgetClass` is the first app-level widget class below a sheet,
+  dialog or popup's overlay host, as in the canonical paths, and is omitted
+  when it cannot be told (private or inline builders, pages, menus, shells). It
+  is found when the app wraps the `Navigator` in a widget of its own in the
+  `MaterialApp` builder (a provider or overlay host), and while a toolbar or a
+  toast in an app overlay shows. A dialog route's `Dialog` around one app
+  class (`Dialog.fullscreen(child: CouponDialog())`) names that class, and a
+  custom popup route's own `Scaffold` is looked through to its body. Two
+  anonymous sheets with the same type argument share a `routeKey` but differ in
+  `surface.widgetClass`. Production taps do not carry `surface`. It is not
+  part of any fingerprint, `routeKey` or `inventoryHash`.
+- Documented that `RouteSettings(name: ...)` on `showModalBottomSheet` and
+  `showDialog` gives a sheet or dialog a stable, readable route key today.
+- In exploration mode, every scene inventory carries `viewport`
+  (`widthPx`, `heightPx`, `devicePixelRatio`, `boundaryOffset`, `insets`,
+  `keyboardInset`, `referenceFrame: "captureBoundary"`): the frame `boundsNorm`
+  is a fraction of. All sizes are in the render view's logical pixels;
+  multiply by `devicePixelRatio`, the render view's own ratio, for device
+  pixels. `widthPx`, `heightPx` and `boundaryOffset` are the boundary's box
+  after any transform above it, so `(boundaryOffset + boundsNorm * widthPx) *
+  devicePixelRatio` is exact under a `Transform.scale`, a `FittedBox` or a
+  host binding that scales the whole UI. Each element carries `visibleFraction`
+  (0 to 1) when part of its paint box is outside the capture boundary or
+  clipped by an ancestor, and an inventory with a vertical scrollable carries
+  `scroll` (`offsetPx`, `maxExtentPx`, `axis`) for the largest one. `boundsNorm`
+  stays unclipped paint bounds. None of it is part of any fingerprint,
+  `routeKey`, `inventoryHash` or the de-duplication key, and production taps do
+  not compute it.
+
+- Scene inventory entries carry `positional: true` when the canonical path
+  has a list position (`[item:N]`), so a consumer can tell that the
+  fingerprint names a position rather than the control.
+- Scene inventory entries carry `tag` (the nearest explicit `TugboatTag` id)
+  when the element sits under one. `hitTestBounds` is not reported.
+
+### Changed
+
+- In exploration mode, scroll inventories follow frames. During a scroll a
+  scene inventory is built only for a moment that also captures a frame
+  (scroll screenshots, and the after-capture at the end of a scroll a
+  pointer drives), and is emitted only when its content differs from the
+  last inventory sent. A scroll start, an update with no frame and a
+  programmatic scroll end (an auto-scrolling marquee, `jumpTo`) no longer
+  build one; the re-sample emits what such a scroll reveals, if anything is
+  new. Blend's Logo Maker marquee sent about 14 inventories a second; a
+  fixture of it now sends its first inventory and nothing more over 30 s
+  (340 before). The viewport semantic map keeps its scroll cadence. This
+  holds with `resampleSettledInventory: false` too.
+- The fingerprint schema is now 7 (`tugboatFingerprintSchemaVersion`), one
+  bump for #137, #139 and #141. Fingerprints that move: controls under a sheet
+  or dialog's `DisplayFeatureSubScreen` or modal barrier (the ordinal is
+  dropped, so a sheet stacked on its own copy keeps its fingerprints); every
+  control on an anonymous sheet or dialog with a nameable class, now keyed
+  `sheet:<WidgetClass>` or `dialog:<WidgetClass>` instead of
+  `ModalBottomSheetRoute<T>` or `struct:<hash>` (a dialog whose builder
+  returns a `Dialog` around one app class included); every control on a route
+  whose `struct:` key moved (an anonymous dialog with no nameable class, or
+  an anonymous route with a disabled control or a new low-level control);
+  controls under a `ListTileTheme` (including inside `Drawer` and
+  `ExpansionTile`) or `SwitchTheme`, which are now transparent, and later
+  same-type siblings of such a control, which are renumbered; controls inside
+  or around an `InkWell` without `onTap` (a `Switch` trailing a `ListTile`
+  with no callbacks, a `GestureDetector` around such a tile); and a disabled
+  `TextField` with no other control inside, which takes its enabled twin's
+  fingerprint. Nothing else moves: an enabled control on a named route with
+  none of these above it keeps its fingerprint, in inventories and production
+  taps. For one release each exploration inventory entry lists its schema 6
+  fingerprints in `aliases`, except one that already names another entry in
+  the same inventory. Consumers keyed on schema 6 fingerprints should map
+  them through `aliases` during that release.
+- Interactive coverage (#141): `Semantics` with a tap or long-press action, a
+  `Listener` with `onPointerUp` and a `RawGestureDetector` with a tap or
+  long-press recognizer are reported when they are a control of their own
+  (outside every control and around none). Disabled controls are listed with
+  `enabled: false` and keep their enabled twin's fingerprint; toggling a
+  Material or Cupertino button, toggle, `ActionChip`, `TextField` or
+  `ListTile.enabled` changes no fingerprint or route key (`InputChip.isEnabled`,
+  `CupertinoTextField` and `SearchBar` still differ, as before). A `GestureDetector`, `InkWell`, `ListTile` or tap `Semantics` with a
+  `null` callback is not a control, so toggling it still changes an anonymous
+  route's `struct:` key. Production taps on a disabled control carry its
+  twin's fingerprint. A custom `PopupRoute` keeps its key, and two
+  sheets or dialogs with no nameable class and the same structure still share
+  one.
+
+### Fixed
+
+- Exploration taps now deliver `fingerprintSource`, `routeKey` and `surface` to
+  the HTTP collector. The collector mapper dropped them, so they stayed in the
+  in-memory envelope only.
+- A tap on a control that stays mounted while the app navigates, such as a
+  persistent bottom bar outside the `Navigator`, was fingerprinted under the
+  destination route's key while its `route` showed the origin. In production
+  mode the pointer-down hit path now wins when the route changed since
+  pointer-down, as exploration mode already did, so the fingerprint belongs to
+  the route the tap happened on.
+- The SDK's own capture root (`ValueKey('tugboat-capture-N')`) was read as a
+  developer tag, so every control under `TugboatReplay.wrapApp` with no nearer
+  tag reported a junk `tagFingerprint` and `tag` fingerprint part. The tag
+  lookup now ends at the capture root. `TugboatTag` and `ValueKey<String>`
+  inside the capture tag as before, and fingerprints do not change.
+- A tap re-anchored to a different inventory control (an inventory snap or the
+  semantic fallback) no longer carries the original hit's `tagFingerprint`.
+- In exploration mode a button an app wraps in `ExcludeSemantics` to give it
+  one semantics node of its own (`Semantics(label) > ExcludeSemantics >
+  ElevatedButton`) was in no inventory, so taps on it failed with
+  `no_target_at_point` while production taps resolved it, and the settled
+  re-sample never saw it appear. Exploration inventories now list it under
+  the identity a tap on it resolves to in both modes, with the hidden
+  button's role, actions and paint box, and exploration taps join that entry.
+  Production taps are unchanged, and no fingerprint or route key moves. The
+  same happened on 0.10.11.
+- A tap on such a button inside a scrollable named the scrollable. Blend's
+  onboarding Continue (`Visibility` > `AnimatedOpacity` > `Semantics(button)`
+  > `ExcludeSemantics` > `ElevatedButton`, whose `onPressed` animates the
+  onboarding `PageView`) was the `PageView`'s `Scrollable` in production and,
+  in exploration, the list row at the `PageView`'s centre, whose inventory
+  entry listed the `Scrollable`'s fingerprint as an alias. Inside a
+  scrollable, the hit path now names a sole control hidden under
+  `ExcludeSemantics` (found down a chain of single children, no subtree
+  walk) when the retained widget whose path the tap takes holds that control
+  alone, so both modes give the button, and the pointer-down rule keeps it
+  when its tap animates the `PageView`, also for a tap on the button's own
+  icon. A scrollable whose centre lands on such a control keeps its own
+  inventory entry. Moves: taps on such a control inside a scrollable. Two
+  controls under one wrapper, hidden buttons with no retained widget of
+  their own (rows or pages that would share one path), a hidden control
+  inside another control, and one outside any scrollable are unchanged. The
+  same happened on 0.10.11.
+- A production tap on a control whose `onTap` animates the scrollable it sits
+  in (a grid tile that calls `PageController.nextPage`) was fingerprinted as
+  the scrollable, while exploration taps named the tile: the animated scroll
+  makes the scrollable ignore pointers before the SDK reads pointer-up. When
+  the pointer-up target is a scrollable and the pointer-down hit path names a
+  control inside it, that control now wins, so both modes give the tile's
+  fingerprint. Taps on a scrollable outside any control are unchanged. The
+  same happened on 0.10.11.
+- In exploration mode, the inventory of a programmatic scroll (an
+  auto-scrolling marquee) could be built while the tree still needed layout:
+  its hit tests read stale boxes and, in debug builds, failed
+  `'!debugNeedsLayout'` in `RenderFractionalTranslation`, losing the
+  inventory (`[tugboat] queued scroll_end task failed`). Such inventories now
+  wait for the frame's post-frame callback when layout may be dirty and are
+  built at once otherwise. A failing scroll inventory is caught and logged,
+  never thrown into the app's scroll notification. Pointer-driven scrolls and
+  production are unchanged. The same happened on 0.10.11.
+- An inventory taken while a route transition was running (an input
+  observation after system back, or a focus change as a dialog opened) listed
+  the departing or covered route's controls under the destination's route key.
+  A capture request that a running transition suppresses, and a scroll during
+  it (a marquee on the page below), no longer emit an inventory; the route
+  capture emits the destination's once the transition settles. The same
+  happened on 0.10.11.
+
+- The route capture fired a transition duration after the Navigator
+  callback, while the transition could still be running and before the
+  covered route went offstage. The `route` inventory of a pushed page then
+  counted the covered page's spinner, and on an unnamed page whose
+  predecessor stays visible beneath it during the transition its `struct:`
+  key was computed over both pages: the page's route inventory and first taps
+  carried one key, every later inventory of the page another. The capture
+  (and the transition window that holds back other inventories) now goes at
+  once only when those routes are not animating and no frame is due, and
+  otherwise waits until two frames have passed with them at rest, bounded by
+  the route barrier timeout. Those route keys move to the settled
+  page's key. The same happened on 0.10.11.
+
+### Removed
+
+- The local exploration WebSocket. `TugboatReplayConfig.explorationCollectorUrl`
+  and the exported `TugboatExplorationTransport` are gone, along with the
+  internal `ExplorationCaptureSink`. Nothing receives that socket any more;
+  point `collector` at a local HTTP collector instead.
+- The WebSocket control messages `set_action_window`, `clear_action_window`,
+  `pause_capture` and `resume_capture`, and `handleExplorationControl` on the
+  controller. `TugboatReplayController.setActionContext`, `clearActionContext`
+  and `setCapturePaused` are unchanged and remain the in-process way to open
+  and close an action window and to pause capture.
+- The socket-triggered frame suppression. Connecting the socket without an HTTP
+  collector used to suppress non-interaction screenshots; with no socket that
+  never happened in a real run, so capture scheduling is unchanged.
+- The example app's `tools/sdk-event-collector.js` WebSocket server.
+
+## 0.10.11
+
+### Fixed
+
+- A tap whose own handler opens or closes a route now keeps its target. With
+  global pointer capture the SDK read the tap after the app's `onTap` had run,
+  and the Navigator then absorbed the hit test, so the interaction was sent
+  with an empty `targetAnchor`. Pointer-down now keeps a plain hit test of the
+  pressed point, and pointer-up falls back to it when its own hit test finds no
+  actionable target. The kept path also wins when the fresh hit test has no
+  canonical path and the kept one has a path but no role, as for a button under
+  `ExcludeSemantics`. Taps that resolved before resolve exactly as before.
 
 ## 0.10.10
 
@@ -460,8 +862,7 @@ This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.6`.
 ### Fixed
 
 - Default `TugboatReplay.eventHook` parameter policy now retains bounded
-  JSON-safe external-event values (`allowAllInProduction`; removed in 0.9.0,
-  where `allowAll` became mode-free). Parameter keys
+  JSON-safe external-event values (`allowAllInProduction`). Parameter keys
   were already captured; values were omitted unless the host opted in. Hosts
   that must not retain values can still pass `namesOnly`, an allow-list, or a
   transform. Existing JSON and size bounds still apply.
@@ -583,10 +984,8 @@ This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`.
 ### Added
 
 - **Explicit production parameter opt-in** —
-  `TugboatParameterPolicy.allowAllInProduction` (removed in 0.9.0, where
-  `allowAll` became mode-free)
-  retains JSON-safe external-event parameter values in production capture
-  profiles. `namesOnly` remains the
+  `TugboatParameterPolicy.allowAllInProduction` retains JSON-safe external-event
+  parameter values in production capture profiles. `namesOnly` remains the
   default. `allowAll` remains an exploration-only escape hatch and still
   downgrades to names-only outside exploration. The existing JSON and size
   bounds still apply. This policy can retain feedback, search terms, URLs, IDs,

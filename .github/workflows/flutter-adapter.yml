@@ -18,16 +18,14 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
       - name: Install Dart dependencies
         run: flutter pub get
       - name: Verify generated native capture bridges
         run: bash tool/ci/verify-native-capture-pigeon.sh
-      - name: Test collector frame delivery
-        working-directory: sdks/flutter/packages/tugboat
-        run: flutter test test/collector_http_sink_test.dart test/collector_http_sink_retry_after_test.dart test/collector_retry_after_test.dart
 
-  conformance:
-    name: Dart conformance fixtures
+  static-checks:
+    name: Format and analyze
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,15 +34,41 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
       - name: Install Dart dependencies
-        run: flutter pub get
-      # Same fixtures as the C++ session engine job in image-core.yml; this
-      # holds the Dart SDK to them, including the engine.scenario runner
-      # (test/helpers/engine_scenario.dart) for non-engineOnly scenarios. No
-      # path filter, so fixture-only changes run it too.
-      - name: Test Dart against conformance/
-        working-directory: sdks/flutter/packages/tugboat
-        run: flutter test test/conformance_fixtures_test.dart
+        run: dart pub get
+      # Same commands as `melos run format:check` and `melos run analyze`,
+      # called directly: `dart run melos` cannot locate itself on the runner.
+      - name: Check formatting
+        run: bash tool/ci/format.sh --check
+      # Warnings and errors fail; infos do not, because the floating stable
+      # channel adds deprecation infos with each Flutter release.
+      - name: Analyze
+        run: dart analyze .
+
+  test:
+    name: Test ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [tugboat, tugboat_dio, tugboat_http, tugboat_build]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install Dart dependencies
+        run: dart pub get
+      # The tap benchmark asserts wall-clock budgets, which a shared runner
+      # cannot hold steady; it stays a local guard.
+      - name: Run package tests
+        env:
+          TUGBOAT_SKIP_BENCHMARKS: "1"
+        run: bash tool/ci/run-flutter-tests.sh ${{ matrix.package }}
 
   pub-dry-run:
     name: pub publish dry-run
@@ -56,6 +80,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
       - name: Install Dart dependencies
         run: dart pub get
       - name: Dry-run pub publish

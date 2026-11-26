@@ -1,9 +1,11 @@
 # Publishes lockstep `tugboat` and `tugboat_dio` versions to pub.dev.
 #
 # pub.dev only accepts GitHub Actions OIDC from a tag matching v{{version}}.
-# Merging a PR does not publish by itself. This workflow:
-# 1. On push to main, creates tag v<version> and dispatches this workflow on it.
-# 2. On that tag (push or workflow_dispatch), publishes both packages.
+# Merging to main never publishes. To release, either:
+# 1. Run this workflow on main (Actions > Run workflow). cut_release creates
+#    tag v<version> at that commit and dispatches this workflow on the tag, or
+# 2. Push tag v<version> yourself.
+# On that tag (push or workflow_dispatch), both packages are published.
 #
 # Configure both packages the same way:
 #   https://pub.dev/packages/tugboat/admin
@@ -15,8 +17,6 @@ name: Publish to pub.dev
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
@@ -26,8 +26,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  tag_main:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  cut_release:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write

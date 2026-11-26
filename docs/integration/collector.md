@@ -4,13 +4,16 @@ This page documents the transport behavior implemented by the Flutter SDK.
 Server-side storage, enrichment, and Atlas behavior are outside this repository
 and must be verified against the service that receives these requests.
 
-The SDK can enable either or both built-in destinations:
-
-- a local exploration WebSocket;
-- a standalone HTTP collector.
+The SDK's built-in destination is the standalone HTTP collector. Exploration
+runs use the same collector: point `collector.baseUrl` at a local HTTP
+collector.
 
 Evidence remains authoritative in the controller's bounded, in-memory session.
 Transport failures are isolated from the host app.
+Session and event IDs are opaque. The current SDK sends `session-<UUIDv4>`
+and `event-<UUIDv4>`. Frame uploads carry a UTC `frameMetadata.triggeredAt`
+calculated from the session start and frame offset, so collectors can recover
+capture time even when an upload arrives late.
 
 ## Required app integration
 
@@ -40,71 +43,36 @@ Screenshot JPEG frames are schema-v10 `frame` records regardless of
 not change collector URLs, event names, or the frame transport schema. Keep
 the default `flutterRepaintBoundary` backend for production collector cohorts.
 
-## Local exploration WebSocket
+## Local exploration runs
 
-Use the exploration destination for an interactive local run:
+An interactive local run uses the HTTP collector with a local `baseUrl`. Turn
+on the exploration evidence you need:
 
 ```dart
-const config = TugboatReplayConfig(
+final config = TugboatReplayConfig(
   enabled: true,
   emitSceneInventory: true,
   emitViewportSemanticMap: true,
   acceptActionContext: true,
-  explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
   explorationRunId: 'optional-run-id',
-  appInfo: TugboatCollectorAppInfo(
-    name: 'My App',
-    version: '1.0.0',
-    buildNumber: '42',
-    installationId: 'device-installation-id',
-    appId: 'com.example.my_app',
-  ),
+  collector: localCollectorConfig,
 );
 ```
 
-For an Android emulator the host-side runner must make the socket reachable,
-for example with `adb reverse tcp:7832 tcp:7832` when using
-`127.0.0.1:7832`. Connection setup is not performed by the Flutter package.
+The same switches are available at launch through the Android Intent extras
+and iOS launch inputs listed in the package README. For an Android emulator the
+host-side runner must make the local collector reachable (`10.0.2.2` from the
+emulator, or `adb reverse`). Connection setup is not performed by the Flutter
+package.
 
-If `appInfo` is omitted, session metadata falls back to
-`collector.appInfo` when the HTTP destination is also configured.
+The optional `locale` object on session metadata contains `language`, optional
+`country` and `script`, and a BCP 47 `tag`. Every SDK event carries the current
+locale when known. A `locale_changed` evidence event contains `previousLocale`
+when known and the new `locale` in its payload.
 
-### WebSocket messages
-
-The SDK sends:
-
-- `type: session`: session metadata, platform, exploration run ID when set, and
-  `fingerprintSchemaVersion`, plus the active app locale when available;
-- `type: event`: serialized event payload plus available session/run/action
-  correlation fields;
-- `type: frame`: frame metadata (`captureMicros`, `byteLength`,
-  `requestedBackend`, `resolvedBackend`, optional `fallbackReason`) followed by
-  a binary JPEG message;
-- `type: control_ack`: acknowledgement for supported exploration commands.
-
-The optional `locale` object contains `language`, optional `country` and
-`script`, and a BCP 47 `tag`. Every SDK event carries the current locale when
-known. A `locale_changed` evidence event contains `previousLocale` when known
-and the new `locale` in its payload.
-
-Incoming JSON control messages are forwarded to the controller. The current
-controller understands `set_action_window`, `clear_action_window`,
-`pause_capture`, and `resume_capture`, and acknowledges recognized commands.
-Malformed or unknown messages are ignored.
-
-The transport reconnects after two seconds. Messages produced while
-disconnected are queued in memory, with a maximum of 200 messages; the oldest
-message is dropped when the bound is exceeded. The queue is not persisted.
-
-### Exploration screenshot suppression
-
-When the WebSocket connects and no HTTP collector is configured, the controller
-suppresses non-interaction Flutter screenshot capture to reduce UI-thread work.
-Each completed interaction still captures and encodes a fresh screenshot. A
-route capture claimed by that interaction also bypasses this suppression.
-Events, anchors, scene inventories, and enabled viewport semantic evidence
-continue to stream. Frames captured before the socket connects can still be
-sent.
+Action windows and capture pause are in-process controller calls
+(`setActionContext`, `clearActionContext`, `setCapturePaused`). The SDK does
+not receive control messages over the network.
 
 The external exploration runner may record its own before/after screenshots,
 but that behavior is not implemented or guaranteed by this Flutter package.
@@ -126,6 +94,52 @@ final config = TugboatReplayConfig(
   collector: collector,
 );
 ```
+
+### Installation id
+
+`session_start` sends `appInfo.installationId`, one id per app install. The
+SDK owns it: on first launch it mints a random UUID (version 4, lowercase)
+and keeps it in its own file, `tugboat/installation_id` under the app's
+support directory (`path_provider`'s `getApplicationSupportDirectory`). It is
+not stored in the host's shared preferences, so clearing those (for example on
+logout) does not change it. The id survives launches and app updates and is
+new after a reinstall or when the app's data is cleared. Like any app file it
+is included in platform backups, so a restore onto another device carries it
+over, and both devices then report the same id. To avoid that, pass your own
+`installationId` or exclude `tugboat/installation_id` from backup (Android
+backup rules, iOS backup exclusion). If the file cannot be read or written,
+the SDK still sends an id that is stable for the process and retries the
+write on later reads; if it never persists, the next launch mints a new one.
+Stores racing on first launch (several isolates or processes) all end up with
+the id that reached disk.
+
+On iOS the first id is the device's `identifierForVendor` (unchanged, so
+uppercase), not a random UUID, so installs that reported it as `device.id`
+before 0.11.5 keep the same value. After that it is persisted like on Android.
+On Android the first id is always random: `device.id` there is the OS build
+label (`Build.ID`), shared by every device on that build, so nothing worth
+keeping existed.
+
+A host that has its own installation id passes it, and a non-empty host id
+wins:
+
+```dart
+final collector = await TugboatCollectorHost.fromPlatform(
+  apiKey: apiKey,
+  installationId: myInstallationId, // optional; SDK id when null or empty
+);
+```
+
+With a manually built `TugboatCollectorConfig`, `appInfo.installationId` is
+sent exactly as given, so do not fill it from `device_info_plus` ids such as
+Android's `Build.ID`, which every device on that OS build shares. `TugboatCollectorHost.installationId()` returns the
+SDK's own id, for hosts that want to log it next to their user id.
+
+`device.id` is unchanged: it is still the platform-reported value
+(`Build.ID` on Android, `identifierForVendor` on iOS) and is device
+metadata, not identity. Key installs on `appInfo.installationId`.
+
+### Platform metadata
 
 `fromPlatform` uses `package_info_plus`, `device_info_plus`, `battery_plus`,
 `disk_space_plus`, and `connectivity_plus` to populate app, device, viewport,
@@ -211,7 +225,9 @@ not uploaded before this handshake completes.
 
 Session payloads may include:
 
-- `atMs` — milliseconds since session start, plus absolute UTC `triggeredAt`;
+- `atMs` — milliseconds since session start, on the same time base as event
+  `atMs` (so `session_end` is not before the session's last event), plus
+  absolute UTC `triggeredAt`;
 - `userId` — current runtime user on every session lifecycle event, including
   `session_end`. After start, `null` is an explicit identity-clear on
   `user_changed` / `session_identify` and the current (possibly anonymous)
@@ -247,6 +263,17 @@ Event payloads contain:
 - build identity: app ID, platform, version name, build number, and fingerprint
   schema version.
 
+An `interaction` record carries `route`, `targetFingerprint`, `gesture`,
+`payload` and `targetAnchor`, plus `targetResolutionFailureReason` when no
+target resolved. Every tap with a `targetFingerprint` also carries `routeKey`
+(the route key the fingerprint was hashed under; production taps since
+0.12.4). Join a tap to a scene inventory on `(routeKey, targetFingerprint)`,
+not on `route`: for unnamed pages, dialogs and anonymous sheets `route` is the
+route's runtime type. Exploration taps (scene inventory emission on) also carry
+`fingerprintConfidence`, `fingerprintSource` (how the fingerprint was
+resolved) and `surface` (`kind`, optional `widgetClass`). These three are
+exploration-only.
+
 The collector must accept all SDK schema-v2 gesture names: `tap`, `swipe`,
 `scroll`, `pan`, `zoom_in`, `zoom_out`, and `cancelled`. The mapper preserves
 these names. It does not rename zoom to swipe or scroll.
@@ -260,6 +287,14 @@ without retrying, including other events in the batch. Frame uploads remain
 separate, so visible frame changes do not prove event acceptance. Deploy
 collector contract support before testing a production session with these
 gestures. Check both zoom directions and the stored `pointerCount` and `scale`.
+
+With `TugboatReplayConfig.capturePressDuration` on, a tap's nested `payload`
+also carries `pressDurationMs`: whole milliseconds from pointer-down to
+pointer-up on the event `atMs` clock. A long press stays `gesture: tap`; the
+duration is what tells it apart. It is omitted when the tap has no pointer-up
+time. Collectors before the BLE-567 change accept and store it as an unknown
+`payload` key but do not validate it; turn the flag on once the collector that
+validates it is deployed.
 
 The opt-in `focus_changed` and `system_input` evidence events
 (`TugboatReplayConfig.captureFocusChanges` / `captureSystemInput`) use the
@@ -313,14 +348,17 @@ does not assert that the interaction caused that frame, route, or UI state.
 Frame uploads are sorted by numeric frame suffix and sent as multipart files
 named `<frameNo>.jpg`, with `sessionId` and comma-separated `frameNos` fields.
 Backend identity (`requestedBackend` / `resolvedBackend`) lives on the in-memory
-`TugboatFrame` and exploration WebSocket frame payload, not on this multipart
-upload.
+`TugboatFrame`, not on this multipart upload.
 Malformed frame IDs and frames belonging to a stale SDK session are dropped.
 Queued frames are uploaded as-is: events reference exact `beforeFrame` /
 `afterFrame` IDs, and the multipart protocol has no hash alias, so intermediate
 scroll or duplicate-content captures cannot be dropped without breaking those
-refs. Backpressure may still drop the oldest pending frames when
-`maxPendingFrames` is exceeded.
+refs. Backpressure may still drop pending frames when `maxPendingFrames` or
+`maxPendingFrameBytes` is exceeded. Eviction drops the oldest frame that no
+recorded event references (`beforeFrame` / `afterFrame`) first, keeps the
+newest frame, and drops a referenced frame only when nothing else is left.
+Both bounds cover frames waiting for upload: a flush takes one batch of up to
+20 frames from the queue at a time, so at most that batch is held beyond them.
 
 ### Batching, retry, and backpressure
 
@@ -332,39 +370,57 @@ refs. Backpressure may still drop the oldest pending frames when
 | `eventFlushInterval` | `3 seconds` |
 | `maxPendingBatches` | `20` |
 | `maxPendingEvents` | `60` |
-| `maxPendingFrames` | `20` |
-| `retryAfterCap` | `60 seconds` |
-| `endingRetryAfterCap` | `10 seconds` |
+| `maxPendingFrames` | `400` |
+| `maxPendingFrameBytes` | `8 MiB` |
 
 A full batch triggers a flush; the periodic timer sends partial batches.
-Lifecycle backgrounding also asks the sink hub to flush. Session end flushes
-pending events before queueing the final lifecycle message (`session_end`),
-except while the events lane waits on a `Retry-After` (below): then
-`session_end` is queued without waiting for those events, which stay queued.
-A `session_end` with a retry outcome is re-posted on the periodic flush until
-it is accepted or dropped (a dropped one is not re-posted); then the periodic
-flush stops.
+Lifecycle backgrounding also asks the sink hub to flush, and session end drains
+frames and events before posting the final lifecycle message. Flushes run one
+at a time; a flush requested while one runs queues a single follow-up pass, so
+work recorded mid-flush (such as the session's last frame) is never left
+behind. A pass sends pending lifecycle posts, then frames, then the events
+queued when it reached them, uploading newly captured frames between event
+batches. When an event post fails or times out, the pass stops posting events
+and moves the rest of them to the retry queue unsent. When the oldest retry
+batch gets no response at all (timeout or transport error), fresh events are
+also moved there unsent, so a hung endpoint costs one event timeout per pass.
+When it answers with an error status, one fresh batch is still tried, so a
+batch the collector keeps rejecting cannot hold every later event. Every
+collector request times out after 15 seconds; the request is then aborted, so
+its connection and body are released, and retried.
+
+Bounded `capture_diagnostic` events describe delivery problems without image
+contents, payloads, or credentials: `collector_frame_upload` (frame upload
+failures, evictions, recovery), `collector_request` (the first failed
+`/v1/sessions` or `/v1/events/batch` post per outage, with `statusCode` or
+`error: timeout | transport`, and its recovery), and `collector_flush` (the
+first pass per outage slower than 10 seconds, with `durationMs`, the slowest
+`step`, and `stepDurationMs`; the outage ends with a fast pass once nothing
+is waiting for a retry: no frame upload, event retry batch, or lifecycle
+post).
 
 The sink treats HTTP `202` as accepted. It retries transport failures, `408`,
-`429`, and `5xx`; other response codes are dropped. Retry batches, unsent
-events, and frames are bounded in memory. When a bound is exceeded the oldest
-items are discarded and a debug message is printed.
+`429`, and `5xx`; other response codes are dropped. That includes a lifecycle
+post such as `user_changed`, so it cannot hold later lifecycle posts, except
+`session_start`, which is retried until accepted because uploads wait for its
+session id. Retry batches, unsent events, and frames are bounded in memory.
+When a bound is exceeded the oldest items are discarded (frames by the
+eviction order above), a debug message is printed, and the discarded events
+and frames are counted in `TugboatReplay.health.sinks.dropped`
+(`health.sinks.pending` counts what is still held, including a request in
+flight). A new session or disposing the sink clears the queued events and
+frames, and those count as dropped too. Items already in a request stay in
+`pending` until that request finishes, and count as dropped only if the
+collector leaves them to retry, since a request from the old session is never
+retried. These health counts cover the whole process, not one activation:
+`accepted` and `dropped` are running totals across `TugboatReplay.activate` /
+`deactivate` cycles, and a deactivated session's sink keeps contributing to
+`pending` and `dropped` until its last request finishes. Frame evictions emit a `collector_frame_upload` diagnostic with
+`result: dropped` when the running count reaches a power of two, and once more
+with the final count before `session_end`. Each carries `droppedFrameCount`
+and `droppedReferencedFrameCount`.
 
-When a `429` or `503` response carries `Retry-After` (delta-seconds or an
-IMF-fixdate), the sink holds that delivery lane (lifecycle posts, event
-batches, or frame uploads) until the hinted delay has passed, at most
-`retryAfterCap`; the other lanes keep sending. A lane timer then resumes the
-lane; the lifecycle lane then sends every queued post, so a `session_end`
-queued behind a waiting one goes out too. Fresh events not yet sent when the
-events lane starts waiting stay in the event queue. Once `endSession` is
-called, lifecycle waits are capped at `endingRetryAfterCap` instead, and a
-longer one already running is shortened to it, so `session_end` is not held
-past host shutdown. Both caps are clamped to between zero and 24 hours, and
-`Duration.zero` honours no hint. Values that do not parse, or longer than 128
-bytes, are ignored. Waits use a monotonic clock, so a wall-clock change does
-not shorten them.
-
-Collector and WebSocket delivery are best-effort. Bounded in-memory queues retry
+Collector delivery is best-effort. Bounded in-memory queues retry
 temporary failures while the process remains alive. The SDK does not persist
 events or frames across process restarts.
 
@@ -372,30 +428,16 @@ Fresh events can continue to flush even while an older retry head remains
 blocked. Session epochs prevent an in-flight response from a prior session from
 stamping or clearing a newer session's evidence.
 
-## Using both destinations
-
-```dart
-final config = TugboatReplayConfig(
-  enabled: true,
-  emitSceneInventory: true,
-  emitViewportSemanticMap: true,
-  acceptActionContext: true,
-  explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
-  collector: productionCollectorConfig,
-);
-```
-
-The sink hub fans each session, event, and frame to both destinations and
-isolates failures per sink. With HTTP configured, connecting the WebSocket does
-not enable exploration-only screenshot suppression because frames still need to
-reach the HTTP destination.
+## Custom destinations
 
 Custom destinations can be registered through `sinkFactories` on
-`TugboatReplayConfig`; the SDK owns one sink instance per capture session.
+`TugboatReplayConfig`; the SDK owns one sink instance per capture session. The
+sink hub fans each session, event, and frame to every sink and isolates
+failures per sink.
 
 ## Operational limits
 
-- Collector HTTP and exploration WebSocket delivery stay process-local.
+- Collector HTTP delivery stays process-local.
 - `activationRequestId` and `captureSessionId` are distinct and both emitted.
 - Platform-view / video-texture capture adapters are deferred.
 - Disposal requests asynchronous finalization; a force-killed process can lose

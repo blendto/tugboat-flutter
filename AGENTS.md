@@ -20,7 +20,9 @@ A mobile monorepo (Dart pub workspace + Melos 7), not a single package:
   after a local build); it does not compile `platforms/android` from source.
 - `platforms/apple` — `TugboatCaptureRuntime` (CocoaPods + SwiftPM, iOS 15+).
 - `sdks/flutter/packages/tugboat` — the Flutter adapter/plugin (pub.dev);
-  `tugboat_dio` — Dio network evidence; `example/` — demo app, not published.
+  `tugboat_dio` — Dio network evidence; `tugboat_build` — `build_runner`
+  generator for the `widgetNames` map (not published yet); `example/` — demo
+  app, not published.
 - `sdks/react-native` — future adapter placeholder only.
 - `tool/ci` — host scripts for tests, builds, pins, API dumps, release checks.
 - `docs/` — public contracts; `docs/publishing.md` rules what belongs there.
@@ -54,17 +56,29 @@ Unfamiliar terms are defined in `docs/glossary/INDEX.md`.
   `pubspec.lock` (native pub workspace). `dart pub get` first.
 - `dart run melos run format`, `dart run melos run analyze`, and
   `dart run melos run test` — full workspace. Package-scoped:
-  `dart run melos run test:sdk` / `dart run melos run test:dio`.
-- Lint gate: `dart run melos run complexity` — `dallow` rejects cyclomatic complexity
-  above 10. Do not weaken it; refactor or suppress narrowly.
+  `dart run melos run test:sdk` / `dart run melos run test:dio` /
+  `dart run melos run test:build`. `format` skips Pigeon output (`*.g.dart`);
+  `format:check` is the CI form. Test files run in parallel; the wall-clock
+  tap benchmark (tag `benchmark`) runs alone afterwards and CI skips it.
+- CI (`.github/workflows/flutter-adapter.yml`) runs format, analyze and all
+  three packages' tests on every pull request.
 - C++ core tests: `bash tool/ci/run-image-core-tests.sh`.
 - Android AAR build: `bash tool/ci/build-android-runtime.sh` (NDK
   28.2.13676358, CMake 3.22.1).
 - Version/pin discipline: `tool/ci/check-version-policy.sh`,
   `check-flutter-apple-pin-published.sh`, `verify-android-runtime-api.sh`,
   `verify-swift-api.sh`, `verify-native-capture-pigeon.sh` — run the relevant
-  ones when touching native code or versions. Packages version and changelog
-  independently (ADR 0008).
+  ones when touching native code or versions. Native runtimes version independently (ADR 0008).
+- Before opening or updating a PR to main that changes Flutter package source,
+  a pub.dev README, or Dartdoc, bump `tugboat` and `tugboat_dio` together.
+  Use a patch for documentation. Update both changelogs, the Dio and example
+  dependency floors, `lib/src/sdk_version.dart` in tugboat, and the compatibility
+  table. Check open release PRs for collisions and run
+  `BASE_SHA=origin/main bash tool/ci/check-version-policy.sh` against fresh main.
+- Releases are tag-based: merging to `main` publishes nothing. A package is
+  released by running its publish workflow on `main` or pushing its tag
+  (`docs/releases/process.md`). Anything on `main` ships with the next tag,
+  so unfinished work stays off by default.
 - Requires Flutter 3.35+, Dart 3.9.2+.
 - Cross-repo: host-app integration and end-to-end validation target is
   `mobile_app/` (see workspace `AGENTS.md`). Capture-contract changes must be

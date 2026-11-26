@@ -7,23 +7,24 @@ environment:
 workspace:
   - sdks/flutter/packages/tugboat
   - sdks/flutter/packages/tugboat/example
+  - sdks/flutter/packages/tugboat_build
   - sdks/flutter/packages/tugboat_dio
+  - sdks/flutter/packages/tugboat_http
 
 dev_dependencies:
-  dallow: ^0.2.1
   melos: ^7.8.2
 
 melos:
   scripts:
     format:
-      run: dart format .
-      description: Format Dart source across the workspace.
+      run: bash tool/ci/format.sh
+      description: Format tracked Dart source, leaving Pigeon output alone.
+    format:check:
+      run: bash tool/ci/format.sh --check
+      description: Fail if any tracked Dart source is not formatted.
     analyze:
       run: dart analyze .
       description: Analyze every package in the workspace.
-    complexity:
-      run: dart run dallow complexity --recursive --max-complexity 10 --fail-on warning .
-      description: Reject functions with cyclomatic complexity above 10.
     test:
       run: bash tool/ci/run-flutter-tests.sh
       description: Run all package tests with each package's asset bundle.
@@ -33,3 +34,9 @@ melos:
     test:dio:
       run: bash tool/ci/run-flutter-tests.sh tugboat_dio
       description: Run the Dio adapter tests.
+    test:http:
+      run: bash tool/ci/run-flutter-tests.sh tugboat_http
+      description: Run the HTTP adapter tests.
+    test:build:
+      run: bash tool/ci/run-flutter-tests.sh tugboat_build
+      description: Run the widget-name generator tests.

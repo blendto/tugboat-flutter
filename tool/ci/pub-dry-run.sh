@@ -14,3 +14,4 @@ run_one() {
 
 run_one sdks/flutter/packages/tugboat
 run_one sdks/flutter/packages/tugboat_dio
+run_one sdks/flutter/packages/tugboat_http

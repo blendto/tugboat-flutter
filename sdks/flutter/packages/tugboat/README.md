@@ -1,722 +1,346 @@
-# Tugboat Flutter SDK
+# Tugboat for Flutter
 
-Screenshot-based session evidence for Tugboat. The SDK records masked visual
-checkpoints around meaningful interactions, compact structural anchors, route
-transitions, scrolling evidence, and optional viewport semantic maps. Capture
-can be sent to the local exploration WebSocket, the HTTP collector, or both.
+See what your app showed before and after a user interaction. Tugboat captures
+masked screenshots, gestures, scrolling, and navigation alongside structural
+anchors for the Flutter widgets involved. Use the same SDK to capture app
+sessions or collect evidence during automated exploration.
 
-The current package version is `0.9.0`. Session JSON writers and readers use
-schema version `10` only. Structural fingerprints use fingerprint schema
-version `6`.
+Tugboat supports Android and iOS. It requires Flutter 3.35.0 or newer,
+Dart 3.9.2 or newer, and iOS 15 or newer for iOS builds.
 
-## 0.9.0
+## Quick start
 
-The SDK has one privacy-safe capture behavior. `enabled` controls the capture
-lifecycle. Additive capability fields control optional inventory, semantic
-map, diagnostic, and action-context evidence. The SDK no longer exports
-`TugboatCaptureProfile`.
+**Already using session replay?** Run one recorder per session. When
+switching to Tugboat, remove the previous replay integration or disable its
+replay feature before enabling Tugboat. If you keep both during a rollout,
+use one feature flag to select the recorder for each session. Two active
+recorders can duplicate capture work, increasing CPU and memory use and
+making scrolling or animations less smooth.
 
-## 0.8.16
+From your app directory, install the [tugboat package](https://pub.dev/packages/tugboat):
 
-The iOS plugin compiles on Flutter 3.35. Native CPU capture still loads
-CocoaPods `TugboatCaptureRuntime` `0.1.0` and Maven Central
-`com.gettugboat.sdk:capture-runtime:0.1.0`. Native capture stays opt-in
-(`nativeCpuExperimental`). Keep
-`TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
-
-## 0.8.15
-
-iOS native CPU capture loads CocoaPods `TugboatCaptureRuntime` `0.1.0` and
-requires iOS 15. Android still loads Maven Central
-`com.gettugboat.sdk:capture-runtime:0.1.0`. Native capture stays opt-in
-(`nativeCpuExperimental`). Keep
-`TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
-
-## 0.8.14
-
-Android native CPU capture loads `com.gettugboat.sdk:capture-runtime:0.1.0`
-from Maven Central. Native capture stays opt-in
-(`nativeCpuExperimental`). Keep
-`TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
-
-## 0.8.13
-
-Experimental opt-in native CPU screenshot capture (`nativeCpuExperimental`) on
-Android (`PixelCopy`) and iOS (live Flutter-layer rendering). Keep
-`TugboatScreenshotCaptureBackend.flutterRepaintBoundary` in production.
-
-`route_change` now carries split route identity (`routeName` / `routeType` /
-`routeNamed`), a closed overlay kind (`page`, `sheet`, `dialog`, `popup`,
-`unknown`), presentation-parent fields for overlay pushes, and a bounded
-same-navigator `routeStack`. `fromRoute`, `route`, and `navigation` keep their
-existing meaning. Overlay after-frames still capture under exploration
-screenshot suppression.
-
-## 0.8.12
-
-Session lifecycle POSTs now stamp the current runtime `userId` and traits on
-`session_start`, `session_identify`, `traits_updated`, `user_changed`, and
-`session_end`.
-
-## 0.8.11
-
-The SDK now enforces a maximum cyclomatic complexity of 10. Internal helpers
-keep capture, replay, semantic, and network behavior unchanged while making
-control flow easier to test and maintain.
-
-## 0.8.10
-
-Viewport semantic capture flushes a newly enabled semantics tree only when no
-frame is pending. During dirty layout or paint, it reads Flutter's last stable
-tree and uses inventory fallback. Release-gate screenshot tests now wait for
-controller capture work instead of a fixed delay. Collector contract coverage
-includes pan and both zoom directions.
-
-## 0.8.9
-
-Pinch and pan stay in one interaction until all contacts lift. Replacement
-fingers preserve the gesture and cumulative zoom scale. Pinches can start with
-contacts closer than the touch slop. Trackpad pan includes its travel in
-`endPosition` and `delta`. Stationary third-finger taps remain taps until
-movement confirms a shared gesture. Travel continues after the primary finger
-lifts. Pause, hide, and detach clear old input contacts. One-finger canvas pan
-remains `swipe`.
-
-## 0.8.8
-
-Exploration capture now snapshots fresh target, inventory, and viewport
-semantic evidence at primary pointer-down. Completed taps reuse this evidence,
-including the original route facts. Missing targets include a closed failure
-reason. Guarded inventory fallback can identify an unlinked actionable semantic
-node with low confidence.
-
-## 0.8.7
-
-`TugboatCollectorHost.fromPlatform()` snapshots optional session-start device
-facts on `session_start`: battery percentage, free internal storage, Android
-physical RAM, and active network type. Each field is omitted when unavailable.
-
-Three-finger shared translation now publishes one canonical `swipe` with
-`payload.pointerCount: 3`. Two-finger pan/zoom and one-finger swipe are
-unchanged. OS-owned system gestures that never reach Flutter are not recorded.
-
-## 0.8.6
-
-Default `TugboatReplay.eventHook` parameter policy now retains bounded
-JSON-safe values, including in production capture profiles. Pass
-`TugboatParameterPolicy.namesOnly` to keep keys without values.
-
-Canonical interactions now include `pan`, `zoom_in`, and `zoom_out` for
-two-pointer pinch/translation and trackpad pan/zoom. Nested payload adds
-`pointerCount` and, for zoom, `scale`. Tap, swipe, and scroll are unchanged.
-
-`productionLean` profiles no longer emit `capture_diagnostic` events to the
-session or collector. On-device `healthSnapshot().captureDiagnostics` counters
-still update. Exploration profiles still emit full diagnostic events.
-
-## 0.8.5 release compatibility
-
-This release follows `0.8.0` and stays on the `0.8.x` line as `0.8.5`. It
-removes deprecated public APIs, so deploy the coordinated collector compatibility
-update before you release the SDK.
-
-New writers omit `stateAnchor`, `stateSignature`, and `state_change` events.
-The old public state model types are removed. Each completed tap, swipe, and
-scroll records a temporal after-frame when capture succeeds. The collector
-mapper also omits the
-top-level `stateAnchor` key. Deploy the related collector change with this SDK
-release.
-
-Schema-v2 collector events (`interaction`, `route_change`) are flat facts-only
-records: no nested top-level `payload` on route changes, no empty
-`targetAnchor`, and no inferred interaction `result`. Canonical `interaction`
-events include a bounded `targetAnchor` (including `canonicalPath`) when tap or
-scroll resolution succeeds. Interaction v2 uses a
-nested `payload` for gesture facts (`tap`/`swipe`/`scroll`/`pan`/`zoom_in`/`zoom_out`/`cancelled`) and
-no longer emits separate `scroll_start`, `scroll_end`, or `pointer_cancel`
-events.
-
-## Install
-
-```yaml
-dependencies:
-  tugboat: ^0.9.0
+```sh
+flutter pub add tugboat
 ```
 
-Then import the public barrel:
+Import `package:tugboat/tugboat.dart` and add two hooks to your existing
+`MaterialApp` or `CupertinoApp`:
 
 ```dart
+import 'package:flutter/material.dart';
 import 'package:tugboat/tugboat.dart';
-```
 
-The package requires Dart 3.9.2 or newer and Flutter 3.35.0 or newer.
-Install from pub.dev; a GitHub checkout is not required.
-
-### Optional Dio network evidence
-
-```yaml
-dependencies:
-  tugboat: ^0.9.0
-  tugboat_dio: ^0.9.0
-```
-
-See the [`tugboat_dio`](https://pub.dev/packages/tugboat_dio) package.
-
-## Coded events and network observation
-
-Opt-in coded-event hooks append to the active session without coupling to Amplitude,
-Firebase, or a specific HTTP client:
-
-```dart
-final appEvents = TugboatReplay.eventHook(
-  source: 'analytics',
-  parameterPolicy: TugboatParameterPolicy.allowList({'method', 'result'}),
-);
-appEvents.record('USER_LOGIN', parameters: {'method': 'email'});
-
-final call = TugboatReplay.beginNetworkCall(
-  method: 'GET',
-  route: '/blend/RC-T4KE7', // bounded absolute path; dynamic IDs are allowed
-);
-call.complete(statusCode: 200);
-
-// HTTP error bodies may be supplied as bounded JSON/text evidence.
-final failedCall = TugboatReplay.beginNetworkCall(
-  method: 'POST',
-  route: '/projects',
-);
-failedCall.complete(
-  statusCode: 422,
-  errorResponseBody: {'code': 'invalid_project'},
-);
-```
-
-Both emit on `stream: evidence` and never inherit an active action context or
-UI anchors. The default `allowAll` parameter policy retains JSON-safe values
-within hard limits. Use `namesOnly`, an allow-list, or a transform when the
-host needs a narrower policy.
-
-### Omitting parameter values
-
-Use `namesOnly` when the host must retain parameter keys without values:
-
-```dart
-final privateEvents = TugboatReplay.eventHook(
-  source: 'analytics',
-  parameterPolicy: TugboatParameterPolicy.namesOnly,
-);
-privateEvents.record(
-  'SEARCH',
-  parameters: {'query': 'chicken soup'},
-);
-```
-
-The default policy can retain feedback, search terms, URLs, IDs, and other user
-content. Hosts that need a narrower set can pass an allow-list or a transform.
-The SDK still deep-copies JSON-safe values and applies its hard JSON and size
-bounds.
-
-Network routes must be bounded absolute paths. Dynamic identifier segments are
-allowed. The SDK drops resolver output containing a scheme, query, fragment,
-percent-encoded data, a network-path prefix, backslash, or whitespace/control
-characters. Route paths can contain user or tenant identifiers. Hosts must
-apply their own privacy and retention policy.
-HTTP response bodies are retained only when `statusCode >= 400`. JSON and text
-are deep-copied and bounded to 16 KiB; binary and unsupported values are
-omitted. Successful response bodies are never retained.
-
-Hooks resolve the active controller when `record` is called, rather than keeping
-a session reference. Network tokens are bound to the capture session in which
-they were created. Finishing a token after `clear`, session replacement,
-deactivation, or session end is a bounded no-op and cannot append evidence to a
-newer session. Calls made while Tugboat is dormant, disabled, deactivating, not
-yet started, or already ended are also safe no-ops.
-
-## Migrating to 0.5.0
-
-This is a breaking release. Session JSON written by 0.5.0 uses schema version
-`9` and no longer includes `controlValue`, `controlValueTransition`, or
-`semanticAnnotation` in event `data`. Consumers reading historical schemas
-`6`–`8` should treat those fields as optional historic data; new captures do
-not provide them.
-
-The public `package:tugboat/tugboat.dart` barrel no longer exports:
-
-- `TugboatEncodedControlScalar`, `TugboatVisibleControlValue`,
-  `TugboatControlValueScope`, `TugboatControlValue`, and
-  `TugboatSemanticAnnotation`;
-- `tugboatControlValueSchemaVersion`,
-  `tugboatControlValueTransitionSchemaVersion`, and
-  `tugboatSemanticAnnotationSchemaVersion`;
-- `tugboatControlValueForWidget`,
-  `tugboatControlValueFromSemanticsProperties`,
-  `tugboatControlValueFromSemanticsNode`,
-  `tugboatSemanticAnnotationFromProperties`,
-  `tugboatSemanticAnnotationFromNode`,
-  `tugboatMergeSemanticAnnotations`, and `tugboatMergeControlValues`.
-
-## Minimal integration
-
-Install both the app wrapper and navigator observer. Capture is disabled by
-default. Set `enabled` when the app should record immediately. Enable optional
-evidence capabilities only when the host has authority for that app launch:
-
-```dart
+// Add these settings to the app you already use.
 MaterialApp(
   navigatorObservers: [TugboatReplay.navigatorObserver],
   builder: (context, child) => TugboatReplay.wrapApp(
     child: child!,
-    config: const TugboatReplayConfig(
-      enabled: true,
-      emitSceneInventory: true,
-      emitViewportSemanticMap: true,
-      acceptActionContext: true,
-      explorationCollectorUrl: 'ws://127.0.0.1:7832/sdk',
-      viewportSemanticMode: TugboatViewportSemanticMode.full,
+    config: const TugboatReplayConfig(enabled: true),
+  ),
+  home: const HomeScreen(),
+);
+```
+
+Keep your existing observers and builder behavior. The wrapper installs the
+capture boundary and input listeners. The observer supplies navigation events
+and route context for anchors. For a Router-based app, attach the observer to
+the router's Navigator. Add a separate observer from
+`TugboatReplay.createNavigatorObserver()` to each nested Navigator you want to
+track.
+
+Run the app on Android or iOS, tap a control, open a second screen, and wait
+for the transition to settle. In the debugger, check
+`TugboatReplay.controller?.session` for `interaction` and `route_change`
+events and masked frames. See `TugboatReplay.health` for
+sanitized capture outcomes, screenshot budget, and sink counts. This setup
+keeps a bounded session in memory. Add a collector to send evidence off the
+device.
+
+## Send sessions to a collector
+
+After `WidgetsFlutterBinding.ensureInitialized()` and before `runApp`, load
+the app and device metadata and build the config. Pass `config` to the
+`wrapApp` call above.
+
+```dart
+final collector = await TugboatCollectorHost.fromPlatform(
+  apiKey: collectorToken,
+);
+
+final config = TugboatReplayConfig(
+  enabled: true,
+  collector: collector,
+);
+```
+
+Supply your app's client-visible collector token through your existing
+configuration. `fromPlatform` uses the Tugboat production collector by
+default. For local exploration, pass `productionProfile: false` or supply an
+explicit `baseUrl` reachable from the device. Delivery is best effort with
+bounded in-memory queues. Pending data is lost when the process exits.
+[Collector setup and wire behavior](https://github.com/blendto/tugboat-flutter/blob/main/docs/integration/collector.md)
+
+For an end-to-end check, confirm the collector accepts `session_start`, then
+look for event and frame uploads. In a debug build, use
+`--dart-define=TUGBOAT_HTTP_PROOF=true` for redacted HTTP proof logs. The SDK's
+`captureSessionId` identifies the emitted session. The collector can assign a
+separate `collectorSessionId` when it accepts `session_start`.
+
+## Control when capture runs
+
+Capture is off by default. Set `enabled: true` for startup capture, or leave
+it off and activate the mounted wrapper from your host's own consent or
+feature-flag flow. The activation request ID correlates the host's request
+with the SDK lifecycle.
+
+```dart
+TugboatReplay.activate(activationRequestId: captureRequestId);
+// When capture should end:
+TugboatReplay.deactivate();
+```
+
+The mounted wrapper handles these transitions without rebuilding
+`MaterialApp`. Setting `TugboatReplay.disabled = true` is a process-wide kill
+switch that tears down active capture. A session starts once the capture
+boundary has a non-zero viewport. Pausing or hiding the app schedules a sink
+flush, and detaching the app ends the session.
+
+To associate a user with collector sessions, call
+`TugboatReplay.setUserId(currentUserId)` and send a full traits snapshot with
+`TugboatReplay.setTraits({'plan': 'pro'})`. Values set before activation can
+be included at session start. [Collector identity and lifecycle](https://github.com/blendto/tugboat-flutter/blob/main/docs/integration/collector.md)
+
+## Protect captured data
+
+The default screenshot policy, `allTextAndMedia`, masks text and media
+before JPEG encoding. Use `TugboatSensitive` around a widget that must always
+be hidden.
+
+```dart
+TugboatSensitive(
+  child: Text(accountNumber),
+)
+```
+
+Verify masking and coverage in the target app, especially for custom-painted
+widgets, textures, platform views, and overlays. The supported default is
+Flutter `RepaintBoundary` capture. Native CPU capture is experimental and
+requires app-specific coverage and privacy validation.
+[Privacy pipeline](https://github.com/blendto/tugboat-flutter/blob/main/docs/privacy/pipeline.md) ·
+[Experimental native CPU capture](https://github.com/blendto/tugboat-flutter/blob/main/docs/integration/native-cpu-experimental.md)
+
+Target identity uses structural paths. Developer-authored route names, tag
+IDs, subview labels, and widget names can appear in evidence, so use stable
+values without personal data. The SDK also records the active app locale
+as evidence. It observes `Localizations` when installed in the app builder.
+If you mount it above `Localizations`, use `TugboatReplay.setLocale` to
+report the app locale. [Capture and fingerprint contract](https://github.com/blendto/tugboat-flutter/blob/main/docs/design/capture-and-fingerprint.md)
+
+## Make targets and routes easier to identify
+
+### Start with Flutter semantics
+
+Use Flutter’s built-in controls where they fit. An `IconButton` with a
+localized `tooltip`, for example, already exposes a named button to screen
+readers. With capture enabled, Tugboat’s default `tapResolutionOnly` mode
+automatically uses available semantic roles, actions, and on-screen bounds
+to help identify what was tapped. This works locally; emitting viewport
+semantic maps is a separate opt-in.
+
+For a custom control, use Flutter’s `Semantics` widget to describe what the
+user can do. This cart control exposes one button named by `cartLabel`
+(the localized “Open cart” string). Screen-reader activation and a physical
+tap both call `openCart`.
+
+```dart
+Semantics(
+  label: cartLabel,
+  button: true,
+  enabled: true,
+  onTap: openCart,
+  excludeSemantics: true,
+  child: InkWell(
+    onTap: openCart,
+    child: const SizedBox.square(
+      dimension: 48,
+      child: Icon(Icons.shopping_cart_outlined),
     ),
+  ),
+)
+```
+
+For a row with an on/off setting, `SwitchListTile` makes the label and switch
+one accessible control. The same callback handles a tap on the row and a
+screen-reader action. Pass `null` to `onChanged` when the setting is disabled.
+
+```dart
+SwitchListTile(
+  title: Text(deliveryUpdatesLabel),
+  value: deliveryUpdatesEnabled,
+  onChanged: canEdit ? setDeliveryUpdates : null,
+)
+```
+
+If automation still needs a specific target alias, wrap the accessible
+control in `TugboatTag('cart-open', child: cartButton)`. The tag adds an
+explicit ID to the captured target. Keep the spoken label meaningful and
+localized; viewport semantic maps omit raw labels, values, and hints.
+
+### Name pages pushed with Navigator
+
+You can keep using `Navigator.push` and pass data directly to the page.
+Give the route a stable name in `MaterialPageRoute.settings`. An observer on
+this Navigator can then record `/orders/detail` for every order, while
+`orderId` stays out of the route name.
+
+```dart
+Navigator.of(context).push<void>(
+  MaterialPageRoute<void>(
+    settings: const RouteSettings(name: '/orders/detail'),
+    builder: (_) => OrderDetailsPage(orderId: orderId),
   ),
 );
 ```
 
-Without `TugboatReplay.navigatorObserver`, pointer and scroll capture still
-work, but route-change events and route-backed anchors are incomplete. Nested
-Navigators that must be attributed need their own observer instance:
+### Name dialogs and bottom sheets at the call site
+
+Pass `routeSettings` to the function that presents the overlay. These names
+let a reader or agent distinguish the cancellation prompt from the
+payment picker in `route_change` events, even when the UI is translated.
 
 ```dart
-Navigator(
-  observers: [TugboatReplay.createNavigatorObserver()],
-  // ...
-);
+Future<bool?> confirmCancellation(BuildContext context) {
+  return showDialog<bool>(
+    context: context,
+    routeSettings: const RouteSettings(name: '/orders/confirm-cancel'),
+    builder: (_) => const CancelOrderDialog(),
+  );
+}
+
+Future<String?> choosePaymentMethod(BuildContext context) {
+  return showModalBottomSheet<String>(
+    context: context,
+    routeSettings: const RouteSettings(name: '/checkout/payment-method'),
+    builder: (_) => const PaymentMethodSheet(),
+  );
+}
 ```
 
-Without `wrapApp`, no capture controller, repaint boundary, or input/scroll listener is
-installed.
+Observe the Navigator that presents the overlay. This matters in tabbed
+apps: `showDialog` uses the root Navigator by default, while
+`showModalBottomSheet` uses the nearest one. Give each observed nested
+Navigator its own `TugboatReplay.createNavigatorObserver()`.
 
-### Navigation and overlays
+For a tab or wizard step that changes inside a single route, wrap its content
+in `TugboatSubView(label: 'checkout-payment', child: paymentForm)` to identify
+the section. To verify the wiring, open the sheet and inspect the session's
+`route_change` event for `route: /checkout/payment-method` and
+`routeNamed: true`.
 
-The supplied observer is intended to record standard Navigator `push`, `pop`,
-`replace`, and `remove` callbacks without application code calling the replay
-controller for each navigation. Dialog, sheet, and other popup routes can
-participate when they use that observed Navigator. Unnamed sheets keep their
-runtime type as `route` and set `routeNamed: false`; the SDK does not invent a
-product name from the builder widget. Overlay pushes record the route
-immediately below (`presentedOver*`) and the nearest page (`hostPage*`) when
-the same-navigator stack can resolve them. Nested navigators need their own
-observer wiring, and native/system overlays are outside the Flutter
-Navigator/repaint-boundary contract.
+Session JSON uses schema version `10` and structural fingerprints use
+version `7`. Scope fingerprints by app build and schema version. A later
+frame shows what was visible after an interaction. Use explicit event
+attribution when linking it to a route change, especially for rapid modal
+chains and automatic redirects. [Event and fingerprint details](https://github.com/blendto/tugboat-flutter/blob/main/docs/design/capture-and-fingerprint.md)
 
-Each visible route change creates a route epoch and waits for the transition
-plus the configured settle delay before taking the destination capture. A newer
-visible route supersedes an older pending capture. Consequently, a route event
-and a related canonical `interaction` are intended to reference a frame compatible
-with that route epoch, or report bounded degraded/capture diagnostics rather
-than attach an origin-route frame merely because it was the latest frame.
+## Enable optional evidence
 
-This is an implemented SDK invariant, not a production-accepted guarantee.
-Production acceptance for #13/#14 remains open: rapid or nested modal chains
-and programmatic/automatic navigation can still be absent or degraded. Treat
-those cases as an SDK capture gap, not as coherent replay evidence.
+Enable capabilities individually in `TugboatReplayConfig`.
 
-### Interaction claims
+| To capture | Configure |
+| --- | --- |
+| Actionable controls and images for exploration | `emitSceneInventory: true` |
+| A bounded viewport semantic map | `emitViewportSemanticMap: true`, `viewportSemanticMode: TugboatViewportSemanticMode.full` |
+| External action context | `acceptActionContext: true` |
+| Capture diagnostics as session events | `emitCaptureDiagnostics: true`. Health counters are available by default. |
+| Text-field focus, system input, or tap press duration | `captureFocusChanges`, `captureSystemInput`, or `capturePressDuration` |
+| Scroll samples or in-motion screenshots | `captureScrollSamples` or `captureScrollScreenshots` |
 
-Pointer-down freezes interaction origin data. Pointer-up classifies the gesture
-and publishes one canonical `interaction`. A claimed `route_change` uses that
-interaction ID as `causeEventId`. Released pointer-up claims apply only through
-the pointer-up turn. Timer or auth redirects stay `automatic_or_unknown`.
+### Device Farm launch options
 
-## Capture lifecycle and optional evidence
+After initializing Flutter bindings, call
+`await baseConfig.withDeviceFarmOverrides()` before wrapping your app. The
+helper reads the following launch inputs via `TugboatLaunchOptions.fromPlatform()`.
+Either evidence flag starts capture for the launch.
 
-`TugboatReplayConfig.enabled` controls whether the wrapper installs capture
-machinery. An enabled SDK records the normal bounded capture stream. The
-default screenshot mask is always `allTextAndMedia`.
-
-Optional evidence is additive. `emitSceneInventory`,
-`emitViewportSemanticMap`, `emitCaptureDiagnostics`, `acceptActionContext`,
-`captureFocusChanges`, and `captureSystemInput` are false by default. Enabling one capability does not
-change masking, limits, transport, or lifecycle behavior.
-
-The global kill switch is fully inert:
-
-```dart
-TugboatReplay.disabled = true; // deactivates and disposes the active controller
-```
-
-Disabled configurations can be activated at runtime without rebuilding
-`MaterialApp`:
-
-```dart
-TugboatReplay.activate(
-  activationRequestId: captureRequestId,
-);
-```
-
-Identity contract:
-
-- `activationRequestId` — host orchestration / request correlation
-- `captureSessionId` (`session.id`) — SDK-generated emitted evidence session
-- `collectorSessionId` — stamped after HTTP `session_start` acceptance
-- `explorationRunId` — exploration control-plane ID from config
-- `traitsId` — collector-issued traits dictionary id after `setTraits` / session responses
-
-Inspect `TugboatReplay.health` for sink and screenshot-budget pressure
-without reading protected content.
-
-### User traits and user id
-
-When an HTTP collector is configured, register a full traits snapshot (not a
-partial merge) via `POST /v1/sessions`:
-
-```dart
-await TugboatReplay.setTraits({
-  'plan': 'pro',
-  'seatCount': 3,
-});
-
-await TugboatReplay.setUserId(currentUserId);
-```
-
-- `setTraits` debounces `traits_updated` (3s) after start acceptance, or
-  `session_identify` when combined with a pending user change. Caches
-  `traitsId` and stamps it on event batches. While `session_start` is pending,
-  updates memory only (folded into start at send time).
-- `setUserId` debounces `user_changed` (3s) after start acceptance, or
-  `session_identify` when combined with a pending traits change. Unchanged ids
-  are ignored. While `session_start` is pending, updates memory only.
-- Pre-activate calls are retained in memory and included on the next
-  `session_start` when present. Pending debounced updates flush on `session_end`.
-  There is no `/v1/identify` route.
-
-Collector delivery is best-effort. The SDK keeps bounded in-memory retry queues,
-but it does not persist events or frames across process restarts.
-
-## Configuration reference
-
-`TugboatReplayConfig` currently exposes:
-
-| Field | Default | Purpose |
+| Android Intent extra | iOS environment | iOS launch argument |
 | --- | --- | --- |
-| `enabled` | `false` | start the privacy-safe capture lifecycle with the app |
-| `settleDelay` | 1 second | delay before post-interaction and post-route capture |
-| `scrollEndCaptureDelay` | zero | optional idle delay before a pointer-linked scroll after-frame; does not block the controller queue |
-| `interactionClaimWindow` | 1,250 ms | released-tap window for delayed route/modal attribution; `Duration.zero` keeps microtask-only same-turn claims |
-| `maxFrames` | 500 | in-memory frame bound |
-| `maxEvents` | 5000 | in-memory event bound |
-| `scrollCaptureInterval` | 2 seconds | interval for scroll metric sampling and optional semantic/in-motion visual checkpoints |
-| `captureScrollSamples` | `false` | retain `TugboatScrollSample` records in session JSON |
-| `captureScrollScreenshots` | `false` | request pressure-droppable visual checkpoints while scrolling; scroll metrics and the scroll-end observation remain independent |
-| `capturePixelRatio` | `0.75` | requested repaint-boundary screenshot scale; values above `1.0` are supported |
-| `captureMaxWidth` / `captureMaxHeight` | null | optional output pixel bounds applied before readback while preserving aspect ratio |
-| `degradedCaptureScale` | `0.80` | additional scale applied before readback while the screenshot budget is degraded |
-| `enableGlobalPointerCapture` | `true` | use global pointer routing; `false` uses a local `Listener` |
-| `emitSceneInventory` | `false` | allow bounded `scene_inventory` events |
-| `emitViewportSemanticMap` | `false` | allow bounded semantic-map events when the semantic mode supports them |
-| `emitCaptureDiagnostics` | `false` | allow bounded `capture_diagnostic` events; health counters remain available without it |
-| `acceptActionContext` | `false` | allow external action context on captured evidence |
-| `captureFocusChanges` | `false` | emit `focus_changed` when primary focus enters, leaves, or moves between text fields, with one observation after `settleDelay` as `afterFrame` |
-| `captureSystemInput` | `false` | emit `system_input` for system back and allowlisted hardware keys (volume, power, media), with one observation after `settleDelay` as `afterFrame`; never consumes the input |
-| `explorationCollectorUrl` | null | local exploration WebSocket endpoint |
-| `explorationRunId` | null | optional run correlation ID |
-| `userId` | null | optional HTTP event user ID |
-| `appInfo` | null | app metadata used by exploration and as a fallback |
-| `collector` | null | HTTP collector configuration |
-| `screenshotMaskLevel` | `allTextAndMedia` | explicit screenshot redaction policy |
-| `widgetNames` | empty | `Type` to stable-name overrides for canonical paths |
-| `viewportSemanticMode` | `tapResolutionOnly` | semantic engine and emission mode |
-| `viewportSemanticMapMaxNodes` | 120 | emitted map node budget |
-| `viewportSemanticMapMaxBytes` | 48000 | emitted map byte budget |
-| `sinkFactories` | empty | extra `TugboatCaptureSinkFactory` adapters |
-| `screenshotBudget` | 60ms / 5s window | degraded-capture skip window / budget |
-| `screenshotCaptureBackend` | `flutterRepaintBoundary` | pixel source; `nativeCpuExperimental` is opt-in on Android and iOS |
+| `tugboat_emit_scene_inventory` | `TUGBOAT_EMIT_SCENE_INVENTORY` | `--tugboat-emit-scene-inventory[=value]` |
+| `tugboat_accept_action_context` | `TUGBOAT_ACCEPT_ACTION_CONTEXT` | `--tugboat-accept-action-context[=value]` |
+| `tugboat_collector_base_url` | `TUGBOAT_COLLECTOR_BASE_URL` | `--tugboat-collector-base-url=<url>` |
+| `tugboat_automation_run_id` | `TUGBOAT_AUTOMATION_RUN_ID` | `--tugboat-automation-run-id=<id>` |
 
-### Optional resolver and action-context events
+On iOS, a bare evidence flag means true and the environment takes precedence.
+Collector URL overrides apply to an existing collector config in non-release
+builds and accept local HTTP endpoints. Use a non-secret run ID for log
+correlation.
 
-When the matching capabilities are enabled, the controller may emit:
+### App events and network observations
 
-| Event | Role |
-| --- | --- |
-| `scene_inventory` | Deduped actionable/image inventory for the settled state |
-| `viewport_semantic_map` | Bounded semantic node map (mode-dependent) |
-| `scroll_semantic_snapshot` | Semantic snapshot tied to scroll checkpoints |
-| `action_window_set` / `action_window_cleared` | external action-context fencing |
-
-## Privacy and payload boundary
-
-Use `.tugboatSensitive()` for content that must always be hidden in screenshots.
-It is equivalent to wrapping the widget in `TugboatSensitive(child: ...)`:
+Add host events through `eventHook` and observe selected network calls
+through `beginNetworkCall` or the matching version of the
+[tugboat_dio adapter](https://pub.dev/packages/tugboat_dio).
 
 ```dart
-Text('Do not show in replay').tugboatSensitive(),
+final events = TugboatReplay.eventHook(
+  source: 'analytics',
+  parameterPolicy: TugboatParameterPolicy.allowList({'method'}),
+);
+events.record('LOGIN', parameters: {'method': 'email'});
+
+final call = TugboatReplay.beginNetworkCall(
+  method: 'POST',
+  route: '/projects',
+);
+call.complete(statusCode: 422, errorResponseBody: {'code': 'invalid_project'});
 ```
 
-Available mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
-`allTextExceptActionable`, `sensitiveInputsOnly`, and `nonAssetImagesOnly`
-(masks non-asset `Image` widgets — such as `Image.network`, `Image.file`, and
-`Image.memory` — plus sensitive inputs, while bundled asset graphics and text
-stay visible; other custom-painted or decorated image surfaces are not
-classified by this mode, so wrap them in `TugboatSensitive` when needed).
+App event parameters default to `allowAll` for bounded JSON-safe values. Use
+`namesOnly` for keys only, or an allow-list or transform to select values.
+Network routes must be bounded absolute paths. Prefer host-owned route
+templates because dynamic path segments can expose user or tenant IDs.
+Network observations can retain up to 4 KiB of JSON or text error-body
+evidence for HTTP status `>= 400`. Omit `errorResponseBody` to capture only
+network metadata. The Dio adapter provides URL-based controls for body
+retention. Both APIs append to the active session's evidence stream. Calls
+with no active session are safe no-ops, and an in-flight token cannot append
+to a later session.
 
-The structural telemetry does not use or retain arbitrary `Text`,
-accessibility, tooltip, or icon label strings as target identity. List and grid
-items use structural positions. Telemetry does include developer-authored
-routing and identity strings where applicable:
+### Record requests from an existing Dio client
 
-- route names in `route_change.data` and anchor `routeKey` fields;
-- the `.tugboatSubView(label)` / `TugboatSubView` label in state/scroll context;
-- the `.tugboatTag(id)` / `TugboatTag` id in `targetAnchor.fingerprintParts.tag` (and its hashed
-  `tagFingerprint`);
-- widget type names and canonical structural paths;
-- active app locale language, country, script, and BCP 47 tag when available;
-- normalized bounds, pointer coordinates, scroll metrics, and screenshot
-  pixels after the configured masking policy is applied.
-
-Screenshots are the only captured surface that can contain rendered user
-content. Choose an explicit production masking policy and test custom widgets,
-platform views, and overlays in the target app before enabling production
-capture. The experimental native CPU backend still applies the same mask
-rects before JPEG; do not enable it in production until the privacy pipeline
-and [native capture contracts](../../../docs/architecture/native-capture-contracts.md)
-are met for the target app. See
-[native-cpu-experimental.md](../../../docs/integration/native-cpu-experimental.md).
-
-## Event and frame model
-
-The controller maintains an in-memory `TugboatSession` and fans new evidence
-out to configured sinks. Sink failures are isolated from the host app. The
-session is bounded by `maxFrames` and `maxEvents`; trimming marks it
-`truncated`.
-
-**Inferred events** are derived from UI instrumentation. **Coded events** are
-host-supplied analytics records via `TugboatReplay.eventHook` (see
-[Coded events and network observation](#coded-events-and-network-observation)).
-
-Emitted inferred event types currently include:
-
-- canonical: `interaction` (`stream: semantic`) — one finalized gesture
-  (`tap`, `swipe`, `scroll`, `pan`, `zoom_in`, `zoom_out`, or `cancelled`) with
-  gesture-specific facts under `payload` (omitted for `cancelled`);
-- lifecycle: `session_start`, `session_identify`, `session_end`;
-- navigation evidence (`stream: evidence`): `route_change`;
-- diagnostics: `capture_diagnostic` (`stream: diagnostic`; only when
-  `emitCaptureDiagnostics` is true; health counters always update);
-- optional evidence: `scene_inventory`, `action_window_set`,
-  `action_window_cleared`, `focus_changed`, `system_input`;
-- semantic-map modes: `viewport_semantic_map`,
-  `scroll_semantic_snapshot`.
-
-Pinch and pan records keep `eventType: interaction`. Read the `gesture` field
-to identify the movement:
-
-| Observed movement | `gesture` |
-| --- | --- |
-| Fingers move apart, or trackpad scale increases | `zoom_in` |
-| Fingers move together, or trackpad scale decreases | `zoom_out` |
-| Two fingers move together in one direction, or trackpad pan | `pan` |
-| Three or more fingers move together in one direction | `swipe` |
-| Drag with an observed Flutter scroll | `scroll` |
-| Single-finger drag without an observed Flutter scroll | `swipe` |
-
-Classification requires movement above the gesture threshold. A classified
-touch gesture ends when all contacts lift. A replacement finger joins the
-active gesture. The payload includes `pointerCount` for multiple contacts
-and `scale` for zoom. Single-finger canvas pan intentionally records `swipe`.
-Observed Flutter scrolling remains `scroll`.
-
-Touch travel follows the primary contact while that contact is down. After it
-lifts, `endPosition` continues from its last point using movement of the active
-contacts' centroid. Contact joins and lifts do not add travel by themselves.
-Touch `scale` is the cumulative ratio of contact spans across contact changes.
-It is not a measurement of the host widget's transform or proof of a visible
-resize.
-
-Default enrichment and insight selection should use inferred events:
-`stream: semantic` `interaction` records (`enrichmentCandidate: true` on
-collector payloads).
-Rage-tap style insights must count finalized `gesture=tap` interactions;
-exclude scrolls, swipes, cancellations, evidence, and
-diagnostics.
-
-Frames can be triggered by initial startup, interactions, routes, lifecycle,
-or explicit controller calls. Capture requests are serialized. Each published
-frame records `requestedBackend` and `resolvedBackend` (closed names:
-`flutterRepaintBoundary` or `nativeCpuExperimental`). After a native fallback,
-`resolvedBackend` is Flutter and `fallbackReason` carries the closed token.
-These fields are always on the frame. Nested stage timings remain on optional
-`capture_diagnostic` events. Non-interaction
-requests can coalesce. When the capture boundary has not painted since the
-last accepted frame, the SDK reuses that frame without GPU readback. Otherwise
-it uses a small dHash (Hamming distance ≤ 2) to avoid JPEG encoding for
-near-identical content, and finally deduplicates encoded frames by content hash.
-Each completed tap, swipe, scroll, pan, and zoom requests a post-interaction
-observation.
-An already encoded route frame can satisfy that observation even when route
-causality is unknown. The frame records only what was visible later. It does
-not prove that the interaction caused the observed UI or navigation.
-
-A new pointer-down cancels a pending deferred scroll-end screenshot before the
-next `ScrollStart`. The prior scroll keeps its final metrics and interaction
-record, but it does not attach a stale frame or block the new gesture. The SDK
-also delays tap-only target, scene-inventory, and viewport-semantic resolution
-until pointer-up, so scroll gestures do not perform tap analysis on their
-input-critical path.
-
-Interaction payload coordinates use normalized capture-boundary space. Do not
-interpret them as physical pixels or as coordinates relative to a widget.
-
-For a tap, origin context (target, `beforeFrame`,
-`captureCoordinate`, route/navigator identity) is frozen at pointer-down into
-an `InteractionTransaction`. After pointer-up, settlement waits for either the
-first eligible visible successor inside `interactionClaimWindow` (default
-1,250 ms) or the deadline. The canonical `interaction` event retains that
-frozen origin. Route ownership remains separate. `afterFrame` is only a later
-visual observation and can come from an unclaimed route successor. It does not
-assign a result or destination to the interaction.
-
-During local WebSocket exploration, connecting without an HTTP collector
-suppresses only non-interaction Flutter screenshot capture for UI-thread
-performance. Every completed interaction still requests a post-interaction
-visual observation. A route capture can satisfy it. Events, anchors, inventories,
-and semantic evidence continue to stream; the CLI's ADB before/after screenshots
-remain the primary gesture-level visual evidence.
-
-## Structural identity
-
-Fingerprint schema v6 derives target identity from route plus a normalized
-canonical widget path. Wrapper widgets are filtered, same-type siblings receive
-ordinals, and list or grid items receive structural `[item:index]` tokens.
-`.tugboatTag(id)` adds an alias without changing the structural fingerprint.
-Adding it is a one-line suffix on the control:
+If your app uses Dio, run `flutter pub add tugboat_dio`. Install the
+interceptor on the client that makes your requests, after auth, retry, and
+cache interceptors. This example records calls to `/orders` and keeps
+metadata only. Leave those requests out of manual `beginNetworkCall`
+instrumentation so each call produces one observation.
 
 ```dart
-FilledButton(onPressed: submit, child: const Text('Submit')).tugboatTag(
-  'checkout-submit',
-),
+import 'package:dio/dio.dart';
+import 'package:tugboat_dio/tugboat_dio.dart';
+
+void configureNetworkEvidence(Dio dio) {
+  TugboatDioInterceptor.install(
+    dio,
+    routeResolver: (request) => request.path == '/orders' ? '/orders' : null,
+    errorBodyUrls: const [],
+  );
+}
 ```
 
-Pass `accessibility: true` to also publish the id as the platform accessibility
-identifier (Android resource-id, iOS `accessibilityIdentifier`). It is off by
-default. Enable it on a single control, not on a container: the identifier is
-placed on a node above the control's subtree, so it does not identify the
-controls inside a container. On Material buttons (`ElevatedButton`,
-`TextButton`, `FilledButton`, `OutlinedButton`, `IconButton`) the identifier
-lands on a label-less parent node above the labelled button, not on the button
-node itself. For non-button controls (`ListTile`, `Checkbox`, `Switch`,
-`TextField`, `GestureDetector`, `InkWell`) it sits on the control's own node
-and the screen-reader semantics are otherwise unchanged.
+During an active session, call `dio.get('/orders')` and look for a
+`network_call` event with route `/orders`. Omitting `errorBodyUrls` allows
+bounded JSON or text error bodies by default. See the
+[Dio adapter guide](https://pub.dev/packages/tugboat_dio) for URL filters,
+retries, and cache behavior.
 
-```dart
-FilledButton(onPressed: submit, child: const Text('Submit')).tugboatTag(
-  'checkout-submit',
-  accessibility: true,
-),
-```
+## Reference
 
-`.tugboatSubView(label)` adds a developer-owned section label useful for nested
-content and scroll attribution:
-
-```dart
-ListView(...).tugboatSubView('feed'),
-```
-
-Each marker has an equivalent wrapper widget (`TugboatTag`, `TugboatSensitive`,
-`TugboatSubView`) that you can use instead when a suffix reads poorly. Both
-spellings produce the same identity, masking, and scroll attribution. `widgetNames` can replace runtime type names used in
-canonical paths, which is particularly useful when an obfuscated build needs a
-generated stable-name map.
-
-Locale is evidence, not identity. When `wrapApp` is installed in
-`MaterialApp.builder` or `CupertinoApp.builder`, the SDK observes the active
-`Localizations` locale. Session metadata and every event carry the current
-locale. A change emits a `locale_changed` evidence event with the previous and
-current locale. Exploration WebSocket sessions carry the same locale metadata.
-
-Apps that mount Tugboat above `Localizations`, or own a separate locale state,
-can report it explicitly:
-
-```dart
-TugboatReplay.setLocale(const Locale('es', 'ES'));
-```
-
-Atlas can use the locale tag to select locale-specific enrichment. It must keep
-build identity and target fingerprint as the control identity key.
-
-## Lifecycle
-
-- A session starts after the wrapped repaint boundary has a non-zero viewport.
-- `paused` or `hidden` schedules a sink flush after 500 ms; resuming cancels a
-  pending flush.
-- `detached` ends the session.
-- Removing the wrapper or deactivating disposes the controller, emits
-  `session_end`, and asks configured sinks to finish asynchronously.
-- The HTTP sink also flushes partial batches on its timer and before session
-  end.
-
-## Capture diagnostics
-
-Each logical capture request records one privacy-safe resolution in
-`healthSnapshot().captureDiagnostics` (bounded outcome counts and last
-outcome). The SDK emits a `capture_diagnostic` session event only when
-`emitCaptureDiagnostics` is true. Published frames still carry
-`requestedBackend`, `resolvedBackend`, and optional `fallbackReason`.
-
-Distinct request IDs with the same execution ID (and `coalesced: true`) identify
-scheduler coalescing when diagnostic events are present. Diagnostics contain only
-bounded correlation, outcome, route epoch, trigger, and evidence fields; they
-never include image bytes, labels, raw errors, or stack traces. `visualEvidence` distinguishes fresh, reused, and unavailable
-visual evidence, while `interactionEvidence` states whether the request links
-to an inferred event. The closed outcome vocabulary is:
-
-| Outcome | Meaning |
-| --- | --- |
-| `fresh_accepted` | A fresh frame was accepted. |
-| `exact_content_reused` | An exact content hash reused a compatible frame. |
-| `perceptual_hash_coalesced` | A perceptual hash reused a compatible frame. |
-| `paint_generation_unchanged` | The capture subtree had not painted since the last accepted frame. |
-| `screenshot_budget_skip` | Degraded screenshot budget skipped eligible work. |
-| `superseded_route_epoch` | Navigation superseded the request's route epoch. |
-| `paint_readiness_timeout` | A fresh paint did not become available in time. |
-| `boundary_unavailable` | The repaint boundary was detached, replaced, or unpainted. |
-| `capture_processing_failed` | Readback, masking, or encoding failed. |
-| `cancelled` | The session/controller was cancelled. |
-| `no_compatible_frame` | No frame was safe to attach to the request context. |
-| `no_frame_available` | No frame has been captured for the request context. |
-
-Cancellation diagnostics add one bounded reason such as `dispose`,
-`session_end`, `session_replacement`, or `lifecycle_deactivate`. The counter
-caps both total values and distinct outcome keys and resets for each session,
-so it is suitable for health polling and cannot grow with session duration.
-
-## Public surface
-
-The supported import exports `TugboatReplay` (including `setTraits` /
-`setUserId`), `TugboatNavigatorObserver`, `TugboatReplayConfig`,
-capture/semantic/masking enums and policies, collector configuration and host
-helpers, markers (the `TugboatMarkers` extension methods `tugboatTag`,
-`tugboatSensitive`, and `tugboatSubView`; the `TugboatSensitive`, `TugboatTag`,
-and `TugboatSubView` wrappers; and `TugboatInternal`), anchor and session models, the controller, and
-`TugboatExplorationTransport`.
-
-`TugboatCaptureSink` and the built-in sink implementations are internal today;
-config supports only the WebSocket and HTTP destinations above. A stable custom
-sink registration API has not been published.
-
-## Current limits
-
-- Platform views, maps, video textures, and native overlays may be absent or
-  incomplete in repaint-boundary screenshots and structural walks.
-- Screenshot readback and JPEG encoding perform UI-thread and background-isolate
-  work at checkpoints.
-- Runtime activation/deactivation requires a host rebuild, and activation IDs
-  are not yet the emitted session IDs.
-- There is no automatic Android intent-extra/deep-link bridge, offline file
-  sink, durable on-device retry store, or public custom-sink API.
-- HTTP retry queues are bounded and in-memory only. Process death loses pending
-  output.
-- Nested navigator and anonymous-route identity depends on structural fallback
-  and needs app-specific validation.
-- The package captures no logs or native performance signals. It supports
-  opt-in external events and network observations with the privacy boundaries
-  described above.
-
-See [Collector integration](../../../docs/integration/collector.md) and
-[Capture and fingerprint status](../../../docs/design/capture-and-fingerprint.md)
-for transport details, implementation evidence, and prioritized next work.
+- [Dart API](https://pub.dev/documentation/tugboat/latest/tugboat/) for
+  configuration defaults, session models, health, markers, and sink factories.
+- [Example app](https://github.com/blendto/tugboat-flutter/tree/main/sdks/flutter/packages/tugboat/example)
+  for a Flutter app with the wrapper and observer installed.
+- [Capture and fingerprint architecture](https://github.com/blendto/tugboat-flutter/blob/main/docs/design/capture-and-fingerprint.md)
+  for gesture classification, route attribution, semantic modes, and frame reuse.
+- [Changelog](https://pub.dev/packages/tugboat/changelog) and
+  [release notes and compatibility](https://github.com/blendto/tugboat-flutter/tree/main/docs/releases)
+  for version-specific changes.

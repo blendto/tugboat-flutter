@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
 
+import 'helpers/widget_capture_wait.dart';
+
 /// End-to-end verification of scroll playground interactions with event dump.
 void main() {
   const config = TugboatReplayConfig(
@@ -28,11 +30,10 @@ void main() {
             return controller.debugSeedFrame(trigger: trigger);
           };
     }
-    await tester.pump();
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 450));
-    });
-    await tester.pump();
+    await settleTugboatCaptureWork(
+      tester,
+      maxWait: const Duration(milliseconds: 450),
+    );
   }
 
   testWidgets('scroll playground live verification dump', (tester) async {

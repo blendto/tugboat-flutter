@@ -680,7 +680,7 @@ void main() {
     expect(anchor.fingerprintConfidence, 'low');
   });
 
-  testWidgets('ValueKey tag on InkWell yields high-confidence tagFingerprint', (
+  testWidgets('ValueKey tag on InkWell yields a tagFingerprint', (
     tester,
   ) async {
     final rootKey = GlobalKey();

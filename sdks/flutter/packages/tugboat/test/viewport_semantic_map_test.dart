@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/tugboat.dart';
+
+import 'helpers/widget_capture_wait.dart';
 import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/viewport_semantic_session.dart';
 
@@ -82,13 +84,10 @@ Future<void> _waitForSceneInventory(WidgetTester tester) async {
   }
 }
 
-Future<void> _waitForCaptures(WidgetTester tester) async {
-  await tester.pump();
-  await tester.runAsync(() async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-  });
-  await tester.pump();
-}
+Future<void> _waitForCaptures(WidgetTester tester) => settleTugboatCaptureWork(
+  tester,
+  maxWait: const Duration(milliseconds: 300),
+);
 
 Future<void> _pumpSettledScreen(
   WidgetTester tester,

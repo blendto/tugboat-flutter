@@ -9,6 +9,7 @@
 | `platforms/apple` | `TugboatCaptureRuntime` SwiftPM / CocoaPod (experimental iOS CPU) |
 | `sdks/flutter/packages/tugboat` | Flutter adapter / plugin |
 | `sdks/flutter/packages/tugboat_dio` | Dio evidence adapter |
+| `sdks/flutter/packages/tugboat_build` | `build_runner` generator for the `widgetNames` map (not published yet) |
 | `sdks/react-native` | Future adapter placeholder |
 | `docs/` | Architecture, integration, privacy, performance, releases |
 | `tool/ci` | Host test, generate, and release-control scripts |
