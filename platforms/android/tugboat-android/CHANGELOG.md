@@ -25,6 +25,15 @@ wiring, window capture, and the Android Views adapter.
   route (evidence semantics: a tap's anchor may name a target its
   `overlayWindow` before-frame does not show). Framework `android.app.Dialog`
   without a fragment is a known gap. No message-shape change.
+- Restart below another SDK's window-callback wrapper (PR #100 review):
+  Tugboat's wrapper that cannot be removed because another SDK wrapped the
+  callback above it goes inert when its session ends, and the next session
+  (`start` after `stop`, or `activate` after `deactivate`) takes it over, so
+  taps, keys and focus are recorded again on activity and dialog windows.
+  Before, they stopped for every activity alive at the restart.
+- `start` refuses a collector URL that is not an absolute `http`/`https` URL
+  with a host (logged as `collector.baseUrl`, config not stored), as the
+  Apple host does. Before, such a URL started and every request failed.
 - Public API (`com.tugboat.android`): `Tugboat.start(application,
   TugboatConfig)`, `setUserId`, `setTraits`, `stop`, `trackNavigation(navController)`
   (Jetpack Navigation, `compileOnly`), `View.tugboatTag`,

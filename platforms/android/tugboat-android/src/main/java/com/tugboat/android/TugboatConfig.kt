@@ -56,7 +56,11 @@ data class TugboatConfig @JvmOverloads constructor(
 
 /** The collector the SDK delivers to. */
 data class CollectorConfig(
-    /** For example `https://collector.example.com`; request paths are resolved against it. */
+    /**
+     * For example `https://collector.example.com`; request paths are resolved
+     * against it. `Tugboat.start` refuses a URL that is not absolute `http` or
+     * `https` with a host.
+     */
     val baseUrl: String,
     val apiKey: String,
 ) {

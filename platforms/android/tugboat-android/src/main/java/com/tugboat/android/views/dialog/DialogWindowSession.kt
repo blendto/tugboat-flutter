@@ -119,7 +119,7 @@ internal class DialogWindowSession(
             removeOnGlobalFocusChangeListener(focus)
             removeOnWindowAttachListener(attachListener)
         }
-        windowRef.get()?.let(WindowCallbackInstaller::uninstall)
+        windowRef.get()?.let { WindowCallbackInstaller.uninstall(it, this) }
     }
 
     fun onFrame() {

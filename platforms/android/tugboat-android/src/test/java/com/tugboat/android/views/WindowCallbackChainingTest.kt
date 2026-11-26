@@ -11,6 +11,8 @@ import com.tugboat.android.views.callback.TugboatWindowCallback
 import com.tugboat.android.views.callback.WindowCallbackInstaller
 import com.tugboat.android.views.callback.WindowEventObserver
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,7 +69,7 @@ class WindowCallbackChainingTest {
         window.callback = original.proxy
         repeat(10) {
             WindowCallbackInstaller.ensureInstalled(window, observer)
-            window.callback = SentryStyleWrapper(window.callback)
+            window.callback = PrivateFieldWrapper(window.callback)
         }
         WindowCallbackInstaller.ensureInstalled(window, observer)
 
@@ -81,7 +83,7 @@ class WindowCallbackChainingTest {
     fun aChainDeeperThanTheWalkLimitIsWrappedOnceMoreAndStillObservedOnce() {
         window.callback = original.proxy
         WindowCallbackInstaller.ensureInstalled(window, observer)
-        repeat(CallbackChain.MAX_DEPTH + 2) { window.callback = SentryStyleWrapper(window.callback) }
+        repeat(CallbackChain.MAX_DEPTH + 2) { window.callback = PrivateFieldWrapper(window.callback) }
         WindowCallbackInstaller.ensureInstalled(window, observer)
 
         window.callback.dispatchTouchEvent(touch())
@@ -127,8 +129,83 @@ class WindowCallbackChainingTest {
     fun uninstallRestoresTheDelegateOnlyWhenOnTop() {
         window.callback = original.proxy
         WindowCallbackInstaller.ensureInstalled(window, observer)
-        WindowCallbackInstaller.uninstall(window)
+        WindowCallbackInstaller.uninstall(window, observer)
         assertSame(original.proxy, window.callback)
+    }
+
+    @Test
+    fun uninstallBelowAForeignWrapperLeavesOursInert() {
+        window.callback = original.proxy
+        WindowCallbackInstaller.ensureInstalled(window, observer)
+        window.callback = PrivateFieldWrapper(window.callback)
+
+        WindowCallbackInstaller.uninstall(window, observer)
+
+        val ours = CallbackChain.findTugboat(window.callback)
+        assertNotNull("below a foreign wrapper ours stays", ours)
+        assertNull("and has no observer", ours!!.observer)
+        window.callback.dispatchTouchEvent(touch())
+        window.callback.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A))
+        assertEquals(0, observer.touches + observer.keys)
+        assertEquals("still forwards", 1, original.calls[DISPATCH_TOUCH])
+    }
+
+    /**
+     * PR #100 review: a restart (stop then start, or deactivate then
+     * activate) while another SDK's wrapper sits above ours. The new
+     * session's observer takes over the buried wrapper; the old one sees
+     * nothing.
+     */
+    @Test
+    fun aRestartBelowAForeignWrapperRecordsForTheNewObserverOnly() {
+        val next = CountingObserver()
+        window.callback = original.proxy
+        WindowCallbackInstaller.ensureInstalled(window, observer)
+        window.callback = PrivateFieldWrapper(window.callback)
+        WindowCallbackInstaller.uninstall(window, observer)
+
+        WindowCallbackInstaller.ensureInstalled(window, next)
+        // Another SDK re-wraps on resume; the next resume finds ours again.
+        window.callback = PrivateFieldWrapper(window.callback)
+        WindowCallbackInstaller.ensureInstalled(window, next)
+
+        assertEquals("no second wrapper", 1, CallbackChain.countTugboat(window.callback))
+        window.callback.dispatchTouchEvent(touch())
+        window.callback.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A))
+        window.callback.onWindowFocusChanged(true)
+        assertEquals(listOf(1, 1, 1), listOf(next.touches, next.keys, next.focusChanges))
+        assertEquals("the old observer sees nothing", 0, observer.touches + observer.keys + observer.focusChanges)
+        assertEquals(1, original.calls[DISPATCH_TOUCH])
+    }
+
+    @Test
+    fun aLateUninstallOfTheOldObserverDoesNotSilenceTheNewOne() {
+        val next = CountingObserver()
+        window.callback = original.proxy
+        WindowCallbackInstaller.ensureInstalled(window, observer)
+        window.callback = PrivateFieldWrapper(window.callback)
+        WindowCallbackInstaller.ensureInstalled(window, next)
+
+        WindowCallbackInstaller.uninstall(window, observer)
+
+        window.callback.dispatchTouchEvent(touch())
+        assertEquals(1, next.touches)
+        assertEquals(0, observer.touches)
+    }
+
+    @Test
+    fun aLateUninstallOfTheOldObserverDoesNotUnwrapTheNewOne() {
+        val next = CountingObserver()
+        window.callback = original.proxy
+        WindowCallbackInstaller.ensureInstalled(window, observer)
+        WindowCallbackInstaller.ensureInstalled(window, next)
+        val ours = window.callback
+
+        WindowCallbackInstaller.uninstall(window, observer)
+
+        assertSame(ours, window.callback)
+        window.callback.dispatchTouchEvent(touch())
+        assertEquals(1, next.touches)
     }
 
     private fun invokeEveryMethod(callback: Window.Callback) {
@@ -173,12 +250,13 @@ class WindowCallbackChainingTest {
             } as Window.Callback
     }
 
-    /** A foreign SDK wrapper that keeps its delegate in a private field, as Sentry's adapter does. */
-    private class SentryStyleWrapper(private val wrapped: Window.Callback) : Window.Callback by wrapped
+    /** Another SDK's wrapper that keeps its delegate in a private field. */
+    private class PrivateFieldWrapper(private val wrapped: Window.Callback) : Window.Callback by wrapped
 
     private class CountingObserver : WindowEventObserver {
         var touches = 0
         var keys = 0
+        var focusChanges = 0
 
         override fun onTouch(event: MotionEvent) {
             touches++
@@ -186,6 +264,10 @@ class WindowCallbackChainingTest {
 
         override fun onKey(event: KeyEvent) {
             keys++
+        }
+
+        override fun onWindowFocusChanged(hasFocus: Boolean) {
+            focusChanges++
         }
     }
 
