@@ -32,6 +32,9 @@ import com.tugboat.android.views.ViewsAdapter
 import com.tugboat.android.views.facts.FactSink
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.navigation.NavigationObservation
+import java.net.URI
+import java.net.URISyntaxException
+import java.util.Locale
 
 /**
  * One running SDK: the engine host, the Views adapter, the capture
@@ -146,8 +149,27 @@ internal class TugboatRuntime private constructor(
         }
 
         private fun collectorProblems(config: TugboatConfig): List<String> = buildList {
-            if (config.collector.baseUrl.isBlank()) add("collector.baseUrl")
+            if (!isCollectorUrl(config.collector.baseUrl)) add("collector.baseUrl")
             if (config.collector.apiKey.isBlank()) add("collector.apiKey")
+        }
+
+        /**
+         * Whether [baseUrl] is an absolute `http`/`https` URL with a host, as
+         * the Apple host requires. Parsed as `HttpExecutor` parses it, so a
+         * URL accepted here is one every request can be built from.
+         */
+        internal fun isCollectorUrl(baseUrl: String): Boolean {
+            val uri = try {
+                URI(baseUrl.trimEnd('/'))
+            } catch (_: URISyntaxException) {
+                return false
+            }
+            val scheme = uri.scheme?.lowercase(Locale.ROOT)
+            if (scheme != "http" && scheme != "https") return false
+            // A host the parser cannot read as a server name (an underscore,
+            // say) is still in the authority, and requests are built from it.
+            val host = uri.host ?: uri.rawAuthority?.substringAfterLast('@')?.substringBefore(':')
+            return !host.isNullOrBlank()
         }
 
         private fun assemble(

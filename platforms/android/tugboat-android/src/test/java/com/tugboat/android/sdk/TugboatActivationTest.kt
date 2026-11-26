@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Looper
 import android.view.MotionEvent
+import android.view.Window
 import android.widget.EditText
 import com.tugboat.android.AppInfo
 import com.tugboat.android.CollectorConfig
@@ -207,6 +208,62 @@ class TugboatActivationTest {
         // The foreground window adopted it: its boundary is reported at once.
         assertTrue(messages(transports[0]).any { it.getString("type") == "surface" })
     }
+
+    /**
+     * PR #100 review: another SDK wrapped the window callback above ours, so
+     * ending the session cannot unwrap it. The next session takes the buried
+     * wrapper over: its taps reach the new engine and none the old.
+     */
+    @Test
+    fun deactivateThenActivateBelowAForeignWrapperRecordsTapsForTheNewSession() {
+        Tugboat.start(application, config)
+        idle()
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        Tugboat.activate("a")
+        idle()
+        awaitSessionStart(0)
+        activity.window.callback = ForeignWrapper(activity.window.callback)
+
+        Tugboat.deactivate()
+        idle()
+        Tugboat.activate("b")
+        idle()
+        awaitSessionStart(1)
+
+        assertRestartedTapsReachOnly(activity, transports[1], transports[0])
+    }
+
+    @Test
+    fun stopThenStartBelowAForeignWrapperRecordsTapsForTheNewSession() {
+        Tugboat.start(application, config.copy(enabled = true))
+        idle()
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        idle()
+        awaitSessionStart(0)
+        activity.window.callback = ForeignWrapper(activity.window.callback)
+
+        Tugboat.stop()
+        idle()
+        Tugboat.start(application, config.copy(enabled = true))
+        idle()
+        awaitSessionStart(1)
+
+        assertRestartedTapsReachOnly(activity, transports[1], transports[0])
+    }
+
+    private fun assertRestartedTapsReachOnly(activity: Activity, current: FakeEngineTransport, ended: FakeEngineTransport) {
+        assertEquals("no second wrapper", 1, CallbackChain.countTugboat(activity.window.callback))
+        val endedPointers = messages(ended).count { it.getString("type") == "input.pointer" }
+        activity.window.callback.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 10f, 10f, 0))
+        activity.window.callback.dispatchTouchEvent(MotionEvent.obtain(0, 1, MotionEvent.ACTION_UP, 10f, 10f, 0))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
+
+        awaitUntil { messages(current).any { it.getString("type") == "input.pointer" } }
+        assertEquals("the ended session records nothing", endedPointers, messages(ended).count { it.getString("type") == "input.pointer" })
+    }
+
+    /** Another SDK's window-callback wrapper; it keeps its delegate in a private field. */
+    private class ForeignWrapper(private val wrapped: Window.Callback) : Window.Callback by wrapped
 
     @Test
     fun theForegroundWindowAdoptsTheResumedActivityAtStartSoCapturesDoNotWait() {
@@ -467,6 +524,19 @@ class TugboatActivationTest {
         Tugboat.start(application, config)
         idle()
         assertEquals("a", awaitSessionStart(0).getJSONObject("input").getString("activationRequestId"))
+        assertEquals(ACTIVE, Tugboat.lifecycleState)
+    }
+
+    @Test
+    fun aRelativeCollectorUrlIsRefusedAndNotStoredSoACorrectedStartWorks() {
+        Tugboat.start(application, config.copy(enabled = true, collector = CollectorConfig("collector.example.com", "key")))
+        idle()
+        assertEquals(DORMANT, Tugboat.lifecycleState)
+        assertTrue(transports.isEmpty())
+
+        Tugboat.start(application, config.copy(enabled = true))
+        idle()
+        awaitSessionStart(0)
         assertEquals(ACTIVE, Tugboat.lifecycleState)
     }
 

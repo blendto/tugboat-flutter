@@ -53,7 +53,10 @@ view.tugboatSensitive()                       // always mask it and its subtree;
   config, so a corrected `start` works) when a field the collector requires
   on `session_start` is blank: app version, build number, app id,
   installation id, name; device id, screen size and densities; the locale;
-  the collector URL and key. A session is refused when the engine cannot
+  the collector URL and key. The collector URL must also be an absolute
+  `http` or `https` URL with a host (as the Apple host requires), so a
+  relative or non-HTTP URL is refused at `start` instead of failing every
+  request. A session is refused when the engine cannot
   open. Either way the state returns to `DORMANT` and the activation
   request is kept, so `activate` with the same id retries.
 - `stop` detaches every observer, posts `session.end`, waits for the
@@ -504,7 +507,15 @@ frame (`Choreographer`) as one `batch` through `EngineHost::postBatch`.
   `CallbackChain` follows Tugboat's delegate, public `getWrapped()` /
   `getDelegate()` accessors, and `Window.Callback` fields of non-platform
   wrapper classes, up to 16 links. A per-thread dispatch depth keeps facts
-  single if two wrappers still end up in one chain.
+  single if two wrappers still end up in one chain. When a session ends,
+  the wrapper is removed if it is on top; below another SDK's wrapper it
+  cannot be, so it stays, keeps forwarding, and loses its observer (inert:
+  it records nothing and never silences a wrapper below it). The next
+  session's attach finds that buried wrapper and points it at its own
+  observer, so after `stop`/`start` or `deactivate`/`activate` taps, keys
+  and focus are recorded by the new session and never by the old. A late
+  detach of an ended session leaves a wrapper the new session has taken
+  over alone. Activity and dialog windows share this installer.
 - **Stop.** After `stop()` nothing is emitted: window callbacks detach and
   every fact path is gated. Navigation lifecycle stays registered in
   process scope so stacks keep updating while stopped (no facts until the
@@ -584,11 +595,7 @@ public window list). On API 29+ a dialog that is not a `DialogFragment`'s is
 found only when the activity window loses focus to it, so one shown before
 that window first gains focus, or over another dialog, is recorded from the
 next session start. Popups and menus (sub-windows) are not tapped, and
-dialog windows report no scroll facts. A dialog fragment stopped and
-restarted while another SDK's callback wrapper sits above Tugboat's is
-silent after the restart (Tugboat's inert wrapper stays in the chain): no
-pointer or key facts, and no focus facts either, because the dialog's window
-focus is read through that callback. On API 29+, when one dialog is
+dialog windows report no scroll facts. On API 29+, when one dialog is
 dismissed and another shown in the same turn (a confirm chain), window focus
 can move from the first to the second without the activity window regaining
 and losing it, so the second is found only at the next activity focus

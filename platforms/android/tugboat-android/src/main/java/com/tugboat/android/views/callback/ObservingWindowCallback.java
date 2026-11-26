@@ -27,9 +27,15 @@ import java.util.List;
  * insert parameter null checks that throw into the app. Nothing here checks
  * or dereferences an argument except the observed events.
  *
- * <p>If two Tugboat wrappers ever end up in one chain, only the outermost
- * observes an event (a per-thread dispatch depth), so facts are never
- * duplicated. {@link WindowCallbackInstaller} normally prevents that.
+ * <p>The observer is replaceable: a wrapper left below another SDK's wrapper
+ * when its session ended has none (inert, it only forwards), and the next
+ * session points it at its own observer ({@link WindowCallbackInstaller}).
+ *
+ * <p>If two observing Tugboat wrappers ever end up in one chain, only the
+ * outermost observes an event (a per-thread dispatch depth), so facts are
+ * never duplicated. An inert wrapper does not count, so it never silences an
+ * observing one below it. {@link WindowCallbackInstaller} normally keeps one
+ * wrapper per chain.
  */
 final class ObservingWindowCallback implements TugboatWindowCallback {
     private static final String TAG = "TugboatViews";
@@ -43,7 +49,7 @@ final class ObservingWindowCallback implements TugboatWindowCallback {
     private static volatile boolean loggedFailure;
 
     private final Window.Callback delegate;
-    private final WindowEventObserver observer;
+    private volatile WindowEventObserver observer;
 
     ObservingWindowCallback(Window.Callback delegate, WindowEventObserver observer) {
         this.delegate = delegate;
@@ -56,10 +62,22 @@ final class ObservingWindowCallback implements TugboatWindowCallback {
     }
 
     @Override
+    public WindowEventObserver getObserver() {
+        return observer;
+    }
+
+    @Override
+    public void setObserver(WindowEventObserver observer) {
+        this.observer = observer;
+    }
+
+    @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
+        WindowEventObserver current = observer;
+        if (current == null) return delegate.dispatchTouchEvent(event);
         if (event != null && isOutermost()) {
             try {
-                observer.onTouch(event);
+                current.onTouch(event);
             } catch (Throwable failure) {
                 logOnce(failure);
             }
@@ -75,9 +93,11 @@ final class ObservingWindowCallback implements TugboatWindowCallback {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        WindowEventObserver current = observer;
+        if (current == null) return delegate.dispatchKeyEvent(event);
         if (event != null && isOutermost()) {
             try {
-                observer.onKey(event);
+                current.onKey(event);
             } catch (Throwable failure) {
                 logOnce(failure);
             }
@@ -148,9 +168,10 @@ final class ObservingWindowCallback implements TugboatWindowCallback {
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
-        if (isOutermost()) {
+        WindowEventObserver current = observer;
+        if (current != null && isOutermost()) {
             try {
-                observer.onWindowFocusChanged(hasFocus);
+                current.onWindowFocusChanged(hasFocus);
             } catch (Throwable failure) {
                 logOnce(failure);
             }

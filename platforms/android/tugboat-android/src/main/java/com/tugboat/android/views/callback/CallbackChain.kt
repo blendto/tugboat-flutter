@@ -10,7 +10,7 @@ import java.lang.reflect.Proxy
  * Finds Tugboat's wrapper in a window-callback chain that other SDKs may
  * have wrapped. Tugboat's own wrapper exposes its delegate; a foreign
  * wrapper is followed through a public `getWrapped()` / `getDelegate()`
- * accessor (AppCompat's `WindowCallbackWrapper`, Sentry's adapter), else
+ * accessor (AppCompat's `WindowCallbackWrapper`, another SDK's adapter), else
  * through the instance fields its own (non-platform)
  * classes declare that hold a `Window.Callback`, and through the invocation
  * handler of a `java.lang.reflect.Proxy`. Platform and JDK classes are never
@@ -22,11 +22,14 @@ internal object CallbackChain {
     const val MAX_DEPTH = 16
     private val ACCESSORS = listOf("getWrapped", "getDelegate")
 
-    fun containsTugboat(top: Window.Callback?): Boolean =
+    fun containsTugboat(top: Window.Callback?): Boolean = findTugboat(top) != null
+
+    /** The outermost Tugboat wrapper reachable from [top], or null. */
+    fun findTugboat(top: Window.Callback?): TugboatWindowCallback? =
         try {
             find(top, MAX_DEPTH)
         } catch (_: Throwable) {
-            false
+            null
         }
 
     /** Tugboat wrappers reachable from [top]; for tests and diagnostics. */
@@ -37,9 +40,9 @@ internal object CallbackChain {
             0
         }
 
-    private fun find(callback: Window.Callback?, depth: Int): Boolean {
-        if (callback == null || depth < 0) return false
-        if (callback is TugboatWindowCallback) return true
+    private fun find(callback: Window.Callback?, depth: Int): TugboatWindowCallback? {
+        if (callback == null || depth < 0) return null
+        if (callback is TugboatWindowCallback) return callback
         return find(next(callback), depth - 1)
     }
 

@@ -20,4 +20,11 @@ internal interface WindowEventObserver {
 internal interface TugboatWindowCallback : Window.Callback {
     /** The callback this wrapper replaced and forwards to. */
     val delegate: Window.Callback
+
+    /**
+     * Who observes this window's events, or null when the wrapper is inert
+     * (its session ended while another SDK's wrapper sat above it). The
+     * installer replaces it when a new session attaches.
+     */
+    var observer: WindowEventObserver?
 }

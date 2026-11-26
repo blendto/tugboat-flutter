@@ -19,6 +19,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowLog
 
 /** The composition root against a fake engine: message order from start to dispose. */
 @RunWith(RobolectricTestRunner::class)
@@ -76,6 +77,53 @@ class TugboatRuntimeTest {
 
         assertNull(runtime)
         assertTrue(!opened)
+    }
+
+    /** PR #100 review: the Apple host's rule, an absolute `http`/`https` URL with a host. */
+    @Test
+    fun aMalformedCollectorUrlRefusesToStartWithoutOpeningAnEngine() {
+        for (url in listOf(
+            "collector.example.com",
+            "/v1",
+            "ftp://collector.example.com",
+            "file:///tmp/collector",
+            "mailto:ops@example.com",
+            "http://",
+            "http:///v1",
+            "https://exa mple.com",
+            " ",
+        )) {
+            var opened = false
+            ShadowLog.clear()
+            val runtime = TugboatRuntime.start(
+                application,
+                config.copy(collector = config.collector.copy(baseUrl = url)),
+                sessionEpoch = 0,
+                openTransport = {
+                    opened = true
+                    FakeEngineTransport()
+                },
+            )
+
+            assertNull(url, runtime)
+            assertTrue(url, !opened)
+            assertEquals(url, listOf("collector.baseUrl"), TugboatRuntime.refusal(application, config.copy(collector = config.collector.copy(baseUrl = url))))
+            assertTrue(url, ShadowLog.getLogsForTag("Tugboat").any { "collector.baseUrl" in it.msg })
+        }
+    }
+
+    @Test
+    fun absoluteHttpCollectorUrlsAreAccepted() {
+        for (url in listOf(
+            "http://10.0.2.2:3000",
+            "https://collector.example.com",
+            "https://collector.example.com/",
+            "HTTPS://collector.example.com/base/",
+            "http://[::1]:3000",
+            "http://collector_host:3000",
+        )) {
+            assertTrue(url, TugboatRuntime.isCollectorUrl(url))
+        }
     }
 
     @Test
