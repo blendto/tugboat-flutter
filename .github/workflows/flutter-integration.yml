@@ -73,7 +73,7 @@ jobs:
   ios:
     name: iOS simulator smoke test and device report
     runs-on: macos-26
-    timeout-minutes: 90
+    timeout-minutes: 110
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -95,7 +95,7 @@ jobs:
           xcrun simctl bootstatus "$udid" -b
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
       - name: Run smoke test, feature checklist and capture benchmarks
-        timeout-minutes: 75
+        timeout-minutes: 100
         env:
           SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
         # The script keeps a warm simulator log stream open and bounds and
@@ -153,7 +153,8 @@ jobs:
             --android "$RUNNER_TEMP/reports/device-report-android" \
             --ios "$RUNNER_TEMP/reports/device-report-ios" \
             --sdk-version-file sdks/flutter/packages/tugboat/lib/src/sdk_version.dart \
-            --sha "$HEAD_SHA" --run-url "$RUN_URL" > "$RUNNER_TEMP/report.md"
+            --sha "$HEAD_SHA" --run-url "$RUN_URL" --expected-rows 13 \
+            > "$RUNNER_TEMP/report.md"
           cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Post or update the PR comment
         env:

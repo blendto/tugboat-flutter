@@ -26,6 +26,7 @@ void main() {
     await _idle(tester, 3000);
     profiler.reset();
     _frameworkErrors.clear();
+    _frameworkErrorCount = 0;
     // Record each report's own message; once several are pending,
     // takeException() only returns a "Multiple exceptions" summary.
     final previousOnError = FlutterError.onError;
@@ -53,7 +54,7 @@ void main() {
       'osVersion': Platform.operatingSystemVersion,
       'scriptError': ?scriptError,
       'frameworkErrors': {
-        'count': _frameworkErrors.length,
+        'count': _frameworkErrorCount,
         if (_frameworkErrors.isNotEmpty) 'first': _frameworkErrors.first,
       },
     };
@@ -65,8 +66,10 @@ void main() {
 /// Framework error reports (layout overflows, debug assertions) seen while
 /// the script ran. Collected instead of failing the benchmark.
 final _frameworkErrors = <String>[];
+var _frameworkErrorCount = 0;
 
 void _recordFrameworkError(FlutterErrorDetails details) {
+  _frameworkErrorCount += 1;
   if (_frameworkErrors.length >= 20) return;
   final text = [
     details.exceptionAsString().replaceAll(RegExp(r'\s+'), ' '),

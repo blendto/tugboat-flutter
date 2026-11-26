@@ -119,12 +119,12 @@ def checklist_section(platforms, expected_rows):
                 cells.append("✅")
             else:
                 cells.append("❌")
-                failures.append(f"- **{name} · {titles[row_id]}:** {row.get('reason', 'no reason recorded')}")
+                failures.append(f"- **{name} · {titles[row_id]}:** {row.get('reason') or 'no reason recorded'}")
         lines.append(f"| {titles[row_id]} | " + " | ".join(cells) + " |")
     for key, name in PLATFORMS:
         got = len(results[key])
-        if got < expected_rows:
-            failures.append(f"- **{name}:** only {got} of {expected_rows} rows were recorded (see the run logs).")
+        if got < max(expected_rows, len(order)):
+            failures.append(f"- **{name}:** only {got} of {max(expected_rows, len(order))} rows were recorded (see the run logs).")
     if failures:
         lines += ["", "Why each ❌:", ""] + failures
     return lines
@@ -138,9 +138,10 @@ def backend_column(summary, backend):
     by_backend = (summary.get("byBackend") or {}).get(backend) or {}
     own = resolved.get(backend, 0)
     total = summary.get("frames", 0)
+    if own == 0 and summary.get("fallbacks"):
+        return None, f"every frame fell back to the Flutter path ({counts(summary['fallbacks'])})"
     if own == 0:
-        reason = counts(summary.get("fallbacks")) if summary.get("fallbacks") else "no frames"
-        return None, f"every frame fell back to the Flutter path ({reason})"
+        return None, f"no `{backend}` frames were captured ({total} frames in total)"
     outcomes = summary.get("diagnosticOutcomes") or {}
     eligible = sum(outcomes.values())
     captured = outcomes.get("fresh_accepted", own)
@@ -185,8 +186,8 @@ METRICS = (
     ("jank", "UI jank frames (build or raster > 16.7 ms)"),
     ("build", "UI build p50 / p95 (ms)"),
     ("raster", "UI raster p50 / p95 (ms)"),
-    ("rss", "RSS peak, 100 ms samples (MB)"),
-    ("bytes", "Encoded JPEG size p50 / max (KB)"),
+    ("rss", "RSS peak, 100 ms samples (MiB)"),
+    ("bytes", "Encoded JPEG size p50 / max (KiB)"),
     ("skips", "Capture requests not freshly captured"),
     ("fallbacks", "Backend fallbacks"),
     ("errors", "Framework errors during the script"),
@@ -213,6 +214,10 @@ def benchmark_section(platforms):
             columns[backend] = cells
             if note:
                 notes.append(f"- `{backend}`: n/a, {note}.")
+        if not any(columns.values()):
+            lines += ["No benchmark frames were recorded on this platform."] + notes
+            lines += [f"- {n}" for n in data.get("notes") or [] if n.strip()]
+            continue
         lines.append("| Metric | " + " | ".join(f"`{b}`" for b in BACKENDS) + " |")
         lines.append("|---|" + "---|" * len(BACKENDS))
         for metric, label in METRICS:
@@ -269,7 +274,7 @@ def main():
     parser.add_argument("--sdk-version-file", required=True)
     parser.add_argument("--sha", required=True)
     parser.add_argument("--run-url", required=True)
-    parser.add_argument("--expected-rows", type=int, default=12)
+    parser.add_argument("--expected-rows", type=int, default=13)
     args = parser.parse_args()
     platforms = {"android": load_platform(args.android), "ios": load_platform(args.ios)}
     lines = header(platforms, args)

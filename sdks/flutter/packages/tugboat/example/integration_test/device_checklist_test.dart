@@ -118,7 +118,11 @@ void main() {
       TugboatScreenshotCaptureBackend.flutterRepaintBoundary,
     ),
   );
-  _check('lifecycle', 'App pause/resume emits a lifecycle frame', _lifecycle);
+  _check(
+    'lifecycle',
+    'App pause/resume emits a lifecycle frame (lifecycle driven from Dart)',
+    _lifecycle,
+  );
   _check(
     'native_cpu',
     'Native CPU backend captures and masks',
@@ -682,6 +686,9 @@ class _ProbeSink extends TugboatSessionCaptureSink
   Future<void> dispose() => _record('dispose');
 }
 
+/// Counts as handled only when the SDK attaches an error handler: `await`
+/// and `then(..., onError:)` do, `catchError` does. `whenComplete`,
+/// `asStream` and `timeout` pass a failure on, so they do not count.
 class _ProbeFuture implements Future<void> {
   final Future<void> _inner = Future<void>.value();
   bool observed = false;
@@ -691,7 +698,7 @@ class _ProbeFuture implements Future<void> {
     FutureOr<R> Function(void value) onValue, {
     Function? onError,
   }) {
-    observed = true;
+    if (onError != null) observed = true;
     return _inner.then(onValue, onError: onError);
   }
 
@@ -702,23 +709,15 @@ class _ProbeFuture implements Future<void> {
   }
 
   @override
-  Future<void> whenComplete(FutureOr<void> Function() action) {
-    observed = true;
-    return _inner.whenComplete(action);
-  }
+  Future<void> whenComplete(FutureOr<void> Function() action) =>
+      _inner.whenComplete(action);
 
   @override
-  Stream<void> asStream() {
-    observed = true;
-    return _inner.asStream();
-  }
+  Stream<void> asStream() => _inner.asStream();
 
   @override
   Future<void> timeout(
     Duration timeLimit, {
     FutureOr<void> Function()? onTimeout,
-  }) {
-    observed = true;
-    return _inner.timeout(timeLimit, onTimeout: onTimeout);
-  }
+  }) => _inner.timeout(timeLimit, onTimeout: onTimeout);
 }

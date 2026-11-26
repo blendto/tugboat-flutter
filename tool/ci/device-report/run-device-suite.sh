@@ -23,7 +23,7 @@ logs="$out/logs"
 mkdir -p "$out" "$logs"
 cd "$example" || exit 2
 
-checklist_min_rows=12
+checklist_min_rows=13
 status=0
 declare -a notes=()
 
@@ -85,9 +85,9 @@ cat "$out/device.json"
 # ---- 1. smoke test -----------------------------------------------------------
 smoke_ok=false
 for attempt in 1 2; do
-  limit=$(( attempt == 1 ? 900 : 420 ))
+  limit=$(( attempt == 1 ? 720 : 360 ))
   if bounded "$limit" "$logs/smoke-$attempt.log" \
-    flutter test --no-pub "${verbose[@]}" --reporter expanded -d "$device" \
+    flutter test --no-pub ${verbose[@]+"${verbose[@]}"} --reporter expanded -d "$device" \
     integration_test/capture_smoke_test.dart; then
     smoke_ok=true
     break
@@ -107,7 +107,7 @@ drive() {
   shift 4
   rm -f "build/$name.json"
   TBPROF_OUT="$name" bounded "$limit" "$log" \
-    flutter drive --no-pub "${verbose[@]}" -d "$device" \
+    flutter drive --no-pub ${verbose[@]+"${verbose[@]}"} -d "$device" \
     --driver test_driver/integration_test.dart \
     --target "integration_test/$target" "$@"
 }
@@ -117,7 +117,7 @@ checklist_rows() {
 }
 
 for attempt in 1 2; do
-  drive device_checklist device_checklist_test.dart 900 \
+  drive device_checklist device_checklist_test.dart 720 \
     "$logs/checklist-$attempt.log" || true
   rows=$(checklist_rows)
   if (( rows >= checklist_min_rows )); then
@@ -149,7 +149,7 @@ for backend in flutterRepaintBoundary nativeCpuExperimental; do
   for mode in "${modes[@]}"; do
     for attempt in 1 2; do
       log="$logs/$name-$mode-$attempt.log"
-      drive "$name" capture_profile_test.dart 1200 "$log" "--$mode" \
+      drive "$name" capture_profile_test.dart 900 "$log" "--$mode" \
         --dart-define=TUGBOAT_PROFILE=true \
         --dart-define=TUGBOAT_BACKEND="$backend" || true
       if profile_ok "build/$name.json"; then
