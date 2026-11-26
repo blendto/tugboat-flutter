@@ -39,7 +39,8 @@ on a Flutter `FlutterSurfaceView` fixture (Phase 6).
 
 ## Hosted Maven
 
-Merging a version bump to `main` tags `capture-runtime-v<version>` and
-publishes GitHub Packages. Maven Central is a second job that runs when
+Merging to `main` publishes nothing. Running **Publish Android runtime** on
+`main`, or pushing tag `capture-runtime-v<version>`, publishes GitHub
+Packages. Maven Central is a second job that runs when
 Central Portal secrets are configured. See
 [release process](../../docs/releases/process.md).

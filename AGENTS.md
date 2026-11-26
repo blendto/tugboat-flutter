@@ -71,6 +71,10 @@ Unfamiliar terms are defined in `docs/glossary/INDEX.md`.
   dependency floors, `lib/src/sdk_version.dart` in tugboat, and the compatibility
   table. Check open release PRs for collisions and run
   `BASE_SHA=origin/main bash tool/ci/check-version-policy.sh` against fresh main.
+- Releases are tag-based: merging to `main` publishes nothing. A package is
+  released by running its publish workflow on `main` or pushing its tag
+  (`docs/releases/process.md`). Anything on `main` ships with the next tag,
+  so unfinished work stays off by default.
 - Requires Flutter 3.35+, Dart 3.9.2+.
 - Cross-repo: host-app integration and end-to-end validation target is
   `mobile_app/` (see workspace `AGENTS.md`). Capture-contract changes must be

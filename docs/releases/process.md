@@ -4,6 +4,40 @@ Adapters and native runtimes version independently. See
 [0008](../decisions/0008-independent-versioning.md) and
 [compatibility.md](compatibility.md).
 
+## Releases are tag-based
+
+Merging to `main` never publishes anything. `main` can hold changes that are
+not released yet, so unfinished work must be off by default or live in a
+package that has no publish workflow.
+
+Each package is released by a tag on a commit of `main`:
+
+| Package | Tag | Workflow |
+| --- | --- | --- |
+| `tugboat` and `tugboat_dio` (lockstep) | `v<version>` | **Publish to pub.dev** (`publish.yml`) |
+| `tugboat_http` | `tugboat_http-v<version>` | **Publish tugboat_http** (`publish-http.yml`) |
+| `com.gettugboat.sdk:capture-runtime` | `capture-runtime-v<version>` | **Publish Android runtime** (`publish-android.yml`) |
+| `TugboatCaptureRuntime` | `apple-runtime-v<version>` | **Publish Apple runtime** (`publish-apple.yml`) |
+
+To cut a release:
+
+1. Make sure the version in `pubspec.yaml`, `platforms/android/gradle.properties`
+   (`VERSION_NAME`) or `TugboatCaptureRuntime.podspec` (`s.version`) is the one
+   to release, and that its changelog section is written.
+2. Either run the package's workflow on `main` (Actions > the workflow > Run
+   workflow, branch `main`), or push the tag yourself:
+   `git tag -a v0.12.5 -m "tugboat 0.12.5" <commit> && git push origin v0.12.5`.
+3. Running the workflow on `main` (the `cut_release` job) checks that the
+   version is not published yet, tags the current `main` commit, and
+   dispatches the workflow on the tag. `GITHUB_TOKEN` tag pushes do not start
+   other workflows, so the dispatch is what runs the publish.
+4. On the tag, the publish jobs check that the tag matches the package
+   version and skip anything already published, so re-running on a tag is
+   safe.
+
+To release a fix while `main` holds changes that are not ready, branch from
+the last release tag, fix and bump there, and tag that branch's commit.
+
 ## Local (this milestone)
 
 1. `bash tool/ci/run-image-core-tests.sh`
@@ -37,19 +71,17 @@ procedure.
 
 ## pub.dev (Flutter 0.8.x)
 
-Merging a Flutter version bump to `main` creates tag `v<version>` and
-publishes `tugboat` and `tugboat_dio` from
-`sdks/flutter/packages/`. pub.dev GitHub Actions must be enabled on both
+Tag `v<version>` publishes `tugboat` and `tugboat_dio` from
+`sdks/flutter/packages/` (see "Releases are tag-based" above). pub.dev GitHub Actions must be enabled on both
 package Admin tabs with repository `blendto/tugboat-flutter`, tag pattern
 `v{{version}}`, and both `push` and `workflow_dispatch` events. Hosts should
 depend on the hosted packages, not a GitHub git dependency.
 
 ## Android AAR (`capture-runtime`)
 
-Merging a `VERSION_NAME` bump to `main` creates tag `capture-runtime-v<version>`
-and publishes `com.gettugboat.sdk:capture-runtime` from `platforms/android`.
-`GITHUB_TOKEN` tag pushes do not start other workflows, so the tag job
-dispatches `publish-android.yml` on that tag (same pattern as pub.dev).
+Tag `capture-runtime-v<version>` publishes `com.gettugboat.sdk:capture-runtime`
+from `platforms/android`. Running the workflow on `main` creates that tag and
+dispatches `publish-android.yml` on it (same pattern as pub.dev).
 
 ### GitHub Packages (default)
 
@@ -86,14 +118,15 @@ The Flutter plugin depends on Maven Central
 Packages; pub.dev hosts cannot supply GitHub credentials. iOS native capture
 depends on CocoaPods `TugboatCaptureRuntime` `0.1.0` and requires iOS 15.
 
-### Two-merge sequence for a new AAR
+### Sequence for a new AAR
 
-1. Runtime PR: bump `VERSION_NAME` (for example `0.1.1`) and merge. Wait until
-   `publish-android.yml` has put that version on Maven Central (repo1 POM
-   returns 200).
+1. Runtime PR: bump `VERSION_NAME` (for example `0.1.1`) and merge. Release it
+   with tag `capture-runtime-v0.1.1`, then wait until `publish-android.yml`
+   has put that version on Maven Central (repo1 POM returns 200).
 2. Flutter PR: pin
    `implementation("com.gettugboat.sdk:capture-runtime:<that version>")`,
-   bump `tugboat` / `tugboat_dio`, and merge. That publishes to pub.dev.
+   bump `tugboat` / `tugboat_dio`, and merge. Release it with tag
+   `v<version>` to publish to pub.dev.
 
 Do not merge a Flutter pin for a version that is not on repo1 yet. After a
 `capture-runtime-v*` tag publish, `publish-android.yml` waits for repo1 and
@@ -116,15 +149,15 @@ Required before the Flutter plugin can depend on the AAR from pub.dev.
    - `MAVEN_CENTRAL_PASSWORD`
    - `MAVEN_GPG_KEY` (ASCII-armored private key)
    - `MAVEN_GPG_PASSPHRASE`
-5. Re-run `publish-android.yml` on tag `capture-runtime-v0.1.0` (or merge a
-   version bump). The job skips GitHub Packages if that version already exists
+5. Re-run `publish-android.yml` on tag `capture-runtime-v0.1.0` (or release
+   a new version). The job skips GitHub Packages if that version already exists
    and publishes Central when the secrets are present.
 
 ## Apple CocoaPod (`TugboatCaptureRuntime`)
 
-Merging to `main` when trunk does not have the root podspec `s.version` creates
-tag `apple-runtime-v<version>` and runs `publish-apple.yml` (macOS `pod lib
-lint` + `pod trunk push`). `s.source` uses that same tag. Trunk `0.1.0` was
+Tag `apple-runtime-v<version>` runs `publish-apple.yml` (macOS `pod lib
+lint` + `pod trunk push`). Running the workflow on `main` creates that tag when
+trunk does not have the root podspec `s.version`. `s.source` uses that same tag. Trunk `0.1.0` was
 published from `capture-runtime-v0.1.0` before this alignment; later versions
 clone `apple-runtime-v<version>`. The tag is still created when trunk already
 has the version so the git source exists.
@@ -136,18 +169,18 @@ The Flutter plugin depends on `TugboatCaptureRuntime` `0.1.0` from trunk and
 sets the plugin floor to iOS 15. The example app path-overrides the pod to
 this repository for unpublished runtime work.
 
-### Two-merge sequence for a new Apple runtime
+### Sequence for a new Apple runtime
 
 1. Runtime PR: bump `TugboatCaptureRuntime.podspec` `s.version` and merge.
-   Wait until trunk has that version.
+   Release it with tag `apple-runtime-v<version>` and wait until trunk has
+   that version.
 2. Flutter PR: pin `s.dependency 'TugboatCaptureRuntime', '<that version>'`,
-   bump `tugboat` / `tugboat_dio`, and merge.
+   bump `tugboat` / `tugboat_dio`, merge, and release with tag `v<version>`.
 
 Do not merge a Flutter pin for a version that is not on trunk yet. After an
 `apple-runtime-v*` publish, `publish-apple.yml` waits for trunk and opens
 `chore/pin-tugboat-capture-runtime-<version>` when the plugin still lags.
-Recovery: re-run **Publish Apple runtime** on the tag or via
-`workflow_dispatch`.
+Recovery: re-run **Publish Apple runtime** on the tag.
 
 ## After native gates pass
 
