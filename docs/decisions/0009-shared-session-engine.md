@@ -2,6 +2,7 @@
 
 Status: Proposed
 Date: 2026-10-08
+Amended: 2026-11-26 (see "Amendment: external review")
 
 ## Context
 
@@ -111,3 +112,103 @@ every adapter.
 - Evidence the native host enables — launch source, exit reason, OS-level
   network, system events, transition performance — reaches Flutter and RN
   apps too. Each new event type is opt-in until the collector accepts it.
+
+## Amendment: external review (2026-11-26)
+
+We checked this decision against how established mobile session-replay and
+error-reporting SDKs are built, mostly from their public documentation.
+Each finding below was checked by several independent reviewers. The
+decision stands. This section records what the review confirmed, what it
+could not confirm, and the rules it adds.
+
+### What the review confirmed
+
+- **Screenshots, masked before encoding.** Mobile replay SDKs record
+  screenshots. One that offered wireframe replay removed it from its native
+  SDKs and now always records masked screenshots, because Compose screens
+  showed up as empty boxes under wireframe. The pixel runtime stays a core
+  layer.
+- **Masking on the device, everything masked by default.** The SDKs we
+  reviewed mask text, images, inputs and web views by default, and none
+  sends masked content off the device.
+- **Masking APIs that suit each toolkit.** The SDKs we reviewed give
+  Compose, SwiftUI, Flutter and React Native their own masking API over one
+  privacy model. At least one ships Compose support as a separate package
+  that plugs into its core.
+- **A short snapshot on the UI thread, everything else elsewhere.** One SDK
+  reports about 3 ms per capture on the UI thread, with all processing on a
+  background thread. That is the vendor's own figure.
+- **Golden fixtures in a neutral format.** Our `conformance/` suite already
+  follows this pattern. It is also what makes replacing engine internals
+  (for example with Rust) behind the same C ABI safe.
+
+### What the review could not confirm
+
+- **A shared core is uncommon.** The SDKs whose internals are documented
+  ship one native SDK per OS and wrap it for Flutter and React Native. The
+  only shared-core example found is a Rust core described publicly in 2020.
+  Our reason for a shared engine, that one contract shipped three times
+  will drift, is our own. This review neither supports nor refutes it.
+- **Kotlin Multiplatform and Rust.** No verified evidence covered binary
+  size, startup cost or toolchain cost. Rejecting them rests on the
+  reasoning above. We measure our own release size and cold-start cost per
+  ABI and per architecture before the first public native release, and
+  revisit this choice if the numbers call for it.
+
+### Rules this amendment adds
+
+1. **One privacy model, a masking API per toolkit.** The masking levels and
+   how an override inherits from the nearest ancestor are defined once, as
+   a contract shared by every adapter. Each toolkit exposes it through its
+   own idioms: a modifier in Compose, a view modifier in SwiftUI, a widget
+   in Flutter, a component in React Native. An adapter that cannot place a
+   mask masks more, never less.
+2. **A time budget on the UI thread.** Each adapter's work on the UI thread
+   per capture and per input event has a stated budget, held by a benchmark
+   in that adapter's tests. Everything past the snapshot runs on the host's
+   threads.
+3. **Consent states in the outbox.** The host outbox supports three states:
+   not granted (nothing is written to disk), pending (written to an area
+   that is never uploaded), and granted (uploadable). Moving from pending
+   to granted makes pending data uploadable, and moving to not granted
+   deletes it. This is separate from activation (`activate` / `deactivate`):
+   activation decides whether a session runs, and consent decides whether
+   its evidence may be stored or sent. Whether outbox files are encrypted
+   at rest is decided before the outbox is on by default. This is a sink
+   behaviour change.
+4. **React Native masks keep a native view.** The React Native mask
+   components are native views that cannot be flattened (for example,
+   `collapsable={false}`). React Native's view flattening can otherwise
+   remove a mask view from the native hierarchy and expose what it covered.
+   If a mask's native view cannot be found, the frame is masked whole.
+   Device tests run with the New Architecture (Fabric) both on and off and
+   check that masked regions are masked in the captured frame.
+5. **Flutter reaches the engine through the host.** The Dart adapter talks
+   to the native host through Pigeon, never to the engine or the pixel
+   runtime through `dart:ffi`. iOS release builds can strip the symbols
+   that FFI needs, so an FFI path would force apps to change their strip
+   settings. If a direct FFI path is ever added, the exported symbols are
+   guaranteed and CI builds and runs an iOS release archive.
+6. **Toolkit adapters ship as optional artifacts.** Compose, Views, UIKit,
+   SwiftUI and the HTTP-client adapters are separate packages that register
+   with the host. An app pulls in only the toolkits it uses.
+7. **Crash-time code never runs in the engine.** Errors that a framework
+   reports to the app (Dart, Kotlin, Swift, JavaScript) are ordinary
+   evidence that goes through the engine. A fatal crash is reported by the
+   host on the next launch, from the OS exit-reason APIs:
+   `ApplicationExitInfo` on Android, with the session id stored through
+   `setProcessStateSummary`, and MetricKit on iOS. If an in-process crash
+   handler is ever added, it is a separate, minimal C module that follows
+   async-signal-safe rules, chains to existing handlers, leaves the OS crash
+   report intact, and is off by default. Error and crash reporting gets its
+   own ADR.
+
+### Sources
+
+The vendor-by-vendor review is kept outside this repository. Platform
+references:
+
+- Android `ApplicationExitInfo`:
+  https://developer.android.com/reference/android/app/ApplicationExitInfo
+- Apple Developer Forums, guidance on in-process crash reporters:
+  https://developer.apple.com/forums/thread/113742
