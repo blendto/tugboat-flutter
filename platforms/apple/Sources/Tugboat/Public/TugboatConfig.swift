@@ -46,14 +46,15 @@ public struct TugboatConfig {
   /// - App-set accessibility identifiers become reachable: used as path
   ///   evidence now, and as aliases once a filter for data-derived ids exists.
   ///
-  /// Cons, measured on an iPhone 12, iOS 18.6.2, Release build:
-  /// - Building the tree stalls the main thread once, for about 85–300 ms. It
+  /// Cons, measured on one device, iOS 18, Release build:
+  /// - Building the tree stalls the main thread once, for up to a few hundred
+  ///   milliseconds. It
   ///   runs on the main queue's next turn after the first qualifying tap
   ///   ends; that tap is reported as with the option off.
   /// - The cost starts at the first tree read and cannot be turned off for
-  ///   the rest of the process: LazyVStack scroll main-thread time +104%,
-  ///   state updates +55%, process CPU +31%, memory +5 MB; scrolling in the
-  ///   TugboatSwiftUISample +27%.
+  ///   the rest of the process: more main-thread time when scrolling lazy
+  ///   stacks and on state updates, higher process CPU, and a few megabytes
+  ///   more memory.
   /// - The host app's `@Environment(\.accessibilityEnabled)` becomes true for
   ///   the rest of the process, so UI that adapts to assistive users adapts
   ///   for everyone in that process.
