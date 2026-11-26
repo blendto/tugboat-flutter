@@ -82,7 +82,8 @@ Value session_object_json(const Session& session) {
   out.set("id", Value::string(header.id));
   out.set("captureSessionId", Value::string(header.id));
   put_opt(&out, "activationRequestId", header.activation_request_id);
-  // `collectorSessionId` arrives with collector delivery (phase 3b).
+  // Never `collectorSessionId`: as Dart's sink, delivery keeps the
+  // collector's session id to itself (`DeliveryState::ids`).
   put_opt(&out, "explorationRunId", header.exploration_run_id);
   out.set("startedAt",
           Value::string(dart_iso8601_utc(header.started_at_wall_us)));

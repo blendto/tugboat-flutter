@@ -27,7 +27,8 @@ core/session-engine/
   tests/tb_session_engine_capture_test.cpp  unit tests (scheduler, frame store, budget, navigator registry)
   tests/tb_session_engine_evidence_test.cpp  unit tests (Dart strings, jsonDecode parser options, bounded work)
   tests/tb_session_engine_conformance.cpp  fixture runner (public ABI only)
-  tests/conformance/                    runner JSON reader, diff, scenario and evidence runners
+  tests/conformance/                    runner JSON reader, diff, presets, scenario and evidence runners
+  tests/conformance_files.h, unit_support.h  shared non-fixture file names; the unit test macros
   fuzz/message_fuzz.cpp                 libFuzzer target for submit
   docs/stateful-engine.md               accepted stateful design
   docs/evidence-messages.md             evidence messages, value encoding, host obligations
@@ -45,14 +46,17 @@ core/session-engine/
 | `engine_module.cpp` | `engine.configure`, `engine.dispose`, `session.snapshot`, `timer.fired`. |
 | `session_module.cpp` | `session.start`, `session.end`, `app.lifecycle`. |
 | `evidence_module.cpp` | `event.record`, `locale.set`. |
+| `scene_inventory`, `scene_inventory_module.cpp` | Native scene inventory (design section 4.3): the `scene.inventory` fact, its element bounds and cap (C20), the per-session dedupe, and recording `scene_inventory` (with the `truncatedFrom` diagnostic). |
 | `evidence_messages.cpp` | `evidence.externalEvent`, `evidence.networkCall` ([docs/evidence-messages.md](docs/evidence-messages.md)): decoding, the no-session and stale-call drops, duration, recording. |
-| `evidence_value`, `evidence_parameters`, `evidence_network` | The typed value encoding, decoded once into `EvidenceValue` (`jsonText` bodies convert into the same tree); Dart's parameter policy and limits; method, route, and error-body normalization (one pass that stops at the 4 KiB cap, then a single `encode_json`). |
+| `evidence.h`, `evidence_value`, `evidence_parameters`, `evidence_network` | The evidence entry points the module calls; the typed value encoding, decoded once into `EvidenceValue` (`jsonText` bodies convert into the same tree); Dart's parameter policy and limits; method, route, and error-body normalization (one pass that stops at the 4 KiB cap, then a single `encode_json`). |
 | `identity_module.cpp` | `identity.set`, `traits.set`: the runtime user id and the traits bag, with change detection. |
 | `frame_retention`, `frame_retention_module.cpp` | Who references each accepted frame: the session (taken and trimmed by the capture seam, dropped at session end) and delivery; `frame.release` once both let go (design section 7.6). |
-| `stateless_module.cpp` | The stateless operations (`fingerprint.cpp`, `collector.cpp`). |
+| `stateless_module.cpp`, `operations.h` | The stateless operations (`fingerprint.cpp`, `collector.cpp`) and their handler signatures. |
 | `collector_mapping` | The one collector wire mapping (`collector_mapper.dart`), shared by the stateless operations and delivery. |
-| `delivery_module.cpp` | Collector delivery (design section 7): `transport.result`, `transport.flush`, the `delivery.` timers, hooks, and observers. Its state is `delivery_state.h`; the parts below each hold one concept. |
+| `delivery_module.cpp` | Collector delivery (design section 7): `transport.result`, `transport.flush`, the `delivery.` timers, hooks, and observers. Its state is `delivery_state.h`; `delivery_context.h` is what every part works on while handling one message, and the internal entry points they share. The parts below each hold one concept. |
 | `delivery`, `delivery_lanes`, `flush_pass` | Delivery phases, triggers, identity, and the session end drain; queueing events and frames, gaps, and release; the flush pass cursor and response handling (`flush_cursor.h` holds its state). |
+| `delivery_keys` | The `http.send` outbox metadata: the lifecycle, event-batch, and frame delivery keys (design section 3.1). |
+| `delivery_retry_after`, `retry_after` | Per-lane `Retry-After` waits and the `delivery.retryAfter.<lane>` timers; parsing a `Retry-After` value (delta-seconds or IMF-fixdate, shared vectors in `conformance/retry_after_vectors.json`). |
 | `lifecycle_lane`, `event_queue`, `frame_lane`, `delivery_gaps`, `delivery_bounds`, `transport` | The `/v1/sessions` FIFO, the identity debounce that feeds it, and the handshake; pending events and retry batches with send-time stamping; pending frames and the multipart body; gap thresholds; every queue bound and its eviction rule; `transport.result` and its classification. |
 | `navigation_module.cpp` | Navigation (design section 8.1): the `navigation` fact, the `navigation.` timers, the route-capture teardown stage. Its state is `navigation_state.h`; the parts below each hold one concept. |
 | `navigation_facts`, `navigator_registry`, `route_change` | The typed `navigation` fact; `nav-N` / `route-N` ids, stacks, presentedOver / hostPage; how a fact resolves into a visible change (invisible removal, cause claim) and the `route_change` envelope. |
@@ -74,18 +78,18 @@ core/session-engine/
 | `input_observations` | Focus and system-input events that wait for one frame. |
 | `tap_evidence`, `interaction_payload` | Tap evidence on facts; the interaction schema 2 envelope and payload. |
 | `interaction_publish` | Publishing and early finalization, the temporal after-frame rules, and swipe/pan/zoom completion. |
-| `interaction_facts` | Typed interaction facts. |
+| `interaction_facts`, `interaction_types.h` | Typed interaction facts; the surface point and closed gesture vocabulary they share. |
 | `interaction_claims` | What navigation calls: the claim API, the settle wake hook, and attaching the route frame to the cause. |
 | `engine_state.h` | Everything a handle holds between messages, as plain data. |
-| `config` | The typed `engine.configure` configuration. |
+| `config` | The typed `engine.configure` configuration, its defaults (the one place they are defined), and the `engine.config` echo. |
 | `lifecycle` | The lifecycle state machine, app-lifecycle mapping and dedupe, admission. |
-| `clock` | `at`, `atMs` derivation, and host timer deadlines. |
+| `clock` | `at`, `atMs` derivation, host timer deadlines, the one timer-prefix test, and the one-day bound on every duration (`kOneDayMs`). |
 | `teardown` | The ordered teardown stages. |
 | `session` | The in-memory session (events, frames, scroll samples), the id counter, and the schema 10 snapshot. |
 | `recorder` | Enrichment and append (Dart `_addEvent`). |
 | `output` | Typed records and effects and their JSON. |
 | `models` / `host` | Shared typed models (locale, anchor, event, host metadata). |
-| `json`, `reader`, `text`, `dart_time`, `name_table`, `ordered_map` | JSON (with `ParseOptions` for Dart `jsonDecode` semantics), strict field readers, SHA-256, the one WTF-8 decoder and the Dart `String` helpers (UTF-16 length and cut, `trim`, UTF-8 prefix), Dart `DateTime`, closed vocabularies as tables, an insertion-ordered map. |
+| `json`, `reader`, `text`, `dart_time`, `name_table`, `ordered_map` | JSON (with `ParseOptions` for Dart `jsonDecode` semantics), strict field readers, SHA-256, the one WTF-8 decoder and the Dart `String` helpers (UTF-16 length and cut, `trim`, UTF-8 prefix), the ASCII digit and trim helpers the parsers share, Dart `DateTime`, closed vocabularies as tables, an insertion-ordered map. |
 
 ## C ABI
 
@@ -393,8 +397,8 @@ using FrameAcceptedHook = void (*)(const Frame& frame, const std::string& handle
                                    EngineState* state, Output* out);
 ```
 
-`handle` names the frame's bytes in the host. Collector delivery (phase 3b)
-uses the hook to queue the frame lane and to hold the handle's reference.
+`handle` names the frame's bytes in the host. Collector delivery uses the
+hook to queue the frame lane and to hold the handle's reference.
 
 ### Navigation and captures
 
@@ -699,10 +703,11 @@ umbrella header `double-conversion.h` and build files are not vendored. See
 bash tool/ci/run-session-engine-tests.sh
 ```
 
-This configures with GCC, ASan, and UBSan, then runs six CTest tests.
+This configures with GCC, ASan, and UBSan, then runs seven CTest tests.
 `tb_session_engine_test`, `tb_session_engine_stateful_test`,
-`tb_session_engine_interaction_test`, `tb_session_engine_delivery_test`, and
-`tb_session_engine_capture_test` hold the unit tests. `tb_session_engine_conformance` runs every `conformance/**/*.json`
+`tb_session_engine_interaction_test`, `tb_session_engine_delivery_test`,
+`tb_session_engine_capture_test`, and `tb_session_engine_evidence_test` hold
+the unit tests. `tb_session_engine_conformance` runs every `conformance/**/*.json`
 through `tb_session_engine_submit_v1`. To run a subset:
 
 ```sh

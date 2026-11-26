@@ -1,6 +1,7 @@
 // `engine.configure` (docs/stateful-engine.md section 6): the typed engine
-// configuration with Dart's defaults. Every group is validated now so later
-// phases plug in; phase 3a acts on `host` and `limits.maxEvents` only.
+// configuration with Dart's defaults, the one place they are defined. Every
+// group and field is validated; each module reads its group from
+// `EngineState::config`, and `engine.config` echoes them (`config_json`).
 // Not part of the C ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_CONFIG_H
 #define TUGBOAT_SESSION_ENGINE_CONFIG_H
