@@ -26,6 +26,13 @@ void main() {
     await _idle(tester, 3000);
     profiler.reset();
     _frameworkErrors.clear();
+    // Record each report's own message; once several are pending,
+    // takeException() only returns a "Multiple exceptions" summary.
+    final previousOnError = FlutterError.onError;
+    FlutterError.onError = (details) {
+      _recordFrameworkError(details);
+      previousOnError?.call(details);
+    };
 
     String? scriptError;
     try {
@@ -38,6 +45,7 @@ void main() {
     }
 
     await _idle(tester, 2000);
+    FlutterError.onError = previousOnError;
     final summary = {
       ...profiler.summary(label: profileBackend.name),
       'rounds': rounds,
@@ -57,6 +65,17 @@ void main() {
 /// Framework error reports (layout overflows, debug assertions) seen while
 /// the script ran. Collected instead of failing the benchmark.
 final _frameworkErrors = <String>[];
+
+void _recordFrameworkError(FlutterErrorDetails details) {
+  if (_frameworkErrors.length >= 20) return;
+  final text = [
+    details.exceptionAsString().replaceAll(RegExp(r'\s+'), ' '),
+    if (details.library != null) '(${details.library})',
+  ].join(' ');
+  _frameworkErrors.add(
+    text.length > 200 ? '${text.substring(0, 197)}...' : text,
+  );
+}
 
 Future<void> _script(WidgetTester tester, int rounds) async {
   {
@@ -93,13 +112,9 @@ Future<void> _idle(WidgetTester tester, int ms) async {
   final end = DateTime.now().add(Duration(milliseconds: ms));
   while (DateTime.now().isBefore(end)) {
     await tester.pump(const Duration(milliseconds: 16));
-    final error = tester.takeException();
-    if (error != null && _frameworkErrors.length < 20) {
-      final text = '$error'.replaceAll(RegExp(r'\s+'), ' ');
-      _frameworkErrors.add(
-        text.length > 200 ? '${text.substring(0, 197)}...' : text,
-      );
-    }
+    // Already recorded by the FlutterError.onError hook; drain it so the
+    // benchmark does not fail on it.
+    tester.takeException();
   }
 }
 

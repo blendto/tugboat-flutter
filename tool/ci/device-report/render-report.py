@@ -221,7 +221,7 @@ def benchmark_section(platforms):
                 continue
             lines.append(f"| {label} | " + " | ".join(v if v is not None else "–" for v in values) + " |")
         lines += [""] + notes if notes else []
-        lines += [f"- {n}" for n in data.get("notes") or []]
+        lines += [f"- {n}" for n in data.get("notes") or [] if n.strip()]
     return lines
 
 

@@ -173,7 +173,7 @@ for backend in flutterRepaintBoundary nativeCpuExperimental; do
   fi
 done
 
-printf '%s\n' "${notes[@]+"${notes[@]}"}" | jq -R . | jq -s '{notes: .}' \
-  > "$out/notes.json"
+printf '%s\n' "${notes[@]+"${notes[@]}"}" | jq -R 'select(length > 0)' \
+  | jq -s '{notes: .}' > "$out/notes.json"
 ls -la "$out"
 exit "$status"
