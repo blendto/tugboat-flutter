@@ -10,11 +10,17 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <memory>
+#include <new>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "abi_handle.h"
 #include "dart_time.h"
 #include "json.h"
+#include "module_registry.h"
+#include "modules.h"
 #include "text.h"
 #include "unit_support.h"
 
@@ -553,6 +559,98 @@ void test_lone_surrogate_through_abi() {
   tb_session_engine_destroy(engine);
 }
 
+// ------------------------------------------------- exceptions and poisoning
+
+// A command that changes engine state and then throws, as a bug or an
+// allocation failure partway through `apply` would.
+template <typename Exception>
+class ThrowingCommand : public tugboat::engine::Command {
+ public:
+  void apply(const tugboat::engine::ModuleRegistry& /*modules*/,
+             tugboat::engine::EngineState* state,
+             tugboat::engine::Output* /*out*/) override {
+    state->identity.user_id = "half-applied";
+    throw Exception("injected");
+  }
+};
+
+template <typename Exception>
+std::unique_ptr<tugboat::engine::Command> decode_throwing(
+    const tugboat::engine::CommandInput& /*input*/,
+    tugboat::engine::Error* /*error*/) {
+  return std::make_unique<ThrowingCommand<Exception>>();
+}
+
+struct BadAlloc : std::bad_alloc {
+  explicit BadAlloc(const char* /*what*/) {}
+};
+
+const tugboat::engine::ModuleRegistry& throwing_registry() {
+  static const tugboat::engine::ModuleRegistry registry = [] {
+    tugboat::engine::ModuleRegistry r =
+        tugboat::engine::build_module_registry();
+    r.add_command("test.throw",
+                  {tugboat::engine::AtRule::kMono,
+                   tugboat::engine::SessionPolicy::kAny,
+                   decode_throwing<std::runtime_error>});
+    r.add_command("test.badAlloc",
+                  {tugboat::engine::AtRule::kMono,
+                   tugboat::engine::SessionPolicy::kAny,
+                   decode_throwing<BadAlloc>});
+    return r;
+  }();
+  return registry;
+}
+
+const char kLabelHash[] =
+    "{\"type\":\"fingerprint.labelHash\",\"input\":{\"value\":\"abc\"}}";
+
+void expect_poisoned(tb_session_engine* engine) {
+  // Every later call, valid or not, answers internal_error.
+  for (const std::string& message :
+       {std::string(kLabelHash), std::string("not json"), std::string()}) {
+    const Response r = submit(engine, message);
+    CHECK(r.status == TB_SESSION_INTERNAL_ERROR);
+    CHECK(contains(r.json, "\"status\":\"internal_error\""));
+    CHECK(contains(r.json, "destroy it"));
+  }
+}
+
+void test_exception_poisons_handle() {
+  auto* engine = new tb_session_engine(throwing_registry());
+  CHECK(submit(engine, kLabelHash).status == TB_SESSION_OK);
+  // The batch applies `engine.configure`, then throws partway: the state is
+  // partly written, so the handle refuses everything after it.
+  const std::string batch =
+      std::string("{\"type\":\"batch\",\"messages\":[") +
+      "{\"type\":\"engine.configure\",\"input\":{\"host\":" + kHost +
+      "}},{\"type\":\"test.throw\",\"at\":{\"monoUs\":1},\"input\":{}}]}";
+  const Response failed = submit(engine, batch);
+  CHECK(failed.status == TB_SESSION_INTERNAL_ERROR);
+  CHECK_EQ(failed.json,
+           std::string("{\"error\":{\"status\":\"internal_error\","
+                       "\"message\":\"internal error\"}}"));
+  CHECK(engine->poisoned);
+  expect_poisoned(engine);
+  tb_session_engine_destroy(engine);
+
+  engine = new tb_session_engine(throwing_registry());
+  const Response oom = submit(
+      engine, "{\"type\":\"test.badAlloc\",\"at\":{\"monoUs\":1},"
+              "\"input\":{}}");
+  CHECK(oom.status == TB_SESSION_OUT_OF_MEMORY);
+  CHECK(contains(oom.json, "\"status\":\"out_of_memory\""));
+  expect_poisoned(engine);
+  tb_session_engine_destroy(engine);
+
+  // A returned error is not an exception: the handle stays usable.
+  engine = make_engine();
+  CHECK(submit(engine, "not json").status == TB_SESSION_MALFORMED_MESSAGE);
+  CHECK(submit(engine, kLabelHash).status == TB_SESSION_OK);
+  tb_session_engine_destroy(engine);
+}
+
+
 }  // namespace
 
 int main() {
@@ -573,5 +671,6 @@ int main() {
   test_limits();
   test_response_shape_and_ownership();
   test_lone_surrogate_through_abi();
+  test_exception_poisons_handle();
   return unit::finish("session engine unit");
 }

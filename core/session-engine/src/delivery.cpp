@@ -2,6 +2,7 @@
 // 7.1, 7.3, and 7.7): session start and reset, the periodic, background,
 // identity, and end-drain timers, identity changes, and the session end
 // sequence (change C5). The pass itself is in flush_pass.cpp.
+#include <algorithm>
 #include <string>
 #include <utility>
 
@@ -155,12 +156,14 @@ void identity_changed(DeliveryContext& ctx, bool user) {
 
 // The periodic flush timer (Dart `Timer.periodic`): re-armed on its own
 // schedule before the pass, so a pass that completes delivery can stop it.
+// The next deadline is the first tick after the fire; ticks the host missed
+// are skipped. `flushIntervalMs` is at least 1 (config.cpp).
 void periodic_flush(DeliveryContext& ctx) {
   DeliveryState& d = ctx.delivery();
   const int64_t interval_us = d.config.flush_interval_ms * 1000;
-  do {
-    d.flush_deadline_us += interval_us;
-  } while (d.flush_deadline_us <= ctx.at.mono_us);
+  const int64_t behind_us =
+      std::max<int64_t>(ctx.at.mono_us - d.flush_deadline_us, 0);
+  d.flush_deadline_us += (behind_us / interval_us + 1) * interval_us;
   ctx.state->timers.schedule(kFlushTimer, d.flush_deadline_us, ctx.out);
   request_pass(ctx);
 }

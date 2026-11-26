@@ -491,6 +491,42 @@ void test_configure_in_batch() {
   tb_session_engine_destroy(engine);
 }
 
+void test_periodic_flush_catch_up() {
+  tb_session_engine* engine = make_engine();
+  const std::string collector =
+      std::string("{\"type\":\"engine.configure\",\"input\":{\"host\":") +
+      kHost + ",\"configuredUserId\":null},\"collector\":{\"enabled\":true,"
+      "\"flushIntervalMs\":";
+  // A period of 0 would never move the deadline forward.
+  auto zero = submit(engine, collector + "0}}}");
+  CHECK(zero.status == TB_SESSION_INVALID_MESSAGE &&
+        contains(zero.json, "\"path\":\"$.input.collector.flushIntervalMs\""));
+  CHECK(submit(engine, collector + "1}}}").status == TB_SESSION_OK);
+  auto started = submit(engine, start_message(0));
+  CHECK(contains(started.json,
+                 "{\"type\":\"timer.schedule\",\"timerId\":\"delivery.flush\","
+                 "\"atMonoUs\":1000}"));
+  // Fired 4e15 ticks late: the next deadline is computed in one step (a
+  // tick-by-tick loop would not finish) and is the first tick after the fire.
+  auto fired = submit(engine,
+                      "{\"type\":\"timer.fired\",\"at\":{\"monoUs\":"
+                      "4000000000000000000},\"input\":{\"timerId\":"
+                      "\"delivery.flush\"}}");
+  CHECK(fired.status == TB_SESSION_OK);
+  CHECK(contains(fired.json,
+                 "{\"type\":\"timer.schedule\",\"timerId\":\"delivery.flush\","
+                 "\"atMonoUs\":4000000000000001000}"));
+  // Fired exactly on its tick: one period later.
+  auto on_tick = submit(engine,
+                        "{\"type\":\"timer.fired\",\"at\":{\"monoUs\":"
+                        "4000000000000001000},\"input\":{\"timerId\":"
+                        "\"delivery.flush\"}}");
+  CHECK(contains(on_tick.json,
+                 "{\"type\":\"timer.schedule\",\"timerId\":\"delivery.flush\","
+                 "\"atMonoUs\":4000000000000002000}"));
+  tb_session_engine_destroy(engine);
+}
+
 }  // namespace
 
 int main() {
@@ -504,5 +540,6 @@ int main() {
   test_effects_json();
   test_configure_between_sessions();
   test_configure_in_batch();
+  test_periodic_flush_catch_up();
   return unit::finish("stateful engine");
 }
