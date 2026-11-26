@@ -10,7 +10,7 @@ gates, canaries) are not listed below.
 
 - [SDK README](../sdks/flutter/packages/tugboat/README.md) — install, public API, configuration, and limits
 - [Tagging controls](integration/tagging.md) — `tugboatTag` on every SDK, naming rules, the `accessibility` option, and an [agent prompt](integration/tagging-agent-prompt.md)
-- [Collector integration](integration/collector.md) — Flutter WebSocket and HTTP wire behavior
+- [Collector integration](integration/collector.md) — HTTP wire behavior for Flutter and the native SDKs
 - [Experimental native CPU capture](integration/native-cpu-experimental.md) — opt-in native CPU backend and fallback rules
 - [Common build](integration/common-build.md) — host commands for core, AAR, and Flutter tests
 - [Android development](integration/android-development.md)
@@ -56,6 +56,8 @@ gates, canaries) are not listed below.
 
 - [Compatibility table](releases/compatibility.md)
 - [Release process](releases/process.md)
+- [Migrating to 0.5.0](releases/migrating-to-0.5.0.md)
+- [0.8.5 collector compatibility](releases/0.8.5-collector-compatibility.md)
 - [Repository migration](releases/repository-migration.md)
 - [Third-party notices](releases/third-party-notices.md)
 

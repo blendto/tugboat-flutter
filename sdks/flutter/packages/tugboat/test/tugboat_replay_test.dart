@@ -44,7 +44,7 @@ void _useSeededCaptures() {
 }
 
 Future<void> _waitForInteraction(WidgetTester tester) async {
-  for (var attempt = 0; attempt < 12; attempt++) {
+  for (var attempt = 0; attempt < 120; attempt++) {
     if (TugboatReplay.controller?.session?.events.any(
           (event) => event.type == 'interaction',
         ) ??
@@ -53,7 +53,7 @@ Future<void> _waitForInteraction(WidgetTester tester) async {
     }
     await tester.pump();
     await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
     await tester.pump();
   }
@@ -101,6 +101,55 @@ bool _containsLabelTelemetry(Object? value) {
 }
 
 void main() {
+  testWidgets(
+    'each controller and capture session mints fresh session and event IDs',
+    (tester) async {
+      const uuid =
+          r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+      final sessions = <String>{};
+      final events = <String>{};
+      for (var i = 0; i < 2; i++) {
+        final controller = TugboatReplayController(
+          config: _testConfig,
+          boundaryKey: GlobalKey(),
+        );
+        for (var j = 0; j < 2; j++) {
+          controller.start(const Size(80, 80), 'test');
+          await controller.endSession();
+          final session = controller.session!;
+          expect(
+            session.id,
+            matches(
+              RegExp(
+                '^session-$uuid'
+                r'$',
+              ),
+            ),
+          );
+          expect(sessions.add(session.id), isTrue);
+          expect(
+            session.events.map((event) => event.type),
+            containsAll(['session_start', 'session_end']),
+          );
+          for (final event in session.events) {
+            expect(
+              event.id,
+              matches(
+                RegExp(
+                  '^event-$uuid'
+                  r'$',
+                ),
+              ),
+            );
+            expect(events.add(event.id), isTrue);
+          }
+        }
+        controller.dispose();
+      }
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
   testWidgets('detached lifecycle emits session_end once', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -318,10 +367,8 @@ void main() {
               as TugboatCaptureRenderBoundary;
       final acceptedGeneration = boundary.paintGeneration;
 
-      // The seeded frame is compatible and the subtree has not changed. This
-      // also simulates the local exploration WebSocket's non-interaction
-      // suppression. A completed pointer interaction must still capture.
-      controller.debugSetExplorationFramesSuppressed(true);
+      // The seeded frame is compatible and the subtree has not changed. A
+      // completed pointer interaction must still capture.
       expect(boundary.paintGeneration, acceptedGeneration);
       final framesBeforeInteraction = controller.session!.frames.length;
       controller.recordPointerDown(const Offset(40, 40), pointer: 7);
@@ -402,10 +449,7 @@ void main() {
     await _waitForCaptures(tester);
     await tester.pump(const Duration(milliseconds: 400));
     await _waitForCaptures(tester);
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(seconds: 1));
-    });
-    await tester.pump();
+    await settleTugboatCaptureWork(tester, maxWait: const Duration(seconds: 1));
 
     final session = TugboatReplay.controller!.session!;
     final routeChange = session.events
@@ -1947,7 +1991,6 @@ void main() {
     );
     await controller.initialize();
     controller.start(const Size(100, 100), 'test');
-    controller.debugSetExplorationFramesSuppressed(true);
 
     unawaited(
       controller.debugEnqueueTask('test_failure', () async {
@@ -1974,7 +2017,6 @@ void main() {
     );
     await controller.initialize();
     controller.start(const Size(100, 100), 'test');
-    controller.debugSetExplorationFramesSuppressed(true);
 
     controller.recordPointerDown(const Offset(1, 1), pointer: 1);
     controller.recordPointerDown(const Offset(2, 2), pointer: 2);

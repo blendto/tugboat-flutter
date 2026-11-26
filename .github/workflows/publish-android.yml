@@ -1,9 +1,12 @@
 # Publishes com.gettugboat.sdk:capture-runtime from platforms/android.
 #
-# Merging a PR does not publish by itself. This workflow:
-# 1. On push to main, creates tag capture-runtime-v<version> when that version
-#    is not already on GitHub Packages (or Maven Central, once configured).
-# 2. On that tag (push or workflow_dispatch), publishes the AAR.
+# Merging to main never publishes. To release, either:
+# 1. Run this workflow on main (Actions > Run workflow). cut_release creates
+#    tag capture-runtime-v<version> at that commit when that version is not
+#    already on GitHub Packages (or Maven Central, once configured), and
+#    dispatches this workflow on the tag, or
+# 2. Push tag capture-runtime-v<version> yourself.
+# On that tag (push or workflow_dispatch), the AAR is published.
 # 3. After a tag publish, waits for Maven Central repo1 then opens a Flutter
 #    pin PR (chore/pin-capture-runtime-<version>) if the plugin still lags.
 #
@@ -13,8 +16,6 @@ name: Publish Android runtime
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'capture-runtime-v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
@@ -24,8 +25,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  tag_main:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  cut_release:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -124,8 +125,8 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          # The default also installs the legacy `tools` package, which current
-          # cmdline-tools no longer ship ("Failed to find package 'tools'").
+          # The default also installs the obsolete "tools" package, which
+          # current cmdline-tools no longer provide (sdkmanager exits 1).
           packages: platform-tools
 
       - name: Install NDK and CMake

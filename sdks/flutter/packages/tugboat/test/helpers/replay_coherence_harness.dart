@@ -221,6 +221,7 @@ class ReplayCoherenceHarness {
     this.enabled = true,
     this.emitViewportSemanticMap = true,
     this.emitCaptureDiagnostics = true,
+    this.capturePressDuration = false,
     GlobalKey? boundaryKey,
   }) : boundaryKey = boundaryKey ?? GlobalKey();
 
@@ -231,6 +232,7 @@ class ReplayCoherenceHarness {
   final bool enabled;
   final bool emitViewportSemanticMap;
   final bool emitCaptureDiagnostics;
+  final bool capturePressDuration;
   final GlobalKey boundaryKey;
   final ControllableScheduler scheduler = ControllableScheduler();
   final Map<String, HarnessFrameProvenance> _frameProvenance =
@@ -273,9 +275,13 @@ class ReplayCoherenceHarness {
       config: TugboatReplayConfig(
         enabled: enabled,
         emitSceneInventory: true,
+        // The harness characterises the capture flows that existed before the
+        // settled re-sample, so it runs them without it.
+        resampleSettledInventory: false,
         emitViewportSemanticMap: emitViewportSemanticMap,
         emitCaptureDiagnostics: emitCaptureDiagnostics,
         acceptActionContext: true,
+        capturePressDuration: capturePressDuration,
         settleDelay: settleDelay,
         interactionClaimWindow: interactionClaimWindow,
         maxFrames: maxFrames,

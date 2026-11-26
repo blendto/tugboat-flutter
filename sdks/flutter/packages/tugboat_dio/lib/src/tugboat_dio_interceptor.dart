@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:tugboat/tugboat.dart';
 
+import 'error_body_url_policy.dart';
+
 /// Host-supplied mapper from a Dio request to a bounded route path.
 ///
 /// May retain dynamic identifier segments. Return `null` or empty to drop the
@@ -17,24 +19,74 @@ typedef TugboatDioRouteResolver = String? Function(RequestOptions request);
 /// Never inspects request bodies, successful response bodies, headers, cookies,
 /// query parameters, or raw transport error text. Bounded JSON/text response
 /// bodies are retained only for HTTP error statuses.
+///
+/// By default every HTTP error body is retained. [errorBodyDenyUrls] and
+/// [errorBodyUrls] are opt-in controls over which request URLs may keep one.
+/// Each entry is a case-insensitive `host[/path]` glob, for example
+/// `api.example.com/v1/accounts/*`. `*` is the only wildcard: in the host part
+/// it never spans into the path, in the path part it matches any run of
+/// characters. A pattern with no `/` matches that whole host with any path. An
+/// empty URL path counts as `/`. Only the host and path of `baseUrl` + `path`
+/// are compared: the scheme, port, user-info, query, query parameters and
+/// fragment are never inspected, and ports are not matched. A URL matching
+/// [errorBodyDenyUrls] never keeps a body; when [errorBodyUrls] is non-null
+/// only matching URLs may keep one (an empty list keeps none). Deny wins over
+/// allow. A redirected response is checked at its request URL and at every
+/// redirect hop (host and path only; hops are resolved one after another, so
+/// a relative `Location` is read against the hop before it): any URL matching
+/// a deny pattern drops the body, and an allow list must allow every URL. This
+/// relies on the HTTP adapter reporting `Response.redirects`; the default IO
+/// adapter does, and an adapter that does not only gets the request-URL check.
+/// Paths are compared with dot segments resolved and runs of `/` collapsed. An
+/// excluded URL still records its method, route, status, outcome and duration,
+/// just without the body.
+///
+/// A pattern is not accepted (an `assert` fails in debug builds, and it never
+/// throws while requests run) if it is blank or starts with `/`; contains
+/// whitespace, a control or non-ASCII character, `?` or `#`; has `:`, `@`,
+/// `[` or `]` in the host (no scheme, port, user-info or IPv6 literal); has one
+/// of `[ ] { } | ^ " < >`, a backtick or a backslash in the path (use `%5B`
+/// style escapes); has `//` or a `.` or `..` segment in the path; has a `%`
+/// not followed by two literal hex digits; or escapes an unreserved character
+/// such as `%7E` or `%41` (write it plainly). In release builds an unusable
+/// [errorBodyDenyUrls] entry makes the interceptor drop every error body, and
+/// an [errorBodyUrls] list with no usable pattern keeps none. An unparseable
+/// URL also loses its body while either list is set.
 class TugboatDioInterceptor extends Interceptor {
-  TugboatDioInterceptor({required this.routeResolver});
+  TugboatDioInterceptor({
+    required this.routeResolver,
+    List<String> errorBodyDenyUrls = const [],
+    List<String>? errorBodyUrls,
+  }) : _errorBodyPolicy = ErrorBodyUrlPolicy(
+         deny: errorBodyDenyUrls,
+         allow: errorBodyUrls,
+       );
 
   static const _extraCallKey = 'tugboat.network_call';
 
   final TugboatDioRouteResolver routeResolver;
+  final ErrorBodyUrlPolicy _errorBodyPolicy;
 
   /// Installs a single interceptor at the end of [dio]'s chain.
   ///
   /// Returns `false` when a [TugboatDioInterceptor] is already present.
+  /// [errorBodyDenyUrls] and [errorBodyUrls] are described on the class.
   static bool install(
     Dio dio, {
     required TugboatDioRouteResolver routeResolver,
+    List<String> errorBodyDenyUrls = const [],
+    List<String>? errorBodyUrls,
   }) {
     if (dio.interceptors.any((i) => i is TugboatDioInterceptor)) {
       return false;
     }
-    dio.interceptors.add(TugboatDioInterceptor(routeResolver: routeResolver));
+    dio.interceptors.add(
+      TugboatDioInterceptor(
+        routeResolver: routeResolver,
+        errorBodyDenyUrls: errorBodyDenyUrls,
+        errorBodyUrls: errorBodyUrls,
+      ),
+    );
     return true;
   }
 
@@ -61,7 +113,9 @@ class TugboatDioInterceptor extends Interceptor {
       call?.complete(
         statusCode: statusCode,
         attemptCount: _attemptCount(options),
-        errorResponseBody: _isHttpError(statusCode) ? response.data : null,
+        errorResponseBody: _isHttpError(statusCode)
+            ? _retainedErrorBody(options, response.data, response)
+            : null,
       );
     } catch (_) {
     } finally {
@@ -90,7 +144,11 @@ class TugboatDioInterceptor extends Interceptor {
           call.complete(
             statusCode: statusCode,
             attemptCount: attempts,
-            errorResponseBody: err.response?.data,
+            errorResponseBody: _retainedErrorBody(
+              options,
+              err.response?.data,
+              err.response,
+            ),
           );
         } else {
           call.fail(
@@ -108,6 +166,38 @@ class TugboatDioInterceptor extends Interceptor {
   }
 
   bool _isHttpError(int? statusCode) => statusCode != null && statusCode >= 400;
+
+  /// [data] when the request URL, and every redirect hop after it, may keep an
+  /// error body, otherwise `null`. Fails closed if a restricted policy
+  /// cannot read a URL.
+  Object? _retainedErrorBody(
+    RequestOptions options,
+    Object? data,
+    Response<dynamic>? response,
+  ) {
+    if (_errorBodyPolicy.isUnrestricted) return data;
+    try {
+      final permitted = _errorBodyPolicy.permits(
+        options.baseUrl,
+        options.path,
+        redirects: _redirectLocations(response),
+      );
+      return permitted ? data : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The `location` of every redirect the response went through, in order, or
+  /// empty without redirects (or when the adapter does not report them). Each
+  /// one can be relative to the previous hop, so the policy resolves the whole
+  /// chain. Reading the records directly avoids `Response.realUri`, whose
+  /// fallback to `RequestOptions.uri` would serialise query parameters.
+  List<Uri> _redirectLocations(Response<dynamic>? response) {
+    final redirects = response?.redirects;
+    if (redirects == null) return const [];
+    return [for (final redirect in redirects) redirect.location];
+  }
 
   void _ensureToken(RequestOptions options) {
     if (!TugboatReplay.isAcceptingEvidence) return;

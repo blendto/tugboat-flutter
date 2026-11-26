@@ -104,7 +104,7 @@ void main() {
           canonicalPath: 'Scaffold#0/FilledButton#0',
           widgetType: 'FilledButton',
           role: 'button',
-          fingerprintParts: const {'routeKey': '/home'},
+          fingerprintParts: {'routeKey': '/home'},
         ),
         data: const {
           'interactionSchema': tugboatInteractionSchemaVersion,
@@ -525,7 +525,7 @@ void main() {
     expect(mapped['atMs'], 0);
     expect(mapped['userId'], 'user_1');
     expect((mapped['appInfo'] as Map).containsKey('name'), isFalse);
-    expect((mapped['appInfo'] as Map).containsKey('installationId'), isFalse);
+    expect((mapped['appInfo'] as Map)['installationId'], 'inst_1');
     expect((mapped['appInfo'] as Map)['appId'], 'com.example.app');
     expect((mapped['appInfo'] as Map)['packageName'], 'com.example.app');
     expect((mapped['device'] as Map)['platform'], 'ios');

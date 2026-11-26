@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:tugboat/tugboat.dart';
 
+import '../helpers/widget_capture_wait.dart';
+
 /// Real-pixel characterization for modal/sheet capture (U8).
 ///
 /// Uses encoded frame bytes from the live capture pipeline — never
@@ -435,11 +437,10 @@ class _ModalVisualFixture {
   }
 
   Future<void> waitForCaptures(WidgetTester tester) async {
-    await tester.pump();
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 350));
-    });
-    await tester.pump();
+    await settleTugboatCaptureWork(
+      tester,
+      maxWait: const Duration(milliseconds: 350),
+    );
     for (var i = 0; i < 16; i++) {
       if (!controller.debugRouteCapturePending &&
           !controller.debugCaptureInFlight) {

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart' show HitTestTarget;
 import 'package:flutter/widgets.dart';
 
 import 'anchors.dart';
@@ -47,6 +48,8 @@ class TugboatPreTapEvidence {
     required this.frameCompletionSequence,
     required this.buildMicros,
     required this.failureReason,
+    this.targetSource,
+    this.targetRouteKey,
   });
 
   final String? route;
@@ -63,6 +66,10 @@ class TugboatPreTapEvidence {
   final int frameCompletionSequence;
   final int buildMicros;
   final TugboatTargetResolutionFailureReason? failureReason;
+
+  /// How [targetAnchor] was resolved, and the route key it was hashed under.
+  final TugboatTargetResolutionSource? targetSource;
+  final String? targetRouteKey;
 
   String? get inventoryHash => inventory?.inventoryHash;
 }
@@ -185,10 +192,16 @@ Map<String, double>? interactionNormalizedPoint(
 }
 
 /// Facts-only interaction schema v2 fields stored in [TugboatEvent.data].
-Map<String, Object?> buildInteractionV2Payload(InteractionTransaction tx) {
+///
+/// [includePressDuration] adds a tap's `pressDurationMs`
+/// (`TugboatReplayConfig.capturePressDuration`).
+Map<String, Object?> buildInteractionV2Payload(
+  InteractionTransaction tx, {
+  bool includePressDuration = false,
+}) {
   final envelope = _interactionEnvelope(tx);
   if (tx.gesture == InteractionGesture.cancelled) return envelope;
-  final gesturePayload = _buildGesturePayload(tx);
+  final gesturePayload = _buildGesturePayload(tx, includePressDuration);
   if (gesturePayload.isNotEmpty) envelope['payload'] = gesturePayload;
   return envelope;
 }
@@ -234,13 +247,16 @@ void _writeTapResolutionPayload(
   InteractionTransaction tx,
   String? fingerprint,
 ) {
-  final confidence = tx.targetAnchor?.fingerprintConfidence;
-  if (tx.preTapEvidence != null &&
-      fingerprint != null &&
-      fingerprint.isNotEmpty &&
-      confidence != null &&
-      confidence.isNotEmpty) {
-    envelope['fingerprintConfidence'] = confidence;
+  final hasFingerprint = fingerprint != null && fingerprint.isNotEmpty;
+  if (hasFingerprint) {
+    if (tx.preTapEvidence != null) {
+      _writeFingerprintEvidence(envelope, tx);
+    } else {
+      // Production taps carry only the route key their fingerprint was hashed
+      // under, so a consumer joins (routeKey, fingerprint) exactly; confidence,
+      // source and surface stay exploration-only.
+      _writeRouteKey(envelope, tx);
+    }
   }
   final failureReason = tx.targetResolutionFailureReason;
   if ((fingerprint == null || fingerprint.isEmpty) && failureReason != null) {
@@ -248,10 +264,50 @@ void _writeTapResolutionPayload(
   }
 }
 
-Map<String, Object?> _buildGesturePayload(InteractionTransaction tx) {
+/// Confidence, source, resolved route key and surface for an exploration tap
+/// that carries a fingerprint. `routeKey` is the key the fingerprint was
+/// hashed under; `route` stays the raw origin route. `surface` is the one the
+/// tap's own inventory carries (same route, same pointer-down walk).
+void _writeFingerprintEvidence(
+  Map<String, Object?> envelope,
+  InteractionTransaction tx,
+) {
+  final anchor = tx.targetAnchor;
+  final confidence = anchor?.fingerprintConfidence;
+  if (confidence != null && confidence.isNotEmpty) {
+    envelope['fingerprintConfidence'] = confidence;
+  }
+  final source = tx.targetResolutionSource;
+  if (source != null) envelope['fingerprintSource'] = source.wireName;
+  _writeRouteEvidence(envelope, tx);
+}
+
+void _writeRouteEvidence(
+  Map<String, Object?> envelope,
+  InteractionTransaction tx,
+) {
+  _writeRouteKey(envelope, tx);
+  final surface = tx.preTapEvidence?.inventory?.surface;
+  if (surface != null) envelope['surface'] = surface.toJson();
+}
+
+/// The resolved route key [tx]'s fingerprint was hashed under. `route` stays
+/// the raw origin route; for an unnamed page, sheet or dialog the two differ.
+void _writeRouteKey(Map<String, Object?> envelope, InteractionTransaction tx) {
+  final routeKey = tx.targetRouteKey;
+  if (routeKey != null && routeKey.isNotEmpty) envelope['routeKey'] = routeKey;
+}
+
+Map<String, Object?> _buildGesturePayload(
+  InteractionTransaction tx,
+  bool includePressDuration,
+) {
   final gesturePayload = <String, Object?>{};
   final position = interactionNormalizedPosition(tx.origin.captureCoordinate);
   if (position != null) gesturePayload['position'] = position;
+  if (includePressDuration && tx.gesture == InteractionGesture.tap) {
+    _writePressDuration(gesturePayload, tx);
+  }
   _writeGesturePayload(gesturePayload, tx, position);
   return gesturePayload;
 }
@@ -276,6 +332,17 @@ void _writeGesturePayload(
     case InteractionGesture.cancelled:
       break;
   }
+}
+
+/// Pointer-down to pointer-up on the controller clock. Omitted when the tap
+/// has no release time (it was never released through pointer-up).
+void _writePressDuration(
+  Map<String, Object?> gesturePayload,
+  InteractionTransaction tx,
+) {
+  final releasedAtMs = tx.releasedAtMs;
+  if (releasedAtMs == null || releasedAtMs < tx.origin.atMs) return;
+  gesturePayload['pressDurationMs'] = releasedAtMs - tx.origin.atMs;
 }
 
 void _writeTravelGesturePayload(
@@ -361,9 +428,19 @@ class InteractionTransaction {
   TugboatPreTapEvidence? preTapEvidence;
   TugboatTargetResolutionFailureReason? targetResolutionFailureReason;
 
+  /// How [targetAnchor] was resolved, and the resolved route key its
+  /// fingerprint was computed under. Set for exploration and production taps.
+  TugboatTargetResolutionSource? targetResolutionSource;
+  String? targetRouteKey;
+
   /// Resolved only after this gesture remains a tap. Pointer-down stores only
   /// origin facts so possible scrolls do not pay tap inventory costs.
   TugboatTargetAnchor? targetAnchor;
+
+  /// The render objects under the finger at pointer-down: one plain hit test,
+  /// kept until the tap resolves. It lets a tap whose own handler navigates
+  /// still resolve its control (BLE-459); cleared once used.
+  List<HitTestTarget>? pressedHitPath;
 
   Completer<void>? _successorSignal;
 
@@ -436,6 +513,8 @@ class InteractionTransaction {
   void discardPreTapEvidence() {
     preTapEvidence = null;
     targetResolutionFailureReason = null;
+    targetResolutionSource = null;
+    targetRouteKey = null;
   }
 }
 

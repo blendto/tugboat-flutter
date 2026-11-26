@@ -1,0 +1,4 @@
+tags:
+  # Wall-clock budgets. tool/ci/run-flutter-tests.sh runs these alone and
+  # serially; CI skips them.
+  benchmark:

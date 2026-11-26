@@ -24,6 +24,9 @@ the monorepo layout.
 Adapters never vendor a copy of the C++ core. Files above a published pub
 package are not part of that package archive.
 
+`sdks/flutter/packages/tugboat_build` is unpublished tooling that generates the
+`widgetNames` map for obfuscated builds. It is not a product tree.
+
 ## Common core scope
 
 The core is a static library with a versioned C ABI. It is the only place

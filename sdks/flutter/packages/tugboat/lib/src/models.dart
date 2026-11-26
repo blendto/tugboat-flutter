@@ -101,6 +101,49 @@ String tugboatOverlayKindFor(Route<dynamic>? route) {
   return TugboatOverlayKind.unknown;
 }
 
+const _sheetRouteTypes = {
+  'ModalBottomSheetRoute',
+  'CupertinoModalPopupRoute',
+  'CupertinoSheetRoute',
+};
+const _dialogRouteTypes = {
+  'DialogRoute',
+  'RawDialogRoute',
+  'CupertinoDialogRoute',
+};
+const _menuRouteTypes = {'PopupMenuRoute', 'DropdownRoute'};
+
+/// The `surface.kind` for a route, from its runtime type.
+///
+/// Sheet, dialog and menu routes are matched on the runtime type name (the
+/// menu routes are private to Flutter); any other [PopupRoute] is a popup and
+/// everything else is a page. The type is mechanical evidence: apps that
+/// obfuscate their build rename these classes and fall back to popup or page.
+String tugboatSurfaceKindFor(Route<dynamic>? route) {
+  if (route == null) return TugboatSurfaceKind.page;
+  final byName = tugboatSurfaceKindForRouteType(route.runtimeType.toString());
+  if (byName != null) return byName;
+  return route is PopupRoute
+      ? TugboatSurfaceKind.popup
+      : TugboatSurfaceKind.page;
+}
+
+/// The `surface.kind` a route type name implies, or null when the name alone
+/// does not say (a custom [PopupRoute] needs the route object).
+///
+/// Also used on the raw route string when no route object was observed, which
+/// only recognizes unnamed routes: a `RouteSettings.name` hides the type.
+String? tugboatSurfaceKindForRouteType(String? typeName) {
+  if (typeName == null || typeName.isEmpty) return null;
+  final generic = typeName.indexOf('<');
+  var base = generic == -1 ? typeName : typeName.substring(0, generic);
+  if (base.startsWith('_')) base = base.substring(1);
+  if (_sheetRouteTypes.contains(base)) return TugboatSurfaceKind.sheet;
+  if (_dialogRouteTypes.contains(base)) return TugboatSurfaceKind.dialog;
+  if (_menuRouteTypes.contains(base)) return TugboatSurfaceKind.menu;
+  return null;
+}
+
 TugboatRouteIdentity tugboatRouteIdentityFor(Route<dynamic>? route) {
   if (route == null) {
     return const TugboatRouteIdentity(routeType: 'unknown', routeNamed: false);
@@ -171,6 +214,7 @@ bool tugboatEventIsEnrichmentCandidate(TugboatEvent event) {
   }
 }
 
+/// A rectangle serialized as an origin, width, and height in session data.
 class TugboatRect {
   const TugboatRect(this.x, this.y, this.width, this.height);
 
@@ -206,6 +250,10 @@ enum TugboatFrameTrigger {
 
 enum TugboatInteractionResult { changed, noVisibleChange, navigated, unknown }
 
+/// Metadata for one visual checkpoint in a [TugboatSession].
+///
+/// Use [id] to match an event’s frame reference or look up the encoded image
+/// in [TugboatSession.frameBytes].
 class TugboatFrame {
   const TugboatFrame({
     required this.id,
@@ -262,6 +310,7 @@ class TugboatFrame {
   };
 }
 
+/// A timestamped scroll offset with optional frame and scrollable references.
 class TugboatScrollSample {
   const TugboatScrollSample({
     required this.atMs,
@@ -293,6 +342,10 @@ class TugboatScrollSample {
   };
 }
 
+/// A timestamped session record classified by [type] and [stream].
+///
+/// [beforeFrame] and [afterFrame] refer to [TugboatFrame.id] when visual
+/// evidence is available. A later frame alone does not establish causality.
 class TugboatEvent {
   const TugboatEvent({
     required this.id,
@@ -454,6 +507,10 @@ TugboatEvent _copyEventContext(
   actionId: actionId ?? source.actionId,
 );
 
+/// The events, visual checkpoints, and scroll samples for one capture session.
+///
+/// Use [id] to correlate capture evidence. [collectorSessionId] becomes
+/// available after the collector accepts the session start.
 class TugboatSession {
   TugboatSession({
     required this.id,

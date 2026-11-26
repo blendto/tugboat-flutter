@@ -1,0 +1,7 @@
+builders:
+  tugboat_widget_names:
+    import: "package:tugboat_build/tugboat_build.dart"
+    builder_factories: ["tugboatWidgetNamesBuilder"]
+    build_extensions: {"$lib$": ["tugboat_widget_names.g.dart"]}
+    auto_apply: dependents
+    build_to: source

@@ -35,21 +35,7 @@ Map<String, Object?> mapTugboatEventToCollectorEvent({
       sessionId: sessionId,
       userId: userId,
       traitsId: traitsId,
-      extra: {
-        'interactionSchema':
-            data['interactionSchema'] ?? tugboatInteractionSchemaVersion,
-        if (data['route'] != null) 'route': data['route'],
-        if (data['targetFingerprint'] != null)
-          'targetFingerprint': data['targetFingerprint'],
-        if (data['fingerprintConfidence'] != null)
-          'fingerprintConfidence': data['fingerprintConfidence'],
-        if (data['targetResolutionFailureReason'] != null)
-          'targetResolutionFailureReason':
-              data['targetResolutionFailureReason'],
-        if (data['gesture'] != null) 'gesture': data['gesture'],
-        if (data['payload'] != null) 'payload': data['payload'],
-        if (targetAnchor != null) 'targetAnchor': targetAnchor,
-      },
+      extra: _interactionCollectorExtra(data, targetAnchor),
     );
   }
 
@@ -252,6 +238,7 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   required String sessionId,
   required DateTime sessionStartedAt,
   required DateTime triggeredAt,
+  int? atMs,
   required TugboatCollectorConfig config,
   String? userId,
   Map<String, dynamic>? traits,
@@ -263,7 +250,7 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   final body = <String, Object?>{
     'sessionId': sessionId,
     'eventType': eventType,
-    'atMs': triggeredAt.difference(sessionStartedAt).inMilliseconds,
+    'atMs': atMs ?? triggeredAt.difference(sessionStartedAt).inMilliseconds,
     'triggeredAt': triggeredAt.toUtc().toIso8601String(),
     // Only session_start inherits the configured startup identity. Later
     // lifecycle records send the runtime id as-is, including null.
@@ -271,8 +258,9 @@ Map<String, Object?> mapTugboatSessionLifecycleToCollectorSession({
   };
 
   if (isSessionStart) {
+    // installationId is the SDK-owned (or host-supplied) per-install id;
+    // see TugboatCollectorHost.installationId.
     final appInfo = Map<String, Object?>.from(config.appInfo.toJson())
-      ..remove('installationId')
       ..remove('name');
     final locale = Map<String, Object?>.from(config.locale.toJson());
     if (activeLocale != null) {
@@ -349,4 +337,36 @@ void _copyPresentRouteChangeKeys(
     final value = data[key];
     if (value != null) extra[key] = value;
   }
+}
+
+/// Allow-list of interaction envelope keys the collector record carries at the
+/// top level. `routeKey` appears on every tap with a fingerprint;
+/// `fingerprintConfidence`, `fingerprintSource` and `surface` only on
+/// exploration taps.
+const _interactionCollectorKeys = <String>[
+  'route',
+  'targetFingerprint',
+  'fingerprintConfidence',
+  'fingerprintSource',
+  'routeKey',
+  'surface',
+  'targetResolutionFailureReason',
+  'gesture',
+  'payload',
+];
+
+Map<String, Object?> _interactionCollectorExtra(
+  Map<String, Object?> data,
+  Map<String, Object?>? targetAnchor,
+) {
+  final extra = <String, Object?>{
+    'interactionSchema':
+        data['interactionSchema'] ?? tugboatInteractionSchemaVersion,
+  };
+  for (final key in _interactionCollectorKeys) {
+    final value = data[key];
+    if (value != null) extra[key] = value;
+  }
+  if (targetAnchor != null) extra['targetAnchor'] = targetAnchor;
+  return extra;
 }

@@ -29,7 +29,7 @@ capturer, structural anchor resolver.
 session evidence (see `docs/README.md` "Current compatibility").
 
 **Sink hub** — the failure-isolated dispatch point for evidence; consumers are
-the exploration WebSocket and the HTTP Collector. Sink failures must never
+the HTTP Collector and any custom sinks. Sink failures must never
 break the host app.
 
 ## SDK layers (ADR 0009, proposed)

@@ -33,5 +33,7 @@ check_pubspec() {
 
 check_pubspec sdks/flutter/packages/tugboat/pubspec.yaml
 check_pubspec sdks/flutter/packages/tugboat_dio/pubspec.yaml
+check_pubspec sdks/flutter/packages/tugboat_http/pubspec.yaml
+check_pubspec sdks/flutter/packages/tugboat_build/pubspec.yaml
 
 echo "License check passed (AGPL-3.0-only)."

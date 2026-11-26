@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'anchors.dart' show tugboatCaptureRootKeyPrefix;
 import 'capture_boundary.dart';
 import 'controller.dart';
 import 'external_event.dart';
@@ -14,6 +15,7 @@ import 'lifecycle.dart';
 import 'models.dart';
 import 'navigator_observer_registry.dart';
 import 'network_observer.dart';
+import 'sink_ledger.dart';
 
 export 'input_context_capture.dart' show TugboatFocusKind, TugboatSystemInput;
 export 'lifecycle.dart' show TugboatLifecycleState;
@@ -149,7 +151,7 @@ class TugboatReplay {
     _controller?.recordLocale(info);
   }
 
-  /// Pending traits bag applied when the next [CollectorHttpSink] is created.
+  /// Pending traits to apply when the next HTTP collector sink is created.
   static Map<String, dynamic>? get pendingTraits => _pendingTraits == null
       ? null
       : Map<String, dynamic>.unmodifiable(_pendingTraits!);
@@ -280,6 +282,7 @@ class TugboatReplay {
     );
     navigatorObserver.debugClearRetainedRouteStack();
     _lifecycle.resetForTest();
+    TugboatSinkLedger.instance.resetForTest();
     _pendingTraits = null;
     _pendingTraitsId = null;
     _pendingUserId = null;
@@ -464,11 +467,13 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
     TugboatReplayConfig current,
   ) =>
       previous.emitSceneInventory != current.emitSceneInventory ||
+      previous.resampleSettledInventory != current.resampleSettledInventory ||
       previous.emitViewportSemanticMap != current.emitViewportSemanticMap ||
       previous.emitCaptureDiagnostics != current.emitCaptureDiagnostics ||
       previous.acceptActionContext != current.acceptActionContext ||
       previous.captureFocusChanges != current.captureFocusChanges ||
-      previous.captureSystemInput != current.captureSystemInput;
+      previous.captureSystemInput != current.captureSystemInput ||
+      previous.capturePressDuration != current.capturePressDuration;
 
   @override
   void dispose() {
@@ -522,7 +527,7 @@ class _TugboatActivationGateState extends State<_TugboatActivationGate> {
     }
     final lifecycle = TugboatReplay._lifecycle;
     return _TugboatReplayRoot(
-      key: ValueKey('tugboat-capture-${_mountedEpoch ?? 0}'),
+      key: ValueKey('$tugboatCaptureRootKeyPrefix${_mountedEpoch ?? 0}'),
       config: widget.config.copyWith(enabled: true),
       activationRequestId: lifecycle.activationRequestId,
       sessionEpoch: _mountedEpoch ?? lifecycle.requestEpoch,
