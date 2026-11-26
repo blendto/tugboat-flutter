@@ -1,3 +1,16 @@
+## 0.12.7
+
+### Fixed
+
+- A sink that fails no longer raises an uncaught error in the host app. A
+  failed future from `TugboatSessionCaptureSink.start()` or `dispose()` was
+  dropped unhandled and reached the app's zone (and crash reporters hooked to
+  `PlatformDispatcher.onError`); it is now handled inside the SDK, like
+  failures from `accept()`, `flush()` and `finish()` already were.
+- A `TugboatCaptureSinkFactory` whose `create()` throws is now skipped. Before,
+  the error escaped uncaught and capture did not start for that launch; now
+  the session and every other sink start as usual.
+
 ## 0.12.6
 
 ### Added
