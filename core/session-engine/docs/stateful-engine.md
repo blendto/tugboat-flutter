@@ -424,9 +424,12 @@ This table is the single source of the rule (`classify` in
 `src/transport.cpp`, fixture `delivery-status-classification`). A host that
 needs to know when a request is settled, such as a stop sequence waiting for
 the `http.send` with `isSessionEnd`, applies it to its own outcome: settled
-means `outcome: "http"` with a status that is neither 408, 429, nor ≥ 500
-(accepted or dropped for good); `error`, `timeout`, and the retry statuses
-keep the request pending. The rule is not carried on each effect or offered
+means `outcome: "http"` with a status that is neither 408, 429, nor ≥ 500;
+`error`, `timeout`, and the retry statuses keep the request pending. On the
+event and frame lanes a settled request is accepted or dropped for good. A
+lifecycle post is removed only on 202 (section 7.1): after any other status it
+stays at the head and is posted again on a later pass, but the waiter treats
+it as answered and does not wait for that. The rule is not carried on each effect or offered
 as a stateless operation: it is a fixed part of ABI version 1 (changing it is
 a contract change, as for any delivery rule), hosts evaluate it on their IO
 thread where they must not call into the engine handle, and repeating a
