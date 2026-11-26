@@ -1,3 +1,26 @@
+## 0.12.5
+
+### Added
+
+- Dot-notation markers: `.tugboatTag(id)`, `.tugboatSensitive()` and
+  `.tugboatSubView(label)` on any widget, through the `TugboatMarkers`
+  extension. Each is equivalent to wrapping the widget in `TugboatTag`,
+  `TugboatSensitive` or `TugboatSubView`.
+- `.tugboatTag(id, accessibility: true)` (and `TugboatTag(accessibility:)`)
+  also publishes the tag as the platform accessibility identifier through a
+  `Semantics` node, for UI-test tools. Off by default. Identity is the same
+  with the option on or off.
+
+### Changed
+
+- The Android plugin compiles against `capture-runtime` 0.1.0 and newer
+  runtimes: a capture status or coverage value it does not know (from a newer
+  runtime) is mapped instead of failing the build. The pinned runtime is
+  unchanged, so behaviour is unchanged.
+- Test-only controller seams for the cross-SDK conformance fixtures (an
+  injectable elapsed clock and `debugRecordEvent`), and one shared helper for
+  scene inventory hashes. No behaviour change.
+
 ## 0.12.4
 
 ### Changed
