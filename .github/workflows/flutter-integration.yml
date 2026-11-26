@@ -46,6 +46,8 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          ls -l /dev/kvm
           test -w /dev/kvm
       - name: Run capture smoke test
         uses: reactivecircus/android-emulator-runner@v2
@@ -60,7 +62,7 @@ jobs:
   ios:
     name: iOS simulator smoke test
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -83,14 +85,32 @@ jobs:
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
       - name: Run capture smoke test
         working-directory: ${{ env.EXAMPLE_DIR }}
-        timeout-minutes: 15
+        timeout-minutes: 18
         env:
           SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
         run: |
           set -o pipefail
-          mkdir -p "$RUNNER_TEMP/ios-logs"
-          flutter test --no-pub --verbose --reporter expanded -d "$SIMULATOR_UDID" \
-            integration_test/capture_smoke_test.dart 2>&1 | tee "$RUNNER_TEMP/ios-logs/flutter-test.log"
+          logs="$RUNNER_TEMP/ios-logs"
+          mkdir -p "$logs"
+          # flutter_tools finds the Dart VM service URL by streaming the
+          # simulator log. On a cold runner that stream can attach after the
+          # app has already printed the URL, and the test waits forever.
+          # Keep a stream open from here on so logd is warm at launch.
+          xcrun simctl spawn "$SIMULATOR_UDID" log stream --style compact \
+            --predicate 'processImagePath ENDSWITH "Runner"' > "$logs/warm-stream.log" 2>&1 &
+          sleep 5
+          # One retry, bounded, in case the URL is still missed. The second
+          # attempt reuses the build.
+          for attempt in 1 2; do
+            limit=$(( attempt == 1 ? 600 : 300 ))
+            if perl -e 'alarm shift; exec @ARGV' "$limit" \
+              flutter test --no-pub --verbose --reporter expanded -d "$SIMULATOR_UDID" \
+              integration_test/capture_smoke_test.dart 2>&1 | tee "$logs/flutter-test-$attempt.log"; then
+              exit 0
+            fi
+            echo "::warning::iOS smoke attempt $attempt did not pass"
+          done
+          exit 1
       - name: Collect simulator logs
         if: failure() || cancelled()
         env:
