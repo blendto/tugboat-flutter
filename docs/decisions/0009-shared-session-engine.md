@@ -1,6 +1,6 @@
 # ADR 0009: Shared session engine for all adapters
 
-Status: Proposed
+Status: Accepted (2026-11-26)
 Date: 2026-10-08
 Amended: 2026-11-26 (see "Amendment: external review")
 
