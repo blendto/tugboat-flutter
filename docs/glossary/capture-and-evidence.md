@@ -32,7 +32,7 @@ session evidence (see `docs/README.md` "Current compatibility").
 the HTTP Collector and any custom sinks. Sink failures must never
 break the host app.
 
-## SDK layers (ADR 0009, proposed)
+## SDK layers (ADR 0009)
 
 **Session engine** — the I/O-free, single-threaded state machine that owns
 the session, event sequencing, dedup decisions, collector record mapping,
