@@ -78,6 +78,21 @@ extract_apple_version() {
   grep -E "s\.version[[:space:]]*=" "$file" | head -1 | sed -E "s/.*['\"]([0-9][^'\"]*)['\"].*/\1/"
 }
 
+# Prints the higher of two versions. Unlike `sort -V`, a release ranks above
+# its own prereleases (0.10.11 > 0.10.11-dev.6), as in SemVer. Prerelease tags
+# of the same release compare with `sort -V`.
+higher_version() {
+  local a="$1" b="$2"
+  local a_core="${a%%-*}" b_core="${b%%-*}"
+  if [[ "$a_core" != "$b_core" ]]; then
+    printf '%s\n%s\n' "$a_core $a" "$b_core $b" | sort -V -k1,1 | tail -n 1 | cut -d' ' -f2
+    return
+  fi
+  if [[ "$a" == "$a_core" ]]; then echo "$a"; return; fi
+  if [[ "$b" == "$b_core" ]]; then echo "$b"; return; fi
+  printf '%s\n%s\n' "$a" "$b" | sort -V | tail -n 1
+}
+
 extract_runtime_version() {
   local file="$1"
   if [[ ! -f "$file" ]]; then
@@ -135,7 +150,7 @@ if [[ -n "$plugin_pin" && -n "$runtime_now" ]]; then
   echo "Flutter capture-runtime pin: $plugin_pin"
   echo "capture-runtime VERSION_NAME: $runtime_now"
   if [[ "$plugin_pin" != "$runtime_now" ]]; then
-    higher="$(printf '%s\n%s\n' "$plugin_pin" "$runtime_now" | sort -V | tail -n 1)"
+    higher="$(higher_version "$plugin_pin" "$runtime_now")"
     if [[ "$higher" == "$plugin_pin" ]]; then
       echo "::error::Flutter plugin pins capture-runtime $plugin_pin which is newer than VERSION_NAME $runtime_now."
       exit 1
@@ -156,7 +171,7 @@ if [[ -n "$apple_pin" && -n "$apple_now" ]]; then
   echo "Flutter TugboatCaptureRuntime pin: $apple_pin"
   echo "TugboatCaptureRuntime s.version: $apple_now"
   if [[ "$apple_pin" != "$apple_now" ]]; then
-    apple_higher="$(printf '%s\n%s\n' "$apple_pin" "$apple_now" | sort -V | tail -n 1)"
+    apple_higher="$(higher_version "$apple_pin" "$apple_now")"
     if [[ "$apple_higher" == "$apple_pin" ]]; then
       echo "::error::Flutter plugin pins TugboatCaptureRuntime $apple_pin which is newer than podspec $apple_now."
       exit 1
@@ -267,7 +282,7 @@ require_greater_version() {
     exit 1
   fi
   local higher
-  higher="$(printf '%s\n%s\n' "$base_version" "$head_version" | sort -V | tail -n 1)"
+  higher="$(higher_version "$base_version" "$head_version")"
   if [[ "$higher" != "$head_version" ]]; then
     echo "::error::$label PR version ($head_version) must be greater than base ($base_version)."
     exit 1
