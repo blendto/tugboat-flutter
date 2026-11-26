@@ -137,7 +137,7 @@ internal class WindowSession(
         focus.deactivate()
         unhookDecor()
         recyclers?.detachAll()
-        activity.window?.let(WindowCallbackInstaller::uninstall)
+        activity.window?.let { WindowCallbackInstaller.uninstall(it, this) }
     }
 
     override fun onTouch(event: MotionEvent) {

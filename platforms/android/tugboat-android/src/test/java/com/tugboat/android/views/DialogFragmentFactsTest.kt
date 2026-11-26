@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -108,6 +109,33 @@ class DialogFragmentFactsTest {
         tapThrough(window, fragment.button)
         assertEquals(1, harness.pointerUps().size)
     }
+
+    /** PR #100 review: the same restart with another SDK's wrapper above ours on the dialog window. */
+    @Test
+    fun aRestartedDialogFragmentBelowAForeignWrapperRecordsAgain() {
+        val controller = host()
+        val activity = controller.get()
+        val fragment = ButtonDialogFragment()
+        fragment.show(activity.supportFragmentManager, "confirm")
+        idleMain()
+        val window = fragment.requireDialog().window!!
+        window.callback = ForeignWrapper(window.callback)
+
+        controller.pause().stop()
+        idleMain()
+        assertEquals("below a foreign wrapper ours stays", 1, CallbackChain.countTugboat(window.callback))
+
+        controller.restart().start().resume()
+        idleMain()
+        assertEquals(1, adapter.dialogSessionCount(activity))
+        assertEquals("no second wrapper", 1, CallbackChain.countTugboat(window.callback))
+        harness.drainFacts()
+        tapThrough(window, fragment.button)
+        assertEquals(1, harness.pointerUps().size)
+    }
+
+    /** Another SDK's window-callback wrapper; it keeps its delegate in a private field. */
+    private class ForeignWrapper(private val wrapped: Window.Callback) : Window.Callback by wrapped
 
     @Test
     fun aDismissedDialogFragmentEndsItsSession() {

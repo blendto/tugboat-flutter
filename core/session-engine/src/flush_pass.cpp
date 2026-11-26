@@ -11,6 +11,7 @@
 #include <variant>
 
 #include "collector_mapping.h"
+#include "dart_time.h"
 #include "delivery_bounds.h"
 #include "delivery_context.h"
 #include "delivery_retry_after.h"
@@ -61,6 +62,20 @@ bool has_collector_session_id(const DeliveryState& d) {
 
 // ------------------------------------------------------------- lifecycle
 
+// `triggeredAt` of a lifecycle post: the fact's wall time, or, for a fact
+// stamped only on the monotonic clock (`app.lifecycle` `detached` ending the
+// session), the session start's wall time plus `atMs`, as for events.
+int64_t triggered_at_us(const Session& session, const At& triggered,
+                        int64_t at_ms) {
+  if (triggered.wall_us) {
+    return *triggered.wall_us;
+  }
+  const int64_t start_us = session.header().started_at_wall_us;
+  int64_t derived_us = 0;
+  return dart_add_ms_to_us(start_us, at_ms, &derived_us) ? derived_us
+                                                         : start_us;
+}
+
 // The head's `/v1/sessions` body, built now from the current identity
 // (section 7.1); only `triggeredAt` was fixed when it was queued.
 std::string lifecycle_body(const DeliveryContext& ctx,
@@ -74,7 +89,7 @@ std::string lifecycle_body(const DeliveryContext& ctx,
                         : d.ids.session_id.value_or(session.id());
   body.at_ms =
       elapsed_ms(session.header().start_mono_us, entry.triggered.mono_us);
-  body.triggered_at_us = entry.triggered.wall_us.value_or(0);
+  body.triggered_at_us = triggered_at_us(session, entry.triggered, body.at_ms);
   const Identity& identity = ctx.state->identity;
   body.user_id = identity.user_id;
   body.traits = identity.traits ? &*identity.traits : nullptr;

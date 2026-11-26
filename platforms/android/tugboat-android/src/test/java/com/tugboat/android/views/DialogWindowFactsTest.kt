@@ -194,6 +194,26 @@ class DialogWindowFactsTest {
         assertTrue("and is inert", harness.drainFacts().isEmpty())
     }
 
+    /** PR #100 review: a restart while another SDK's wrapper sits above ours on the dialog window. */
+    @Test
+    fun aRestartBelowAForeignWrapperOnTheDialogRecordsFactsAgain() {
+        val activity = host()
+        val dialog = appCompatDialog(activity)
+        val window = dialog.window!!
+        activity.windowFocus(false)
+        window.callback = CountingWrapper(window.callback).proxy
+        adapter.stop()
+        assertEquals("below a foreign wrapper ours stays", 1, CallbackChain.countTugboat(window.callback))
+        assertNull("inert", CallbackChain.findTugboat(window.callback)!!.observer)
+
+        adapter.start()
+        assertEquals(1, adapter.dialogSessionCount(activity))
+        assertEquals("no second wrapper", 1, CallbackChain.countTugboat(window.callback))
+        harness.drainFacts()
+        tapThrough(window, dialog.getButton(DialogInterface.BUTTON_POSITIVE))
+        assertEquals(1, harness.pointerUps().size)
+    }
+
     @Test
     fun movesAndCancelsAreReportedInActivitySpaceToo() {
         val activity = host()
