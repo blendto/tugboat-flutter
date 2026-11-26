@@ -1,0 +1,336 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "at-validation",
+  "description": "Every state-changing fact carries at.monoUs (a non-negative integer); session.start, session.end, and identity.set also need at.wallUs within Dart's DateTime range. engine.configure and session.snapshot accept an at (validated, not used); stateless messages take none. Rejected messages change nothing.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at.wallUs"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": -1,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at.monoUs"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 1.5,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at.monoUs"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 0,
+            "wallUs": 8640000000000000001
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at.wallUs"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 0,
+            "wallUs": 1781827200000000,
+            "tz": "UTC"
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at.tz"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "identity.set",
+          "at": {
+            "monoUs": 0
+          },
+          "input": {
+            "userId": "u"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at.wallUs"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "locale.set",
+          "at": {
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "locale": {
+              "language": "de",
+              "tag": "de"
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at.monoUs"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "at": {
+            "monoUs": -1
+          },
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "version": "2.4.0",
+                "buildNumber": "240",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "manufacturer": "Google",
+                "model": "Pixel 8",
+                "osVersion": "15",
+                "networkType": "wifi",
+                "screenSize": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "screenDensity": 2.625,
+                "screenDpi": 420,
+                "screenPixelDensity": 2.625
+              },
+              "ip": {
+                "ip": "203.0.113.7"
+              },
+              "locale": {
+                "language": "en",
+                "country": "US",
+                "timezone": "Europe/Lisbon"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at.monoUs"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "engine.configure",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "host": {
+              "app": {
+                "name": "Example App",
+                "version": "2.4.0",
+                "buildNumber": "240",
+                "installationId": "inst-0001",
+                "appId": "com.example.app"
+              },
+              "device": {
+                "id": "device-0001",
+                "platform": "android",
+                "manufacturer": "Google",
+                "model": "Pixel 8",
+                "osVersion": "15",
+                "networkType": "wifi",
+                "screenSize": {
+                  "width": 412.0,
+                  "height": 915.0
+                },
+                "screenDensity": 2.625,
+                "screenDpi": 420,
+                "screenPixelDensity": 2.625
+              },
+              "ip": {
+                "ip": "203.0.113.7"
+              },
+              "locale": {
+                "language": "en",
+                "country": "US",
+                "timezone": "Europe/Lisbon"
+              },
+              "configuredUserId": null
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "fingerprint.labelHash",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "value": "a"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.at"
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": null
+  }
+}

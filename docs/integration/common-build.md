@@ -5,6 +5,7 @@ From the repository root:
 ```sh
 dart pub get
 bash tool/ci/run-image-core-tests.sh
+bash tool/ci/run-session-engine-tests.sh
 bash tool/ci/build-android-runtime.sh
 bash tool/ci/run-flutter-tests.sh
 bash tool/ci/verify-native-capture-pigeon.sh

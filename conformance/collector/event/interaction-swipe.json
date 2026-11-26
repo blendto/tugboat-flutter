@@ -1,0 +1,155 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "interaction-swipe",
+  "description": "Two-finger swipe. payload carries position, endPosition, delta (raw double subtraction, not rounded), and pointerCount.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "2.4.0",
+        "buildNumber": "240",
+        "installationId": "inst-0001",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0001",
+        "platform": "android",
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "osVersion": "15",
+        "batteryPercent": 81,
+        "storageFreeMb": 20480,
+        "ramMb": 8192,
+        "networkType": "wifi",
+        "screenSize": {
+          "width": 412.0,
+          "height": 915.0
+        },
+        "screenDensity": 2.625,
+        "screenDpi": 420,
+        "screenPixelDensity": 2.625
+      },
+      "ip": {
+        "ip": "203.0.113.7",
+        "city": "Lisbon",
+        "region": "Lisbon",
+        "country": "PT",
+        "timezone": "Europe/Lisbon",
+        "isp": "Example ISP",
+        "org": "Example Org"
+      },
+      "locale": {
+        "language": "en",
+        "country": "US",
+        "timezone": "Europe/Lisbon"
+      },
+      "configuredUserId": "user-configured"
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "event": {
+      "id": "event-50",
+      "atMs": 61000,
+      "type": "interaction",
+      "stream": "semantic",
+      "targetAnchor": {
+        "schemaVersion": 6,
+        "widgetType": "PageView",
+        "role": "scrollable",
+        "fingerprint": "77aa00bb11cc22dd",
+        "fingerprintConfidence": "low",
+        "canonicalPath": "Scaffold#0/PageView#0",
+        "relativePosition": "center",
+        "actions": [
+          "scrollLeft",
+          "scrollRight"
+        ]
+      },
+      "beforeFrame": "frame-40",
+      "afterFrame": "frame-41",
+      "data": {
+        "interactionSchema": 2,
+        "gesture": "swipe",
+        "route": "/gallery",
+        "targetFingerprint": "77aa00bb11cc22dd",
+        "payload": {
+          "position": {
+            "xNorm": 0.8,
+            "yNorm": 0.5
+          },
+          "endPosition": {
+            "xNorm": 0.2,
+            "yNorm": 0.5
+          },
+          "delta": {
+            "xNorm": -0.6000000000000001,
+            "yNorm": 0.0
+          },
+          "pointerCount": 2
+        }
+      }
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-50",
+      "atMs": 61000,
+      "triggeredAt": "2026-06-19T00:01:01.000Z",
+      "sessionId": "collector-session-9",
+      "userId": "user-runtime",
+      "eventType": "interaction",
+      "stream": "semantic",
+      "enrichmentCandidate": true,
+      "interactionSchema": 2,
+      "route": "/gallery",
+      "targetFingerprint": "77aa00bb11cc22dd",
+      "gesture": "swipe",
+      "payload": {
+        "position": {
+          "xNorm": 0.8,
+          "yNorm": 0.5
+        },
+        "endPosition": {
+          "xNorm": 0.2,
+          "yNorm": 0.5
+        },
+        "delta": {
+          "xNorm": -0.6000000000000001,
+          "yNorm": 0.0
+        },
+        "pointerCount": 2
+      },
+      "targetAnchor": {
+        "fingerprint": "77aa00bb11cc22dd",
+        "canonicalPath": "Scaffold#0/PageView#0",
+        "widgetType": "PageView",
+        "role": "scrollable",
+        "fingerprintConfidence": "low",
+        "relativePosition": "center",
+        "actions": [
+          "scrollLeft",
+          "scrollRight"
+        ]
+      },
+      "beforeFrame": "frame-40",
+      "afterFrame": "frame-41",
+      "traitsId": "traits-123",
+      "build": {
+        "appId": "com.example.app",
+        "platform": "android",
+        "versionName": "2.4.0",
+        "buildNumber": "240",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

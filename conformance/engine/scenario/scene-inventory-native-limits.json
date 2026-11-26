@@ -1,0 +1,1111 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "scene-inventory-native-limits",
+  "description": "Native scene.inventory limits (C20) with maxSceneInventoryElements 2 standing in for the default 500: totalElements reports adapter-side truncation, the capture_diagnostic is recorded only for a new dedupe key, scrollKey dedupe, an empty canonicalPath, the bounds epsilon, and string, alias, and action bounds.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "engineOnly": [
+    "C20"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      },
+      "capabilities": {
+        "nativeSceneInventory": true
+      },
+      "limits": {
+        "maxSceneInventoryElements": 2
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6000000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "1111111111111111",
+                "canonicalPath": "",
+                "boundsNorm": {
+                  "left": 0.0,
+                  "top": 0.0,
+                  "width": 1.0,
+                  "height": 1.0
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "2222222222222222",
+                "canonicalPath": "Button#0",
+                "boundsNorm": {
+                  "left": 0.5,
+                  "top": 0.25,
+                  "width": 0.5000000001,
+                  "height": 0.25
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "totalElements": 2000
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 1000,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "scene_inventory",
+                  "truncatedFrom": 2000
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 1000,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "10b98fce7d4380af",
+                  "routeKey": "/home",
+                  "elements": [
+                    {
+                      "fingerprint": "1111111111111111",
+                      "canonicalPath": "",
+                      "boundsNorm": {
+                        "left": 0.0,
+                        "top": 0.0,
+                        "width": 1.0,
+                        "height": 1.0
+                      },
+                      "tier": "interactive",
+                      "actions": [
+                        "tap"
+                      ]
+                    },
+                    {
+                      "fingerprint": "2222222222222222",
+                      "canonicalPath": "Button#0",
+                      "boundsNorm": {
+                        "left": 0.5,
+                        "top": 0.25,
+                        "width": 0.5000000001,
+                        "height": 0.25
+                      },
+                      "tier": "interactive",
+                      "actions": [
+                        "tap"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        },
+        "note": "C20: totalElements 2000 over the limit (2) records truncatedFrom 2000 though only 2 elements were sent. A route-root element has canonicalPath \"\" (as targetAnchor allows); left + width within 1e-9 of 1 is accepted."
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6100000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "1111111111111111",
+                "canonicalPath": "",
+                "boundsNorm": {
+                  "left": 0.0,
+                  "top": 0.0,
+                  "width": 1.0,
+                  "height": 1.0
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "2222222222222222",
+                "canonicalPath": "Button#0",
+                "boundsNorm": {
+                  "left": 0.5,
+                  "top": 0.25,
+                  "width": 0.5000000001,
+                  "height": 0.25
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "totalElements": 2000
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        },
+        "note": "The same inventory again: deduped on routeKey|inventoryHash|, and no second capture_diagnostic."
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6200000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "3333333333333333",
+                "canonicalPath": "TextView#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "content",
+                "role": "display"
+              },
+              {
+                "fingerprint": "4444444444444444",
+                "canonicalPath": "TextView#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "content",
+                "role": "display"
+              },
+              {
+                "fingerprint": "5555555555555555",
+                "canonicalPath": "TextView#2",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "content",
+                "role": "display"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 1200,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "scene_inventory",
+                  "truncatedFrom": 3
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-5",
+                "atMs": 1200,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "bbad0036afedf7ee",
+                  "routeKey": "/home",
+                  "elements": [
+                    {
+                      "fingerprint": "3333333333333333",
+                      "canonicalPath": "TextView#0",
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "content",
+                      "role": "display"
+                    },
+                    {
+                      "fingerprint": "4444444444444444",
+                      "canonicalPath": "TextView#1",
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "content",
+                      "role": "display"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        },
+        "note": "Without totalElements, more elements than the limit: truncated to the first 2, truncatedFrom 3."
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6250000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "3333333333333333",
+                "canonicalPath": "TextView#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "content",
+                "role": "display"
+              },
+              {
+                "fingerprint": "4444444444444444",
+                "canonicalPath": "TextView#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "content",
+                "role": "display"
+              },
+              {
+                "fingerprint": "5555555555555555",
+                "canonicalPath": "TextView#2",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "content",
+                "role": "display"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        },
+        "note": "The same oversized inventory again: deduped, and no second capture_diagnostic."
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6300000
+          },
+          "input": {
+            "routeKey": "/list",
+            "elements": [
+              {
+                "fingerprint": "6666666666666666",
+                "canonicalPath": "[item:0]/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "scrollKey": "feed:1"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-6",
+                "atMs": 1300,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "6d719c54bb6f1e80",
+                  "routeKey": "/list",
+                  "elements": [
+                    {
+                      "fingerprint": "6666666666666666",
+                      "canonicalPath": "[item:0]/Button#0",
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive",
+                      "actions": [
+                        "tap"
+                      ]
+                    }
+                  ],
+                  "scrollKey": "feed:1"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        },
+        "note": "scrollKey joins the dedupe key and is kept in the event data."
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6400000
+          },
+          "input": {
+            "routeKey": "/list",
+            "elements": [
+              {
+                "fingerprint": "6666666666666666",
+                "canonicalPath": "[item:0]/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "scrollKey": "feed:1"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        },
+        "note": "Same routeKey, hash, and scrollKey: deduped."
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6500000
+          },
+          "input": {
+            "routeKey": "/list",
+            "elements": [
+              {
+                "fingerprint": "6666666666666666",
+                "canonicalPath": "[item:0]/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "scrollKey": "feed:2"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-7",
+                "atMs": 1500,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "6d719c54bb6f1e80",
+                  "routeKey": "/list",
+                  "elements": [
+                    {
+                      "fingerprint": "6666666666666666",
+                      "canonicalPath": "[item:0]/Button#0",
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive",
+                      "actions": [
+                        "tap"
+                      ]
+                    }
+                  ],
+                  "scrollKey": "feed:2"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        },
+        "note": "A new scrollKey with the same hash is a new inventory."
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6600000
+          },
+          "input": {
+            "routeKey": "/list",
+            "elements": [
+              {
+                "fingerprint": "6666666666666666",
+                "canonicalPath": "[item:0]/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ]
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-8",
+                "atMs": 1600,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "6d719c54bb6f1e80",
+                  "routeKey": "/list",
+                  "elements": [
+                    {
+                      "fingerprint": "6666666666666666",
+                      "canonicalPath": "[item:0]/Button#0",
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive",
+                      "actions": [
+                        "tap"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        },
+        "note": "No scrollKey is the empty one: a new key again."
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6700000
+          },
+          "input": {
+            "routeKey": "/bounds",
+            "elements": [
+              {
+                "fingerprint": "7777777777777777",
+                "canonicalPath": "Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "widgetType": "View",
+                "role": "button",
+                "actions": [
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap"
+                ],
+                "aliases": [
+                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "0000000000000001",
+                  "0000000000000002",
+                  "0000000000000003",
+                  "0000000000000004",
+                  "0000000000000005",
+                  "0000000000000006",
+                  "0000000000000007",
+                  "0000000000000008",
+                  "0000000000000009",
+                  "0000000000000010",
+                  "0000000000000011",
+                  "0000000000000012",
+                  "0000000000000013",
+                  "0000000000000014",
+                  "0000000000000015",
+                  "0000000000000016"
+                ]
+              }
+            ]
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-9",
+                "atMs": 1700,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "88bfcc74bcaf1cde",
+                  "routeKey": "/bounds",
+                  "elements": [
+                    {
+                      "fingerprint": "7777777777777777",
+                      "canonicalPath": "Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#",
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive",
+                      "widgetType": "View",
+                      "role": "button",
+                      "actions": [
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap",
+                        "tap"
+                      ],
+                      "aliases": [
+                        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "0000000000000001",
+                        "0000000000000002",
+                        "0000000000000003",
+                        "0000000000000004",
+                        "0000000000000005",
+                        "0000000000000006",
+                        "0000000000000007",
+                        "0000000000000008",
+                        "0000000000000009",
+                        "0000000000000010",
+                        "0000000000000011",
+                        "0000000000000012",
+                        "0000000000000013",
+                        "0000000000000014",
+                        "0000000000000015"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        },
+        "note": "Strings are bounded to 1024 UTF-16 units; aliases and actions to 16 entries each."
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6800000
+          },
+          "input": {
+            "routeKey": "/bounds",
+            "elements": [
+              {
+                "fingerprint": "8888888888888888",
+                "canonicalPath": "Button#0",
+                "boundsNorm": {
+                  "left": 0.5,
+                  "top": 0.25,
+                  "width": 0.501,
+                  "height": 0.25
+                },
+                "tier": "interactive"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.elements[0].boundsNorm"
+          }
+        },
+        "note": "left + width beyond 1 + 1e-9 is out of range."
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-2",
+          "atMs": 1000,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "scene_inventory",
+            "truncatedFrom": 2000
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 1000,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "10b98fce7d4380af",
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "1111111111111111",
+                "canonicalPath": "",
+                "boundsNorm": {
+                  "left": 0.0,
+                  "top": 0.0,
+                  "width": 1.0,
+                  "height": 1.0
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "2222222222222222",
+                "canonicalPath": "Button#0",
+                "boundsNorm": {
+                  "left": 0.5,
+                  "top": 0.25,
+                  "width": 0.5000000001,
+                  "height": 0.25
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 1200,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "scene_inventory",
+            "truncatedFrom": 3
+          }
+        },
+        {
+          "id": "event-5",
+          "atMs": 1200,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "bbad0036afedf7ee",
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "3333333333333333",
+                "canonicalPath": "TextView#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "content",
+                "role": "display"
+              },
+              {
+                "fingerprint": "4444444444444444",
+                "canonicalPath": "TextView#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "content",
+                "role": "display"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-6",
+          "atMs": 1300,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "6d719c54bb6f1e80",
+            "routeKey": "/list",
+            "elements": [
+              {
+                "fingerprint": "6666666666666666",
+                "canonicalPath": "[item:0]/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "scrollKey": "feed:1"
+          }
+        },
+        {
+          "id": "event-7",
+          "atMs": 1500,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "6d719c54bb6f1e80",
+            "routeKey": "/list",
+            "elements": [
+              {
+                "fingerprint": "6666666666666666",
+                "canonicalPath": "[item:0]/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "scrollKey": "feed:2"
+          }
+        },
+        {
+          "id": "event-8",
+          "atMs": 1600,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "6d719c54bb6f1e80",
+            "routeKey": "/list",
+            "elements": [
+              {
+                "fingerprint": "6666666666666666",
+                "canonicalPath": "[item:0]/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-9",
+          "atMs": 1700,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "88bfcc74bcaf1cde",
+            "routeKey": "/bounds",
+            "elements": [
+              {
+                "fingerprint": "7777777777777777",
+                "canonicalPath": "Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "widgetType": "View",
+                "role": "button",
+                "actions": [
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap",
+                  "tap"
+                ],
+                "aliases": [
+                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "0000000000000001",
+                  "0000000000000002",
+                  "0000000000000003",
+                  "0000000000000004",
+                  "0000000000000005",
+                  "0000000000000006",
+                  "0000000000000007",
+                  "0000000000000008",
+                  "0000000000000009",
+                  "0000000000000010",
+                  "0000000000000011",
+                  "0000000000000012",
+                  "0000000000000013",
+                  "0000000000000014",
+                  "0000000000000015"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

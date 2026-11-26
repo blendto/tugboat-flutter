@@ -1,0 +1,25 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "method-16-units",
+  "description": "A 16-unit method is kept.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "mmmmmmmmmmmmmmmm",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response"
+  },
+  "expected": {
+    "data": {
+      "method": "MMMMMMMMMMMMMMMM",
+      "route": "/v1/orders/123",
+      "outcome": "response",
+      "durationMs": 150
+    }
+  }
+}

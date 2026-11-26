@@ -1,0 +1,347 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "evidence-network-call",
+  "description": "evidence.networkCall records network_call on the evidence stream at its start (startMonoUs, change C19; Dart stamps the finish), appended when it finishes. durationMs is the difference of the floored start and end readings; endMonoUs defaults to at.monoUs. A call before the first session, a call begun before the live session started (Dart's stale or no-op token), and an invalid route record nothing and mint no id.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "engineOnly": [
+    "C19"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 1000000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 900000,
+            "endMonoUs": null,
+            "statusCode": 200,
+            "outcome": "response",
+            "errorResponseBody": {
+              "value": "ignored below 400"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        },
+        "note": "Before the first session: dropped."
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 8000000
+          },
+          "input": {
+            "method": "post",
+            "route": "/v1/orders/123",
+            "startMonoUs": 6000400,
+            "statusCode": 422,
+            "outcome": "response",
+            "attemptCount": 2,
+            "errorResponseBody": {
+              "jsonText": "{\"error\":\"invalid\",\"field\":\"qty\"}"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 1000,
+                "type": "network_call",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "method": "POST",
+                  "route": "/v1/orders/123",
+                  "statusCode": 422,
+                  "outcome": "response",
+                  "durationMs": 2000,
+                  "attemptCount": 2,
+                  "errorResponseBody": {
+                    "error": "invalid",
+                    "field": "qty"
+                  },
+                  "errorResponseBodyCapture": {
+                    "format": "json",
+                    "representation": "native",
+                    "truncated": false
+                  }
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        },
+        "note": "Ends at at.monoUs: 3000 - 1000 = 2000 ms."
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 8100000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 4999999,
+            "endMonoUs": 8350999,
+            "statusCode": 200,
+            "outcome": "response",
+            "errorResponseBody": {
+              "value": "ignored below 400"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        },
+        "note": "Begun before the session started."
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 8150000
+          },
+          "input": {
+            "method": "GET",
+            "route": "",
+            "startMonoUs": 8200000,
+            "endMonoUs": 8350999,
+            "statusCode": 200,
+            "outcome": "response",
+            "errorResponseBody": {
+              "value": "ignored below 400"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        },
+        "note": "Empty route: Dart's no-op token."
+      },
+      {
+        "send": {
+          "type": "evidence.networkCall",
+          "at": {
+            "monoUs": 8400000
+          },
+          "input": {
+            "method": "GET",
+            "route": "/v1/items",
+            "startMonoUs": 8200000,
+            "endMonoUs": 8350999,
+            "statusCode": 200,
+            "outcome": "response",
+            "errorResponseBody": {
+              "value": "ignored below 400"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 3200,
+                "type": "network_call",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "method": "GET",
+                  "route": "/v1/items",
+                  "statusCode": 200,
+                  "outcome": "response",
+                  "durationMs": 150
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        },
+        "note": "floor(3350999 / 1000) - floor(3200000 / 1000) = 150."
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-2",
+          "atMs": 1000,
+          "type": "network_call",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "method": "POST",
+            "route": "/v1/orders/123",
+            "statusCode": 422,
+            "outcome": "response",
+            "durationMs": 2000,
+            "attemptCount": 2,
+            "errorResponseBody": {
+              "error": "invalid",
+              "field": "qty"
+            },
+            "errorResponseBodyCapture": {
+              "format": "json",
+              "representation": "native",
+              "truncated": false
+            }
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 3200,
+          "type": "network_call",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "method": "GET",
+            "route": "/v1/items",
+            "statusCode": 200,
+            "outcome": "response",
+            "durationMs": 150
+          }
+        }
+      ]
+    }
+  }
+}

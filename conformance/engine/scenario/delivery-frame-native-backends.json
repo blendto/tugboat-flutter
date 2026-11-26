@@ -1,0 +1,808 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-frame-native-backends",
+  "description": "The native SDKs' backend names are in the closed frameMetadata vocabulary: capture.result accepts androidPixelCopy and iosViewHierarchy as requestedBackend and resolvedBackend and forwards them verbatim to the frame record and the frame upload's frameMetadata; a name outside the vocabulary (iosPixelCopy, androidViewHierarchy) is still invalid_message, changing nothing.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": "user-configured"
+      },
+      "collector": {
+        "enabled": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5100000,
+            "wallUs": 1781827200100000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5110000,
+            "wallUs": 1781827200110000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "note": "the swipe asks for a capture",
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5120000,
+            "wallUs": 1781827200120000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5120000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10120000
+            }
+          ]
+        }
+      },
+      {
+        "note": "iosPixelCopy is outside the vocabulary: invalid_message, nothing changes",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5130000,
+            "wallUs": 1781827200130000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-bad",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-bad",
+              "masked": true,
+              "byteLength": 1,
+              "captureMicros": 1,
+              "requestedBackend": "iosPixelCopy"
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.frame.requestedBackend"
+          }
+        }
+      },
+      {
+        "note": "androidViewHierarchy is outside the vocabulary: invalid_message, nothing changes",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5140000,
+            "wallUs": 1781827200140000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-bad",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-bad",
+              "masked": true,
+              "byteLength": 1,
+              "captureMicros": 1,
+              "resolvedBackend": "androidViewHierarchy"
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.frame.resolvedBackend"
+          }
+        }
+      },
+      {
+        "note": "androidPixelCopy is accepted and forwarded verbatim to the frame record and frameMetadata",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5150000,
+            "wallUs": 1781827200150000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-capture_request-2",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-capture_request-2",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "androidPixelCopy",
+              "resolvedBackend": "androidPixelCopy"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-capture_request-2",
+              "frame": {
+                "id": "frame-5",
+                "atMs": 150,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-capture_request-2",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000",
+                "requestedBackend": "androidPixelCopy",
+                "resolvedBackend": "androidPixelCopy"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-5",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "frames",
+              "path": "/v1/frames",
+              "timeoutMs": 15000,
+              "multipart": {
+                "fields": [
+                  [
+                    "sessionId",
+                    "srv-1"
+                  ],
+                  [
+                    "frameNos",
+                    "5"
+                  ],
+                  [
+                    "frameMetadata",
+                    "[{\"id\":\"frame-5\",\"atMs\":150,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\",\"requestedBackend\":\"androidPixelCopy\",\"resolvedBackend\":\"androidPixelCopy\"}]"
+                  ]
+                ],
+                "frames": [
+                  {
+                    "handle": "h-capture_request-2",
+                    "filename": "5.jpg"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 25150000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5160000,
+            "wallUs": 1781827200160000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"afterFrame\":\"frame-5\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 25160000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5170000,
+            "wallUs": 1781827200170000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5200000,
+            "wallUs": 1781827200200000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5210000,
+            "wallUs": 1781827200210000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "move",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "note": "a second swipe asks for a capture",
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 5220000,
+            "wallUs": 1781827200220000
+          },
+          "input": {
+            "pointerId": 2,
+            "phase": "up",
+            "x": 100.0,
+            "y": 300.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-2",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5220000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10220000
+            }
+          ]
+        }
+      },
+      {
+        "note": "iosViewHierarchy is accepted and forwarded verbatim to the frame record and frameMetadata",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5230000,
+            "wallUs": 1781827200230000
+          },
+          "input": {
+            "requestId": "capture-2",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-ios",
+              "width": 1170,
+              "height": 2532,
+              "contentHash": "hash-ios",
+              "masked": true,
+              "byteLength": 52000,
+              "captureMicros": 9000,
+              "requestedBackend": "iosViewHierarchy",
+              "resolvedBackend": "iosViewHierarchy"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-ios",
+              "frame": {
+                "id": "frame-9",
+                "atMs": 230,
+                "width": 1170,
+                "height": 2532,
+                "contentHash": "hash-ios",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 52000,
+                "captureMicros": 9000,
+                "captureSessionId": "session-1781827200000000",
+                "requestedBackend": "iosViewHierarchy",
+                "resolvedBackend": "iosViewHierarchy"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-7",
+                "atMs": 200,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "beforeFrame": "frame-5",
+                "afterFrame": "frame-9",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "swipe"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-3",
+              "lane": "frames",
+              "path": "/v1/frames",
+              "timeoutMs": 15000,
+              "multipart": {
+                "fields": [
+                  [
+                    "sessionId",
+                    "srv-1"
+                  ],
+                  [
+                    "frameNos",
+                    "9"
+                  ],
+                  [
+                    "frameMetadata",
+                    "[{\"id\":\"frame-9\",\"atMs\":230,\"width\":1170,\"height\":2532,\"contentHash\":\"hash-ios\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":52000,\"captureMicros\":9000,\"captureSessionId\":\"session-1781827200000000\",\"requestedBackend\":\"iosViewHierarchy\",\"resolvedBackend\":\"iosViewHierarchy\"}]"
+                  ]
+                ],
+                "frames": [
+                  {
+                    "handle": "h-ios",
+                    "filename": "9.jpg"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-3",
+              "atMonoUs": 25230000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5240000,
+            "wallUs": 1781827200240000
+          },
+          "input": {
+            "requestId": "http-3",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-3"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-7\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-5\",\"afterFrame\":\"frame-9\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 25240000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5250000,
+            "wallUs": 1781827200250000
+          },
+          "input": {
+            "requestId": "http-4",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-4"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-5",
+          "atMs": 150,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-capture_request-2",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000",
+          "requestedBackend": "androidPixelCopy",
+          "resolvedBackend": "androidPixelCopy"
+        },
+        {
+          "id": "frame-9",
+          "atMs": 230,
+          "width": 1170,
+          "height": 2532,
+          "contentHash": "hash-ios",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 52000,
+          "captureMicros": 9000,
+          "captureSessionId": "session-1781827200000000",
+          "requestedBackend": "iosViewHierarchy",
+          "resolvedBackend": "iosViewHierarchy"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-3",
+          "atMs": 100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-5",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        },
+        {
+          "id": "event-7",
+          "atMs": 200,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "beforeFrame": "frame-5",
+          "afterFrame": "frame-9",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "swipe"
+          }
+        }
+      ]
+    }
+  }
+}

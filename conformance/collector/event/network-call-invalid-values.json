@@ -1,0 +1,82 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "network-call-invalid-values",
+  "description": "Edge: values outside the closed vocabulary are dropped field by field: unknown outcome, statusCode without outcome response, non-int durationMs, attemptCount 0, non-string method, and the error body (not an API error).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "installationId": "inst-0002",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390,
+          "height": 844
+        },
+        "screenDensity": 3,
+        "screenDpi": 460,
+        "screenPixelDensity": 3
+      },
+      "ip": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "configuredUserId": null
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "event": {
+      "id": "event-101",
+      "atMs": 100500,
+      "type": "network_call",
+      "stream": "evidence",
+      "data": {
+        "method": 7,
+        "route": "/v1/health",
+        "statusCode": 503,
+        "outcome": "timeout",
+        "durationMs": 12.5,
+        "attemptCount": 0,
+        "errorResponseBody": "Service Unavailable"
+      }
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-101",
+      "atMs": 100500,
+      "triggeredAt": "2026-06-19T00:01:40.500Z",
+      "sessionId": "collector-session-9",
+      "userId": "user-runtime",
+      "eventType": "network_call",
+      "stream": "evidence",
+      "enrichmentCandidate": false,
+      "traitsId": "traits-123",
+      "payload": {
+        "route": "/v1/health",
+        "stream": "evidence"
+      },
+      "build": {
+        "appId": "com.example.app",
+        "platform": "ios",
+        "versionName": "1.0.0",
+        "buildNumber": "1",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

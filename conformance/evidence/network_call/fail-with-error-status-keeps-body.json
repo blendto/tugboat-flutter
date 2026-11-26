@@ -1,0 +1,36 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "fail-with-error-status-keeps-body",
+  "description": "The body rule depends on statusCode only: a failure with status 503 keeps its body.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "network_error",
+    "statusCode": 503,
+    "errorResponseBody": {
+      "value": "busy"
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 503,
+      "outcome": "network_error",
+      "durationMs": 150,
+      "errorResponseBody": "busy",
+      "errorResponseBodyCapture": {
+        "format": "text",
+        "representation": "native",
+        "truncated": false
+      }
+    }
+  }
+}

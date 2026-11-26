@@ -1,0 +1,81 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "transform-results",
+  "description": "transform: the host sends each valid key's transform result. {drop} (the sentinel or a thrown closure) adds 1 to droppedCount without truncated; a null result is kept as null; an invalid key is never transformed and is dropped with truncated.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "profile",
+    "policy": {
+      "mode": "transform"
+    },
+    "parameters": {
+      "map": [
+        [
+          "email",
+          {
+            "drop": true
+          }
+        ],
+        [
+          "plan",
+          "pro"
+        ],
+        [
+          "cleared",
+          null
+        ],
+        [
+          "",
+          null
+        ],
+        [
+          "nested",
+          {
+            "map": [
+              [
+                "x",
+                {
+                  "double": 2.5
+                }
+              ]
+            ]
+          }
+        ],
+        [
+          "bad",
+          {
+            "double": "NaN"
+          }
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "profile",
+      "parameterKeys": [
+        "email",
+        "plan",
+        "cleared",
+        "nested",
+        "bad"
+      ],
+      "parameters": {
+        "plan": "pro",
+        "cleared": null,
+        "nested": {
+          "x": 2.5
+        }
+      },
+      "capture": {
+        "values": "transform",
+        "truncated": true,
+        "droppedCount": 3
+      }
+    }
+  }
+}

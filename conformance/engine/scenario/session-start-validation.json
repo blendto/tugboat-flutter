@@ -1,0 +1,284 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "session-start-validation",
+  "description": "session.start needs a viewport with finite, non-negative width and height, a platform, and a non-negative integer sessionEpoch; a locale needs language and tag; unknown keys are rejected.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.viewport"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": -1,
+              "height": 1
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.viewport.width"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": "1"
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.viewport.height"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.platform"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "platform": "android"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.sessionEpoch"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "platform": "android",
+            "sessionEpoch": -1
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.sessionEpoch"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "locale": {
+              "language": "en"
+            }
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.locale.tag"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 1,
+              "height": 1
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "userId": "u"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.userId"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "state": "suspended"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.state"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "reason": "crash"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.reason"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.pointerDown",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {}
+        },
+        "expect": {
+          "error": {
+            "status": "unsupported_message",
+            "path": "$.type"
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": null
+  }
+}

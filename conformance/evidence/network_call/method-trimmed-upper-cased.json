@@ -1,0 +1,25 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "method-trimmed-upper-cased",
+  "description": "The method is trimmed (Dart whitespace) and upper-cased.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "\u00a0 patch\t",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response"
+  },
+  "expected": {
+    "data": {
+      "method": "PATCH",
+      "route": "/v1/orders/123",
+      "outcome": "response",
+      "durationMs": 150
+    }
+  }
+}

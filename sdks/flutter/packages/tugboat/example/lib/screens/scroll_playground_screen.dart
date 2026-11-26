@@ -22,56 +22,47 @@ class ScrollPlaygroundScreen extends StatelessWidget {
           DemoSection(
             title: 'Long vertical feed',
             children: [
-              TugboatSubView(
-                label: 'vertical-feed',
-                child: SizedBox(
-                  height: 220,
-                  child: ListView.builder(
-                    itemCount: 30,
-                    itemBuilder: (context, index) =>
-                        ListTile(title: Text('Feed row $index')),
-                  ),
+              SizedBox(
+                height: 220,
+                child: ListView.builder(
+                  itemCount: 30,
+                  itemBuilder: (context, index) =>
+                      ListTile(title: Text('Feed row $index')),
                 ),
-              ),
+              ).tugboatSubView('vertical-feed'),
             ],
           ),
           DemoSection(
             title: 'Nested horizontal carousel',
             children: [
-              TugboatSubView(
-                label: 'carousel',
-                child: SizedBox(
-                  height: 120,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: 12,
-                    itemBuilder: (context, index) => Container(
-                      width: 140,
-                      margin: const EdgeInsets.only(right: 8),
-                      color: Colors.primaries[index % Colors.primaries.length],
-                      alignment: Alignment.center,
-                      child: Text('Card $index'),
-                    ),
+              SizedBox(
+                height: 120,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: 12,
+                  itemBuilder: (context, index) => Container(
+                    width: 140,
+                    margin: const EdgeInsets.only(right: 8),
+                    color: Colors.primaries[index % Colors.primaries.length],
+                    alignment: Alignment.center,
+                    child: Text('Card $index'),
                   ),
                 ),
-              ),
+              ).tugboatSubView('carousel'),
             ],
           ),
           DemoSection(
             title: 'Static image (dead swipe target)',
             children: [
-              TugboatSubView(
-                label: 'hero-image',
-                child: Container(
-                  height: 180,
-                  decoration: BoxDecoration(
-                    color: Colors.blueGrey.shade200,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.image_outlined, size: 64),
+              Container(
+                height: 180,
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.shade200,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.image_outlined, size: 64),
+              ).tugboatSubView('hero-image'),
             ],
           ),
           DemoSection(

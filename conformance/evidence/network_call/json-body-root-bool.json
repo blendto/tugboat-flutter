@@ -1,0 +1,36 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-body-root-bool",
+  "description": "A boolean root is a json body.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 500,
+    "errorResponseBody": {
+      "value": false
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 500,
+      "outcome": "response",
+      "durationMs": 150,
+      "errorResponseBody": false,
+      "errorResponseBodyCapture": {
+        "format": "json",
+        "representation": "native",
+        "truncated": false
+      }
+    }
+  }
+}

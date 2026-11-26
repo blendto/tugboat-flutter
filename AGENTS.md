@@ -11,6 +11,11 @@ A mobile monorepo (Dart pub workspace + Melos 7), not a single package:
 
 - `core/image-processing` — portable C++ CPU core with a C ABI; never copied
   into the published pub package.
+- `core/session-engine` — I/O-free C++ session engine behind a versioned C ABI
+  (ADR 0009); built into the native Android (`tugboat-android`) and Swift
+  (`Tugboat`) SDKs, not yet into Flutter. `conformance/` holds the golden
+  fixtures it must match; the Dart SDK runs the kinds it still matches
+  (`bash tool/ci/run-session-engine-tests.sh`).
 - `platforms/android` — `com.gettugboat.sdk:capture-runtime` AAR. The Flutter
   plugin consumes it from **Maven Central** (or untracked `.local-maven/`
   after a local build); it does not compile `platforms/android` from source.

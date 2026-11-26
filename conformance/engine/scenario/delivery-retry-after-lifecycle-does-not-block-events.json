@@ -1,0 +1,757 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-retry-after-lifecycle-does-not-block-events",
+  "description": "A lifecycle post (user_changed) answered 429 with Retry-After 60 waits 60 s on the lifecycle lane only: events and a tap's frame still go out while it waits, a flush just before the deadline sends no /v1/sessions, and the lane timer sends user_changed.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": "user-configured"
+      },
+      "collector": {
+        "enabled": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5000000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "failed"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "identity.set",
+          "at": {
+            "monoUs": 5150000,
+            "wallUs": 1781827200150000
+          },
+          "input": {
+            "userId": "user-2"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.identity",
+              "atMonoUs": 8150000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 8150000,
+            "wallUs": 1781827203150000
+          },
+          "input": {
+            "timerId": "delivery.identity"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":150,\"triggeredAt\":\"2026-06-19T00:00:00.150Z\",\"userId\":\"user-2\"}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 28150000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 8200000,
+            "wallUs": 1781827203200000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 429,
+            "retryAfter": "60"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.retryAfter.lifecycle",
+              "atMonoUs": 68200000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 9000000,
+            "wallUs": 1781827204000000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "a"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 4000,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "name": "a"
+                }
+              },
+              "userId": "user-2"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 9010000,
+            "wallUs": 1781827204010000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":4000,\"triggeredAt\":\"2026-06-19T00:00:04.000Z\",\"userId\":\"user-2\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"a\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 29010000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9020000,
+            "wallUs": 1781827204020000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 9100000,
+            "wallUs": 1781827204100000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "down",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "input.pointer",
+          "at": {
+            "monoUs": 9120000,
+            "wallUs": 1781827204120000
+          },
+          "input": {
+            "pointerId": 1,
+            "phase": "up",
+            "x": 100.0,
+            "y": 100.0,
+            "device": "touch"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.sweep",
+              "atMonoUs": 10370000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-4",
+              "atMonoUs": 10120000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 10120000,
+            "wallUs": 1781827205120000
+          },
+          "input": {
+            "timerId": "interaction.settle.event-4"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-4",
+              "atMonoUs": 10370000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 10370000,
+            "wallUs": 1781827205370000
+          },
+          "input": {
+            "timerId": "interaction.sweep"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 10370000,
+            "wallUs": 1781827205370000
+          },
+          "input": {
+            "timerId": "interaction.settle.event-4"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 10370000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 15370000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 10400000,
+            "wallUs": 1781827205400000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-tap-1",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-tap-1",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-tap-1",
+              "frame": {
+                "id": "frame-6",
+                "atMs": 5400,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-tap-1",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 4100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-6",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "tap"
+                }
+              },
+              "userId": "user-2"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-3",
+              "lane": "frames",
+              "path": "/v1/frames",
+              "timeoutMs": 15000,
+              "multipart": {
+                "fields": [
+                  [
+                    "sessionId",
+                    "srv-1"
+                  ],
+                  [
+                    "frameNos",
+                    "6"
+                  ],
+                  [
+                    "frameMetadata",
+                    "[{\"id\":\"frame-6\",\"atMs\":5400,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-tap-1\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\"}]"
+                  ]
+                ],
+                "frames": [
+                  {
+                    "handle": "h-tap-1",
+                    "filename": "6.jpg"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-3",
+              "atMonoUs": 30400000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 10410000,
+            "wallUs": 1781827205410000
+          },
+          "input": {
+            "requestId": "http-3",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-3"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-4\",\"atMs\":4100,\"triggeredAt\":\"2026-06-19T00:00:04.100Z\",\"userId\":\"user-2\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"tap\",\"afterFrame\":\"frame-6\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 30410000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 10420000,
+            "wallUs": 1781827205420000
+          },
+          "input": {
+            "requestId": "http-4",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-4"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 68100000,
+            "wallUs": 1781827263100000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 68200000,
+            "wallUs": 1781827263200000
+          },
+          "input": {
+            "timerId": "delivery.retryAfter.lifecycle"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-5",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":150,\"triggeredAt\":\"2026-06-19T00:00:00.150Z\",\"userId\":\"user-2\"}"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-5",
+              "atMonoUs": 88200000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 68300000,
+            "wallUs": 1781827263300000
+          },
+          "input": {
+            "requestId": "http-5",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-5"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-6",
+          "atMs": 5400,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-tap-1",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-3",
+          "atMs": 4000,
+          "type": "external_event",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "name": "a"
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 4100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-6",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "tap"
+          }
+        }
+      ]
+    }
+  },
+  "dartParity": "delivery"
+}

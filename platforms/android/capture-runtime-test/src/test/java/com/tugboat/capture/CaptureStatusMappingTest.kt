@@ -14,11 +14,34 @@ class CaptureStatusMappingTest {
         assertEquals("ProcessingFailed", CaptureStatus.ProcessingFailed.name)
         assertEquals("Cancelled", CaptureStatus.Cancelled.name)
         assertEquals("Disposed", CaptureStatus.Disposed.name)
+        assertEquals("SecureWindow", CaptureStatus.SecureWindow.name)
     }
 
     @Test
-    fun coverageHasEngineSurfaceOnly() {
-        assertEquals(1, CaptureCoverage.entries.size)
-        assertEquals(CaptureCoverage.EngineSurface, CaptureCoverage.entries.single())
+    fun statusOrderIsAppendOnly() {
+        assertEquals(
+            listOf(
+                CaptureStatus.Ok,
+                CaptureStatus.SkippedByDHash,
+                CaptureStatus.UnsupportedApi,
+                CaptureStatus.UnsupportedRenderMode,
+                CaptureStatus.SurfaceUnavailable,
+                CaptureStatus.Timeout,
+                CaptureStatus.PixelCopyFailed,
+                CaptureStatus.ProcessingFailed,
+                CaptureStatus.Cancelled,
+                CaptureStatus.Disposed,
+                CaptureStatus.SecureWindow,
+            ),
+            CaptureStatus.entries,
+        )
+    }
+
+    @Test
+    fun coverageIsEngineSurfaceOrWindowComposite() {
+        assertEquals(
+            listOf(CaptureCoverage.EngineSurface, CaptureCoverage.WindowComposite),
+            CaptureCoverage.entries,
+        )
     }
 }

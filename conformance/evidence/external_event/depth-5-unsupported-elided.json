@@ -1,0 +1,52 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "depth-5-unsupported-elided",
+  "description": "A host sends any value at depth 5 as unsupported: the result equals sending it.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "deep",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "v",
+          [
+            [
+              [
+                {
+                  "unsupported": true
+                }
+              ]
+            ]
+          ]
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "deep",
+      "parameterKeys": [
+        "v"
+      ],
+      "parameters": {
+        "v": [
+          [
+            []
+          ]
+        ]
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": true,
+        "droppedCount": 1
+      }
+    }
+  }
+}

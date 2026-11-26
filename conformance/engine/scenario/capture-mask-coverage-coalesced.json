@@ -1,0 +1,641 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "capture-mask-coverage-coalesced",
+  "description": "Perceptual coalescing compares only the dHash and the host's structureSignature, never maskCoverage (section 8.2): a host whose coverage change should split frames folds it into its structure token. Two answers match the offered baseline's dHash and structure but carry other coverage, first another reason under the same mode (an Apple whole-frame fallback whose reason changes), then another mode. Both are perceptual_hash_coalesced onto frame-2, released, and record no capture_masking; the coverage of frame-2 stays the only one recorded.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "app": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app"
+        },
+        "device": {
+          "id": "device-0001",
+          "platform": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8",
+          "osVersion": "15",
+          "networkType": "wifi",
+          "screenSize": {
+            "width": 412.0,
+            "height": 915.0
+          },
+          "screenDensity": 2.625,
+          "screenDpi": 420,
+          "screenPixelDensity": 2.625
+        },
+        "ip": {
+          "ip": "203.0.113.7"
+        },
+        "locale": {
+          "language": "en",
+          "country": "US",
+          "timezone": "Europe/Lisbon"
+        },
+        "configuredUserId": null
+      },
+      "capabilities": {
+        "systemInput": true,
+        "captureDiagnostics": true
+      },
+      "interaction": {
+        "settleDelayMs": 0
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "Accepted: frame-2, a whole-frame fallback with reason unverifiedLayerAllowlist.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5050000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-initial",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-screen",
+              "dHash": "d0",
+              "structureSignature": "s0",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "nativeCpuExperimental",
+              "resolvedBackend": "nativeCpuExperimental",
+              "maskCoverage": {
+                "mode": "wholeFrame",
+                "reasons": [
+                  "unverifiedLayerAllowlist"
+                ]
+              }
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-initial",
+              "frame": {
+                "id": "frame-2",
+                "atMs": 50,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-screen",
+                "masked": true,
+                "trigger": "initial",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-1781827200000000",
+                "requestedBackend": "nativeCpuExperimental",
+                "resolvedBackend": "nativeCpuExperimental"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 50,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "component": "capture_masking",
+                  "frameId": "frame-2",
+                  "mode": "wholeFrame",
+                  "reasons": [
+                    "unverifiedLayerAllowlist"
+                  ]
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-5",
+                "atMs": 50,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "version": 1,
+                  "outcome": "fresh_accepted",
+                  "requestId": "capture_request-1",
+                  "executionId": "capture_execution-4",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "initial",
+                  "visualEvidence": "fresh",
+                  "interactionEvidence": "not_applicable",
+                  "requestedBackend": "nativeCpuExperimental",
+                  "resolvedBackend": "nativeCpuExperimental"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
+        }
+      },
+      {
+        "note": "A reusable manual capture, offered the d0/s0 baseline.",
+        "send": {
+          "type": "systemInput",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "input": "back"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5100000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "dHashBaseline": {
+                "dHash": "d0",
+                "structureSignature": "s0"
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10100000
+            }
+          ]
+        }
+      },
+      {
+        "note": "Same dHash and structure, another reason under the same mode (animating): coalesced, released, no capture_masking.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5110000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-animating",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-animating",
+              "dHash": "d0",
+              "structureSignature": "s0",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "nativeCpuExperimental",
+              "resolvedBackend": "nativeCpuExperimental",
+              "maskCoverage": {
+                "mode": "wholeFrame",
+                "reasons": [
+                  "animating"
+                ]
+              }
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-9",
+                "atMs": 110,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "version": 1,
+                  "outcome": "perceptual_hash_coalesced",
+                  "requestId": "capture_request-7",
+                  "executionId": "capture_execution-8",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "manual",
+                  "visualEvidence": "reused",
+                  "interactionEvidence": "not_applicable",
+                  "reuseReason": "dhash",
+                  "requestedBackend": "nativeCpuExperimental",
+                  "resolvedBackend": "nativeCpuExperimental"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-6",
+                "atMs": 100,
+                "type": "system_input",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "input": "back"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-animating"
+            }
+          ]
+        }
+      },
+      {
+        "note": "A reusable manual capture, offered the d0/s0 baseline.",
+        "send": {
+          "type": "systemInput",
+          "at": {
+            "monoUs": 5200000
+          },
+          "input": {
+            "input": "back"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-2",
+              "trigger": "manual",
+              "force": false,
+              "requireFreshPaint": false,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5200000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "dHashBaseline": {
+                "dHash": "d0",
+                "structureSignature": "s0"
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-2",
+              "atMonoUs": 10200000
+            }
+          ]
+        }
+      },
+      {
+        "note": "Same dHash and structure, another mode (precise, no reasons): coalesced, released, no capture_masking.",
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5210000
+          },
+          "input": {
+            "requestId": "capture-2",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-precise",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-precise",
+              "dHash": "d0",
+              "structureSignature": "s0",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000,
+              "requestedBackend": "nativeCpuExperimental",
+              "resolvedBackend": "nativeCpuExperimental",
+              "maskCoverage": {
+                "mode": "precise",
+                "reasons": []
+              }
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-13",
+                "atMs": 210,
+                "type": "capture_diagnostic",
+                "stream": "diagnostic",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "version": 1,
+                  "outcome": "perceptual_hash_coalesced",
+                  "requestId": "capture_request-11",
+                  "executionId": "capture_execution-12",
+                  "captureSessionId": "session-1781827200000000",
+                  "routeEpoch": 0,
+                  "trigger": "manual",
+                  "visualEvidence": "reused",
+                  "interactionEvidence": "not_applicable",
+                  "reuseReason": "dhash",
+                  "requestedBackend": "nativeCpuExperimental",
+                  "resolvedBackend": "nativeCpuExperimental"
+                }
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-10",
+                "atMs": 200,
+                "type": "system_input",
+                "stream": "evidence",
+                "captureSessionId": "session-1781827200000000",
+                "afterFrame": "frame-2",
+                "data": {
+                  "input": "back"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-2"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-precise"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-2",
+          "atMs": 50,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-screen",
+          "masked": true,
+          "trigger": "initial",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-1781827200000000",
+          "requestedBackend": "nativeCpuExperimental",
+          "resolvedBackend": "nativeCpuExperimental"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-3",
+          "atMs": 50,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "component": "capture_masking",
+            "frameId": "frame-2",
+            "mode": "wholeFrame",
+            "reasons": [
+              "unverifiedLayerAllowlist"
+            ]
+          }
+        },
+        {
+          "id": "event-5",
+          "atMs": 50,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "version": 1,
+            "outcome": "fresh_accepted",
+            "requestId": "capture_request-1",
+            "executionId": "capture_execution-4",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "initial",
+            "visualEvidence": "fresh",
+            "interactionEvidence": "not_applicable",
+            "requestedBackend": "nativeCpuExperimental",
+            "resolvedBackend": "nativeCpuExperimental"
+          }
+        },
+        {
+          "id": "event-9",
+          "atMs": 110,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "version": 1,
+            "outcome": "perceptual_hash_coalesced",
+            "requestId": "capture_request-7",
+            "executionId": "capture_execution-8",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "manual",
+            "visualEvidence": "reused",
+            "interactionEvidence": "not_applicable",
+            "reuseReason": "dhash",
+            "requestedBackend": "nativeCpuExperimental",
+            "resolvedBackend": "nativeCpuExperimental"
+          }
+        },
+        {
+          "id": "event-6",
+          "atMs": 100,
+          "type": "system_input",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "input": "back"
+          }
+        },
+        {
+          "id": "event-13",
+          "atMs": 210,
+          "type": "capture_diagnostic",
+          "stream": "diagnostic",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "version": 1,
+            "outcome": "perceptual_hash_coalesced",
+            "requestId": "capture_request-11",
+            "executionId": "capture_execution-12",
+            "captureSessionId": "session-1781827200000000",
+            "routeEpoch": 0,
+            "trigger": "manual",
+            "visualEvidence": "reused",
+            "interactionEvidence": "not_applicable",
+            "reuseReason": "dhash",
+            "requestedBackend": "nativeCpuExperimental",
+            "resolvedBackend": "nativeCpuExperimental"
+          }
+        },
+        {
+          "id": "event-10",
+          "atMs": 200,
+          "type": "system_input",
+          "stream": "evidence",
+          "captureSessionId": "session-1781827200000000",
+          "afterFrame": "frame-2",
+          "data": {
+            "input": "back"
+          }
+        }
+      ]
+    }
+  }
+}

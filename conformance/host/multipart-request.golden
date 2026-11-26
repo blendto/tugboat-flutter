@@ -1,0 +1,30 @@
+--b
+content-disposition: form-data; name="sessionId"
+
+s-1
+--b
+content-disposition: form-data; name="frameNos"
+
+1,2
+--b
+content-disposition: form-data; name="label"
+content-type: text/plain; charset=utf-8
+content-transfer-encoding: binary
+
+cafÃ©
+--b
+content-disposition: form-data; name="a%22b%0D%0Ac"
+
+v
+--b
+content-type: image/jpeg
+content-disposition: form-data; name="files"; filename="1.jpg"
+
+JPEG
+--b
+content-type: image/jpeg
+content-disposition: form-data; name="files"; filename="2.jpg"
+
+ÿØ
+ÿÙ
+--b--

@@ -1,3 +1,11 @@
+## 0.12.6
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.6 (dot-notation markers and an
+  opt-in accessibility identifier on tags). The Dio adapter has no runtime
+  behavior change; its `tugboat` floor is now `^0.12.6`.
+
 ## 0.12.5
 
 ### Changed

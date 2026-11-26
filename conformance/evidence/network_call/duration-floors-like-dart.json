@@ -1,0 +1,25 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "duration-floors-like-dart",
+  "description": "durationMs is the difference of two floored millisecond readings: start 1.999 ms, end 3.000 ms gives 2, not 1.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 1999,
+    "endMonoUs": 3000,
+    "outcome": "response"
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "outcome": "response",
+      "durationMs": 2
+    }
+  }
+}

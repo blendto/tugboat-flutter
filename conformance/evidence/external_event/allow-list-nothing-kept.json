@@ -1,0 +1,38 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "allow-list-nothing-kept",
+  "description": "allow_list with no allowed key present: parameters is omitted (no value kept).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "checkout",
+    "policy": {
+      "mode": "allow_list",
+      "allowedKeys": []
+    },
+    "parameters": {
+      "map": [
+        [
+          "amount",
+          null
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "checkout",
+      "parameterKeys": [
+        "amount"
+      ],
+      "capture": {
+        "values": "allow_list",
+        "truncated": false,
+        "droppedCount": 1
+      }
+    }
+  }
+}

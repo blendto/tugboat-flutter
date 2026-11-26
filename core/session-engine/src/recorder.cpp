@@ -1,0 +1,94 @@
+#include "recorder.h"
+
+#include <utility>
+
+#include "module_registry.h"
+
+namespace tugboat {
+namespace engine {
+
+namespace {
+
+// Dart `a ?? b`.
+OptString first_defined(const OptString& a, const OptString& b) {
+  return a ? a : b;
+}
+
+}  // namespace
+
+Event enrich(Event event, const Session& session,
+             const std::optional<LocaleInfo>& current_locale,
+             bool attach_action_context) {
+  if (!event.locale && current_locale) {
+    event.locale = current_locale;
+  }
+  const SessionHeader& header = session.header();
+  if (attach_action_context) {
+    event.capture_session_id = header.id;
+    event.activation_request_id =
+        first_defined(header.activation_request_id,
+                      event.activation_request_id);
+    event.exploration_run_id =
+        first_defined(event.exploration_run_id, header.exploration_run_id);
+  } else {
+    event.capture_session_id =
+        first_defined(event.capture_session_id, header.id);
+    event.activation_request_id = first_defined(
+        event.activation_request_id, header.activation_request_id);
+    event.exploration_run_id =
+        first_defined(event.exploration_run_id, header.exploration_run_id);
+  }
+  return event;
+}
+
+void record_event(EngineState* state, Session& session, Event event,
+                  bool attach_action_context, Output* out) {
+  const EventRecord record{
+      enrich(std::move(event), session, state->locale, attach_action_context),
+      state->identity.user_id};
+  out->records.push_back(record);
+  session.append(record.event, state->config.limits.max_events);
+  if (state->applying.modules != nullptr && state->applying.at) {
+    state->applying.modules->notify_event_recorded(record, *state->applying.at,
+                                                   state, out);
+  }
+}
+
+Event make_event(EngineState* state, const Session& session,
+                 const char* type, int64_t mono_us) {
+  Event event;
+  event.id = state->ids.next("event");
+  event.at_ms = session.at_ms(mono_us);
+  event.type = type;
+  return event;
+}
+
+Event diagnostic_event(EngineState* state, const Session& session,
+                       int64_t mono_us, Diagnostic diagnostic) {
+  Event event;
+  if (diagnostic.id) {
+    event.id = std::move(*diagnostic.id);
+    event.at_ms = session.at_ms(mono_us);
+    event.type = "capture_diagnostic";
+  } else {
+    event = make_event(state, session, "capture_diagnostic", mono_us);
+  }
+  event.stream = diagnostic.stream;
+  event.after_frame = std::move(diagnostic.after_frame);
+  event.data = std::move(diagnostic.data);
+  return event;
+}
+
+bool record_diagnostic(EngineState* state, const At& at, Output* out,
+                       Diagnostic diagnostic) {
+  Session* session = state->live_session();
+  if (session == nullptr) return false;
+  record_event(state, *session,
+               diagnostic_event(state, *session, at.mono_us,
+                                std::move(diagnostic)),
+               true, out);
+  return true;
+}
+
+}  // namespace engine
+}  // namespace tugboat
