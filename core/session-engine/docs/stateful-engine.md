@@ -128,7 +128,7 @@ present on every `http.send`, and change nothing about what is sent:
 | `deliveryKeys` | array of strings | One key per unit the collector answers for. `lifecycle`: one, `<sessionId>/l/<eventType>/<triggeredAt>` with the body's `eventType` and `triggeredAt` (fixed when the post was queued, so a retried post keeps its key). `events`: one, `<sessionId>/e/<digest>`, where `digest` is the first 16 lowercase hex digits of SHA-256 over the UTF-8 of the batch's event `id`s sorted by UTF-16 code unit and joined by `\n` (a retried batch carries the same events, so the same key). `frames`: one per `multipart.frames` part, in part order, `<sessionId>/f/<frameNo>` (the part's file is `<frameNo>.jpg`). |
 | `isSessionEnd` | boolean | `true` only for the `session_end` post of the lifecycle lane (the one a host's stop sequence waits for); `false` on every other request. |
 
-The key formats are the ones the Android and Apple outboxes persist (their
+The key formats are the ones both native hosts' outboxes persist (their
 `OutboxCapture`), so entries written before the engine carried keys still
 match. Whether an answer settles a request is section 7.4's rule.
 

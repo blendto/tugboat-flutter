@@ -107,9 +107,9 @@ The first four functions are the compatibility check: a host calls them once
 when it creates its first engine, before `create`, and does not start the
 engine when the ABI version differs from the header it was built with or
 either schema version differs from what its own code produces. A host that
-computes identity parts itself (Android's `IdentityHash`, Apple's
-`IdentityHash`) reads `tb_session_engine_fingerprint_schema_version()`
-instead of hard-coding the number. `tb_session_engine_version()` is for logs
+computes identity parts itself (each native host's `IdentityHash`) reads
+`tb_session_engine_fingerprint_schema_version()` instead of hard-coding the
+number. `tb_session_engine_version()` is for logs
 only. None of them needs a handle, fails, or allocates.
 
 Functions and structs whose layout may change carry a `_v1` suffix. A

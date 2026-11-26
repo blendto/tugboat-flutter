@@ -2,7 +2,7 @@
 // (docs/stateful-engine.md section 3.1), so hosts no longer parse request
 // bodies to derive them. Each key names one unit the collector answers for:
 // a lifecycle post, an event batch, or one frame of an upload. The formats
-// are the ones the Android and Apple outboxes already persist, so entries
+// are the ones both native hosts' outboxes already persist, so entries
 // written before the engine carried keys keep matching. Not part of the C
 // ABI.
 #ifndef TUGBOAT_SESSION_ENGINE_DELIVERY_KEYS_H
