@@ -3,9 +3,12 @@
 Language-neutral golden fixtures for the session engine described in
 [ADR 0009](../docs/decisions/0009-shared-session-engine.md). Each fixture
 gives the facts a toolkit adapter or platform host submits and the exact
-record the engine must produce. The current Dart implementation in
-`package:tugboat` must match every fixture, and so must the C++ engine when it
-exists. These fixtures are what keeps the two equivalent.
+record the engine must produce. The C++ engine must match every fixture. The
+Dart implementation in `package:tugboat` runs the fixture kinds it still
+matches; since Flutter 0.11.0-0.12.4 moved ahead of the engine, it skips
+`collector.event`, `collector.sessionLifecycle` and `engine.scenario` until the
+engine catches up (see `test/conformance_fixtures_test.dart`). These fixtures
+are what keeps the two equivalent.
 
 This folder is outside the pub package on purpose: it is never published to
 pub.dev and no runtime reads it.

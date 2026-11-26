@@ -3,7 +3,7 @@
 | Path | Product |
 | --- | --- |
 | `core/image-processing` | Portable C++ CPU core (C ABI) |
-| `core/session-engine` | C++ session engine (C ABI, [ADR 0009](../decisions/0009-shared-session-engine.md)); not yet linked into a runtime |
+| `core/session-engine` | C++ session engine (C ABI, [ADR 0009](../decisions/0009-shared-session-engine.md)); built into the native Android and Swift SDKs, not yet into Flutter |
 | `conformance` | Golden fixtures the Dart SDK and the session engine must both match (never published) |
 | `platforms/android` | `com.gettugboat.sdk:capture-runtime` AAR |
 | `platforms/apple` | `TugboatCaptureRuntime` SwiftPM / CocoaPod (experimental iOS CPU) |
