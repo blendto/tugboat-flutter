@@ -95,7 +95,7 @@ records next to effects.
 | --- | --- | --- |
 | `timer.schedule` | `timerId`, `atMonoUs` | `timer.fired {timerId}` |
 | `timer.cancel` | `timerId` | none |
-| `http.send` | `requestId` (string, `http-N`), `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `jsonBody` (the body, already encoded) or `multipart` (`fields`: ordered `[name, value]` string pairs; `frames: [{handle, filename}]`) | `transport.result` |
+| `http.send` | `requestId` (string, `http-N`), `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, either `jsonBody` (the body, already encoded) or `multipart` (`fields`: ordered `[name, value]` string pairs; `frames: [{handle, filename}]`), then `sessionId`, `deliveryKeys`, `isSessionEnd` (below) | `transport.result` |
 | `frame.release` | `handle` | none |
 | `capture.request` | section 8.2 | `capture.result` |
 | `outbox.write` / `outbox.remove` | section 7.8 (phase 3e) | none |
@@ -117,6 +117,21 @@ with the same id is replaced.
 it. Multipart fields are ordered pairs, because the field order is part of
 the request. All values are strings. Headers (API key, app identity,
 content type) are the host's.
+
+Every `http.send` also says what a host's durable outbox needs to keep and
+key it, so a host need not parse a body for it. The three fields come last, are
+present on every `http.send`, and change nothing about what is sent:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `sessionId` | string | The session id the request carries: the lifecycle body's `sessionId` (the local id for `session_start`, the collector's afterwards), the `sessionId` stamped on every event of the batch, or the multipart `sessionId` field. Never empty. |
+| `deliveryKeys` | array of strings | One key per unit the collector answers for. `lifecycle`: one, `<sessionId>/l/<eventType>/<triggeredAt>` with the body's `eventType` and `triggeredAt` (fixed when the post was queued, so a retried post keeps its key). `events`: one, `<sessionId>/e/<digest>`, where `digest` is the first 16 lowercase hex digits of SHA-256 over the UTF-8 of the batch's event `id`s sorted by UTF-16 code unit and joined by `\n` (a retried batch carries the same events, so the same key). `frames`: one per `multipart.frames` part, in part order, `<sessionId>/f/<frameNo>` (the part's file is `<frameNo>.jpg`). |
+| `isSessionEnd` | boolean | `true` only for the `session_end` post of the lifecycle lane (the one a host's stop sequence waits for); `false` on every other request. |
+
+The key formats are the ones both native hosts' outboxes persist (their
+`OutboxCapture`), so entries written before the engine carried keys still
+match. Those outboxes still derive the keys from the body; reading these
+fields instead is a host change of its own. Whether an answer settles a request is section 7.4's rule.
 
 `transport.result` input:
 `{requestId, outcome: "http" | "error" | "timeout", status?, body?, retryAfter?}`.
@@ -326,6 +341,18 @@ again between sessions.
 | `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs 5000 (change C5), reportEventLaneGaps false (change C6), answerGraceMs 5000 (change C15), maxRetryAfterMs 60000, maxEndingRetryAfterMs 10000 |
 | `capabilities` | the `TugboatReplayConfig` evidence switches (inventory, semantic map, focus, system input, …) |
 
+The defaults are defined once, in `src/config.h`. The `engine.config` query
+(`{}`, `at` optional) answers `result.config`: the effective value of every
+field above except `host`, under its `engine.configure` name, so a fresh
+handle reports the defaults. Hosts derive their own waits from it instead of
+hard-coding copies:
+
+| Host wait | Derived from | Default |
+| --- | --- | --- |
+| Stop sequence: how long to wait for the `session_end` post (`isSessionEnd`) to settle before `engine.dispose` | `collector.endDrainTimeoutMs + collector.jsonTimeoutMs + collector.answerGraceMs`: the drain, one JSON post, and its answer grace | 25000 |
+| Outbox replay of a kept request | `collector.jsonTimeoutMs` (JSON lanes), `collector.frameTimeoutMs` (frames), as the engine's own `timeoutMs` | 15000 |
+| Any wait before answering `capture.request` (for example for a window) | must stay below `capture.answerTimeoutMs`, after which the engine resolves the capture as `answer_timeout` | 5000 |
+
 ## 7. Collector delivery (phase 3b)
 
 This replaces `CollectorHttpSink` policy. The host performs requests and
@@ -392,6 +419,22 @@ up to 3 s.
 | HTTP 202 | accepted | preserved |
 | 408, 429, 5xx, transport error, timeout | retry | preserved |
 | any other status, including 200 / 201 / 204 | permanent drop | preserved; open question Q3 |
+
+This table is the single source of the rule (`classify` in
+`src/transport.cpp`, fixture `delivery-status-classification`). A host that
+needs to know when a request is settled, such as a stop sequence waiting for
+the `http.send` with `isSessionEnd`, applies it to its own outcome: settled
+means `outcome: "http"` with a status that is neither 408, 429, nor ≥ 500;
+`error`, `timeout`, and the retry statuses keep the request pending. On the
+event and frame lanes a settled request is accepted or dropped for good. A
+lifecycle post is removed only on 202 (section 7.1): after any other status it
+stays at the head and is posted again on a later pass, but the waiter treats
+it as answered and does not wait for that. The rule is not carried on each effect or offered
+as a stateless operation: it is a fixed part of ABI version 1 (changing it is
+a contract change, as for any delivery rule), hosts evaluate it on their IO
+thread where they must not call into the engine handle, and repeating a
+constant table on every request adds nothing. Host copies pin themselves to
+this rule with tests that read the engine source and the fixture.
 
 Retries are paced by flush triggers and by `Retry-After` waits on 429/503:
 there is no backoff and no attempt cap (change C4 proposes backoff later).

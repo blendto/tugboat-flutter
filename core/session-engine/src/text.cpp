@@ -232,6 +232,21 @@ std::string_view dart_trim(std::string_view wtf8) {
   return wtf8.substr(start, end - start);
 }
 
+std::string_view ascii_trim(std::string_view text) {
+  const auto is_space = [](char c) {
+    return c == ' ' || (c >= '\t' && c <= '\r');
+  };
+  size_t begin = 0;
+  while (begin < text.size() && is_space(text[begin])) {
+    ++begin;
+  }
+  size_t end = text.size();
+  while (end > begin && is_space(text[end - 1])) {
+    --end;
+  }
+  return text.substr(begin, end - begin);
+}
+
 std::string_view utf8_prefix(std::string_view wtf8, size_t max_bytes) {
   if (wtf8.size() <= max_bytes) {
     return wtf8;

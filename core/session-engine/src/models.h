@@ -97,7 +97,10 @@ struct Event {
 
 // TugboatFrame: metadata of one accepted frame. Its bytes stay in the host.
 struct Frame {
-  std::string id;
+  std::string id;  // `frame-<number>`
+  // The number `id` ends in (`IdCounter`), kept so nothing parses it back
+  // out: the collector's `frameNo`. Not part of `TugboatFrame.toJson()`.
+  int64_t number = 0;
   int64_t at_ms = 0;
   int64_t width = 0;
   int64_t height = 0;

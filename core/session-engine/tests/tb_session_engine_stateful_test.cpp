@@ -329,7 +329,8 @@ void test_registry_types() {
   for (const char* type :
        {"engine.configure", "engine.dispose", "session.start", "session.end",
         "identity.set", "traits.set", "capture.result", "transport.result",
-        "transport.flush", "timer.fired", "session.snapshot"}) {
+        "transport.flush", "timer.fired", "engine.config",
+        "session.snapshot"}) {
     CHECK(std::find(types.begin(), types.end(), type) != types.end());
   }
   CHECK(tugboat::engine::module_registry().is_engine_event_type(
@@ -372,13 +373,15 @@ void test_effects_json() {
   effects.push_back(TimerSchedule{"t", 42});
   effects.push_back(TimerCancel{"t"});
   effects.push_back(HttpSend{"r-1", HttpLane::kLifecycle, "/v1/sessions",
-                             15000, JsonBody{"{\"sessionId\":\"s\"}"}});
+                             15000, JsonBody{"{\"sessionId\":\"s\"}"}, "s",
+                             {"s/l/session_end/t"}, true});
   MultipartBody multipart;
   multipart.fields.emplace_back("sessionId", "s");
   multipart.fields.emplace_back("frameMetadata", "[{\"id\":\"frame-2\"}]");
   multipart.frames.push_back({"h-2", "2.jpg"});
   effects.push_back(
-      HttpSend{"r-2", HttpLane::kFrames, "/v1/frames", 15000, multipart});
+      HttpSend{"r-2", HttpLane::kFrames, "/v1/frames", 15000, multipart, "s",
+               {"s/f/2"}, false});
   effects.push_back(FrameRelease{"h-2"});
   CaptureRequest capture;
   capture.request_id = "capture_request-3";
@@ -395,11 +398,15 @@ void test_effects_json() {
       "{\"type\":\"timer.cancel\",\"timerId\":\"t\"},"
       "{\"type\":\"http.send\",\"requestId\":\"r-1\",\"lane\":\"lifecycle\","
       "\"path\":\"/v1/sessions\",\"timeoutMs\":15000,\"jsonBody\":"
-      "\"{\\\"sessionId\\\":\\\"s\\\"}\"},{\"type\":\"http.send\","
+      "\"{\\\"sessionId\\\":\\\"s\\\"}\",\"sessionId\":\"s\","
+      "\"deliveryKeys\":[\"s/l/session_end/t\"],\"isSessionEnd\":true},"
+      "{\"type\":\"http.send\","
       "\"requestId\":\"r-2\",\"lane\":\"frames\",\"path\":\"/v1/frames\","
       "\"timeoutMs\":15000,\"multipart\":{\"fields\":[[\"sessionId\",\"s\"],"
       "[\"frameMetadata\",\"[{\\\"id\\\":\\\"frame-2\\\"}]\"]],\"frames\":"
-      "[{\"handle\":\"h-2\",\"filename\":\"2.jpg\"}]}},{\"type\":"
+      "[{\"handle\":\"h-2\",\"filename\":\"2.jpg\"}]},\"sessionId\":"
+      "\"s\",\"deliveryKeys\":[\"s/f/2\"],\"isSessionEnd\":false},"
+      "{\"type\":"
       "\"frame.release\","
       "\"handle\":\"h-2\"},{\"type\":\"capture.request\",\"requestId\":"
       "\"capture_request-3\",\"trigger\":\"route\",\"force\":false,"
@@ -456,6 +463,40 @@ void test_configure_between_sessions() {
   CHECK(contains(snapshot.json,
                  "\"events\":[{\"id\":\"event-6\",\"atMs\":0,\"type\":"
                  "\"external_event\",\"stream\":\"evidence\""));
+  tb_session_engine_destroy(engine);
+}
+
+// `engine.config` echoes the effective configuration: the defaults on a
+// fresh handle, then what `engine.configure` set (absent fields default).
+void test_engine_config_query() {
+  tb_session_engine* engine = make_engine();
+  const std::string query = "{\"type\":\"engine.config\",\"input\":{}}";
+  auto defaults = submit(engine, query);
+  CHECK(defaults.status == TB_SESSION_OK);
+  CHECK(defaults.json.rfind(
+            "{\"type\":\"engine.config\",\"result\":{\"config\":{"
+            "\"limits\":{\"maxEvents\":5000,",
+            0) == 0);
+  CHECK(contains(defaults.json, "\"touchSlop\":18.0,"));
+  CHECK(contains(defaults.json, "\"answerTimeoutMs\":5000"));
+  CHECK(contains(defaults.json, "\"frameTimeoutMs\":15000,"
+                                "\"jsonTimeoutMs\":15000,"));
+  CHECK(contains(defaults.json, "\"endDrainTimeoutMs\":5000,"
+                                "\"answerGraceMs\":5000,"));
+  CHECK(contains(defaults.json, "\"enabled\":false"));
+  CHECK(!contains(defaults.json, "\"host\""));
+  CHECK(contains(defaults.json, "\"effects\":[]}"));
+  CHECK(submit(engine,
+               "{\"type\":\"engine.configure\",\"input\":{\"collector\":"
+               "{\"enabled\":true,\"jsonTimeoutMs\":1000}}}")
+            .status == TB_SESSION_OK);
+  auto configured = submit(engine, query);
+  CHECK(contains(configured.json, "\"jsonTimeoutMs\":1000,"));
+  CHECK(contains(configured.json, "\"endDrainTimeoutMs\":5000,"));
+  CHECK(contains(configured.json, "\"enabled\":true"));
+  auto bad = submit(engine,
+                    "{\"type\":\"engine.config\",\"input\":{\"x\":1}}");
+  CHECK(bad.status == TB_SESSION_INVALID_MESSAGE);
   tb_session_engine_destroy(engine);
 }
 
@@ -539,6 +580,7 @@ int main() {
   test_records_json();
   test_effects_json();
   test_configure_between_sessions();
+  test_engine_config_query();
   test_configure_in_batch();
   test_periodic_flush_catch_up();
   return unit::finish("stateful engine");

@@ -12,39 +12,7 @@
   ],
   "input": {
     "configure": {
-      "host": {
-        "app": {
-          "name": "Example App",
-          "version": "2.4.0",
-          "buildNumber": "240",
-          "installationId": "inst-0001",
-          "appId": "com.example.app"
-        },
-        "device": {
-          "id": "device-0001",
-          "platform": "android",
-          "manufacturer": "Google",
-          "model": "Pixel 8",
-          "osVersion": "15",
-          "networkType": "wifi",
-          "screenSize": {
-            "width": 412.0,
-            "height": 915.0
-          },
-          "screenDensity": 2.625,
-          "screenDpi": 420,
-          "screenPixelDensity": 2.625
-        },
-        "ip": {
-          "ip": "203.0.113.7"
-        },
-        "locale": {
-          "language": "en",
-          "country": "US",
-          "timezone": "Europe/Lisbon"
-        },
-        "configuredUserId": null
-      },
+      "host": {"$preset": "default-host"},
       "collector": {
         "enabled": true
       },
@@ -95,7 +63,12 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":null,\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":null,\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-1781827200000000",
+              "deliveryKeys": [
+                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
+              ],
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
@@ -285,7 +258,12 @@
                     "filename": "2.jpg"
                   }
                 ]
-              }
+              },
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/f/2"
+              ],
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
@@ -322,7 +300,12 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:00.050Z\",\"userId\":null,\"eventType\":\"capture_diagnostic\",\"stream\":\"diagnostic\",\"enrichmentCandidate\":false,\"afterFrame\":\"frame-2\",\"payload\":{\"component\":\"capture_masking\",\"frameId\":\"frame-2\",\"mode\":\"wholeHost\",\"reasons\":[\"composeDefault\",\"interop\"]},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-5\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:00.050Z\",\"userId\":null,\"eventType\":\"capture_diagnostic\",\"stream\":\"diagnostic\",\"enrichmentCandidate\":false,\"afterFrame\":\"frame-2\",\"payload\":{\"version\":1,\"outcome\":\"fresh_accepted\",\"requestId\":\"capture_request-1\",\"executionId\":\"capture_execution-4\",\"captureSessionId\":\"session-1781827200000000\",\"routeEpoch\":0,\"trigger\":\"initial\",\"visualEvidence\":\"fresh\",\"interactionEvidence\":\"not_applicable\",\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"nativeCpuExperimental\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:00.050Z\",\"userId\":null,\"eventType\":\"capture_diagnostic\",\"stream\":\"diagnostic\",\"enrichmentCandidate\":false,\"afterFrame\":\"frame-2\",\"payload\":{\"component\":\"capture_masking\",\"frameId\":\"frame-2\",\"mode\":\"wholeHost\",\"reasons\":[\"composeDefault\",\"interop\"]},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-5\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:00.050Z\",\"userId\":null,\"eventType\":\"capture_diagnostic\",\"stream\":\"diagnostic\",\"enrichmentCandidate\":false,\"afterFrame\":\"frame-2\",\"payload\":{\"version\":1,\"outcome\":\"fresh_accepted\",\"requestId\":\"capture_request-1\",\"executionId\":\"capture_execution-4\",\"captureSessionId\":\"session-1781827200000000\",\"routeEpoch\":0,\"trigger\":\"initial\",\"visualEvidence\":\"fresh\",\"interactionEvidence\":\"not_applicable\",\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"nativeCpuExperimental\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/3b6c1528602582a9"
+              ],
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",

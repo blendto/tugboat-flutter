@@ -161,9 +161,17 @@ bool submit(EngineClient* engine, const std::string& message,
 }
 
 bool run_configure(EngineClient* engine, const Json& configure,
-                   const std::string& source, const std::string& relative) {
-  const std::string message = "{\"type\":\"engine.configure\",\"input\":" +
-                              source_of(configure, source) + "}";
+                   const std::string& source, const std::string& relative,
+                   const Presets& presets) {
+  std::string input;
+  const std::string error =
+      presets.resolve_configure(configure, source, &input);
+  if (!error.empty()) {
+    std::printf("FAIL %s\n  %s\n", relative.c_str(), error.c_str());
+    return false;
+  }
+  const std::string message =
+      "{\"type\":\"engine.configure\",\"input\":" + input + "}";
   Response response;
   Json parsed;
   if (!submit(engine, message, relative, &response, &parsed)) {
@@ -313,7 +321,7 @@ bool runs_on_cpp(const Json& fixture) {
 }
 
 bool run_scenario(const Json& fixture, const std::string& source,
-                  const std::string& relative) {
+                  const std::string& relative, const Presets& presets) {
   const Json& input = *fixture.find("input");
   const Json& expected = *fixture.find("expected");
   const std::string shape = check_shape(input, expected);
@@ -322,7 +330,8 @@ bool run_scenario(const Json& fixture, const std::string& source,
     return false;
   }
   EngineClient engine;
-  if (!run_configure(&engine, *input.find("configure"), source, relative) ||
+  if (!run_configure(&engine, *input.find("configure"), source, relative,
+                     presets) ||
       !run_steps(&engine, *input.find("steps"), source, relative) ||
       !run_final_snapshot(&engine, expected, source, relative)) {
     return false;

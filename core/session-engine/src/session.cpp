@@ -10,7 +10,13 @@ namespace tugboat {
 namespace engine {
 
 std::string IdCounter::next(const char* prefix) {
-  return std::string(prefix) + "-" + std::to_string(next_++);
+  int64_t number = 0;
+  return next(prefix, &number);
+}
+
+std::string IdCounter::next(const char* prefix, int64_t* number) {
+  *number = next_++;
+  return std::string(prefix) + "-" + std::to_string(*number);
 }
 
 int64_t Session::at_ms(int64_t mono_us) const {
@@ -76,7 +82,8 @@ Value session_object_json(const Session& session) {
   out.set("id", Value::string(header.id));
   out.set("captureSessionId", Value::string(header.id));
   put_opt(&out, "activationRequestId", header.activation_request_id);
-  // `collectorSessionId` arrives with collector delivery (phase 3b).
+  // Never `collectorSessionId`: as Dart's sink, delivery keeps the
+  // collector's session id to itself (`DeliveryState::ids`).
   put_opt(&out, "explorationRunId", header.exploration_run_id);
   out.set("startedAt",
           Value::string(dart_iso8601_utc(header.started_at_wall_us)));

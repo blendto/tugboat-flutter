@@ -17,6 +17,12 @@
 namespace tugboat {
 namespace engine {
 
+// A day: the bound of every engine duration (configuration, transition,
+// capture timing, network call), so a deadline or a sum of durations stays
+// far from int64 overflow.
+constexpr int64_t kOneDayMs = 86400000;
+constexpr int64_t kOneDayUs = kOneDayMs * 1000;
+
 // `at`: when the fact happened. `mono_us` is the host monotonic clock in
 // microseconds in [0, 2^62]; `wall_us` is UTC epoch microseconds in Dart's
 // DateTime range.
@@ -47,8 +53,12 @@ bool decode_mono_us(const ObjectReader& r, const char* key,
 // late).
 int64_t elapsed_ms(int64_t start_mono_us, int64_t fact_mono_us);
 
-// The rest of `timer_id` after `prefix` (a module's timers are
-// `<prefix><key>`). False when it does not start with `prefix`.
+// Whether `timer_id` starts with `prefix` (a module's timers are
+// `<prefix><key>`). The one prefix test: routing and every module use it.
+bool has_timer_prefix(const std::string& timer_id, const std::string& prefix);
+
+// The rest of `timer_id` after `prefix`. False when it does not start with
+// `prefix`.
 bool timer_key(const std::string& timer_id, const char* prefix,
                std::string* key);
 

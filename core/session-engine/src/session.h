@@ -23,6 +23,8 @@ namespace engine {
 class IdCounter {
  public:
   std::string next(const char* prefix);
+  // Also stores the minted number (the `N` of `<prefix>-N`) in `*number`.
+  std::string next(const char* prefix, int64_t* number);
 
  private:
   int64_t next_ = 0;

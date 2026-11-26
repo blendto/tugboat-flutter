@@ -22,6 +22,8 @@
 //   none either (Dart keeps bytes until garbage collection).
 // - `timeoutMs` is compared on frame uploads (Dart's fixed 15 s) but not on
 //   JSON posts: Dart puts no timeout on them (change C3).
+// - The engine's outbox metadata (`sessionId`, `deliveryKeys`,
+//   `isSessionEnd`) is not compared: Dart's sink has no outbox.
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
@@ -366,14 +368,21 @@ const _fixedInDart = <String, Object>{
   'reportEventLaneGaps': false,
 };
 
+/// The engine's outbox metadata on `http.send` (`sessionId`, `deliveryKeys`,
+/// `isSessionEnd`): derived from the request, and Dart's sink has no
+/// outbox, so the runner does not compare it.
+const _engineOnlyHttpSendKeys = {'sessionId', 'deliveryKeys', 'isSessionEnd'};
+
 /// The effects of an engine step that Dart can produce: `http.send` only,
-/// without `timeoutMs` on JSON posts (see the header).
+/// without `timeoutMs` on JSON posts (see the header) and without the
+/// engine's outbox metadata.
 List<Map<String, Object?>> comparableEffects(List<Object?> effects) => [
   for (final effect in effects.cast<Map<String, Object?>>())
     if (effect['type'] == 'http.send')
       {
         for (final entry in effect.entries)
-          if (entry.key != 'timeoutMs' || effect['lane'] == 'frames')
+          if ((entry.key != 'timeoutMs' || effect['lane'] == 'frames') &&
+              !_engineOnlyHttpSendKeys.contains(entry.key))
             entry.key: entry.value,
       },
 ];

@@ -1,38 +1,19 @@
 #include "retry_after.h"
 
-#include <cctype>
+#include <algorithm>
 #include <climits>
 #include <cstring>
+
+#include "text.h"
 
 namespace tugboat {
 namespace engine {
 
 namespace {
 
-std::string trim(const std::string& raw) {
-  size_t begin = 0;
-  while (begin < raw.size() &&
-         std::isspace(static_cast<unsigned char>(raw[begin]))) {
-    ++begin;
-  }
-  size_t end = raw.size();
-  while (end > begin &&
-         std::isspace(static_cast<unsigned char>(raw[end - 1]))) {
-    --end;
-  }
-  return raw.substr(begin, end - begin);
-}
-
 bool all_digits(const std::string& value) {
-  if (value.empty()) {
-    return false;
-  }
-  for (char ch : value) {
-    if (ch < '0' || ch > '9') {
-      return false;
-    }
-  }
-  return true;
+  return !value.empty() &&
+         std::all_of(value.begin(), value.end(), is_ascii_digit);
 }
 
 int64_t cap_delay(int64_t delay_ms, int64_t cap_ms) {
@@ -80,8 +61,6 @@ bool weekday_valid(const char* day) {
   return false;
 }
 
-bool is_digit(char ch) { return ch >= '0' && ch <= '9'; }
-
 int64_t days_from_civil(int year, int month, int day) {
   year -= month <= 2;
   const int era = (year >= 0 ? year : year - 399) / 400;
@@ -118,11 +97,10 @@ bool parse_imf_fixdate(const std::string& value, int64_t* out_epoch_ms) {
       value[26] != 'G' || value[27] != 'M' || value[28] != 'T') {
     return false;
   }
-  if (!is_digit(value[5]) || !is_digit(value[6]) || !is_digit(value[12]) ||
-      !is_digit(value[13]) || !is_digit(value[14]) || !is_digit(value[15]) ||
-      !is_digit(value[17]) || !is_digit(value[18]) || !is_digit(value[20]) ||
-      !is_digit(value[21]) || !is_digit(value[23]) || !is_digit(value[24])) {
-    return false;
+  for (size_t digit : {5, 6, 12, 13, 14, 15, 17, 18, 20, 21, 23, 24}) {
+    if (!is_ascii_digit(value[digit])) {
+      return false;
+    }
   }
   const int day = (value[5] - '0') * 10 + (value[6] - '0');
   const int month = month_index(value.c_str() + 8);
@@ -149,7 +127,7 @@ bool parse_imf_fixdate(const std::string& value, int64_t* out_epoch_ms) {
 std::optional<int64_t> parse_retry_after_delay_ms(
     const std::string& raw, std::optional<int64_t> now_wall_us,
     int64_t cap_ms) {
-  const std::string value = trim(raw);
+  const std::string value(ascii_trim(raw));
   if (value.empty() || value.size() > kMaxRetryAfterHeaderBytes) {
     return std::nullopt;
   }

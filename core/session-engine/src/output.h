@@ -81,15 +81,26 @@ struct JsonBody {
   std::string text;
 };
 
-// `http.send {requestId, lane, path, timeoutMs, jsonBody | multipart}`.
-// `requestId` is a string (`http-N`); the host answers with
-// `transport.result {requestId, …}` echoing it.
+// `http.send {requestId, lane, path, timeoutMs, jsonBody | multipart,
+// sessionId, deliveryKeys, isSessionEnd}`. `requestId` is a string
+// (`http-N`); the host answers with `transport.result {requestId, …}`
+// echoing it. The last three tell a host's durable outbox what it holds
+// without reading the body (docs/stateful-engine.md section 3.1):
+// - `sessionId`: the session id the request carries (the lifecycle body's
+//   `sessionId`, the events' stamp, the multipart `sessionId` field);
+// - `deliveryKeys`: one key per unit the collector answers for: one for a
+//   JSON post, one per `multipart.frames` part in part order
+//   (delivery_keys.h);
+// - `isSessionEnd`: the request is the session's `session_end` post.
 struct HttpSend {
   std::string request_id;
   HttpLane lane = HttpLane::kEvents;
   std::string path;
   int64_t timeout_ms = 0;
   std::variant<JsonBody, MultipartBody> body;
+  std::string session_id;
+  std::vector<std::string> delivery_keys;
+  bool is_session_end = false;
 };
 
 // `frame.release {handle}`: the host may drop the frame's bytes. No answer.

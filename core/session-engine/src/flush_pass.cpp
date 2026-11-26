@@ -9,11 +9,13 @@
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "collector_mapping.h"
 #include "dart_time.h"
 #include "delivery_bounds.h"
 #include "delivery_context.h"
+#include "delivery_keys.h"
 #include "delivery_retry_after.h"
 
 namespace tugboat {
@@ -30,17 +32,28 @@ void send_isolated_frame(DeliveryContext& ctx);
 
 FlushCursor& cursor(DeliveryContext& ctx) { return ctx.delivery().pass; }
 
+// What a request carries besides its body (`HttpSend`): the session id and
+// the outbox delivery keys.
+struct Keys {
+  std::string session_id;
+  std::vector<std::string> delivery_keys;
+  bool is_session_end = false;
+};
+
 // Mints `http-N`, emits `http.send`, and arms its answer deadline; the
 // pass waits for the result.
 void send(DeliveryContext& ctx, HttpLane lane, const char* path,
-          std::variant<JsonBody, MultipartBody> body, InFlight flight) {
+          std::variant<JsonBody, MultipartBody> body, Keys keys,
+          InFlight flight) {
   DeliveryState& d = ctx.delivery();
   flight.request_id = "http-" + std::to_string(d.next_request++);
   const int64_t timeout_ms = lane == HttpLane::kFrames
                                  ? d.config.frame_timeout_ms
                                  : d.config.json_timeout_ms;  // change C3
-  ctx.out->effects.push_back(
-      HttpSend{flight.request_id, lane, path, timeout_ms, std::move(body)});
+  ctx.out->effects.push_back(HttpSend{
+      flight.request_id, lane, path, timeout_ms, std::move(body),
+      std::move(keys.session_id), std::move(keys.delivery_keys),
+      keys.is_session_end});
   // Change C15: without an answer by then, the request has timed out.
   ctx.state->timers.schedule(
       kAnswerTimerPrefix + flight.request_id,
@@ -78,8 +91,8 @@ int64_t triggered_at_us(const Session& session, const At& triggered,
 
 // The head's `/v1/sessions` body, built now from the current identity
 // (section 7.1); only `triggeredAt` was fixed when it was queued.
-std::string lifecycle_body(const DeliveryContext& ctx,
-                           const LifecycleEntry& entry) {
+LifecycleBody lifecycle_body(const DeliveryContext& ctx,
+                             const LifecycleEntry& entry) {
   const DeliveryState& d = ctx.delivery();
   const Session& session = ctx.session();
   LifecycleBody body;
@@ -97,7 +110,7 @@ std::string lifecycle_body(const DeliveryContext& ctx,
     body.traits_id = d.ids.traits_id;
   }
   body.active_locale = entry.active_locale;
-  return encode_json(collector_lifecycle_json(*d.host, body));
+  return body;
 }
 
 void after_lifecycle(DeliveryContext& ctx) {
@@ -119,10 +132,19 @@ void enter_lifecycle(DeliveryContext& ctx) {
     after_lifecycle(ctx);
     return;
   }
+  const LifecycleEntry& head = d.lifecycle.head();
+  const LifecycleBody body = lifecycle_body(ctx, head);
+  Keys keys;
+  keys.session_id = body.session_id;
+  keys.delivery_keys.push_back(
+      lifecycle_delivery_key(body.session_id, body.event_type,
+                             dart_iso8601_utc(body.triggered_at_us)));
+  keys.is_session_end = head.kind == LifecycleKind::kSessionEnd;
   InFlight flight;
   flight.kind = RequestKind::kLifecycle;
   send(ctx, HttpLane::kLifecycle, "/v1/sessions",
-       JsonBody{lifecycle_body(ctx, d.lifecycle.head())}, std::move(flight));
+       JsonBody{encode_json(collector_lifecycle_json(*d.host, body))},
+       std::move(keys), std::move(flight));
 }
 
 void on_lifecycle_result(DeliveryContext& ctx, const TransportResult& result) {
@@ -155,13 +177,18 @@ void enter_frames(DeliveryContext& ctx) {
 void send_uploads(DeliveryContext& ctx, RequestKind kind, size_t begin,
                   size_t end) {
   const FrameUploads& uploads = cursor(ctx).frames.uploads;
+  const std::string& session_id = *ctx.delivery().ids.session_id;
   InFlight flight;
   flight.kind = kind;
+  Keys keys;
+  keys.session_id = session_id;
   for (size_t i = begin; i < end; ++i) {
     flight.frame_ids.push_back(uploads[i].frame_id);
+    keys.delivery_keys.push_back(
+        frame_delivery_key(session_id, uploads[i].frame_no));
   }
   send(ctx, HttpLane::kFrames, "/v1/frames",
-       frame_upload_body(*ctx.delivery().ids.session_id, uploads, begin, end),
+       frame_upload_body(session_id, uploads, begin, end), std::move(keys),
        std::move(flight));
 }
 
@@ -266,6 +293,13 @@ void on_isolated_frame_result(DeliveryContext& ctx,
 
 // ---------------------------------------------------------------- events
 
+Keys event_keys(const std::string& session_id, const EventBatch& batch) {
+  Keys keys;
+  keys.session_id = session_id;
+  keys.delivery_keys.push_back(event_batch_delivery_key(session_id, batch));
+  return keys;
+}
+
 void enter_retry_batches(DeliveryContext& ctx) {
   DeliveryState& d = ctx.delivery();
   if (!d.events.has_retry()) {
@@ -278,9 +312,10 @@ void enter_retry_batches(DeliveryContext& ctx) {
   }
   InFlight flight;
   flight.kind = RequestKind::kRetryBatch;
-  send(ctx, HttpLane::kEvents, "/v1/events/batch",
-       JsonBody{stamp_event_batch(&d.events.retry_head(), *d.ids.session_id,
-                                  d.ids.traits_id)},
+  std::string body = stamp_event_batch(&d.events.retry_head(),
+                                       *d.ids.session_id, d.ids.traits_id);
+  send(ctx, HttpLane::kEvents, "/v1/events/batch", JsonBody{std::move(body)},
+       event_keys(*d.ids.session_id, d.events.retry_head()),
        std::move(flight));
 }
 
@@ -317,8 +352,9 @@ void enter_fresh_events(DeliveryContext& ctx) {
   flight.batch = d.events.take(bound(ctx.config().batch_size));
   std::string body =
       stamp_event_batch(&flight.batch, *d.ids.session_id, d.ids.traits_id);
+  Keys keys = event_keys(*d.ids.session_id, flight.batch);
   send(ctx, HttpLane::kEvents, "/v1/events/batch", JsonBody{std::move(body)},
-       std::move(flight));
+       std::move(keys), std::move(flight));
 }
 
 void on_fresh_batch_result(DeliveryContext& ctx, InFlight flight,

@@ -42,6 +42,7 @@ set(_tb_engine_sources
   src/dart_time.cpp
   src/delivery.cpp
   src/delivery_gaps.cpp
+  src/delivery_keys.cpp
   src/delivery_lanes.cpp
   src/delivery_module.cpp
   src/engine.cpp
@@ -155,6 +156,7 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
     tests/tb_session_engine_conformance.cpp
     tests/conformance/conformance_json.cpp
     tests/conformance/evidence_runner.cpp
+    tests/conformance/presets.cpp
     tests/conformance/scenario_runner.cpp)
   target_include_directories(tb_session_engine_conformance PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/tests")

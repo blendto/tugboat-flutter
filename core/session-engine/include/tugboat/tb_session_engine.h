@@ -89,13 +89,36 @@ typedef struct tb_session_engine_config_v1 {
   size_t max_message_bytes;
 } tb_session_engine_config_v1;
 
-/* Semantic version of this static library, e.g. "0.1.0". */
+/*
+ * Compatibility check. These four functions describe the linked library, not
+ * this header (the two differ when they are out of sync). They need no
+ * handle, never fail, and never allocate. A host calls them once, when it
+ * creates its first engine, and does not start the engine when a value
+ * differs from what the host was built against:
+ *
+ * - tb_session_engine_abi_version() must equal TB_SESSION_ENGINE_ABI_VERSION
+ *   (tb_session_engine_create_v1 also refuses a mismatched
+ *   config->abi_version with TB_SESSION_ABI_MISMATCH).
+ * - tb_session_engine_session_schema_version() and
+ *   tb_session_engine_fingerprint_schema_version() must equal the contract
+ *   versions the host's own code produces. A host that computes identity
+ *   parts itself (fingerprints of its native views) reads the fingerprint
+ *   schema version from here rather than hard-coding it, so its anchors and
+ *   the engine's records always name the same schema. Messages that pin a
+ *   `contract` other than these are rejected with
+ *   TB_SESSION_CONTRACT_MISMATCH.
+ * - tb_session_engine_version() is for logs and diagnostics only; it is not
+ *   a compatibility signal.
+ */
+
+/* Semantic version of this static library, e.g. "0.2.0". */
 const char* tb_session_engine_version(void);
 
+/* TB_SESSION_ENGINE_ABI_VERSION of the linked library. */
 uint32_t tb_session_engine_abi_version(void);
 
-/* Contract versions of the linked library (may differ from the header
- * macros when the header and library are out of sync). */
+/* Contract versions of the linked library: the session schema of its
+ * records and the fingerprint schema it hashes and stamps. */
 uint32_t tb_session_engine_session_schema_version(void);
 uint32_t tb_session_engine_fingerprint_schema_version(void);
 

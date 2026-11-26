@@ -84,6 +84,40 @@ enum ConformanceRunner { cpp, dart }
 const conformanceChangeIdsFile = 'change_ids.json';
 const conformanceRetryAfterVectorsFile = 'retry_after_vectors.json';
 
+/// Shared `engine.scenario` configuration presets, shared with the C++
+/// runner (conformance/README.md "Presets"). Not a fixture.
+const conformancePresetsFile = 'engine/presets.json';
+
+/// Reads the presets from `<root>/engine/presets.json`: preset name to the
+/// object a `{"$preset": name}` group stands for.
+Map<String, Map<String, Object?>> readConformancePresets(Directory root) {
+  final json = _object(
+    jsonDecode(File('${root.path}/$conformancePresetsFile').readAsStringSync()),
+    conformancePresetsFile,
+  );
+  _checkKeys(json, const {
+    'presetFormat',
+    'description',
+    'presets',
+  }, conformancePresetsFile);
+  if (json['presetFormat'] != 1 || json['description'] is! String) {
+    throw const FormatException(
+      '$conformancePresetsFile: presetFormat 1 and a description',
+    );
+  }
+  final presets = _object(json['presets'], '$conformancePresetsFile.presets');
+  if (presets.isEmpty) {
+    throw const FormatException('$conformancePresetsFile: no presets');
+  }
+  return {
+    for (final entry in presets.entries)
+      entry.key: _object(
+        entry.value,
+        '$conformancePresetsFile.presets.${entry.key}',
+      ),
+  };
+}
+
 /// Reads the section 11 change ids from `<root>/change_ids.json`.
 Set<String> readConformanceChangeIds(Directory root) {
   final json = _object(
@@ -124,7 +158,8 @@ List<File> listFixtureFiles(Directory root) {
       .where((file) {
         final relative = fixtureRelativePath(root, file);
         return relative != conformanceChangeIdsFile &&
-            relative != conformanceRetryAfterVectorsFile;
+            relative != conformanceRetryAfterVectorsFile &&
+            relative != conformancePresetsFile;
       })
       .toList();
   files.sort((a, b) => a.path.compareTo(b.path));
@@ -149,6 +184,46 @@ const _envelopeKeys = {
 
 final Set<String> _changeIds = readConformanceChangeIds(findConformanceRoot());
 
+final Map<String, Map<String, Object?>> _presets = readConformancePresets(
+  findConformanceRoot(),
+);
+
+/// A scenario's `input` with every `input.configure` group written as
+/// `{"$preset": name, …overrides}` replaced by that preset, each override
+/// replacing the preset member of the same key in place (or appended), as
+/// the C++ runner resolves it. Steps are left as written.
+Map<String, Object?> _resolvePresets(Map<String, Object?> input, String where) {
+  final configure = input['configure'];
+  if (configure is! Map<String, Object?>) return input;
+  return {
+    ...input,
+    'configure': {
+      for (final group in configure.entries)
+        group.key: _resolveGroup(
+          group.value,
+          '$where.input.configure.${group.key}',
+        ),
+    },
+  };
+}
+
+Object? _resolveGroup(Object? value, String where) {
+  if (value is! Map<String, Object?> || !value.containsKey(r'$preset')) {
+    return value;
+  }
+  final preset = _presets[value[r'$preset']];
+  if (preset == null) {
+    throw FormatException(
+      '$where.\$preset: names no preset in $conformancePresetsFile',
+    );
+  }
+  return {
+    ...preset,
+    for (final entry in value.entries)
+      if (entry.key != r'$preset') entry.key: entry.value,
+  };
+}
+
 ConformanceFixture loadFixture(Directory root, File file) {
   final relativePath = fixtureRelativePath(root, file);
   final json = _object(jsonDecode(file.readAsStringSync()), relativePath);
@@ -158,12 +233,15 @@ ConformanceFixture loadFixture(Directory root, File file) {
   }
   _requireString(json, 'description', relativePath);
   final kind = ConformanceKind.parse(json['kind']);
+  final input = _object(json['input'], '$relativePath.input');
   return ConformanceFixture(
     relativePath: relativePath,
     kind: kind,
     name: _requireString(json, 'name', relativePath),
     contract: _object(json['contract'], '$relativePath.contract'),
-    input: _object(json['input'], '$relativePath.input'),
+    input: kind == ConformanceKind.engineScenario
+        ? _resolvePresets(input, relativePath)
+        : input,
     expected: _object(json['expected'], '$relativePath.expected'),
     engineOnly: _engineOnly(json['engineOnly'], kind, relativePath),
     runners: _runners(json, kind, relativePath),

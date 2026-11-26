@@ -2,11 +2,12 @@
 // once at startup (`modules.h`). A module registers its message types, the
 // teardown work it owns per stage, the timers it owns (by id prefix),
 // lifecycle hooks, and the event types it records itself. Modules live in
-// their own files, so phases add behaviour without editing shared code.
+// their own files, so a module adds behaviour without editing shared code.
 //
 // Three kinds of message:
 // - stateless: the slice 2 operations; respond with `result`.
-// - query: reads engine state; responds with `result` (`session.snapshot`).
+// - query: reads engine state; responds with `result` (`session.snapshot`,
+//   `engine.config`).
 // - command: changes engine state; responds with `records` and `effects`.
 //   Commands go through decode, admit, and apply, so a `batch` is validated
 //   as a whole before any of it is applied.
@@ -126,7 +127,7 @@ using AfterCommandHook = void (*)(const At& at, EngineState* state,
                                   Output* out);
 // A frame was accepted into the live session; its frame record is already
 // in `out`. `handle` names the frame's bytes in the host. Collector delivery
-// (phase 3b) uses it to queue the frame lane and hold the handle.
+// uses it to queue the frame lane and hold the handle.
 using FrameAcceptedHook = void (*)(const Frame& frame,
                                    const std::string& handle,
                                    EngineState* state, Output* out);
