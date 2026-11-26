@@ -93,7 +93,10 @@ let package = Package(
         .target(name: "TugboatCaptureRuntime", condition: .when(platforms: [.iOS])),
       ],
       path: "platforms/apple/Sources/Tugboat",
-      exclude: ["README.md", "CHANGELOG.md"]
+      exclude: ["README.md", "CHANGELOG.md"],
+      // Required-reason APIs and the data the SDK sends (README, "Privacy
+      // manifest").
+      resources: [.copy("PrivacyInfo.xcprivacy")]
     ),
     .testTarget(
       name: "TugboatTests",

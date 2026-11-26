@@ -8,6 +8,16 @@ entry here must match it.
 Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
 the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISample`).
 
+- Background flush (contract change: delivery): with `durableOutbox` on,
+  entering the background runs `transport.flush` under a `UIApplication`
+  background task that ends once the flush's outbox writes land, or at
+  expiration. Nothing is begun in an app extension.
+- Privacy manifest: `PrivacyInfo.xcprivacy` declares system boot time
+  (`35F9.1`) and file timestamp (`C617.1`) API use, no tracking, and the
+  collected data types (see README, "Privacy manifest").
+- The outbox forgets a key's attempt number once its last request is
+  answered, so its in-memory tracking no longer grows with every key sent.
+
 - Frame backend name (contract change: `frameMetadata` values):
   `requestedBackend` and `resolvedBackend` are `iosViewHierarchy`, no
   longer `nativeCpuExperimental`. Needs a collector that accepts the native

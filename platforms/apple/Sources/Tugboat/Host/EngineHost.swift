@@ -101,6 +101,13 @@ final class EngineHost {
     enqueue(json: EngineMessage(type: type, inputJSON: inputJSON, at: nil).json, frameHandles: [])
   }
 
+  /// Runs `work` on the engine queue once every message posted before this
+  /// call was submitted and its effects dispatched (so a flush's
+  /// `http.send`s have started); even after `close`. Any thread.
+  func afterPosted(_ work: @escaping () -> Void) {
+    queue.async(execute: work)
+  }
+
   /// Submits `engine.dispose`, then cancels timers, closes IO, destroys the
   /// handle, and frees frames, after already-posted work.
   func close() {

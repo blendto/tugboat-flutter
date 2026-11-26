@@ -250,10 +250,41 @@ everything the engine held in memory.
   `start` (`enabled` false) keeps the entries, within the bounds above.
 - With the outbox on, entering the background also posts `transport.flush`
   at once, so what the engine holds is sent (and written) before the app can
-  be suspended.
+  be suspended. The flush runs under a `UIApplication` background task
+  (`Sdk/BackgroundFlush`), begun in the `didEnterBackground` handler and
+  ended exactly once: when the flush's outbox writes have landed (at once
+  when it sends nothing), or when the system expires it. Only the writes
+  are waited for, not the collector's answers. In an app extension no task
+  is begun and the flush runs unprotected.
+- The outbox remembers attempt numbers only for keys with a request in
+  flight: a key is forgotten when its last request is answered, so a
+  long-running process does not accumulate one entry per key it ever sent.
 - Not covered: a session whose `session_start` was never accepted (the
   engine sends no events or frames before it), events and frames never sent
   yet, and lifecycle posts queued behind a failing one.
+
+## Privacy manifest
+
+`PrivacyInfo.xcprivacy` is a resource of the `Tugboat` target (copied into
+its SwiftPM resource bundle), so Xcode folds it into the app's privacy
+report.
+
+- Required-reason APIs: `ProcessInfo.systemUptime` (`Host/HostClock`, the
+  engine's monotonic clock), reason `35F9.1`: it only measures time between
+  events in the app, and only session-relative offsets (`atMs`) leave the
+  device. `FileManager.attributesOfItem` (`Outbox/OutboxStore`, the size of
+  the outbox's own files in Application Support), reason `C617.1`: metadata
+  of files inside the app container. No `UserDefaults`, disk-space, or
+  active-keyboard APIs are used.
+- Tracking: `false`, no tracking domains.
+- Collected data (sent to the configured collector), all linked to the
+  device and not used for tracking, purpose Analytics: Device ID
+  (`identifierForVendor`), User ID (only when the app calls `setUserId`),
+  Product Interaction (taps, scrolls, screens, lifecycle), Other User
+  Content (screenshots of the app, masked before encoding), and Performance
+  Data (network-call timings and capture diagnostics).
+- `TugboatCaptureRuntime` and `TugboatAlamofire` call no required-reason
+  API and send nothing themselves, so they ship no manifest.
 
 ## Device Farm / exploration correlation
 

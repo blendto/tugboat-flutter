@@ -71,6 +71,36 @@ final class OutboxSenderTests: XCTestCase {
     XCTAssertEqual(outbox.snapshot().entries.count, 0)
   }
 
+  /// The process-wide outbox remembers attempt numbers only for keys in
+  /// flight: many answered sends leave nothing behind (review of PR #100).
+  func testAnsweredKeysAreForgottenSoTrackingDoesNotGrow() {
+    let count = 200
+    for i in 0..<count {
+      send(OutboxRequests.events(["e\(i)"], id: "http-\(i)"))
+    }
+    XCTAssertEqual(outbox.snapshot().latestKeys.count, count)
+    for i in 0..<count {
+      delegate.complete(i, i.isMultiple(of: 2) ? .http(status: 202, body: "") : .timeout)
+    }
+    let snapshot = outbox.snapshot()
+    XCTAssertEqual(snapshot.latestKeys, [])
+    XCTAssertEqual(snapshot.activeKeys, [])
+    XCTAssertEqual(snapshot.entries.count, count / 2, "retried entries stay on disk")
+  }
+
+  /// A key sent again after its last attempt was answered (and forgotten)
+  /// is numbered afresh, and its accept still deletes the entry.
+  func testAKeySentAgainAfterARetriedAnswerIsDeletedOnAccept() {
+    send(OutboxRequests.lifecycle())
+    delegate.complete(0, .timeout)
+    XCTAssertEqual(outbox.snapshot().latestKeys, [])
+    send(OutboxRequests.lifecycle(id: "http-9"))
+    XCTAssertEqual(outbox.snapshot().entries.map { $0.entry.attempts }, [2])
+    delegate.complete(1, .http(status: 202, body: ""))
+    XCTAssertEqual(outbox.snapshot().entries.count, 0)
+    XCTAssertEqual(outbox.snapshot().latestKeys, [])
+  }
+
   /// Edge case 4: the entry holds the last body sent under its key.
   func testARetryWithAChangedBodyKeepsTheLastBody() throws {
     send(OutboxRequests.lifecycle(extra: ",\"userId\":\"u1\""))
