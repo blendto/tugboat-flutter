@@ -12,6 +12,7 @@ on:
       - "platforms/apple/**"
       - "core/image-processing/**"
       - "TugboatCaptureRuntime.podspec"
+      - "tool/ci/device-report/**"
 
 permissions:
   contents: read
@@ -26,9 +27,9 @@ env:
 
 jobs:
   android:
-    name: Android emulator smoke test
+    name: Android emulator smoke test and device report
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -49,20 +50,30 @@ jobs:
           sudo udevadm settle
           ls -l /dev/kvm
           test -w /dev/kvm
-      - name: Run capture smoke test
+      - name: Run smoke test, feature checklist and capture benchmarks
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          EMULATOR_GPU: swiftshader
         with:
           api-level: 35
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader -noaudio -no-boot-anim -no-snapshot
           disable-animations: true
           working-directory: ${{ env.EXAMPLE_DIR }}
-          script: flutter test --no-pub --reporter expanded -d emulator-5554 integration_test/capture_smoke_test.dart
+          # One line: the runner starts a new shell for each script line.
+          script: bash "$GITHUB_WORKSPACE/tool/ci/device-report/run-device-suite.sh" android emulator-5554 "$RUNNER_TEMP/device-report"
+      - name: Upload Android device report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-report-android
+          path: ${{ runner.temp }}/device-report
+          if-no-files-found: warn
 
   ios:
-    name: iOS simulator smoke test
+    name: iOS simulator smoke test and device report
     runs-on: macos-26
-    timeout-minutes: 35
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -83,39 +94,26 @@ jobs:
           ')
           xcrun simctl bootstatus "$udid" -b
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
-      - name: Run capture smoke test
-        working-directory: ${{ env.EXAMPLE_DIR }}
-        timeout-minutes: 18
+      - name: Run smoke test, feature checklist and capture benchmarks
+        timeout-minutes: 75
         env:
           SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
-        run: |
-          set -o pipefail
-          logs="$RUNNER_TEMP/ios-logs"
-          mkdir -p "$logs"
-          # flutter_tools finds the Dart VM service URL by streaming the
-          # simulator log. On a cold runner that stream can attach after the
-          # app has already printed the URL, and the test waits forever.
-          # Keep a stream open from here on so logd is warm at launch.
-          xcrun simctl spawn "$SIMULATOR_UDID" log stream --style compact \
-            --predicate 'processImagePath ENDSWITH "Runner"' > "$logs/warm-stream.log" 2>&1 &
-          sleep 5
-          # One retry, bounded, in case the URL is still missed. The second
-          # attempt reuses the build.
-          for attempt in 1 2; do
-            limit=$(( attempt == 1 ? 600 : 300 ))
-            if perl -e 'alarm shift; exec @ARGV' "$limit" \
-              flutter test --no-pub --verbose --reporter expanded -d "$SIMULATOR_UDID" \
-              integration_test/capture_smoke_test.dart 2>&1 | tee "$logs/flutter-test-$attempt.log"; then
-              exit 0
-            fi
-            echo "::warning::iOS smoke attempt $attempt did not pass"
-          done
-          exit 1
+        # The script keeps a warm simulator log stream open and bounds and
+        # retries every flutter invocation (see the comments in it).
+        run: bash tool/ci/device-report/run-device-suite.sh ios "$SIMULATOR_UDID" "$RUNNER_TEMP/device-report"
+      - name: Upload iOS device report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-report-ios
+          path: ${{ runner.temp }}/device-report
+          if-no-files-found: warn
       - name: Collect simulator logs
         if: failure() || cancelled()
         env:
           SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
         run: |
+          mkdir -p "$RUNNER_TEMP/ios-logs"
           xcrun simctl spawn "$SIMULATOR_UDID" log show --last 30m --style compact \
             --predicate 'process == "Runner" OR subsystem CONTAINS "flutter"' \
             > "$RUNNER_TEMP/ios-logs/simulator.log" 2>&1 || true
@@ -126,3 +124,47 @@ jobs:
         with:
           name: ios-smoke-logs
           path: ${{ runner.temp }}/ios-logs
+
+  report:
+    name: Device report comment
+    needs: [android, ios]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            tool/ci/device-report
+            sdks/flutter/packages/tugboat/lib/src/sdk_version.dart
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: device-report-*
+          path: ${{ runner.temp }}/reports
+      - name: Render report
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 tool/ci/device-report/render-report.py \
+            --android "$RUNNER_TEMP/reports/device-report-android" \
+            --ios "$RUNNER_TEMP/reports/device-report-ios" \
+            --sdk-version-file sdks/flutter/packages/tugboat/lib/src/sdk_version.dart \
+            --sha "$HEAD_SHA" --run-url "$RUN_URL" > "$RUNNER_TEMP/report.md"
+          cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Post or update the PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- tugboat-device-report -->'
+          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -1)
+          if [[ -n "$id" ]]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F "body=@$RUNNER_TEMP/report.md" --jq .html_url
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F "body=@$RUNNER_TEMP/report.md" --jq .html_url
+          fi

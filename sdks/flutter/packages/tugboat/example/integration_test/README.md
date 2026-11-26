@@ -1,3 +1,16 @@
+# Device tests
+
+- `capture_smoke_test.dart`: one end-to-end pass over the public API. Must
+  pass.
+- `device_checklist_test.dart`: one independent row per capture feature.
+  A failing row is recorded with its reason and does not fail the run.
+- `capture_profile_test.dart`: capture backend benchmark (below).
+
+CI runs all three on an Android emulator and an iOS simulator through
+`tool/ci/device-report/run-device-suite.sh`, and
+`tool/ci/device-report/render-report.py` posts the results as one PR
+comment (`.github/workflows/flutter-integration.yml`).
+
 # Capture backend profiling
 
 `capture_profile_test.dart` drives a fixed script (browse feed flings,

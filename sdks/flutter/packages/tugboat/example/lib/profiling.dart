@@ -142,6 +142,9 @@ class CaptureProfiler implements TugboatCaptureSinkFactory {
       'jpegBytes': _stats(
         freshFrames.map((f) => f['byteLength'] as int).toList(),
       ),
+      // Per resolved backend, so frames that fell back to the Flutter path
+      // never count as native capture cost.
+      'byBackend': _byBackend(freshFrames),
       'nativeStageMicros': {
         for (final entry in nativeStage.entries) entry.key: _stats(entry.value),
       },
@@ -157,6 +160,23 @@ class CaptureProfiler implements TugboatCaptureSinkFactory {
   /// Prints [summary] as one `TBPROF` JSON line for log scraping.
   void printSummary({String? label}) =>
       debugPrint('TBPROF ${jsonEncode(summary(label: label))}');
+
+  static Map<String, Object?> _byBackend(List<Map<String, Object?>> frames) {
+    final grouped = <String, List<Map<String, Object?>>>{};
+    for (final frame in frames) {
+      final backend = frame['resolvedBackend'] as String? ?? 'unknown';
+      (grouped[backend] ??= []).add(frame);
+    }
+    return {
+      for (final MapEntry(key: backend, value: group) in grouped.entries)
+        backend: {
+          'captureMicros': _stats([
+            for (final f in group) f['captureMicros'] as int,
+          ]),
+          'jpegBytes': _stats([for (final f in group) f['byteLength'] as int]),
+        },
+    };
+  }
 
   static Map<String, int> _stats(List<int> values) {
     if (values.isEmpty) return const {'n': 0};
