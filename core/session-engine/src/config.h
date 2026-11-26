@@ -108,6 +108,12 @@ struct Config {
 bool decode_config(const Value& input, const std::string& path, Config* out,
                    Error* error);
 
+// The `engine.config` result: every group except `host`, each field with its
+// effective value under the name `engine.configure` takes. The one place
+// hosts read the engine's defaults (and timeouts) from, instead of copying
+// them.
+Value config_json(const Config& config);
+
 }  // namespace engine
 }  // namespace tugboat
 

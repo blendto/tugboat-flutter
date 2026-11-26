@@ -231,7 +231,36 @@ bool decode_host_group(const ObjectReader& r, Config* out, Error* error) {
   return true;
 }
 
+void put_group(Value* out, const char* name, const GroupSpec& spec) {
+  Value group = Value::object();
+  for (const IntField& field : spec.ints) {
+    group.set(field.key, Value::integer(*field.out));
+  }
+  for (const NumberField& field : spec.numbers) {
+    group.set(field.key, Value::number(*field.out));
+  }
+  for (const BoolField& field : spec.bools) {
+    group.set(field.key, Value::boolean(*field.out));
+  }
+  out->set(name, std::move(group));
+}
+
 }  // namespace
+
+Value config_json(const Config& config) {
+  // The specs that decode a group also name and order its output; they
+  // write through pointers, so they read a copy.
+  Config c = config;
+  Value out = Value::object();
+  put_group(&out, "limits", limits_spec(&c.limits));
+  put_group(&out, "gesture", gesture_spec(&c.gesture));
+  put_group(&out, "interaction", interaction_spec(&c.interaction));
+  put_group(&out, "navigation", navigation_spec(&c.navigation));
+  put_group(&out, "capture", capture_spec(&c.capture));
+  put_group(&out, "collector", collector_spec(&c.collector));
+  put_group(&out, "capabilities", capabilities_spec(&c.capabilities));
+  return out;
+}
 
 bool decode_config(const Value& input, const std::string& path, Config* out,
                    Error* error) {

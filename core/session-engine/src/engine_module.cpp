@@ -1,6 +1,6 @@
 // Engine-level messages: `engine.configure`, `engine.dispose`,
-// `session.snapshot`, and `timer.fired` (docs/stateful-engine.md sections
-// 3, 6, and 10).
+// `engine.config`, `session.snapshot`, and `timer.fired`
+// (docs/stateful-engine.md sections 3, 6, and 10).
 #include <memory>
 #include <optional>
 #include <string>
@@ -136,6 +136,20 @@ bool run_snapshot(const EngineState& state, const Value& input,
   return true;
 }
 
+// `engine.config {}` → `{"config": {limits, gesture, …, capabilities}}`: the
+// effective configuration (the defaults before any `engine.configure`),
+// without `host`. Hosts derive their own waits from it (section 6).
+bool run_config(const EngineState& state, const Value& input,
+                const std::string& path, Value* result, Error* error) {
+  const ObjectReader r(input, path, error);
+  if (!r.check_keys({})) {
+    return false;
+  }
+  *result = Value::object();
+  result->set("config", config_json(state.config));
+  return true;
+}
+
 }  // namespace
 
 void register_engine_module(ModuleRegistry* registry) {
@@ -148,6 +162,7 @@ void register_engine_module(ModuleRegistry* registry) {
   registry->add_command("timer.fired",
                         {AtRule::kMono, SessionPolicy::kAny,
                          decode_timer_fired});
+  registry->add_query("engine.config", run_config);
   registry->add_query("session.snapshot", run_snapshot);
 }
 

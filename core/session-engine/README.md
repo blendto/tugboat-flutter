@@ -99,6 +99,15 @@ core/session-engine/
 | `tb_session_engine_destroy(engine)` | Frees the handle and every buffer it owns. `NULL` is a no-op. |
 | `tb_session_engine_submit_v1(engine, msg, len, &out, &out_len)` | The single message entry point: one UTF-8 JSON message in, one UTF-8 JSON response out. |
 
+The first four functions are the compatibility check: a host calls them once
+when it creates its first engine, before `create`, and does not start the
+engine when the ABI version differs from the header it was built with or
+either schema version differs from what its own code produces. A host that
+computes identity parts itself (Android's `IdentityHash`, Apple's
+`IdentityHash`) reads `tb_session_engine_fingerprint_schema_version()`
+instead of hard-coding the number. `tb_session_engine_version()` is for logs
+only. None of them needs a handle, fails, or allocates.
+
 Functions and structs whose layout may change carry a `_v1` suffix. A
 breaking change adds `_v2` beside them and bumps
 `TB_SESSION_ENGINE_ABI_VERSION`. Changing the ABI is a contract change (see
@@ -177,8 +186,8 @@ by `type`:
 
 - **Stateless** operations (slice 2) compute a `result` from their input
   alone and never touch engine state.
-- **Queries** (`session.snapshot`) read engine state and respond with a
-  `result`.
+- **Queries** (`session.snapshot`, `engine.config`) read engine state and
+  respond with a `result`.
 - **Commands** change engine state and respond with `records` and
   `effects`. Facts among them carry the time they describe in `at`.
 
@@ -300,6 +309,7 @@ message `input`. The field-level vocabulary is in
 | `transport.flush` | mono | `{}` | A flush trigger from the host, for example before the process exits. |
 | `timer.fired` | mono | `{timerId}` | Routes by timer-id prefix to the module that armed the timer. Unknown, cancelled, and stale (fired before the current deadline) ids are ignored. |
 | `session.snapshot` | optional | `{}` | Query. `result.snapshot` is the live or last session as `TugboatSession.toJson()` (schema 10), or `null` before the first session. |
+| `engine.config` | optional | `{}` | Query. `result.config` is the effective configuration: every `engine.configure` group except `host` (`limits`, `gesture`, `interaction`, `navigation`, `capture`, `collector`, `capabilities`), each field under its `engine.configure` name with its value, so a fresh handle reports the defaults below. Hosts read their timeouts from it (below). |
 | `input.pointer` | mono | `{pointerId, phase, x, y, device, tap?}` | A pointer fact (section 9.1). `phase`: `down`, `move`, `up`, `cancel`; `device`: `touch`, `mouse`, `stylus`, `trackpad` (validated; it does not change classification, as in Dart). `x`, `y` are logical pixels in the adapter's surface space. `tap {anchor?, failureReason?, inventory?}` is allowed on `down` (exploration pre-tap evidence) and `up`. A `pointerId` must be unique per contact. |
 | `input.panZoom` | mono | `{pointerId, phase, x, y, panX?, panY?, scale?}` | A trackpad pan/zoom contact at `x, y`. `phase`: `start`, `update`, `end`. The cumulative `panX`, `panY`, and `scale` are required on `update` and not allowed otherwise. |
 | `scroll` | mono | `{scrollableId, phase, offset?, axis?, maxScrollExtent?, anchor?}` | `phase`: `start`, `update`, `end`, `overscroll`. `offset` and `axis` (`vertical`, `horizontal`) are required except on `overscroll`, which carries only the id; `maxScrollExtent` gives samples their `offsetNorm`; `anchor` (the scrollable's) is allowed on `start` only. `scrollableId` is stable for the scrollable's lifetime. |
@@ -503,6 +513,15 @@ validated. `host.configuredUserId` is the runtime user id until
 | `capabilities` | `sceneInventory`, `nativeSceneInventory`, `viewportSemanticMap`, `captureDiagnostics`, `actionContext`, `focusChanges`, `systemInput`, all false |
 
 Durations are milliseconds in [0, 86400000], except the period `flushIntervalMs`, in [1, 86400000]; counts are in [1, 1000000]. A periodic flush that fires late re-arms at its first tick after the fire.
+
+These defaults live in one place, `src/config.h`. A host reads them, and the
+values its own `engine.configure` set, with the `engine.config` query
+instead of copying numbers, and derives its waits from them (design section
+6): the stop sequence's bound on the `session_end` post is
+`endDrainTimeoutMs + jsonTimeoutMs + answerGraceMs` (25 s by default), an
+outbox replay uses `jsonTimeoutMs` for JSON posts and `frameTimeoutMs` for
+frames, and a wait that must end before the engine gives up on a capture
+answer stays below `capture.answerTimeoutMs`.
 
 ### Collector delivery
 

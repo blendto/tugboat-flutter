@@ -340,6 +340,18 @@ again between sessions.
 | `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs 5000 (change C5), reportEventLaneGaps false (change C6), answerGraceMs 5000 (change C15), maxRetryAfterMs 60000, maxEndingRetryAfterMs 10000 |
 | `capabilities` | the `TugboatReplayConfig` evidence switches (inventory, semantic map, focus, system input, …) |
 
+The defaults are defined once, in `src/config.h`. The `engine.config` query
+(`{}`, `at` optional) answers `result.config`: the effective value of every
+field above except `host`, under its `engine.configure` name, so a fresh
+handle reports the defaults. Hosts derive their own waits from it instead of
+hard-coding copies:
+
+| Host wait | Derived from | Default |
+| --- | --- | --- |
+| Stop sequence: how long to wait for the `session_end` post (`isSessionEnd`) to settle before `engine.dispose` | `collector.endDrainTimeoutMs + collector.jsonTimeoutMs + collector.answerGraceMs`: the drain, one JSON post, and its answer grace | 25000 |
+| Outbox replay of a kept request | `collector.jsonTimeoutMs` (JSON lanes), `collector.frameTimeoutMs` (frames), as the engine's own `timeoutMs` | 15000 |
+| Any wait before answering `capture.request` (for example for a window) | must stay below `capture.answerTimeoutMs`, after which the engine resolves the capture as `answer_timeout` | 5000 |
+
 ## 7. Collector delivery (phase 3b)
 
 This replaces `CollectorHttpSink` policy. The host performs requests and
