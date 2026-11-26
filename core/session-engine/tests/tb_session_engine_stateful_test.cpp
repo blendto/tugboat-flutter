@@ -372,13 +372,15 @@ void test_effects_json() {
   effects.push_back(TimerSchedule{"t", 42});
   effects.push_back(TimerCancel{"t"});
   effects.push_back(HttpSend{"r-1", HttpLane::kLifecycle, "/v1/sessions",
-                             15000, JsonBody{"{\"sessionId\":\"s\"}"}});
+                             15000, JsonBody{"{\"sessionId\":\"s\"}"}, "s",
+                             {"s/l/session_end/t"}, true});
   MultipartBody multipart;
   multipart.fields.emplace_back("sessionId", "s");
   multipart.fields.emplace_back("frameMetadata", "[{\"id\":\"frame-2\"}]");
   multipart.frames.push_back({"h-2", "2.jpg"});
   effects.push_back(
-      HttpSend{"r-2", HttpLane::kFrames, "/v1/frames", 15000, multipart});
+      HttpSend{"r-2", HttpLane::kFrames, "/v1/frames", 15000, multipart, "s",
+               {"s/f/2"}, false});
   effects.push_back(FrameRelease{"h-2"});
   CaptureRequest capture;
   capture.request_id = "capture_request-3";
@@ -395,11 +397,15 @@ void test_effects_json() {
       "{\"type\":\"timer.cancel\",\"timerId\":\"t\"},"
       "{\"type\":\"http.send\",\"requestId\":\"r-1\",\"lane\":\"lifecycle\","
       "\"path\":\"/v1/sessions\",\"timeoutMs\":15000,\"jsonBody\":"
-      "\"{\\\"sessionId\\\":\\\"s\\\"}\"},{\"type\":\"http.send\","
+      "\"{\\\"sessionId\\\":\\\"s\\\"}\",\"sessionId\":\"s\","
+      "\"deliveryKeys\":[\"s/l/session_end/t\"],\"isSessionEnd\":true},"
+      "{\"type\":\"http.send\","
       "\"requestId\":\"r-2\",\"lane\":\"frames\",\"path\":\"/v1/frames\","
       "\"timeoutMs\":15000,\"multipart\":{\"fields\":[[\"sessionId\",\"s\"],"
       "[\"frameMetadata\",\"[{\\\"id\\\":\\\"frame-2\\\"}]\"]],\"frames\":"
-      "[{\"handle\":\"h-2\",\"filename\":\"2.jpg\"}]}},{\"type\":"
+      "[{\"handle\":\"h-2\",\"filename\":\"2.jpg\"}]},\"sessionId\":"
+      "\"s\",\"deliveryKeys\":[\"s/f/2\"],\"isSessionEnd\":false},"
+      "{\"type\":"
       "\"frame.release\","
       "\"handle\":\"h-2\"},{\"type\":\"capture.request\",\"requestId\":"
       "\"capture_request-3\",\"trigger\":\"route\",\"force\":false,"

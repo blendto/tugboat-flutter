@@ -95,6 +95,13 @@ struct EffectJson {
       out.set("multipart",
               multipart_json(std::get<MultipartBody>(effect.body)));
     }
+    out.set("sessionId", str(effect.session_id));
+    Value keys = Value::array();
+    for (const std::string& key : effect.delivery_keys) {
+      keys.push(str(key));
+    }
+    out.set("deliveryKeys", std::move(keys));
+    out.set("isSessionEnd", Value::boolean(effect.is_session_end));
     return out;
   }
   Value operator()(const FrameRelease& effect) const {

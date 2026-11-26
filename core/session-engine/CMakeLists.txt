@@ -42,6 +42,7 @@ set(_tb_engine_sources
   src/dart_time.cpp
   src/delivery.cpp
   src/delivery_gaps.cpp
+  src/delivery_keys.cpp
   src/delivery_lanes.cpp
   src/delivery_module.cpp
   src/engine.cpp

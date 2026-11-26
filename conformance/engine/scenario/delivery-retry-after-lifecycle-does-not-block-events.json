@@ -89,7 +89,12 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}"
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-1781827200000000",
+              "deliveryKeys": [
+                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
+              ],
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
@@ -205,7 +210,12 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":150,\"triggeredAt\":\"2026-06-19T00:00:00.150Z\",\"userId\":\"user-2\"}"
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":150,\"triggeredAt\":\"2026-06-19T00:00:00.150Z\",\"userId\":\"user-2\"}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/l/user_changed/2026-06-19T00:00:00.150Z"
+              ],
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
@@ -298,7 +308,12 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":4000,\"triggeredAt\":\"2026-06-19T00:00:04.000Z\",\"userId\":\"user-2\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"a\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":4000,\"triggeredAt\":\"2026-06-19T00:00:04.000Z\",\"userId\":\"user-2\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"a\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/1441ba5507f9658d"
+              ],
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
@@ -544,7 +559,12 @@
                     "filename": "6.jpg"
                   }
                 ]
-              }
+              },
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/f/6"
+              ],
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
@@ -580,7 +600,12 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-4\",\"atMs\":4100,\"triggeredAt\":\"2026-06-19T00:00:04.100Z\",\"userId\":\"user-2\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"tap\",\"afterFrame\":\"frame-6\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}"
+              "jsonBody": "{\"events\":[{\"id\":\"event-4\",\"atMs\":4100,\"triggeredAt\":\"2026-06-19T00:00:04.100Z\",\"userId\":\"user-2\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"tap\",\"afterFrame\":\"frame-6\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/7867155e59d4840b"
+              ],
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
@@ -647,7 +672,12 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":150,\"triggeredAt\":\"2026-06-19T00:00:00.150Z\",\"userId\":\"user-2\"}"
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":150,\"triggeredAt\":\"2026-06-19T00:00:00.150Z\",\"userId\":\"user-2\"}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/l/user_changed/2026-06-19T00:00:00.150Z"
+              ],
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",

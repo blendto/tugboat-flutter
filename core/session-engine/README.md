@@ -263,7 +263,7 @@ Effects are what the host must do, in order.
 | --- | --- | --- |
 | `timer.schedule` | `timerId`, `atMonoUs` | `timer.fired {timerId}` at that host monotonic time. An armed timer with the same id is replaced. |
 | `timer.cancel` | `timerId` | none |
-| `http.send` | `requestId` (a string, `http-N`), `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `jsonBody` or `multipart`. `jsonBody` is the request body, already encoded: the exact UTF-8 text to send (byte-identical to Dart's `jsonEncode`); hosts never re-encode it. `multipart` is `{fields, frames}`: `fields` an ordered array of `[name, value]` string pairs, `frames` an array of `{handle, filename}` file parts (form field `files`) whose bytes the host resolves from the handle. Headers (API key, app identity, content type) are the host's. | `transport.result {requestId, …}` echoing `requestId` |
+| `http.send` | `requestId` (a string, `http-N`), `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, and either `jsonBody` or `multipart`. `jsonBody` is the request body, already encoded: the exact UTF-8 text to send (byte-identical to Dart's `jsonEncode`); hosts never re-encode it. `multipart` is `{fields, frames}`: `fields` an ordered array of `[name, value]` string pairs, `frames` an array of `{handle, filename}` file parts (form field `files`) whose bytes the host resolves from the handle. Headers (API key, app identity, content type) are the host's. Then, on every request, the durable-outbox metadata ([stateful design](docs/stateful-engine.md) section 3.1): `sessionId` (the session id the request carries), `deliveryKeys` (one key per unit: `<sessionId>/l/<eventType>/<triggeredAt>`, `<sessionId>/e/<16 hex digest of the sorted event ids>`, or one `<sessionId>/f/<frameNo>` per frame part in part order), and `isSessionEnd` (`true` only for the `session_end` post). | `transport.result {requestId, …}` echoing `requestId` |
 | `frame.release` | `handle` | none; the host may drop the bytes |
 | `capture.request` | `requestId` (`capture-N`, one per physical capture), `trigger`, `force` (capture even when the paint is unchanged), `requireFreshPaint`, `dropWhenBusy` (informative), `notBeforeMonoUs` (already reached: the engine waits itself), `context` (`routeEpoch`, `navigatorId?`, `routeInstanceId?`, `boundaryGeneration`), `dHashBaseline?` (`{dHash, structureSignature}`), `scale` | `capture.result {requestId, …}`, exactly one per request |
 
@@ -539,7 +539,9 @@ request is in flight at a time across the three lanes.
   lane's `Retry-After` wait is over). A trigger during a pass runs another
   pass after it (C2).
 - **Outcomes.** HTTP 202 is accepted; 408, 429, 5xx, `error`, and `timeout`
-  are retried; any other status drops the batch for good (C8 kept). JSON
+  are retried; any other status drops the batch for good (C8 kept). This is
+  the one rule hosts apply to tell when a request settled (design section
+  7.4). JSON
   posts carry `jsonTimeoutMs` (C3), frame uploads `frameTimeoutMs`. Each
   request also arms `delivery.answer.<requestId>` at `timeoutMs +
   answerGraceMs`: without an answer by then it is a timeout and a late
