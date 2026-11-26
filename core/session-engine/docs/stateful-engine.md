@@ -67,6 +67,9 @@ records next to effects.
 
 - `at.monoUs`: the host monotonic clock (section 5) at the moment the fact
   happened, not when it was submitted. Required on every stateful message.
+  An integer in [0, 2^62], as are the other monotonic fields (`atMonoUs`,
+  `startMonoUs`, `endMonoUs`): deadlines add at most a few days to a time
+  stamp, so the bound keeps them inside int64.
 - `at.wallUs`: UTC epoch microseconds at the same moment. Required on
   `session.start`, `session.end`, `identity.set`, `traits.set`, and
   `transport.result`. Optional elsewhere.
@@ -280,7 +283,9 @@ Derived values:
 - Event and frame `atMs`: `floor((fact.monoUs - session.startMonoUs) / 1000)`,
   matching Dart's `Stopwatch.elapsedMilliseconds`. A fact stamped before
   its session started records `0` (change C13).
-- Collector `triggeredAt`: `startedAt + atMs`. This is unchanged.
+- Collector `triggeredAt`: `startedAt + atMs`. This is unchanged. A
+  lifecycle post whose fact has only `monoUs` (`app.lifecycle` `detached`
+  ending the session) derives its `triggeredAt` the same way.
 - Lifecycle record `atMs`:
   - Today `session_end` uses wall-clock subtraction and can go negative
     (fixture `session-end-clock-before-start`).
@@ -368,7 +373,9 @@ is in flight at a time across all lanes. A pass sends, in order:
 Triggers:
 
 - the 10th pending event;
-- the periodic timer (every 3 s while active);
+- the periodic timer (every `flushIntervalMs`, default 3 s, while active;
+  at least 1 ms, so the timer always moves forward). A fire that comes late
+  re-arms at the first tick after it; the ticks it missed are skipped;
 - frame arrival, unless frames need retry;
 - the background timer (500 ms after `paused`/`hidden`);
 - `session.end`;
@@ -502,7 +509,9 @@ Handle release (refcount):
      each for `Lifecycle`, `Events`, and `Frames`.
 
   `session_end`'s `triggeredAt` and `atMs` are the `session.end` fact's
-  time, not the time the drain ended.
+  time, not the time the drain ended. When the session ends on
+  `app.lifecycle` `detached`, which carries no `wallUs`, `triggeredAt` is
+  the session start's wall time plus `atMs`.
 
   Today `session_end` goes first in its pass, and a failed end is never
   retried.

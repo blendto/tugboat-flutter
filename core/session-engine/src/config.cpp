@@ -10,7 +10,9 @@ namespace engine {
 namespace {
 
 // Durations are milliseconds in [0, one day]; counts are in [1, 1e6]. The
-// bounds keep every derived monotonic deadline far from int64 overflow.
+// bounds keep every derived monotonic deadline far from int64 overflow. A
+// period (a timer that re-arms itself) is a duration of at least 1 ms, so
+// its next deadline always moves forward.
 constexpr int64_t kMaxDurationMs = 86400000;
 constexpr int64_t kMaxCount = 1000000;
 
@@ -55,6 +57,10 @@ struct GroupSpec {
 
 IntField duration(const char* key, int64_t* out) {
   return IntField{key, out, 0, kMaxDurationMs};
+}
+
+IntField period(const char* key, int64_t* out) {
+  return IntField{key, out, 1, kMaxDurationMs};
 }
 
 IntField count(const char* key, int64_t* out) {
@@ -178,7 +184,7 @@ GroupSpec capture_spec(CaptureConfig* c) {
 
 GroupSpec collector_spec(CollectorConfig* c) {
   return {{count("batchSize", &c->batch_size),
-           duration("flushIntervalMs", &c->flush_interval_ms),
+           period("flushIntervalMs", &c->flush_interval_ms),
            count("maxPendingBatches", &c->max_pending_batches),
            count("maxPendingEvents", &c->max_pending_events),
            count("maxPendingFrames", &c->max_pending_frames),

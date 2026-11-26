@@ -20,7 +20,9 @@ class Engine {
 
   // Handles one parsed message. On success `*response` is the response
   // document; on failure `*error` says why and the engine state is
-  // unchanged (a rejected batch applies none of its messages).
+  // unchanged (a rejected batch applies none of its messages). An exception
+  // (allocation failure, a bug) can leave a message or batch partly applied;
+  // the C ABI then poisons the handle (abi_handle.h).
   bool handle(const Value& message, Value* response, Error* error);
 
   EngineState& state() { return state_; }

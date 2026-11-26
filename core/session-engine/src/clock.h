@@ -18,7 +18,7 @@ namespace tugboat {
 namespace engine {
 
 // `at`: when the fact happened. `mono_us` is the host monotonic clock in
-// microseconds (non-negative); `wall_us` is UTC epoch microseconds in Dart's
+// microseconds in [0, 2^62]; `wall_us` is UTC epoch microseconds in Dart's
 // DateTime range.
 struct At {
   int64_t mono_us = 0;
@@ -37,7 +37,7 @@ enum class AtRule {
 bool decode_at(const Value* json, AtRule rule, const std::string& path,
                std::optional<At>* out, Error* error);
 
-// Decodes an optional non-negative monotonic time stamp field.
+// Decodes an optional monotonic time stamp field, in [0, 2^62].
 bool decode_mono_us(const ObjectReader& r, const char* key,
                     std::optional<int64_t>* out);
 

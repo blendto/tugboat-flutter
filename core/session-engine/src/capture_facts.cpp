@@ -93,6 +93,30 @@ bool decode_mask_coverage(const ObjectReader& frame,
   return true;
 }
 
+// A day: the bound of every engine duration, so sums never overflow.
+constexpr int64_t kMaxMicros = 86400000000;
+
+bool check_micros(const ObjectReader& r, const char* key, int64_t value) {
+  if (value < 0) return r.reject(key, "must not be negative");
+  if (value > kMaxMicros) return r.reject(key, "must be at most 86400000000");
+  return true;
+}
+
+// A required duration in microseconds, in [0, one day].
+bool read_required_micros(const ObjectReader& r, const char* key,
+                          int64_t* out) {
+  return r.req_int(key, out) && check_micros(r, key, *out);
+}
+
+// An optional duration in microseconds, in [0, one day]; absent is 0.
+bool read_micros(const ObjectReader& r, const char* key, int64_t* out) {
+  std::optional<int64_t> value;
+  if (!r.opt_int(key, &value)) return false;
+  if (value && !check_micros(r, key, *value)) return false;
+  *out = value.value_or(0);
+  return true;
+}
+
 bool decode_frame(const Value& json, const std::string& path,
                   CapturedFrame* out, Error* error) {
   const ObjectReader r(json, path, error);
@@ -109,7 +133,7 @@ bool decode_frame(const Value& json, const std::string& path,
       !r.opt_string("structureSignature", &out->structure_signature) ||
       !r.opt_bool("masked", &masked) ||
       !read_non_negative(r, "byteLength", &out->byte_length) ||
-      !read_non_negative(r, "captureMicros", &out->capture_micros) ||
+      !read_required_micros(r, "captureMicros", &out->capture_micros) ||
       !r.opt_string("requestedBackend", &out->requested_backend) ||
       !r.opt_string("resolvedBackend", &out->resolved_backend) ||
       !r.opt_string("fallbackReason", &out->fallback_reason) ||
@@ -123,19 +147,6 @@ bool decode_frame(const Value& json, const std::string& path,
   return true;
 }
 
-// A day: the bound of every engine duration, so sums never overflow.
-constexpr int64_t kMaxMicros = 86400000000;
-
-bool read_micros(const ObjectReader& r, const char* key, int64_t* out) {
-  std::optional<int64_t> value;
-  if (!r.opt_int(key, &value)) return false;
-  if (value && *value < 0) return r.reject(key, "must not be negative");
-  if (value && *value > kMaxMicros) {
-    return r.reject(key, "must be at most 86400000000");
-  }
-  *out = value.value_or(0);
-  return true;
-}
 
 bool decode_timings(const ObjectReader& parent,
                     std::optional<CaptureTimings>* out, Error* error) {

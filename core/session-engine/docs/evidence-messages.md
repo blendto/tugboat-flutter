@@ -36,7 +36,7 @@ inherits an action context (`attachActionContext: false`, section 4.4).
 | `source` | string, optional | Hook source, sent in full. Trimmed and cut to 128 units. Empty after trimming: omitted. |
 | `policy` | object | `{mode, allowedKeys?}`. `mode` is `names_only`, `allow_list`, `transform`, or `allow_all`. `allowedKeys` (array of strings) is required with `allow_list` and not allowed otherwise. |
 | `parameters` | value, optional | A `map` value (section 2) holding the parameters, written by the rules in section 4.4 and read by section 3.1. Absent, `null`, or a map without entries: no parameters. |
-| `atMonoUs` | integer, optional | Fact time. Default `at.monoUs`. |
+| `atMonoUs` | integer, optional | Fact time, in [0, 2^62]. Default `at.monoUs`. |
 
 The recorded `external_event` data is, in this key order:
 `source?`, `name`, `parameterKeys`, `parameters?`,
@@ -50,8 +50,8 @@ The recorded `external_event` data is, in this key order:
 | --- | --- | --- |
 | `method` | string | Request method as the host has it. Trimmed and upper-cased. Empty, longer than 16 units, or holding a non-ASCII character after trimming: nothing is recorded. |
 | `route` | string | The host's route resolver output, untrimmed. It must be an absolute path of at most 256 units: no surrounding whitespace, no `//` prefix, no `://`, and no control character, space, DEL, `%`, `#`, `?`, or `\`. Otherwise nothing is recorded (Dart's no-op token). |
-| `startMonoUs` | integer | Host monotonic time when the call began. It is the event's fact time, so the event keeps its start (change C19). A call that began before the live session started is dropped, as Dart drops a token from an earlier session. |
-| `endMonoUs` | integer, optional | When the call finished. Default `at.monoUs`. |
+| `startMonoUs` | integer | Host monotonic time when the call began, in [0, 2^62]. It is the event's fact time, so the event keeps its start (change C19). A call that began before the live session started is dropped, as Dart drops a token from an earlier session. |
+| `endMonoUs` | integer, optional | When the call finished, in [0, 2^62]. Default `at.monoUs`. |
 | `statusCode` | integer, optional | HTTP status. Recorded when present. |
 | `outcome` | string | `response`, `network_error`, or `cancelled`. |
 | `attemptCount` | integer, optional | Recorded only when greater than 0. |

@@ -38,7 +38,7 @@ core/session-engine/
 
 | Module | Owns |
 | --- | --- |
-| `tb_session_engine.cpp` | The C ABI: handles, buffers, status codes, error documents. |
+| `tb_session_engine.cpp`, `abi_handle.h` | The C ABI: handles, buffers, status codes, error documents, and the poisoned handle after an exception. |
 | `engine` | Envelope validation, `batch`, admission, and response documents. |
 | `module_registry` | What modules contribute: message types (with their `at` rule and session policy), teardown work per stage, timers by id prefix, lifecycle hooks, frame-accepted hooks, event record observers (which the recorder reaches through the dispatcher's `EngineState::applying`, with the message's `at`), and the event types the engine records itself. |
 | `modules` | Registers every `*_module.cpp` once (`register_*_module`). |
@@ -132,7 +132,7 @@ message twice to size a caller buffer.
 | 7 | `message_too_large` | Longer than `max_message_bytes`. |
 | 8 | `busy` | A call on the same handle is already running (best-effort detection of a host bug). |
 | 9 | `out_of_memory` | Allocation failed. |
-| 10 | `internal_error` | Unexpected failure. Never expected. Report it. |
+| 10 | `internal_error` | Unexpected failure. Never expected. Report it. The call may have left the engine state partly written, so the handle is poisoned: every later `submit` on it answers `internal_error` without running. Destroy it. |
 
 Whenever `engine`, `out`, and `out_len` are valid, `*out` is a JSON object:
 the response on `ok`, otherwise an error document:
@@ -143,7 +143,11 @@ the response on `ok`, otherwise an error document:
 
 `malformed_message` adds the byte `offset`. Exceptions never cross the ABI.
 Every entry point catches `std::bad_alloc` and anything else, and nothing
-aborts on bad input. Internally the engine reports errors as return values,
+aborts on bad input. `create` returns `out_of_memory` or `internal_error`
+when constructing the handle throws. An exception caught in `submit` can
+interrupt a message or `batch` partway through `apply`, so it poisons the
+handle (`out_of_memory` or `internal_error` for that call, `internal_error`
+for every later one). Internally the engine reports errors as return values,
 not exceptions. When the build disables exceptions, the `try`/`catch` is
 compiled out.
 
@@ -197,7 +201,7 @@ Unknown envelope keys are `invalid_message`.
 
 | Field | Meaning |
 | --- | --- |
-| `monoUs` | Host monotonic clock in microseconds at the moment of the fact (not of submission). A non-negative integer. Required on every fact. |
+| `monoUs` | Host monotonic clock in microseconds at the moment of the fact (not of submission). An integer in [0, 2^62] (4611686018427387904), so no deadline derived from it can overflow; the same bound applies to `atMonoUs`, `startMonoUs`, and `endMonoUs`. Required on every fact. |
 | `wallUs` | UTC epoch microseconds at the same moment, within Dart's `DateTime` range. Required on `session.start`, `session.end`, `identity.set`, `traits.set`, and `transport.result`; optional elsewhere. |
 
 The engine never reads a clock. Event `atMs` is
@@ -301,7 +305,7 @@ message `input`. The field-level vocabulary is in
 | `scroll` | mono | `{scrollableId, phase, offset?, axis?, maxScrollExtent?, anchor?}` | `phase`: `start`, `update`, `end`, `overscroll`. `offset` and `axis` (`vertical`, `horizontal`) are required except on `overscroll`, which carries only the id; `maxScrollExtent` gives samples their `offsetNorm`; `anchor` (the scrollable's) is allowed on `start` only. `scrollableId` is stable for the scrollable's lifetime. |
 | `focus` | mono | `{kind}` | `text_input`, `other`, or `none`: what now holds primary focus. Tracked without a session too; records `focus_changed` (with `focusChanges`) only for transitions involving a text input. |
 | `systemInput` | mono | `{input}` | `back`, `volume_up`, `volume_down`, `volume_mute`, `power`, `media_play_pause`. Records `system_input` with the `systemInput` capability. |
-| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?, failure?, timings?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, dHash?, structureSignature?, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?, maskCoverage?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged` (only for a request without `force`), `failed` (optional `failure`: `boundaryUnavailable`, `boundaryDetached`, `boundaryReplaced`, `layoutUnavailable`, `paintTimedOut`, `paintNotAdvanced`, `readbackFailed`, `maskFailed`, `encodingFailed`, `secureWindow`), `cancelled`. `maskCoverage {mode, reasons}` (native hosts) says which mask mode applied: `mode` is `precise`, `wholeHost`, or `wholeFrame`; `reasons` is an array (may be empty) of at most 8 distinct names from `composeDefault`, `composeVersionUnverified`, `composeOwnerUnavailable`, `interop`, `regionUnreadable`, `treeUnreadable`, `animating`, `unverifiedLayerAllowlist`, `walkExhausted`, `noWindowSize`, `noDecor`, `representable`, `webView`, `renderer`, `surfaceLayer`, `unclassifiedLayer`, `secureText`, `overlayWindow` (every value the Android and SwiftUI adapters emit). `timings {frameWaitMicros?, readbackMicros?, maskMicros?, encodeMicros?}` (each at most a day) feed the screenshot budget. `requestedBackend` and `resolvedBackend` are the closed collector vocabulary (`flutterRepaintBoundary`, `nativeCpuExperimental`, `androidPixelCopy`, `iosViewHierarchy`), forwarded verbatim to `frameMetadata`; `dHash` and `structureSignature` are opaque tokens the engine only compares. This is the one way frames enter the engine. A captured frame the engine does not accept (an unknown, stale, or teardown-abandoned request, a reuse, a perceptual match, or no live session) is released at once (`frame.release`). |
+| `capture.result` | mono | `{requestId, outcome, frame?, boundaryRect?, failure?, timings?}` | The answer to a `capture.request`. `outcome`: `captured` (with `frame {handle, width, height, contentHash, dHash?, structureSignature?, masked, byteLength, captureMicros, requestedBackend?, resolvedBackend?, fallbackReason?, maskCoverage?}` and optional `boundaryRect {x, y, width, height}`), `paintUnchanged` (only for a request without `force`), `failed` (optional `failure`: `boundaryUnavailable`, `boundaryDetached`, `boundaryReplaced`, `layoutUnavailable`, `paintTimedOut`, `paintNotAdvanced`, `readbackFailed`, `maskFailed`, `encodingFailed`, `secureWindow`), `cancelled`. `maskCoverage {mode, reasons}` (native hosts) says which mask mode applied: `mode` is `precise`, `wholeHost`, or `wholeFrame`; `reasons` is an array (may be empty) of at most 8 distinct names from `composeDefault`, `composeVersionUnverified`, `composeOwnerUnavailable`, `interop`, `regionUnreadable`, `treeUnreadable`, `animating`, `unverifiedLayerAllowlist`, `walkExhausted`, `noWindowSize`, `noDecor`, `representable`, `webView`, `renderer`, `surfaceLayer`, `unclassifiedLayer`, `secureText`, `overlayWindow` (every value the Android and SwiftUI adapters emit). `captureMicros` and `timings {frameWaitMicros?, readbackMicros?, maskMicros?, encodeMicros?}` (each at most a day) feed the screenshot budget. `requestedBackend` and `resolvedBackend` are the closed collector vocabulary (`flutterRepaintBoundary`, `nativeCpuExperimental`, `androidPixelCopy`, `iosViewHierarchy`), forwarded verbatim to `frameMetadata`; `dHash` and `structureSignature` are opaque tokens the engine only compares. This is the one way frames enter the engine. A captured frame the engine does not accept (an unknown, stale, or teardown-abandoned request, a reuse, a perceptual match, or no live session) is released at once (`frame.release`). |
 | `scene.inventory` | mono | `{routeKey?, elements[], scrollKey?, totalElements?}` | Native scene inventory (section 4.3). Each element needs a non-empty `fingerprint`, `canonicalPath` (`""` for a route root, as on `targetAnchor`), `boundsNorm` (each value in [0, 1], positive `width` and `height`, `left + width` and `top + height` at most 1 + 1e-9), and `tier` (`interactive` \| `content`); optional `widgetType`, `role`, `actions`, `enabled`, `aliases`. Strings are bounded to 1024 UTF-16 units and `actions` and `aliases` to 16 entries. The engine computes `inventoryHash`, dedupes per session on `routeKey\|inventoryHash\|scrollKey` (native v1 omits `scrollKey`), and records `scene_inventory` when `nativeSceneInventory` is on; otherwise the fact is dropped. Capped at `limits.maxSceneInventoryElements` (C20); `totalElements` (a non-negative integer) is the candidates the adapter found, an upper bound (repeats past its cap still count); sending at least `elements.length` is the adapter's obligation, and the engine uses the larger of the two. When the larger of the two exceeds the limit, a new inventory first records `capture_diagnostic {component: scene_inventory, truncatedFrom}`. |
 | `navigation` | mono | `{kind, navigatorId, parentNavigatorId?, route?, departing?}` | A navigator callback (section 8.1). `kind`: `push`, `pop`, `replace`, `remove`. `route {instanceId, name?, type, overlayKind, transitionMs}` is the destination: the pushed route, the replacement, or the route a pop or removal reveals (absent when none is). `overlayKind`: `page`, `sheet`, `dialog`, `popup`, `unknown`; `transitionMs` in [0, 86400000]. `departing {instanceId, name?, type?}` is the route leaving or covered; only its id is read (`from*` fields come from the visible route, as in Dart). Ids are opaque, stable for the navigator's or route's lifetime; the engine maps them onto `nav-N` / `route-N` per session. A navigator first named as `parentNavigatorId` is numbered after its child. |
 | `surface` | mono | `{boundaryRect {x, y, width, height}, generation}` | The capture boundary in surface logical pixels and the adapter's boundary transform generation, which advances whenever the boundary's rect changes. Send it after `session.start` and on every change, before the `capture.result` of a capture made under it. |
@@ -498,7 +502,7 @@ validated. `host.configuredUserId` is the runtime user id until
 | `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 20, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false, `answerGraceMs` 5000, `maxRetryAfterMs` 60000, `maxEndingRetryAfterMs` 10000 |
 | `capabilities` | `sceneInventory`, `nativeSceneInventory`, `viewportSemanticMap`, `captureDiagnostics`, `actionContext`, `focusChanges`, `systemInput`, all false |
 
-Durations are milliseconds in [0, 86400000]; counts are in [1, 1000000].
+Durations are milliseconds in [0, 86400000], except the period `flushIntervalMs`, in [1, 86400000]; counts are in [1, 1000000]. A periodic flush that fires late re-arms at its first tick after the fire.
 
 ### Collector delivery
 
@@ -511,7 +515,9 @@ request is in flight at a time across the three lanes.
   (with the local session id), `session_identify`, `traits_updated`,
   `user_changed`, `session_end`. Bodies are built when sent from the current
   user id and traits; `triggeredAt` is fixed when queued and `atMs` is the
-  monotonic difference (C1). The head leaves the lane only when accepted.
+  monotonic difference (C1). A post whose fact has no `wallUs` (a
+  `session_end` from `app.lifecycle` `detached`) takes the session start's
+  wall time plus `atMs` as `triggeredAt`, as events do. The head leaves the lane only when accepted.
   An accepted `session_start` sets the collector session id from the body's
   `sessionId`, or the local id when the body is empty, not a JSON object, or
   has no non-empty string `sessionId`; any accepted body caches a non-empty

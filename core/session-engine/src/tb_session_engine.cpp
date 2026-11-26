@@ -1,12 +1,13 @@
 // C ABI of the session engine. Every entry point converts failures to status
-// codes; no exception escapes and nothing aborts on bad input.
+// codes; no exception escapes and nothing aborts on bad input. A call that
+// fails with an exception poisons the handle (abi_handle.h).
 #include "tugboat/tb_session_engine.h"
 
-#include <atomic>
 #include <new>
 #include <string>
 #include <utility>
 
+#include "abi_handle.h"
 #include "engine.h"
 #include "json.h"
 #include "reader.h"
@@ -27,6 +28,9 @@ constexpr char kBusyJson[] =
 constexpr char kInternalJson[] =
     "{\"error\":{\"status\":\"internal_error\",\"message\":\"internal "
     "error\"}}";
+constexpr char kPoisonedJson[] =
+    "{\"error\":{\"status\":\"internal_error\",\"message\":\"an earlier "
+    "call on this handle failed partway; destroy it\"}}";
 
 std::string error_document(const Error& error, const size_t* offset) {
   Value body = Value::object();
@@ -47,54 +51,46 @@ std::string error_document(const Error& error, const size_t* offset) {
 
 }  // namespace
 
-struct tb_session_engine {
-  uint32_t max_depth = TB_SESSION_ENGINE_DEFAULT_MAX_DEPTH;
-  size_t max_message_bytes = TB_SESSION_ENGINE_DEFAULT_MAX_MESSAGE_BYTES;
-  std::atomic<bool> busy{false};
-  tugboat::engine::Engine engine;
-  // Last response; borrowed by the host until the next call.
-  std::string output;
-
-  tb_session_status submit(const char* message, size_t length) {
-    Error error;
-    if (length > max_message_bytes) {
-      error.status = TB_SESSION_MESSAGE_TOO_LARGE;
-      error.message = "message exceeds " + std::to_string(max_message_bytes) +
-                      " bytes";
-      output = error_document(error, nullptr);
-      return error.status;
-    }
-    Value parsed;
-    tugboat::engine::ParseError parse_error;
-    const std::string_view text(message == nullptr ? "" : message,
-                                message == nullptr ? 0 : length);
-    if (!tugboat::engine::parse_json(text, max_depth, &parsed, &parse_error)) {
-      error.status = TB_SESSION_MALFORMED_MESSAGE;
-      error.message = parse_error.message;
-      output = error_document(error, &parse_error.offset);
-      return error.status;
-    }
-    Value response;
-    if (!engine.handle(parsed, &response, &error)) {
-      output = error_document(error, nullptr);
-      return error.status;
-    }
-    std::string json;
-    std::string bad_path;
-    if (!tugboat::engine::write_json(response, &json, &bad_path)) {
-      // Dart jsonEncode throws on NaN and infinities. Stateless results can
-      // carry them; state-changing messages reject them while decoding, so
-      // no applied message reaches this.
-      error.status = TB_SESSION_INVALID_MESSAGE;
-      error.path = bad_path;
-      error.message = "non-finite number cannot be encoded";
-      output = error_document(error, nullptr);
-      return error.status;
-    }
-    output = std::move(json);
-    return TB_SESSION_OK;
+tb_session_status tb_session_engine::submit(const char* message,
+                                            size_t length) {
+  Error error;
+  if (length > max_message_bytes) {
+    error.status = TB_SESSION_MESSAGE_TOO_LARGE;
+    error.message = "message exceeds " + std::to_string(max_message_bytes) +
+                    " bytes";
+    output = error_document(error, nullptr);
+    return error.status;
   }
-};
+  Value parsed;
+  tugboat::engine::ParseError parse_error;
+  const std::string_view text(message == nullptr ? "" : message,
+                              message == nullptr ? 0 : length);
+  if (!tugboat::engine::parse_json(text, max_depth, &parsed, &parse_error)) {
+    error.status = TB_SESSION_MALFORMED_MESSAGE;
+    error.message = parse_error.message;
+    output = error_document(error, &parse_error.offset);
+    return error.status;
+  }
+  Value response;
+  if (!engine.handle(parsed, &response, &error)) {
+    output = error_document(error, nullptr);
+    return error.status;
+  }
+  std::string json;
+  std::string bad_path;
+  if (!tugboat::engine::write_json(response, &json, &bad_path)) {
+    // Dart jsonEncode throws on NaN and infinities. Stateless results can
+    // carry them; state-changing messages reject them while decoding, so
+    // no applied message reaches this.
+    error.status = TB_SESSION_INVALID_MESSAGE;
+    error.path = bad_path;
+    error.message = "non-finite number cannot be encoded";
+    output = error_document(error, nullptr);
+    return error.status;
+  }
+  output = std::move(json);
+  return TB_SESSION_OK;
+}
 
 extern "C" {
 
@@ -145,7 +141,20 @@ tb_session_status tb_session_engine_create_v1(
       config->max_message_bytes > TB_SESSION_ENGINE_MAX_MESSAGE_BYTES) {
     return TB_SESSION_INVALID_ARGUMENT;
   }
-  auto* engine = new (std::nothrow) tb_session_engine();
+  tb_session_engine* engine = nullptr;
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
+  // `std::nothrow` covers only the allocation: the handle's constructor (and
+  // the module registry it builds on first use) may still throw.
+  try {
+#endif
+    engine = new (std::nothrow) tb_session_engine();
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
+  } catch (const std::bad_alloc&) {
+    return TB_SESSION_OUT_OF_MEMORY;
+  } catch (...) {
+    return TB_SESSION_INTERNAL_ERROR;
+  }
+#endif
   if (engine == nullptr) {
     return TB_SESSION_OUT_OF_MEMORY;
   }
@@ -180,6 +189,12 @@ tb_session_status tb_session_engine_submit_v1(tb_session_engine* engine,
     *out_len = sizeof(kBusyJson) - 1;
     return TB_SESSION_BUSY;
   }
+  if (engine->poisoned) {
+    *out_json = kPoisonedJson;
+    *out_len = sizeof(kPoisonedJson) - 1;
+    engine->busy.store(false, std::memory_order_release);
+    return TB_SESSION_INTERNAL_ERROR;
+  }
   tb_session_status status = TB_SESSION_INTERNAL_ERROR;
   const char* fallback = nullptr;
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
@@ -204,6 +219,9 @@ tb_session_status tb_session_engine_submit_v1(tb_session_engine* engine,
   }
 #endif
   if (fallback != nullptr) {
+    // The exception may have left a message partly applied, so the state no
+    // longer matches what the host has seen: refuse every later call.
+    engine->poisoned = true;
     engine->output.clear();
     engine->output.shrink_to_fit();
     *out_json = fallback;

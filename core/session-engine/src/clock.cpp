@@ -10,6 +10,11 @@ namespace {
 // Dart's DateTime range in microseconds.
 constexpr int64_t kMaxEpochUs = kMaxEpochMs * 1000;
 
+// The largest monotonic time stamp (about 146,000 years). Every deadline is a
+// time stamp plus at most a few days, and every budget cost a difference of
+// time stamps plus at most a day, so none of them can overflow int64.
+constexpr int64_t kMaxMonoUs = int64_t{1} << 62;
+
 }  // namespace
 
 bool decode_mono_us(const ObjectReader& r, const char* key,
@@ -19,6 +24,9 @@ bool decode_mono_us(const ObjectReader& r, const char* key,
   }
   if (*out && **out < 0) {
     return r.reject(key, "must not be negative");
+  }
+  if (*out && **out > kMaxMonoUs) {
+    return r.reject(key, "must be at most 4611686018427387904");
   }
   return true;
 }
