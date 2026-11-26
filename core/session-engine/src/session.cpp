@@ -10,7 +10,13 @@ namespace tugboat {
 namespace engine {
 
 std::string IdCounter::next(const char* prefix) {
-  return std::string(prefix) + "-" + std::to_string(next_++);
+  int64_t number = 0;
+  return next(prefix, &number);
+}
+
+std::string IdCounter::next(const char* prefix, int64_t* number) {
+  *number = next_++;
+  return std::string(prefix) + "-" + std::to_string(*number);
 }
 
 int64_t Session::at_ms(int64_t mono_us) const {

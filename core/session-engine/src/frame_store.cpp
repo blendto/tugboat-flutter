@@ -47,7 +47,7 @@ FrameRecord FrameStore::accept(const CapturedFrame& captured,
                                Session* session, FrameRetention* retention,
                                Output* out) {
   Frame frame;
-  frame.id = ids->next("frame");
+  frame.id = ids->next("frame", &frame.number);
   frame.at_ms = at_ms;
   frame.width = captured.width;
   frame.height = captured.height;

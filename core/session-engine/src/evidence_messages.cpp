@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 
+#include "clock.h"
 #include "evidence.h"
 #include "evidence_value.h"
 #include "modules.h"
@@ -16,9 +17,6 @@ namespace tugboat {
 namespace engine {
 
 namespace {
-
-// Dart `_finishNetworkCall` clamps durations to a day.
-constexpr int64_t kMaxDurationMs = 24 * 60 * 60 * 1000;
 
 // Records `data` as an evidence-stream event of `type` at `fact_mono_us`,
 // without the action context (Dart `appendEvidence`).
@@ -155,7 +153,7 @@ class RecordNetworkCall final : public Command {
     }
     const int64_t duration_ms = std::clamp<int64_t>(
         session.at_ms(end_mono_us_) - session.at_ms(start_mono_us_), 0,
-        kMaxDurationMs);
+        kOneDayMs);  // Dart `_finishNetworkCall` clamps durations to a day
     record_evidence(state, session, "network_call", start_mono_us_,
                     network_call_data(call_, std::move(*method),
                                       std::move(*route), duration_ms),

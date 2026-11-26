@@ -4,16 +4,17 @@
 #include <utility>
 #include <vector>
 
+#include "clock.h"
+
 namespace tugboat {
 namespace engine {
 
 namespace {
 
-// Durations are milliseconds in [0, one day]; counts are in [1, 1e6]. The
+// Durations are milliseconds in [0, kOneDayMs]; counts are in [1, 1e6]. The
 // bounds keep every derived monotonic deadline far from int64 overflow. A
 // period (a timer that re-arms itself) is a duration of at least 1 ms, so
 // its next deadline always moves forward.
-constexpr int64_t kMaxDurationMs = 86400000;
 constexpr int64_t kMaxCount = 1000000;
 
 struct IntField {
@@ -56,11 +57,11 @@ struct GroupSpec {
 };
 
 IntField duration(const char* key, int64_t* out) {
-  return IntField{key, out, 0, kMaxDurationMs};
+  return IntField{key, out, 0, kOneDayMs};
 }
 
 IntField period(const char* key, int64_t* out) {
-  return IntField{key, out, 1, kMaxDurationMs};
+  return IntField{key, out, 1, kOneDayMs};
 }
 
 IntField count(const char* key, int64_t* out) {

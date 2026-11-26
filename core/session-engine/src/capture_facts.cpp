@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "clock.h"
 #include "name_table.h"
 
 namespace tugboat {
@@ -93,12 +94,11 @@ bool decode_mask_coverage(const ObjectReader& frame,
   return true;
 }
 
-// A day: the bound of every engine duration, so sums never overflow.
-constexpr int64_t kMaxMicros = 86400000000;
-
 bool check_micros(const ObjectReader& r, const char* key, int64_t value) {
   if (value < 0) return r.reject(key, "must not be negative");
-  if (value > kMaxMicros) return r.reject(key, "must be at most 86400000000");
+  if (value > kOneDayUs) {
+    return r.reject(key, "must be at most " + std::to_string(kOneDayUs));
+  }
   return true;
 }
 

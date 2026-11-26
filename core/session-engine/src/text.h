@@ -43,6 +43,14 @@ std::string utf16_prefix(std::string_view wtf8, size_t units);
 // U+205F, U+3000, U+FEFF) from both ends.
 std::string_view dart_trim(std::string_view wtf8);
 
+// ASCII `0`-`9`. The one digit test of the parsers (JSON, Retry-After).
+inline bool is_ascii_digit(char c) { return c >= '0' && c <= '9'; }
+
+// Strips ASCII whitespace (space, `\t`, `\n`, `\v`, `\f`, `\r`: C `isspace` in
+// the C locale) from both ends. Header values use it; Dart strings use
+// `dart_trim`.
+std::string_view ascii_trim(std::string_view text);
+
 // The longest prefix of whole code points within `max_bytes` bytes. WTF-8
 // bytes equal Dart's `utf8.encode` length (a lone surrogate is 3 either way),
 // so this is Dart's rune-by-rune bounded prefix.

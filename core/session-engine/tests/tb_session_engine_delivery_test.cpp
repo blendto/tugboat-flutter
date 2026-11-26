@@ -19,6 +19,7 @@
 #include "lifecycle_lane.h"
 #include "output.h"
 #include "retry_after.h"
+#include "session.h"
 #include "transport.h"
 #include "conformance_files.h"
 #include "unit_support.h"
@@ -89,14 +90,13 @@ void test_handshake_traits_id() {
         "srv");
 }
 
+// The frame lane's `frameNo` is the number minted with the frame id.
 void test_frame_number() {
-  int64_t n = 0;
-  CHECK(tugboat::engine::frame_number("frame-42", &n) && n == 42);
-  CHECK(tugboat::engine::frame_number("007", &n) && n == 7);
-  CHECK(!tugboat::engine::frame_number("frame-", &n));
-  CHECK(!tugboat::engine::frame_number("frame-99999999999999999999", &n));
-  CHECK(tugboat::engine::frame_number("f9223372036854775807", &n) &&
-        n == INT64_MAX);
+  tugboat::engine::IdCounter ids;
+  int64_t n = -1;
+  CHECK_EQ(ids.next("event"), std::string("event-0"));
+  CHECK_EQ(ids.next("frame", &n), std::string("frame-1"));
+  CHECK(n == 1);
 }
 
 void test_frame_gaps() {

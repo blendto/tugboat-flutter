@@ -27,10 +27,6 @@ struct PendingFrame {
 
 using FrameUploads = std::vector<PendingFrame>;
 
-// `frameNumberFromId`: the trailing decimal digits of an engine frame id
-// (`frame-N`). False when there are none or they overflow.
-bool frame_number(const std::string& frame_id, int64_t* out);
-
 class FrameLane {
  public:
   // Appends a frame, then evicts the oldest beyond `bound` (returned).

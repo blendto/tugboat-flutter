@@ -68,7 +68,7 @@ void ModuleRegistry::fire_timer(const std::string& timer_id, const At& at,
   // The longest registered prefix owns the timer.
   const std::pair<const std::string, TimerHandler>* owner = nullptr;
   for (const auto& entry : timers_) {
-    if (timer_id.rfind(entry.first, 0) == 0 &&
+    if (has_timer_prefix(timer_id, entry.first) &&
         (owner == nullptr || entry.first.size() > owner->first.size())) {
       owner = &entry;
     }

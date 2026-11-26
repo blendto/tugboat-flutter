@@ -122,12 +122,11 @@ void maybe_arm_lane_retry_after(DeliveryContext& ctx, HttpLane lane,
 
 bool delivery_retry_after_timer_fired(const std::string& timer_id,
                                       DeliveryContext& ctx) {
-  const std::string prefix = kRetryAfterTimerPrefix;
-  if (timer_id.compare(0, prefix.size(), prefix) != 0) {
+  std::string suffix;
+  if (!timer_key(timer_id, kRetryAfterTimerPrefix, &suffix)) {
     return false;
   }
-  const std::optional<HttpLane> lane =
-      lane_from_timer_suffix(timer_id.substr(prefix.size()));
+  const std::optional<HttpLane> lane = lane_from_timer_suffix(suffix);
   if (!lane) {
     return false;
   }

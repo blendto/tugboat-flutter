@@ -111,17 +111,15 @@ void delivery_event_recorded(const EventRecord& record, const At& at,
 void delivery_frame_accepted(const Frame& frame, const std::string& handle,
                              EngineState* state, Output* out) {
   DeliveryState& d = state->delivery;
-  int64_t frame_no = 0;
-  // Engine frame ids always end in their number (`frame-N`).
-  if (d.phase != DeliveryPhase::kActive ||
-      !frame_number(frame.id, &frame_no)) {
+  if (d.phase != DeliveryPhase::kActive) {
     return;
   }
   DeliveryContext ctx{state, state->applying.at.value_or(At()), out};
   state->frame_retention.retain(frame.id, handle, FrameOwner::kDelivery);
-  evicted_frames(ctx, d.frames.push(PendingFrame{frame_no, frame.id, handle,
-                                                 frame_json(frame)},
-                                    bound(ctx.config().max_pending_frames)));
+  evicted_frames(ctx, d.frames.push(
+                          PendingFrame{frame.number, frame.id, handle,
+                                       frame_json(frame)},
+                          bound(ctx.config().max_pending_frames)));
   // While frames are retrying, the periodic timer paces them.
   if (!d.frames_need_retry) {
     request_pass(ctx);

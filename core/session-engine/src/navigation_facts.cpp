@@ -1,8 +1,10 @@
 #include "navigation_facts.h"
 
 #include <set>
+#include <string>
 #include <utility>
 
+#include "clock.h"
 #include "name_table.h"
 
 namespace tugboat {
@@ -34,9 +36,6 @@ constexpr NamedValue<OverlayKind> kOverlayKinds[] = {
     {"unknown", OverlayKind::kUnknown},
 };
 
-// A day, the bound of every engine duration.
-constexpr int64_t kMaxTransitionMs = 86400000;
-
 bool decode_route(const Value& json, const std::string& path, FactRoute* out,
                   Error* error) {
   const ObjectReader r(json, path, error);
@@ -49,8 +48,9 @@ bool decode_route(const Value& json, const std::string& path, FactRoute* out,
       !read_non_negative(r, "transitionMs", &out->transition_ms)) {
     return false;
   }
-  return out->transition_ms <= kMaxTransitionMs ||
-         r.reject("transitionMs", "must be at most 86400000");
+  return out->transition_ms <= kOneDayMs ||
+         r.reject("transitionMs",
+                  "must be at most " + std::to_string(kOneDayMs));
 }
 
 bool decode_departing(const ObjectReader& parent, NavigationFact* out,

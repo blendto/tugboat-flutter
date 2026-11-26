@@ -256,12 +256,10 @@ void delivery_timer_fired(const std::string& timer_id, const At& at,
                           EngineState* state, Output* out) {
   DeliveryContext ctx{state, at, out};
   DeliveryState& d = state->delivery;
-  const std::string answer_prefix = kAnswerTimerPrefix;
-  if (timer_id.compare(0, answer_prefix.size(), answer_prefix) == 0) {
+  TransportResult overdue;
+  if (timer_key(timer_id, kAnswerTimerPrefix, &overdue.request_id)) {
     // Change C15: no answer by the deadline is a timeout (retry rules
     // apply); a later answer is then unknown and ignored.
-    TransportResult overdue;
-    overdue.request_id = timer_id.substr(answer_prefix.size());
     overdue.outcome = TransportOutcome::kTimeout;
     apply_transport_result(ctx, overdue);
     return;

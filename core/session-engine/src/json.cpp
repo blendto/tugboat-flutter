@@ -93,8 +93,6 @@ void Value::remove(std::string_view key) {
 
 namespace {
 
-bool is_digit(char c) { return c >= '0' && c <= '9'; }
-
 void append_utf8(uint32_t cp, std::string* out) {
   // Also encodes lone surrogates (WTF-8), which only escapes can produce.
   if (cp < 0x80) {
@@ -176,7 +174,7 @@ class Parser {
       case 'n':
         return parse_literal("null", Value::null(), out);
       default:
-        if (peek() == '-' || is_digit(peek())) {
+        if (peek() == '-' || is_ascii_digit(peek())) {
           return parse_number(out);
         }
         return fail("unexpected character");
@@ -527,7 +525,7 @@ class Parser {
 
   size_t scan_digits() {
     const size_t start = pos_;
-    while (!at_end() && is_digit(peek())) {
+    while (!at_end() && is_ascii_digit(peek())) {
       ++pos_;
     }
     return pos_ - start;
@@ -538,12 +536,12 @@ class Parser {
     if (peek() == '-') {
       ++pos_;
     }
-    if (at_end() || !is_digit(peek())) {
+    if (at_end() || !is_ascii_digit(peek())) {
       return fail("invalid number");
     }
     if (peek() == '0') {
       ++pos_;
-      if (!at_end() && is_digit(peek())) {
+      if (!at_end() && is_ascii_digit(peek())) {
         return fail("leading zero in number");
       }
     } else {
