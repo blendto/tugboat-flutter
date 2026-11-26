@@ -119,7 +119,7 @@ the request. All values are strings. Headers (API key, app identity,
 content type) are the host's.
 
 Every `http.send` also says what a host's durable outbox needs to keep and
-key it, so hosts never parse a body for it. The three fields come last, are
+key it, so a host need not parse a body for it. The three fields come last, are
 present on every `http.send`, and change nothing about what is sent:
 
 | Field | Type | Meaning |
@@ -130,7 +130,8 @@ present on every `http.send`, and change nothing about what is sent:
 
 The key formats are the ones both native hosts' outboxes persist (their
 `OutboxCapture`), so entries written before the engine carried keys still
-match. Whether an answer settles a request is section 7.4's rule.
+match. Those outboxes still derive the keys from the body; reading these
+fields instead is a host change of its own. Whether an answer settles a request is section 7.4's rule.
 
 `transport.result` input:
 `{requestId, outcome: "http" | "error" | "timeout", status?, body?, retryAfter?}`.

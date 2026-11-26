@@ -1,5 +1,5 @@
 // The keys a host's durable outbox stores each `http.send` under
-// (docs/stateful-engine.md section 3.1), so hosts no longer parse request
+// (docs/stateful-engine.md section 3.1), so a host need not parse request
 // bodies to derive them. Each key names one unit the collector answers for:
 // a lifecycle post, an event batch, or one frame of an upload. The formats
 // are the ones both native hosts' outboxes already persist, so entries
