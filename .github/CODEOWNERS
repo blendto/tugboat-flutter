@@ -1,0 +1,92 @@
+# Paths that always need a person's approval, even when the review bot (chief-harbormaster)
+# has approved. They mirror humanRequired in blendto/review-agent's policy.ts; keep the two
+# in step. The bot is never a code owner. The last matching line wins, so add new paths
+# below and keep every line pointing at people.
+
+# CI, automation and review configuration
+/.github/                @Heedster @Chinmay-KB @deepakg202
+CODEOWNERS               @Heedster @Chinmay-KB @deepakg202
+.claude/                 @Heedster @Chinmay-KB @deepakg202
+.agents/                 @Heedster @Chinmay-KB @deepakg202
+.opencode/               @Heedster @Chinmay-KB @deepakg202
+.githooks/               @Heedster @Chinmay-KB @deepakg202
+.husky/                  @Heedster @Chinmay-KB @deepakg202
+CLAUDE.md                @Heedster @Chinmay-KB @deepakg202
+AGENTS.md                @Heedster @Chinmay-KB @deepakg202
+REVIEW.md                @Heedster @Chinmay-KB @deepakg202
+.mcp.json                @Heedster @Chinmay-KB @deepakg202
+
+# Infrastructure and deployment
+cdk/                     @Heedster @Chinmay-KB @deepakg202
+infra/                   @Heedster @Chinmay-KB @deepakg202
+deployment/              @Heedster @Chinmay-KB @deepakg202
+terraform/               @Heedster @Chinmay-KB @deepakg202
+*.tf                     @Heedster @Chinmay-KB @deepakg202
+k8s/                     @Heedster @Chinmay-KB @deepakg202
+helm/                    @Heedster @Chinmay-KB @deepakg202
+Dockerfile*              @Heedster @Chinmay-KB @deepakg202
+docker-compose*.yml      @Heedster @Chinmay-KB @deepakg202
+docker-compose*.yaml     @Heedster @Chinmay-KB @deepakg202
+render.yaml              @Heedster @Chinmay-KB @deepakg202
+vercel.json              @Heedster @Chinmay-KB @deepakg202
+fly.toml                 @Heedster @Chinmay-KB @deepakg202
+
+# Database schema and migrations
+migrations/              @Heedster @Chinmay-KB @deepakg202
+clickhouse-schema/       @Heedster @Chinmay-KB @deepakg202
+*.sql                    @Heedster @Chinmay-KB @deepakg202
+schema.prisma            @Heedster @Chinmay-KB @deepakg202
+drizzle/                 @Heedster @Chinmay-KB @deepakg202
+
+# Authentication, billing and credits
+auth/                    @Heedster @Chinmay-KB @deepakg202
+*billing*                @Heedster @Chinmay-KB @deepakg202
+*Billing*                @Heedster @Chinmay-KB @deepakg202
+*payment*                @Heedster @Chinmay-KB @deepakg202
+*Payment*                @Heedster @Chinmay-KB @deepakg202
+*credit*                 @Heedster @Chinmay-KB @deepakg202
+*Credit*                 @Heedster @Chinmay-KB @deepakg202
+
+# Dependencies and lockfiles
+package.json             @Heedster @Chinmay-KB @deepakg202
+package-lock.json        @Heedster @Chinmay-KB @deepakg202
+pnpm-lock.yaml           @Heedster @Chinmay-KB @deepakg202
+pnpm-workspace.yaml      @Heedster @Chinmay-KB @deepakg202
+yarn.lock                @Heedster @Chinmay-KB @deepakg202
+bun.lock                 @Heedster @Chinmay-KB @deepakg202
+bun.lockb                @Heedster @Chinmay-KB @deepakg202
+.npmrc                   @Heedster @Chinmay-KB @deepakg202
+pyproject.toml           @Heedster @Chinmay-KB @deepakg202
+uv.lock                  @Heedster @Chinmay-KB @deepakg202
+poetry.lock              @Heedster @Chinmay-KB @deepakg202
+requirements*.txt        @Heedster @Chinmay-KB @deepakg202
+pubspec.yaml             @Heedster @Chinmay-KB @deepakg202
+pubspec.lock             @Heedster @Chinmay-KB @deepakg202
+Podfile                  @Heedster @Chinmay-KB @deepakg202
+Podfile.lock             @Heedster @Chinmay-KB @deepakg202
+*.podspec                @Heedster @Chinmay-KB @deepakg202
+Package.swift            @Heedster @Chinmay-KB @deepakg202
+Package.resolved         @Heedster @Chinmay-KB @deepakg202
+*.gradle                 @Heedster @Chinmay-KB @deepakg202
+*.gradle.kts             @Heedster @Chinmay-KB @deepakg202
+gradle/wrapper/          @Heedster @Chinmay-KB @deepakg202
+go.mod                   @Heedster @Chinmay-KB @deepakg202
+go.sum                   @Heedster @Chinmay-KB @deepakg202
+Cargo.toml               @Heedster @Chinmay-KB @deepakg202
+Cargo.lock               @Heedster @Chinmay-KB @deepakg202
+
+# Secrets and environment files
+.env                     @Heedster @Chinmay-KB @deepakg202
+.env.*                   @Heedster @Chinmay-KB @deepakg202
+*.pem                    @Heedster @Chinmay-KB @deepakg202
+*.key                    @Heedster @Chinmay-KB @deepakg202
+*.p12                    @Heedster @Chinmay-KB @deepakg202
+*secret*                 @Heedster @Chinmay-KB @deepakg202
+
+# This repository
+/tool/ci/                 @Heedster @Chinmay-KB @deepakg202
+/tool/release/            @Heedster @Chinmay-KB @deepakg202
+AndroidManifest.xml      @Heedster @Chinmay-KB @deepakg202
+Info.plist               @Heedster @Chinmay-KB @deepakg202
+*.xcprivacy              @Heedster @Chinmay-KB @deepakg202
+*.entitlements           @Heedster @Chinmay-KB @deepakg202
