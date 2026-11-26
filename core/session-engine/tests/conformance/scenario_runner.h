@@ -7,6 +7,7 @@
 #include <string>
 
 #include "conformance_json.h"
+#include "presets.h"
 
 namespace conformance {
 
@@ -30,10 +31,11 @@ std::string check_markers(const Json& fixture, const std::string& kind,
 // Whether the C++ runner runs the fixture (`runners` absent or with `cpp`).
 bool runs_on_cpp(const Json& fixture);
 
-// Runs one scenario fixture on a fresh engine. Prints and returns false on
-// failure, naming the first failing step and every differing JSON path.
+// Runs one scenario fixture on a fresh engine, its `input.configure` with
+// `presets` resolved. Prints and returns false on failure, naming the first
+// failing step and every differing JSON path.
 bool run_scenario(const Json& fixture, const std::string& source,
-                  const std::string& relative);
+                  const std::string& relative, const Presets& presets);
 
 }  // namespace conformance
 

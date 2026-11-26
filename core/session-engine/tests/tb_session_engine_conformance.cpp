@@ -185,6 +185,7 @@ bool run_stateless(EngineClient& engine, const Json& fixture,
 bool run_fixture(EngineClient& engine, const fs::path& path,
                  const std::string& relative,
                  const std::set<std::string>& change_ids,
+                 const conformance::Presets& presets,
                  std::set<std::string>* kinds) {
   const std::string source = read_file(path);
   Json fixture;
@@ -206,7 +207,7 @@ bool run_fixture(EngineClient& engine, const fs::path& path,
     return true;
   }
   if (kind == kScenarioKind) {
-    return conformance::run_scenario(fixture, source, relative);
+    return conformance::run_scenario(fixture, source, relative, presets);
   }
   if (conformance::is_evidence_kind(kind)) {
     return conformance::run_evidence(fixture, source, relative);
@@ -233,12 +234,21 @@ int main(int argc, char** argv) {
                  ids_error.c_str());
     return 2;
   }
+  conformance::Presets presets;
+  const std::string presets_error =
+      presets.load(read_file(root / conformance::kPresetsFile));
+  if (!presets_error.empty()) {
+    std::fprintf(stderr, "%s: %s\n", conformance::kPresetsFile,
+                 presets_error.c_str());
+    return 2;
+  }
   std::vector<std::pair<std::string, fs::path>> files;
   for (const auto& entry : fs::recursive_directory_iterator(root)) {
     if (entry.is_regular_file() && entry.path().extension() == ".json") {
       std::string relative = fs::relative(entry.path(), root).generic_string();
       if (relative != conformance::kChangeIdsFile &&
           relative != conformance::kRetryAfterVectorsFile &&
+          relative != conformance::kPresetsFile &&
           relative.find(filter) != std::string::npos) {
         files.emplace_back(std::move(relative), entry.path());
       }
@@ -251,7 +261,8 @@ int main(int argc, char** argv) {
   std::set<std::string> kinds;
   int failures = 0;
   for (const auto& file : files) {
-    if (!run_fixture(engine, file.second, file.first, change_ids, &kinds)) {
+    if (!run_fixture(engine, file.second, file.first, change_ids, presets,
+                     &kinds)) {
       ++failures;
     }
   }

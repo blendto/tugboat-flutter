@@ -9,39 +9,7 @@
   },
   "input": {
     "configure": {
-      "host": {
-        "app": {
-          "name": "Example App",
-          "version": "2.4.0",
-          "buildNumber": "240",
-          "installationId": "inst-0001",
-          "appId": "com.example.app"
-        },
-        "device": {
-          "id": "device-0001",
-          "platform": "android",
-          "manufacturer": "Google",
-          "model": "Pixel 8",
-          "osVersion": "15",
-          "networkType": "wifi",
-          "screenSize": {
-            "width": 412.0,
-            "height": 915.0
-          },
-          "screenDensity": 2.625,
-          "screenDpi": 420,
-          "screenPixelDensity": 2.625
-        },
-        "ip": {
-          "ip": "203.0.113.7"
-        },
-        "locale": {
-          "language": "en",
-          "country": "US",
-          "timezone": "Europe/Lisbon"
-        },
-        "configuredUserId": "user-configured"
-      },
+      "host": {"$preset": "default-host", "configuredUserId": "user-configured"},
       "collector": {
         "enabled": true,
         "batchSize": 2,

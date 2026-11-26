@@ -727,8 +727,9 @@ The conformance runner:
    prints one line per differing JSON path and the actual result.
 
 `engine.scenario` fixtures run on a fresh handle: the runner sends
-`input.configure` as `engine.configure`, then each step's `send` byte for
-byte, and compares the step's `records` and `effects` (or its `error` status
+`input.configure` as `engine.configure` (with preset references from
+`conformance/engine/presets.json` resolved, conformance/README.md
+"Presets"), then each step's `send` byte for byte, and compares the step's `records` and `effects` (or its `error` status
 and path) with the response. It stops a scenario at the first failing step
 and names the step, its message type, every differing path, and the actual
 response. Finally it compares `session.snapshot` with `finalSnapshot`. It

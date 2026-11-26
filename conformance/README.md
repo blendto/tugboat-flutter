@@ -40,6 +40,7 @@ conformance/
     event/<name>.json               kind collector.event
     session_lifecycle/<name>.json   kind collector.sessionLifecycle
   engine/
+    presets.json                    shared scenario configuration (not a fixture; see Presets)
     scenario/<name>.json            kind engine.scenario
   evidence/
     external_event/<name>.json      kind evidence.externalEvent
@@ -48,9 +49,9 @@ conformance/
 ```
 
 One case per file. The file name stem equals the fixture `name`, and the
-directory is fixed by `kind`. A runner loads every `*.json` except
-`change_ids.json` under
-`conformance/` recursively.
+directory is fixed by `kind`. A runner loads every `*.json` under
+`conformance/` recursively except the shared inputs `change_ids.json`,
+`retry_after_vectors.json`, and `engine/presets.json`.
 
 ## Fixture envelope
 
@@ -294,7 +295,7 @@ A scenario drives one fresh engine handle through the stateful protocol
 
 | Input | Meaning |
 | --- | --- |
-| `configure` | The `engine.configure` input, sent first. It must be accepted. |
+| `configure` | The `engine.configure` input, sent first. It must be accepted. A group may be a preset reference (below). |
 | `steps` | Non-empty array of `{send, expect, note?}`. `send` is one complete message (or `batch`), submitted byte for byte. `note` is for readers only. |
 
 `expect` is either `{records, effects}`, compared with the response's
@@ -305,6 +306,43 @@ fact a step sends carries `at`, so a scenario is fully deterministic.
 | Expected | Meaning |
 | --- | --- |
 | `finalSnapshot` | `session.snapshot` after the last step: the session JSON (schema 10), or `null` when no session was ever started. |
+
+#### Presets
+
+Most scenarios configure the same host. `engine/presets.json` names such
+blocks once:
+
+```json
+{
+  "presetFormat": 1,
+  "description": "…",
+  "presets": { "default-host": { "app": { }, "device": { }, "ip": { }, "locale": { }, "configuredUserId": null } }
+}
+```
+
+A group of `input.configure` (any of `host`, `limits`, `collector`, …)
+written as `{"$preset": "<name>"}` stands for that preset object. Other keys
+next to `$preset` override the preset's top-level members: an override
+replaces the member of the same key in place, and a key the preset lacks is
+appended. Overrides are not merged deeper.
+
+```json
+"configure": {
+  "host": { "$preset": "default-host", "configuredUserId": "user-configured" },
+  "collector": { "enabled": true }
+}
+```
+
+Both runners resolve references the same way before the scenario runs: the
+C++ runner (`tests/conformance/presets.cpp`) splices the preset's source
+text, with each override's text in place, into the `engine.configure`
+message, so number lexemes such as `412.0` reach the engine as written; the
+Dart loader (`test/helpers/conformance_fixture.dart`) replaces the group in
+the fixture's `input`. An unknown preset name fails the fixture. Only
+`input.configure` groups are resolved: step messages, including an
+`engine.configure` step, are sent byte for byte. A preset is shared input:
+changing one re-pins every scenario that references it, so review it like a
+change to each of them.
 
 The Dart runner (`test/helpers/engine_scenario.dart`) runs every scenario
 whose runners include `dart` against the real `TugboatReplayController` and,
