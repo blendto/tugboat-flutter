@@ -21,16 +21,15 @@ Calling the public `accessibilityActivate()` on the hosting view builds it
 in-process with no client attached. A probe of that technique, which at
 least one commercial analytics SDK ships, found:
 
-- iPhone 12, iOS 18.6.2: the hosting view went from 0 to 35 accessibility
-  elements, and 4 of 4 app-set identifiers were readable.
+- On the device measured (iOS 18), the hosting view gained its full
+  accessibility tree, and every app-set identifier in the test was readable.
 - The tree is built once per process and is not there after a relaunch.
 - `accessibilityHitTest(_:)` still returns nil, so a tap has to be matched
   to an element by its frame.
-- It is not free. In one Release-build benchmark, once the tree was first
-  read: LazyVStack scrolling main-thread time +104%, state updates +55%,
-  process CPU +31%, memory +5 MB. In the SwiftUI sample, scrolling was
-  +27%. There is no public way to turn the tree off again for the life of
-  the process.
+- It is not free. Once the tree is first read, scrolling lazy stacks and
+  state updates take noticeably more main-thread time, process CPU rises,
+  and memory grows by a few megabytes. There is no public way to turn the
+  tree off again for the life of the process.
 - The host app's `@Environment(\.accessibilityEnabled)` becomes true, so an
   app that changes its UI for assistive users changes it for everyone in
   that process.
@@ -78,7 +77,8 @@ UIKit-resolved taps keep exactly today's anchors.
 
 - The tree is built lazily, on the first qualifying tap of a sampled-in
   process, by calling `accessibilityActivate()` on that tap's hosting view.
-  Measured at about 85–300 ms of main-thread time, once per process.
+  This costs one noticeable main-thread stall (a few hundred milliseconds at
+  most on the device measured), once per process.
 - Activation runs on the main queue's next turn after the touch ends, not
   inside the touch sequence, so the stall never lands between down and up.
   That first tap is resolved as it would be with the feature off.
@@ -156,13 +156,13 @@ Pros:
 - App-set accessibility identifiers become reachable: path evidence now,
   aliases once the data-derived-ID filter exists.
 
-Cons (iPhone 12, iOS 18.6.2, Release build):
+Cons (measured on one device, iOS 18, Release build):
 
-- A one-time main-thread stall of about 85–300 ms when the tree is built.
+- A one-time main-thread stall of up to a few hundred milliseconds when the
+  tree is built.
 - The cost starts at the first tree read and cannot be turned off for the
-  rest of the process: LazyVStack scroll main-thread time +104%, state
-  updates +55%, process CPU +31%, memory +5 MB; TugboatSwiftUISample
-  scrolling +27%.
+  rest of the process: more main-thread time when scrolling lazy stacks and
+  on state updates, higher process CPU, and a few megabytes more memory.
 - The host app's `@Environment(\.accessibilityEnabled)` becomes true.
 - It relies on an undocumented UIKit side effect of the public
   `accessibilityActivate()`, which Apple can change.

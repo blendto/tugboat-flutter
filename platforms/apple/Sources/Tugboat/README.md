@@ -492,16 +492,16 @@ changes. Turn this on only to learn about untagged screens, and sample it.
   is told apart as `AXIdentified#<k>` now, and the identifier becomes an
   alias once a filter for data-derived ids (`row_\(item.id)`) exists.
 
-**Cons** (iPhone 12, iOS 18.6.2, Release build)
+**Cons** (measured on one device, iOS 18, Release build)
 
-- A one-time main-thread stall of about 85–300 ms when the tree is built.
+- A one-time main-thread stall of up to a few hundred milliseconds when the
+  tree is built.
   It runs on the main queue's next turn after the first qualifying tap of a
   process, never between touch down and up; that tap is reported as with the
   option off.
 - The cost starts at the first tree read and cannot be turned off for the
-  rest of the process: LazyVStack scroll main-thread time +104%, state
-  updates +55%, process CPU +31%, memory +5 MB; scrolling in
-  TugboatSwiftUISample +27%.
+  rest of the process: more main-thread time when scrolling lazy stacks and
+  on state updates, higher process CPU, and a few megabytes more memory.
 - The app's `@Environment(\.accessibilityEnabled)` becomes true for the
   rest of the process, so UI that adapts to assistive users adapts for
   everyone in it.

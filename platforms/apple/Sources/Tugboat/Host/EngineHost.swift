@@ -201,9 +201,7 @@ final class EngineHost {
 
   /// Lets the engine report undelivered work before its handle goes. Its
   /// effects are allow-listed: only `frame.release` runs; no IO, timer, or
-  /// capture starts. An engine
-  /// without `engine.dispose` (before phase 3b) answers
-  /// `unsupported_message`, which is logged and otherwise ignored.
+  /// capture starts. An error answer is logged and otherwise ignored.
   private func dispose() {
     let message = EngineMessage(type: HostMessages.engineDispose, inputJSON: "{}", at: clock.now())
     let response = transport.submit(Data(message.json.utf8))
