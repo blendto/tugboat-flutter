@@ -5,6 +5,14 @@
 Unpublished. The native Android SDK for Views apps: public facade, engine
 wiring, window capture, and the Android Views adapter.
 
+- A `ScrollView`, `HorizontalScrollView`, `NestedScrollView` or `ListView`
+  (React Native's `ScrollView` and `FlatList` too) reports an overscroll the way
+  a `RecyclerView` does (Flutter may count more than one per drag): a drag past the touch slop that moved
+  nothing, on a scrollable that cannot scroll further in the drag's direction,
+  sends `start`, `overscroll`, `end` once, so the scroll event carries
+  `overscrollCount: 1`. Such a drag was published as a `swipe` before and is
+  now a `scroll` (as in Flutter). Other scroll events are unchanged.
+
 - Views anchors match the Flutter adapter: a switch reports role `switch` (not
   only `android.widget.Switch`: React Native's `ReactSwitch` and AndroidX
   `SwitchCompat`, `SwitchMaterial` and `MaterialSwitch` too, matched by class

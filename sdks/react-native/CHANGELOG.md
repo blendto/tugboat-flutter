@@ -24,6 +24,7 @@
 - Anchors match Flutter (needs the `tugboat-android` of this tree): a `Switch` reports role
   `switch`, a text field reports actions `["input"]`, and a `testID` containing `%`, `#` or `/` is
   percent-escaped in the canonical path.
+- `ScrollView` and `FlatList` report an overscroll when dragged past an edge, as in Flutter (needs the `tugboat-android` of this tree).
 - Taps carry `routeKey`, as in the Flutter SDK (needs the `tugboat-android` of this tree).
 - One initial route: the activity is no longer a route of its own, so the first
   route is the first screen named by `setScreen` / `trackNavigation`, reported as
