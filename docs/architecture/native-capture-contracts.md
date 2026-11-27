@@ -326,7 +326,7 @@ A design that uses other vendors' four dimensions maps them as in
 | surfaces the SDK cannot see into | not classified (Difference 2) | `WebView`, `SurfaceView`, `TextureView` boxed | `AndroidView` interop bounds | web views, representables, renderers boxed |
 | `sensitive` override | `TugboatSensitive`, `.tugboatSensitive()` | `View.tugboatSensitive()` | `Modifier.tugboatSensitive()` | `.tugboatSensitive()` |
 | `sensitive` region | the subtree's render boxes | the view and every view below, each at its own bounds | the element's bounds and every semantics node inside, each at its own bounds | the view's layout frame |
-| unplaceable | violates the rule, see Difference 1 | whole frame (`noDecor`, `noWindowSize`, `walkExhausted`) | whole host (`composeVersionUnverified`); whole frame (`composeOwnerUnavailable`) | whole frame (`noWindowSize`, `unverifiedLayerAllowlist`, `walkExhausted`, `animating`) |
+| unplaceable | fails the capture (`maskFailed`) | whole frame (`noDecor`, `noWindowSize`, `walkExhausted`) | whole host (`composeVersionUnverified`); whole frame (`composeOwnerUnavailable`) | whole frame (`noWindowSize`, `unverifiedLayerAllowlist`, `walkExhausted`, `animating`) |
 
 `secureText` is in the engine's reason vocabulary, but no native adapter
 emits it today.
@@ -336,29 +336,27 @@ emits it today.
 Each is a place an adapter does not match the model as written. None is
 introduced by this section.
 
-1. **Flutter masks less than the rule on content its walk cannot place or
-   skips (BLE-679).** The mask walk reuses the identity walk, which prunes
-   subtrees. Confirmed cases, at every level unless noted:
-   1. Everything under an excluding `ExcludeSemantics` is unmasked,
-      `TugboatSensitive` included. Flutter inserts `ExcludeSemantics` itself
-      for `Text(semanticsLabel:)`, `Icon(semanticLabel:)`,
-      `AnimatedCrossFade`, the date and time pickers, and `DropdownMenu`
-      labels, so ordinary text is affected.
-   2. A `TugboatSensitive` directly above an excluded subtree is skipped
-      too.
+1. **Flutter masked less than the rule on content its walk skipped
+   (BLE-679). Fixed in 0.12.8.** The mask walk reused the identity walk,
+   which prunes subtrees, so these were sent unmasked in every earlier
+   version:
+   1. Everything under an excluding `ExcludeSemantics`, `TugboatSensitive`
+      included. Flutter inserts `ExcludeSemantics` itself for
+      `Text(semanticsLabel:)`, every `Icon`, `AnimatedCrossFade`, the date
+      and time pickers, and `DropdownMenu` labels, so ordinary text was
+      affected.
+   2. A `TugboatSensitive` directly above an excluded subtree.
    3. Everything behind a `showDialog`, `showModalBottomSheet` or
-      `PopupMenuButton` menu is unmasked: the walk prunes content shadowed
-      by a blocking route (`_removeShadowedElements`), though it is still
-      painted. This breaks [Overlays and modals](#overlays-and-modals).
-   4. The public `TugboatInternal` suppresses every mask below it.
-   5. A render object whose transform fails mid-capture has its mask
-      silently dropped, and a walk with no root returns no masks.
+      `PopupMenuButton` menu, though it is still painted.
+   4. Everything below the public `TugboatInternal`.
+   5. A render object whose transform failed mid-capture had its mask
+      silently dropped, and a walk with no root returned no masks.
 
-   The fix is the same for every SDK, not a divergence: mask what the walk
-   skips, and fail the capture (`maskFailed`) or mask the whole boundary
-   when a mask cannot be placed. It changes pixels in existing Flutter apps
-   (more is masked), so it is its own change, not part of this write-up.
-   Skipped Flutter tests state the required behaviour for each case in this list.
+   The mask walk is now its own pass that prunes only what is not painted
+   (`Offstage`, invisible `Visibility`, opacity 0, overlay entries below an
+   opaque route), and a mask that cannot be placed fails the capture
+   (`maskFailed`). `TugboatInternal` still leaves its subtree out of
+   identity. The Flutter contract tests for each case run unskipped.
 2. **Flutter's `allTextAndMedia` does not classify some content it should
    mask**: `DecorationImage` and `CircleAvatar.backgroundImage`, `Texture`
    (video), `CustomPaint` text, and text with `TextOverflow.visible` that
@@ -403,7 +401,7 @@ adds and never removes.
 
 | Adapter | Where | Run |
 | --- | --- | --- |
-| Flutter | `sdks/flutter/packages/tugboat/test/replay/privacy_model_contract_test.dart`: the level names and default, a mark adds its subtree and never removes a mask at every level, inherits down. Twelve skipped tests state the required behaviour for Difference 1 (BLE-679), and a drawer test, not skipped, guards the overlay rule | `dart run melos run test:sdk` |
+| Flutter | `sdks/flutter/packages/tugboat/test/replay/privacy_model_contract_test.dart`: the level names and default, a mark adds its subtree and never removes a mask at every level, inherits down. Twelve tests state the required behaviour for Difference 1 (BLE-679, fixed in 0.12.8), and a drawer test guards the overlay rule | `dart run melos run test:sdk` |
 | Views | `ViewSensitiveMasksTest` (add-only), `MaskCoverageTest`, `WindowMasksTest.anUnreadableWindowFailsClosed` in `tugboat-android` | Gradle unit tests |
 | Compose | `ComposeSensitiveMasksTest` (add-only), `ComposeWholeHostMasksTest` and `ComposeSemanticsMasksTest` (in `ComposeMasksTest.kt`), `ComposeRegionTest` (unverified version, unavailable owner) | Gradle unit tests |
 | SwiftUI | `SwiftUISensitiveTests`, `WindowMaskFailClosedTests`, `MaskCoverageTests` | `swift test` on a Mac |

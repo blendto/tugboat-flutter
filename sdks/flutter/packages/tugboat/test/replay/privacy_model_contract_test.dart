@@ -254,11 +254,8 @@ void main() {
       );
     });
 
-    // KNOWN GAPS, not fixed by BLE-633 (behaviour changes; see the contract's
-    // Differences and BLE-679). Each test states what the contract requires:
-    // content the walk cannot place is masked, never left visible. Remove
-    // `skip` when the walk is fixed for every SDK.
-    const gap = true; // skip: known gap, BLE-679
+    // Fixed in 0.12.8 (BLE-679). Each test states what the contract requires:
+    // content the walk cannot place is masked, never left visible.
 
     testWidgets(
       'content under ExcludeSemantics is still masked at allTextAndMedia',
@@ -273,7 +270,6 @@ void main() {
           isTrue,
         );
       },
-      skip: gap, // BLE-679
     );
 
     testWidgets(
@@ -289,125 +285,106 @@ void main() {
           isTrue,
         );
       },
-      skip: gap, // BLE-679
     );
 
-    testWidgets(
-      'a mark under ExcludeSemantics is still masked',
-      (tester) async {
-        final masks = await _masks(
-          tester,
-          TugboatScreenshotMaskLevel.explicitOnly,
-          const ExcludeSemantics(child: TugboatSensitive(child: _panel)),
-        );
-        expect(
-          _covers(masks, _boundsOf(tester, find.byKey(_panelKey))),
-          isTrue,
-        );
-      },
-      skip: gap, // BLE-679
-    );
+    testWidgets('a mark under ExcludeSemantics is still masked', (
+      tester,
+    ) async {
+      final masks = await _masks(
+        tester,
+        TugboatScreenshotMaskLevel.explicitOnly,
+        const ExcludeSemantics(child: TugboatSensitive(child: _panel)),
+      );
+      expect(_covers(masks, _boundsOf(tester, find.byKey(_panelKey))), isTrue);
+    });
 
-    testWidgets(
-      'a mark above an excluded subtree masks it',
-      (tester) async {
-        final masks = await _masks(
-          tester,
-          TugboatScreenshotMaskLevel.explicitOnly,
-          const TugboatSensitive(child: ExcludeSemantics(child: _panel)),
-        );
-        expect(
-          _covers(masks, _boundsOf(tester, find.byKey(_panelKey))),
-          isTrue,
-        );
-      },
-      skip: gap, // BLE-679
-    );
+    testWidgets('a mark above an excluded subtree masks it', (tester) async {
+      final masks = await _masks(
+        tester,
+        TugboatScreenshotMaskLevel.explicitOnly,
+        const TugboatSensitive(child: ExcludeSemantics(child: _panel)),
+      );
+      expect(_covers(masks, _boundsOf(tester, find.byKey(_panelKey))), isTrue);
+    });
 
-    testWidgets(
-      'TugboatInternal does not suppress masks below it',
-      (tester) async {
-        final masks = await _masks(
-          tester,
-          TugboatScreenshotMaskLevel.allTextAndMedia,
-          const TugboatInternal(child: Text('4242', key: ValueKey('t'))),
-        );
-        expect(
-          _covers(masks, _boundsOf(tester, find.byKey(const ValueKey('t')))),
-          isTrue,
-        );
-      },
-      skip: gap, // BLE-679
-    );
+    testWidgets('TugboatInternal does not suppress masks below it', (
+      tester,
+    ) async {
+      final masks = await _masks(
+        tester,
+        TugboatScreenshotMaskLevel.allTextAndMedia,
+        const TugboatInternal(child: Text('4242', key: ValueKey('t'))),
+      );
+      expect(
+        _covers(masks, _boundsOf(tester, find.byKey(const ValueKey('t')))),
+        isTrue,
+      );
+    });
 
-    testWidgets(
-      'a render object whose mask cannot be placed fails closed',
-      (tester) async {
-        final boundaryKey = GlobalKey();
-        await tester.pumpWidget(
-          TugboatCaptureBoundary(
-            key: boundaryKey,
-            child: const Directionality(
-              textDirection: TextDirection.ltr,
-              child: TugboatSensitive(child: _UnplaceableBox()),
-            ),
+    testWidgets('a render object whose mask cannot be placed fails closed', (
+      tester,
+    ) async {
+      final boundaryKey = GlobalKey();
+      await tester.pumpWidget(
+        TugboatCaptureBoundary(
+          key: boundaryKey,
+          child: const Directionality(
+            textDirection: TextDirection.ltr,
+            child: TugboatSensitive(child: _UnplaceableBox()),
           ),
-        );
-        final result = await _masksOfApp(
-          tester,
-          boundaryKey,
-          TugboatScreenshotMaskLevel.explicitOnly,
-        );
-        // The capture fails with maskFailed (no frame), or the whole boundary
-        // is masked. Any other failure, or a dropped mask, is a leak.
-        final boundary = tester.renderObject<RenderBox>(
-          find.byType(TugboatCaptureBoundary),
-        );
-        final masks = result.masks;
-        expect(
-          masks == null
-              ? result.failure == ScreenshotCaptureFailure.maskFailed
-              : _covers(masks, Offset.zero & boundary.size),
-          isTrue,
-          reason: 'an unplaceable mask must not be dropped',
-        );
-      },
-      skip: gap, // BLE-679
-    );
+        ),
+      );
+      final result = await _masksOfApp(
+        tester,
+        boundaryKey,
+        TugboatScreenshotMaskLevel.explicitOnly,
+      );
+      // The capture fails with maskFailed (no frame), or the whole boundary
+      // is masked. Any other failure, or a dropped mask, is a leak.
+      final boundary = tester.renderObject<RenderBox>(
+        find.byType(TugboatCaptureBoundary),
+      );
+      final masks = result.masks;
+      expect(
+        masks == null
+            ? result.failure == ScreenshotCaptureFailure.maskFailed
+            : _covers(masks, Offset.zero & boundary.size),
+        isTrue,
+        reason: 'an unplaceable mask must not be dropped',
+      );
+    });
 
-    testWidgets(
-      'a walk with no root does not return an unmasked frame',
-      (tester) async {
-        final boundaryKey = GlobalKey();
-        await tester.pumpWidget(
-          TugboatCaptureBoundary(
-            key: boundaryKey,
-            child: const Directionality(
-              textDirection: TextDirection.ltr,
-              child: Text('4242'),
-            ),
+    testWidgets('a walk with no root does not return an unmasked frame', (
+      tester,
+    ) async {
+      final boundaryKey = GlobalKey();
+      await tester.pumpWidget(
+        TugboatCaptureBoundary(
+          key: boundaryKey,
+          child: const Directionality(
+            textDirection: TextDirection.ltr,
+            child: Text('4242'),
           ),
-        );
-        // The walk's root is a key nothing is mounted under.
-        final result = await _masksOfApp(
-          tester,
-          boundaryKey,
-          TugboatScreenshotMaskLevel.allTextAndMedia,
-          rootKey: GlobalKey(),
-        );
-        final boundary = tester.renderObject<RenderBox>(
-          find.byType(TugboatCaptureBoundary),
-        );
-        final masks = result.masks;
-        expect(
-          masks == null
-              ? result.failure == ScreenshotCaptureFailure.maskFailed
-              : _covers(masks, Offset.zero & boundary.size),
-          isTrue,
-        );
-      },
-      skip: gap, // BLE-679
-    );
+        ),
+      );
+      // The walk's root is a key nothing is mounted under.
+      final result = await _masksOfApp(
+        tester,
+        boundaryKey,
+        TugboatScreenshotMaskLevel.allTextAndMedia,
+        rootKey: GlobalKey(),
+      );
+      final boundary = tester.renderObject<RenderBox>(
+        find.byType(TugboatCaptureBoundary),
+      );
+      final masks = result.masks;
+      expect(
+        masks == null
+            ? result.failure == ScreenshotCaptureFailure.maskFailed
+            : _covers(masks, Offset.zero & boundary.size),
+        isTrue,
+      );
+    });
 
     testWidgets(
       'Icon(semanticLabel:) is masked: Flutter adds ExcludeSemantics itself',
@@ -422,53 +399,47 @@ void main() {
           isTrue,
         );
       },
-      skip: gap, // BLE-679
     );
 
-    testWidgets(
-      'the outgoing child of an AnimatedCrossFade is masked',
-      (tester) async {
-        Widget fade(CrossFadeState state) => AnimatedCrossFade(
-          duration: const Duration(milliseconds: 400),
-          crossFadeState: state,
-          firstChild: const Text('4242', key: ValueKey('first')),
-          // Not text: a wider incoming text mask would cover the outgoing one.
-          secondChild: const SizedBox(
-            key: ValueKey('second'),
-            width: 4,
-            height: 4,
-          ),
-        );
-        final boundaryKey = GlobalKey();
-        Widget app(CrossFadeState state) => TugboatCaptureBoundary(
-          key: boundaryKey,
-          child: Directionality(
-            textDirection: TextDirection.ltr,
-            // Centered: AnimatedSize offsets the stack and masks are clipped
-            // to the boundary, so a top-left child would be clipped.
-            child: Align(alignment: Alignment.center, child: fade(state)),
-          ),
-        );
-        await tester.pumpWidget(app(CrossFadeState.showFirst));
-        await tester.pumpWidget(app(CrossFadeState.showSecond));
-        await tester.pump(const Duration(milliseconds: 200));
-        final masks = (await _masksOfApp(
-          tester,
-          boundaryKey,
-          TugboatScreenshotMaskLevel.allTextAndMedia,
-        )).masks;
-        expect(masks, isNotNull);
-        expect(
-          _covers(
-            masks!,
-            _boundsOf(tester, find.byKey(const ValueKey('first'))),
-          ),
-          isTrue,
-          reason: 'the outgoing child is still painted',
-        );
-      },
-      skip: gap, // BLE-679
-    );
+    testWidgets('the outgoing child of an AnimatedCrossFade is masked', (
+      tester,
+    ) async {
+      Widget fade(CrossFadeState state) => AnimatedCrossFade(
+        duration: const Duration(milliseconds: 400),
+        crossFadeState: state,
+        firstChild: const Text('4242', key: ValueKey('first')),
+        // Not text: a wider incoming text mask would cover the outgoing one.
+        secondChild: const SizedBox(
+          key: ValueKey('second'),
+          width: 4,
+          height: 4,
+        ),
+      );
+      final boundaryKey = GlobalKey();
+      Widget app(CrossFadeState state) => TugboatCaptureBoundary(
+        key: boundaryKey,
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          // Centered: AnimatedSize offsets the stack and masks are clipped
+          // to the boundary, so a top-left child would be clipped.
+          child: Align(alignment: Alignment.center, child: fade(state)),
+        ),
+      );
+      await tester.pumpWidget(app(CrossFadeState.showFirst));
+      await tester.pumpWidget(app(CrossFadeState.showSecond));
+      await tester.pump(const Duration(milliseconds: 200));
+      final masks = (await _masksOfApp(
+        tester,
+        boundaryKey,
+        TugboatScreenshotMaskLevel.allTextAndMedia,
+      )).masks;
+      expect(masks, isNotNull);
+      expect(
+        _covers(masks!, _boundsOf(tester, find.byKey(const ValueKey('first')))),
+        isTrue,
+        reason: 'the outgoing child is still painted',
+      );
+    });
 
     // Guards the overlay rule today: a drawer is an overlay route, and
     // content behind it must stay masked. Not skipped.
@@ -573,7 +544,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         await expectBackgroundMasked(tester);
-      }, skip: gap); // BLE-679
+      });
 
       testWidgets('an open bottom sheet', (tester) async {
         await tester.pumpWidget(app());
@@ -583,14 +554,14 @@ void main() {
         );
         await tester.pumpAndSettle();
         await expectBackgroundMasked(tester);
-      }, skip: gap); // BLE-679
+      });
 
       testWidgets('an open popup menu', (tester) async {
         await tester.pumpWidget(app());
         await tester.tap(find.byKey(const ValueKey('popup')));
         await tester.pumpAndSettle();
         await expectBackgroundMasked(tester);
-      }, skip: gap); // BLE-679
+      });
     });
   });
 }
