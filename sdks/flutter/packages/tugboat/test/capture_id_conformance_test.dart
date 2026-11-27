@@ -53,7 +53,8 @@ void main() {
 
   for (final vector in vectors) {
     test('capture id vector ${vector['name']}', () {
-      final id = '${vector['prefix']}-'
+      final id =
+          '${vector['prefix']}-'
           '${generateTugboatUuidV4(_BytesRandom(_hexBytes(vector['bytesHex']! as String)))}';
       expect(id, vector['expected']);
       expect(pattern.hasMatch(id), isTrue);
