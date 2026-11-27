@@ -45,7 +45,8 @@ const char kInteractionConfigure[] =
     "\"navigation\":{\"routeBarrierTimeoutMs\":4,\"routeStackLimit\":2},"
     "\"capture\":{\"budgetMs\":1,\"budgetWindowMs\":5},"
     "\"capabilities\":{\"sceneInventory\":true,\"focusChanges\":true,"
-    "\"systemInput\":true,\"captureDiagnostics\":true}}}";
+    "\"systemInput\":true,\"captureDiagnostics\":true,"
+    "\"nativeSceneInventory\":true,\"resampleSettledInventory\":true}}}";
 
 tb_session_status submit_raw(tb_session_engine* engine, const char* data,
                              size_t size, std::string* response) {
@@ -185,6 +186,29 @@ class InteractionScript {
                std::to_string(value / 2 % 5) + "\",\"type\":\"T\"}";
     }
     return fact("navigation", input);
+  }
+
+  // A native scene inventory, sometimes the answer to `scene.sample`, with a
+  // few elements whose enabled state and path vary.
+  std::string scene_inventory(uint8_t value) const {
+    std::string elements;
+    for (int i = 0; i <= value % 3; ++i) {
+      if (i > 0) elements += ",";
+      elements += "{\"fingerprint\":\"f" + std::to_string(i) +
+                  "\",\"canonicalPath\":\"Page#0/[item:" +
+                  std::to_string(i + value % 2) +
+                  "]/Button#0\",\"boundsNorm\":{\"left\":0.1,\"top\":0.1,"
+                  "\"width\":0.2,\"height\":0.1},\"tier\":\"interactive\","
+                  "\"enabled\":" + (value % 5 == 0 ? "false" : "true") + "}";
+    }
+    static const char* const kTrigger[] = {"initial", "tap", "scroll",
+                                           "gesture"};
+    std::string input = "\"routeKey\":\"/" + std::to_string(value % 2) +
+                        "\",\"elements\":[" + elements + "]";
+    input += value % 2 == 0
+                 ? ",\"resample\":true"
+                 : std::string(",\"trigger\":\"") + kTrigger[value % 4] + "\"";
+    return fact("scene.inventory", input);
   }
 
   // A captured frame's `maskCoverage`: absent, valid (an accepted frame
@@ -329,6 +353,8 @@ class InteractionScript {
       case 15:
         return navigation(value);
       case 16:
+        if (value % 3 == 1) return fact("scene.frame", "");
+        if (value % 3 == 2) return scene_inventory(value);
         return fact("surface",
                     "\"boundaryRect\":{\"x\":0,\"y\":0,\"width\":" +
                         std::to_string(300 + value % 2 * 100) +

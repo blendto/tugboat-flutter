@@ -17,6 +17,12 @@ internal sealed interface Effect {
 
     data class CaptureRequest(val request: CaptureRequestEffect) : Effect
 
+    /** `scene.watch {armed}`: report drawn frames (`scene.frame`) while armed. */
+    data class SceneWatch(val armed: Boolean) : Effect
+
+    /** `scene.sample`: answer with the visible route's inventory (`scene.inventory {resample: true}`). */
+    data object SceneSample : Effect
+
     /** A type this host does not execute; logged once and ignored. */
     data class Unknown(val type: String) : Effect
 }
@@ -31,6 +37,8 @@ internal object EffectParser {
         "http.send" to ::httpSend,
         "frame.release" to ::frameRelease,
         "capture.request" to { effect -> Effect.CaptureRequest(CaptureRequestEffect.from(effect)) },
+        "scene.watch" to { effect -> Effect.SceneWatch(effect.getBoolean("armed")) },
+        "scene.sample" to { _ -> Effect.SceneSample },
     )
 
     /**

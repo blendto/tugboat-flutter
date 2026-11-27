@@ -1,5 +1,6 @@
 package com.tugboat.android.views.inventory
 
+import android.graphics.Rect
 import android.graphics.RectF
 import android.view.View
 import android.view.ViewGroup
@@ -15,6 +16,9 @@ import com.tugboat.android.views.identity.ViewGeometry
 import com.tugboat.android.views.identity.ViewRules
 import com.tugboat.android.views.region.RegionHost
 import com.tugboat.android.views.region.Regions
+import com.tugboat.android.views.scroll.ScrollAxis
+import com.tugboat.android.views.scroll.ScrollMetrics
+import com.tugboat.android.views.scroll.Scrollables
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.TreeSet
@@ -56,20 +60,46 @@ internal class SceneInventoryBuilder(
     }
 }
 
-/** One `scene.inventory` input; [totalElements] counts the candidates the walk found, collected or not (an upper bound). */
-internal class SceneInventory(val routeKey: String, val elements: List<InventoryElement>, val totalElements: Int) {
-    fun toJson(): JSONObject {
+/**
+ * One `scene.inventory` input; [totalElements] counts the candidates the walk found, collected or not (an upper bound).
+ * [viewport] and [scroll] are the exploration metadata of the walked window (stateful-engine.md section 4.3.2).
+ */
+internal class SceneInventory(
+    val routeKey: String,
+    val elements: List<InventoryElement>,
+    val totalElements: Int,
+    val viewport: JSONObject? = null,
+    val scroll: JSONObject? = null,
+) {
+    /**
+     * The fact's input. [trigger] labels why it was taken, [surface] is the window's
+     * ([InventoryMetadata.surface]), and [resample] marks the answer to `scene.sample`
+     * (the engine then stamps the trigger itself).
+     */
+    fun toJson(trigger: String? = null, surface: JSONObject? = null, resample: Boolean = false): JSONObject {
         val array = JSONArray()
         elements.forEach { array.put(it.toJson()) }
-        return JSONObject()
+        val json = JSONObject()
             .put("routeKey", routeKey)
             .put("elements", array)
             .put("totalElements", totalElements)
+        if (resample) json.put("resample", true)
+        if (trigger != null && !resample) json.put("trigger", trigger)
+        surface?.let { json.put("surface", it) }
+        viewport?.let { json.put("viewport", it) }
+        scroll?.let { json.put("scroll", it) }
+        return json
     }
 }
 
 /** An anchor, its bounds, and its tier; interactive elements also carry their aliases. */
-internal class InventoryElement(val anchor: TargetAnchor, val bounds: NormalizedBounds, val tier: InventoryTier) {
+internal class InventoryElement(
+    val anchor: TargetAnchor,
+    val bounds: NormalizedBounds,
+    val tier: InventoryTier,
+    /** Share of the view inside the visible window area, when it is not fully visible. */
+    private val visibleFraction: Double? = null,
+) {
     private val aliases = TreeSet<String>()
 
     init {
@@ -97,6 +127,10 @@ internal class InventoryElement(val anchor: TargetAnchor, val bounds: Normalized
         }
         json.put("boundsNorm", bounds.toJson()).put("tier", tier.wire)
         if (aliases.isNotEmpty()) json.put("aliases", JSONArray(aliases.toList()))
+        visibleFraction?.let { json.put("visibleFraction", it) }
+        anchor.tag?.let { json.put("tag", it) }
+        // The path runs through a list position: the fingerprint names a position, not the control.
+        if (anchor.canonicalPath.contains("[item:")) json.put("positional", true)
         return json
     }
 
@@ -152,10 +186,15 @@ private class InventoryWalk(
     private val elements = LinkedHashMap<String, InventoryElement>()
     private var found = 0
 
+    /** The largest vertical scrollable of the route: Flutter's primary vertical scrollable. */
+    private var primaryScroll: ScrollMetrics? = null
+    private var primaryScrollArea = 0
+
     fun visit(view: View) {
         if (ViewRules.isExcluded(view)) return
         val region = Regions.regionOf(view)
         if (region != null) return region(RegionHost(view, region))
+        considerScrollable(view)
         if (ViewRules.isKept(view, names)) candidate(view)
         if (view is ViewGroup) {
             for (i in 0 until view.childCount) visit(view.getChildAt(i))
@@ -167,7 +206,28 @@ private class InventoryWalk(
         if (elements.isEmpty()) return null
         val ordered = elements.values.filter { it.tier == InventoryTier.Interactive } +
             elements.values.filter { it.tier == InventoryTier.Content }
-        return SceneInventory(routeKey, ordered, maxOf(found, ordered.size))
+        val density = decor.resources.displayMetrics.density.toDouble()
+        val scroll = primaryScroll?.let { InventoryMetadata.scroll(it, density) }
+        return SceneInventory(routeKey, ordered, maxOf(found, ordered.size), InventoryMetadata.viewport(decor), scroll)
+    }
+
+    private fun considerScrollable(view: View) {
+        if (!Scrollables.isScrollable(view) || view.width * view.height <= primaryScrollArea) return
+        if (routes.routeFor(view)?.value != routeKey) return
+        val metrics = Scrollables.metrics(view) ?: return
+        if (metrics.axis != ScrollAxis.Vertical) return
+        primaryScroll = metrics
+        primaryScrollArea = view.width * view.height
+    }
+
+    /** The share of [view]'s box on screen, three decimals; null when fully visible or unknown. */
+    private fun visibleFractionOf(view: View): Double? {
+        val area = view.width.toDouble() * view.height
+        if (!(area > 0)) return null
+        val visible = Rect()
+        val fraction = if (view.getGlobalVisibleRect(visible)) visible.width().toDouble() * visible.height() / area else 0.0
+        val rounded = Math.round(fraction.coerceIn(0.0, 1.0) * 1000.0) / 1000.0
+        return rounded.takeIf { it < 1.0 }
     }
 
     private fun candidate(view: View) {
@@ -179,7 +239,7 @@ private class InventoryWalk(
             return
         }
         val anchor = anchors.anchorFor(view, decor, ids) ?: return
-        add(InventoryElement(anchor, bounds, tier))
+        add(InventoryElement(anchor, bounds, tier, visibleFractionOf(view)))
     }
 
     private fun tierOf(view: View, bounds: NormalizedBounds): InventoryTier? =

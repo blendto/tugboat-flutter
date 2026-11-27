@@ -25,4 +25,7 @@ internal object FactTypes {
     const val NAVIGATION = "navigation"
 
     const val SCENE_INVENTORY = "scene.inventory"
+
+    /** A frame was drawn while the engine's re-sample watch is armed (stateful-engine.md section 4.3.2). */
+    const val SCENE_FRAME = "scene.frame"
 }

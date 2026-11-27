@@ -44,8 +44,10 @@ int64_t elapsed_us(int64_t from_mono_us, int64_t to_mono_us) {
 
 }  // namespace
 
-CaptureAsk interaction_capture(const std::string& related_event_id) {
+CaptureAsk interaction_capture(const std::string& related_event_id,
+                               const char* inventory_trigger) {
   CaptureAsk ask;
+  ask.inventory_trigger = std::string(inventory_trigger);
   ask.trigger = FrameTrigger::kInteraction;
   ask.force = true;
   ask.related_event_id = related_event_id;
@@ -93,6 +95,7 @@ std::string CaptureSeam::request(Turn& turn, const CaptureOwner& owner,
   scheduled.force = ask.force;
   scheduled.freshness = freshness_for(ask.trigger, ask.force);
   scheduled.drop_when_busy = ask.drop_when_busy;
+  scheduled.inventory_trigger = ask.inventory_trigger;
   scheduled.not_before_mono_us = turn.at.mono_us + ask.settle_delay_ms * 1000;
   scheduled.enqueued_mono_us = turn.at.mono_us;
   scheduled.context = waiter.context;
@@ -209,6 +212,10 @@ void CaptureSeam::issue(InFlightCapture flight, EngineState* state,
   request.not_before_mono_us = scheduled.not_before_mono_us;
   request.context = scheduled.context.effect_context();
   request.dhash_baseline = flight.baseline;
+  // Native adapters label the inventory they send for this capture's frame.
+  if (state->config.capabilities.native_scene_inventory) {
+    request.inventory_trigger = scheduled.inventory_trigger;
+  }
   request.scale =
       budget_.degraded() ? state->config.capture.degraded_scale : 1.0;
   out->effects.push_back(std::move(request));

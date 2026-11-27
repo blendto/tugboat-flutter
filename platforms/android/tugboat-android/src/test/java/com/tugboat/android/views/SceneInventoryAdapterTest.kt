@@ -281,6 +281,8 @@ class SceneInventoryAdapterTest {
         activity.setContentView(Button(activity))
         settle()
         assertFalse(adapter.masks(activity.window).hasRegionHosts)
+        // The skip needs the engine's watch armed: it already has the inventory of this visit.
+        adapter.onSceneWatch(true)
 
         adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
         adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
@@ -291,22 +293,143 @@ class SceneInventoryAdapterTest {
     }
 
     @Test
-    fun anEmptyInventoryDoesNotStoreTheSignature() {
+    fun anUnchangedStructureIsWalkedWhileNoWatchIsArmedAndForAMoment() {
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        activity.setContentView(Button(activity))
+        settle()
+        adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
+        adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
+        assertEquals("no watch armed: the engine needs every fact to arm one", 2, walks)
+
+        adapter.onSceneWatch(true)
+        adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
+        assertEquals("armed: skipped", 2, walks)
+        adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false, trigger = "tap")
+        frames.runFrame()
+        assertEquals("a tap moment reaches the engine", 3, walks)
+        assertEquals("tap", inventoryInputs().last().getString("trigger"))
+    }
+
+    @Test
+    fun aSampleAnswersWithAResampleFactAndNoTrigger() {
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        activity.setContentView(Button(activity))
+        settle()
+        adapter.sampleWindow = { activity.window }
+        adapter.onSceneWatch(true)
+        adapter.onSceneSample()
+        shadowOf(Looper.getMainLooper()).idle()
+        frames.runFrame()
+
+        val fact = inventoryInputs().single()
+        assertTrue(fact.getBoolean("resample"))
+        assertFalse(fact.has("trigger"))
+        assertEquals("page", fact.getJSONObject("surface").getString("kind"))
+        assertEquals("FragmentActivity", fact.getJSONObject("surface").getString("widgetClass"))
+    }
+
+    @Test
+    fun theDrawListenerFollowsTheForegroundWindowWhenItChanges() {
+        val first = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        first.setContentView(Button(first))
+        settle()
+        var window: Window = first.window
+        adapter.sampleWindow = { window }
+        adapter.onSceneWatch(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        first.window.decorView.viewTreeObserver.dispatchOnDraw()
+        frames.runFrame()
+        assertEquals(1, sceneFrames())
+
+        // A recreated activity: a new window; the next resume rebinds the listener.
+        val second = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        second.setContentView(Button(second))
+        window = second.window
+        adapter.onActivityResumed(second)
+        shadowOf(Looper.getMainLooper()).idle()
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(200))
+        second.window.decorView.viewTreeObserver.dispatchOnDraw()
+        frames.runFrame()
+        assertEquals(2, sceneFrames())
+    }
+
+    @Test
+    fun aSampleOutsideAWatchIsDropped() {
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        activity.setContentView(Button(activity))
+        settle()
+        adapter.sampleWindow = { activity.window }
+        adapter.onSceneSample()
+        shadowOf(Looper.getMainLooper()).idle()
+        frames.runFrame()
+
+        assertEquals(emptyList<JSONObject>(), inventoryInputs())
+    }
+
+    @Test
+    fun aRebindAfterTheDecorAttachesLeavesOneDrawListener() {
+        // Armed while the decor is not attached: the listener lands on the view's floating
+        // observer, which Android merges into the window's on attach and then kills.
+        val controller = Robolectric.buildActivity(FragmentActivity::class.java).create()
+        val activity = controller.get()
+        activity.setContentView(Button(activity))
+        adapter.sampleWindow = { activity.window }
+        adapter.onSceneWatch(true)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        controller.start().resume().visible()
+        // The resume rebinds (and a sample does too); each must leave exactly one listener.
+        adapter.onSceneSample()
+        shadowOf(Looper.getMainLooper()).idle()
+        val before = adapter.drawCallbacks
+
+        activity.window.decorView.viewTreeObserver.dispatchOnDraw()
+
+        // Counted before the 100 ms throttle, which would hide a duplicate.
+        assertEquals(1, adapter.drawCallbacks - before)
+    }
+
+    @Test
+    fun aDrawnFrameOfTheSampleWindowIsReportedAsASceneFrameAtMostEvery100Ms() {
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        activity.setContentView(Button(activity))
+        settle()
+        adapter.sampleWindow = { activity.window }
+        adapter.onSceneWatch(true)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        activity.window.decorView.viewTreeObserver.dispatchOnDraw()
+        activity.window.decorView.viewTreeObserver.dispatchOnDraw()
+        frames.runFrame()
+        assertEquals(1, sceneFrames())
+
+        adapter.onSceneWatch(false)
+        shadowOf(Looper.getMainLooper()).idle()
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(200))
+        activity.window.decorView.viewTreeObserver.dispatchOnDraw()
+        frames.runFrame()
+        assertEquals("a stopped watch reports nothing", 1, sceneFrames())
+    }
+
+    @Test
+    fun anEmptyInventoryIsReportedWithoutStoringTheSignature() {
         val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
         val screen = FrameLayout(activity)
         activity.setContentView(screen)
         settle()
         adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
         frames.runFrame()
-        assertEquals(emptyList<JSONObject>(), inventoryInputs())
+        // Nothing to list yet: the engine is told (no elements) so it watches the page.
+        assertEquals(0, elements(inventoryInputs().single()).size)
 
         screen.addView(Button(activity), FrameLayout.LayoutParams(300, 120))
         settle()
+        adapter.onSceneWatch(true)
         adapter.onCapturedFrame(activity.window, "structure-1", hasRegionHosts = false)
         frames.runFrame()
 
         assertEquals(2, walks)
-        assertEquals(1, inventoryInputs().size)
+        assertEquals(1, elements(inventoryInputs().single()).size)
     }
 
     @Test
@@ -349,6 +472,8 @@ class SceneInventoryAdapterTest {
 
     private fun inventoryInputs(): List<JSONObject> =
         sink.batches.flatten().filter { it.type == "scene.inventory" }.map { JSONObject(it.inputJson) }
+
+    private fun sceneFrames(): Int = sink.batches.flatten().count { it.type == "scene.frame" }
 
     private fun tapAnchor(): JSONObject =
         sink.batches.flatten().filter { it.type == "input.pointer" }

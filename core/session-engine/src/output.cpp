@@ -109,6 +109,14 @@ struct EffectJson {
     out.set("handle", str(effect.handle));
     return out;
   }
+  Value operator()(const SceneWatch& effect) const {
+    Value out = effect_head("scene.watch");
+    out.set("armed", Value::boolean(effect.armed));
+    return out;
+  }
+  Value operator()(const SceneSample&) const {
+    return effect_head("scene.sample");
+  }
   Value operator()(const CaptureRequest& effect) const {
     Value out = effect_head("capture.request");
     out.set("requestId", str(effect.request_id));
@@ -126,6 +134,7 @@ struct EffectJson {
       out.set("dHashBaseline", std::move(baseline));
     }
     out.set("scale", Value::number(effect.scale));
+    put_opt(&out, "inventoryTrigger", effect.inventory_trigger);
     return out;
   }
 };

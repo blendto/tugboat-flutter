@@ -142,14 +142,14 @@
                     {
                       "fingerprint": "aaaaaaaaaaaaaaaa",
                       "canonicalPath": "Button#0",
+                      "actions": ["tap"],
                       "boundsNorm": {
                         "left": 0.1,
                         "top": 0.2,
                         "width": 0.3,
                         "height": 0.1
                       },
-                      "tier": "interactive",
-                      "actions": ["tap"]
+                      "tier": "interactive"
                     }
                   ]
                 }
@@ -157,7 +157,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "scene.watch",
+              "armed": true
+            }
+          ]
         },
         "note": "C20: only the first element is kept when maxSceneInventoryElements is 1; hash is over surviving fingerprints."
       },

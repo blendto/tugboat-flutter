@@ -208,6 +208,7 @@ GroupSpec capabilities_spec(Capabilities* c) {
           {},
           {{"sceneInventory", &c->scene_inventory},
            {"nativeSceneInventory", &c->native_scene_inventory},
+           {"resampleSettledInventory", &c->resample_settled_inventory},
            {"viewportSemanticMap", &c->viewport_semantic_map},
            {"captureDiagnostics", &c->capture_diagnostics},
            {"actionContext", &c->action_context},

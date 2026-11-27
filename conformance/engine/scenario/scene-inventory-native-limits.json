@@ -7,12 +7,8 @@
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
   },
-  "runners": [
-    "cpp"
-  ],
-  "engineOnly": [
-    "C20"
-  ],
+  "runners": ["cpp"],
+  "engineOnly": ["C20"],
   "input": {
     "configure": {
       "host": {"$preset": "default-host"},
@@ -97,9 +93,7 @@
                   "height": 1.0
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "actions": ["tap"]
               },
               {
                 "fingerprint": "2222222222222222",
@@ -111,9 +105,7 @@
                   "height": 0.25
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "actions": ["tap"]
               }
             ],
             "totalElements": 2000
@@ -151,30 +143,26 @@
                     {
                       "fingerprint": "1111111111111111",
                       "canonicalPath": "",
+                      "actions": ["tap"],
                       "boundsNorm": {
                         "left": 0.0,
                         "top": 0.0,
                         "width": 1.0,
                         "height": 1.0
                       },
-                      "tier": "interactive",
-                      "actions": [
-                        "tap"
-                      ]
+                      "tier": "interactive"
                     },
                     {
                       "fingerprint": "2222222222222222",
                       "canonicalPath": "Button#0",
+                      "actions": ["tap"],
                       "boundsNorm": {
                         "left": 0.5,
                         "top": 0.25,
                         "width": 0.5000000001,
                         "height": 0.25
                       },
-                      "tier": "interactive",
-                      "actions": [
-                        "tap"
-                      ]
+                      "tier": "interactive"
                     }
                   ]
                 }
@@ -182,7 +170,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "scene.watch",
+              "armed": true
+            }
+          ]
         },
         "note": "C20: totalElements 2000 over the limit (2) records truncatedFrom 2000 though only 2 elements were sent. A route-root element has canonicalPath \"\" (as targetAnchor allows); left + width within 1e-9 of 1 is accepted."
       },
@@ -205,9 +198,7 @@
                   "height": 1.0
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "actions": ["tap"]
               },
               {
                 "fingerprint": "2222222222222222",
@@ -219,9 +210,7 @@
                   "height": 0.25
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "actions": ["tap"]
               }
             ],
             "totalElements": 2000
@@ -417,9 +406,7 @@
                   "height": 0.1
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "actions": ["tap"]
               }
             ],
             "scrollKey": "feed:1"
@@ -442,6 +429,7 @@
                     {
                       "fingerprint": "6666666666666666",
                       "canonicalPath": "[item:0]/Button#0",
+                      "actions": ["tap"],
                       "boundsNorm": {
                         "left": 0.1,
                         "top": 0.2,
@@ -449,9 +437,7 @@
                         "height": 0.1
                       },
                       "tier": "interactive",
-                      "actions": [
-                        "tap"
-                      ]
+                      "positional": true
                     }
                   ],
                   "scrollKey": "feed:1"
@@ -483,9 +469,7 @@
                   "height": 0.1
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "actions": ["tap"]
               }
             ],
             "scrollKey": "feed:1"
@@ -516,9 +500,7 @@
                   "height": 0.1
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "actions": ["tap"]
               }
             ],
             "scrollKey": "feed:2"
@@ -541,6 +523,7 @@
                     {
                       "fingerprint": "6666666666666666",
                       "canonicalPath": "[item:0]/Button#0",
+                      "actions": ["tap"],
                       "boundsNorm": {
                         "left": 0.1,
                         "top": 0.2,
@@ -548,9 +531,7 @@
                         "height": 0.1
                       },
                       "tier": "interactive",
-                      "actions": [
-                        "tap"
-                      ]
+                      "positional": true
                     }
                   ],
                   "scrollKey": "feed:2"
@@ -582,9 +563,7 @@
                   "height": 0.1
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "actions": ["tap"]
               }
             ]
           }
@@ -606,6 +585,7 @@
                     {
                       "fingerprint": "6666666666666666",
                       "canonicalPath": "[item:0]/Button#0",
+                      "actions": ["tap"],
                       "boundsNorm": {
                         "left": 0.1,
                         "top": 0.2,
@@ -613,9 +593,7 @@
                         "height": 0.1
                       },
                       "tier": "interactive",
-                      "actions": [
-                        "tap"
-                      ]
+                      "positional": true
                     }
                   ]
                 }
@@ -853,30 +831,26 @@
               {
                 "fingerprint": "1111111111111111",
                 "canonicalPath": "",
+                "actions": ["tap"],
                 "boundsNorm": {
                   "left": 0.0,
                   "top": 0.0,
                   "width": 1.0,
                   "height": 1.0
                 },
-                "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "tier": "interactive"
               },
               {
                 "fingerprint": "2222222222222222",
                 "canonicalPath": "Button#0",
+                "actions": ["tap"],
                 "boundsNorm": {
                   "left": 0.5,
                   "top": 0.25,
                   "width": 0.5000000001,
                   "height": 0.25
                 },
-                "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "tier": "interactive"
               }
             ]
           }
@@ -905,26 +879,26 @@
               {
                 "fingerprint": "3333333333333333",
                 "canonicalPath": "TextView#0",
+                "role": "display",
                 "boundsNorm": {
                   "left": 0.1,
                   "top": 0.2,
                   "width": 0.3,
                   "height": 0.1
                 },
-                "tier": "content",
-                "role": "display"
+                "tier": "content"
               },
               {
                 "fingerprint": "4444444444444444",
                 "canonicalPath": "TextView#1",
+                "role": "display",
                 "boundsNorm": {
                   "left": 0.1,
                   "top": 0.2,
                   "width": 0.3,
                   "height": 0.1
                 },
-                "tier": "content",
-                "role": "display"
+                "tier": "content"
               }
             ]
           }
@@ -942,6 +916,7 @@
               {
                 "fingerprint": "6666666666666666",
                 "canonicalPath": "[item:0]/Button#0",
+                "actions": ["tap"],
                 "boundsNorm": {
                   "left": 0.1,
                   "top": 0.2,
@@ -949,9 +924,7 @@
                   "height": 0.1
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "positional": true
               }
             ],
             "scrollKey": "feed:1"
@@ -970,6 +943,7 @@
               {
                 "fingerprint": "6666666666666666",
                 "canonicalPath": "[item:0]/Button#0",
+                "actions": ["tap"],
                 "boundsNorm": {
                   "left": 0.1,
                   "top": 0.2,
@@ -977,9 +951,7 @@
                   "height": 0.1
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "positional": true
               }
             ],
             "scrollKey": "feed:2"
@@ -998,6 +970,7 @@
               {
                 "fingerprint": "6666666666666666",
                 "canonicalPath": "[item:0]/Button#0",
+                "actions": ["tap"],
                 "boundsNorm": {
                   "left": 0.1,
                   "top": 0.2,
@@ -1005,9 +978,7 @@
                   "height": 0.1
                 },
                 "tier": "interactive",
-                "actions": [
-                  "tap"
-                ]
+                "positional": true
               }
             ]
           }
@@ -1025,13 +996,6 @@
               {
                 "fingerprint": "7777777777777777",
                 "canonicalPath": "Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#0/Column#",
-                "boundsNorm": {
-                  "left": 0.1,
-                  "top": 0.2,
-                  "width": 0.3,
-                  "height": 0.1
-                },
-                "tier": "interactive",
                 "widgetType": "View",
                 "role": "button",
                 "actions": [
@@ -1052,6 +1016,13 @@
                   "tap",
                   "tap"
                 ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
                 "aliases": [
                   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                   "0000000000000001",

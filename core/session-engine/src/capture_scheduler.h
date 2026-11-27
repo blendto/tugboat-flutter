@@ -45,6 +45,9 @@ struct ScheduledCapture {
   // Every request it serves is low priority (dropped instead of queued when
   // the scheduler was busy). Informative for the host.
   bool drop_when_busy = false;
+  // The moment an `interaction` capture was taken for (it never absorbs
+  // another capture, so it is the only request's).
+  OptString inventory_trigger;
   int64_t not_before_mono_us = 0;
   int64_t enqueued_mono_us = 0;
   // The first request's context.

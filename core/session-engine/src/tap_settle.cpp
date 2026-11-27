@@ -156,7 +156,7 @@ void request_capture(Turn& turn, TapSettle& settle) {
   settle.phase = std::move(capturing);
   const std::string request_id = state.captures.request(
       turn, {CaptureOwner::Kind::kTapSettle, tx.id()},
-      interaction_capture(tx.id()));
+      interaction_capture(tx.id(), "tap"));
   std::get<Capturing>(settle.phase).request_id = request_id;
 }
 

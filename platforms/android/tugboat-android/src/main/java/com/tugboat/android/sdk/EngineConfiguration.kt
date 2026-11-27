@@ -44,6 +44,8 @@ internal object EngineConfiguration {
                     .put("focusChanges", config.captureFocusChanges)
                     .put("systemInput", config.captureSystemInput)
                     .put("captureDiagnostics", config.captureDiagnostics)
-                    .put("nativeSceneInventory", config.emitSceneInventory),
+                    .put("nativeSceneInventory", config.emitSceneInventory)
+                    // Flutter's `resampleSettledInventory` default: on whenever the inventory is.
+                    .put("resampleSettledInventory", config.emitSceneInventory),
             )
 }

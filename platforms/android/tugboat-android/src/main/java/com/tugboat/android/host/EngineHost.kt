@@ -28,11 +28,13 @@ internal class EngineHost(
     private val onShutDown: () -> Unit = {},
     /** Performs `capture.request`; it answers through [post] with `capture.result`. */
     captures: CaptureRequestSink,
+    /** Runs the settled re-sample watch (`scene.watch`, `scene.sample`). */
+    scenes: SceneWatchSink = SceneWatchSink.NONE,
 ) {
     private val timers = TimerExecutor(handler) { timerId ->
         guarded("timer") { postNow(HostMessages.TIMER_FIRED, HostMessages.timerFiredInput(timerId)) }
     }
-    private val effects = EffectDispatcher(timers, http, frames, ::postNow, captures)
+    private val effects = EffectDispatcher(timers, http, frames, ::postNow, captures, scenes)
 
     /** Gates new posts; any thread reads it. */
     @Volatile
@@ -193,6 +195,7 @@ internal class EngineHost(
             frames: FrameHandleTable,
             http: HttpSender,
             captures: CaptureRequestSink,
+            scenes: SceneWatchSink = SceneWatchSink.NONE,
         ): EngineHost {
             val thread = HandlerThread("tugboat-engine", Process.THREAD_PRIORITY_BACKGROUND).apply { start() }
             return EngineHost(
@@ -202,6 +205,7 @@ internal class EngineHost(
                 frames = frames,
                 onShutDown = { thread.quitSafely() },
                 captures = captures,
+                scenes = scenes,
             )
         }
     }

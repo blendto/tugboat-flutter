@@ -54,11 +54,17 @@ struct CaptureAsk {
   // Not before this long after the request.
   int64_t settle_delay_ms = 0;
   OptString related_event_id;
+  // `scene_inventory.trigger` of the inventory this capture's frame gets
+  // (Flutter `_CaptureRequestContext.inventoryTrigger`): the moment an
+  // `interaction` capture was taken for (`tap`, `gesture`, `scroll`).
+  OptString inventory_trigger;
 };
 
 // A completed interaction asks for a fresh `interaction` frame now (Dart:
-// `trigger: interaction, force: true, settleDelay: zero`).
-CaptureAsk interaction_capture(const std::string& related_event_id);
+// `trigger: interaction, force: true, settleDelay: zero`). `inventory_trigger`
+// is `tap`, `gesture` or `scroll`.
+CaptureAsk interaction_capture(const std::string& related_event_id,
+                               const char* inventory_trigger);
 
 // The capture boundary as last observed: from a `surface` fact, or from
 // the `boundaryRect` of an accepted frame.

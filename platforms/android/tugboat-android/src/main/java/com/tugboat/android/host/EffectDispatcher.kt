@@ -13,6 +13,7 @@ internal class EffectDispatcher(
     private val frames: FrameHandleTable,
     private val post: (type: String, inputJson: String) -> Unit,
     private val captures: CaptureRequestSink,
+    private val scenes: SceneWatchSink = SceneWatchSink.NONE,
 ) {
     private val reportedUnknown = HashSet<String>()
 
@@ -25,6 +26,8 @@ internal class EffectDispatcher(
             }
             is Effect.FrameRelease -> frames.release(effect.handle)
             is Effect.CaptureRequest -> captures.onCaptureRequest(effect.request)
+            is Effect.SceneWatch -> scenes.onSceneWatch(effect.armed)
+            Effect.SceneSample -> scenes.onSceneSample()
             is Effect.Unknown -> if (reportedUnknown.add(effect.type)) {
                 Log.w(TAG, "ignoring unknown effect type ${effect.type}")
             }

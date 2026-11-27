@@ -10,7 +10,11 @@ import org.json.JSONObject
  * same builder output through the real engine.
  */
 internal object SceneInventoryFactContract {
-    private val FACT_KEYS = setOf("routeKey", "elements", "scrollKey", "totalElements")
+    private val FACT_KEYS = setOf(
+        "routeKey", "elements", "scrollKey", "totalElements", "resample", "trigger", "surface", "viewport", "scroll",
+    )
+    private val TRIGGERS = setOf("initial", "resume", "route", "tap", "scroll", "gesture", "settled", "manual")
+    private val SURFACE_KINDS = setOf("page", "sheet", "dialog", "popup", "menu")
     private val ELEMENT_KEYS = setOf(
         "fingerprint",
         "canonicalPath",
@@ -21,6 +25,9 @@ internal object SceneInventoryFactContract {
         "boundsNorm",
         "tier",
         "aliases",
+        "visibleFraction",
+        "tag",
+        "positional",
     )
     private val BOUNDS_KEYS = setOf("left", "top", "width", "height")
     private val TIERS = setOf("interactive", "content")
@@ -32,6 +39,11 @@ internal object SceneInventoryFactContract {
         json.keys().forEach { key -> check(key in FACT_KEYS) { "unknown fact key $key" } }
         optString(json, "routeKey")
         optString(json, "scrollKey")
+        if (json.has("resample")) check(json.get("resample") is Boolean) { "resample must be a boolean" }
+        if (json.has("trigger")) check(json.opt("trigger") in TRIGGERS) { "trigger must be an inventory trigger" }
+        json.optJSONObject("surface")?.let(::assertSurface)
+        json.optJSONObject("viewport")?.let(::assertViewport)
+        json.optJSONObject("scroll")?.let(::assertScroll)
         val elements = json.get("elements") as? JSONArray ?: error("elements must be an array")
         if (json.has("totalElements")) {
             val total = json.get("totalElements")
@@ -52,7 +64,38 @@ internal object SceneInventoryFactContract {
         if (element.has("enabled")) check(element.get("enabled") is Boolean) { "enabled must be a boolean" }
         check(requireString(element, "tier") in TIERS) { "tier must be interactive or content" }
         stringList(element, "aliases")
+        optString(element, "tag")
+        if (element.has("positional")) check(element.get("positional") is Boolean) { "positional must be a boolean" }
+        if (element.has("visibleFraction")) {
+            val fraction = (element.get("visibleFraction") as? Number)?.toDouble() ?: error("visibleFraction must be a number")
+            check(fraction in 0.0..1.0) { "visibleFraction out of range" }
+        }
         assertBounds(element.get("boundsNorm") as? JSONObject ?: error("boundsNorm must be an object"))
+    }
+
+    private fun assertSurface(surface: JSONObject) {
+        surface.keys().forEach { key -> check(key in setOf("kind", "widgetClass")) { "unknown surface key $key" } }
+        check(requireString(surface, "kind") in SURFACE_KINDS) { "surface kind" }
+        optString(surface, "widgetClass")
+    }
+
+    private fun assertViewport(viewport: JSONObject) {
+        val keys = setOf("widthPx", "heightPx", "devicePixelRatio", "boundaryOffset", "insets", "keyboardInset")
+        viewport.keys().forEach { key -> check(key in keys) { "unknown viewport key $key" } }
+        for (key in listOf("widthPx", "heightPx", "devicePixelRatio", "keyboardInset")) {
+            check(((viewport.opt(key) as? Number)?.toDouble() ?: error("$key must be a number")) >= 0) { "$key negative" }
+        }
+        val offset = viewport.optJSONObject("boundaryOffset") ?: error("boundaryOffset must be an object")
+        check(offset.keys().asSequence().toSet() == setOf("left", "top")) { "boundaryOffset keys" }
+        val insets = viewport.optJSONObject("insets") ?: error("insets must be an object")
+        check(insets.keys().asSequence().toSet() == setOf("top", "bottom", "left", "right")) { "insets keys" }
+        insets.keys().forEach { check(((insets.get(it) as? Number)?.toDouble() ?: error("$it must be a number")) >= 0) { "$it negative" } }
+    }
+
+    private fun assertScroll(scroll: JSONObject) {
+        scroll.keys().forEach { key -> check(key in setOf("offsetPx", "maxExtentPx")) { "unknown scroll key $key" } }
+        check(scroll.opt("offsetPx") is Number) { "offsetPx must be a number" }
+        if (scroll.has("maxExtentPx")) check(scroll.get("maxExtentPx") is Number) { "maxExtentPx must be a number" }
     }
 
     private fun assertBounds(bounds: JSONObject) {

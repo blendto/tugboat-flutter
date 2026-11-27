@@ -18,7 +18,23 @@ internal data class CaptureRequestEffect(
     /** Multiplies the capture pixel ratio (the engine's `degradedScale` under budget pressure). */
     val scale: Double,
     val dHashBaseline: DHashBaseline?,
+    /** `initial`, `tap`, `scroll`, `route`, `lifecycle`, `manual` or `interaction`. */
+    val trigger: String = "manual",
+    /** With `nativeSceneInventory`, on an `interaction` capture: `tap`, `gesture` or `scroll`. */
+    val inventoryTrigger: String? = null,
 ) {
+    /**
+     * The `scene_inventory.trigger` of the inventory sent for this capture's frame
+     * (stateful-engine.md section 4.3.2): the engine's label for an interaction,
+     * else the capture trigger (`lifecycle` is `resume`).
+     */
+    val sceneTrigger: String
+        get() = inventoryTrigger ?: when (trigger) {
+            "lifecycle" -> "resume"
+            "interaction" -> "gesture"
+            else -> trigger
+        }
+
     companion object {
         /** Throws [org.json.JSONException] when a required field is missing. */
         fun from(effect: JSONObject): CaptureRequestEffect {
@@ -30,6 +46,8 @@ internal data class CaptureRequestEffect(
                 force = effect.getBoolean("force"),
                 scale = effect.optDouble("scale", 1.0).takeIf { it.isFinite() && it > 0 } ?: 1.0,
                 dHashBaseline = baseline,
+                trigger = effect.optString("trigger", "manual"),
+                inventoryTrigger = effect.optString("inventoryTrigger", "").takeIf { it.isNotEmpty() },
             )
         }
     }
@@ -40,6 +58,27 @@ internal data class CaptureRequestEffect(
  * and the visible structure it was captured with. Opaque tokens.
  */
 internal data class DHashBaseline(val dHash: String, val structureSignature: String)
+
+/**
+ * Runs the settled re-sample watch the engine asks for
+ * (stateful-engine.md section 4.3.2). Called on the engine thread; it must
+ * return at once.
+ */
+internal interface SceneWatchSink {
+    /** `scene.watch`: start (`true`) or stop reporting drawn frames. */
+    fun onSceneWatch(armed: Boolean)
+
+    /** `scene.sample`: build the visible route's inventory and send it as a re-sample answer. */
+    fun onSceneSample()
+
+    companion object {
+        val NONE = object : SceneWatchSink {
+            override fun onSceneWatch(armed: Boolean) = Unit
+
+            override fun onSceneSample() = Unit
+        }
+    }
+}
 
 /**
  * Performs `capture.request` effects. Called on the engine thread; it must

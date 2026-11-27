@@ -1,0 +1,447 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "scene-inventory-resample-empty-first",
+  "description": "A native inventory with no elements still arms the re-sample watch, so content that loads later is sampled; a scroll inventory that repeats the last one sent is held back.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "$preset": "default-host"
+      },
+      "capabilities": {
+        "nativeSceneInventory": true,
+        "resampleSettledInventory": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "5d57e662ffc97958b084bec5c99debcfde316419c77081777c57e49446fbbcd9"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-d63b443f-f44e-4f83-a53e-526346b2c5f7",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6000000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [],
+            "trigger": "initial"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "scene.watch",
+              "armed": true
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 6100000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "scene.window",
+              "atMonoUs": 6500000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 6500000
+          },
+          "input": {
+            "timerId": "scene.window"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "scene.sample"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6510000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "resample": true
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4883064f-8047-4bea-abfb-bdae3e527aa6",
+                "atMs": 1510,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
+                "data": {
+                  "inventoryHash": "0c0beacef8877bbf",
+                  "routeKey": "/home",
+                  "trigger": "settled",
+                  "elements": [
+                    {
+                      "fingerprint": "aaaaaaaaaaaaaaaa",
+                      "canonicalPath": "Page#0/Button#0",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 7000000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "trigger": "scroll"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 7100000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "trigger": "scroll",
+            "scrollKey": "s1"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 7200000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.5,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "trigger": "scroll",
+            "scrollKey": "s1"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-791acda9-262e-48f9-b651-7baf9f086256",
+                "atMs": 2200,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
+                "data": {
+                  "inventoryHash": "0c0beacef8877bbf",
+                  "routeKey": "/home",
+                  "trigger": "scroll",
+                  "elements": [
+                    {
+                      "fingerprint": "aaaaaaaaaaaaaaaa",
+                      "canonicalPath": "Page#0/Button#0",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.5,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    }
+                  ],
+                  "scrollKey": "s1"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 8000000
+          },
+          "input": {
+            "unexpected": true
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.unexpected"
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
+        "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-d63b443f-f44e-4f83-a53e-526346b2c5f7",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07"
+        },
+        {
+          "id": "event-4883064f-8047-4bea-abfb-bdae3e527aa6",
+          "atMs": 1510,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
+          "data": {
+            "inventoryHash": "0c0beacef8877bbf",
+            "routeKey": "/home",
+            "trigger": "settled",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-791acda9-262e-48f9-b651-7baf9f086256",
+          "atMs": 2200,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
+          "data": {
+            "inventoryHash": "0c0beacef8877bbf",
+            "routeKey": "/home",
+            "trigger": "scroll",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.5,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              }
+            ],
+            "scrollKey": "s1"
+          }
+        }
+      ]
+    }
+  }
+}

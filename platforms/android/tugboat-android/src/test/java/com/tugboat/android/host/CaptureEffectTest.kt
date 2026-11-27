@@ -28,10 +28,68 @@ class CaptureEffectTest {
                     force = false,
                     scale = 0.8,
                     dHashBaseline = DHashBaseline("00ff", "ab"),
+                    trigger = "route",
                 ),
             ),
             effect,
         )
+    }
+
+    @Test
+    fun theSceneTriggerIsTheInteractionLabelElseTheCaptureTrigger() {
+        fun triggerOf(trigger: String, label: String? = null): String {
+            val extra = label?.let { ""","inventoryTrigger":"$it"""" } ?: ""
+            val json = """{"type":"capture.request","requestId":"c","trigger":"$trigger","force":true,"requireFreshPaint":true,""" +
+                """"dropWhenBusy":false,"notBeforeMonoUs":0,"context":{"routeEpoch":0,"boundaryGeneration":0}$extra}"""
+            return (EffectParser.parse("""{"effects":[$json]}""").single() as Effect.CaptureRequest).request.sceneTrigger
+        }
+
+        assertEquals("tap", triggerOf("interaction", "tap"))
+        assertEquals("scroll", triggerOf("interaction", "scroll"))
+        assertEquals("gesture", triggerOf("interaction", "gesture"))
+        assertEquals("resume", triggerOf("lifecycle"))
+        assertEquals("initial", triggerOf("initial"))
+        assertEquals("route", triggerOf("route"))
+        assertEquals("manual", triggerOf("manual"))
+    }
+
+    @Test
+    fun parsesTheSceneWatchAndSampleEffects() {
+        val effects = EffectParser.parse(
+            """{"effects":[{"type":"scene.watch","armed":true},{"type":"scene.sample"},{"type":"scene.watch","armed":false}]}""",
+        )
+
+        assertEquals(listOf(Effect.SceneWatch(true), Effect.SceneSample, Effect.SceneWatch(false)), effects)
+    }
+
+    @Test
+    fun theDispatcherRoutesTheSceneEffectsToTheWatchSink() {
+        val calls = ArrayList<String>()
+        val sink = object : SceneWatchSink {
+            override fun onSceneWatch(armed: Boolean) {
+                calls += "watch:$armed"
+            }
+
+            override fun onSceneSample() {
+                calls += "sample"
+            }
+        }
+        val dispatcher = EffectDispatcher(
+            timers = TimerExecutor(Handler(Looper.getMainLooper())) {},
+            http = object : HttpSender {
+                override fun send(request: HttpRequest, onResult: (TransportOutcome) -> Unit) = Unit
+            },
+            frames = FrameHandleTable(),
+            post = { _, _ -> },
+            captures = CaptureRequestSink.NONE,
+            scenes = sink,
+        )
+
+        EffectParser.parse(
+            """{"effects":[{"type":"scene.watch","armed":true},{"type":"scene.sample"},{"type":"scene.watch","armed":false}]}""",
+        ).forEach(dispatcher::dispatch)
+
+        assertEquals(listOf("watch:true", "sample", "watch:false"), calls)
     }
 
     @Test
