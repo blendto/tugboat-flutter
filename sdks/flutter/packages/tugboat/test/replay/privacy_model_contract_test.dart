@@ -439,7 +439,9 @@ void main() {
           key: boundaryKey,
           child: Directionality(
             textDirection: TextDirection.ltr,
-            child: Align(alignment: Alignment.topLeft, child: fade(state)),
+            // Centered: AnimatedSize offsets the stack and masks are clipped
+            // to the boundary, so a top-left child would be clipped.
+            child: Align(alignment: Alignment.center, child: fade(state)),
           ),
         );
         await tester.pumpWidget(app(CrossFadeState.showFirst));
