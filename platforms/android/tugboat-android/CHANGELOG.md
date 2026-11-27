@@ -5,6 +5,14 @@
 Unpublished. The native Android SDK for Views apps: public facade, engine
 wiring, window capture, and the Android Views adapter.
 
+- Views anchors match the Flutter adapter: a switch reports role `switch` (not
+  only `android.widget.Switch`: React Native's `ReactSwitch` and AndroidX
+  `SwitchCompat`, `SwitchMaterial` and `MaterialSwitch` too, matched by class
+  name); a text field reports actions `["input"]` only (it was `input`,
+  `longPress`, `tap`); a view name or `testID` containing `%`, `#` or `/` is
+  percent-escaped in `canonicalPath` (`%25`, `%23`, `%2F`), so the path stays
+  parseable. Names without those characters are unchanged.
+
 - Seams for the React Native SDK (no change for apps that do not use them):
   `Tugboat.setScreen(name, instanceId = name)` names the current screen
   without a `NavController` (a push, or a pop to an instance id already on the

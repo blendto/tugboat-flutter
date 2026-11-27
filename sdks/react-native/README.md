@@ -38,8 +38,7 @@ Then build `example/` (see its README). Known gaps in 0.0.3:
   activity, so `Tugboat.start` may run late.
 - Not yet handled: the screen name is lost when the activity is recreated; a
   `setScreen` while the activity is paused is dropped; a reused instance id with
-  a new name keeps the old name; a `testID` containing `#` or `/` is not escaped
-  in the canonical path; a late `start` skips launch correlation until the next
+  a new name keeps the old name; a late `start` skips launch correlation until the next
   resume.
 - Network: a call whose URL path has percent-encoded characters (spaces,
   non-ASCII) is not recorded. `captureNetwork: false` leaves an app's own
