@@ -732,7 +732,8 @@ finds the stack entry). `name` and `type` are validated but not read:
 which has none for a session's first navigation. `skippedInstanceIds` is
 allowed on `pop` only, with `departing`: the routes between the target and
 `departing`, which leave with it (Flutter `popUntil`, React Navigation
-`popTo`). It is one `pop` for the whole step: the stack loses `departing` and
+`popTo`); it must not name `departing` or `route`, and must not repeat an id
+(`invalid_message`). It is one `pop` for the whole step: the stack loses `departing` and
 every skipped route, `stackRevision` is the remaining length, `fromRoute` is
 the departing (top) route, and a tap that claims the navigation keeps its
 cause. Ids the engine has not seen are ignored. Every adapter knows its
