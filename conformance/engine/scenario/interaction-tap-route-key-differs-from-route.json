@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "interaction-tap-route-key-differs-from-route",
-  "description": "A tap on a seeded screen whose anchor was fingerprinted under a route key other than the route's name publishes the anchor's routeKey (fingerprintParts.routeKey), not the route_change route: a host that names its screens (React Native) keys them apart from the route the engine reports.",
+  "description": "A synthetic case: a tap on a seeded screen whose anchor was fingerprinted under a route key other than the route_change route publishes the anchor's routeKey (fingerprintParts.routeKey), not the route.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 7
