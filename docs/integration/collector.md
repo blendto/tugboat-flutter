@@ -137,10 +137,11 @@ SDK's own id, for hosts that want to log it next to their user id.
 
 The native Android and Swift SDKs follow the same rules: `AppInfo` /
 `TugboatConfig.App` take an optional `installationId`; when it is blank the
-SDK mints and persists its own id (`tugboat/installation_id` under
-`noBackupFilesDir` on Android, so Auto Backup never copies it to another
-device; under the Application Support directory on iOS, seeded with
-`identifierForVendor`) and sends it as `appInfo.installationId`. A non-blank
+SDK mints and persists its own id (`tugboat/installation_id` under `filesDir`
+on Android and under the Application Support directory on iOS, the same
+places Flutter keeps it; on iOS the first value is `identifierForVendor`) and
+sends it as `appInfo.installationId`. Like Flutter's, the file is not excluded
+from backup. A non-blank
 host id wins. Their session and event ids are `session-<UUIDv4>` and
 `event-<UUIDv4>` too: the host passes the engine 32 fresh random bytes with
 every `session.start`, because the engine itself does no I/O.

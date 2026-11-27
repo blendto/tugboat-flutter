@@ -11,9 +11,11 @@ wiring, window capture, and the Android Views adapter.
   the host sends the engine 32 fresh random bytes (`session.start.idSeed`)
   per session. `AppInfo.installationId` now defaults to `""`: when blank the
   SDK mints a random UUID on first launch, keeps it in
-  `noBackupFilesDir/tugboat/installation_id` (so Auto Backup never restores it
-  onto another device), and sends it as `appInfo.installationId`, as Flutter
-  0.11.5. A non-blank host id wins.
+  `filesDir/tugboat/installation_id` (where Flutter keeps it), and sends it as
+  `appInfo.installationId`, as Flutter 0.11.5. The file is read or written on
+  the engine thread, before `session.start`, never on the main thread. A
+  non-blank host id wins. `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH` print the new
+  `session-<UUIDv4>` id.
 - Frame backend name (contract change: `frameMetadata` values):
   `requestedBackend` and `resolvedBackend` are `androidPixelCopy`, no
   longer `nativeCpuExperimental`. Needs a collector that accepts the native

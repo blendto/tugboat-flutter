@@ -32,7 +32,7 @@ class LaunchCorrelationTest {
         sessionWallUs: Long? = 1_781_827_200_000_000L,
         lifecycle: LifecycleSnapshot = LifecycleSnapshot(TugboatLifecycleState.ACTIVE, null),
     ) = LaunchCorrelation(
-        captureSessionId = { sessionWallUs?.let(LaunchCorrelation::captureSessionId) },
+        captureSessionId = { sessionWallUs?.let { "session-$it" } },
         lifecycle = { lifecycle },
         emit = lines::add,
     )

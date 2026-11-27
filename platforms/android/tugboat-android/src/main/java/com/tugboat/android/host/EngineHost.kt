@@ -63,6 +63,21 @@ internal class EngineHost(
     fun postUntimed(type: String, inputJson: String) = enqueue(EngineMessage(type, inputJson, at = null))
 
     /**
+     * Like [postUntimed], but [inputJson] runs on the engine thread when the
+     * message is reached, after everything posted before it. For an input
+     * that needs blocking work (the installation id file): the caller does
+     * not wait, and the messages queued behind it still go out in order.
+     */
+    fun postUntimedLazily(type: String, inputJson: () -> String) {
+        accepting && handler.post {
+            if (active) {
+                val json = guarded("lazy input") { EngineMessage(type, inputJson(), at = null).toJson() }
+                if (json != null) process(json, emptyList())
+            }
+        }
+    }
+
+    /**
      * Submits `engine.dispose`, then cancels timers, closes IO, destroys the
      * handle, and frees frames, after already-posted work.
      */

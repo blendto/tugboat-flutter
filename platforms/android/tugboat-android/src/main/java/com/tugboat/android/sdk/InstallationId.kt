@@ -2,7 +2,9 @@ package com.tugboat.android.sdk
 
 import android.content.Context
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.UUID
 
@@ -19,8 +21,13 @@ import java.util.UUID
  * failed write is retried on later reads. When several stores race on first
  * launch, the file that ends up on disk wins and every store returns it.
  *
- * The file lives under `noBackupFilesDir`, so Auto Backup never restores one
- * install's id onto another device.
+ * The file lives under `filesDir`, where Flutter's support directory is on
+ * Android (`path_provider`'s `getApplicationSupportDirectory`), at the same
+ * relative path. Like Flutter's, it is not excluded from Auto Backup.
+ *
+ * Reading and writing it is blocking disk work: the runtime does it on the
+ * engine thread ([com.tugboat.android.host.EngineHost.postUntimedLazily]),
+ * never on the main thread.
  */
 internal class InstallationIdStore(
     /** `<dir>/tugboat/installation_id` is the file; null when the directory is unavailable. */
@@ -86,9 +93,9 @@ internal class InstallationIdStore(
         /** Longest id read back from disk; anything longer is treated as corrupt. */
         const val MAX_LENGTH = 128
 
-        /** The store of [context], under `noBackupFilesDir`. */
+        /** The store of [context], under `filesDir`. */
         fun forContext(context: Context): InstallationIdStore =
-            InstallationIdStore(directory = { context.noBackupFilesDir })
+            InstallationIdStore(directory = { context.filesDir })
 
         /** A non-empty (after trim) host id wins; otherwise the SDK's own. */
         fun resolve(hostInstallationId: String?, sdkInstallationId: () -> String): String {
@@ -101,7 +108,11 @@ internal class InstallationIdStore(
         private fun createExclusive(file: File, id: String): Boolean {
             if (!file.createNewFile()) return false
             try {
-                file.writeText(id)
+                // Flushed to disk before the file counts as written, as Dart's `flush: true`.
+                FileOutputStream(file).use { out ->
+                    out.write(id.toByteArray(Charsets.UTF_8))
+                    out.fd.sync()
+                }
             } catch (e: IOException) {
                 file.delete()
                 throw e
@@ -144,6 +155,23 @@ internal object IdSeed {
         val bytes = ByteArray(32).also(random::nextBytes)
         return bytes.joinToString("") { "%02x".format(it) }
     }
+
+    /**
+     * The `captureSessionId` the engine mints for [seedHex]: `session-` and the UUIDv4 of the first 16 bytes of
+     * SHA-256(seed || big-endian stream index 0) (core/session-engine session.cpp). Derived here so
+     * `TUGBOAT_LAUNCH` can print it before the engine thread has answered; `InstallationIdTest` pins it to the
+     * engine's vector.
+     */
+    fun sessionId(seedHex: String): String {
+        val seed = ByteArray(32) { seedHex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+        val digest = MessageDigest.getInstance("SHA-256").digest(seed + ByteArray(8))
+        val b = digest.copyOf(16)
+        b[6] = ((b[6].toInt() and 0x0f) or 0x40).toByte()
+        b[8] = ((b[8].toInt() and 0x3f) or 0x80).toByte()
+        val hex = b.joinToString("") { "%02x".format(it) }
+        return "session-${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-" +
+            "${hex.substring(16, 20)}-${hex.substring(20)}"
+    }
 }
 
 /** The process's one [InstallationIdStore], so every session reports the same id. */
@@ -153,6 +181,12 @@ internal object InstallationIds {
     @Synchronized
     fun forContext(context: Context): InstallationIdStore =
         store ?: InstallationIdStore.forContext(context).also { store = it }
+
+    /** Tests replace the process's store (null restores the default). */
+    @Synchronized
+    internal fun setStoreForTesting(replacement: InstallationIdStore?) {
+        store = replacement
+    }
 
     /** [app] with the installation id a session reports: the host's when non-blank, else the SDK's. */
     fun resolve(context: Context, app: com.tugboat.android.AppInfo): com.tugboat.android.AppInfo =

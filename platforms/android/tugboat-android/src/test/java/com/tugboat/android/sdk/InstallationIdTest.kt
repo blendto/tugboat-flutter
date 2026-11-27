@@ -102,4 +102,40 @@ class InstallationIdTest {
         assertTrue(Regex("^[0-9a-f]{64}$").matches(a))
         assertNotEquals(a, IdSeed.generate())
     }
+
+    @Test
+    fun racingStoresAdoptTheIdThatReachedDisk() {
+        val results = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val start = java.util.concurrent.CountDownLatch(1)
+        val threads = (1..6).map { n ->
+            Thread {
+                start.await()
+                results += store(mint = { "racer-$n" }).read()
+            }.also { it.start() }
+        }
+        start.countDown()
+        threads.forEach { it.join() }
+        assertEquals(1, results.toSet().size)
+        assertEquals(results.first(), idFile().readText())
+    }
+
+    @Test
+    fun theWrittenFileHoldsExactlyTheId() {
+        val id = store(mint = { "exact-id" }).read()
+        assertEquals(id, idFile().readText(Charsets.UTF_8))
+        assertEquals(id.length.toLong(), idFile().length())
+    }
+
+    @Test
+    fun theSessionIdIsTheEnginesForTheSeed() {
+        // core/session-engine: seed 0x11 * 32 -> stream index 0 (tb_session_engine_stateful_test).
+        assertEquals(
+            "session-f81644b2-12d3-462e-b98c-29d15b723874",
+            IdSeed.sessionId("11".repeat(32)),
+        )
+        assertEquals(
+            "session-a9d6e500-293a-48bd-b8cb-e213d07ab71f",
+            IdSeed.sessionId("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"),
+        )
+    }
 }

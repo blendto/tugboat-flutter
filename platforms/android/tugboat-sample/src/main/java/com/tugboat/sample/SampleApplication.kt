@@ -7,7 +7,6 @@ import com.tugboat.android.Tugboat
 import com.tugboat.android.TugboatConfig
 import com.tugboat.android.compose.ComposeMasking
 import com.tugboat.android.compose.TugboatCompose
-import java.util.UUID
 
 /** Starts Tugboat before any activity exists, as the SDK requires. */
 class SampleApplication : Application() {
@@ -22,7 +21,7 @@ class SampleApplication : Application() {
                     version = BuildConfig.VERSION_NAME,
                     buildNumber = BuildConfig.VERSION_CODE.toString(),
                     appId = BuildConfig.APPLICATION_ID,
-                    installationId = installationId(),
+                    // No installationId: the SDK mints and keeps its own.
                 ),
                 // The SDK default is dormant until Tugboat.activate; the sample
                 // records from launch (`-Ptugboat.enabled=false` to change it).
@@ -36,18 +35,5 @@ class SampleApplication : Application() {
         // ComposeSemanticsActivity opts into semantics masking while resumed.
         TugboatCompose.install(composeMasking = ComposeMasking.WholeHost)
         Tugboat.setTraits(mapOf("sample" to true))
-    }
-
-    /** A UUID kept for the life of the install. */
-    private fun installationId(): String {
-        val preferences = getSharedPreferences("tugboat-sample", MODE_PRIVATE)
-        preferences.getString(KEY_INSTALLATION_ID, null)?.let { return it }
-        val id = UUID.randomUUID().toString()
-        preferences.edit().putString(KEY_INSTALLATION_ID, id).apply()
-        return id
-    }
-
-    private companion object {
-        const val KEY_INSTALLATION_ID = "installationId"
     }
 }

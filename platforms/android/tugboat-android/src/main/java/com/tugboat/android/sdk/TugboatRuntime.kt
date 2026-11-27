@@ -55,7 +55,7 @@ internal class TugboatRuntime private constructor(
     private val stopSequence: StopSequence,
     /** Replays the durable outbox while this session runs; null when [TugboatConfig.durableOutbox] is off. */
     private val drainer: OutboxDrainer?,
-    /** `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH`'s `captureSessionId`: `session-<wallUs>` of `session.start`. */
+    /** `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH`'s `captureSessionId`: the engine's session id for this session's `idSeed`. */
     val captureSessionId: String,
     /** Coded events and network calls; any thread. */
     val evidence: EvidenceRecorder,
@@ -121,8 +121,8 @@ internal class TugboatRuntime private constructor(
             stopSequence: StopSequence = StopSequence(),
         ): TugboatRuntime? {
             val device = DeviceSnapshot.read(application)
-            // The host's installation id when it gave one, else the SDK's own (BLE-618).
-            val metadata = HostMetadata(InstallationIds.resolve(application, config.app), device)
+            // Validates what the config and device give; the installation id is resolved later, off the main thread.
+            val metadata = HostMetadata(config.app, device)
             val missing = metadata.missingFields() + collectorProblems(config)
             if (missing.isNotEmpty()) {
                 Log.e(TAG, "Tugboat not started: required session_start fields are missing: $missing")
@@ -237,7 +237,14 @@ internal class TugboatRuntime private constructor(
             )
             val host = EngineHost.start(transport, frames, http = watcher, captures = captures)
             engineHost.value = host
-            host.postUntimed(SessionMessages.ENGINE_CONFIGURE, EngineConfiguration.build(config, metadata, gesture).toString())
+            // The installation id (the host's when non-blank, else the SDK's own file) is read, or minted
+            // and written, on the engine thread when this message is reached: `start` does not wait for the
+            // disk, and the id is in place before `session.start` and so before the first `session_start`.
+            host.postUntimedLazily(SessionMessages.ENGINE_CONFIGURE) {
+                val resolved = HostMetadata(InstallationIds.resolve(application, config.app), device)
+                EngineConfiguration.build(config, resolved, gesture).toString()
+            }
+            val idSeed = IdSeed.generate()
             host.post(
                 SessionMessages.SESSION_START,
                 SessionMessages.sessionStart(
@@ -246,6 +253,7 @@ internal class TugboatRuntime private constructor(
                     session.sessionEpoch,
                     session.activationRequestId,
                     config.explorationRunId,
+                    idSeed,
                 ),
                 startAt,
             )
@@ -271,7 +279,7 @@ internal class TugboatRuntime private constructor(
             drainer?.start()
             return TugboatRuntime(
                 host, adapter, lifecycle, localeBridge, foreground, captures, watcher, clock, stopSequence, drainer,
-                LaunchCorrelation.captureSessionId(startAt.wallUs), evidence,
+                IdSeed.sessionId(idSeed), evidence,
             )
         }
     }
